@@ -1,0 +1,373 @@
+{
+    "config_version": 0.2,
+    "description": "Emulate Windows 10 with full memory tracing and in-memory string analysis",
+    "emu_engine": "unicorn",
+    "timeout": 60,
+    "system": "windows",
+
+    "analysis": {
+        "memory_tracing": true,
+        "strings": true
+    },
+
+    "exceptions": {
+        "dispatch_handlers": true
+    },
+
+    "os_ver": {
+            "name": "windows",
+            "major": 10,
+            "minor": 0,
+            "build": 1703
+    },
+
+    "current_dir": "C:\\Windows\\system32",
+
+    "env": {
+        "comspec": "C:\\Windows\\system32\\cmd.exe",
+        "systemroot": "C:\\Windows\\system32",
+        "windir": "C:\\Windows",
+        "temp": "C:\\Windows\\temp\\"
+    },
+
+    "hostname": "mybox",
+
+    "user": {
+        "name": "user"
+    },
+
+    "symlinks": [
+        {
+            "name": "\\??\\C:",
+            "target": "\\Device\\HarddiskVolume1"
+        },
+        {
+            "name": "\\??\\PhysicalDrive0",
+            "target": "\\Device\\Harddisk0\\DR0"
+        }
+    ],
+
+    "filesystem": {
+        "files": [
+            {
+                "mode": "full_path",
+                "emu_path": "c:\\Windows\\system32\\cmd.exe",
+                "path": "$ROOT$/resources/files/default.bin"
+            },
+            {
+                "mode": "full_path",
+                "emu_path": "c:\\Windows\\system32\\svchost.exe",
+                "path": "$ROOT$/resources/files/default.bin"
+            },
+            { 
+                "mode": "default",
+                "path": "$ROOT$/resources/files/default.bin"
+            }
+        ]
+    },
+
+    "registry": {
+        "keys": [
+            {
+                "path": "HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\usbsamp",
+                "values": [
+                    {
+                        "name": "DisplayName",
+                        "type": "REG_SZ",
+                        "data": "An example service"
+                    },
+                    {
+                        "name": "Start",
+                        "type": "REG_DWORD",
+                        "data": "0x00000003"
+                    }
+                ]
+            }
+        ]
+    },
+
+    "network": {
+
+        "dns": {
+            "names":{
+                "default": "10.1.2.3",
+                "google.com": "8.8.8.8",
+                "localhost": "127.0.0.1"
+            },
+            "txt":[
+                {
+                    "name": "default",
+                    "path": "$ROOT$/resources/web/default.bin" 
+                }
+            ]
+        },
+
+        "http": {
+            "responses": [
+                {
+                    "verb": "GET",
+                    "files": [
+                        {
+                            "mode": "by_ext",
+                            "ext": "gif",
+                            "path": "$ROOT$/resources/web/decoy.gif"
+                        },
+                        {
+                            "mode": "by_ext",
+                            "ext": "jpg",
+                            "path": "$ROOT$/resources/web/decoy.jpg"
+                        },
+                        {
+                            "mode": "default",
+                            "path": "$ROOT$/resources/web/default.bin"
+
+                        }
+                    ]          
+                }
+            ]
+
+        },
+        "winsock": {
+            "responses": [
+                {
+                    "mode": "default",
+                    "path": "$ROOT$/resources/web/stager.bin"
+                }
+            ]
+        }
+    },
+
+    "processes": [
+
+        {
+            "name": "System",
+            "base_addr": "0x80000000",
+            "pid": 4,
+            "path": ""
+        },
+        {
+            "name": "smss",
+            "base_addr": "0x05000000",
+            "path": "C:\\Windows\\system32\\smss.exe"
+        },
+        {
+            "name": "csrss",
+            "base_addr": "0x05510000",
+            "path": "C:\\Windows\\system32\\csrss.exe"
+        },
+        {
+            "name": "wininit",
+            "base_addr": "0x05520000",
+            "path": "C:\\Windows\\system32\\wininit.exe"
+        },
+        {
+            "name": "services",
+            "base_addr": "0x05530000",
+            "path": "C:\\Windows\\system32\\services.exe"
+        },
+        {
+            "name": "lsass",
+            "base_addr": "0x05540000",
+            "path": "C:\\Windows\\system32\\lsass.exe"
+        },
+        {
+            "name": "winlogon",
+            "base_addr": "0x05550000",
+            "path": "C:\\Windows\\system32\\winlogon.exe"
+        },
+        {
+            "name": "svchost",
+            "base_addr": "0x05560000",
+            "path": "C:\\Windows\\system32\\svchost.exe"
+        },
+        {
+            "name": "explorer",
+            "base_addr": "0x05570000",
+            "path": "C:\\Windows\\explorer.exe"
+        },
+        {
+            "name": "main",
+            "base_addr": "0x00400000",
+            "path": "C:\\Windows\\system32\\main.exe",
+            "command_line": "svchost.exe",
+            "is_main_exe": true,
+            "session": 1
+        }
+    ],
+
+    "modules": {
+        "modules_always_exist": false,
+        "module_directory_x86": "$ROOT$/winenv/decoys/x86",
+        "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
+
+        "system_modules": [
+            {
+                "name": "ntoskrnl",
+                "base_addr": "0x803d0000",
+                "path": "C:\\Windows\\system32\\ntoskrnl.exe"
+            },
+            {
+                "name": "hal",
+                "base_addr": "0xC1000000",
+                "path": "C:\\Windows\\system32\\hal.dll"
+            },
+    
+            {
+                "name": "ntfs",
+                "base_addr": "0xC2000000",
+                "path": "C:\\Windows\\system32\\drivers\\ntfs.sys"
+            },
+    
+            {
+                "name": "netio",
+                "base_addr": "0xD4000000",
+                "path": "C:\\Windows\\system32\\drivers\\netio.sys"
+            },
+    
+            {
+                "name": "volmgr",
+                "base_addr": "0xC6000000",
+                "path": "C:\\Windows\\system32\\drivers\\volmgr.sys",
+                "driver": {
+                    "name": "\\Driver\\volmgr",
+                    "devices": [
+                        {
+                            "name": "\\Device\\HarddiskVolume1"
+                        }
+                    ]
+                }
+            },
+    
+            {
+                "name": "disk",
+                "base_addr": "0xC3000000",
+                "path": "C:\\Windows\\system32\\drivers\\disk.sys",
+                "driver": {
+                    "name": "\\Driver\\Disk",
+                    "devices": [
+                        {
+                            "name": "\\Device\\Harddisk0\\DR0"
+                        }
+                    ]
+                }
+            },
+    
+            {
+                "name": "tcpip",
+                "base_addr": "0xC4000000",
+                "path": "C:\\Windows\\system32\\drivers\\tcpip.sys",
+                "driver": {
+                    "name": "\\Driver\\Tcpip",
+                    "devices": [
+                        {
+                            "name": "\\Device\\Tcp"
+                        }
+                    ]
+                }
+            },
+    
+            {
+                "name": "ndis",
+                "base_addr": "0xC7000000",
+                "path": "C:\\Windows\\system32\\drivers\\ndis.sys",
+                "driver": {
+                    "name": "\\Driver\\Ndis",
+                    "devices": [
+                        {
+                            "name": "\\Device\\Ndis"
+                        }
+                    ]
+                }
+            }
+        ],
+
+        "user_modules": [
+                {
+                    "name": "kernel32",
+                    "base_addr": "0x77000000",
+                    "path": "C:\\Windows\\system32\\kernel32.dll"
+                },
+                {
+                    "name": "ntdll",
+                    "base_addr": "0x7C000000",
+                    "path": "C:\\Windows\\system32\\ntdll.dll"
+                },
+
+                {
+                    "name": "ws2_32",
+                    "base_addr": "0x78C00000",
+                    "path": "C:\\Windows\\system32\\ws2_32.dll"
+                },
+                {
+                    "name": "wininet",
+                    "base_addr": "0x7BC00000",
+                    "path": "C:\\Windows\\system32\\wininet.dll"
+                },
+                {
+                    "name": "winhttp",
+                    "base_addr": "0x7BA00000",
+                    "path": "C:\\Windows\\system32\\winhttp.dll"
+                },
+                {
+                    "name": "advapi32",
+                    "base_addr": "0x78000000",
+                    "path": "C:\\Windows\\system32\\advapi32.dll"
+                },
+                {
+                    "name": "user32",
+                    "base_addr": "0x77D10000",
+                    "path": "C:\\Windows\\system32\\user32.dll"
+                },
+                {
+                    "name": "gdi32",
+                    "base_addr": "0x77E10000",
+                    "path": "C:\\Windows\\system32\\gdi32.dll"
+                },
+                {
+                    "name": "msvcrt",
+                    "base_addr": "0x77F10000",
+                    "path": "C:\\Windows\\system32\\msvcrt.dll"
+                },
+                {
+                    "name": "dnsapi",
+                    "base_addr": "0x78F10000",
+                    "path": "C:\\Windows\\system32\\dnsapi.dll"
+                },
+                {
+                    "name": "shlwapi",
+                    "base_addr": "0x67000000",
+                    "path": "C:\\Windows\\system32\\shlwapi.dll"
+                },
+                {
+                    "name": "advpack",
+                    "base_addr": "0x68F00000",
+                    "path": "C:\\Windows\\system32\\advpack.dll"
+                },
+                {
+                    "name": "dbghelp",
+                    "base_addr": "0x62000000",
+                    "path": "C:\\Windows\\system32\\dbghelp.dll"
+                },
+                {
+                    "name": "shell32",
+                    "base_addr": "0x69000000",
+                    "path": "C:\\Windows\\system32\\shell32.dll"
+                },
+                {
+                    "name": "WTSAPI32",
+                    "base_addr": "0x63000000",
+                    "path": "C:\\Windows\\system32\\WTSAPI32.dll"
+                },
+                {
+                    "name": "CRYPT32",
+                    "base_addr": "0x58000000",
+                    "path": "C:\\Windows\\system32\\CRYPT32.dll"
+                },
+                {
+                    "name": "mscoree",
+                    "base_addr": "0x53000000",
+                    "path": "C:\\Windows\\system32\\mscoree.dll"
+                }
+        ]
+    }
+}

@@ -1,0 +1,6 @@
+global-exclude *.pyc
+
+recursive-include speakeasy/winenv/decoys/ *
+recursive-include speakeasy/resources/ *
+include speakeasy/configs/*.json
+include speakeasy/config_schema.json

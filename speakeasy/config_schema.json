@@ -1,0 +1,532 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "TODO",
+    "title": "SpeakEasy configuration JSON schema",
+    "description": "SpeakEasy configuration",
+    "type": "object",
+    "definitions": {
+        "file": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "full_path",
+                        "by_ext",
+                        "default"
+                    ]
+                },
+                "emu_path": {
+                    "type": "string",
+                    "description": "The path of the target file in the emulation space (e.g. \"C:\\boot.ini\""
+                },
+                "byte_fill": {
+                    "type": "object",
+                    "properties": {
+                        "byte": {
+                            "type": "string"
+                        },
+                        "size": {
+                            "type": "number"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "byte",
+                        "size"
+                    ]
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Path to the physical file that will be used to provide data to the emulated file"
+                },
+                "ext": {
+                    "type": "string",
+                    "description": "Catch-all for specific file extensions"
+                }
+            },
+            "additionalProperties": false,
+            "anyOf": [
+                {
+                    "properties": {
+                        "mode": {
+                            "const": "default"
+                        }
+                    },
+                    "required": [
+                        "mode"
+                    ]
+                },
+                 {
+                    "properties": {
+                        "mode": {
+                            "const": "full_path"
+                        }
+                    },
+                    "required": [
+                        "mode",
+                        "emu_path"
+                    ]
+                },
+                {
+                    "properties": {
+                        "mode": {
+                            "const": "by_ext"
+                        }
+                    },
+                    "required": [
+                        "mode",
+                        "ext"
+                    ]
+                }
+            ]
+        }
+    },
+    "properties": {
+        "config_version": {
+            "type": "number",
+            "enum": [
+                0.2
+            ],
+            "description": "config format version"
+        },
+        "description": {
+            "type": "string",
+            "description": "config description"
+        },
+        "emu_engine": {
+            "type": "string",
+            "enum": [
+                "unicorn"
+            ],
+            "description": "emulation engine to use"
+        },
+        "timeout": {
+            "type": "number",
+            "description": "emulation timeout"
+        },
+        "max_api_count": {
+            "type": "number",
+            "description": "Maximum number of API calls allowed"
+        },
+        "system": {
+            "type": "string",
+            "enum": [
+                "windows"
+            ],
+            "description": "System type to emulate"
+        },
+        "analysis": {
+            "type": "object",
+            "properties": {
+                "memory_tracing": {
+                    "type": "boolean",
+                    "description": "Enable memory tracing"
+                },
+                "strings": {
+                    "type": "boolean",
+                    "description": "Return static and in-memory strings"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "memory_tracing",
+                "strings"
+            ]
+        },
+        "keep_memory_on_free": {
+            "type": "boolean",
+            "description": "Enables retaining all allocated memory to include in the output memory snapshot"
+        },
+        "exceptions": {
+            "type": "object",
+            "properties": {
+                "dispatch_handlers": {
+                    "type": "boolean",
+                    "description": "When set to \"true\", SEH exception handlers will be dispatched to the emulated program"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "dispatch_handlers"
+            ]
+        },
+        "os_ver": {
+            "type": "object",
+            "description": "OS version information",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "enum": [
+                        "windows"
+                    ]
+                },
+                "major": {
+                    "type": "number"
+                },
+                "minor": {
+                    "type": "number"
+                },
+                "build": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "name"
+            ]
+        },
+        "current_dir": {
+            "type": "string",
+            "description": "Directory to set as CWD for the emulation"
+        },
+        "command_line": {
+            "type": "string",
+            "description": "Command line string to pass to the process"
+        },
+        "env": {
+            "type": "object",
+            "description": "Key-value environment variables to use",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "hostname": {
+            "type": "string",
+            "description": "Hostname returned during emulation"
+        },
+        "user": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Username returned during emulation"
+                },
+                "is_admin": {
+                    "type": "boolean",
+                    "description": "Determines if this user is an administrator"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "name"
+            ]
+        },
+        "symlinks": {
+            "type": "array",
+            "description": "Lists symbolic links to present to the emulated sample",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The symbolic link name (e.g. \"\\??\\C:\""
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "Name of the object the symbolic link resolves to"
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "name",
+                    "target"
+                ]
+            }
+        },
+        "filesystem": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/file"
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "files"
+            ]
+        },
+        "registry": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string"
+                            },
+                            "values": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Name of the registry value"
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "description": "Type of data e.g. string, dword, etx."
+                                        },
+                                        "data": {
+                                            "type": "string",
+                                            "description": "The data to present when the registry value is accessed"
+                                        }
+                                    },
+                                    "required": [
+                                        "name",
+                                        "type",
+                                        "data"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        },
+                        "required": [
+                            "path",
+                            "values"
+                        ],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": [
+                "keys"
+            ],
+            "additionalProperties": false
+        },
+        "network": {
+            "type": "object",
+            "properties": {
+                "dns": {
+                    "type": "object",
+                    "properties": {
+                        "names": {
+                            "type": "object",
+                            "description": "Key-value dictionary of hostnames (key) to IP address (value)",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
+                        "txt": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Name of the DNS TXT record"
+                                    },
+                                    "path": {
+                                        "type": "string",
+                                        "description": "Path to physical file that will be presented when a DNS TXT record is accessed"
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "http": {
+                    "type": "object",
+                    "properties": {
+                        "responses": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "verb": {
+                                        "type": "string",
+                                        "enum": [
+                                            "GET",
+                                            "POST",
+                                            "HEAD"
+                                        ]
+                                    },
+                                    "files": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/definitions/file"
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "winsock": {
+                    "type": "object",
+                    "properties": {
+                        "responses": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/file"
+                            }
+                        }
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "processes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the process"
+                    },
+                    "base_addr": {
+                        "type": "string",
+                        "description": "Base address of the main executable image"
+                    },
+                    "pid": {
+                        "type": "number",
+                        "description": "Hardcoded pid to assign to the process"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Emulated path of the main executable image"
+                    },
+                    "command_line": {
+                        "type": "string",
+                        "description": "Command line to assign to a process when a sample accesses it"
+                    },
+                    "is_main_exe": {
+                        "type": "boolean",
+                        "description": "When set, this process will be a container to use when emulating shellcode or libraries"
+                    },
+                    "session": {
+                        "type": "number",
+                        "description": "Windows session number to assign to process"
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "name",
+                    "base_addr",
+                    "path"
+                ]
+            }
+        },
+        "modules": {
+            "type": "object",
+            "properties": {
+                "modules_always_exist": {
+                    "type": "boolean",
+                    "description": "When a sample attempts to load a module, always present a decoy module"
+                },
+                "user_modules": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the system module"
+                            },
+                            "base_addr": {
+                                "type": "string",
+                                "description": "Requested base address (in hex) that the module will be loaded at"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Emulated full path that will be presented to samples"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": [
+                            "name",
+                            "base_addr",
+                            "path"
+                        ]
+                    }
+                },
+                "system_modules": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the system module"
+                            },
+                            "base_addr": {
+                                "type": "string",
+                                "description": "Requested base address (in hex) that the module will be loaded at"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Emulated full path that will be presented to samples"
+                            },
+                            "driver": {
+                                "type": "object",
+                                "description": "",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Kernel DRIVER_OBJECT to present to the kernel emulator"
+                                    },
+                                    "devices": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string",
+                                                    "description": "Device objects associated with the driver object"
+                                                }
+                                            },
+                                            "required": [
+                                                "name"
+                                            ],
+                                            "additionalProperties": false
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "required": [
+                                    "name"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": [
+                            "name",
+                            "base_addr",
+                            "path"
+                        ]
+                    }
+                }        
+            }
+        }
+    },
+    "additionalProperties": false,
+    "required": [
+        "config_version",
+        "emu_engine",
+        "timeout",
+        "system",
+        "analysis",
+        "exceptions",
+        "os_ver",
+        "current_dir",
+        "env",
+        "hostname",
+        "user",
+        "symlinks",
+        "filesystem",
+        "network",
+        "processes",
+        "modules"
+    ]
+}

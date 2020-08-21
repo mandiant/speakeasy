@@ -1,0 +1,734 @@
+# Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+
+import math
+import struct
+
+import speakeasy.winenv.arch as e_arch
+import speakeasy.winenv.defs.windows.windows as windef
+
+from .. import api
+
+EINVAL = 22
+_TRUNCATE = 0xFFFFFFFF
+
+TIME_BASE = 1576292568
+RAND_BASE = 0
+
+
+class Msvcrt(api.ApiHandler):
+    """
+    Implements functions from various versions of the C runtime on Windows
+    """
+    name = 'msvcrt'
+    apihook = api.ApiHandler.apihook
+    impdata = api.ApiHandler.impdata
+
+    def __init__(self, emu):
+
+        super(Msvcrt, self).__init__(emu)
+
+        self.stdin = 0
+        self.stdout = 1
+        self.stderr = 2
+
+        self.rand_int = RAND_BASE
+
+        self.funcs = {}
+        self.data = {}
+        self.wintypes = windef
+
+        super(Msvcrt, self).__get_hook_attrs__(self)
+
+    def hex_to_double(self, x):
+        x = x.to_bytes(8, 'little')
+        x = struct.unpack('d', x)[0]
+        return x
+
+    def double_to_hex(self, x):
+        return struct.unpack('<Q', struct.pack('<d', x))[0]
+
+    @impdata('_acmdln')
+    def _acmdln(self, ptr=0):
+        """Command line global CRT variable"""
+
+        cmdln = ptr
+        _argv = self.emu.get_argv()
+        _argv = " ".join(_argv).encode('utf-8')
+
+        ptr_size = self.emu.get_ptr_size()
+
+        if not ptr:
+            cmdln = self.mem_alloc(len(_argv) + ptr_size,
+                                   base=None, tag='api.msvcrt._acmdln')
+            p_cmdln = cmdln + ptr_size
+            self.emu.mem_write(cmdln, p_cmdln.to_bytes(ptr_size, 'little'))
+            self.emu.mem_write(p_cmdln, _argv)
+        return cmdln
+
+    # Reference: https://wiki.osdev.org/Visual_C%2B%2B_Runtime
+    @apihook('_initterm_e', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _initterm_e(self, emu, argv, ctx={}):
+        """
+        static int _initterm_e(_PIFV * pfbegin,
+                                 _PIFV * pfend)
+        """
+
+        pfbegin, pfend = argv
+
+        rv = 0
+
+        return rv
+
+    @apihook('_initterm', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _initterm(self, emu, argv, ctx={}):
+        """static void _initterm (_PVFV * pfbegin, _PVFV * pfend)"""
+
+        pfbegin, pfend = argv
+
+        rv = 0
+
+        return rv
+
+    @apihook('__getmainargs', argc=5)
+    def __getmainargs(self, emu, argv, ctx={}):
+        """
+        int __getmainargs(
+            int * _Argc,
+            char *** _Argv,
+            char *** _Env,
+            int _DoWildCard,
+            _startupinfo * _StartInfo);
+        """
+
+        _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
+        rv = 0
+
+        return rv
+
+    @apihook('__p___wargv', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___wargv(self, emu, argv, ctx={}):
+        """WCHAR *** __p___wargv ()"""
+
+        ptr_size = self.get_ptr_size()
+        _argv = emu.get_argv()
+
+        argv = [(a + '\x00\x00\x00\x00').encode('utf-16le') for a in _argv]
+        array_size = (ptr_size * (len(argv) + 2))
+        total = sum([len(a) for a in argv])
+        total += array_size
+
+        sptr = 0
+        pptr = 0
+
+        arg_mem = self.mem_alloc(size=total, tag='api.argv')
+        pptr = arg_mem + ptr_size
+        self.mem_write(arg_mem, pptr.to_bytes(ptr_size, 'little'))
+        sptr = pptr + array_size
+
+        for a in argv:
+            self.mem_write(pptr, sptr.to_bytes(ptr_size, 'little'))
+            pptr += ptr_size
+            self.mem_write(sptr, a)
+            sptr += len(a)
+        self.mem_write(pptr, b'\x00' * ptr_size)
+        rv = arg_mem
+
+        # TODO: dispatch the VFV function array
+        return rv
+
+    @apihook('__p___argv', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___argv(self, emu, argv, ctx={}):
+        """char *** __p___argv ()"""
+
+        ptr_size = self.get_ptr_size()
+        _argv = emu.get_argv()
+
+        argv = [(a + '\x00\x00\x00\x00').encode('utf-8') for a in _argv]
+
+        array_size = (ptr_size * (len(argv) + 1))
+        total = sum([len(a) for a in argv])
+        total += array_size
+
+        sptr = 0
+        pptr = 0
+
+        arg_mem = self.mem_alloc(size=total, tag='api.argv')
+        pptr = arg_mem + ptr_size
+        self.mem_write(arg_mem, pptr.to_bytes(ptr_size, 'little'))
+        sptr = pptr + array_size
+
+        for a in argv:
+            self.mem_write(pptr, sptr.to_bytes(ptr_size, 'little'))
+            pptr += ptr_size
+            self.mem_write(sptr, a)
+            sptr += len(a)
+        self.mem_write(pptr, b'\x00' * ptr_size)
+
+        rv = arg_mem
+        return rv
+
+    @apihook('__p___argc', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___argc(self, emu, argv, ctx={}):
+        """int * __p___argc ()"""
+
+        _argv = emu.get_argv()
+
+        argc = self.mem_alloc(size=4, tag='api.argc')
+        self.mem_write(argc, len(_argv).to_bytes(4, 'little'))
+        return argc
+
+    @apihook('_get_initial_narrow_environment', argc=0,
+             conv=e_arch.CALL_CONV_CDECL)
+    def _get_initial_narrow_environment(self, emu, argv, ctx={}):
+        """char** _get_initial_narrow_environment ()"""
+
+        ptr_size = self.get_ptr_size()
+        env = emu.get_env()
+        total = ptr_size
+        sptr = total
+        pptr = 0
+        fmt_env = []
+        for k, v in env.items():
+            envstr = '%s=%s\x00' % (k, v)
+            envstr = envstr.encode('utf-8')
+            total += len(envstr)
+            fmt_env.append(envstr)
+            total += ptr_size
+            sptr += ptr_size
+
+        envp = self.mem_alloc(size=total, tag='api.envp')
+        pptr = envp
+        sptr += envp
+
+        for v in fmt_env:
+            self.mem_write(pptr, sptr.to_bytes(ptr_size, 'little'))
+            pptr += ptr_size
+            self.mem_write(sptr, v)
+            sptr += len(v)
+
+        return envp
+
+    @apihook('_get_initial_wide_environment', argc=0,
+             conv=e_arch.CALL_CONV_CDECL)
+    def _get_initial_wide_environment(self, emu, argv, ctx={}):
+        """WCHAR** _get_initial_wide_environment ()"""
+
+        ptr_size = self.get_ptr_size()
+        env = emu.get_env()
+        total = ptr_size
+        sptr = total
+        pptr = 0
+        fmt_env = []
+        for k, v in env.items():
+            envstr = '%s=%s\x00' % (k, v)
+            envstr = envstr.encode('utf-16le')
+            total += len(envstr)
+            fmt_env.append(envstr)
+            total += ptr_size
+            sptr += ptr_size
+
+        envp = self.mem_alloc(size=total, tag='api.envp')
+        pptr = envp
+        sptr += envp
+
+        for v in fmt_env:
+            self.mem_write(pptr, sptr.to_bytes(ptr_size, 'little'))
+            pptr += ptr_size
+            self.mem_write(sptr, v)
+            sptr += len(v)
+
+        return envp
+
+    @apihook('exit', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def exit(self, emu, argv, ctx={}):
+        """
+        void exit(
+           int const status
+        );
+        """
+
+        self.exit_process()
+
+    @apihook('_exit', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _exit(self, emu, argv, ctx={}):
+        """
+        void _exit(
+           int const status
+        );
+        """
+
+        self.exit_process()
+
+    @apihook('__acrt_iob_func', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __acrt_iob_func(self, emu, argv, ctx={}):
+        """FILE * __acrt_iob_func (fd)"""
+
+        fd, = argv
+
+        return fd
+
+    @apihook('pow', argc=2, conv=e_arch.CALL_CONV_FLOAT)
+    def pow(self, emu, argv, ctx={}):
+        """
+        double pow(
+           double x,
+           double y
+        );
+        """
+        x, y = argv
+
+        x = self.hex_to_double(x)
+        y = self.hex_to_double(y)
+
+        z = pow(x, y)
+
+        z = self.double_to_hex(z)
+
+        return z
+
+    @apihook('floor', argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def floor(self, emu, argv, ctx={}):
+        """
+        double floor(
+           double x
+        );
+        """
+        x, = argv
+
+        y = self.hex_to_double(x)
+        z = math.floor(y)
+        z = self.double_to_hex(z)
+
+        return z
+
+    @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strstr(self, emu, argv, ctx={}):
+        """
+        char *strstr(
+           const char *str,
+           const char *strSearch
+        );
+        """
+        hay, needle = argv
+
+        if hay:
+            _hay = self.read_mem_string(hay, 1)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, 1)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+
+        return ret
+
+    @apihook('strncat_s', argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def strncat_s(self, emu, argv, ctx={}):
+        """
+        errno_t strncat_s(
+           char *strDest,
+           size_t numberOfElements,
+           const char *strSource,
+           size_t count
+        );
+        """
+        strDest, num, src, count = argv
+        rv = 0
+
+        is_truncated = (0xFFFFFFFF & count)
+        if is_truncated == _TRUNCATE:
+            is_truncated = True
+        else:
+            is_truncated = False
+
+        argv[0] = self.read_mem_string(strDest, 1)
+        argv[2] = self.read_mem_string(src, 1)
+
+        slen1 = self.mem_string_len(strDest, 1)
+        rem = num - slen1
+
+        if is_truncated:
+            if rem < count:
+                self.mem_copy(strDest + slen1, src, count-1)
+            else:
+                self.mem_copy(strDest + slen1, src, count)
+        else:
+            if rem < count:
+                rv = EINVAL
+            else:
+                self.mem_copy(strDest + slen1, src, count)
+
+        return rv
+
+    @apihook('__stdio_common_vfprintf', argc=e_arch.VAR_ARGS,
+             conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vfprintf(self, emu, argv, ctx={}):
+
+        arch = emu.get_arch()
+        if arch == e_arch.ARCH_AMD64:
+            opts, stream, fmt, _, va_list = \
+                emu.get_func_argv(e_arch.CALL_CONV_CDECL, 5)[:5]
+        else:
+            opts, opts2, stream, fmt, _, va_list = \
+                emu.get_func_argv(e_arch.CALL_CONV_CDECL, 6)[:6]
+
+        rv = 0
+
+        fmt_str = self.read_mem_string(fmt, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(va_list, fmt_cnt)
+        fin = self.do_str_format(fmt_str, vargs)
+
+        argv[:] = [opts, stream, fin]
+
+        rv = len(fin)
+        return rv
+
+    @apihook('memset', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def memset(self, emu, argv, ctx={}):
+        """
+        void *memset ( void * ptr,
+                       int value,
+                       size_t num );
+        """
+
+        ptr, value, num = argv
+
+        data = value.to_bytes(1, 'little') * num
+        self.mem_write(ptr, data)
+
+        return ptr
+
+    @apihook('time', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def time(self, emu, argv, ctx={}):
+        """
+        time_t time( time_t *destTime );
+        """
+
+        destTime, = argv
+
+        out_time = TIME_BASE
+        if destTime:
+            self.mem_write(destTime, out_time)
+
+        return out_time
+
+    @apihook('srand', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def srand(self, emu, argv, ctx={}):
+        """
+        void srand (unsigned int seed);
+        """
+
+        seed, = argv
+
+        return
+
+    @apihook('sprintf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def sprintf(self, emu, argv, ctx={}):
+        """
+        int sprintf(
+            char *buffer,
+            const char *format [,
+            argument] ...
+            );
+        """
+        buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+        if not fmt_cnt:
+            self.write_string(fmt_str, buf)
+            return len(fmt_str)
+
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
+        fin = self.do_str_format(fmt_str, _argv)
+
+        self.write_string(fin, buf)
+        argv.clear()
+        argv.append(fin)
+        return len(fin)
+
+    @apihook('atoi', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def atoi(self, emu, argv, ctx={}):
+        """
+        int atoi(
+            const char *str
+        );
+        """
+
+        _str, = argv
+
+        i = self.read_string(_str)
+        argv[0] = i
+
+        try:
+            rv = int(i)
+        except ValueError:
+            rv = 0
+
+        return rv
+
+    @apihook('rand', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def rand(self, emu, argv, ctx={}):
+        """
+        int rand( void );
+        """
+
+        self.rand_int += 1
+
+        return self.rand_int
+
+    @apihook('__set_app_type', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __set_app_type(self, emu, argv, ctx={}):
+        """
+        void __set_app_type (
+            int at
+        )
+        """
+        return
+
+    @apihook('__p__fmode', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__fmode(self, emu, argv, ctx={}):
+        """
+        int* __p__fmode();
+        """
+        _O_TEXT = 0x4000
+
+        ptr = self.mem_alloc(4, tag='api.fmode')
+        data = _O_TEXT.to_bytes(4, 'little')
+        self.mem_write(ptr, data)
+        return ptr
+
+    @apihook('__p__commode', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__commode(self, emu, argv, ctx={}):
+        """
+        int* __p__commode();
+        """
+        _IOCOMMIT = 0x4000
+
+        ptr = self.mem_alloc(4, tag='api.commode')
+        data = _IOCOMMIT.to_bytes(4, 'little')
+        self.mem_write(ptr, data)
+        return ptr
+
+    @apihook('_controlfp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _controlfp(self, emu, argv, ctx={}):
+        """
+        unsigned int _controlfp(unsigned int new,
+                                unsinged int mask)
+        """
+        return 0
+
+    @apihook('strcpy', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strcpy(self, emu, argv, ctx={}):
+        """
+        char *strcpy(
+           char *strDestination,
+           const char *strSource
+        );
+        """
+        dest, src = argv
+        s = self.read_string(src)
+
+        self.write_string(s, dest)
+        argv[1] = s
+        return len(s)
+
+    @apihook('memcpy', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def memcpy(self, emu, argv, ctx={}):
+        """
+        void *memcpy(
+            void *dest,
+            const void *src,
+            size_t count
+            );
+        """
+        dest, src, count = argv
+        data = self.mem_read(src, count)
+        self.mem_write(dest, data)
+        return dest
+
+    @apihook('_except_handler4_common', argc=6, conv=e_arch.CALL_CONV_CDECL)
+    def _except_handler4_common(self, emu, argv, ctx={}):
+        """
+        _CRTIMP  __C_specific_handler(
+        _In_    struct _EXCEPTION_RECORD   *ExceptionRecord,
+        _In_    void                       *EstablisherFrame,
+        _Inout_ struct _CONTEXT            *ContextRecord,
+        _Inout_ struct _DISPATCHER_CONTEXT *DispatcherContext
+        );
+        """
+        # Inferred from the SEH teardowns described here:
+        # https://bytepointer.com/resources/pietrek_crash_course_depths_of_win32_seh.htm
+        # http://www.openrce.org/articles/full_view/21
+
+        # Two additional arguments are pushed to the function to check security cookies
+        cookie_ptr, cookie_func, record, frame, context, dispath_ctx = argv
+        rv = 0
+
+        cookie = self.mem_read(cookie_ptr, 4)
+        cookie = int.from_bytes(cookie, 'little')
+
+        thread = emu.get_current_thread()
+
+        # Break down the exception records into something more manageable
+        curr_frame = frame
+        seh = thread.get_seh()
+
+        _ctx = self.wintypes.CONTEXT(emu.get_ptr_size())
+        _ctx = self.mem_cast(_ctx, context)
+
+        seh.set_context(_ctx, address=context)
+        seh.set_record(record)
+
+        seh.clear_frames()
+
+        while curr_frame != 0:
+            reg = self.wintypes.EXCEPTION_REGISTRATION(emu.get_ptr_size())
+            reg = self.mem_cast(reg, curr_frame)
+
+            scope_table = reg.ScopeTable ^ cookie
+
+            st = self.wintypes.EH4_SCOPETABLE(emu.get_ptr_size())
+            st = self.mem_cast(st, scope_table)
+
+            rec = self.wintypes.EH4_SCOPETABLE_RECORD(emu.get_ptr_size())
+            # The trylevel will tell us what scope record to get
+            scope_record_offset = scope_table + st.sizeof()
+            scope_record_offset += (rec.sizeof() * reg.TryLevel)
+
+            rec = self.mem_cast(rec, scope_record_offset)
+
+            seh.add_frame(reg, st, [rec, ])
+
+            curr_frame = reg.Next
+
+        return rv
+
+    @apihook('_seh_filter_exe', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _seh_filter_exe(self, emu, argv, ctx={}):
+        """
+        int __cdecl _seh_filter_exe(
+           unsigned long _ExceptionNum,
+           struct _EXCEPTION_POINTERS* _ExceptionPtr
+        );
+        """
+        except_num, exc_ptr = argv
+        rv = 1
+
+        return rv
+
+    @apihook('_seh_filter_dll', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _seh_filter_dll(self, emu, argv, ctx={}):
+        """
+        int __cdecl _seh_filter_dll(
+           unsigned long _ExceptionNum,
+           struct _EXCEPTION_POINTERS* _ExceptionPtr
+        );
+        """
+        except_num, exc_ptr = argv
+        rv = 1
+
+        return rv
+
+    @apihook('puts', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def puts(self, emu, argv, ctx={}):
+        """
+        int puts(
+           const char *str
+        );
+        """
+        s, = argv
+
+        string = self.read_mem_string(s, 1)
+        argv[0] = string
+        rv = len(string)
+
+        return rv
+
+    @apihook('_initialize_onexit_table', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _initialize_onexit_table(self, emu, argv, ctx={}):
+        """
+        int _initialize_onexit_table(
+            _onexit_table_t* table
+            );
+        """
+        rv = 0
+
+        return rv
+
+    @apihook('_register_onexit_function', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _register_onexit_function(self, emu, argv, ctx={}):
+        """
+        int _register_onexit_function(
+            _onexit_table_t* table,
+            _onexit_t        function
+            );
+        """
+        rv = 0
+
+        return rv
+
+    @apihook('malloc', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def malloc(self, emu, argv, ctx={}):
+        """
+        void *malloc(
+        size_t size
+        );
+        """
+        size, = argv
+
+        chunk = self.heap_alloc(size, heap='HeapAlloc')
+        return chunk
+
+    @apihook('_beginthreadex', argc=6, conv=e_arch.CALL_CONV_CDECL)
+    def _beginthreadex(self, emu, argv, ctx={}):
+        """
+        uintptr_t _beginthreadex(
+            void *security,
+            unsigned stack_size,
+            unsigned ( __stdcall *start_address )( void * ),
+            void *arglist,
+            unsigned initflag,
+            unsigned *thrdaddr
+        );
+        """
+        security, stack_size, start_address, arglist, initflag, thrdaddr = argv
+
+        handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
+
+        if thrdaddr:
+            self.mem_write(thrdaddr, obj.get_id().to_bytes(4, 'little'))
+
+        return handle
+
+    @apihook('system', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def system(self, emu, argv, ctx={}):
+        """
+        int system(
+           const char *command
+        );
+        """
+        s, = argv
+
+        string = self.read_mem_string(s, 1)
+        argv[0] = string
+        rv = len(string)
+
+        return rv
+
+    @apihook('_set_invalid_parameter_handler', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _set_invalid_parameter_handler(self, emu, argv, ctx={}):
+        """
+        _invalid_parameter_handler _set_invalid_parameter_handler(
+        _invalid_parameter_handler pNew
+        );
+        """
+        pNew, = argv
+
+        return 0

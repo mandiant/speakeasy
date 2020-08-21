@@ -1,0 +1,14 @@
+{
+    "file_list": [
+        {
+            "module_name": "default_exe",
+            "file_name": "default_exe.exe",
+            "size": 912
+        },
+        {
+            "module_name": "default_driver",
+            "file_name": "default_driver.sys",
+            "size": 480
+        }
+    ]
+}
