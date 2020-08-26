@@ -267,7 +267,7 @@ class MemoryManager(object):
 
     def purge_memory(self):
         """
-        Unmamp all current blocks of mapped memory
+        Unmap all current blocks of mapped memory
         """
         for region in self.get_mem_regions():
             base, end, perms = region
@@ -326,7 +326,7 @@ class MemoryManager(object):
         for m in self.get_mem_regions():
             curr += range(m[0], m[1], page_size)
 
-        # Add reserved memory so we don't accidently allocate it
+        # Add reserved memory so we don't accidentally allocate it
         for res in self.mem_reserves:
             curr += range(res.base, (res.base + res.size), page_size)
 
