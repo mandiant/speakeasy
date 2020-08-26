@@ -159,8 +159,8 @@ class ReadMemHook(Hook):
 
     def add(self):
         if not self.added and self.native_hook:
-            self.emu_eng.hook_add(htype=HOOK_MEM_READ, cb=self._wrap_memory_access_cb,
-                                  begin=self.begin, end=self.end)
+            self.handle = self.emu_eng.hook_add(htype=HOOK_MEM_READ, cb=self._wrap_memory_access_cb,
+                                                begin=self.begin, end=self.end)
         self.added = True
         self.enabled = True
 
