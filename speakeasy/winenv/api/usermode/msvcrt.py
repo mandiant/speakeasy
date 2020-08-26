@@ -301,6 +301,16 @@ class Msvcrt(api.ApiHandler):
 
         return z
 
+    @apihook('strlen', argc=1)
+    def strlen(self, emu, argv, ctx={}):
+        '''
+        size_t strlen(  
+          const char *str  
+        );
+        '''
+        _str, = argv
+        return(len(self.read_string(_str)))    
+    
     @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strstr(self, emu, argv, ctx={}):
         """
