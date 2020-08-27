@@ -747,6 +747,20 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('wcslen', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def wcslen(self, emu, argv, ctx={}):
+        """
+        size_t wcslen(
+          const wchar_t* wcs
+        );
+        """
+        s, = argv
+        string = self.read_wide_string(s)
+        argv[0] = string
+        rv = len(string)
+        
+        return rv
+    
     @apihook('_lock', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _lock(self, emu, argv, ctx={}):
         """
