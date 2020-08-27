@@ -13,13 +13,14 @@ with open("speakeasy/version.py", encoding='utf8') as fp:
     version = ver_num.strip().strip("\"\'")
 
 setuptools.setup(
-    name='speakeasy',
+    name='speakeasy-emulator',
     author='Andrew Davis',
     description='Speakeasy malware emulation framework',
     version=version,
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=setuptools.find_packages(),
+    url='https://github.com/fireeye/speakeasy',
     include_package_data=True,
     install_requires=[
         'pefile',
