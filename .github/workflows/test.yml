@@ -34,10 +34,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with unittest
       run: |
-        python tests/test_argv.py
-        python tests/test_config.py
-        python tests/test_dlls.py
-        python tests/test_file_access.py
-        python tests/test_seh.py
-        python tests/test_struct.py
-        python tests/test_wdm.py
+        python -m unittest discover tests
