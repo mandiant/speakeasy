@@ -227,7 +227,23 @@ class User32(api.ApiHandler):
 
         rv = 0
         return rv
-
+    
+    @apihook('GetKeyboardType', argc=1)
+    def GetKeyboardType(self, emu, argv, ctx={}):
+        '''
+        int GetKeyboardType(
+          int nTypeFlag
+        );
+        '''
+        _type, = argv
+        if _type == 0:
+            return 4
+        elif _type == 1:
+            return 0
+        elif _type == 2:
+            return 12
+        return 0
+    
     @apihook('GetSystemMetrics', argc=1)
     def GetSystemMetrics(self, emu, argv, ctx={}):
         """
