@@ -121,6 +121,26 @@ class Kernel32(api.ApiHandler):
 
         return None
 
+    @apihook('OutputDebugStringA', argc=1)
+    def OutputDebugStringA(self, emu, argv, ctx={}):
+        '''
+        void OutputDebugStringA(
+            LPCSTR lpOutputString
+        );
+        '''
+        _str, = argv
+        argv[0] = self.read_string(_str)
+
+    @apihook('OutputDebugStringW', argc=1)
+    def OutputDebugStringW(self, emu, argv, ctx={}):
+        '''
+        void OutputDebugStringW(
+            LPCWSTR lpOutputString
+        );
+        '''
+        _str, = argv
+        argv[0] = self.read_wide_string(_str)
+        
     @apihook('GetProcessHeap', argc=0)
     def GetProcessHeap(self, emu, argv, ctx={}):
         '''
