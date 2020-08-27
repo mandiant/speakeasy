@@ -20,6 +20,7 @@ class GDI32(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.handle = 0
+        self.count = 0
         super(GDI32, self).__get_hook_attrs__(self)
 
     def get_handle(self):
@@ -62,3 +63,12 @@ class GDI32(api.ApiHandler):
         )
         """
         return 1
+
+    @apihook('GetStockObject', argc=1)
+    def GetStockObject(self, emu, argv, ctx={}):
+        """
+        HGDIOBJ GetStockObject(
+            int i
+        );
+        """
+        return 0

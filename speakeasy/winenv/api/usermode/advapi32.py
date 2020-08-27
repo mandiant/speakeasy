@@ -59,6 +59,8 @@ class AdvApi32(api.ApiHandler):
                 hnd = hKey
         else:
             key_obj = emu.regman.get_key_from_handle(hKey)
+            if not key_obj:
+                return windefs.ERROR_PATH_NOT_FOUND
             hkey_name = key_obj.path
 
         cw = self.get_char_width(ctx)
@@ -71,7 +73,7 @@ class AdvApi32(api.ApiHandler):
                     lpSubKey = '\\' + lpSubKey
                 lpSubKey = hkey_name + lpSubKey
 
-            hnd = self.reg_open_key(lpSubKey, create=True)
+            hnd = self.reg_open_key(lpSubKey, create=False)
             if not hnd:
                 rv = windefs.ERROR_PATH_NOT_FOUND
 
@@ -115,7 +117,7 @@ class AdvApi32(api.ApiHandler):
                     lpSubKey = '\\' + lpSubKey
                 lpSubKey = hkey_name + lpSubKey
 
-            hnd = self.reg_open_key(lpSubKey, create=True)
+            hnd = self.reg_open_key(lpSubKey, create=False)
             if not hnd:
                 rv = windefs.ERROR_PATH_NOT_FOUND
 
@@ -162,6 +164,10 @@ class AdvApi32(api.ApiHandler):
             val = key.get_value(lpValueName)
             if val:
                 output = b''
+                typ = val.get_type()
+                data = val.get_data()
+                if typ == 'REG_SZ':
+                    output = data.encode('utf-8')
 
                 if lpcbData:
                     self.mem_write(lpcbData, len(output).to_bytes(4, 'little'))
@@ -738,6 +744,77 @@ class AdvApi32(api.ApiHandler):
 
         if ret_len:
             self.mem_write(ret_len, (4).to_bytes(4, 'little'))
+
+        return rv
+
+    @apihook('EqualSid', argc=2)
+    def EqualSid(self, emu, argv, ctx={}):
+        '''
+        BOOL EqualSid(
+            PSID pSid1,
+            PSID pSid2
+        );
+        '''
+        sid1, sid2 = argv
+        rv = False
+
+        if sid1 and sid2:
+            s1 = self.mem_read(sid1, 10)
+            s2 = self.mem_read(sid2, 10)
+            if s1 == s2:
+                rv = True
+
+        return rv
+
+    @apihook('GetSidSubAuthorityCount', argc=1)
+    def GetSidSubAuthorityCount(self, emu, argv, ctx={}):
+        '''
+        PUCHAR GetSidSubAuthorityCount(
+            PSID pSid
+        );
+        '''
+        sid, = argv
+        rv = 0
+
+        if sid:
+            rv = sid + 1
+
+        return rv
+
+    @apihook('LookupAccountSid', argc=7)
+    def LookupAccountSid(self, emu, argv, ctx={}):
+        '''
+        BOOL LookupAccountSid(
+            LPCSTR        lpSystemName,
+            PSID          Sid,
+            LPSTR         Name,
+            LPDWORD       cchName,
+            LPSTR         ReferencedDomainName,
+            LPDWORD       cchReferencedDomainName,
+            PSID_NAME_USE peUse
+        );
+        '''
+        sysname, sid, name, cchname, domname, cchdomname, peuse = argv
+        rv = False
+
+        cw = self.get_char_width(ctx)
+
+        if not cchname or not cchdomname:
+            return rv
+
+        name_size = self.mem_read(cchname, 4)
+        name_size = int.from_bytes(name_size, 'little')
+
+        dom_size = self.mem_read(cchdomname, 4)
+        dom_size = int.from_bytes(dom_size, 'little')
+
+        self.write_mem_string('myuser', name, cw)
+        self.write_mem_string('mydomain', domname, cw)
+        rv = True
+
+        if sysname:
+            sn = self.read_mem_string(sysname, cw)
+            argv[0] = sn
 
         return rv
 

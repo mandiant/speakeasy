@@ -2701,7 +2701,7 @@ class Ntoskrnl(api.ApiHandler):
             data = _file.get_data()
 
             if buf:
-                self.mem_write(buf, data)
+                self.mem_write(buf, data[:length])
 
             # Log the file event
             self.log_file_access(path, 'read', buffer=buf, size=length)
@@ -2753,10 +2753,25 @@ class Ntoskrnl(api.ApiHandler):
                 name = self.read_unicode_string(oa.ObjectName)
                 argv[2] = name
 
-        hmap = fm.file_create_mapping(FileHandle, name, MaximumSize, SectionPageProtection)
+        size = 0
+        if MaximumSize:
+            size = self.mem_read(MaximumSize, 8)
+            size = int.from_bytes(size, 'little')
+        hmap = fm.file_create_mapping(FileHandle, name, size, SectionPageProtection)
         self.mem_write(SectionHandle, hmap.to_bytes(self.get_ptr_size(), byteorder='little'))
 
         return ddk.STATUS_SUCCESS
+
+    @apihook('ZwUnmapViewOfSection', argc=2)
+    def ZwUnmapViewOfSection(self, emu, argv, ctx={}):
+        """
+        NTSYSAPI NTSTATUS ZwUnmapViewOfSection(
+            HANDLE ProcessHandle,
+            PVOID  BaseAddress
+        );
+        """
+        ProcessHandle, BaseAddress = argv
+        return 0
 
     @apihook('ZwMapViewOfSection', argc=10)
     def ZwMapViewOfSection(self, emu, argv, ctx={}):
@@ -2817,6 +2832,8 @@ class Ntoskrnl(api.ApiHandler):
                 mm.update_tag('%s.%s.0x%x' % (tag_prefix, fname, buf))
                 self.mem_write(buf, data)
             elif not pref_address:
+                if bytes_to_map == 0:
+                    bytes_to_map = sect.size
                 base, size = emu.get_valid_ranges(bytes_to_map)
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True)
                 mm = emu.get_address_map(buf)

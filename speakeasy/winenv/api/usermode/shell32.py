@@ -94,3 +94,41 @@ class Shell32(api.ApiHandler):
         BOOL IsUserAnAdmin();
         """
         return emu.get_user().get('is_admin', False)
+
+    @apihook('CommandLineToArgv', argc=2)
+    def CommandLineToArgv(self, emu, argv, ctx={}):
+        """
+        LPWSTR * CommandLineToArgv(
+            LPCWSTR lpCmdLine,
+            int     *pNumArgs
+        );
+        """
+        cmdline, argc = argv
+
+        cw = self.get_char_width(ctx)
+        cl = self.read_mem_string(cmdline, cw)
+
+        ptrsize = emu.get_ptr_size()
+
+        split = cl.split()
+
+        # Get the total size we need
+        size = (len(split) + 1) * ptrsize
+        size += (len(cl) * cw) + (len(split) * cw)
+
+        # Allocate the array
+        buf = self.mem_alloc(size, tag='api.CommandLineToArgv')
+        ptrs = buf
+        strs = buf + ((len(split) + 1) * ptrsize)
+        for i, p in enumerate(split):
+            self.mem_write(ptrs + (i * ptrsize), strs.to_bytes(emu.get_ptr_size(), 'little'))
+
+            p += '\x00'
+            if cw == 2:
+                s = p.encode('utf-16le')
+            else:
+                s = p.encode('utf-8')
+            self.mem_write(strs, s)
+            strs += len(s)
+
+        return buf

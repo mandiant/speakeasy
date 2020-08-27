@@ -3,7 +3,7 @@
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",
     "timeout": 60,
-    "max_api_count": 6000,
+    "max_api_count": 10000,
     "system": "windows",
 
     "analysis": {
@@ -32,7 +32,10 @@
         "comspec": "C:\\Windows\\system32\\cmd.exe",
         "systemroot": "C:\\Windows\\system32",
         "windir": "C:\\Windows",
-        "temp": "C:\\Windows\\temp\\"
+        "temp": "C:\\Windows\\temp\\",
+        "userprofile": "C:\\Users\\speakeasy_user",
+        "systemdrive": "C:",
+        "programfiles": "C:\\Program Files"
     },
 
     "hostname": "speakeasy_host",
@@ -78,8 +81,9 @@
                 "ext": "exe",
                 "path": "$ROOT$/resources/files/default.bin"
             },
-            { 
-                "mode": "default",
+            {
+                "mode": "by_ext",
+                "ext": "txt",
                 "path": "$ROOT$/resources/files/default.bin"
             }
         ]
@@ -99,6 +103,16 @@
                         "name": "Start",
                         "type": "REG_DWORD",
                         "data": "0x00000003"
+                    }
+                ]
+            },
+            {
+                "path": "HKEY_CLASSES_ROOT\\Interface\\{b196b287-bab4-101a-b69c-00aa00341d07}",
+                "values": [
+                    {
+                        "name": "default",
+                        "type": "REG_SZ",
+                        "data": "IEnumConnections"
                     }
                 ]
             }

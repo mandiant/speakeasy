@@ -230,7 +230,10 @@ class Kernel32(api.ApiHandler):
         snap[0] = 1
         proc = snap[1][0]
 
-        cw = self.get_char_width(ctx)
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
         data = self.mem_cast(pe, pe32)
@@ -266,7 +269,10 @@ class Kernel32(api.ApiHandler):
             return rv
         proc = snap[1][index]
 
-        cw = self.get_char_width(ctx)
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
         data = self.mem_cast(pe, pe32)
@@ -1831,6 +1837,7 @@ class Kernel32(api.ApiHandler):
                 if ev in dst.lower():
                     o = dst.lower().find(ev)
                     dst = dst[: o] + v + dst[o + len(ev):]
+                    dst += '\x00\x00'
 
             if lpDst:
                 self.write_mem_string(dst, lpDst, cw)
@@ -2527,6 +2534,42 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook('GetSystemInfo', argc=1)
+    def GetSystemInfo(self, emu, argv, ctx={}):
+        '''
+        void GetSystemInfo(
+            LPSYSTEM_INFO lpSystemInfo
+        );
+        '''
+        lpSystemInfo, = argv
+        ptr_size = emu.get_ptr_size()
+        si = self.k32types.SYSTEM_INFO(ptr_size)
+        si.dwPageSize = 0x1000
+
+        if ptr_size == 4:
+            si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_INTEL
+        else:
+            si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_AMD64
+
+        self.mem_write(lpSystemInfo, si.get_bytes())
+        return
+
+    @apihook('GetFileAttributes', argc=1)
+    def GetFileAttributes(self, emu, argv, ctx={}):
+        '''
+        DWORD GetFileAttributes(
+            LPCSTR lpFileName
+        );
+        '''
+        fn, = argv
+        cw = self.get_char_width(ctx)
+        rv = windefs.INVALID_FILE_ATTRIBUTES
+        target = self.read_mem_string(fn, cw)
+        argv[0] = target
+        if self.does_file_exist(target):
+            rv = windefs.FILE_ATTRIBUTE_NORMAL
+        return rv
+
     @apihook('CreateFile', argc=7)
     def CreateFile(self, emu, argv, ctx={}):
         '''
@@ -2634,7 +2677,7 @@ class Kernel32(api.ApiHandler):
             if lpBuffer:
                 _write_output(emu, data, lpBuffer, bytes_read)
 
-                self.log_file_access(path, 'read', buffer=lpBuffer, size=num_bytes)
+                self.log_file_access(path, 'read', buffer=lpBuffer, size=len(data))
 
                 rv = True
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -3693,12 +3736,49 @@ class Kernel32(api.ApiHandler):
         '''
         return 1
 
+    @apihook('GetDriveType', argc=1)
+    def GetDriveType(self, emu, argv, ctx={}):
+        '''
+        UINT GetDriveType(
+        LPCSTR lpRootPathName
+        );
+        '''
+        lpRootPathName, = argv
+        DRIVE_FIXED = 3
+        cw = self.get_char_width(ctx)
+        name = self.read_mem_string(lpRootPathName, cw)
+        argv[0] = name
+
+        return DRIVE_FIXED
+
+    @apihook('GetExitCodeProcess', argc=2)
+    def GetExitCodeProcess(self, emu, argv, ctx={}):
+        '''
+        BOOL GetExitCodeProcess(
+        HANDLE  hProcess,
+        LPDWORD lpExitCode
+        );
+        '''
+        hProcess, lpExitCode = argv
+        if lpExitCode:
+            self.mem_write(lpExitCode, b'\x00'*4)
+        return 1
+
     @apihook('SetThreadPriority', argc=2)
     def SetThreadPriority(self, emu, argv, ctx={}):
         '''
         BOOL SetThreadPriority(
         HANDLE hThread,
         int    nPriority
+        );
+        '''
+        return 1
+
+    @apihook('ReleaseMutex', argc=1)
+    def ReleaseMutex(self, emu, argv, ctx={}):
+        '''
+        BOOL ReleaseMutex(
+            HANDLE hMutex
         );
         '''
         return 1

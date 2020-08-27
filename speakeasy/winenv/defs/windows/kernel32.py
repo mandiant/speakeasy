@@ -15,6 +15,9 @@ TH32CS_SNAPMODULE32 = 0x00000010
 TH32CS_SNAPPROCESS = 0x00000002
 TH32CS_SNAPTHREAD = 0x00000004
 
+PROCESSOR_ARCHITECTURE_AMD64 = 9
+PROCESSOR_ARCHITECTURE_INTEL = 0
+
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
@@ -72,6 +75,21 @@ class WIN32_FIND_DATA(EmuStruct):
         self.dwReserved1 = ct.c_uint32
         self.cFileName = ct.c_uint8 * (260 * width)
         self.cAlternateFileName = ct.c_uint8 * (14 * width)
+
+
+class SYSTEM_INFO(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.wProcessorArchitecture = ct.c_uint16
+        self.dwPageSize = ct.c_uint32
+        self.lpMinimumApplicationAddress = Ptr
+        self.lpMaximumApplicationAddress = Ptr
+        self.dwActiveProcessorMask = Ptr
+        self.dwNumberOfProcessors = ct.c_uint32
+        self.dwProcessorType = ct.c_uint32
+        self.dwAllocationGranularity = ct.c_uint32
+        self.wProcessorLevel = ct.c_uint16
+        self.wProcessorRevision = ct.c_uint16
 
 
 class SYSTEMTIME(EmuStruct):

@@ -8,6 +8,17 @@ from .. import api
 
 IDCANCEL = 2
 
+IDI_APPLICATION = 32512
+IDI_ASTERISK = 32516
+IDI_ERROR = 32513
+IDI_EXCLAMATION = 32515
+IDI_HAND = 32513
+IDI_INFORMATION = 32516
+IDI_QUESTION = 32514
+IDI_SHIELD = 32518
+IDI_WARNING = 32515
+IDI_WINLOGO = 32517
+
 
 class User32(api.ApiHandler):
 
@@ -426,3 +437,45 @@ class User32(api.ApiHandler):
         );
         '''
         return 0
+
+    @apihook('CharNext', argc=1)
+    def CharNext(self, emu, argv, ctx={}):
+        '''
+        LPSTR CharNext(
+            LPCSTR lpsz
+        );
+        '''
+        s, = argv
+        rv = 0
+        cw = self.get_char_width(ctx)
+        if s:
+            rv = s + cw
+        return rv
+
+    @apihook('EnumWindows', argc=2)
+    def EnumWindows(self, emu, argv, ctx={}):
+        '''
+        BOOL EnumWindows(
+            WNDENUMPROC lpEnumFunc,
+            LPARAM      lParam
+        );
+        '''
+        lpEnumFunc, lParam = argv
+        rv = 1
+
+        return rv
+
+    @apihook('LoadIcon', argc=2)
+    def LoadIcon(self, emu, argv, ctx={}):
+        '''
+        HICON LoadIcon(
+            HINSTANCE hInstance,
+            LPCSTR    lpIconName
+        );
+        '''
+        inst, name, = argv
+
+        if name not in (IDI_APPLICATION, IDI_ASTERISK, IDI_ERROR, IDI_EXCLAMATION, IDI_HAND,
+                        IDI_INFORMATION, IDI_QUESTION, IDI_SHIELD, IDI_WARNING, IDI_WINLOGO):
+            return 0
+        return 1

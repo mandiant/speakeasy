@@ -9,7 +9,6 @@ HKEY_CLASSES_ROOT = 0x80000000
 HKEY_CURRENT_USER = 0x80000001
 HKEY_LOCAL_MACHINE = 0x80000002
 HKEY_USERS = 0x80000003
-HKEY_CLASSES_ROOT = 0x80000005
 
 
 class RegValue(object):
@@ -77,6 +76,8 @@ class RegKey(object):
         return self.values
 
     def get_value(self, val_name):
+        if not val_name:
+            val_name = 'default'
         for v in self.values:
             if val_name.lower() == v.get_name().lower():
                 return v
@@ -94,20 +95,19 @@ class RegistryManager(object):
         self.reg_tree = []
 
         for hk in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER,
-                   HKEY_LOCAL_MACHINE, HKEY_USERS, HKEY_CLASSES_ROOT):
+                   HKEY_LOCAL_MACHINE, HKEY_USERS):
             path = regdefs.get_hkey_type(hk)
             key = self.create_key(path)
             self.reg_handles.update({hk: key})
 
     def normalize_reg_path(self, path):
         new = path
-
-        roots = ('\\registry\\machine\\', 'hklm\\')
-        for r in roots:
-            if path.lower().startswith(r):
-                new = 'HKEY_LOCAL_MACHINE\\' + path[len(r):]
-                return new
-
+        if path:
+            roots = ('\\registry\\machine\\', 'hklm\\')
+            for r in roots:
+                if path.lower().startswith(r):
+                    new = 'HKEY_LOCAL_MACHINE\\' + path[len(r):]
+                    return new
         return path
 
     def get_key_from_handle(self, handle):
@@ -154,7 +154,6 @@ class RegistryManager(object):
         """
         See if the emulator config file contains a handler for the requested registry path
         """
-
         for key in self.config.get('keys', []):
             if key['path'].lower() == path.lower():
                 new_key = RegKey(path)
@@ -204,7 +203,9 @@ class RegistryManager(object):
         # Does this key exist in our config
         key = self.get_key_from_config(path)
         if key:
-            return key
+            hnd = key.get_handle()
+            self.reg_handles.update({hnd: key})
+            return hnd
 
         # If we are instructed to create the key, do so
         if create or self.is_key_a_parent_key(path):
