@@ -2701,7 +2701,7 @@ class Ntoskrnl(api.ApiHandler):
             data = _file.get_data()
 
             if buf:
-                self.mem_write(buf, data)
+                self.mem_write(buf, data[:length])
 
             # Log the file event
             self.log_file_access(path, 'read', buffer=buf, size=length)

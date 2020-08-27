@@ -80,6 +80,11 @@
                 "mode": "by_ext",
                 "ext": "exe",
                 "path": "$ROOT$/resources/files/default.bin"
+            },
+            {
+                "mode": "by_ext",
+                "ext": "txt",
+                "path": "$ROOT$/resources/files/default.bin"
             }
         ]
     },
