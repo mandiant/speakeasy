@@ -267,7 +267,7 @@ class Win32Emulator(WindowsEmulator):
         # supplied
         if len(self.processes) == 0:
             p = objman.Process(self, path=module.get_emu_path(), base=module.base,
-                               pe=module)
+                               pe=module, cmdline=self.command_line)
             self.curr_process = p
 
         t = objman.Thread(self,

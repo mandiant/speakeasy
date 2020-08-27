@@ -722,6 +722,87 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('strlen', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def strlen(self, emu, argv, ctx={}):
+        """
+        size_t strlen(
+            const char *str
+        );
+        """
+        s, = argv
+
+        string = self.read_mem_string(s, 1)
+        argv[0] = string
+        rv = len(string)
+
+        return rv
+
+    @apihook('_lock', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _lock(self, emu, argv, ctx={}):
+        """
+        void __cdecl _lock
+            int locknum
+        );
+        """
+        return
+
+    @apihook('_unlock', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _unlock(self, emu, argv, ctx={}):
+        """
+        void __cdecl _unlock
+            int locknum
+        );
+        """
+        return
+
+    @apihook('_ltoa', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _ltoa(self, emu, argv, ctx={}):
+        """
+        char *_ltoa(
+            long value,
+            char *str,
+            int radix
+        );
+        """
+        val, out_str, radix, = argv
+
+        v = str(val).encode('utf-8')
+        self.mem_write(out_str, v)
+        return
+
+    @apihook('__dllonexit', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def __dllonexit(self, emu, argv, ctx={}):
+        """
+        onexit_t __dllonexit(
+            _onexit_t func,
+            _PVFV **  pbegin,
+            _PVFV **  pend
+        )
+        """
+        func, pbegin, pend, = argv
+        return func
+
+    @apihook('strncmp', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strncmp(self, emu, argv, ctx={}):
+        """
+        int strncmp(
+            const char *string1,
+            const char *string2,
+            size_t count
+        );
+        """
+        s1, s2, c = argv
+        rv = 1
+
+        string1 = self.read_mem_string(s1, 1)
+        string2 = self.read_mem_string(s2, 1)
+        if string1 == string2:
+            rv = 0
+        argv[0] = string1
+        argv[1] = string2
+
+        return rv
+
     @apihook('_set_invalid_parameter_handler', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_invalid_parameter_handler(self, emu, argv, ctx={}):
         """
@@ -732,3 +813,31 @@ class Msvcrt(api.ApiHandler):
         pNew, = argv
 
         return 0
+
+    @apihook('_vsnprintf', argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _vsnprintf(self, emu, argv, ctx={}):
+        """
+        int _vsnprintf(
+            char *buffer,
+            size_t count,
+            const char *format,
+            va_list argptr
+        );
+        """
+        buffer, count, _format, argptr = argv
+        rv = 0
+
+        fmt_str = self.read_mem_string(_format, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(argptr, fmt_cnt)
+
+        fin = self.do_str_format(fmt_str, vargs)
+        fin = fin[:count] + '\x00'
+
+        rv = len(fin)
+        self.mem_write(buffer, fin.encode('utf-8'))
+        argv[0] = fin.replace('\x00', '')
+        argv[1] = fmt_str
+
+        return rv
