@@ -2,10 +2,10 @@
 
 import setuptools
 
-with open('README.md', 'r') as fh:
+with open('README.md', 'r', encoding='utf8') as fh:
     long_description = fh.read()
 
-with open("speakeasy/version.py") as fp:
+with open("speakeasy/version.py", encoding='utf8') as fp:
     vl = fp.readline()
     gv, ver_num = vl.split('=')
     if gv.strip() != '__version__':
