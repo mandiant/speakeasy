@@ -300,17 +300,7 @@ class Msvcrt(api.ApiHandler):
         z = self.double_to_hex(z)
 
         return z
-
-    @apihook('strlen', argc=1)
-    def strlen(self, emu, argv, ctx={}):
-        '''
-        size_t strlen(  
-          const char *str  
-        );
-        '''
-        _str, = argv
-        return(len(self.read_string(_str)))    
-    
+      
     @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strstr(self, emu, argv, ctx={}):
         """
@@ -764,6 +754,23 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('strcat', argc=2)
+    def strcat(self, emu, argv, ctx={}):
+        '''
+        char *strcat(
+            char *strDestination,
+            const char *strSource
+        );
+        '''
+        _str1, _str2 = argv
+        s1 = self.read_mem_string(_str1, 1)
+        s2 = self.read_mem_string(_str2, 1)
+        argv[0] = s1
+        argv[1] = s2
+        new = (s1 + s2).encode('utf-8')
+        self.mem_write(_str1, new + b'\x00')
+        return _str1    
+    
     @apihook('wcslen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx={}):
         """
