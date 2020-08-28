@@ -428,7 +428,8 @@ class Win32Emulator(WindowsEmulator):
 
         peb = proc.get_peb()
         proc.is_peb_active = True
-
+        peb.object.ImageBaseAddress = proc.base
+        peb.write_back()
         return peb
 
     def setup(self, stack_commit=0):

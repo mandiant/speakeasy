@@ -444,7 +444,7 @@ class User32(api.ApiHandler):
         argv.append(fin)
         return len(fin)
 
-    @apihook('ReleaseDC', argc=1)
+    @apihook('ReleaseDC', argc=2)
     def ReleaseDC(self, emu, argv, ctx={}):
         '''
         int ReleaseDC(
