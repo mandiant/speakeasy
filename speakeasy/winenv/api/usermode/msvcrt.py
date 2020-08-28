@@ -569,7 +569,21 @@ class Msvcrt(api.ApiHandler):
         data = self.mem_read(src, count)
         self.mem_write(dest, data)
         return dest
-
+    
+    @apihook('memmove', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def memmove(self, emu, argv, ctx={}):
+        """
+        void *memmove(
+            void *dest,
+            const void *src,
+            size_t count
+        );
+        """
+        dest, src, count = argv
+        data = self.mem_read(src, count)
+        self.mem_write(dest, data)
+        return dest
+    
     @apihook('_except_handler4_common', argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler4_common(self, emu, argv, ctx={}):
         """
