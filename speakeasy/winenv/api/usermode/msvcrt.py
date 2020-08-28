@@ -754,7 +754,7 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook('strcat', argc=2, conv=e_arch.CALL_CONV_CDEC)
+    @apihook('strcat', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strcat(self, emu, argv, ctx={}):
         '''
         char *strcat(
