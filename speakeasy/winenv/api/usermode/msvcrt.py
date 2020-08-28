@@ -539,6 +539,20 @@ class Msvcrt(api.ApiHandler):
         argv[1] = s
         return len(s)
     
+    @apihook('wcscpy', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcscpy(self, emu, argv, ctx={}):
+        """
+        wchar_t *wcscpy(
+            wchar_t *strDestination,
+            const wchar_t *strSource
+        );
+        """
+        dest, src = argv
+        ws = self.read_wide_string(src)
+        self.write_wide_string(ws, dest)
+        argv[1] = ws
+        return dest
+    
     @apihook('strncpy', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncpy(self, emu, argv, ctx={}):
         """
