@@ -22,8 +22,13 @@ class Shell32(api.ApiHandler):
         self.window_hooks = {}
         self.handle = 0
         self.win = None
+        self.curr_handle = 0x2800
 
         super(Shell32, self).__get_hook_attrs__(self)
+
+    def get_handle(self):
+        self.curr_handle += 4
+        return self.curr_handle
 
     @apihook('SHCreateDirectoryEx', argc=3)
     def SHCreateDirectoryEx(self, emu, argv, ctx={}):
@@ -132,3 +137,15 @@ class Shell32(api.ApiHandler):
             strs += len(s)
 
         return buf
+
+    @apihook('ExtractIcon', argc=3)
+    def ExtractIcon(self, emu, argv, ctx={}):
+        """
+        HICON ExtractIconA(
+          HINSTANCE hInst,
+          LPCSTR    pszExeFileName,
+          UINT      nIconIndex
+        );
+        """
+
+        return self.get_handle()
