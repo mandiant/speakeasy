@@ -2,6 +2,8 @@
 
 Speakeasy is a portable, modular, binary emulator designed to emulate Windows kernel and user mode malware.
 
+Check out the overview in the first [Speakeasy blog post](https://www.fireeye.com/blog/threat-research/2020/08/emulation-of-malicious-shellcode-with-speakeasy.html).
+
 Instead of attempting to perform dynamic analysis using an entire virtualized operating system, Speakeasy will emulate specific components of Windows. Specifically, by emulating operating system APIs, objects, running processes/threads, filesystems, and networks it should be possible to present an environment where samples can fully "execute". Samples can be easily emulated in a container or in cloud services which allow for great scalability of many samples to be simultaneously analyzed. Currently, Speakeasy supports both user mode and kernel mode Windows applications.
 
 Before emulating, entry points are identified within the binary. For example, exported functions are all identified and emulated sequentially. Additionally, dynamic entry points (e.g. new threads, registered callbacks, IRP handlers) that are discovered at runtime are also emulated. The goal here is to have as much code coverage as possible during emulation. Events are logged on a per-entry-point basis so that functionality can be attributed to specific functions or exports.
