@@ -695,8 +695,6 @@ class Process(KernelObject):
         self.peb.write_back()
 
     def init_peb(self, modules):
-        self.peb.object.ImageBaseAddress = self.base
-
         # Add an entry for each module in the module list
         for mod in modules:
             self.add_module_to_peb(mod)

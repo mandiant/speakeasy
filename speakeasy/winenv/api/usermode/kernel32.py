@@ -97,30 +97,49 @@ class Kernel32(api.ApiHandler):
             ret = 'msvcrt'
         return ret
 
-    def find_resource_by_id(self, pe, uID, directory=None, visited_dirs=None):
-        if directory is None:
-            directory = pe.DIRECTORY_ENTRY_RESOURCE
+    def normalize_res_identifier(self, emu, cw, val):
+        mask = (16 ** (emu.get_ptr_size() // 2) - 1) << 16
+        if val & mask:  # not an INTRESOURCE
+            name = emu.read_mem_string(val, cw)
+            if name[0] == "#":
+                try:
+                    name = int(name[1:])
+                except Exception:
+                    return 0
+        else:
+            name = val
 
-        if visited_dirs is None:  # prevent infinite loops
-            foffset = directory.struct.dump_dict()['Characteristics']['FileOffset']
-            visited_dirs = [pe.get_base() + foffset]
+        return name
 
-        for entry in directory.entries:
-            if not hasattr(entry, 'directory'):
-                continue
+    def find_resource(self, pe, name, type_):
+        # find type
+        resource_type = None
+        for restype in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+            if type(type_) is str and restype.name is not None:
+                if type_ == restype.name.decode('utf8'):
+                    resource_type = restype
+                    break
+            elif type(type_) is int and hasattr(restype.struct, 'Id'):
+                if type_ == restype.struct.Id:
+                    resource_type = restype
+                    break
 
-            foffset = entry.directory.struct.dump_dict()['Characteristics']['FileOffset']
+        if not resource_type:
+            return None
 
-            if entry.id == uID:
-                return entry
-            elif (hasattr(entry, "directory") and pe.get_base() + foffset not in visited_dirs):
-                visited_dirs += [pe.get_base() + foffset]
-                res = self.find_resource_by_id(pe, uID, entry.directory, visited_dirs)
-                if res is not None:
-                    return res.directory.entries[0]
+        if not hasattr(resource_type, 'directory'):
+            return None
+
+        for resource_id in resource_type.directory.entries:
+            if type(name) is str and resource_id.name is not None:
+                if name == resource_id.name.decode('utf8'):
+                    return resource_id.directory.entries[0]
+            elif type(name) is int and hasattr(resource_id.struct, 'Id'):
+                if name == resource_id.struct.Id:
+                    return resource_id.directory.entries[0]
 
         return None
-    
+
     @apihook('OutputDebugString', argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         '''
@@ -2360,8 +2379,12 @@ class Kernel32(api.ApiHandler):
                 out = filename.encode('utf-8')
 
             size = int(len(out) / cw)
-            if nSize < size:
+            if nSize < size + 1 * cw: # null terminator
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                out = out[:nSize - 1 * cw] + b'\0' * cw
+            else:
+                out += b'\0' * cw
+
             self.mem_write(lpFilename, out)
         return size
 
@@ -3467,21 +3490,9 @@ class Kernel32(api.ApiHandler):
             if pe and hModule != pe.get_base():
                 return 0
 
-        mask = (16 ** (emu.get_ptr_size() // 2) - 1) << 16
-        if lpName & mask:  # not an INTRESOURCE
-            name = emu.read_mem_string(lpName, cw)
-            if name[0] == "#":
-                try:
-                    uID = int(name[1:])
-                except Exception:
-                    return 0
-            else:
-                # TODO: handle searching by name
-                return 0
-        else:
-            uID = lpName
-
-        res = self.find_resource_by_id(pe, uID)
+        name = self.normalize_res_identifier(emu, cw, lpName)
+        type_ = self.normalize_res_identifier(emu, cw, lpType)
+        res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
 
@@ -3793,3 +3804,52 @@ class Kernel32(api.ApiHandler):
         );
         '''
         return 1
+
+    @apihook('GetShortPathName', argc=3)
+    def GetShortPathName(self, emu, argv, ctx={}):
+        '''
+        DWORD GetShortPathNameW(
+          LPCWSTR lpszLongPath,
+          LPWSTR  lpszShortPath,
+          DWORD   cchBuffer
+        );
+        https://en.wikipedia.org/wiki/8.3_filename#VFAT_and_Computer-generated_8.3_filenames
+        '''
+        lpszLongPath, lpszShortPath, cchBuffer = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpszLongPath, cw)
+        argv[0] = s
+        files = s.split('\\')
+        out = files[0] + '\\'
+        for i, file in enumerate(files):
+            if i == 0:
+                continue
+
+            file = file.upper()
+            file = file.lstrip('.')
+            file = file.rstrip('.')
+            file = file.replace('+', '_')
+            file = file.replace(' ', '')
+            parts = file.rsplit('.', 1)
+            if len(parts) == 2:
+                file, ext = parts
+            else:
+                ext = None
+
+            if len(file) > 8:
+                file = file[:6]
+                file += '~1'
+
+            if ext:
+                ext = ext[:3]
+                file += '.' + ext
+
+            out += file
+            if i != len(files) - 1:
+                out += '\\'
+
+        if lpszShortPath and len(out) + 1 <= cchBuffer:
+            argv[1] = out
+            self.write_mem_string(out, lpszShortPath, cw)
+
+        return len(out) + 1

@@ -46,3 +46,62 @@ class Shlwapi(api.ApiHandler):
             argv[0] = pn
 
         return rv
+
+    @apihook('PathFindExtension', argc=1)
+    def PathFindExtension(self, emu, argv, ctx={}):
+        """LPCSTR PathFindExtensionA(
+          LPCSTR pszPath
+        );
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        argv[0] = s
+        idx1 = s.rfind('\\')
+        t = s[idx1 + 1:]
+        idx2 = t.rfind('.')
+        if idx2 == -1:
+            return pszPath + len(s)
+
+        argv[0] = t[idx2:]
+        return pszPath + idx1 + 1 + idx2
+
+    @apihook('PathFindFileName', argc=1)
+    def PathFindFileName(self, emu, argv, ctx={}):
+        """
+        LPCSTR PathFindFileNameA(
+          LPCSTR pszPath
+        );
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        argv[0] = s
+        idx = s.rfind('\\')
+        if idx == -1:
+            return pszPath + len(s)
+
+        argv[0] = s[idx + 1:]
+        return pszPath + idx + 1
+
+    @apihook('PathRemoveExtension', argc=1)
+    def PathRemoveExtension(self, emu, argv, ctx={}):
+        """
+        void PathRemoveExtensionA(
+          LPSTR pszPath
+        );
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        argv[0] = s
+        idx1 = s.rfind('\\')
+        t = s[idx1 + 1:]
+        idx2 = t.rfind('.')
+        if idx2 == -1:
+            return pszPath
+
+        s = s[:idx1 + 1 + idx2]
+        argv[0] = s
+        self.write_mem_string(s, pszPath, cw)
+        return pszPath
