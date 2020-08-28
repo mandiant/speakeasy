@@ -1281,6 +1281,58 @@ class Ntoskrnl(api.ApiHandler):
         # ApcState = argv[0]
         return
 
+    @apihook('ZwProtectVirtualMemory', argc=5)
+    def ZwProtectVirtualMemory(self, emu, argv, ctx={}):
+        """
+        NTSTATUS ZwProtectVirtualMemory(
+            IN HANDLE ProcessHandle,
+            IN_OUT PVOID* BaseAddress,
+            IN SIZE_T* NumberOfBytesToProtect,
+            IN ULONG NewAccessProtection,
+            OUT PULONG OldAccessProtection
+            )
+        """
+        rv = ddk.STATUS_SUCCESS
+        return rv
+
+    @apihook('ZwWriteVirtualMemory', argc=5)
+    def ZwWriteVirtualMemory(self, emu, argv, ctx={}):
+        """
+        ZwWriteVirtualMemory(
+            HANDLE ProcessHandle,
+            PVOID BaseAddress,
+            PVOID Buffer,
+            ULONG NumberOfBytesToWrite,
+            PULONG NumberOfBytesWritten);
+        """
+        rv = ddk.STATUS_SUCCESS
+        hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
+        rv = False
+
+        if hProcess == self.get_max_int():
+            obj = emu.get_current_process()
+        else:
+            obj = self.get_object_from_handle(hProcess)
+
+        proc_path = obj.get_process_path()
+        argv[0] = proc_path
+
+        data = b''
+        if lpBuffer and lpBaseAddress:
+            data = self.mem_read(lpBuffer, nSize)
+            self.mem_write(lpBaseAddress, data)
+            if lpNumberOfBytesWritten:
+                bw = (len(data)).to_bytes(self.get_ptr_size(), 'little')
+                print(data)
+                self.mem_write(lpNumberOfBytesWritten, bw)
+        else:
+            rv = ddk.STATUS_INVALID_PARAMETER
+
+        self.log_process_event(obj, 'mem_write', base=lpBaseAddress,
+                               size=nSize, data=data)
+
+        return rv
+
     @apihook('ZwAllocateVirtualMemory', argc=6)
     def ZwAllocateVirtualMemory(self, emu, argv, ctx={}):
         """
@@ -2796,6 +2848,10 @@ class Ntoskrnl(api.ApiHandler):
         fman = emu.get_file_manager()
 
         sect = fman.get_mapping_from_handle(SectionHandle)
+        if ProcessHandle == self.get_max_int():
+            proc_obj = emu.get_current_process()
+        else:
+            proc_obj = self.get_object_from_handle(ProcessHandle)
 
         full_offset = 0
         if SectionOffset:
@@ -2824,7 +2880,8 @@ class Ntoskrnl(api.ApiHandler):
                 while base and base & 0xFFF:
                     base, size = emu.get_valid_ranges(size)
 
-                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True)
+                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, tag='api',
+                                     process=proc_obj)
                 sect.add_view(buf, full_offset, size, access)
                 mm = emu.get_address_map(buf)
                 fname = ntpath.basename(f.get_path())
@@ -2835,7 +2892,8 @@ class Ntoskrnl(api.ApiHandler):
                 if bytes_to_map == 0:
                     bytes_to_map = sect.size
                 base, size = emu.get_valid_ranges(bytes_to_map)
-                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True)
+                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True,
+                                     process=proc_obj)
                 mm = emu.get_address_map(buf)
                 mm.update_tag('%s.0x%x' % (tag_prefix, buf))
                 sect.add_view(buf, full_offset, size, access)
