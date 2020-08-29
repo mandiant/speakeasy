@@ -537,7 +537,7 @@ class Msvcrt(api.ApiHandler):
 
         self.write_string(s, dest)
         argv[1] = s
-        return len(s)
+        return dest
     
     @apihook('wcscpy', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx={}):
