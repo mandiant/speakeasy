@@ -173,7 +173,7 @@ class Ws2_32(api.ApiHandler):
 
         return ntohl(netlong)
 
-    @apihook('setsockopt', argc=5)
+    @apihook('setsockopt', argc=5, ordinal=21)
     def setsockopt(self, emu, argv, ctx={}):
         """
         int setsockopt(
