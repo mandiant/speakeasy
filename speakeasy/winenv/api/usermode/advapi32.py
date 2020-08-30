@@ -443,6 +443,21 @@ class AdvApi32(api.ApiHandler):
 
         return self.service_status_handle
 
+    @apihook('SetServiceStatus', argc=2)
+    def SetServiceStatus(self, emu, argv, ctx={}):
+        '''
+        BOOL SetServiceStatus(
+            SERVICE_STATUS_HANDLE hServiceStatus,
+            LPSERVICE_STATUS      lpServiceStatus
+            );
+        '''
+
+        hServiceStatus, lpServiceStatus = argv
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return 0x1
+
     @apihook('OpenSCManager', argc=3)
     def OpenSCManager(self, emu, argv, ctx={}):
         '''
