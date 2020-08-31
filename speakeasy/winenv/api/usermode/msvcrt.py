@@ -13,6 +13,7 @@ _TRUNCATE = 0xFFFFFFFF
 
 TIME_BASE = 1576292568
 RAND_BASE = 0
+TICK_BASE = 86400000  # 1 day in millisecs
 
 
 class Msvcrt(api.ApiHandler):
@@ -36,6 +37,8 @@ class Msvcrt(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.wintypes = windef
+
+        self.tick_counter = TICK_BASE
 
         super(Msvcrt, self).__get_hook_attrs__(self)
 
@@ -418,6 +421,16 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(destTime, out_time)
 
         return out_time
+
+    @apihook('clock', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def clock(self, emu, argv, ctx={}):
+        '''
+        clock_t clock( void );
+        '''
+
+        self.tick_counter += 200
+
+        return self.tick_counter
 
     @apihook('srand', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def srand(self, emu, argv, ctx={}):
