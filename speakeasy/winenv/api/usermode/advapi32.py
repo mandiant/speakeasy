@@ -11,6 +11,7 @@ import speakeasy.windows.objman as objman
 from .. import api
 import hashlib
 
+SERVICE_STATUS_HANDLE_BASE = 0x1000
 
 class AdvApi32(api.ApiHandler):
     """
@@ -31,6 +32,7 @@ class AdvApi32(api.ApiHandler):
         self.win = adv32
         self.curr_rand = 0
         self.curr_handle = 0x2800
+        self.service_status_handle = SERVICE_STATUS_HANDLE_BASE
 
         super(AdvApi32, self).__get_hook_attrs__(self)
 
@@ -444,6 +446,39 @@ class AdvApi32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
+
+    @apihook('RegisterServiceCtrlHandler', argc=2)
+    def RegisterServiceCtrlHandler(self, emu, argv, ctx={}):
+        '''
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerA(
+            LPCSTR             lpServiceName,
+            LPHANDLER_FUNCTION lpHandlerProc
+            );
+        '''
+
+        lpServiceName, lpHandlerProc = argv
+
+        # dummy SERVICE_STATUS_HANDLE
+        self.service_status_handle += 1
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return self.service_status_handle
+
+    @apihook('SetServiceStatus', argc=2)
+    def SetServiceStatus(self, emu, argv, ctx={}):
+        '''
+        BOOL SetServiceStatus(
+            SERVICE_STATUS_HANDLE hServiceStatus,
+            LPSERVICE_STATUS      lpServiceStatus
+            );
+        '''
+
+        hServiceStatus, lpServiceStatus = argv
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return 0x1
 
     @apihook('OpenSCManager', argc=3)
     def OpenSCManager(self, emu, argv, ctx={}):
