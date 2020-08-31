@@ -303,7 +303,33 @@ class Msvcrt(api.ApiHandler):
         z = self.double_to_hex(z)
 
         return z
-      
+
+    @apihook('sin', argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def sin(self, emu, argv, ctx={}):
+        """
+        double sin(
+           double x
+        );
+        """
+        x, = argv
+
+        y = self.hex_to_double(x)
+        z = math.sin(y)
+        z = self.double_to_hex(z)
+
+        return z
+
+    @apihook('abs', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def abs(self, emu, argv, ctx={}):
+        """
+        int abs(
+           int x
+        );
+        """
+        x, = argv
+        y = abs(x)
+        return y
+
     @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strstr(self, emu, argv, ctx={}):
         """
