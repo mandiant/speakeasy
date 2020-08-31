@@ -779,7 +779,22 @@ class Msvcrt(api.ApiHandler):
         rv = len(string)
 
         return rv
-
+    
+    @apihook('toupper', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def toupper(self, emu, argv, ctx={}):
+        """
+        int toupper(
+           int c
+        );
+        """
+        c, = argv
+        argv[0] = c
+        if 0x00 <= c <= 0x7f:
+            c = ord(chr(c).upper())
+        else:
+            c = 0x00
+        return c
+    
     @apihook('strlen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def strlen(self, emu, argv, ctx={}):
         """
