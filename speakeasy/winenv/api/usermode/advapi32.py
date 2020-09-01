@@ -11,6 +11,7 @@ import speakeasy.windows.objman as objman
 from .. import api
 import hashlib
 
+SERVICE_STATUS_HANDLE_BASE = 0x1000
 
 class AdvApi32(api.ApiHandler):
     """
@@ -31,6 +32,7 @@ class AdvApi32(api.ApiHandler):
         self.win = adv32
         self.curr_rand = 0
         self.curr_handle = 0x2800
+        self.service_status_handle = SERVICE_STATUS_HANDLE_BASE
 
         super(AdvApi32, self).__get_hook_attrs__(self)
 
@@ -416,12 +418,67 @@ class AdvApi32(api.ApiHandler):
         ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
         entry = self.mem_cast(ste, lpServiceStartTable)
 
-        # Get the service name
-        name = self.read_mem_string(entry.lpServiceName, cw) # noqa
+        argv[0] = "lpServiceStartTable=["
+
+        while (entry.lpServiceName != windefs.NULL or
+                entry.lpServiceProc != windefs.NULL):
+            # Get the service name
+            if entry.lpServiceName != windefs.NULL:
+                name = self.read_mem_string(entry.lpServiceName, cw) # noqa
+                argv[0] += " {{ lpServiceName={}".format(name)
+            else:
+                argv[0] += " { lpServiceName=NULL"
+            # Get the ServiceMain function
+            if entry.lpServiceProc != windefs.NULL:
+                service_main = entry.lpServiceProc
+                argv[0] += ", lpServiceProc={} }} ".format(hex(service_main))
+                handle, obj = self.create_thread(service_main, windefs.NULL, emu.get_current_process())
+            else:
+                argv[0] += ", lpServiceProc=NULL } "
+            # next entry
+            lpServiceStartTable += self.sizeof(ste)
+            ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
+            entry = self.mem_cast(ste, lpServiceStartTable)
+
+        argv[0] += "]"
+
         rv = True
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
+
+    @apihook('RegisterServiceCtrlHandler', argc=2)
+    def RegisterServiceCtrlHandler(self, emu, argv, ctx={}):
+        '''
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerA(
+            LPCSTR             lpServiceName,
+            LPHANDLER_FUNCTION lpHandlerProc
+            );
+        '''
+
+        lpServiceName, lpHandlerProc = argv
+
+        # dummy SERVICE_STATUS_HANDLE
+        self.service_status_handle += 1
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return self.service_status_handle
+
+    @apihook('SetServiceStatus', argc=2)
+    def SetServiceStatus(self, emu, argv, ctx={}):
+        '''
+        BOOL SetServiceStatus(
+            SERVICE_STATUS_HANDLE hServiceStatus,
+            LPSERVICE_STATUS      lpServiceStatus
+            );
+        '''
+
+        hServiceStatus, lpServiceStatus = argv
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return 0x1
 
     @apihook('OpenSCManager', argc=3)
     def OpenSCManager(self, emu, argv, ctx={}):

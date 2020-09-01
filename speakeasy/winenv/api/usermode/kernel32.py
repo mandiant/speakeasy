@@ -1621,7 +1621,7 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.get_tls()
 
-        if dwTlsIndex <= len(tls):
+        if dwTlsIndex < len(tls):
             tls[dwTlsIndex] = lpTlsValue
             thread.set_tls(tls)
             rv = 1
@@ -1644,7 +1644,7 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.get_tls()
 
-        if dwTlsIndex <= len(tls):
+        if dwTlsIndex < len(tls):
             rv = tls[dwTlsIndex]
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:

@@ -13,6 +13,7 @@ _TRUNCATE = 0xFFFFFFFF
 
 TIME_BASE = 1576292568
 RAND_BASE = 0
+TICK_BASE = 86400000  # 1 day in millisecs
 
 
 class Msvcrt(api.ApiHandler):
@@ -36,6 +37,8 @@ class Msvcrt(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.wintypes = windef
+
+        self.tick_counter = TICK_BASE
 
         super(Msvcrt, self).__get_hook_attrs__(self)
 
@@ -300,7 +303,33 @@ class Msvcrt(api.ApiHandler):
         z = self.double_to_hex(z)
 
         return z
-      
+
+    @apihook('sin', argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def sin(self, emu, argv, ctx={}):
+        """
+        double sin(
+           double x
+        );
+        """
+        x, = argv
+
+        y = self.hex_to_double(x)
+        z = math.sin(y)
+        z = self.double_to_hex(z)
+
+        return z
+
+    @apihook('abs', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def abs(self, emu, argv, ctx={}):
+        """
+        int abs(
+           int x
+        );
+        """
+        x, = argv
+        y = abs(x)
+        return y
+
     @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strstr(self, emu, argv, ctx={}):
         """
@@ -418,6 +447,16 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(destTime, out_time)
 
         return out_time
+
+    @apihook('clock', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def clock(self, emu, argv, ctx={}):
+        '''
+        clock_t clock( void );
+        '''
+
+        self.tick_counter += 200
+
+        return self.tick_counter
 
     @apihook('srand', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def srand(self, emu, argv, ctx={}):
@@ -537,7 +576,7 @@ class Msvcrt(api.ApiHandler):
 
         self.write_string(s, dest)
         argv[1] = s
-        return len(s)
+        return dest
     
     @apihook('wcscpy', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx={}):
@@ -766,7 +805,22 @@ class Msvcrt(api.ApiHandler):
         rv = len(string)
 
         return rv
-
+    
+    @apihook('toupper', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def toupper(self, emu, argv, ctx={}):
+        """
+        int toupper(
+           int c
+        );
+        """
+        c, = argv
+        argv[0] = c
+        if 0x00 <= c <= 0x7f:
+            c = ord(chr(c).upper())
+        else:
+            c = 0x00
+        return c
+    
     @apihook('strlen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def strlen(self, emu, argv, ctx={}):
         """
