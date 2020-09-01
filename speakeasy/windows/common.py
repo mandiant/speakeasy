@@ -315,8 +315,8 @@ class DecoyModule(PeFile):
         self.is_mapped = False
         self.data = b''
 
-    def get_memory_mapped_image(self, max_virtual_address=0x10000000):
-        mmi = super(DecoyModule, self).get_memory_mapped_image(max_virtual_address)
+    def get_memory_mapped_image(self, max_virtual_address=0x10000000, base=None):
+        mmi = super(DecoyModule, self).get_memory_mapped_image(max_virtual_address, base)
         if len(mmi) < len(self.__data__):
             return self.__data__
         return mmi

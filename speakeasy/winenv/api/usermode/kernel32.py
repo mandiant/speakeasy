@@ -150,7 +150,7 @@ class Kernel32(api.ApiHandler):
         _str, = argv
         cw = self.get_char_width(ctx)
         argv[0] = self.read_mem_string(_str, cw)
-        
+
     @apihook('GetProcessHeap', argc=0)
     def GetProcessHeap(self, emu, argv, ctx={}):
         '''

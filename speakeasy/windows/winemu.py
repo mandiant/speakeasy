@@ -759,7 +759,7 @@ class WindowsEmulator(BinaryEmulator):
     def new_object(self, otype):
         return self.om.new_object(otype)
 
-    def create_process(self, path='', cmdline=''):
+    def create_process(self, path='', cmdline='', image=None):
         """
         Create a process object that will exist in the emulator
         """
@@ -782,9 +782,19 @@ class WindowsEmulator(BinaryEmulator):
         mod_name = os.path.splitext(mod_name)[0]
 
         decoy_mod = self.init_module(name=mod_name, emu_path=p.path)
+        size = decoy_mod.image_size
+        if size < self.page_size:
+            size = self.page_size * 2
+        self.map_decoy(decoy_mod)
+
         p.pe = decoy_mod
         p.name = mod_name
         self.alloc_peb(p)
+
+        if self.get_arch() == _arch.ARCH_X86:
+            t.ctx.Eax = decoy_mod.base + decoy_mod.ep
+            t.ctx.Eip = t.ctx.Eax
+            t.ctx.Ebx = p.get_peb().address
 
         self.processes.append(p)
         return p
@@ -1681,10 +1691,11 @@ class WindowsEmulator(BinaryEmulator):
                                    perms=common.PERM_MEM_RW)
 
             decoy.is_mapped = True
-            img = decoy.get_memory_mapped_image()
+            img = decoy.get_memory_mapped_image(base=mem)
             self.mem_write(mem, bytes(img))
             if not self.mem_tracing_enabled:
                 self.add_code_hook(cb=self._module_access_hook, begin=mem, end=mem+len(img))
+            decoy.base = mem
             return True
 
     def get_thread_context(self, thread=None):

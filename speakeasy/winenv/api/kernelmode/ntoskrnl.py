@@ -1292,6 +1292,16 @@ class Ntoskrnl(api.ApiHandler):
             OUT PULONG OldAccessProtection
             )
         """
+        hnd, base, byte_len, new_prot, old_prot = argv
+
+        if base:
+            addr = self.mem_read(base, emu.get_ptr_size())
+            addr = int.from_bytes(addr, 'little')
+            argv[1] = addr
+        if byte_len:
+            size = self.mem_read(byte_len, emu.get_ptr_size())
+            size = int.from_bytes(size, 'little')
+            argv[2] = size
         rv = ddk.STATUS_SUCCESS
         return rv
 
@@ -1323,7 +1333,6 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(lpBaseAddress, data)
             if lpNumberOfBytesWritten:
                 bw = (len(data)).to_bytes(self.get_ptr_size(), 'little')
-                print(data)
                 self.mem_write(lpNumberOfBytesWritten, bw)
         else:
             rv = ddk.STATUS_INVALID_PARAMETER
@@ -2888,6 +2897,8 @@ class Ntoskrnl(api.ApiHandler):
                 fname = fname.replace('.', '_')
                 mm.update_tag('%s.%s.0x%x' % (tag_prefix, fname, buf))
                 self.mem_write(buf, data)
+                argv[2] = buf
+                argv[3] = size
             elif not pref_address:
                 if bytes_to_map == 0:
                     bytes_to_map = sect.size
@@ -2896,6 +2907,8 @@ class Ntoskrnl(api.ApiHandler):
                                      process=proc_obj)
                 mm = emu.get_address_map(buf)
                 mm.update_tag('%s.0x%x' % (tag_prefix, buf))
+                argv[2] = buf
+                argv[3] = size
                 sect.add_view(buf, full_offset, size, access)
             else:
                 buf = pref_address

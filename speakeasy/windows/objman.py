@@ -411,7 +411,7 @@ class Thread(KernelObject):
         self.teb = None
         self.seh = SEH()
         self.tls = []
-        self.ctx = None
+        self.ctx = self.emu.get_thread_context()
         self.fls = []
         self.suspend_count = 0
         self.token = Token(self.emu)
