@@ -820,19 +820,13 @@ class Kernel32(api.ApiHandler):
         if rv > 0:
             obj.suspend_count -= 1
 
-        if obj.modified_pc:
+        if emu.get_arch() == e_arch.ARCH_X86:
             context = obj.get_context()
             proc = obj.process
-            # We are making an assumption here and if it causes an issue,
-            # I will revisit this. For now, if a thread was in a suspended state,
-            # then has its program counter modified, and is then resumed, we
-            # assume the author is hijacking the original thread and we will
-            # attempt to emulate it.
-            if emu.get_arch() == e_arch.ARCH_X86:
-                handle, obj = self.create_thread(context.Eip, 0,
-                                                 proc,
-                                                 thread_type='thread.%s.%d' % (proc.name,
-                                                                               proc.get_id()))
+            handle, obj = self.create_thread(context.Eip, 0,
+                                             proc,
+                                             thread_type='thread.%s.%d' % (proc.name,
+                                                                           proc.get_id()))
 
         return rv
 
@@ -2379,7 +2373,7 @@ class Kernel32(api.ApiHandler):
                 out = filename.encode('utf-8')
 
             size = int(len(out) / cw)
-            if nSize < size + 1 * cw: # null terminator
+            if nSize < size + 1 * cw:  # null terminator
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 out = out[:nSize - 1 * cw] + b'\0' * cw
             else:
@@ -3416,6 +3410,7 @@ class Kernel32(api.ApiHandler):
             return False
 
         context = obj.get_context()
+
         self.mem_write(lpContext, context.get_bytes())
 
         return True

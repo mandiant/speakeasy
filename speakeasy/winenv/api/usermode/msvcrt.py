@@ -556,14 +556,14 @@ class Msvcrt(api.ApiHandler):
     @apihook('strncpy', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncpy(self, emu, argv, ctx={}):
         """
-        char * strncpy( 
-            char * destination, 
-            const char * source, 
-            size_t num 
+        char * strncpy(
+            char * destination,
+            const char * source,
+            size_t num
         );
         """
         dest, src, length = argv
-        s = self.read_string(src,max_chars=length)
+        s = self.read_string(src, max_chars=length)
         if len(s) < length:
             s += '\x00'*(length-len(s))
         self.write_string(s, dest)
@@ -797,8 +797,8 @@ class Msvcrt(api.ApiHandler):
         argv[1] = s2
         new = (s1 + s2).encode('utf-8')
         self.mem_write(_str1, new + b'\x00')
-        return _str1    
-    
+        return _str1
+
     @apihook('wcslen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx={}):
         """
@@ -810,9 +810,9 @@ class Msvcrt(api.ApiHandler):
         string = self.read_wide_string(s)
         argv[0] = string
         rv = len(string)
-        
+
         return rv
-    
+
     @apihook('_lock', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _lock(self, emu, argv, ctx={}):
         """
