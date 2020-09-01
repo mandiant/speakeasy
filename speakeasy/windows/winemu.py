@@ -1725,7 +1725,7 @@ class WindowsEmulator(BinaryEmulator):
                 ctx.SegGs = self.reg_read(_arch.X86_REG_GS)
                 ctx.SegEs = self.reg_read(_arch.X86_REG_ES)
             elif self.get_arch() == _arch.ARCH_AMD64:
-                raise NotImplementedError()
+                ctx = self.wintypes.CONTEXT64(self.get_ptr_size())
         return ctx
 
     def load_thread_context(self, ctx, thread=None):
