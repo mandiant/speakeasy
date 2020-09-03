@@ -853,6 +853,23 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(_str1, new + b'\x00')
         return _str1
 
+    @apihook('wcscat', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcscat(self, emu, argv, ctx={}):
+        '''
+        wchar_t *wcscat(
+           wchar_t *strDestination,
+           const wchar_t *strSource
+        );
+        '''
+        _str1, _str2 = argv
+        s1 = self.read_mem_string(_str1, 2)
+        s2 = self.read_mem_string(_str2, 2)
+        argv[0] = s1
+        argv[1] = s2
+        new = (s1 + s2).encode('utf-16le')
+        self.mem_write(_str1, new + b'\x00\x00')
+        return _str1
+    
     @apihook('wcslen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx={}):
         """
