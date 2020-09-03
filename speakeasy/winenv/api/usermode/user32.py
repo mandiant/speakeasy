@@ -121,6 +121,106 @@ class User32(api.ApiHandler):
 
         return rv
 
+    @apihook('RegisterClassEx', argc=1)
+    def RegisterClassEx(self, emu, argv, ctx={}):
+        '''
+        ATOM RegisterClassEx(
+            const WNDCLASSEXA *Arg1
+        );
+        '''
+        Arg1, = argv
+        wclass = windefs.WNDCLASSEX(emu.get_ptr_size())
+        wclass = self.mem_cast(wclass, Arg1)
+
+        cn = None
+        cw = self.get_char_width(ctx)
+        if wclass.lpszClassName:
+            cn = self.read_mem_string(wclass.lpszClassName, cw)
+
+        atom = self.sessman.create_window_class(wclass, cn)
+
+        return atom
+
+    @apihook('UnregisterClass', argc=2)
+    def UnregisterClass(self, emu, argv, ctx={}):
+        '''
+        BOOL UnregisterClass(
+            LPCSTR    lpClassName,
+            HINSTANCE hInstance
+        );
+        '''
+
+        return 1
+
+    @apihook('ChangeWindowMessageFilter', argc=2)
+    def ChangeWindowMessageFilter(self, emu, argv, ctx={}):
+        '''
+        BOOL ChangeWindowMessageFilter(
+            UINT  message,
+            DWORD dwFlag
+        );
+        '''
+        msg, flag = argv
+        emu.enable_code_hook()
+        return True
+
+    @apihook('UpdateWindow', argc=1)
+    def UpdateWindow(self, emu, argv, ctx={}):
+        '''
+        BOOL UpdateWindow(
+            HWND hWnd
+        );
+        '''
+        hnd, = argv
+        window = self.sessman.get_window(hnd)
+        if not window:
+            return False
+
+        wc = self.sessman.get_window_class(window.class_name)
+        return True
+
+    @apihook('DestroyWindow', argc=1)
+    def DestroyWindow(self, emu, argv, ctx={}):
+        '''
+        BOOL DestroyWindow(
+            HWND hWnd
+        );
+        '''
+        return True
+
+    @apihook('CreateWindowEx', argc=12)
+    def CreateWindowEx(self, emu, argv, ctx={}):
+        '''
+        HWND CreateWindowExA(
+            DWORD     dwExStyle,
+            LPCSTR    lpClassName,
+            LPCSTR    lpWindowName,
+            DWORD     dwStyle,
+            int       X,
+            int       Y,
+            int       nWidth,
+            int       nHeight,
+            HWND      hWndParent,
+            HMENU     hMenu,
+            HINSTANCE hInstance,
+            LPVOID    lpParam
+        );
+        '''
+        cw = self.get_char_width(ctx)
+        _, cn, wn, _, x, y, width, height, parent, menu, inst, param = argv
+        if cn:
+            cn = self.read_mem_string(cn, cw)
+            argv[1] = cn
+        else:
+            cn = None
+        if wn:
+            wn = self.read_mem_string(wn, cw)
+            argv[2] = wn
+        else:
+            wn = None
+        hnd = self.sessman.create_window(wn, cn)
+        return hnd
+
     @apihook('MessageBox', argc=4)
     def MessageBox(self, emu, argv, ctx={}):
         '''int MessageBox(
@@ -227,7 +327,7 @@ class User32(api.ApiHandler):
 
         rv = 0
         return rv
-    
+
     @apihook('GetKeyboardType', argc=1)
     def GetKeyboardType(self, emu, argv, ctx={}):
         '''
@@ -243,7 +343,7 @@ class User32(api.ApiHandler):
         elif _type == 2:
             return 12
         return 0
-    
+
     @apihook('GetSystemMetrics', argc=1)
     def GetSystemMetrics(self, emu, argv, ctx={}):
         """
@@ -372,6 +472,31 @@ class User32(api.ApiHandler):
             UINT  wMsgFilterMax
         );
         '''
+        lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
+
+        return True
+
+    @apihook('TranslateMessage', argc=1)
+    def TranslateMessage(self, emu, argv, ctx={}):
+        '''
+        BOOL TranslateMessage(
+            const MSG *lpMsg
+        );
+        '''
+        return True
+
+    @apihook('DispatchMessage', argc=1)
+    def DispatchMessage(self, emu, argv, ctx={}):
+        '''
+        LRESULT DispatchMessage(
+            const MSG *lpMsg
+        );
+        '''
+        lpMsg, = argv
+
+        msg = windefs.MSG(emu.get_ptr_size())
+        msg = self.mem_cast(msg, lpMsg)
+
         return 0
 
     @apihook('GetForegroundWindow', argc=0)

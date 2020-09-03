@@ -577,7 +577,7 @@ class Msvcrt(api.ApiHandler):
         self.write_string(s, dest)
         argv[1] = s
         return dest
-    
+
     @apihook('wcscpy', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx={}):
         """
@@ -591,7 +591,7 @@ class Msvcrt(api.ApiHandler):
         self.write_wide_string(ws, dest)
         argv[1] = ws
         return dest
-    
+
     @apihook('strncpy', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncpy(self, emu, argv, ctx={}):
         """
@@ -608,7 +608,7 @@ class Msvcrt(api.ApiHandler):
         self.write_string(s, dest)
         argv[1] = s
         return dest
-    
+
     @apihook('memcpy', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memcpy(self, emu, argv, ctx={}):
         """
@@ -622,7 +622,7 @@ class Msvcrt(api.ApiHandler):
         data = self.mem_read(src, count)
         self.mem_write(dest, data)
         return dest
-    
+
     @apihook('memmove', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memmove(self, emu, argv, ctx={}):
         """
@@ -636,7 +636,7 @@ class Msvcrt(api.ApiHandler):
         data = self.mem_read(src, count)
         self.mem_write(dest, data)
         return dest
-    
+
     @apihook('_except_handler4_common', argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler4_common(self, emu, argv, ctx={}):
         """
@@ -805,7 +805,7 @@ class Msvcrt(api.ApiHandler):
         rv = len(string)
 
         return rv
-    
+
     @apihook('toupper', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def toupper(self, emu, argv, ctx={}):
         """
@@ -820,7 +820,7 @@ class Msvcrt(api.ApiHandler):
         else:
             c = 0x00
         return c
-    
+
     @apihook('strlen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def strlen(self, emu, argv, ctx={}):
         """

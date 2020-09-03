@@ -1415,6 +1415,9 @@ class WindowsEmulator(BinaryEmulator):
                                                  'little'))
                 return True
 
+            # x = self.get_disasm(addr, size)[2]
+            # print('0x%x: %s'% (addr, x))
+
             if not self.mem_tracing_enabled:
                 # Disabling the code hook here grants a significant speed bump
                 self.disable_code_hook()
@@ -1906,7 +1909,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a kernel event object
         """
-        evt = objman.Event(self)
+        evt = self.new_object(objman.Event)
         evt.name = name
         hnd = self.om.get_handle(evt)
         return hnd, evt
@@ -1915,7 +1918,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a kernel mutant object
         """
-        mtx = objman.Mutant(self)
+        mtx = self.new_object(objman.Mutant)
         mtx.name = name
         hnd = self.om.get_handle(mtx)
         return hnd, mtx

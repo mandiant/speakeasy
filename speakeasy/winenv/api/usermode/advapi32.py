@@ -13,6 +13,7 @@ import hashlib
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 
+
 class AdvApi32(api.ApiHandler):
     """
     Implements exported functions from advapi32.dll
@@ -432,7 +433,8 @@ class AdvApi32(api.ApiHandler):
             if entry.lpServiceProc != windefs.NULL:
                 service_main = entry.lpServiceProc
                 argv[0] += ", lpServiceProc={} }} ".format(hex(service_main))
-                handle, obj = self.create_thread(service_main, windefs.NULL, emu.get_current_process())
+                handle, obj = self.create_thread(service_main, windefs.NULL,
+                                                 emu.get_current_process())
             else:
                 argv[0] += ", lpServiceProc=NULL } "
             # next entry

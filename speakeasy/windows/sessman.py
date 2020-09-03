@@ -75,8 +75,20 @@ class Window(GuiObject):
     """
     Represents a GUI window
     """
-    def __init__(self):
+    def __init__(self, name=None, class_name=None):
         super(Window, self).__init__()
+        self.name = name
+        self.class_name = class_name
+
+
+class WindowClass(GuiObject):
+    """
+    Represents a GUI window class
+    """
+    def __init__(self, wclass, name):
+        super(WindowClass, self).__init__()
+        self.wclass = wclass
+        self.name = name
 
 
 class SessionManager(object):
@@ -87,6 +99,8 @@ class SessionManager(object):
     def __init__(self, config):
         super(SessionManager, self).__init__()
         self.sessions = {}
+        self.window_classes = {}
+        self.windows = {}
         self.curr_session = None
         self.curr_station = None
         self.curr_desktop = None
@@ -106,6 +120,28 @@ class SessionManager(object):
 
         # For now lets default to the Default desktop
         self.curr_desktop = default
+
+    def create_window_class(self, class_obj, class_name=None):
+        wc = WindowClass(class_obj, class_name)
+        atom = wc.get_handle()
+        self.window_classes.update({atom: wc})
+        if class_name:
+            self.window_classes.update({class_name: wc})
+        return atom
+
+    def create_window(self, window_name=None, class_name=None):
+        wc = Window(window_name, class_name)
+        hnd = wc.get_handle()
+        self.windows.update({hnd: wc})
+        if window_name:
+            self.windows.update({window_name: wc})
+        return hnd
+
+    def get_window_class(self, atom):
+        return self.window_classes.get(atom)
+
+    def get_window(self, handle):
+        return self.windows.get(handle)
 
     def get_device_context(self):
         return self.dev_ctx

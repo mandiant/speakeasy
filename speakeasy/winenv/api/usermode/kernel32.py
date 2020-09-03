@@ -114,6 +114,10 @@ class Kernel32(api.ApiHandler):
     def find_resource(self, pe, name, type_):
         # find type
         resource_type = None
+
+        if not hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):
+            return None
+
         for restype in pe.DIRECTORY_ENTRY_RESOURCE.entries:
             if type(type_) is str and restype.name is not None:
                 if type_ == restype.name.decode('utf8'):
@@ -192,7 +196,15 @@ class Kernel32(api.ApiHandler):
         if name:
             name = self.read_mem_string(name, cw)
 
-        hnd, evt = emu.create_mutant(name)
+        obj = self.get_object_from_name(name)
+
+        hnd = 0
+        if obj:
+            hnd = emu.get_object_handle(obj)
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            hnd, evt = emu.create_mutant(name)
 
         argv[2] = name
         return hnd
@@ -2842,7 +2854,13 @@ class Kernel32(api.ApiHandler):
             evt_name = self.read_mem_string(name, cw)
             argv[3] = evt_name
 
-        hnd, evt = emu.create_event(evt_name)
+        obj = self.get_object_from_name(evt_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            hnd, evt = emu.create_event(evt_name)
 
         return hnd
 
@@ -2993,6 +3011,7 @@ class Kernel32(api.ApiHandler):
         DWORD  dwMilliseconds
         );
         '''
+        hHandle, dwMilliseconds = argv
 
         return 0
 

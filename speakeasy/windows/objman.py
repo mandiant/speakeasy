@@ -411,6 +411,7 @@ class Thread(KernelObject):
         self.teb = None
         self.seh = SEH()
         self.tls = []
+        self.message_queue = []
         self.ctx = self.emu.get_thread_context()
         self.fls = []
         self.suspend_count = 0
@@ -421,6 +422,12 @@ class Thread(KernelObject):
 
         self.write_back()
         self.process = None
+
+    def queue_message(self, msg):
+        """
+        Add a GUI message to the thread's message queue
+        """
+        self.message_queue.append(msg)
 
     def get_seh(self):
         return self.seh
