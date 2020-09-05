@@ -983,6 +983,10 @@ class WindowsEmulator(BinaryEmulator):
         if (dll.lower().startswith(('api-ms-win-crt', 'vcruntime', 'ucrtbased'))):
             alt_imp_dll = 'msvcrt'
 
+        # Redirect windows sockets 1.0 to windows sockets 2.0
+        if (dll.lower().startswith('winsock') or dll.lower().startswith('wsock32')):
+            alt_imp_dll = 'ws2_32'
+
         # Bridge ntdll funcs to ntoskrnl if supported
         elif dll.lower().startswith('ntdll'):
             alt_imp_dll = 'ntoskrnl'
