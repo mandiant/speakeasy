@@ -2864,6 +2864,51 @@ class Kernel32(api.ApiHandler):
 
         return hnd
 
+    @apihook('OpenEvent', argc=3)
+    def OpenEvent(self, emu, argv, ctx={}):
+        '''
+        HANDLE OpenEvent(
+            DWORD  dwDesiredAccess,
+            BOOL   bInheritHandle,
+            LPCSTR lpName
+        );
+        '''
+        access, inherit, name = argv
+
+        cw = self.get_char_width(ctx)
+        evt_name = None
+        hnd = 0
+        if name:
+            evt_name = self.read_mem_string(name, cw)
+            argv[2] = evt_name
+
+        obj = self.get_object_from_name(evt_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+
+        return hnd
+
+    @apihook('SetEvent', argc=1)
+    def SetEvent(self, emu, argv, ctx={}):
+        '''
+        BOOL SetEvent(
+            HANDLE hEvent
+        );
+        '''
+        hEvent, = argv
+
+        obj = self.get_object_from_handle(hEvent)
+
+        rv = False
+        if obj:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            rv = True
+        return rv
+
     @apihook('SetUnhandledExceptionFilter', argc=1)
     def SetUnhandledExceptionFilter(self, emu, argv, ctx={}):
         '''

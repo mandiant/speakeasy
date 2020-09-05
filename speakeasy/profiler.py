@@ -59,6 +59,7 @@ class Run(object):
         self.api_hash = hashlib.sha256()
         self.handled_exceptions = []
         self.stack = None
+        self.api_callbacks = []
         self.exec_cache = deque(maxlen=4)
         self.read_cache = deque(maxlen=4)
         self.write_cache = deque(maxlen=4)

@@ -393,7 +393,7 @@ class BinaryEmulator(MemoryManager):
 
         return argv
 
-    def do_call_return(self, ret_addr, argc, ret_value=None, conv=None):
+    def do_call_return(self, argc, ret_addr=None, ret_value=None, conv=None):
         """
         Set the emulation state after a call has completed
         """
@@ -413,8 +413,9 @@ class BinaryEmulator(MemoryManager):
 
         stk_ptr = self.reg_read(sp)
 
-        self.reg_write(sp, stk_ptr + self.ptr_size)
-        self.reg_write(pc, ret_addr)
+        if ret_addr:
+            self.reg_write(sp, stk_ptr + self.ptr_size)
+            self.reg_write(pc, ret_addr)
         if ret_value is not None:
             self.reg_write(rr, ret_value)
 

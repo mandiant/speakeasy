@@ -1043,6 +1043,7 @@ class WindowsEmulator(BinaryEmulator):
         Forward imported functions to the corresponding handler (if any).
         """
         imp_api = '%s.%s' % (dll, name)
+        oret = self.get_ret_address()
         mod, func_attrs = self.api.get_export_func_handler(dll, name)
         if not func_attrs:
             mod, func_attrs = self.normalize_import_miss(dll, name)
@@ -1078,14 +1079,14 @@ class WindowsEmulator(BinaryEmulator):
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
-            if 'virtualalloc' in mm.get_tag().lower():
+            if mm and 'virtualalloc' in mm.get_tag().lower():
                 self._dynamic_code_cb(self, ret, 0, {})
 
             # Log the API args and return value
-            self.log_api(ret, imp_api, rv, argv)
+            self.log_api(oret, imp_api, rv, argv)
 
-            if not self.run_complete:
-                self.do_call_return(ret, argc, rv, conv=conv)
+            if not self.run_complete and ret == oret:
+                self.do_call_return(argc, ret, rv, conv=conv)
 
         else:
             # See if a user defined a hook for this unsupported function
@@ -1100,7 +1101,7 @@ class WindowsEmulator(BinaryEmulator):
                 rv = hook.cb(self, imp_api, None, argv)
                 ret = self.get_ret_address()
                 self.log_api(ret, imp_api, rv, argv)
-                self.do_call_return(ret, hook.argc, rv, conv=hook.call_conv)
+                self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
 
             run = self.get_current_run()
@@ -1124,7 +1125,6 @@ class WindowsEmulator(BinaryEmulator):
         High level function used to catch all invalid memory accesses that occur during
         emulation
         """
-
         try:
             access = self.emu_eng.mem_access.get(access)
             self.prev_pc = self.get_pc()
@@ -1139,6 +1139,13 @@ class WindowsEmulator(BinaryEmulator):
                 if address == winemu.SEH_RETURN_ADDR:
                     self.continue_seh()
                     self._unset_emu_hooks()
+                    return True
+                elif address == winemu.API_CALLBACK_HANDLER_ADDR:
+                    run = self.get_current_run()
+                    if run.api_callbacks:
+                        pc, args = run.api_callbacks.pop(0)
+                        self.do_call_return(len(args), pc)
+                        self._unset_emu_hooks()
                     return True
                 return self._handle_invalid_fetch(emu, address, size,
                                                   value, ctx)
@@ -1415,8 +1422,9 @@ class WindowsEmulator(BinaryEmulator):
                                                  'little'))
                 return True
 
-            # x = self.get_disasm(addr, size)[2]
-            # print('0x%x: %s'% (addr, x))
+            # if self.debug:
+            #     x = self.get_disasm(addr, size)[2]
+            #     print('0x%x: %s'% (addr, x)
 
             if not self.mem_tracing_enabled:
                 # Disabling the code hook here grants a significant speed bump

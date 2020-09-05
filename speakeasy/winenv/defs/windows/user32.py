@@ -19,6 +19,8 @@ WH_MSGFILTER = -1
 WH_SHELL = 10
 WH_SYSMSGFILTER = 6
 
+WM_PAINT = 0x0F
+
 
 class MSG(EmuStruct):
     def __init__(self, ptr_size):

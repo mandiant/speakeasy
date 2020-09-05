@@ -4,6 +4,7 @@ import speakeasy.winenv.arch as _arch
 from speakeasy.profiler import Run
 from speakeasy.struct import EmuStruct
 from speakeasy.errors import ApiEmuError
+import speakeasy.windows.common as winemu
 
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 
@@ -357,6 +358,20 @@ class ApiHandler(object):
             args.append(arg)
             ptr += ptrsize
         return args
+
+    def setup_callback(self, func, args, caller_argv=[]):
+        """
+        For APIs that call functions, we will setup the stack to make this flow
+        naturally.
+        """
+        # Get the original return address
+        ret = self.emu.get_ret_address()
+        sp = self.emu.get_stack_ptr()
+
+        self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args)
+        run = self.emu.get_current_run()
+        self.emu.set_pc(func)
+        run.api_callbacks.append((ret, caller_argv))
 
     def do_str_format(self, string, argv):
         """

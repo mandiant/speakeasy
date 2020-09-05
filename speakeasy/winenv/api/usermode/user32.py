@@ -177,7 +177,20 @@ class User32(api.ApiHandler):
             return False
 
         wc = self.sessman.get_window_class(window.class_name)
+        if wc.wclass.lpfnWndProc:
+            cb_args = (hnd, windefs.WM_PAINT, 0, 0)
+            self.setup_callback(wc.wclass.lpfnWndProc, cb_args, caller_argv=argv)
+
         return True
+
+    @apihook('PostQuitMessage', argc=1)
+    def PostQuitMessage(self, emu, argv, ctx={}):
+        '''
+        void PostQuitMessage(
+            int nExitCode
+        );
+        '''
+        return
 
     @apihook('DestroyWindow', argc=1)
     def DestroyWindow(self, emu, argv, ctx={}):
@@ -187,6 +200,18 @@ class User32(api.ApiHandler):
         );
         '''
         return True
+
+    @apihook('DefWindowProc', argc=4)
+    def DefWindowProc(self, emu, argv, ctx={}):
+        '''
+        LRESULT LRESULT DefWindowProc(
+            HWND   hWnd,
+            UINT   Msg,
+            WPARAM wParam,
+            LPARAM lParam
+        );
+        '''
+        return 0
 
     @apihook('CreateWindowEx', argc=12)
     def CreateWindowEx(self, emu, argv, ctx={}):
@@ -473,6 +498,14 @@ class User32(api.ApiHandler):
         );
         '''
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
+
+        t = emu.get_current_thread()
+        try:
+            msg = t.message_queue.pop(0)
+        except IndexError:
+            return False
+
+        self.mem_write(lpMsg, msg.get_bytes())
 
         return True
 
