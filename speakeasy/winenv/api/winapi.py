@@ -5,7 +5,8 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api.kernelmode import ntoskrnl, hal, wdfldr, netio, ndis, fwpkclnt, usbd
 from speakeasy.winenv.api.usermode import ws2_32, kernel32, wininet, winhttp, user32, \
                                           advapi32, msvcrt, wtsapi32, mscoree, dnsapi, \
-                                          ntdll, crypt32, shell32, shlwapi, advpack, gdi32
+                                          ntdll, crypt32, shell32, shlwapi, advpack, gdi32, \
+                                          urlmon
 
 API_HANDLERS = (
                     # Kernel mode
@@ -33,6 +34,7 @@ API_HANDLERS = (
                     ('shlwapi', shlwapi.Shlwapi),
                     ('advpack', advpack.Advpack),
                     ('gdi32', gdi32.GDI32),
+                    ('urlmon', urlmon.Urlmon),
                )
 
 

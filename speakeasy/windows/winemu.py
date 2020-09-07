@@ -1387,6 +1387,8 @@ class WindowsEmulator(BinaryEmulator):
         Hook called before every emulated instruction. Ideally we want to
         stay out of this hook as much as possible for speed considerations.
         """
+        # x = self.get_disasm(addr, size)[2]
+        # print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x'% (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp')))
 
         try:
             if self.curr_exception_code != 0:
@@ -1425,10 +1427,6 @@ class WindowsEmulator(BinaryEmulator):
                                data_ptr.to_bytes(self.get_ptr_size(),
                                                  'little'))
                 return True
-
-            # if self.debug:
-            #     x = self.get_disasm(addr, size)[2]
-            #     print('0x%x: %s'% (addr, x)
 
             if not self.mem_tracing_enabled:
                 # Disabling the code hook here grants a significant speed bump

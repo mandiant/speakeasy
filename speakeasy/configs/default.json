@@ -330,7 +330,6 @@
                     "base_addr": "0x7C000000",
                     "path": "C:\\Windows\\system32\\ntdll.dll"
                 },
-
                 {
                     "name": "ws2_32",
                     "base_addr": "0x78C00000",
@@ -410,6 +409,11 @@
                     "name": "mscoree",
                     "base_addr": "0x53000000",
                     "path": "C:\\Windows\\system32\\mscoree.dll"
+                },
+                {
+                    "name": "urlmon",
+                    "base_addr": "0x54500000",
+                    "path": "C:\\Windows\\system32\\urlmon.dll"
                 }
         ]
     }
