@@ -719,6 +719,9 @@ class WindowsEmulator(BinaryEmulator):
     def get_env(self):
         return self.env
 
+    def set_env(self, var, val):
+        return self.env.update({var.lower(): val})
+
     def get_os_version(self):
         return self.osversion
 

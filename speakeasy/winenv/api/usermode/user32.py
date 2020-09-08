@@ -382,6 +382,18 @@ class User32(api.ApiHandler):
         rv = 1
         return rv
 
+    @apihook('LoadBitmap', argc=2)
+    def LoadBitmap(self, emu, argv, ctx={}):
+        """
+        HBITMAP LoadBitmap(
+            HINSTANCE hInstance,
+            LPCSTR    lpBitmapName
+        );
+        """
+        hInstance, lpBitmapName = argv
+        rv = self.get_handle()
+        return rv
+
     @apihook('RegisterWindowMessage', argc=1)
     def RegisterWindowMessage(self, emu, argv, ctx={}):
         '''
@@ -636,6 +648,26 @@ class User32(api.ApiHandler):
         '''
         lpEnumFunc, lParam = argv
         rv = 1
+
+        return rv
+
+    @apihook('DialogBoxParam', argc=5)
+    def DialogBoxParam(self, emu, argv, ctx={}):
+        '''
+        INT_PTR DialogBoxParam(
+            HINSTANCE hInstance,
+            LPCSTR    lpTemplateName,
+            HWND      hWndParent,
+            DLGPROC   lpDialogFunc,
+            LPARAM    dwInitParam
+        );
+        '''
+        hInstance, lpTemplateName, hWndParent, lpDialogFunc, dwInitParam = argv
+        rv = 0
+        cw = self.get_char_width(ctx)
+        if lpTemplateName:
+            tname = self.read_mem_string(lpTemplateName, cw)
+            argv[1] = tname
 
         return rv
 

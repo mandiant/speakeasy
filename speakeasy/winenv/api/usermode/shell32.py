@@ -1,6 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from .. import api
+import speakeasy.winenv.defs.windows.windows as windefs
+import speakeasy.winenv.defs.windows.com as com
 
 
 class Shell32(api.ApiHandler):
@@ -99,6 +101,21 @@ class Shell32(api.ApiHandler):
         BOOL IsUserAnAdmin();
         """
         return emu.get_user().get('is_admin', False)
+
+    @apihook('SHGetMalloc', argc=1)
+    def SHGetMalloc(self, emu, argv, ctx={}):
+        """
+        SHSTDAPI SHGetMalloc(
+            IMalloc **ppMalloc
+        );
+        """
+        ppMalloc, = argv
+
+        if ppMalloc:
+            ci = emu.get_com_interface('IMalloc')
+            self.mem_write(ppMalloc, ci.address.to_bytes(emu.get_ptr_size(), 'little'))
+        rv = windefs.S_OK
+        return rv
 
     @apihook('CommandLineToArgv', argc=2)
     def CommandLineToArgv(self, emu, argv, ctx={}):

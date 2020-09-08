@@ -72,3 +72,13 @@ class GDI32(api.ApiHandler):
         );
         """
         return 0
+
+    @apihook('GetDeviceCaps', argc=2)
+    def GetDeviceCaps(self, emu, argv, ctx={}):
+        """
+        int GetDeviceCaps(
+            HDC hdc,
+            int index
+        );
+        """
+        return 16

@@ -17,6 +17,7 @@ import speakeasy.common as common
 from speakeasy.errors import Win32EmuError
 
 from speakeasy.windows.sessman import SessionManager
+from speakeasy.windows.com import COM
 
 
 DLL_PROCESS_DETACH = 0
@@ -38,6 +39,7 @@ class Win32Emulator(WindowsEmulator):
         self.heap_allocs = []
         self.argv = argv
         self.sessman = SessionManager(config)
+        self.com = COM(config)
 
     def get_argv(self):
         """
@@ -57,6 +59,18 @@ class Win32Emulator(WindowsEmulator):
         elif self.command_line:
             out = shlex.split(self.command_line, posix=False)
         return out
+
+    def get_com_interface(self, name):
+        """
+        Retreive a COM interface by name
+        """
+        ci = self.com.get_interface(name, self.get_ptr_size())
+        if not ci:
+            raise Win32EmuError('Invalid COM interface: %s' % (name))
+
+        com_ptr = self.mem_map(self.sizeof(ci.iface), tag='emu.COM.%s' % (name))
+        ci.address = com_ptr
+        return ci
 
     def set_last_error(self, code):
         """

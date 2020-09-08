@@ -414,6 +414,16 @@
                     "name": "urlmon",
                     "base_addr": "0x54500000",
                     "path": "C:\\Windows\\system32\\urlmon.dll"
+                },
+                {
+                    "name": "riched32",
+                    "base_addr": "0x56500000",
+                    "path": "C:\\Windows\\system32\\riched32.dll"
+                },
+                {
+                    "name": "comctl32",
+                    "base_addr": "0x5f500000",
+                    "path": "C:\\Windows\\system32\\comctl32.dll"
                 }
         ]
     }
