@@ -2280,6 +2280,7 @@ class Kernel32(api.ApiHandler):
 
                 b = (ctype).to_bytes(2, 'little')
                 output += b
+                rv = 1
 
             self.mem_write(lpCharType, output)
 
@@ -2459,6 +2460,48 @@ class Kernel32(api.ApiHandler):
                 rv = len(sysroot)
 
         return rv
+
+    @apihook('IsDBCSLeadByte', argc=1)
+    def IsDBCSLeadByte(self, emu, argv, ctx={}):
+        '''
+        BOOL IsDBCSLeadByte(
+            BYTE TestChar
+        );
+        '''
+        return True
+
+    @apihook('SetEnvironmentVariable', argc=2)
+    def SetEnvironmentVariable(self, emu, argv, ctx={}):
+        '''
+        BOOL SetEnvironmentVariable(
+            LPCTSTR lpName,
+            LPCTSTR lpValue
+            );
+        '''
+        lpName, lpValue = argv
+        cw = self.get_char_width(ctx)
+        if lpName and lpValue:
+            name = self.read_mem_string(lpName, cw)
+            val = self.read_mem_string(lpValue, cw)
+            argv[0] = name
+            argv[1] = val
+            emu.set_env(name, val)
+        return True
+
+    @apihook('SetDllDirectory', argc=1)
+    def SetDllDirectory(self, emu, argv, ctx={}):
+        '''
+        BOOL SetDllDirectory(
+            LPCSTR lpPathName
+        );
+        '''
+        path, = argv
+
+        cw = self.get_char_width(ctx)
+        if path:
+            path = self.read_mem_string(path, cw)
+            argv[0] = path
+        return True
 
     @apihook('GetWindowsDirectory', argc=2)
     def GetWindowsDirectory(self, emu, argv, ctx={}):
@@ -3058,7 +3101,13 @@ class Kernel32(api.ApiHandler):
         '''
         hHandle, dwMilliseconds = argv
 
-        return 0
+        # TODO
+        if dwMilliseconds == 1:
+            rv = windefs.WAIT_TIMEOUT
+        else:
+            rv = windefs.WAIT_OBJECT_0
+
+        return rv
 
     @apihook('GetConsoleMode', argc=2)
     def GetConsoleMode(self, emu, argv, ctx={}):
@@ -3741,6 +3790,13 @@ class Kernel32(api.ApiHandler):
         # Stub
         vinfo, type_mask, con_mask = argv
 
+        return True
+
+    @apihook('FreeConsole', argc=0)
+    def FreeConsole(self, emu, argv, ctx={}):
+        '''
+        BOOL WINAPI FreeConsole(void);
+        '''
         return True
 
     @apihook('IsBadWritePtr', argc=2)
