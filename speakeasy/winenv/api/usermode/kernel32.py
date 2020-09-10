@@ -95,6 +95,8 @@ class Kernel32(api.ApiHandler):
         ret = name
         if (name.lower().startswith('api-ms-win-crt') or name.lower().startswith('vcruntime')):
             ret = 'msvcrt'
+        if (name.lower().startswith('api-ms-win-core')):
+            ret = 'kernel32'
         return ret
 
     def normalize_res_identifier(self, emu, cw, val):
@@ -1481,10 +1483,11 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(src, cw)
-        s = s[:iMaxLength]
+        argv[1] = s
+        s = s[:iMaxLength - 1]
+        s += '\x00'
 
         self.write_mem_string(s, dest, cw)
-        argv[1] = s
         return dest
 
     @apihook('lstrcpy', argc=2)
@@ -2800,7 +2803,7 @@ class Kernel32(api.ApiHandler):
                 self.log_file_access(path, 'write', data=data, buffer=lpBuffer, size=num_bytes)
 
                 data = data.hex()
-                argv[2] = data[:0x20]
+                argv[1] = "%s (%s)" % (hex(lpBuffer), data[:0x20])
 
                 rv = 1
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -3968,3 +3971,16 @@ class Kernel32(api.ApiHandler):
             self.write_mem_string(out, lpszShortPath, cw)
 
         return len(out) + 1
+
+    @apihook('QueueUserAPC', argc=3)
+    def QueueUserAPC(self, emu, argv, ctx={}):
+        """
+        DWORD QueueUserAPC(
+        PAPCFUNC  pfnAPC,
+        HANDLE    hThread,
+        ULONG_PTR dwData
+        );
+        """
+        pfnAPC, hThread, dwData = argv
+        run_type = 'apc_thread_%x' % hThread
+        self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
