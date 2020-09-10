@@ -2280,6 +2280,7 @@ class Kernel32(api.ApiHandler):
 
                 b = (ctype).to_bytes(2, 'little')
                 output += b
+                rv = 1
 
             self.mem_write(lpCharType, output)
 
@@ -3100,7 +3101,13 @@ class Kernel32(api.ApiHandler):
         '''
         hHandle, dwMilliseconds = argv
 
-        return 0
+        # TODO
+        if dwMilliseconds == 1:
+            rv = windefs.WAIT_TIMEOUT
+        else:
+            rv = windefs.WAIT_OBJECT_0
+
+        return rv
 
     @apihook('GetConsoleMode', argc=2)
     def GetConsoleMode(self, emu, argv, ctx={}):
@@ -3783,6 +3790,13 @@ class Kernel32(api.ApiHandler):
         # Stub
         vinfo, type_mask, con_mask = argv
 
+        return True
+
+    @apihook('FreeConsole', argc=0)
+    def FreeConsole(self, emu, argv, ctx={}):
+        '''
+        BOOL WINAPI FreeConsole(void);
+        '''
         return True
 
     @apihook('IsBadWritePtr', argc=2)

@@ -47,6 +47,37 @@ class Shlwapi(api.ApiHandler):
 
         return rv
 
+    @apihook('StrStrI', argc=2)
+    def StrStrI(self, emu, argv, ctx={}):
+        '''
+        PCSTR StrStrI(
+            PCSTR pszFirst,
+            PCSTR pszSrch
+        );
+        '''
+
+        hay, needle = argv
+
+        cw = self.get_char_width(ctx)
+
+        if hay:
+            _hay = self.read_mem_string(hay, cw)
+            argv[0] = _hay
+            _hay = _hay.lower()
+
+        if needle:
+            needle = self.read_mem_string(needle, cw)
+            argv[1] = needle
+            needle = needle.lower()
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+
+        return ret
+
     @apihook('PathFindExtension', argc=1)
     def PathFindExtension(self, emu, argv, ctx={}):
         """LPCSTR PathFindExtensionA(
@@ -105,3 +136,31 @@ class Shlwapi(api.ApiHandler):
         argv[0] = s
         self.write_mem_string(s, pszPath, cw)
         return pszPath
+
+    @apihook('wvnsprintfA', argc=4)
+    def wvnsprintfA(self, emu, argv, ctx={}):
+        """
+        int wvnsprintfA(
+            PSTR    pszDest,
+            int     cchDest,
+            PCSTR   pszFmt,
+            va_list arglist
+        );
+        """
+        buffer, count, _format, argptr = argv
+        rv = 0
+
+        fmt_str = self.read_mem_string(_format, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(argptr, fmt_cnt)
+
+        fin = self.do_str_format(fmt_str, vargs)
+        fin = fin[:count] + '\x00'
+
+        rv = len(fin)
+        self.mem_write(buffer, fin.encode('utf-8'))
+        argv[0] = fin.replace('\x00', '')
+        argv[1] = fmt_str
+
+        return rv

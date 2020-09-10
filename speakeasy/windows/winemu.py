@@ -1391,7 +1391,7 @@ class WindowsEmulator(BinaryEmulator):
         stay out of this hook as much as possible for speed considerations.
         """
         # x = self.get_disasm(addr, size)[2]
-        # print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x'% (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp')))
+        # print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x : eax=0x%x' % (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp'), self.reg_read('eax'))) # noqa
 
         try:
             if self.curr_exception_code != 0:

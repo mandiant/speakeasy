@@ -115,6 +115,16 @@
                         "data": "IEnumConnections"
                     }
                 ]
+            },
+            {
+                "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+                "values": [
+                    {
+                        "name": "default",
+                        "type": "REG_SZ",
+                        "data": "IEnumConnections"
+                    }
+                ]
             }
         ]
     },
@@ -176,7 +186,7 @@
             "name": "System",
             "base_addr": "0x80000000",
             "pid": 4,
-            "path": ""
+            "path": "[System Process]"
         },
         {
             "name": "smss",
@@ -419,6 +429,26 @@
                     "name": "riched32",
                     "base_addr": "0x56500000",
                     "path": "C:\\Windows\\system32\\riched32.dll"
+                },
+                {
+                    "name": "userenv",
+                    "base_addr": "0x76500000",
+                    "path": "C:\\Windows\\system32\\userenv.dll"
+                },
+                {
+                    "name": "ole32",
+                    "base_addr": "0x65500000",
+                    "path": "C:\\Windows\\system32\\ole32.dll"
+                },
+                {
+                    "name": "setupapi",
+                    "base_addr": "0x55500000",
+                    "path": "C:\\Windows\\system32\\setupapi.dll"
+                },
+                {
+                    "name": "NETAPI32",
+                    "base_addr": "0x54400000",
+                    "path": "C:\\Windows\\system32\\NETAPI32.dll"
                 },
                 {
                     "name": "comctl32",

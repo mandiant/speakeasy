@@ -1,6 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import os
+
 from .. import api
+
+import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 
 
 class Ntdll(api.ApiHandler):
@@ -49,6 +54,13 @@ class Ntdll(api.ApiHandler):
         emu.add_vectored_exception_handler(First, Handler)
 
         return Handler
+
+    @apihook('NtYieldExecution', argc=0)
+    def NtYieldExecution(self, emu, argv, ctx={}):
+        '''
+        NtYieldExecution();
+        '''
+        return 0
 
     @apihook('RtlRemoveVectoredExceptionHandler', argc=1)
     def RtlRemoveVectoredExceptionHandler(self, emu, argv, ctx={}):
@@ -114,3 +126,38 @@ class Ntdll(api.ApiHandler):
             self.mem_write(BaseAddress, hmod.to_bytes(self.get_ptr_size(), 'little'))
 
         return 0
+
+    @apihook('LdrGetProcedureAddress', argc=4)
+    def LdrGetProcedureAddress(self, emu, argv, ctx={}):
+        '''
+        NTSTATUS LdrGetProcedureAddress(
+            HMODULE ModuleHandle,
+            PANSI_STRING FunctionName,
+            WORD Oridinal,
+            OUT PVOID *FunctionAddress
+        );
+        '''
+
+        hmod, proc_name, ordinal, func_addr = argv
+        rv = ddk.STATUS_PROCEDURE_NOT_FOUND
+
+        if proc_name:
+            fn = ntos.STRING(emu.get_ptr_size())
+            fn = self.mem_cast(fn, proc_name)
+
+            proc = self.read_mem_string(fn.Buffer, 1)
+            argv[1] = proc
+
+        elif ordinal:
+            proc = 'ordinal_%d' % (proc_name)
+
+        mods = emu.get_user_modules()
+        for mod in mods:
+            if mod.get_base() == hmod:
+                bn = mod.get_base_name()
+                mname, _ = os.path.splitext(bn)
+                addr = emu.get_proc(mname, proc)
+                rv = ddk.STATUS_SUCCESS
+                self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), 'little'))
+
+        return rv
