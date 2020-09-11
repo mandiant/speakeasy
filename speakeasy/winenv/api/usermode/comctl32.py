@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 

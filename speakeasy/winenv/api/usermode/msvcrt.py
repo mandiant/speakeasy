@@ -869,7 +869,7 @@ class Msvcrt(api.ApiHandler):
         new = (s1 + s2).encode('utf-16le')
         self.mem_write(_str1, new + b'\x00\x00')
         return _str1
-    
+
     @apihook('wcslen', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx={}):
         """

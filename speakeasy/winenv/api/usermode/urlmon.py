@@ -1,9 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import ctypes as ct
 from urllib.parse import urlparse
 
-from speakeasy.struct import EmuStruct, Ptr
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api

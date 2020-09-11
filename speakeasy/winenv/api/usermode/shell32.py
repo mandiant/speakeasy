@@ -2,7 +2,6 @@
 
 from .. import api
 import speakeasy.winenv.defs.windows.windows as windefs
-import speakeasy.winenv.defs.windows.com as com
 
 
 class Shell32(api.ApiHandler):
