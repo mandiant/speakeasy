@@ -231,7 +231,6 @@ class Win32Emulator(WindowsEmulator):
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
             base = module.get_base()
-            #if base < cb_addr < base + module.get_image_size():
             run = Run()
             run.start_addr = cb_addr
             run.type = 'tls_callback_%d' % (i)
