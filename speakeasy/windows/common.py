@@ -32,6 +32,8 @@ GDT_FLAGS.Ring0 = 0
 IMPORT_HOOK_ADDR = 0xFEEDFACE
 DEFAULT_LOAD_ADDR = 0x40000
 
+PAGE_SIZE = 0x1000
+
 EMU_RESERVED = 0xfeedf000
 EMU_RESERVE_SIZE = 0x4000
 DYM_IMP_RESERVE = EMU_RESERVED + 0x1000
@@ -118,6 +120,25 @@ class PeFile(pefile.PE):
             self.ptr_size = 8
 
         self._patch_imports()
+
+    def get_tls_callbacks(self):
+        """
+        Get the TLS callbacks for a PE (if any)
+        """
+        max_tls_callbacks = 100
+        callbacks = []
+        if hasattr(self, 'DIRECTORY_ENTRY_TLS'):
+            print('got tls')
+            rva = (self.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks -
+                   self.OPTIONAL_HEADER.ImageBase)
+
+            for i in range(max_tls_callbacks):
+                ptr = self.get_data(rva + self.ptr_size * i, self.ptr_size)
+                ptr = int.from_bytes(ptr, 'little')
+                if ptr == 0:
+                    break
+                callbacks.append(ptr)
+        return callbacks
 
     def get_emu_path(self):
         """
@@ -398,7 +419,8 @@ class JitPeFile(object):
         '''
         Update the size of the image within the optional header
         '''
-        self.basepe.OPTIONAL_HEADER.SizeOfImage = len(self.basepe.get_memory_mapped_image())
+        self.basepe.OPTIONAL_HEADER.SizeOfImage = (len(self.basepe.get_memory_mapped_image()) +
+                                                   PAGE_SIZE)
 
     def add_section(self, name, chars=0x40000040):
         '''

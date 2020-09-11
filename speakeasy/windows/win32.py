@@ -227,11 +227,22 @@ class Win32Emulator(WindowsEmulator):
             self.stop()
             raise Win32EmuError('Module not found')
 
+        # Check is any TLS callbacks exist, these run before the module's entry point
+        tls = module.get_tls_callbacks()
+        for i, cb_addr in enumerate(tls):
+            base = module.get_base()
+            #if base < cb_addr < base + module.get_image_size():
+            run = Run()
+            run.start_addr = cb_addr
+            run.type = 'tls_callback_%d' % (i)
+            run.args = [base, DLL_PROCESS_ATTACH, 0]
+            self.add_run(run)
+
+        # Queue up the module's main entry point
         ep = module.base + module.ep
 
         run = Run()
         run.start_addr = ep
-        run.instr_cnt = 0
 
         main_exe = None
         if not module.is_exe():
