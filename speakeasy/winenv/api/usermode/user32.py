@@ -685,3 +685,17 @@ class User32(api.ApiHandler):
                         IDI_INFORMATION, IDI_QUESTION, IDI_SHIELD, IDI_WARNING, IDI_WINLOGO):
             return 0
         return 1
+
+    @apihook('GetRawInputDeviceList', argc=3)
+    def GetRawInputDeviceList(self, emu, argv, ctx={}):
+        """
+        UINT GetRawInputDeviceList(
+          PRAWINPUTDEVICELIST pRawInputDeviceList,
+          PUINT               puiNumDevices,
+          UINT                cbSize
+        );
+        """
+        pRawInputDeviceList, puiNumDevices, cbSize = argv
+        num_devices = 4
+        self.mem_write(puiNumDevices, num_devices.to_bytes(4, 'little'))
+        return num_devices
