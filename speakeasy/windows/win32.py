@@ -231,11 +231,12 @@ class Win32Emulator(WindowsEmulator):
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
             base = module.get_base()
-            run = Run()
-            run.start_addr = cb_addr
-            run.type = 'tls_callback_%d' % (i)
-            run.args = [base, DLL_PROCESS_ATTACH, 0]
-            self.add_run(run)
+            if base < cb_addr < base + module.get_image_size():
+                run = Run()
+                run.start_addr = cb_addr
+                run.type = 'tls_callback_%d' % (i)
+                run.args = [base, DLL_PROCESS_ATTACH, 0]
+                self.add_run(run)
 
         # Queue up the module's main entry point
         ep = module.base + module.ep
@@ -458,6 +459,12 @@ class Win32Emulator(WindowsEmulator):
         peb.object.ImageBaseAddress = proc.base
         peb.write_back()
         return peb
+
+    def set_unhandled_exception_handler(self, handler_addr):
+        """
+        Establish a handler for unhandled exceptions that occur during emulation
+        """
+        self.unhandled_exception_filter = handler_addr
 
     def setup(self, stack_commit=0):
 

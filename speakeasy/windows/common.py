@@ -128,7 +128,6 @@ class PeFile(pefile.PE):
         max_tls_callbacks = 100
         callbacks = []
         if hasattr(self, 'DIRECTORY_ENTRY_TLS'):
-            print('got tls')
             rva = (self.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks -
                    self.OPTIONAL_HEADER.ImageBase)
 
