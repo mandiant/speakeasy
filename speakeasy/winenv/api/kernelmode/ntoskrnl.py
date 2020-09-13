@@ -8,6 +8,7 @@ import lznt1
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.registry.reg as regdefs
+import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
@@ -1365,6 +1366,9 @@ class Ntoskrnl(api.ApiHandler):
         size = int.from_bytes(self.mem_read(RegionSize,
                                             self.get_ptr_size()), 'little')
 
+        base = self.mem_read(BaseAddress, emu.get_ptr_size())
+        base = int.from_bytes(base, 'little')
+        argv[1] = '0x%x->0x%x' % (BaseAddress, base)
         base = self.mem_alloc(size, tag='api.virtalloc.%s' % obj.image, process=obj)
 
         emu._set_dyn_code_hook(base, size)
@@ -2938,6 +2942,47 @@ class Ntoskrnl(api.ApiHandler):
         block = self.heap_alloc(size, heap='RtlAllocateHeap')
 
         return block
+
+    @apihook('ZwGetContextThread', argc=2)
+    def ZwGetContextThread(self, emu, argv, ctx={}):
+        '''
+        BOOL ZwGetContextThread(
+            HANDLE    hThread,
+            LPCONTEXT lpContext
+        );
+        '''
+        hThread, lpContext = argv
+
+        obj = self.get_object_from_handle(hThread)
+        if not obj:
+            return False
+
+        context = obj.get_context()
+
+        self.mem_write(lpContext, context.get_bytes())
+
+        return True
+
+    @apihook('ZwSetContextThread', argc=2)
+    def ZwSetContextThread(self, emu, argv, ctx={}):
+        '''
+        BOOL ZwSetContextThread(
+            HANDLE    hThread,
+            LPCONTEXT lpContext
+        );
+        '''
+        hThread, lpContext = argv
+
+        obj = self.get_object_from_handle(hThread)
+        if not obj:
+            return False
+
+        context = windefs.CONTEXT(emu.get_ptr_size())
+        if lpContext:
+            _context = self.mem_cast(context, lpContext)
+            obj.set_context(_context)
+
+        return True
 
     @apihook('RtlFreeHeap', argc=3)
     def RtlFreeHeap(self, emu, argv, ctx={}):

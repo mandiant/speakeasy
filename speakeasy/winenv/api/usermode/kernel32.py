@@ -473,6 +473,30 @@ class Kernel32(api.ApiHandler):
 
         return hmod
 
+    @apihook('CreateProcessInternal', argc=12)
+    def CreateProcessInternal(self, emu, argv, ctx={}):
+        '''
+        BOOL CreateProcessInternal(
+          PVOID Reserved1,
+          LPTSTR                lpApplicationName,
+          LPTSTR                lpCommandLine,
+          LPSECURITY_ATTRIBUTES lpProcessAttributes,
+          LPSECURITY_ATTRIBUTES lpThreadAttributes,
+          BOOL                  bInheritHandles,
+          DWORD                 dwCreationFlags,
+          LPVOID                lpEnvironment,
+          LPTSTR                lpCurrentDirectory,
+          LPSTARTUPINFO         lpStartupInfo,
+          LPPROCESS_INFORMATION lpProcessInformation,
+          PVOID Reserved2
+        );
+        '''
+        # Args are the same as CreateProcess except for argv[0] and argv[-1]
+        _argv = argv[1:-1]
+        rv = self.CreateProcess(emu, _argv, ctx)
+        argv[1:-1] = _argv
+        return rv
+
     @apihook('CreateProcess', argc=10)
     def CreateProcess(self, emu, argv, ctx={}):
         '''BOOL CreateProcess(
@@ -2962,6 +2986,9 @@ class Kernel32(api.ApiHandler):
           LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter
         );
         '''
+        lpTopLevelExceptionFilter, = argv
+
+        emu.set_unhandled_exception_handler(lpTopLevelExceptionFilter)
 
         return 0
 

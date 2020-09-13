@@ -41,6 +41,11 @@ class Ntdll(api.ApiHandler):
 
         return emu.get_last_error()
 
+    @apihook('RtlFlushSecureMemoryCache', argc=2)
+    def RtlFlushSecureMemoryCache(self, emu, argv, ctx={}):
+        '''DWORD RtlFlushSecureMemoryCache(PVOID arg0, PVOID arg1);'''
+        return True
+
     @apihook('RtlAddVectoredExceptionHandler', argc=2)
     def RtlAddVectoredExceptionHandler(self, emu, argv, ctx={}):
         '''
