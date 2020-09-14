@@ -83,6 +83,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_thread = None
         self.curr_exception_code = 0
         self.prev_pc = 0
+        self.unhandled_exception_filter = 0
 
         self.fs_addr = 0
         self.gs_addr = 0
@@ -922,8 +923,9 @@ class WindowsEmulator(BinaryEmulator):
                 self._unset_emu_hooks()
                 return True
 
+        # Are there any SEH handlers registered?
         if self.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
 
@@ -940,9 +942,10 @@ class WindowsEmulator(BinaryEmulator):
         """
         Collect emulator state information in the event of an error
         """
+        run = self.get_current_run()
         pc = self.get_pc()
         error = {}
-        self.log_error('Caught error: %s' % (desc))
+        self.log_error('%s: Caught error: %s' % (run.type, desc))
         error['type'] = desc
         error['pc'] = hex(pc)
         error['address'] = hex(address)
@@ -1331,7 +1334,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if self.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
         fakeout = address & 0xFFFFFFFFFFFFF000
@@ -1371,7 +1374,7 @@ class WindowsEmulator(BinaryEmulator):
         Called when non-writable address is written to
         """
         if self.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
 
@@ -1910,9 +1913,40 @@ class WindowsEmulator(BinaryEmulator):
 
         self.run_complete = True
 
-    def dispatch_seh(self, except_code):
+    def dispatch_seh(self, except_code, faulting_address=None):
+        rv = False
         if self.get_arch() == _arch.ARCH_X86:
-            return self._dispatch_seh_x86(except_code)
+            rv = self._dispatch_seh_x86(except_code)
+        if not rv and self.unhandled_exception_filter:
+            # Create the _EXCEPTION_RECORD
+            record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
+            record.ExceptionCode = except_code
+            record.ExceptionFlags = 0
+            record.ExceptionAddress = self.get_pc()
+            record.NumberParameters = 0
+
+            exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
+            p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag='emu.struct.EXCEPTION_POINTERS')
+            prec = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_RECORD')
+            pctx = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_CONTEXT')
+
+            exp_ptrs.ExceptionRecord = prec
+            exp_ptrs.ContextRecord = pctx
+
+            self.mem_write(p_exp_ptrs, exp_ptrs.get_bytes())
+            self.mem_write(prec, record.get_bytes())
+
+            sp = self.get_stack_ptr()
+            args = [p_exp_ptrs]
+            self.set_func_args(sp, winemu.EMU_RETURN_ADDR, *args)
+            self.set_pc(self.unhandled_exception_filter)
+            self.unhandled_exception_filter = 0
+            if faulting_address:
+                fakeout = faulting_address & 0xFFFFFFFFFFFFF000
+                self.mem_map(self.page_size, base=fakeout)
+                self.tmp_maps.append((fakeout, self.page_size))
+            rv = True
+        return rv
 
     def continue_seh(self):
         if self.get_arch() == _arch.ARCH_X86:
