@@ -4,6 +4,7 @@ import os
 import io
 import ntpath
 import hashlib
+import fnmatch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 
@@ -100,7 +101,7 @@ class File(object):
         self.data.seek(off, io.SEEK_SET)
         return size
 
-    def get_data(self, size=-1):
+    def get_data(self, size=-1, reset_pointer=False):
         if not self.data and self.config:
             self.data = self.handle_file_data()
 
@@ -109,8 +110,11 @@ class File(object):
 
         off = self.data.tell()
         if off == self.get_size():
-            # Reset the file pointer
-            self.data.seek(0)
+            if reset_pointer:
+                # Reset the file pointer
+                self.data.seek(0)
+            else:
+                return None
 
         return self.data.read(size)
 
@@ -280,7 +284,7 @@ class FileManager(object):
         for f in self.config.get('files', []):
             mode = f.get('mode')
             if mode == 'full_path':
-                if path.lower() == f.get('emu_path').lower():
+                if fnmatch.fnmatch(path.lower(), f.get('emu_path').lower()):
                     return f
 
         # If no full path handler exists, do we have an extension handler?

@@ -85,6 +85,11 @@
                 "mode": "by_ext",
                 "ext": "txt",
                 "path": "$ROOT$/resources/files/default.bin"
+            },
+            {
+                "mode": "full_path",
+                "emu_path": "\\\\.\\pipe*",
+                "path": "$ROOT$/resources/web/stager.bin"
             }
         ]
     },

@@ -3207,7 +3207,8 @@ class Kernel32(api.ApiHandler):
             argv[0] = pipe_name
 
         hnd = emu.pipe_open(pipe_name, dwOpenMode, nMaxInstances, nOutBufferSize, nInBufferSize)
-
+        if not hnd:
+            hnd = windefs.INVALID_HANDLE_VALUE
         return hnd
 
     @apihook('ConnectNamedPipe', argc=2)
