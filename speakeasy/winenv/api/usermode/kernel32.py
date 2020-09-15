@@ -146,6 +146,13 @@ class Kernel32(api.ApiHandler):
 
         return None
 
+    @apihook('GetThreadLocale', argc=0)
+    def GetThreadLocale(self, emu, argv, ctx={}):
+        '''
+        LCID GetThreadLocale();
+        '''
+        return 0xC000
+    
     @apihook('OutputDebugString', argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         '''
