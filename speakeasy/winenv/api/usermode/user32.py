@@ -751,3 +751,66 @@ class User32(api.ApiHandler):
         );
         """
         return 1
+
+    @apihook('GetDlgCtrlID', argc=1)
+    def GetDlgCtrlID(self, emu, argv, ctx={}):
+        """
+        int GetDlgCtrlID(
+          HWND hWnd
+        );
+        """
+        return 1
+
+    @apihook('GetUpdateRect', argc=3)
+    def GetUpdateRect(self, emu, argv, ctx={}):
+        """
+        BOOL GetUpdateRect(
+          HWND   hWnd,
+          LPRECT lpRect,
+          BOOL   bErase
+        );
+        """
+        return 0
+
+    @apihook('GetAltTabInfo', argc=5)
+    def GetAltTabInfo(self, emu, argv, ctx={}):
+        """
+        BOOL GetAltTabInfoA(
+          HWND        hwnd,
+          int         iItem,
+          PALTTABINFO pati,
+          LPSTR       pszItemText,
+          UINT        cchItemText
+        );
+        """
+        return 0
+
+    @apihook('GetUpdateRgn', argc=3)
+    def GetUpdateRgn(self, emu, argv, ctx={}):
+        """
+        int GetUpdateRgn(
+          HWND hWnd,
+          HRGN hRgn,
+          BOOL bErase
+        );
+        """
+        return 0
+
+    @apihook('FlashWindow', argc=2)
+    def FlashWindow(self, emu, argv, ctx={}):
+        """
+        BOOL FlashWindow(
+          HWND hWnd,
+          BOOL bInvert
+        );
+        """
+        return 1
+
+    @apihook('IsClipboardFormatAvailable', argc=1)
+    def IsClipboardFormatAvailable(self, emu, argv, ctx={}):
+        """
+        BOOL IsClipboardFormatAvailable(
+          UINT format
+        );
+        """
+        return 0
