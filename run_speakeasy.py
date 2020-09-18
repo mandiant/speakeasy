@@ -142,31 +142,40 @@ class Main(object):
         q = mp.Queue()
         evt = mp.Event()
 
-        # We are using a child process here so we can maintain absolute control over its execution
-        p = mp.Process(target=emulate_binary, args=(q, evt, args.target, self.cfg,
-                                                    self.argv, self.do_raw, self.arch,
-                                                    self.drop_files_path, self.dump_path))
-        p.start()
+        if args.no_mp:
+            # Emulate within the current process, losing some control with execution but
+            # allows us to debug speakeasy.
+            emulate_binary(q, evt, args.target,
+                self.cfg, self.argv, self.do_raw, self.arch,
+                self.drop_files_path, self.dump_path
+            )
+            report = q.get()
+        else:
+            # We are using a child process here so we can maintain absolute control over its execution
+            p = mp.Process(target=emulate_binary, args=(q, evt, args.target, self.cfg,
+                                                        self.argv, self.do_raw, self.arch,
+                                                        self.drop_files_path, self.dump_path))
+            p.start()
 
-        report = None
-        start_time = time.time()
-        while True:
-            if self.timeout and self.timeout < (time.time() - start_time):
-                evt.set()
-                self.logger.error('* Child process timeout reached after %d seconds' %
-                                  (self.timeout))
-                report = q.get(5)
-            try:
-                report = q.get(timeout=1)
-                break
-            except mp.queues.Empty:
-                if not p.is_alive():
+            report = None
+            start_time = time.time()
+            while True:
+                if self.timeout and self.timeout < (time.time() - start_time):
+                    evt.set()
+                    self.logger.error('* Child process timeout reached after %d seconds' %
+                                    (self.timeout))
+                    report = q.get(5)
+                try:
+                    report = q.get(timeout=1)
                     break
-            except KeyboardInterrupt:
-                evt.set()
-                self.logger.error('\n* User exited')
-                report = q.get(5)
-                break
+                except mp.queues.Empty:
+                    if not p.is_alive():
+                        break
+                except KeyboardInterrupt:
+                    evt.set()
+                    self.logger.error('\n* User exited')
+                    report = q.get(5)
+                    break
 
         self.logger.info('* Finished emulating')
 
@@ -213,4 +222,9 @@ if __name__ == '__main__':
                                              'When modules are parsed or loaded by samples,\n'
                                              'PEs from this directory will be loaded into the\n'
                                              'emulated address space')
+    parser.add_argument('--no-mp', action='store_true', dest='no_mp',
+                        required=False, help='Run emulation in the current process to assist\n'
+                                             'instead of a child process. Useful when debugging'
+                                             'speakeasy itself (using pdb.set_trace()).\n')
+
     Main(parser)
