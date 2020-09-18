@@ -16,6 +16,7 @@ from speakeasy.windows.regman import RegistryManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.netman import NetworkManager
+from speakeasy.windows.hammer import ApiHammer
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
@@ -98,6 +99,7 @@ class WindowsEmulator(BinaryEmulator):
         self.fileman = FileManager(self.get_filesystem_config())
         self.netman = NetworkManager(config=self.get_network_config())
         self.cryptman = CryptoManager()
+        self.hammer = ApiHammer(self)
 
     def _parse_config(self, config):
         """
@@ -1068,6 +1070,7 @@ class WindowsEmulator(BinaryEmulator):
             imp_api = '%s.%s' % (dll, name)
             default_ctx = {'func_name': imp_api}
 
+            self.hammer.handle_import_func(imp_api, conv, argc)
             hook = self.get_api_hook(dll, name)
             if hook:
                 from types import MethodType

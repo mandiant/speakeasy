@@ -3,6 +3,7 @@
 import speakeasy.winenv.arch as _arch
 import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.defs.windows.user32 as windefs
+import speakeasy.winenv.defs.windows.windef as windef
 
 from .. import api
 
@@ -699,3 +700,54 @@ class User32(api.ApiHandler):
         num_devices = 4
         self.mem_write(puiNumDevices, num_devices.to_bytes(4, 'little'))
         return num_devices
+
+
+    @apihook('GetNextDlgTabItem', argc=3)
+    def GetNextDlgTabItem(self, emu, argv, ctx={}):
+        """
+        HWND GetNextDlgTabItem(
+          HWND hDlg,
+          HWND hCtl,
+          BOOL bPrevious
+        );
+        """
+        return 0
+
+    @apihook('GetCaretPos', argc=1)
+    def GetCaretPos(self, emu, argv, ctx={}):
+        """
+        BOOL GetCaretPos(
+          LPPOINT lpPoint
+        );
+        """
+        lpPoint = argv[0]
+        point = windef.POINT(emu.get_ptr_size())
+        point.x = 0
+        point.y = 0
+        self.mem_write(lpPoint, self.get_bytes(point))
+        return 1
+
+    @apihook('GetMonitorInfo', argc=2)
+    def GetMonitorInfo(self, emu, argv, ctx={}):
+        """
+        BOOL GetMonitorInfo(
+          HMONITOR      hMonitor,
+          LPMONITORINFO lpmi
+        );
+        """
+        hMonitor, lpmi = argv
+        mi = windef.MONITORINFO(emu.get_ptr_size())
+        mi = self.mem_cast(mi, lpmi)
+        # just a stub for now
+        self.mem_write(lpmi, self.get_bytes(mi))
+        return 1
+
+    @apihook('EndPaint', argc=2)
+    def EndPaint(self, emu, argv, ctx={}):
+        """
+        BOOL EndPaint(
+          HWND              hWnd,
+          const PAINTSTRUCT *lpPaint
+        );
+        """
+        return 1
