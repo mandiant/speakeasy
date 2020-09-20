@@ -2021,6 +2021,22 @@ class Ntoskrnl(api.ApiHandler):
         """
         return None
 
+    @apihook('RtlGetCompressionWorkSpaceSize', argc=3)
+    def RtlGetCompressionWorkSpaceSize(self, emu, argv, ctx={}):
+        """
+        NT_RTL_COMPRESS_API NTSTATUS RtlGetCompressionWorkSpaceSize(
+            USHORT CompressionFormatAndEngine,
+            PULONG CompressBufferWorkSpaceSize,
+            PULONG CompressFragmentWorkSpaceSize
+        );
+        """
+        engine, buffer_workspace, frag_workspace = argv
+        if buffer_workspace:
+            self.mem_write(buffer_workspace, 0x1000.to_bytes(4, 'little'))
+        if frag_workspace:
+            self.mem_write(frag_workspace, 0x1000.to_bytes(4, 'little'))
+        return ddk.STATUS_SUCCESS
+
     @apihook('RtlDecompressBuffer', argc=6)
     def RtlDecompressBuffer(self, emu, argv, ctx={}):
         """

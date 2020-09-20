@@ -61,6 +61,7 @@ class WindowsEmulator(BinaryEmulator):
         self.tmp_maps = []
         self.impdata_queue = []
         self.run_queue = []
+        self.suspended_runs = []
         self.cd = ''
         self.emu_hooks_set = True
         self.api = None
@@ -803,7 +804,7 @@ class WindowsEmulator(BinaryEmulator):
         self.processes.append(p)
         return p
 
-    def create_thread(self, addr, ctx, proc_obj, thread_type='thread'):
+    def create_thread(self, addr, ctx, proc_obj, thread_type='thread', is_suspended=False):
         """
         Create a thread object that will exist in the emulator
         """
@@ -811,6 +812,7 @@ class WindowsEmulator(BinaryEmulator):
             return 0, None
 
         thread = self.om.new_object(objman.Thread)
+        thread.process = proc_obj
         hnd = self.om.get_handle(thread)
 
         run = Run()
@@ -821,10 +823,24 @@ class WindowsEmulator(BinaryEmulator):
         run.process_context = proc_obj
         run.thread = thread
 
-        self.run_queue.append(run)
+        if not is_suspended:
+            self.run_queue.append(run)
+        else:
+            self.suspended_runs.append(run)
 
         # Returns handle
         return hnd, thread
+
+    def resume_thread(self, thread):
+        """
+        Resume a previously suspended thread
+        """
+        for r in self.suspended_runs:
+            if r.thread == thread:
+                _run = self.suspended_runs.pop(self.suspended_runs.index(r))
+                self.run_queue.append(_run)
+                return True
+        return False
 
     def get_dyn_imports(self):
         return self.dyn_imps
@@ -1960,6 +1976,12 @@ class WindowsEmulator(BinaryEmulator):
         evt.name = name
         hnd = self.om.get_handle(evt)
         return hnd, evt
+
+    def dec_ref(self, obj):
+        """
+        Dereference an object
+        """
+        return self.om.dec_ref(obj)
 
     def create_mutant(self, name=''):
         """

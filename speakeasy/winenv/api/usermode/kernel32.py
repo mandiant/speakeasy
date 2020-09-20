@@ -152,7 +152,7 @@ class Kernel32(api.ApiHandler):
         LCID GetThreadLocale();
         '''
         return 0xC000
-    
+
     @apihook('OutputDebugString', argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         '''
@@ -569,12 +569,14 @@ class Kernel32(api.ApiHandler):
 
     @apihook('VirtualAlloc', argc=4)
     def VirtualAlloc(self, emu, argv, ctx={}):
+
         '''LPVOID WINAPI VirtualAlloc(
           _In_opt_ LPVOID lpAddress,
           _In_     SIZE_T dwSize,
           _In_     DWORD  flAllocationType,
           _In_     DWORD  flProtect
         );'''
+
         lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
         tag_prefix = 'api.VirtualAlloc'
@@ -834,9 +836,17 @@ class Kernel32(api.ApiHandler):
          lpParameter, dwCreationFlags, lpThreadId) = argv
 
         proc_obj = emu.get_current_process()
+        def_flags = windefs.get_creation_flags(dwCreationFlags)
+        if def_flags:
+            def_flags = ' | '.join(def_flags)
+            argv[4] = def_flags
+
+        is_suspended = False
+        if dwCreationFlags & windefs.CREATE_SUSPENDED:
+            is_suspended = True
 
         handle, obj = self.create_thread(lpStartAddress, lpParameter,
-                                         proc_obj, thread_type='thread')
+                                         proc_obj, thread_type='thread', is_suspended=is_suspended)
 
         if not obj:
             return handle
@@ -866,13 +876,13 @@ class Kernel32(api.ApiHandler):
             obj.suspend_count -= 1
 
         if emu.get_arch() == e_arch.ARCH_X86:
-            context = obj.get_context()
-            proc = obj.process
-            handle, obj = self.create_thread(context.Eip, 0,
-                                             proc,
-                                             thread_type='thread.%s.%d' % (proc.name,
-                                                                           proc.get_id()))
-
+            if not emu.resume_thread(obj):
+                context = obj.get_context()
+                proc = obj.process
+                handle, obj = self.create_thread(context.Eip, 0,
+                                                 proc,
+                                                 thread_type='thread.%s.%d' % (proc.name,
+                                                                               proc.get_id()))
         return rv
 
     @apihook('SuspendThread', argc=1)
@@ -2216,6 +2226,10 @@ class Kernel32(api.ApiHandler):
                 mbs = self.read_mem_string(lpMultiByteStr, 1)
                 argv[2] = mbs
                 rv = len(mbs) + 1
+            else:
+                mbs = self.read_mem_string(lpMultiByteStr, 1)
+                argv[2] = mbs
+                rv = len(mbs) + 1
         elif lpMultiByteStr == 0 or cbMultiByte == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             rv = 0
@@ -2687,6 +2701,45 @@ class Kernel32(api.ApiHandler):
             rv = windefs.FILE_ATTRIBUTE_NORMAL
         return rv
 
+    @apihook('CreateDirectory', argc=2)
+    def CreateDirectory(self, emu, argv, ctx={}):
+        '''
+        BOOL CreateDirectory(
+            LPCSTR                lpPathName,
+            LPSECURITY_ATTRIBUTES lpSecurityAttributes
+        );
+        '''
+        pn, sec = argv
+        cw = self.get_char_width(ctx)
+
+        if pn:
+            target = self.read_mem_string(pn, cw)
+            argv[0] = target
+        return True
+
+    @apihook('CopyFile', argc=3)
+    def CopyFile(self, emu, argv, ctx={}):
+        '''
+        BOOL CopyFile(
+            LPCTSTR lpExistingFileName,
+            LPCTSTR lpNewFileName,
+            BOOL    bFailIfExists
+        );
+        '''
+        src, dst, fail = argv
+        cw = self.get_char_width(ctx)
+
+        if src:
+            _src = self.read_mem_string(src, cw)
+            argv[0] = _src
+        if dst:
+            _dst = self.read_mem_string(dst, cw)
+            argv[1] = _dst
+            self.file_open(_dst, create=True)
+            self.log_file_access(_dst, 'create')
+            self.log_file_access(_dst, 'write')
+        return True
+
     @apihook('CreateFile', argc=7)
     def CreateFile(self, emu, argv, ctx={}):
         '''
@@ -2902,6 +2955,7 @@ class Kernel32(api.ApiHandler):
         hObject, = argv
         obj = self.get_object_from_handle(hObject)
         if obj:
+            emu.dec_ref(obj)
             return True
         return False
 
@@ -2912,6 +2966,29 @@ class Kernel32(api.ApiHandler):
         '''
 
         return False
+
+    @apihook('GetVolumeInformation', argc=8)
+    def GetVolumeInformation(self, emu, argv, ctx={}):
+        '''
+        BOOL GetVolumeInformation(
+            LPCSTR  lpRootPathName,
+            LPSTR   lpVolumeNameBuffer,
+            DWORD   nVolumeNameSize,
+            LPDWORD lpVolumeSerialNumber,
+            LPDWORD lpMaximumComponentLength,
+            LPDWORD lpFileSystemFlags,
+            LPSTR   lpFileSystemNameBuffer,
+            DWORD   nFileSystemNameSize
+        );
+        '''
+        root, vol_buf, vol_size, serial, comp_len, fs_flags, fs_name, fs_name_len = argv
+
+        cw = self.get_char_width(ctx)
+        if root:
+            root_name = self.read_mem_string(root, cw)
+            argv[0] = root_name
+
+        return True
 
     @apihook('CreateEvent', argc=4)
     def CreateEvent(self, emu, argv, ctx={}):
@@ -2927,11 +3004,11 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         evt_name = None
+        obj = None
         if name:
             evt_name = self.read_mem_string(name, cw)
             argv[3] = evt_name
-
-        obj = self.get_object_from_name(evt_name)
+            obj = self.get_object_from_name(evt_name)
 
         if obj:
             hnd = obj.get_handle()
@@ -3087,6 +3164,18 @@ class Kernel32(api.ApiHandler):
     def GlobalLock(self, emu, argv, ctx={}):
         '''
         LPVOID GlobalLock(
+          HGLOBAL hMem
+        );
+        '''
+        hMem, = argv
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return hMem
+
+    @apihook('LocalLock', argc=1)
+    def LocalLock(self, emu, argv, ctx={}):
+        '''
+        LPVOID LocalLock(
           HGLOBAL hMem
         );
         '''

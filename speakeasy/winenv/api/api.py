@@ -296,8 +296,9 @@ class ApiHandler(object):
 
         return self.emu.mem_write(addr, data)
 
-    def create_thread(self, addr, ctx, hproc, thread_type='thread'):
-        return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type)
+    def create_thread(self, addr, ctx, hproc, thread_type='thread', is_suspended=False):
+        return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type,
+                                      is_suspended=is_suspended)
 
     def get_object_from_id(self, id):
         return self.emu.get_object_from_id(id)
