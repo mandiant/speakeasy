@@ -723,3 +723,77 @@ class User32(api.ApiHandler):
         num_devices = 4
         self.mem_write(puiNumDevices, num_devices.to_bytes(4, 'little'))
         return num_devices
+
+    @apihook('CharLowerBuff', argc=2)
+    def CharLowerBuff(self, emu, argv, ctx={}):
+        """
+        DWORD CharLowerBuffA(
+            LPSTR lpsz,
+            DWORD cchLength
+        );
+        """
+        _str,cchLength = argv
+        cw = self.get_char_width(ctx)
+        val = self.read_mem_string(_str, cw, max_chars=cchLength)
+        argv[0] = val
+        argv[1] = cchLength
+        self.write_mem_string(val.lower(), _str, cw)
+        return cchLength
+    
+    @apihook('CharUpperBuff', argc=2)
+    def CharUpperBuff(self, emu, argv, ctx={}):
+        """
+        DWORD CharUpperBuffA(
+            LPSTR lpsz,
+            DWORD cchLength
+        );
+        """
+        _str,cchLength = argv
+        cw = self.get_char_width(ctx)
+        val = self.read_mem_string(_str, cw, max_chars=cchLength)
+        argv[0] = val
+        argv[1] = cchLength
+        self.write_mem_string(val.upper(), _str, cw)
+        return cchLength
+
+    @apihook('CharLower', argc=1)
+    def CharLower(self, emu, argv, ctx={}):
+        """
+        LPSTR CharLowerA(
+            LPSTR lpsz
+        );
+        """
+        _str, = argv
+        cw = self.get_char_width(ctx)
+        bits = _str.bit_length()
+        if bits <= 16:
+            if cw == 1:
+                val = chr(_str).lower().encode('ascii')
+            else:
+                val = chr(_str).lower().encode('utf-16le')
+            return int.from_bytes(val, byteorder='little')
+        else:
+            val = self.read_mem_string(_str, cw)
+            self.write_mem_string(val.lower(), _str, cw)
+            return _str    
+
+    @apihook('CharUpper', argc=1)
+    def CharUpper(self, emu, argv, ctx={}):
+        """
+        LPSTR CharUpperA(
+            LPSTR lpsz
+        );
+        """
+        _str, = argv
+        cw = self.get_char_width(ctx)
+        bits = _str.bit_length()
+        if bits <= 16:
+            if cw == 1:
+                val = chr(_str).upper().encode('ascii')
+            else:
+                val = chr(_str).upper().encode('utf-16le')
+            return int.from_bytes(val, byteorder='little')
+        else:
+            val = self.read_mem_string(_str, cw)
+            self.write_mem_string(val.upper(), _str, cw)
+            return _str  
