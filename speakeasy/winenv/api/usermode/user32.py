@@ -731,3 +731,24 @@ class User32(api.ApiHandler):
         argv[1] = cchLength
         self.write_mem_string(val.upper(), _str, cw)
         return cchLength
+
+    @apihook('CharLower', argc=1)
+    def CharLower(self, emu, argv, ctx={}):
+        """
+        LPSTR CharLowerA(
+            LPSTR lpsz
+        );
+        """
+        _str, = argv
+        cw = self.get_char_width(ctx)
+        bits = _str.bit_length()
+        if bits <= 16:
+            if cw == 1:
+                val = chr(_str).lower().encode('ascii')
+            else:
+                val = chr(_str).lower().encode('utf-16le')
+            return int.from_bytes(val, byteorder='little')
+        else:
+            val = self.read_mem_string(_str, cw)
+            self.write_mem_string(val.lower(), _str, cw)
+            return _str    
