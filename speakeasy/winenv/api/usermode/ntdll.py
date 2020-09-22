@@ -166,3 +166,15 @@ class Ntdll(api.ApiHandler):
                 self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), 'little'))
 
         return rv
+
+    @apihook('RtlZeroMemory', argc=2)
+    def RtlZeroMemory(self, emu, argv, ctx={}):
+        """
+        void RtlZeroMemory(
+            void*  Destination,
+            size_t Length
+        );
+        """
+        dest,length = argv
+        buf = b'\x00' * length
+        self.mem_write(dest, buf)
