@@ -651,6 +651,30 @@ class User32(api.ApiHandler):
 
         return rv
 
+    @apihook('GetSysColor', argc=1)
+    def GetSysColor(self, emu, argv, ctx={}):
+        '''
+        DWORD GetSysColor(
+            int nIndex
+        );
+        '''
+        nIndex, = argv
+        rv = 1
+
+        return rv
+
+    @apihook('GetSysColorBrush', argc=1)
+    def GetSysColorBrush(self, emu, argv, ctx={}):
+        '''
+        HBRUSH GetSysColorBrush(
+            int nIndex
+        );
+        '''
+        nIndex, = argv
+        rv = 1
+
+        return rv
+
     @apihook('DialogBoxParam', argc=5)
     def DialogBoxParam(self, emu, argv, ctx={}):
         '''
