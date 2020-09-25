@@ -45,6 +45,11 @@
         "is_admin": true
     },
 
+    "api_hammering": {
+        "enabled": false,
+        "threshold": 2000
+    },
+
     "symlinks": [
         {
             "name": "\\??\\C:",

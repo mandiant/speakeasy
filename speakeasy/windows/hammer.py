@@ -23,17 +23,10 @@ class ApiHammer():
         self.hammer_memregion = None
         self.hammer_offset = 0
 
-        # default enabled for now until configs are updated
         self.config = self.emu.config.get('api_hammering', {})
         self.api_threshold = self.config.get('threshold', 1000)
-        self.enabled = self.config.get('enabled', True)
+        self.enabled = self.config.get('enabled', False)
     
-    #def get_cs_disasm(self, ea):
-    #    old = self.emu disasm_eng.detail
-    #    self.emu disasm_eng.detail = True
-    #    self.emu.get_disasm(eip, DISASM_SIZE)
-    #    self.emu disasm_eng.detail = old
-
     def handle_import_func(self, imp_api, conv, argc):
         '''
         Identifies possible API hammering and attempts to patch in mitigations.
@@ -44,14 +37,12 @@ class ApiHammer():
         self.api_stats[hammer_key] += 1
         if self.api_stats[hammer_key] < self.api_threshold:
             return
-        self.emu.log_info('api hammering at: 0x%x 0x%x' % (self.emu.get_pc(), self.emu.get_ret_address()) )
         # TODO: better parameterize the checking & dispatch of the types of calls/jmps to imports
         # so we can more easily loop through them & clean up the the logic below
         # TODO: track patches in the hammer_memregion & reuse when possible
         if self.emu.get_arch() == e_arch.ARCH_X86:
             eip = self.emu.get_ret_address() - 6
             mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-            #import pdb; pdb.set_trace()
             self.emu.log_info('api hammering at: 0x%x %r %r %r' % (self.emu.get_pc(), mnem, op, instr) )
             if (mnem == 'call') and 'dword ptr' in instr:
                 if conv == e_arch.CALL_CONV_CDECL:
