@@ -950,6 +950,26 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('strcmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strcmp(self, emu, argv, ctx={}):
+        """
+        int strcmp(
+            const char *string1,
+            const char *string2,
+        );
+        """
+        s1, s2 = argv
+        rv = 1
+
+        string1 = self.read_mem_string(s1, 1)
+        string2 = self.read_mem_string(s2, 1)
+        if string1 == string2:
+            rv = 0
+        argv[0] = string1
+        argv[1] = string2
+
+        return rv
+
     @apihook('_set_invalid_parameter_handler', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_invalid_parameter_handler(self, emu, argv, ctx={}):
         """
