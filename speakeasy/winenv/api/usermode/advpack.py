@@ -21,7 +21,7 @@ class Advpack(api.ApiHandler):
 
         super(Advpack, self).__get_hook_attrs__(self)
 
-    @apihook('IsNTAdmin', argc=0)
+    @apihook('IsNTAdmin', argc=2)
     def IsNTAdmin(self, emu, argv, ctx={}):
         """
         bool IsNTAdmin();

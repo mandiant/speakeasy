@@ -325,8 +325,14 @@ class Win32Emulator(WindowsEmulator):
         """
         Load position independent code (i.e. shellcode) to prepare for emulation
         """
-        self.arch = arch
         sc_hash = None
+
+        if arch == 'x86':
+            arch = _arch.ARCH_X86
+        elif arch in ('x64', 'amd64'):
+            arch = _arch.ARCH_AMD64
+
+        self.arch = arch
 
         if data:
             sc_hash = hashlib.sha256()
