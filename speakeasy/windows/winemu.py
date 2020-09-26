@@ -1172,7 +1172,7 @@ class WindowsEmulator(BinaryEmulator):
                 elif address == winemu.API_CALLBACK_HANDLER_ADDR:
                     run = self.get_current_run()
                     if run.api_callbacks:
-                        pc, args = run.api_callbacks.pop(0)
+                        pc, orig_func, args = run.api_callbacks.pop(0)
                         self.do_call_return(len(args), pc)
                         self._unset_emu_hooks()
                     return True
@@ -1412,9 +1412,9 @@ class WindowsEmulator(BinaryEmulator):
         Hook called before every emulated instruction. Ideally we want to
         stay out of this hook as much as possible for speed considerations.
         """
-        # x = self.get_disasm(addr, size)[2]
-        # print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x : eax=0x%x' % (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp'), self.reg_read('eax'))) # noqa
-
+        if self.debug:
+            x = self.get_disasm(addr, size)[2]
+            print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x : eax=0x%x' % (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp'), self.reg_read('eax'))) # noqa
         try:
             if self.curr_exception_code != 0:
                 self.dispatch_seh(self.curr_exception_code)

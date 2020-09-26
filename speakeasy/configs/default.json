@@ -35,6 +35,7 @@
         "temp": "C:\\Windows\\temp\\",
         "userprofile": "C:\\Users\\speakeasy_user",
         "systemdrive": "C:",
+        "allusersprofile": "C:\\ProgramData",
         "programfiles": "C:\\Program Files"
     },
 
@@ -449,6 +450,11 @@
                     "name": "ole32",
                     "base_addr": "0x65500000",
                     "path": "C:\\Windows\\system32\\ole32.dll"
+                },
+                {
+                    "name": "gdiplus",
+                    "base_addr": "0x75500000",
+                    "path": "C:\\Windows\\system32\\gdiplus.dll"
                 },
                 {
                     "name": "setupapi",

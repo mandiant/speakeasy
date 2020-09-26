@@ -164,6 +164,23 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         argv[0] = self.read_mem_string(_str, cw)
 
+    @apihook('GetThreadTimes', argc=5)
+    def GetThreadTimes(self, emu, argv, ctx={}):
+        '''
+        BOOL GetThreadTimes(
+            HANDLE     hThread,
+            LPFILETIME lpCreationTime,
+            LPFILETIME lpExitTime,
+            LPFILETIME lpKernelTime,
+            LPFILETIME lpUserTime
+        );
+        '''
+        hnd, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
+
+        if lpCreationTime:
+            self.mem_write(lpCreationTime, b'\x20\x20\x00\x00')
+        return True
+
     @apihook('GetProcessHeap', argc=0)
     def GetProcessHeap(self, emu, argv, ctx={}):
         '''
@@ -175,6 +192,22 @@ class Kernel32(api.ApiHandler):
         else:
             heap = self.heaps[0]
         return heap
+
+    @apihook('GetProcessVersion', argc=1)
+    def GetProcessVersion(self, emu, argv, ctx={}):
+        '''
+        DWORD GetProcessVersion(
+            DWORD ProcessId
+        );
+        '''
+
+        ver = self.get_os_version()
+        major = ver['major']
+        minor = ver['minor']
+
+        rv = 0xFFFFFFFF & (major << 16 | minor)
+
+        return rv
 
     @apihook('DisableThreadLibraryCalls', argc=1)
     def DisableThreadLibraryCalls(self, emu, argv, ctx={}):
@@ -2476,6 +2509,34 @@ class Kernel32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return rv
 
+    @apihook('GlobalHandle', argc=1)
+    def GlobalHandle(self, emu, argv, ctx={}):
+        '''
+        HGLOBAL GlobalHandle(
+            LPCVOID pMem
+        );
+        '''
+        pMem, = argv
+        return pMem
+
+    @apihook('GlobalUnlock', argc=1)
+    def GlobalUnlock(self, emu, argv, ctx={}):
+        '''
+        BOOL GlobalUnlock(
+            HGLOBAL hMem
+        );
+        '''
+        return 0
+
+    @apihook('GlobalFree', argc=1)
+    def GlobalFree(self, emu, argv, ctx={}):
+        '''
+        HGLOBAL GlobalFree(
+            _Frees_ptr_opt_ HGLOBAL hMem
+        );
+        '''
+        return 0
+
     @apihook('GetSystemDirectory', argc=2)
     def GetSystemDirectory(self, emu, argv, ctx={}):
         '''
@@ -2878,6 +2939,7 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         f = self.file_get(hFile)
+        data = self.mem_read(lpBuffer, num_bytes)
         if f:
             path = f.get_path()
             data = self.mem_read(lpBuffer, num_bytes)
