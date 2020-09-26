@@ -4170,3 +4170,15 @@ class Kernel32(api.ApiHandler):
         pfnAPC, hThread, dwData = argv
         run_type = 'apc_thread_%x' % hThread
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
+
+    @apihook('RtlZeroMemory', argc=2)
+    def RtlZeroMemory(self, emu, argv, ctx={}):
+        """
+        void RtlZeroMemory(
+            void*  Destination,
+            size_t Length
+        );
+        """
+        dest,length = argv
+        buf = b'\x00' * length
+        self.mem_write(dest, buf)
