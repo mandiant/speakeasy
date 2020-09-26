@@ -6,7 +6,7 @@ from speakeasy.winenv.api.kernelmode import ntoskrnl, hal, wdfldr, netio, ndis, 
 from speakeasy.winenv.api.usermode import ws2_32, kernel32, wininet, winhttp, user32, \
                                           advapi32, msvcrt, wtsapi32, mscoree, dnsapi, \
                                           ntdll, crypt32, shell32, shlwapi, advpack, gdi32, \
-                                          urlmon, ole32, comctl32
+                                          urlmon, ole32, comctl32, msimg32, msi32, lz32
 
 API_HANDLERS = (
                     # Kernel mode
@@ -37,6 +37,9 @@ API_HANDLERS = (
                     ('urlmon', urlmon.Urlmon),
                     ('ole32', ole32.Ole32),
                     ('comctl32', comctl32.Comctl32),
+                    ('msimg32', msimg32.Msimg32),
+                    ('msi', msi32.Msi32),
+                    ('lz32', lz32.Lz32),
                )
 
 

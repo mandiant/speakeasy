@@ -3,6 +3,7 @@
 import speakeasy.winenv.arch as _arch
 import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.defs.windows.user32 as windefs
+import speakeasy.winenv.defs.windows.windef as windef
 
 from .. import api
 
@@ -802,6 +803,119 @@ class User32(api.ApiHandler):
         num_devices = 4
         self.mem_write(puiNumDevices, num_devices.to_bytes(4, 'little'))
         return num_devices
+
+    @apihook('GetNextDlgTabItem', argc=3)
+    def GetNextDlgTabItem(self, emu, argv, ctx={}):
+        """
+        HWND GetNextDlgTabItem(
+          HWND hDlg,
+          HWND hCtl,
+          BOOL bPrevious
+        );
+        """
+        return 0
+
+    @apihook('GetCaretPos', argc=1)
+    def GetCaretPos(self, emu, argv, ctx={}):
+        """
+        BOOL GetCaretPos(
+          LPPOINT lpPoint
+        );
+        """
+        lpPoint = argv[0]
+        point = windef.POINT(emu.get_ptr_size())
+        point.x = 0
+        point.y = 0
+        self.mem_write(lpPoint, self.get_bytes(point))
+        return 1
+
+    @apihook('GetMonitorInfo', argc=2)
+    def GetMonitorInfo(self, emu, argv, ctx={}):
+        """
+        BOOL GetMonitorInfo(
+          HMONITOR      hMonitor,
+          LPMONITORINFO lpmi
+        );
+        """
+        hMonitor, lpmi = argv
+        mi = windef.MONITORINFO(emu.get_ptr_size())
+        mi = self.mem_cast(mi, lpmi)
+        # just a stub for now
+        self.mem_write(lpmi, self.get_bytes(mi))
+        return 1
+
+    @apihook('EndPaint', argc=2)
+    def EndPaint(self, emu, argv, ctx={}):
+        """
+        BOOL EndPaint(
+          HWND              hWnd,
+          const PAINTSTRUCT *lpPaint
+        );
+        """
+        return 1
+
+    @apihook('GetDlgCtrlID', argc=1)
+    def GetDlgCtrlID(self, emu, argv, ctx={}):
+        """
+        int GetDlgCtrlID(
+          HWND hWnd
+        );
+        """
+        return 1
+
+    @apihook('GetUpdateRect', argc=3)
+    def GetUpdateRect(self, emu, argv, ctx={}):
+        """
+        BOOL GetUpdateRect(
+          HWND   hWnd,
+          LPRECT lpRect,
+          BOOL   bErase
+        );
+        """
+        return 0
+
+    @apihook('GetAltTabInfo', argc=5)
+    def GetAltTabInfo(self, emu, argv, ctx={}):
+        """
+        BOOL GetAltTabInfoA(
+          HWND        hwnd,
+          int         iItem,
+          PALTTABINFO pati,
+          LPSTR       pszItemText,
+          UINT        cchItemText
+        );
+        """
+        return 0
+
+    @apihook('GetUpdateRgn', argc=3)
+    def GetUpdateRgn(self, emu, argv, ctx={}):
+        """
+        int GetUpdateRgn(
+          HWND hWnd,
+          HRGN hRgn,
+          BOOL bErase
+        );
+        """
+        return 0
+
+    @apihook('FlashWindow', argc=2)
+    def FlashWindow(self, emu, argv, ctx={}):
+        """
+        BOOL FlashWindow(
+          HWND hWnd,
+          BOOL bInvert
+        );
+        """
+        return 1
+
+    @apihook('IsClipboardFormatAvailable', argc=1)
+    def IsClipboardFormatAvailable(self, emu, argv, ctx={}):
+        """
+        BOOL IsClipboardFormatAvailable(
+          UINT format
+        );
+        """
+        return 0
 
     @apihook('IsWindow', argc=1)
     def IsWindow(self, emu, argv, ctx={}):

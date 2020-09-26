@@ -212,6 +212,24 @@
                 "name"
             ]
         },
+        "api_hammering": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Controls whether API hammering mitigation is used or not"
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "Threshold for an individual API call to trigger API hammer mitigation"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "enabled", 
+                "threshold"
+            ]
+        },
         "symlinks": {
             "type": "array",
             "description": "Lists symbolic links to present to the emulated sample",

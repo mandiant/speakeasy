@@ -3007,6 +3007,28 @@ class Kernel32(api.ApiHandler):
 
         return low
 
+    @apihook('GetFileSizeEx', argc=2)
+    def GetFileSizeEx(self, emu, argv, ctx={}):
+        '''
+        BOOL GetFileSizeEx(
+          HANDLE         hFile,
+          PLARGE_INTEGER lpFileSize
+        );
+        '''
+        hFile, lpFileSize = argv
+        f = self.file_get(hFile)
+
+        if f:
+            full_size = f.get_size()
+            size_bytes = full_size.to_bytes(8, 'little')
+            if lpFileSize:
+                self.mem_write(lpFileSize, size_bytes)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+        emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        return 0
+
+
     @apihook('CloseHandle', argc=1)
     def CloseHandle(self, emu, argv, ctx={}):
         '''
@@ -4170,6 +4192,124 @@ class Kernel32(api.ApiHandler):
         pfnAPC, hThread, dwData = argv
         run_type = 'apc_thread_%x' % hThread
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
+
+    @apihook('GetThreadTimes', argc=5)
+    def GetThreadTimes(self, emu, argv, ctx={}):
+        """
+        BOOL GetThreadTimes(
+          HANDLE     hThread,
+          LPFILETIME lpCreationTime,
+          LPFILETIME lpExitTime,
+          LPFILETIME lpKernelTime,
+          LPFILETIME lpUserTime
+        );
+        """
+        return 0
+
+    @apihook('DuplicateHandle', argc=7)
+    def DuplicateHandle(self, emu, argv, ctx={}):
+        """
+        BOOL DuplicateHandle(
+          HANDLE   hSourceProcessHandle,
+          HANDLE   hSourceHandle,
+          HANDLE   hTargetProcessHandle,
+          LPHANDLE lpTargetHandle,
+          DWORD    dwDesiredAccess,
+          BOOL     bInheritHandle,
+          DWORD    dwOptions
+        )
+        """
+        return 0
+
+    @apihook('GetBinaryType', argc=2)
+    def GetBinaryType(self, emu, argv, ctx={}):
+        """
+        BOOL GetBinaryTypeA(
+          LPCSTR  lpApplicationName,
+          LPDWORD lpBinaryType
+        );
+        """
+        return 0
+
+
+    @apihook('GetThreadUILanguage', argc=0)
+    def GetThreadUILanguage(self, emu, argv, ctx={}):
+        """
+        LANGID GetThreadUILanguage();
+        """
+        return 0xffff
+
+    @apihook('SetConsoleHistoryInfo', argc=1)
+    def SetConsoleHistoryInfo(self, emu, argv, ctx={}):
+        """
+        BOOL WINAPI SetConsoleHistoryInfo(
+          _In_ PCONSOLE_HISTORY_INFO lpConsoleHistoryInfo
+        );
+        """
+        return 1
+
+
+    @apihook('GetFileInformationByHandle', argc=2)
+    def GetFileInformationByHandle(self, emu, argv, ctx={}):
+        """
+        BOOL GetFileInformationByHandle(
+          HANDLE                       hFile,
+          LPBY_HANDLE_FILE_INFORMATION lpFileInformation
+        );
+        """
+        return 0
+
+    @apihook('GetCommProperties', argc=2)
+    def GetCommProperties(self, emu, argv, ctx={}):
+        """
+        BOOL GetCommProperties(
+          HANDLE     hFile,
+          LPCOMMPROP lpCommProp
+        );
+        """
+        return 0
+
+    @apihook('GetCommTimeouts', argc=2)
+    def GetCommTimeouts(self, emu, argv, ctx={}):
+        """
+        BOOL GetCommTimeouts(
+          HANDLE         hFile,
+          LPCOMMTIMEOUTS lpCommTimeouts
+        );
+        """
+        return 0
+
+    @apihook('AddAtom', argc=1)
+    def AddAtom(self, emu, argv, ctx={}):
+        """
+        ATOM AddAtomW(
+          LPCWSTR lpString
+        );
+        """
+        return 0
+
+    @apihook('GetProcessHandleCount', argc=1)
+    def GetProcessHandleCount(self, emu, argv, ctx={}):
+        """
+        BOOL GetProcessHandleCount(
+          HANDLE hProcess,
+          PDWORD pdwHandleCount
+        );
+        """
+        return  0
+
+    @apihook('GetMailslotInfo', argc=5)
+    def GetMailslotInfo(self, emu, argv, ctx={}):
+        """
+        BOOL GetMailslotInfo(
+          HANDLE  hMailslot,
+          LPDWORD lpMaxMessageSize,
+          LPDWORD lpNextSize,
+          LPDWORD lpMessageCount,
+          LPDWORD lpReadTimeout
+        );
+        """
+        return 0
 
     @apihook('RtlZeroMemory', argc=2)
     def RtlZeroMemory(self, emu, argv, ctx={}):
