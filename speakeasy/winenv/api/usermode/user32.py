@@ -39,6 +39,7 @@ class User32(api.ApiHandler):
         self.window_hooks = {}
         self.handle = 0
         self.win = None
+        self.handles = []
         self.sessman = sessman.SessionManager(config=None)
 
         super(User32, self).__get_hook_attrs__(self)
@@ -46,6 +47,7 @@ class User32(api.ApiHandler):
     def get_handle(self):
         self.handle += 4
         hnd = self.handle
+        self.handles.append(hnd)
         return hnd
 
     def find_string_resource_by_id(self, pe, uID):
@@ -465,6 +467,18 @@ class User32(api.ApiHandler):
         '''
         return True
 
+    @apihook('SendMessage', argc=4)
+    def SendMessage(self, emu, argv, ctx={}):
+        '''
+        LRESULT SendMessage(
+            HWND   hWnd,
+            UINT   Msg,
+            WPARAM wParam,
+            LPARAM lParam
+        );
+        '''
+        return False
+
     @apihook('SetWindowsHookEx', argc=4)
     def SetWindowsHookEx(self, emu, argv, ctx={}):
         '''
@@ -485,6 +499,21 @@ class User32(api.ApiHandler):
         hnd = self.get_handle()
         self.window_hooks.update({hnd: (lpfn, hmod)})
         return hnd
+
+    @apihook('UnhookWindowsHookEx', argc=1)
+    def UnhookWindowsHookEx(self, emu, argv, ctx={}):
+        '''
+        BOOL UnhookWindowsHookEx(
+            HHOOK hhk
+        );
+        '''
+        hhk, = argv
+
+        rv = False
+        if self.window_hooks.get(hhk):
+            self.window_hooks.pop(hhk)
+            rv = True
+        return rv
 
     @apihook('MsgWaitForMultipleObjects', argc=5)
     def MsgWaitForMultipleObjects(self, emu, argv, ctx={}):
@@ -548,6 +577,16 @@ class User32(api.ApiHandler):
     def GetForegroundWindow(self, emu, argv, ctx={}):
         '''
         HWND GetForegroundWindow();
+        '''
+        return self.get_handle()
+
+    @apihook('LoadCursor', argc=2)
+    def LoadCursor(self, emu, argv, ctx={}):
+        '''
+        HCURSOR LoadCursor(
+        HINSTANCE hInstance,
+        LPCSTR    lpCursorName
+        );
         '''
         return self.get_handle()
 
@@ -663,6 +702,15 @@ class User32(api.ApiHandler):
 
         return rv
 
+    @apihook('GetParent', argc=1)
+    def GetParent(self, emu, argv, ctx={}):
+        '''
+        HWND GetParent(
+            HWND hWnd
+        );
+        '''
+        return self.get_handle()
+
     @apihook('GetSysColorBrush', argc=1)
     def GetSysColorBrush(self, emu, argv, ctx={}):
         '''
@@ -672,6 +720,19 @@ class User32(api.ApiHandler):
         '''
         nIndex, = argv
         rv = 1
+
+        return rv
+
+    @apihook('GetWindowLong', argc=2)
+    def GetWindowLong(self, emu, argv, ctx={}):
+        '''
+        LONG GetWindowLongA(
+            HWND hWnd,
+            int  nIndex
+        );
+        '''
+        hWnd, nIndex, = argv
+        rv = 2
 
         return rv
 
@@ -687,13 +748,31 @@ class User32(api.ApiHandler):
         );
         '''
         hInstance, lpTemplateName, hWndParent, lpDialogFunc, dwInitParam = argv
-        rv = 0
+        rv = self.get_handle()
         cw = self.get_char_width(ctx)
         if lpTemplateName:
             tname = self.read_mem_string(lpTemplateName, cw)
             argv[1] = tname
 
         return rv
+
+    @apihook('CreateDialogIndirectParam', argc=5)
+    def CreateDialogIndirectParam(self, emu, argv, ctx={}):
+        '''
+        HWND CreateDialogIndirectParam(
+        HINSTANCE       hInstance,
+        LPCDLGTEMPLATEA lpTemplate,
+        HWND            hWndParent,
+        DLGPROC         lpDialogFunc,
+        LPARAM          dwInitParam
+        );
+        '''
+
+        hnd, template, hnd_parent, func, param, = argv
+
+        cb_args = (hnd_parent, windefs.WM_INITDIALOG, param, 0)
+        self.setup_callback(func, cb_args, caller_argv=argv)
+        return self.get_handle()
 
     @apihook('LoadIcon', argc=2)
     def LoadIcon(self, emu, argv, ctx={}):
@@ -724,6 +803,29 @@ class User32(api.ApiHandler):
         self.mem_write(puiNumDevices, num_devices.to_bytes(4, 'little'))
         return num_devices
 
+    @apihook('IsWindow', argc=1)
+    def IsWindow(self, emu, argv, ctx={}):
+        """
+        BOOL IsWindow(
+            HWND hWnd
+        );
+        """
+        hnd, = argv
+
+        return True
+
+    @apihook('EnableWindow', argc=2)
+    def EnableWindow(self, emu, argv, ctx={}):
+        """
+        BOOL EnableWindow(
+        HWND hWnd,
+        BOOL bEnable
+        );
+        """
+        hnd, bEnable = argv
+
+        return False
+
     @apihook('CharLowerBuff', argc=2)
     def CharLowerBuff(self, emu, argv, ctx={}):
         """
@@ -732,14 +834,14 @@ class User32(api.ApiHandler):
             DWORD cchLength
         );
         """
-        _str,cchLength = argv
+        _str, cchLength = argv
         cw = self.get_char_width(ctx)
         val = self.read_mem_string(_str, cw, max_chars=cchLength)
         argv[0] = val
         argv[1] = cchLength
         self.write_mem_string(val.lower(), _str, cw)
         return cchLength
-    
+
     @apihook('CharUpperBuff', argc=2)
     def CharUpperBuff(self, emu, argv, ctx={}):
         """
@@ -748,7 +850,7 @@ class User32(api.ApiHandler):
             DWORD cchLength
         );
         """
-        _str,cchLength = argv
+        _str, cchLength = argv
         cw = self.get_char_width(ctx)
         val = self.read_mem_string(_str, cw, max_chars=cchLength)
         argv[0] = val
@@ -775,7 +877,7 @@ class User32(api.ApiHandler):
         else:
             val = self.read_mem_string(_str, cw)
             self.write_mem_string(val.lower(), _str, cw)
-            return _str    
+            return _str
 
     @apihook('CharUpper', argc=1)
     def CharUpper(self, emu, argv, ctx={}):
@@ -796,4 +898,4 @@ class User32(api.ApiHandler):
         else:
             val = self.read_mem_string(_str, cw)
             self.write_mem_string(val.upper(), _str, cw)
-            return _str  
+            return _str

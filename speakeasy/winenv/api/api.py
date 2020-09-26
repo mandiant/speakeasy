@@ -365,14 +365,20 @@ class ApiHandler(object):
         For APIs that call functions, we will setup the stack to make this flow
         naturally.
         """
-        # Get the original return address
-        ret = self.emu.get_ret_address()
-        sp = self.emu.get_stack_ptr()
 
-        self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args)
         run = self.emu.get_current_run()
-        self.emu.set_pc(func)
-        run.api_callbacks.append((ret, caller_argv))
+
+        if not len(run.api_callbacks):
+            # Get the original return address
+            ret = self.emu.get_ret_address()
+            sp = self.emu.get_stack_ptr()
+
+            self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args)
+            self.emu.set_pc(func)
+            run.api_callbacks.append((ret, func, caller_argv))
+        else:
+            run.api_callbacks.append((None, func, args))
+
 
     def do_str_format(self, string, argv):
         """

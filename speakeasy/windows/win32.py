@@ -157,7 +157,7 @@ class Win32Emulator(WindowsEmulator):
             self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
         if not data:
-            file_name = os.path.basename(path)
+            file_name = os.path.basename(path) + '.exe'
             mod_name = os.path.splitext(file_name)[0]
 
         else:
