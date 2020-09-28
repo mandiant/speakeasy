@@ -379,7 +379,6 @@ class ApiHandler(object):
         else:
             run.api_callbacks.append((None, func, args))
 
-
     def do_str_format(self, string, argv):
         """
         Format a string similar to msvcrt.printf

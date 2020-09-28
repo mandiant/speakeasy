@@ -792,7 +792,20 @@ class BinaryEmulator(MemoryManager):
         """
         If an API hook has been set, return it here
         """
-        for hook in self.hooks.get(common.HOOK_API, []):
+
+        hooks = self.hooks.get(common.HOOK_API)
+        if not hooks:
+            return None
+
+        # See if we can quickly resolve the api hook
+        quick_look, wild_list = hooks
+        api = (mod_name + '.' + func_name).lower()
+        qh = quick_look.get(api)
+        if qh:
+            return qh
+
+        # See if a wild card api hook was registered
+        for hook in wild_list:
             if fnmatch.fnmatch(mod_name.lower(), hook.module.lower()):
                 if fnmatch.fnmatch(func_name.lower(), hook.api_name.lower()):
                     return hook
@@ -802,14 +815,30 @@ class BinaryEmulator(MemoryManager):
         """
         Add an API level hook (e.g. kernel32.CreateFile) here
         """
+
+        contains_wild_cards = False
+        for wc in ['?', '*', '[', ']']:
+            if wc in api_name:
+                contains_wild_cards = True
+                break
+
         if not emu:
             emu = self
         hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
-        hl = self.hooks.get(common.HOOK_API)
-        if not hl:
-            self.hooks.update({common.HOOK_API: [hook, ]})
+        _hooks = self.hooks.get(common.HOOK_API)
+        api = (module + '.' + api_name).lower()
+        if not _hooks:
+            if not contains_wild_cards:
+                obj = ({api: hook}, [hook, ])
+            else:
+                obj = ({}, [hook, ])
+            self.hooks.update({common.HOOK_API: obj})
         else:
-            hl.append(hook)
+            quick_look, wild_list = _hooks
+            if not contains_wild_cards:
+                quick_look.update({api: hook})
+            else:
+                wild_list.append(hook)
 
     def add_code_hook(self, cb, begin=1, end=0, ctx={}, emu=None):
         """
