@@ -222,6 +222,13 @@
                 "threshold": {
                     "type": "number",
                     "description": "Threshold for an individual API call to trigger API hammer mitigation"
+                },
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of allowed APIs (of the form '<dll_name>.<function_name>') to always allow despite API hammering mitigation being used"
                 }
             },
             "additionalProperties": false,

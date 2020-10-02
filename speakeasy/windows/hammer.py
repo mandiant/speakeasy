@@ -8,7 +8,15 @@ import speakeasy.winenv.arch as e_arch
 DISASM_SIZE = 0x20
 
 
+# default list of APIs to always allow despite triggering API hammering detection
+_default_api_hammer_allowlist = [
+    'kernel32.WriteProcessMemory',
+    'kernel32.WriteFile',
+    'kernel32.ReadFile',
+]
 
+def _lowercase_set(tt):
+    return set([bb.lower() for bb in tt])
 
 class ApiHammer():
     """
@@ -26,12 +34,25 @@ class ApiHammer():
         self.config = self.emu.config.get('api_hammering', {})
         self.api_threshold = self.config.get('threshold', 1000)
         self.enabled = self.config.get('enabled', False)
+        self.allow_list = _lowercase_set(self.config.get('allow_list', _default_api_hammer_allowlist))
+
+    def is_allowed_api(self, apiname):
+        '''
+        Returns true if the given apiname is one we don't want to use api hammering
+        mitigation for
+        '''
+        return apiname.lower() in self.allow_list
     
     def handle_import_func(self, imp_api, conv, argc):
         '''
         Identifies possible API hammering and attempts to patch in mitigations.
         '''
         if not self.enabled:
+            # api hammering mitigation not enabled, so exit
+            return
+        if self.is_allowed_api(imp_api):
+            # this is an api that we always want to allow, don't bother trying to 
+            # prevent api hammering
             return
         hammer_key = imp_api + '%x' % self.emu.get_ret_address()
         self.api_stats[hammer_key] += 1
@@ -43,7 +64,7 @@ class ApiHammer():
         if self.emu.get_arch() == e_arch.ARCH_X86:
             eip = self.emu.get_ret_address() - 6
             mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-            self.emu.log_info('api hammering at: 0x%x %r %r %r' % (self.emu.get_pc(), mnem, op, instr) )
+            self.emu.log_info('api hammering at: %s 0x%x %r %r %r' % (imp_api, self.emu.get_pc(), mnem, op, instr) )
             if (mnem == 'call') and 'dword ptr' in instr:
                 if conv == e_arch.CALL_CONV_CDECL:
                     # If cdecl, the emu engine will clean the stack
