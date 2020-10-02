@@ -885,6 +885,8 @@ class ObjectManager(object):
 
     def get_object_from_name(self, name, check_symlinks=True):
 
+        if not name:
+            return None
         name = name.rstrip('\\')
         for a, o in self.objects.items():
             if not o.name:

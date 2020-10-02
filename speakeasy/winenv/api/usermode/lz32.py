@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.arch as _arch
 
 from .. import api
@@ -27,15 +26,3 @@ class Lz32(api.ApiHandler):
         );
         """
         return -1
-
-
-    #@apihook('', argc=3, conv=_arch.CALL_CONV_STDCALL)
-    #def (self, emu, argv, ctx={}):
-    #    """
-
-    #    """
-    #    return 0
-
-
-
-

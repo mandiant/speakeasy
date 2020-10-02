@@ -20,6 +20,8 @@ IDI_SHIELD = 32518
 IDI_WARNING = 32515
 IDI_WINLOGO = 32517
 
+UOI_FLAGS = 1
+
 
 class User32(api.ApiHandler):
 
@@ -774,6 +776,103 @@ class User32(api.ApiHandler):
         cb_args = (hnd_parent, windefs.WM_INITDIALOG, param, 0)
         self.setup_callback(func, cb_args, caller_argv=argv)
         return self.get_handle()
+
+    @apihook('GetMenuInfo', argc=2)
+    def GetMenuInfo(self, emu, argv, ctx={}):
+        '''
+        BOOL GetMenuInfo(
+            HMENU,
+            LPMENUINFO
+        );
+        '''
+        return 1
+
+    @apihook('GetProcessWindowStation', argc=0)
+    def GetProcessWindowStation(self, emu, argv, ctx={}):
+        '''
+        HWINSTA GetProcessWindowStation();
+        '''
+        sta = self.sessman.get_current_station()
+        return sta.get_handle()
+
+    @apihook('LoadAccelerators', argc=2)
+    def LoadAccelerators(self, emu, argv, ctx={}):
+        '''
+        HACCEL LoadAccelerators(
+        HINSTANCE hInstance,
+        LPCSTR    lpTableName
+        );
+        '''
+        return self.get_handle()
+
+    @apihook('IsWindowVisible', argc=1)
+    def IsWindowVisible(self, emu, argv, ctx={}):
+        '''
+        BOOL IsWindowVisible(
+        HWND hWnd
+        );
+        '''
+        return True
+
+    @apihook('BeginPaint', argc=2)
+    def BeginPaint(self, emu, argv, ctx={}):
+        '''
+        HDC BeginPaint(
+        HWND          hWnd,
+        LPPAINTSTRUCT lpPaint
+        );
+        '''
+        return self.get_handle()
+
+    @apihook('LookupIconIdFromDirectory', argc=2)
+    def LookupIconIdFromDirectory(self, emu, argv, ctx={}):
+        '''
+        int LookupIconIdFromDirectory(
+        PBYTE presbits,
+        BOOL  fIcon
+        );
+        '''
+        return 1
+
+    @apihook('GetActiveWindow', argc=0)
+    def GetActiveWindow(self, emu, argv, ctx={}):
+        '''
+        HWND GetActiveWindow();
+        '''
+        return self.get_handle()
+
+    @apihook('GetLastActivePopup', argc=1)
+    def GetLastActivePopup(self, emu, argv, ctx={}):
+        '''
+        HWND GetLastActivePopup(
+        HWND hWnd
+        );
+        '''
+        hWnd, = argv
+        return self.get_handle()
+
+    @apihook('GetUserObjectInformation', argc=5)
+    def GetUserObjectInformation(self, emu, argv, ctx={}):
+        '''
+        BOOL GetUserObjectInformation(
+            HANDLE  hObj,
+            int     nIndex,
+            PVOID   pvInfo,
+            DWORD   nLength,
+            LPDWORD lpnLengthNeeded
+        );
+        '''
+        obj, index, info, length, needed = argv
+
+        if index == UOI_FLAGS:
+            uoi = windefs.USEROBJECTFLAGS(emu.get_ptr_size())
+            uoi.fInherit = 1
+            uoi.dwFlags = 1
+
+            if info:
+                self.mem_write(info, uoi.get_bytes())
+
+        return True
 
     @apihook('LoadIcon', argc=2)
     def LoadIcon(self, emu, argv, ctx={}):

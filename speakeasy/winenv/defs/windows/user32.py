@@ -37,6 +37,14 @@ class MSG(EmuStruct):
         self.lPrivate = ct.c_uint32
 
 
+class USEROBJECTFLAGS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.fInherit = ct.c_uint32
+        self.fReserved = ct.c_uint32
+        self.dwFlags = ct.c_uint32
+
+
 class WNDCLASSEX(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)

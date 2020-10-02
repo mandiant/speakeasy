@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import ntpath
+
 from .. import api
 
 
@@ -97,6 +99,29 @@ class Shlwapi(api.ApiHandler):
         argv[0] = t[idx2:]
         return pszPath + idx1 + 1 + idx2
 
+    @apihook('StrCmpI', argc=2)
+    def StrCmpI(self, emu, argv, ctx={}):
+        """
+        int StrCmpI(
+        PCWSTR psz1,
+        PCWSTR psz2
+        );
+        """
+        psz1, psz2 = argv
+
+        cw = self.get_char_width(ctx)
+        s1 = self.read_mem_string(psz1, cw)
+        s2 = self.read_mem_string(psz2, cw)
+        rv = 1
+
+        argv[0] = s1
+        argv[1] = s2
+
+        if s1.lower() == s2.lower():
+            rv = 0
+
+        return rv
+
     @apihook('PathFindFileName', argc=1)
     def PathFindFileName(self, emu, argv, ctx={}):
         """
@@ -136,6 +161,23 @@ class Shlwapi(api.ApiHandler):
         argv[0] = s
         self.write_mem_string(s, pszPath, cw)
         return pszPath
+
+    @apihook('PathStripPath', argc=1)
+    def PathStripPath(self, emu, argv, ctx={}):
+        """
+        void PathStripPath(
+        LPSTR pszPath
+        );
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        argv[0] = s
+        mod_name = ntpath.basename(s) + '\x00'
+
+        enc = self.get_encoding(cw)
+        mod_name = mod_name.encode(enc)
+        self.mem_write(pszPath, mod_name)
 
     @apihook('wvnsprintfA', argc=4)
     def wvnsprintfA(self, emu, argv, ctx={}):

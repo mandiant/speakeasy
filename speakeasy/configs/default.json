@@ -30,7 +30,7 @@
 
     "env": {
         "comspec": "C:\\Windows\\system32\\cmd.exe",
-        "systemroot": "C:\\Windows\\system32",
+        "systemroot": "C:\\Windows",
         "windir": "C:\\Windows",
         "temp": "C:\\Windows\\temp\\",
         "userprofile": "C:\\Users\\speakeasy_user",
@@ -247,7 +247,7 @@
         {
             "name": "main",
             "base_addr": "0x00400000",
-            "path": "C:\\Windows\\system32\\main.exe",
+            "path": "C:\\Windows\\system32\\svchost.exe",
             "command_line": "svchost.exe",
             "is_main_exe": true,
             "session": 1
@@ -465,6 +465,21 @@
                     "name": "NETAPI32",
                     "base_addr": "0x54400000",
                     "path": "C:\\Windows\\system32\\NETAPI32.dll"
+                },
+                {
+                    "name": "rpcrt4",
+                    "base_addr": "0x53300000",
+                    "path": "C:\\Windows\\system32\\Rpcrt4.dll"
+                },
+                {
+                    "name": "linkinfo",
+                    "base_addr": "0x63300000",
+                    "path": "C:\\Windows\\system32\\linkinfo.dll"
+                },
+                {
+                    "name": "EhStorShell",
+                    "base_addr": "0x73300000",
+                    "path": "C:\\Windows\\system32\\EhStorShell.dll"
                 },
                 {
                     "name": "comctl32",

@@ -1191,6 +1191,58 @@ class Kernel32(api.ApiHandler):
 
         return
 
+    @apihook('SystemTimeToFileTime', argc=2)
+    def SystemTimeToFileTime(self, emu, argv, ctx={}):
+        '''
+        BOOL SystemTimeToFileTime(
+        const SYSTEMTIME *lpSystemTime,
+        LPFILETIME       lpFileTime
+        );
+        '''
+
+        lpSystemTime, lpFileTime = argv
+        self.GetSystemTimeAsFileTime(emu, argv[1:], ctx)
+
+        return True
+
+    @apihook('SetThreadErrorMode', argc=2)
+    def SetThreadErrorMode(self, emu, argv, ctx={}):
+        '''
+        BOOL SetThreadErrorMode(
+            DWORD   dwNewMode,
+            LPDWORD lpOldMode
+        );
+        '''
+
+        dwNewMode, lpOldMode = argv
+
+        return True
+
+    @apihook('SetDefaultDllDirectories', argc=1)
+    def SetDefaultDllDirectories(self, emu, argv, ctx={}):
+        '''
+        BOOL SetDefaultDllDirectories(
+            DWORD DirectoryFlags
+        );
+        '''
+
+        return True
+
+    @apihook('SetConsoleTitle', argc=1)
+    def SetConsoleTitle(self, emu, argv, ctx={}):
+        '''
+        BOOL WINAPI SetConsoleTitle(
+        _In_ LPCTSTR lpConsoleTitle
+        );
+        '''
+
+        lpConsoleTitle, = argv
+        if lpConsoleTitle:
+            cw = self.get_char_width(ctx)
+            cs1 = self.read_mem_string(lpConsoleTitle, cw)
+            argv[0] = cs1
+        return True
+
     @apihook('GetLocalTime', argc=1)
     def GetLocalTime(self, emu, argv, ctx={}):
         '''
@@ -1772,6 +1824,9 @@ class Kernel32(api.ApiHandler):
 
         thread = emu.get_current_thread()
         fls = thread.get_fls()
+
+        if len(fls) == 0:
+            fls.append(0)
 
         if dwFlsIndex < len(fls):
             fls[dwFlsIndex] = lpFlsData
@@ -3028,7 +3083,6 @@ class Kernel32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
         return 0
 
-
     @apihook('CloseHandle', argc=1)
     def CloseHandle(self, emu, argv, ctx={}):
         '''
@@ -3718,6 +3772,30 @@ class Kernel32(api.ApiHandler):
 
         return True
 
+    @apihook('GetSystemTimes', argc=3)
+    def GetSystemTimes(self, emu, argv, ctx={}):
+        '''
+        BOOL GetSystemTimes(
+            PFILETIME lpIdleTime,
+            PFILETIME lpKernelTime,
+            PFILETIME lpUserTime
+        );
+        '''
+
+        lpIdleTime, lpKernelTime, lpUserTime = argv
+
+        ft = self.k32types.FILETIME(emu.get_ptr_size())
+
+        ft.dwLowDateTime = self.tick_counter
+        self.tick_counter += 10000000
+
+        for t in (lpIdleTime, lpKernelTime, lpUserTime):
+            if not t:
+                continue
+            self.mem_write(t, ft.get_bytes())
+
+        return True
+
     @apihook('GetThreadContext', argc=2)
     def GetThreadContext(self, emu, argv, ctx={}):
         '''
@@ -4193,19 +4271,6 @@ class Kernel32(api.ApiHandler):
         run_type = 'apc_thread_%x' % hThread
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
 
-    @apihook('GetThreadTimes', argc=5)
-    def GetThreadTimes(self, emu, argv, ctx={}):
-        """
-        BOOL GetThreadTimes(
-          HANDLE     hThread,
-          LPFILETIME lpCreationTime,
-          LPFILETIME lpExitTime,
-          LPFILETIME lpKernelTime,
-          LPFILETIME lpUserTime
-        );
-        """
-        return 0
-
     @apihook('DuplicateHandle', argc=7)
     def DuplicateHandle(self, emu, argv, ctx={}):
         """
@@ -4231,7 +4296,6 @@ class Kernel32(api.ApiHandler):
         """
         return 0
 
-
     @apihook('GetThreadUILanguage', argc=0)
     def GetThreadUILanguage(self, emu, argv, ctx={}):
         """
@@ -4247,7 +4311,6 @@ class Kernel32(api.ApiHandler):
         );
         """
         return 1
-
 
     @apihook('GetFileInformationByHandle', argc=2)
     def GetFileInformationByHandle(self, emu, argv, ctx={}):
@@ -4296,7 +4359,7 @@ class Kernel32(api.ApiHandler):
           PDWORD pdwHandleCount
         );
         """
-        return  0
+        return 0
 
     @apihook('GetMailslotInfo', argc=5)
     def GetMailslotInfo(self, emu, argv, ctx={}):
@@ -4319,6 +4382,6 @@ class Kernel32(api.ApiHandler):
             size_t Length
         );
         """
-        dest,length = argv
+        dest, length = argv
         buf = b'\x00' * length
         self.mem_write(dest, buf)

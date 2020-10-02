@@ -284,7 +284,7 @@ class ApiHandler(object):
         elif char_width == 1:
             enc = 'utf-8'
         else:
-            raise ApiEmuError('No encoding found for char width: %d' % (char_width) )
+            raise ApiEmuError('No encoding found for char width: %d' % (char_width))
         return enc
 
     def mem_write(self, addr, data):
