@@ -385,6 +385,8 @@ class Win32Emulator(WindowsEmulator):
                 self.profiler.strings['ansi'] = self.get_ansi_strings(sc)
                 self.profiler.strings['unicode'] = self.get_unicode_strings(sc)
 
+        self.setup()
+
         return sc_addr
 
     def run_shellcode(self, sc_addr, offset=0):
@@ -400,8 +402,6 @@ class Win32Emulator(WindowsEmulator):
 
         if not target:
             raise Win32EmuError('Invalid shellcode address')
-
-        self.setup()
 
         stack_commit = 0x4000
 
