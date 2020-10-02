@@ -278,6 +278,15 @@ class ApiHandler(object):
     def reg_get_subkeys(self, hkey):
         return self.emu.reg_get_subkeys(hkey)
 
+    def get_encoding(self, char_width):
+        if char_width == 2:
+            enc = 'utf-16le'
+        elif char_width == 1:
+            enc = 'utf-8'
+        else:
+            raise ApiEmuError('No encoding found for char width: %d' % (char_width) )
+        return enc
+
     def mem_write(self, addr, data):
 
         # If the data being written to a shared memory mapping, update all mappings

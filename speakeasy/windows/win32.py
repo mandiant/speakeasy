@@ -294,6 +294,7 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self, path=module.get_emu_path(), base=module.base,
                                pe=module, cmdline=self.command_line)
             self.curr_process = p
+            self.om.objects.update({p.address: p})
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
