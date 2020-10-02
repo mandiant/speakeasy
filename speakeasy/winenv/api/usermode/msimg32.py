@@ -1,11 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.arch as _arch
-import speakeasy.windows.sessman as sessman
-import speakeasy.winenv.defs.windows.user32 as windefs
-import speakeasy.winenv.defs.windows.windef as windef
 
 from .. import api
+
 
 class Msimg32(api.ApiHandler):
 
@@ -40,4 +37,3 @@ class Msimg32(api.ApiHandler):
         );
         '''
         return 1
-

@@ -175,6 +175,6 @@ class Ntdll(api.ApiHandler):
             size_t Length
         );
         """
-        dest,length = argv
+        dest, length = argv
         buf = b'\x00' * length
         self.mem_write(dest, buf)

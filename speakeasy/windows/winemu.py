@@ -53,7 +53,7 @@ class WindowsEmulator(BinaryEmulator):
         self.page_size = 4096
         self.ptr_size = None
         self.user_modules = []
-        self.max_runs = 10
+        self.max_runs = 100
 
         self.sys_modules = []
         self.symbols = {}
@@ -1412,6 +1412,7 @@ class WindowsEmulator(BinaryEmulator):
         Hook called before every emulated instruction. Ideally we want to
         stay out of this hook as much as possible for speed considerations.
         """
+
         if self.debug:
             x = self.get_disasm(addr, size)[2]
             print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x : eax=0x%x' % (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp'), self.reg_read('eax'))) # noqa
@@ -1455,7 +1456,8 @@ class WindowsEmulator(BinaryEmulator):
 
             if not self.mem_tracing_enabled:
                 # Disabling the code hook here grants a significant speed bump
-                self.disable_code_hook()
+                if not self.debug:
+                    self.disable_code_hook()
 
             if self.max_instructions != -1 and self.curr_run.instr_cnt >= self.max_instructions:
                 self.on_run_complete()
@@ -1546,12 +1548,12 @@ class WindowsEmulator(BinaryEmulator):
         Load a new module into the emulation space if necessary
         """
         ums = self.get_user_modules()
-        lib = os.path.splitext(mod_name)[0]
+        lib = ntpath.basename(mod_name)
+        lib = os.path.splitext(lib)[0]
 
         for um in ums:
             base = ntpath.basename(um.get_emu_path())
             base = os.path.splitext(base)[0]
-
             if lib.lower() == base.lower():
                 hmod = um.get_base()
                 return hmod
@@ -1990,6 +1992,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a kernel mutant object
         """
+        if name == 0:
+            name = ''
         mtx = self.new_object(objman.Mutant)
         mtx.name = name
         hnd = self.om.get_handle(mtx)

@@ -1,5 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import ctypes as ct
+from speakeasy.struct import EmuStruct, Ptr
+
+
 INTERNET_FLAG_ASYNC = 0x10000000
 INTERNET_FLAG_CACHE_ASYNC = 0x00000080
 INTERNET_FLAG_CACHE_IF_NET_FAIL = 0x00010000
@@ -38,12 +42,40 @@ WININET_API_FLAG_ASYNC = 0x00000001
 WININET_API_FLAG_SYNC = 0x00000004
 WININET_API_FLAG_USE_CONTEXT = 0x00000008
 
+INTERNET_SCHEME_PARTIAL = -2
+INTERNET_SCHEME_UNKNOWN = -1
+INTERNET_SCHEME_DEFAULT = 0
+INTERNET_SCHEME_FTP = 1
+INTERNET_SCHEME_GOPHER = 2
+INTERNET_SCHEME_HTTP = 3
+INTERNET_SCHEME_HTTPS = 4
+
 HTTP_QUERY_STATUS_CODE = 19
 HTTP_STATUS_OK = "200"
 
 INTERNET_OPTION_SECURITY_FLAGS = 31
 
 SECURITY_FLAG_SECURE = 1
+
+
+class URL_COMPONENTS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.dwStructSize = ct.c_uint32
+        self.lpszScheme = Ptr
+        self.dwSchemeLength = ct.c_uint32
+        self.nScheme = ct.c_uint32
+        self.lpszHostName = Ptr
+        self.dwHostNameLength = ct.c_uint32
+        self.nPort = ct.c_uint16
+        self.lpszUserName = Ptr
+        self.dwUserNameLength = ct.c_uint32
+        self.lpszPassword = Ptr
+        self.dwPasswordLength = ct.c_uint32
+        self.lpszUrlPath = Ptr
+        self.dwUrlPathLength = ct.c_uint32
+        self.lpszExtraInfo = Ptr
+        self.dwExtraInfoLength = ct.c_uint32
 
 
 def get_const_defines(flags, prefix=''):

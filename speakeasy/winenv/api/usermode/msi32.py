@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.arch as _arch
 
 from .. import api
@@ -27,6 +26,3 @@ class Msi32(api.ApiHandler):
         );
         """
         return 0
-
-
-

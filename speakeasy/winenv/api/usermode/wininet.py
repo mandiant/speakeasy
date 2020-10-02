@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_aton
+from urllib.parse import urlparse
 import speakeasy.winenv.arch as _arch
 
 import speakeasy.windows.netman as netman
@@ -139,6 +140,49 @@ class Wininet(api.ApiHandler):
         req = sess.new_request(verb, objname, ver, ref, accepts, defs, dwctx)
         hdl = req.get_handle()
         return hdl
+
+    @apihook('InternetCrackUrl', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    def InternetCrackUrl(self, emu, argv, ctx={}):
+        """
+        BOOLAPI InternetCrackUrl(
+            LPCSTR            lpszUrl,
+            DWORD             dwUrlLength,
+            DWORD             dwFlags,
+            LPURL_COMPONENTSA lpUrlComponents
+        );
+        """
+        lpszUrl, dwUrlLength, dwFlags, lpUrlComponents = argv
+
+        rv = False
+        cw = self.get_char_width(ctx)
+
+        if lpszUrl and lpUrlComponents:
+            url = self.read_mem_string(lpszUrl, cw)
+            argv[0] = url
+            rv = True
+
+            uc = windefs.URL_COMPONENTS(emu.get_ptr_size())
+            url_comp = self.mem_cast(uc, lpUrlComponents)
+
+            crack = urlparse(url)
+            if crack.scheme == 'https':
+                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
+            elif crack.scheme == 'http':
+                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
+            if url_comp.dwHostNameLength > 0:
+                if url_comp.lpszHostName:
+                    host = crack.netloc + '\x00'
+                    enc = self.get_encoding(cw)
+                    self.mem_write(url_comp.lpszHostName, host.encode(enc))
+                else:
+                    offset = url.find(crack.netloc)
+                    ptr = lpszUrl + (offset * cw)
+                    url_comp.lpszHostName = ptr
+                    url_comp.dwHostNameLength = len(crack.netloc)
+
+            self.mem_write(lpUrlComponents, url_comp.get_bytes())
+
+        return rv
 
     @apihook('InternetSetOption', argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetSetOption(self, emu, argv, ctx={}):

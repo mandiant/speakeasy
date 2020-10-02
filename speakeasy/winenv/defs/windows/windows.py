@@ -76,6 +76,15 @@ CREATE_SUSPENDED = 0x00000004
 CREATE_UNICODE_ENVIRONMENT = 0x00000400
 
 
+class GUID(EmuStruct):
+    def __init__(self):
+        super().__init__()
+        self.Data1 = ct.c_uint32
+        self.Data2 = ct.c_uint16
+        self.Data3 = ct.c_uint16
+        self.Data4 = ct.c_uint8 * 8
+
+
 class KSYSTEM_TIME(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)

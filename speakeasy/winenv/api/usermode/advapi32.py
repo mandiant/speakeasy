@@ -229,8 +229,30 @@ class AdvApi32(api.ApiHandler):
 
         hKey, dwIndex, lpName, cchName = argv
 
-        cw = self.get_char_width(ctx)
+        _argv = argv + [0, 0, 0, 0]
+        rv = self.RegEnumKeyEx(emu, _argv, ctx)
+        argv[:] = _argv[: 4]
 
+        return rv
+
+    @apihook('RegEnumKeyEx', argc=8, conv=_arch.CALL_CONV_STDCALL)
+    def RegEnumKeyEx(self, emu, argv, ctx={}):
+        '''
+        LSTATUS RegEnumKeyEx(
+            HKEY      hKey,
+            DWORD     dwIndex,
+            LPSTR     lpName,
+            LPDWORD   lpcchName,
+            LPDWORD   lpReserved,
+            LPSTR     lpClass,
+            LPDWORD   lpcchClass,
+            PFILETIME lpftLastWriteTime
+        );
+        '''
+
+        hKey, dwIndex, lpName, cchName, res, pcls, cchcls, last_write = argv
+
+        cw = self.get_char_width(ctx)
         rv = windefs.ERROR_INVALID_HANDLE
         if hKey:
             key = self.reg_get_key(hKey)
@@ -587,6 +609,24 @@ class AdvApi32(api.ApiHandler):
         rv = 1
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return rv
+
+    @apihook('SystemFunction036', argc=2)
+    def RtlGenRandom(self, emu, argv, ctx={}):
+        '''
+        BOOLEAN RtlGenRandom(
+            PVOID RandomBuffer,
+            ULONG RandomBufferLength
+        );
+        '''
+        RandomBuffer, RandomBufferLength = argv
+
+        rv = False
+        if RandomBuffer and RandomBufferLength:
+            buf = bytes([i for i in range(RandomBufferLength)])
+            self.mem_write(RandomBuffer, buf)
+            rv = True
 
         return rv
 

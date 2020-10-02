@@ -73,6 +73,15 @@ class GDI32(api.ApiHandler):
         """
         return 0
 
+    @apihook('GetMapMode', argc=1)
+    def GetMapMode(self, emu, argv, ctx={}):
+        """
+        int GetMapMode(
+            HDC hdc
+        );
+        """
+        return 1
+
     @apihook('GetDeviceCaps', argc=2)
     def GetDeviceCaps(self, emu, argv, ctx={}):
         """

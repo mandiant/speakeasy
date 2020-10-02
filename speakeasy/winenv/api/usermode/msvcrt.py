@@ -770,6 +770,16 @@ class Msvcrt(api.ApiHandler):
         chunk = self.heap_alloc(size, heap='HeapAlloc')
         return chunk
 
+    @apihook('free', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def free(self, emu, argv, ctx={}):
+        """
+        void free(
+        void *memblock
+        );
+        """
+        mem, = argv
+        self.mem_free(mem)
+
     @apihook('_beginthreadex', argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _beginthreadex(self, emu, argv, ctx={}):
         """
