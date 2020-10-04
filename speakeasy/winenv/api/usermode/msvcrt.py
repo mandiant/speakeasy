@@ -355,7 +355,33 @@ class Msvcrt(api.ApiHandler):
             ret = 0
 
         return ret
+    
+    @apihook('wcsstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcsstr(self, emu, argv, ctx={}):
+        """
+        wchar_t *wcsstr(
+            const wchar_t *str,
+            const wchar_t *strSearch
+        );
+        """
+        hay, needle = argv
 
+        if hay:
+            _hay = self.read_mem_string(hay, 2)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, 2)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+
+        return ret
+    
     @apihook('strncat_s', argc=4, conv=e_arch.CALL_CONV_CDECL)
     def strncat_s(self, emu, argv, ctx={}):
         """
