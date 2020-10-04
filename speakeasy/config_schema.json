@@ -101,6 +101,10 @@
             ],
             "description": "emulation engine to use"
         },
+        "max_instructions": {
+            "type": "number",
+            "description": "max instructions to emulate"
+        },
         "timeout": {
             "type": "number",
             "description": "emulation timeout"
