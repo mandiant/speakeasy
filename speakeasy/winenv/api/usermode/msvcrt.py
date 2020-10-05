@@ -108,6 +108,22 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('__wgetmainargs', argc=5)
+    def __wgetmainargs(self, emu, argv, ctx={}):
+        """
+        int __wgetmainargs (
+           int *_Argc,
+           wchar_t ***_Argv,
+           wchar_t ***_Env,
+           int _DoWildCard,
+           _startupinfo * _StartInfo);
+        """
+
+        _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
+        rv = 0
+
+        return rv
+
     @apihook('__p___wargv', argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___wargv(self, emu, argv, ctx={}):
         """WCHAR *** __p___wargv ()"""
