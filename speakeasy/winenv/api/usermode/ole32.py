@@ -111,12 +111,16 @@ class Ole32(api.ApiHandler):
         clsid_guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
         clsid_u = uuid.UUID(bytes_le=clsid_guid)
         clsid_u = ('{%s}' % (clsid_u)).upper()
-        argv[0] = clsid_u
+        clsid_name = com.get_clsid(clsid_u)
+        if clsid_name:
+            argv[0] = clsid_name
 
         riid_guid = self.mem_read(riid, self.sizeof(windefs.GUID()))
         riid_u = uuid.UUID(bytes_le=riid_guid)
         riid_u = ('{%s}' % (riid_u)).upper()
-        argv[3] = riid_u
+        iid_name = com.get_iid(riid_u)
+        if iid_name:
+            argv[3] = iid_name
 
         return rv
 

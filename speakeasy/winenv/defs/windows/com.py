@@ -16,6 +16,10 @@ RPC_C_IMP_LEVEL_IDENTIFY = 2
 RPC_C_IMP_LEVEL_IMPERSONATE = 3
 RPC_C_IMP_LEVEL_DELEGATE = 4
 
+CLSID_WbemLocator = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
+
+IID_IWbemLocator = "{DC12A687-737F-11CF-884D-00AA004B2E24}"
+
 
 class ComInterface(object):
     def __init__(self, iface, name, ptr_size):
@@ -48,7 +52,7 @@ IFACE_TYPES = {'IUnknown': IUnknown,
                'IMalloc':  IMalloc}
 
 
-def get_define(define, prefix=''):
+def get_define_int(define, prefix=''):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -59,9 +63,28 @@ def get_define(define, prefix=''):
             return k
 
 
+def get_define_str(define, prefix=''):
+    for k, v in globals().items():
+        if not isinstance(v, str) or v != define:
+            continue
+        if prefix:
+            if k.startswith(prefix):
+                return k
+        else:
+            return k
+
+
+def get_clsid(define):
+    return get_define_str(define, prefix='CLSID_')
+
+
+def get_iid(define):
+    return get_define_str(define, prefix='IID_')
+
+
 def get_rpc_authlevel(define):
-    return get_define(define, prefix='RPC_C_AUTHN_LEVEL_')
+    return get_define_int(define, prefix='RPC_C_AUTHN_LEVEL_')
 
 
 def get_rcp_implevel(define):
-    return get_define(define, prefix='RPC_C_IMP_LEVEL_')
+    return get_define_int(define, prefix='RPC_C_IMP_LEVEL_')
