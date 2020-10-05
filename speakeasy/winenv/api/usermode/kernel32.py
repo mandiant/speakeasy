@@ -447,6 +447,16 @@ class Kernel32(api.ApiHandler):
         emu.exit_process()
         return
 
+    @apihook('ExitThread', argc=1)
+    def ExitThread(self, emu, argv, ctx={}):
+        '''
+        void ExitThread(
+            DWORD   dwExitCode
+        );
+        '''
+        emu.exit_process()
+        return
+
     @apihook('WinExec', argc=2)
     def WinExec(self, emu, argv, ctx={}):
         '''
