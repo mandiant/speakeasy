@@ -1,7 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import uuid
-
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
 
@@ -84,11 +82,11 @@ class Ole32(api.ApiHandler):
 
         rv = windefs.S_OK
 
-        authn_level = com.get_define(argv[4])
+        authn_level = com.get_define_int(argv[4])
         if authn_level:
             argv[4] = authn_level
 
-        imp_level = com.get_define(argv[5])
+        imp_level = com.get_define_int(argv[5])
         if imp_level:
             argv[5] = imp_level
 
@@ -108,17 +106,15 @@ class Ole32(api.ApiHandler):
         rclsid, pUnkOuter, dwClsContext, riid, ppv = argv
         rv = windefs.S_OK
 
-        clsid_guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
-        clsid_u = uuid.UUID(bytes_le=clsid_guid)
-        clsid_u = ('{%s}' % (clsid_u)).upper()
-        clsid_name = com.get_clsid(clsid_u)
+        clsid_bytes = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
+        clsid_str = com.convert_guid_bytes_to_str(clsid_bytes)
+        clsid_name = com.get_clsid(clsid_str)
         if clsid_name:
             argv[0] = clsid_name
 
-        riid_guid = self.mem_read(riid, self.sizeof(windefs.GUID()))
-        riid_u = uuid.UUID(bytes_le=riid_guid)
-        riid_u = ('{%s}' % (riid_u)).upper()
-        iid_name = com.get_iid(riid_u)
+        riid_bytes = self.mem_read(riid, self.sizeof(windefs.GUID()))
+        riid_str = com.convert_guid_bytes_to_str(riid_bytes)
+        iid_name = com.get_iid(riid_str)
         if iid_name:
             argv[3] = iid_name
 
@@ -137,8 +133,7 @@ class Ole32(api.ApiHandler):
         rv = windefs.S_OK
 
         guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
-        u = uuid.UUID(bytes_le=guid)
-        u = ('{%s}' % (u)).upper()
+        u = com.convert_guid_bytes_to_str(guid)
         argv[1] = u
         u = (u + '\x00').encode('utf-16le')
 

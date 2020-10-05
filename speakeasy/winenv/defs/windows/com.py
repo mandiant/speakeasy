@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import uuid
+
 from speakeasy.struct import EmuStruct, Ptr
 
 RPC_C_AUTHN_LEVEL_DEFAULT = 0
@@ -88,3 +90,8 @@ def get_rpc_authlevel(define):
 
 def get_rcp_implevel(define):
     return get_define_int(define, prefix='RPC_C_IMP_LEVEL_')
+
+
+def convert_guid_bytes_to_str(guid_bytes):
+    u = uuid.UUID(bytes_le=guid_bytes)
+    return ('{%s}' % u).upper()
