@@ -43,6 +43,7 @@ class User32(api.ApiHandler):
         self.handle = 0
         self.win = None
         self.handles = []
+        self.timer_count = 0
         self.sessman = sessman.SessionManager(config=None)
 
         super(User32, self).__get_hook_attrs__(self)
@@ -547,7 +548,13 @@ class User32(api.ApiHandler):
         try:
             msg = t.message_queue.pop(0)
         except IndexError:
-            return False
+            # If the queue is empty but a timer is active, write a WM_TIMER message and return True
+            if self.timer_count > 0:
+                msg = windefs.MSG(emu.get_ptr_size())
+                msg.hwnd = hWnd
+                msg.message = windefs.WM_TIMER
+            else:
+                return False
 
         self.mem_write(lpMsg, msg.get_bytes())
 
@@ -1112,3 +1119,29 @@ class User32(api.ApiHandler):
             val = self.read_mem_string(_str, cw)
             self.write_mem_string(val.upper(), _str, cw)
             return _str
+
+    @apihook('SetTimer', argc=4)
+    def SetTimer(self, emu, argv, ctx={}):
+        """
+        UINT_PTR SetTimer(
+          HWND      hWnd,
+          UINT_PTR  nIDEvent,
+          UINT      uElapse,
+          TIMERPROC lpTimerFunc
+        );
+        """
+        self.timer_count += 1
+
+        return self.get_handle()
+
+    @apihook('KillTimer', argc=2)
+    def KillTimer(self, emu, argv, ctx={}):
+        """
+        BOOL KillTimer(
+          HWND     hWnd,
+          UINT_PTR uIDEvent
+        );
+        """
+        self.timer_count -= 1
+
+        return True

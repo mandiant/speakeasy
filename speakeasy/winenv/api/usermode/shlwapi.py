@@ -3,6 +3,7 @@
 import ntpath
 
 from .. import api
+import os
 
 
 class Shlwapi(api.ApiHandler):
@@ -26,6 +27,10 @@ class Shlwapi(api.ApiHandler):
         self.win = None
 
         super(Shlwapi, self).__get_hook_attrs__(self)
+
+    def join_windows_path(self, *args, **kwargs):
+        args = list(map(lambda x: x.replace('\\', '/'), args))
+        return os.path.join(*args, **kwargs).replace('/', '\\')
 
     @apihook('PathIsRelative', argc=1)
     def PathIsRelative(self, emu, argv, ctx={}):
@@ -206,3 +211,22 @@ class Shlwapi(api.ApiHandler):
         argv[1] = fmt_str
 
         return rv
+
+    @apihook('PathAppend', argc=2)
+    def PathAppend(self, emu, argv, ctx={}):
+        """
+        BOOL PathAppendA(
+          LPSTR  pszPath,
+          LPCSTR pszMore
+        );
+        """
+        pszPath, pszMore = argv
+        cw = self.get_char_width(ctx)
+        path = self.read_mem_string(pszPath, cw)
+        more = self.read_mem_string(pszMore, cw)
+        argv[0] = path
+        argv[1] = more
+        out = self.join_windows_path(path, more)
+        out += '\0'
+        self.write_mem_string(out, pszPath, cw)
+        return 1

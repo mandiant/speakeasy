@@ -355,7 +355,33 @@ class Msvcrt(api.ApiHandler):
             ret = 0
 
         return ret
+    
+    @apihook('wcsstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcsstr(self, emu, argv, ctx={}):
+        """
+        wchar_t *wcsstr(
+            const wchar_t *str,
+            const wchar_t *strSearch
+        );
+        """
+        hay, needle = argv
 
+        if hay:
+            _hay = self.read_mem_string(hay, 2)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, 2)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+
+        return ret
+    
     @apihook('strncat_s', argc=4, conv=e_arch.CALL_CONV_CDECL)
     def strncat_s(self, emu, argv, ctx={}):
         """
@@ -949,6 +975,26 @@ class Msvcrt(api.ApiHandler):
         );
         """
         s1, s2, c = argv
+        rv = 1
+
+        string1 = self.read_mem_string(s1, 1)
+        string2 = self.read_mem_string(s2, 1)
+        if string1 == string2:
+            rv = 0
+        argv[0] = string1
+        argv[1] = string2
+
+        return rv
+
+    @apihook('strcmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strcmp(self, emu, argv, ctx={}):
+        """
+        int strcmp(
+            const char *string1,
+            const char *string2,
+        );
+        """
+        s1, s2 = argv
         rv = 1
 
         string1 = self.read_mem_string(s1, 1)
