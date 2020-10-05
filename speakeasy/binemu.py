@@ -811,16 +811,18 @@ class BinaryEmulator(MemoryManager):
                     return hook
         return None
 
-    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None):
+    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None,
+                     enable_wild_cards=True):
         """
         Add an API level hook (e.g. kernel32.CreateFile) here
         """
 
         contains_wild_cards = False
-        for wc in ['?', '*', '[', ']']:
-            if wc in api_name:
-                contains_wild_cards = True
-                break
+        if enable_wild_cards:
+            for wc in ['?', '*', '[', ']']:
+                if wc in api_name:
+                    contains_wild_cards = True
+                    break
 
         if not emu:
             emu = self
