@@ -276,10 +276,10 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
-    @apihook('RegCreateKeyW', argc=3)
-    def RegCreateKeyW(self, emu, argv, ctx={}):
+    @apihook('RegCreateKey', argc=3)
+    def RegCreateKey(self, emu, argv, ctx={}):
         """
-        LSTATUS RegCreateKeyW(
+        LSTATUS RegCreateKey(
             HKEY    hKey,
             LPCWSTR lpSubKey,
             PHKEY   phkResult

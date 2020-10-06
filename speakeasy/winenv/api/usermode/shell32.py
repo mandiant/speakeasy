@@ -167,8 +167,8 @@ class Shell32(api.ApiHandler):
 
         return self.get_handle()
 
-    @apihook('SHGetFolderPathW', argc=5)
-    def SHGetFolderPathW(self, emu, argv, ctx={}):
+    @apihook('SHGetFolderPath', argc=5)
+    def SHGetFolderPath(self, emu, argv, ctx={}):
         """
         HWND   hwnd,
         int    csidl,

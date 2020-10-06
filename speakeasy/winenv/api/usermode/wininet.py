@@ -371,8 +371,8 @@ class Wininet(api.ApiHandler):
 
         return rv
 
-    @apihook('InternetOpenUrlA', argc=6)
-    def InternetOpenUrlA(self, emu, argv, ctx={}):
+    @apihook('InternetOpenUrl', argc=6)
+    def InternetOpenUrl(self, emu, argv, ctx={}):
         """
         void InternetOpenUrlA(
             HINTERNET hInternet,

@@ -1146,8 +1146,8 @@ class User32(api.ApiHandler):
 
         return True
 
-    @apihook('OpenDesktopA', argc=4)
-    def OpenDesktopA(self, emu, argv, ctx={}):
+    @apihook('OpenDesktop', argc=4)
+    def OpenDesktop(self, emu, argv, ctx={}):
         """
         HDESK OpenDesktopA(
             LPCSTR      lpszDesktop,

@@ -2944,8 +2944,8 @@ class Kernel32(api.ApiHandler):
             self.log_file_access(target, op, disposition=cd, access=ad)
         return hnd
 
-    @apihook('DeleteFileW', argc=1)
-    def DeleteFileW(self, emu, argv, ctx={}):
+    @apihook('DeleteFile', argc=1)
+    def DeleteFile(self, emu, argv, ctx={}):
         """
         BOOL DeleteFileW(
             LPCWSTR lpFileName
