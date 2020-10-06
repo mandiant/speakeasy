@@ -276,6 +276,34 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook('RegCreateKeyW', argc=3)
+    def RegCreateKeyW(self, emu, argv, ctx={}):
+        """
+        LSTATUS RegCreateKeyW(
+            HKEY    hKey,
+            LPCWSTR lpSubKey,
+            PHKEY   phkResult
+        );
+        """
+        hkey, lpSubKey, phkResult = argv
+        rv = windefs.ERROR_INVALID_HANDLE
+        if hkey:
+            key = self.reg_get_key(hkey)
+            argv[0] = key.get_path()
+            if not key:
+                rv = windefs.ERROR_INVALID_HANDLE
+            else:
+                cw = self.get_char_width(ctx)
+                if lpSubKey:
+                    lpSubKey = self.read_mem_string(lpSubKey, cw)
+                    argv[1] = lpSubKey
+                    self.emu.reg_create_key(key.get_path() + '\\' + lpSubKey)
+                else:
+                    phkResult = hkey
+                    rv = windefs.ERROR_SUCCESS
+        return rv
+
+
     @apihook('RegQueryInfoKey', argc=12, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryInfoKey(self, emu, argv, ctx={}):
         # TODO: stub

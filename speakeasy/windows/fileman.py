@@ -278,6 +278,13 @@ class FileManager(object):
         self.files.append(f)
         return f
 
+    def delete_file(self, path):
+        f = self.get_file_from_path(path)
+        if f:
+            self.files.remove(f)
+            return True
+        return False
+
     def get_emu_file(self, path):
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file

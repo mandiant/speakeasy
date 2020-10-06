@@ -2944,6 +2944,31 @@ class Kernel32(api.ApiHandler):
             self.log_file_access(target, op, disposition=cd, access=ad)
         return hnd
 
+    @apihook('DeleteFileW', argc=1)
+    def DeleteFileW(self, emu, argv, ctx={}):
+        """
+        BOOL DeleteFileW(
+            LPCWSTR lpFileName
+        );
+        """
+        lpFileName = argv[0]
+        cw = self.get_char_width(ctx)
+        if not lpFileName:
+            emu.set_last_error(windefs.INVALID_HANDLE_VALUE)
+            return 0
+
+        target = self.read_mem_string(lpFileName, cw)
+        argv[0] = target
+
+        if emu.does_file_exist(target):
+            # FIXME : does not handle read-only attribute
+            emu.file_delete(target)
+            return 1
+        else:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+
     @apihook('ReadFile', argc=5)
     def ReadFile(self, emu, argv, ctx={}):
         '''
