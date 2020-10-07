@@ -1147,7 +1147,7 @@ class WindowsEmulator(BinaryEmulator):
 
             run = self.get_current_run()
             error = self.get_error_info('unsupported_api', self.get_pc())
-            self.log_error("Unsupported API: %s" % (imp_api))
+            self.log_error("Unsupported API: %s (ret: 0x%x)" % (imp_api, oret))
             error['api_name'] = imp_api
             self.curr_run.error = error
             self.on_run_complete()
