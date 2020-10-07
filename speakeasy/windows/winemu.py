@@ -223,6 +223,12 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.fileman.get_file_from_handle(handle)
 
+    def file_delete(self, path):
+        """
+        Delete a file
+        """
+        return self.fileman.delete_file(path)
+
     def pipe_get(self, handle):
         """
         Get a pipe object from a handle
@@ -266,6 +272,12 @@ class WindowsEmulator(BinaryEmulator):
         if path:
             return self.regman.get_key_from_path(path)
         return self.regman.get_key_from_handle(handle)
+
+    def reg_create_key(self, path):
+        """
+        Create a registry key
+        """
+        return self.regman.create_key(path)
 
     def _set_emu_hooks(self):
         """

@@ -370,3 +370,42 @@ class Wininet(api.ApiHandler):
         self.netman.close_wininet_object(hInternet)
 
         return rv
+
+    @apihook('InternetOpenUrl', argc=6)
+    def InternetOpenUrl(self, emu, argv, ctx={}):
+        """
+        void InternetOpenUrlA(
+            HINTERNET hInternet,
+            LPCSTR    lpszUrl,
+            LPCSTR    lpszHeaders,
+            DWORD     dwHeadersLength,
+            DWORD     dwFlags,
+            DWORD_PTR dwContext
+        );
+        """
+        hInternet, lpszUrl, lpszHeaders, dwHeadersLength, dwFlags, dwContext = argv
+        cw = self.get_char_width(ctx)
+        if lpszUrl:
+            url = self.read_mem_string(lpszUrl, cw)
+            argv[1] = url
+        if lpszHeaders:
+            headers = self.read_mem_string(lpszHeaders, cw)
+            argv[2] = headers
+
+        defs = windefs.get_flag_defines(dwFlags)
+        argv[4] = ' | '.join(defs)
+
+        wini = self.netman.get_wininet_object(hInternet)
+        if not wini:
+            return 0
+        crack = urlparse(url)
+        if crack.scheme == "http":
+            # FIXME : parse port in url netloc
+            port = 80
+        else:
+            port = 443
+        sess = wini.new_session(crack.netloc, port, '', '', '', defs, dwContext)
+        if not sess:
+            return 0
+        req = sess.new_request("GET", url, None, None, None, defs, dwContext)
+        return req.get_handle()
