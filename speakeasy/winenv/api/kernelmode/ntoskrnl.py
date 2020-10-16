@@ -566,9 +566,10 @@ class Ntoskrnl(api.ApiHandler):
 
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemKernelDebuggerInformation:
             if sysinfo and syslen >= 2:
-                out = (1).to_bytes(2, 'little')
+                out = b'\x00\x01'
+                size = len(out)
                 self.mem_write(sysinfo, out)
-                nts = ddk.STATUS_PORT_NOT_SET
+                nts = ddk.STATUS_SUCCESS
 
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemProcessInformation:
             procs = emu.get_processes()
