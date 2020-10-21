@@ -2897,6 +2897,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
+        length = length & 0xFFFFFFFF
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.file_get(FileHandle)
