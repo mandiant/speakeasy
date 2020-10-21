@@ -2744,7 +2744,7 @@ class Ntoskrnl(api.ApiHandler):
                 elif create_disp == ddk.FILE_OPEN:
                     nts = ddk.STATUS_UNSUCCESSFUL
                 elif create_disp == ddk.FILE_OPEN_IF:
-                    hfile = self.file_open(npath, create=False)
+                    hfile = self.file_open(npath, create=True)
                 elif create_disp == ddk.FILE_OVERWRITE:
                     nts = ddk.STATUS_UNSUCCESSFUL
                 elif create_disp == ddk.FILE_OVERWRITE_IF:
