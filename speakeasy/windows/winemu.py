@@ -975,7 +975,7 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         pc = self.get_pc()
         error = {}
-        self.log_error('%s: Caught error: %s' % (run.type, desc))
+        self.log_error('0x%x: %s: Caught error: %s' % (pc, run.type, desc))
         error['type'] = desc
         error['pc'] = hex(pc)
         error['address'] = hex(address)
@@ -1109,7 +1109,7 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
                 except Exception as e:
-                    self.log_exception('Error while calling API handler for %s:' % (imp_api))
+                    self.log_exception('0x%x: Error while calling API handler for %s:' % (oret, imp_api))
                     error = self.get_error_info(str(e), self.get_pc(),
                                                 traceback=traceback.format_exc())
                     self.curr_run.error = error
