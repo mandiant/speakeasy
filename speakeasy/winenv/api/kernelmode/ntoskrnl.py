@@ -83,6 +83,12 @@ class Ntoskrnl(api.ApiHandler):
 
         return desc_tbl
 
+    @impdata('KdDebuggerEnabled')
+    def KdDebuggerEnabled(self, ptr=0):
+        if not ptr:
+            return self.mem_alloc(8, base=None, tag='emu.struct.KdDebuggerEnabled')
+        return ptr
+
     @apihook('ObfDereferenceObject', argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ObfDereferenceObject(self, emu, argv, ctx={}):
         """
@@ -180,6 +186,10 @@ class Ntoskrnl(api.ApiHandler):
         argv[1] = fmt_str
 
         return rv
+
+    @apihook('vsprintf_s', argc=4, conv=_arch.CALL_CONV_CDECL)
+    def vsprintf_s(self, emu, argv, ctx={}):
+        return self._vsnprintf(emu, argv, ctx)
 
     @apihook('RtlAnsiStringToUnicodeString', argc=3)
     def RtlAnsiStringToUnicodeString(self, emu, argv, ctx={}):
@@ -744,6 +754,31 @@ class Ntoskrnl(api.ApiHandler):
         argv.append(fin)
         return len(fin)
 
+    @apihook('_snprintf', argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
+    def sprintf(self, emu, argv, ctx={}):
+        """
+        int _snprintf(
+            char *buffer,
+            size_t count,
+            const char *format [,
+            argument] ...
+            );
+        """
+        buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+        if not fmt_cnt:
+            self.write_string(fmt_str[:cnt - 1], buf)
+            return len(fmt_str)
+
+        _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, _argv)
+
+        self.write_string(fin, buf)
+        argv.clear()
+        argv.append(fin)
+        return len(fin)
+
     @apihook('wcslen', argc=1, conv=_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx={}):
         """
@@ -1211,6 +1246,12 @@ class Ntoskrnl(api.ApiHandler):
         ProcessId, Process = argv
         rv = ddk.STATUS_SUCCESS
 
+        if ProcessId == 4:
+            proc = emu.get_system_process()
+            proc.ref_cnt += 1
+            self.mem_write(Process, proc.address.to_bytes(self.get_ptr_size(), 'little')) # noqa
+            return rv
+
         proc = self.get_object_from_id(ProcessId)
         if not proc:
             rv = ddk.STATUS_INVALID_CID
@@ -1628,6 +1669,22 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
 
+    @apihook('KdChangeOption', argc=0)
+    def KdChangeOption(self, emu, argv, ctx={}):
+        """
+        NTSTATUS KdChangeOption(
+          KD_OPTION Option,
+          ULONG     InBufferBytes,
+          PVOID     InBuffer,
+          ULONG     OutBufferBytes,
+          PVOID     OutBuffer,
+          PULONG    OutBufferNeeded
+        );
+        """
+
+        rv = ddk.STATUS_DEBUGGER_INACTIVE
+        return rv
+
     @apihook('MmGetSystemRoutineAddress', argc=1)
     def MmGetSystemRoutineAddress(self, emu, argv, ctx={}):
         """
@@ -1858,6 +1915,17 @@ class Ntoskrnl(api.ApiHandler):
     def ExAcquireFastMutex(self, emu, argv, ctx={}):
         """
         VOID ExAcquireFastMutex(
+            _Inout_ PFAST_MUTEX FastMutex
+            );
+        """
+        FastMutex, = argv
+
+        return
+
+    @apihook('ExReleaseFastMutex', argc=1)
+    def ExReleaseFastMutex(self, emu, argv, ctx={}):
+        """
+        VOID ExReleaseFastMutex(
             _Inout_ PFAST_MUTEX FastMutex
             );
         """
@@ -2223,6 +2291,32 @@ class Ntoskrnl(api.ApiHandler):
 
         return nts
 
+    @apihook('ObGetFilterVersion', argc=0)
+    def ObGetFilterVersion(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        USHORT
+        ObGetFilterVersion (
+            VOID
+            );
+        """
+        return 256
+
+    @apihook('ObRegisterCallbacks', argc=2)
+    def ObRegisterCallbacks(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        ObRegisterCallbacks (
+            _In_ POB_CALLBACK_REGISTRATION CallbackRegistration,
+            _Outptr_ PVOID *RegistrationHandle
+            );
+        """
+        CallbackRegistration, RegistrationHandle = argv
+        nts = ddk.STATUS_SUCCESS
+
+        return nts
+
     @apihook('ZwDeleteKey', argc=1)
     def ZwDeleteKey(self, emu, argv, ctx={}):
         """
@@ -2402,6 +2496,77 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(bn, build.to_bytes(4, 'little'))
 
         return 0
+
+    @apihook('PsSetCreateProcessNotifyRoutineEx', argc=2)
+    def PsSetCreateProcessNotifyRoutineEx(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        PsSetCreateProcessNotifyRoutineEx (
+            _In_ PCREATE_PROCESS_NOTIFY_ROUTINE_EX NotifyRoutine,
+            _In_ BOOLEAN Remove
+            );
+        """
+        NotifyRoutine, Remove = argv
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
+
+    @apihook('PsSetLoadImageNotifyRoutine', argc=1)
+    def PsSetLoadImageNotifyRoutine(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        PsSetLoadImageNotifyRoutine(
+            _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
+            );
+        """
+        NotifyRoutine = argv
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
+
+    @apihook('PsRemoveLoadImageNotifyRoutine', argc=1)
+    def PsRemoveLoadImageNotifyRoutine(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        PsRemoveLoadImageNotifyRoutine(
+            _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
+            );
+        """
+        NotifyRoutine = argv
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
+
+    @apihook('PsSetCreateThreadNotifyRoutine', argc=1)
+    def PsSetCreateThreadNotifyRoutine(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        PsSetCreateThreadNotifyRoutine (
+            _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
+            );
+        """
+        NotifyRoutine = argv
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
+
+    @apihook('PsRemoveCreateThreadNotifyRoutine', argc=1)
+    def PsRemoveCreateThreadNotifyRoutine(self, emu, argv, ctx={}):
+        """
+        NTKERNELAPI
+        NTSTATUS
+        PsRemoveCreateThreadNotifyRoutine (
+            _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
+            );
+        """
+        NotifyRoutine = argv
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
 
     @apihook('mbstowcs', argc=3)
     def mbstowcs(self, emu, argv, ctx={}):
