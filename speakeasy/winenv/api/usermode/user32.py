@@ -1145,3 +1145,28 @@ class User32(api.ApiHandler):
         self.timer_count -= 1
 
         return True
+
+    @apihook('OpenDesktop', argc=4)
+    def OpenDesktop(self, emu, argv, ctx={}):
+        """
+        HDESK OpenDesktopA(
+            LPCSTR      lpszDesktop,
+            DWORD       dwFlags,
+            BOOL        fInherit,
+            ACCESS_MASK dwDesiredAccess
+        );
+        """
+        lpszDesktop, dwFlags, fInherit, dwDesiredAccess = argv
+        cw = self.get_char_width(ctx)
+        desktop = self.read_mem_string(lpszDesktop, cw)
+        argv[0] = desktop
+        return self.get_handle()
+
+    @apihook('SetThreadDesktop', argc=1)
+    def SetThreadDesktop(self, emu, argv, ctx={}):
+        """
+        BOOL SetThreadDesktop(
+            HDESK hDesktop
+        );
+        """
+        return 0

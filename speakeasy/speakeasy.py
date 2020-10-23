@@ -53,6 +53,12 @@ class Speakeasy(object):
         self.mem_invalid_hooks = []
         self.interrupt_hooks = []
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        del self
+
     def _init_config(self, config: dict) -> None:
         """
         Init the emulator config
