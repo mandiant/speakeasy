@@ -118,7 +118,29 @@ class Ole32(api.ApiHandler):
         if iid_name:
             argv[3] = iid_name
 
+        if ppv:
+            ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace('IID_', ''))
+            pv = self.mem_alloc(emu.get_ptr_size(), tag='emu.COM.pv_%s' % iid_name)
+            self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), 'little'))
+            self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), 'little'))
+
         return rv
+
+    @apihook('CoSetProxyBlanket', argc=8)
+    def CoSetProxyBlanket(self, emu, argv, ctx={}):
+        """
+        HRESULT CoSetProxyBlanket(
+            IUnknown                 *pProxy,
+            DWORD                    dwAuthnSvc,
+            DWORD                    dwAuthzSvc,
+            OLECHAR                  *pServerPrincName,
+            DWORD                    dwAuthnLevel,
+            DWORD                    dwImpLevel,
+            RPC_AUTH_IDENTITY_HANDLE pAuthInfo,
+            DWORD                    dwCapabilities
+        );
+        """
+        return 1
 
     @apihook('StringFromCLSID', argc=2)
     def StringFromCLSID(self, emu, argv, ctx={}):
