@@ -274,7 +274,7 @@ class Speakeasy(object):
             module: name of the module containing the target API
             api_name: Name of the API to hook. Wild cards (e.g. *) are supported.
             argc: force the emulator to account for this amount of arguments (for stack cleanup)
-            call_conv: force the emulator to use the suppolied calling convention for this hook
+            call_conv: force the emulator to use the supplied calling convention for this hook
         return:
             Hook object for newly registered hooks
         """

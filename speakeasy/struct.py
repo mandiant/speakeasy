@@ -97,7 +97,7 @@ class EmuStruct(object, metaclass=CMeta):
     def create_struct(self, types={}):
         """
         Walk each attribute and handle accordingly. Since ctypes.Structure
-        is a metaclass, we have to buld the "_fields_" dynamically via a
+        is a metaclass, we have to build the "_fields_" dynamically via a
         factory
         """
 
