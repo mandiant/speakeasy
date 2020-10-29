@@ -4,6 +4,8 @@ import uuid
 
 from speakeasy.struct import EmuStruct, Ptr
 
+S_OK = 0
+
 RPC_C_AUTHN_LEVEL_DEFAULT = 0
 RPC_C_AUTHN_LEVEL_NONE = 1
 RPC_C_AUTHN_LEVEL_CONNECT = 2
@@ -50,8 +52,49 @@ class IMalloc(EmuStruct):
         self.HeapMinimize = Ptr
 
 
+class IWbemLocator(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.IUnknown = IUnknown
+        self.ConnectServer = Ptr
+
+
+class IWbemServices(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.IUnknown = IUnknown
+        self.OpenNamespace = Ptr
+        self.CancelAsyncCall = Ptr
+        self.QueryObjectSink = Ptr
+        self.GetObject = Ptr
+        self.GetObjectAsync = Ptr
+        self.PutClass = Ptr
+        self.PutClassAsync = Ptr
+        self.DeleteClass = Ptr
+        self.DeleteClassAsync = Ptr
+        self.CreateClassEnum = Ptr
+        self.CreateClassEnumAsync = Ptr
+        self.PutInstance = Ptr
+        self.PutInstanceAsync = Ptr
+        self.DeleteInstance = Ptr
+        self.DeleteInstanceAsync = Ptr
+        self.CreateInstanceEnum = Ptr
+        self.CreateInstanceEnumAsync = Ptr
+        self.ExecQuery = Ptr
+        self.ExecQueryAsync = Ptr
+        self.ExecNotificationQuery = Ptr
+        self.ExecNotificationQueryAsync = Ptr
+        self.ExecMethod = Ptr
+        self.ExecMethodAsync = Ptr
+
+
+
+
+
 IFACE_TYPES = {'IUnknown': IUnknown,
-               'IMalloc':  IMalloc}
+               'IMalloc':  IMalloc,
+               'IWbemLocator': IWbemLocator,
+               'IWbemServices': IWbemServices}
 
 
 def get_define_int(define, prefix=''):

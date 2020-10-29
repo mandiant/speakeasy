@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import os
+import ctypes
 import shlex
 
 import ntpath
@@ -15,6 +16,8 @@ import speakeasy.windows.objman as objman
 from speakeasy.winenv.api.winapi import WindowsApi
 import speakeasy.common as common
 from speakeasy.errors import Win32EmuError
+import speakeasy.winenv.api.usermode.com_api as com_api
+import speakeasy.winenv.defs.windows.com as comdefs
 
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.com import COM
@@ -59,18 +62,6 @@ class Win32Emulator(WindowsEmulator):
         elif self.command_line:
             out = shlex.split(self.command_line, posix=False)
         return out
-
-    def get_com_interface(self, name):
-        """
-        Retreive a COM interface by name
-        """
-        ci = self.com.get_interface(name, self.get_ptr_size())
-        if not ci:
-            raise Win32EmuError('Invalid COM interface: %s' % (name))
-
-        com_ptr = self.mem_map(self.sizeof(ci.iface), tag='emu.COM.%s' % (name))
-        ci.address = com_ptr
-        return ci
 
     def set_last_error(self, code):
         """
@@ -227,7 +218,7 @@ class Win32Emulator(WindowsEmulator):
             self.stop()
             raise Win32EmuError('Module not found')
 
-        # Check is any TLS callbacks exist, these run before the module's entry point
+        # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
             base = module.get_base()
