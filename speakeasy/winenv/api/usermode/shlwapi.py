@@ -1,9 +1,10 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import os
 import ntpath
 
 from .. import api
-import os
+import speakeasy.winenv.arch as e_arch
 
 
 class Shlwapi(api.ApiHandler):
@@ -211,6 +212,34 @@ class Shlwapi(api.ApiHandler):
         argv[1] = fmt_str
 
         return rv
+
+    @apihook('wnsprintfA', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def wnsprintfA(self, emu, argv, ctx={}):
+        """
+        int wnsprintfA(
+          PSTR  pszDest,
+          int   cchDest,
+          PCSTR pszFmt,
+          ...
+        );
+        """
+        buf, max_buf_size, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
+        fmt_str = self.read_string(fmt)
+        argv[2] = fmt_str
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+        if not fmt_cnt:
+            self.write_string(fmt_str, buf)
+            return len(fmt_str)
+
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, _argv)
+        rv = len(fin)
+
+        if rv <= max_buf_size:
+            self.write_string(fin, buf)
+            return rv
+        else:
+            return -1
 
     @apihook('PathAppend', argc=2)
     def PathAppend(self, emu, argv, ctx={}):
