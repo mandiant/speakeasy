@@ -60,18 +60,6 @@ class Win32Emulator(WindowsEmulator):
             out = shlex.split(self.command_line, posix=False)
         return out
 
-    def get_com_interface(self, name):
-        """
-        Retreive a COM interface by name
-        """
-        ci = self.com.get_interface(name, self.get_ptr_size())
-        if not ci:
-            raise Win32EmuError('Invalid COM interface: %s' % (name))
-
-        com_ptr = self.mem_map(self.sizeof(ci.iface), tag='emu.COM.%s' % (name))
-        ci.address = com_ptr
-        return ci
-
     def set_last_error(self, code):
         """
         Set the last error code for the current thread
@@ -227,7 +215,7 @@ class Win32Emulator(WindowsEmulator):
             self.stop()
             raise Win32EmuError('Module not found')
 
-        # Check is any TLS callbacks exist, these run before the module's entry point
+        # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
             base = module.get_base()
