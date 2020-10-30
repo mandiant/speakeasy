@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import os
-import ctypes
 import shlex
 
 import ntpath
@@ -16,8 +15,6 @@ import speakeasy.windows.objman as objman
 from speakeasy.winenv.api.winapi import WindowsApi
 import speakeasy.common as common
 from speakeasy.errors import Win32EmuError
-import speakeasy.winenv.api.usermode.com_api as com_api
-import speakeasy.winenv.defs.windows.com as comdefs
 
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.com import COM
