@@ -86,7 +86,7 @@ class File(object):
 
     def get_hash(self):
         h = hashlib.sha256()
-        data = self.get_data()
+        data = self.get_data(reset_pointer=True)
         h.update(data)
         return h.hexdigest()
 

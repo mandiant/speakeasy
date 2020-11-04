@@ -149,10 +149,11 @@ class Profiler(object):
     def log_dropped_files(self, run, files):
         for f in files:
             data = f.get_data()
+            if data is None:
+                continue
+
             _hash = f.get_hash()
-
             entry = {'path': f.get_path(), 'size': len(data), 'sha256': _hash}
-
             run.dropped_files.append(entry)
 
     def log_api(self, run, pc, name, ret, argv, ctx=[]):
