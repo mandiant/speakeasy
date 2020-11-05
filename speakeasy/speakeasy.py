@@ -565,6 +565,151 @@ class Speakeasy(object):
                 continue
             yield (tag, base, size, is_free, proc, data)
 
+    def read_mem_string(self, address: int, width=1, max_chars=0) -> str:
+        """
+        Read a string from emulated memory
+
+        args:
+            address: address of the string to read
+            width: character width
+            max_chars: maximum characters to read, 0 reads until null terminator
+
+        return:
+            decoded string
+        """
+        return self.emu.read_mem_string(address, width, max_chars)
+
+    def get_symbols(self) -> dict:
+        """
+        Returns a dictionary of symbol information
+
+        return:
+            a dictionary of symbol information
+        """
+        return self.emu.symbols
+
+    def get_ret_address(self) -> int:
+        """
+        Returns the value stored at the top of the stack
+
+        return:
+            value stored at the top of the stack
+        """
+        return self.emu.get_ret_address()
+
+    def push_stack(self, val: int) -> None:
+        """
+        Put a value on the stack and adjust the stack pointer
+
+        args:
+            val: value to push to the stack
+        return:
+            None
+        """
+        self.emu.push_stack(val)
+
+    def pop_stack(self) -> int:
+        """
+        Get value from the stack and adjust the stack pointer
+
+        return:
+            value stored at the top of the stack
+        """
+        return self.emu.pop_stack()
+
+    def get_stack_ptr(self) -> int:
+        """
+        Get the current address of the stack pointer
+
+        return:
+            address of stack pointer
+        """
+        return self.emu.get_stack_ptr()
+
+    def set_stack_ptr(self, addr: int) -> None:
+        """
+        Set the current address of the stack pointer
+
+        args:
+            addr: address to set the stack pointer to
+        return:
+            None
+        """
+        self.emu.set_stack_ptr(addr)
+
+    def set_pc(self, addr: int) -> None:
+        """
+        Set the value of the current program counter
+
+        args:
+            addr: address to set the program counter to
+        return:
+            None
+        """
+        self.emu.set_pc(addr)
+
+    def reset_stack(self, base: int) -> tuple:
+        """
+        Reset stack to the supplied base address
+
+        args:
+            base: stack base address
+        return:
+            base, ptr
+        """
+        return self.emu.reset_stack(base)
+
+    def get_stack_base(self) -> int:
+        """
+        Get the base address of the stack
+
+        return:
+            base address of stack
+        """
+        return self.emu.stack_base
+
+    def get_arch(self) -> int:
+        """
+        Get the architecture of the emulator
+
+        return:
+            emulator architecture constant value
+        """
+        return self.emu.get_arch()
+
+    def get_ptr_size(self) -> int:
+        """
+        Get the size of a pointer
+
+        return:
+            pointer size
+        """
+        return self.emu.ptr_size
+
+    def get_symbol_from_address(self, address: int) -> str:
+        """
+        If the supplied address is related to a known symbol, look it up here
+
+        args:
+            address: address to lookup
+
+        return:
+            symbol name
+        """
+        return self.emu.get_symbol_from_address(address)
+
+    def is_address_valid(self, address: int) -> bool:
+        """
+        Was this address previously reserved or mapped?
+
+        args:
+            address: address to check
+
+        return:
+            True if address is valid, false otherwise
+        """
+        return self.emu.is_address_valid(address)    
+
     def create_memdump_archive(self) -> bytes:
         """
         Creates a memory dump archive package of the emulated sample.
