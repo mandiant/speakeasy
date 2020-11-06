@@ -26,7 +26,7 @@ def get_logger():
     return logger
 
 
-def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='', dump_path=''):
+def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='', dump_path='', raw_offset=0x0):
     """
     Setup the binary for emulation
     """
