@@ -4420,3 +4420,14 @@ class Kernel32(api.ApiHandler):
         dest, length = argv
         buf = b'\x00' * length
         self.mem_write(dest, buf)
+
+    @apihook('QueryPerformanceFrequency', argc=1)
+    def QueryPerformanceFrequency(self, emu, argv, ctx={}):
+        """
+        BOOL QueryPerformanceFrequency(
+            LARGE_INTEGER *lpFrequency
+        );
+        """
+        lpFrequency = argv[0]
+        self.mem_write(lpFrequency, (10000000).to_bytes(8, 'little'))
+        return 1
