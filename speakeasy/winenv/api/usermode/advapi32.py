@@ -682,7 +682,7 @@ class AdvApi32(api.ApiHandler):
             argv[2] = prov_str
 
         cm = emu.get_crypt_manager()
-        hnd = cm.crypt_open(cont_str, prov_str, dwProvType, dwFlags)
+        hnd = cm.crypt_open(cname=cont_str, pname=prov_str, ptype=dwProvType, flags=dwFlags)
 
         if hnd and phProv:
             self.mem_write(phProv, hnd.to_bytes(emu.get_ptr_size(), 'little'))
