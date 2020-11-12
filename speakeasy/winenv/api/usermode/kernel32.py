@@ -2318,6 +2318,9 @@ class Kernel32(api.ApiHandler):
         (CodePage, dwFlags, lpMultiByteStr, cbMultiByte,
          lpWideCharStr, cchWideChar) = argv
 
+        cchWideChar = cchWideChar & 0xFFFFFFFF
+        cbMultiByte = cbMultiByte & 0xFFFFFFFF
+        
         rv = 0
         if cchWideChar == 0:
             if cbMultiByte == 0xFFFFFFFF:
