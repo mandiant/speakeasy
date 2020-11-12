@@ -7,7 +7,7 @@ from speakeasy.winenv.api.usermode import ws2_32, kernel32, wininet, winhttp, us
                                           advapi32, msvcrt, wtsapi32, mscoree, dnsapi, \
                                           ntdll, crypt32, shell32, shlwapi, advpack, gdi32, \
                                           urlmon, ole32, oleaut32, comctl32, com_api, msimg32, \
-                                          msi32, lz32, ncrypt, bcrypt
+                                          msi32, lz32, ncrypt
 
 API_HANDLERS = (
                     # Kernel mode
