@@ -3572,15 +3572,34 @@ class Kernel32(api.ApiHandler):
     @apihook('GetLocaleInfo', argc=4)
     def GetLocaleInfo(self, emu, argv, ctx={}):
         '''
-        int GetLocaleInfoA(
+        int GetLocaleInfo(
           LCID   Locale,
           LCTYPE LCType,
           LPSTR  lpLCData,
           int    cchData
         );
         '''
+        Locale, LCType, lpLCData, cchData = argv
 
         rv = 0
+        cw = self.get_char_width(ctx)
+
+        lcid = k32types.get_define(Locale, 'LOCALE_')
+        if lcid:
+            argv[0] = lcid
+
+        lctype = k32types.get_define(LCType, 'LOCALE_')
+        if lctype:
+            argv[1] = lctype
+            locale_data = ''
+            if lctype == 'LOCALE_SENGLISHCOUNTRYNAME':
+                locale_data = 'United States'
+            elif lctype == 'LOCALE_SENGLISHLANGUAGENAME':
+                locale_data = 'English'
+
+            if locale_data:
+                self.write_mem_string(locale_data, lpLCData, cw)
+                rv = len(locale_data) + cw
 
         return rv
 

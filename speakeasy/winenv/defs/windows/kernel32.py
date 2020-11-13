@@ -18,6 +18,12 @@ TH32CS_SNAPTHREAD = 0x00000004
 PROCESSOR_ARCHITECTURE_AMD64 = 9
 PROCESSOR_ARCHITECTURE_INTEL = 0
 
+LOCALE_USER_DEFAULT = 0x400
+LOCALE_SYSTEM_DEFAULT = 0x800
+
+LOCALE_SENGLISHLANGUAGENAME = 0x1001
+LOCALE_SENGLISHCOUNTRYNAME = 0x1002
+
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
@@ -147,6 +153,17 @@ class OSVERSIONINFOEX(EmuStruct):
         self.dwPlatformId = ct.c_uint16
         self.wProductType = ct.c_uint8
         self.wReserved = ct.c_uint8
+
+
+def get_define(define, prefix=''):
+    for k, v in globals().items():
+        if not isinstance(v, int) or v != define:
+            continue
+        if prefix:
+            if k.startswith(prefix):
+                return k
+        else:
+            return k
 
 
 def get_flag_defines(flags, prefix=''):
