@@ -251,6 +251,36 @@ class Kernel32(api.ApiHandler):
         argv[2] = name
         return hnd
 
+    @apihook('CreateMutexEx', argc=4)
+    def CreateMutexEx(self, emu, argv, ctx={}):
+        '''
+        HANDLE CreateMutexExA(
+          LPSECURITY_ATTRIBUTES lpMutexAttributes,
+          LPCSTR                lpName,
+          DWORD                 dwFlags,
+          DWORD                 dwDesiredAccess
+        );
+        '''
+        attrs, name, flags, access = argv
+
+        cw = self.get_char_width(ctx)
+
+        if name:
+            name = self.read_mem_string(name, cw)
+
+        obj = self.get_object_from_name(name)
+
+        hnd = 0
+        if obj:
+            hnd = emu.get_object_handle(obj)
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            hnd, evt = emu.create_mutant(name)
+
+        argv[1] = name
+        return hnd
+    
     @apihook('LoadLibrary', argc=1)
     def LoadLibrary(self, emu, argv, ctx={}):
         '''HMODULE LoadLibrary(
@@ -4295,6 +4325,27 @@ class Kernel32(api.ApiHandler):
             self.write_mem_string(out, lpszShortPath, cw)
 
         return len(out) + 1
+
+    @apihook('GetLongPathName', argc=3)
+    def GetLongPathName(self, emu, argv, ctx={}):
+        """
+        DWORD GetLongPathNameA(
+          LPCSTR lpszShortPath,
+          LPSTR  lpszLongPath,
+          DWORD  cchBuffer
+        );
+        """
+        lpszShortPath, lpszLongPath, cchBuffer = argv
+
+        # Not an accurate implementation, just a placeholder for now
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpszShortPath, cw)
+        argv[0] = s
+
+        self.write_mem_string(s, lpszLongPath, cw)
+        argv[1] = s
+
+        return len(s) * cw + 1
 
     @apihook('QueueUserAPC', argc=3)
     def QueueUserAPC(self, emu, argv, ctx={}):
