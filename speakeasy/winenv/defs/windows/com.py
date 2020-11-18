@@ -88,9 +88,6 @@ class IWbemServices(EmuStruct):
         self.ExecMethodAsync = Ptr
 
 
-
-
-
 IFACE_TYPES = {'IUnknown': IUnknown,
                'IMalloc':  IMalloc,
                'IWbemLocator': IWbemLocator,

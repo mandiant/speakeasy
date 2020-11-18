@@ -708,7 +708,7 @@ class Speakeasy(object):
         return:
             True if address is valid, false otherwise
         """
-        return self.emu.is_address_valid(address)    
+        return self.emu.is_address_valid(address)
 
     def create_memdump_archive(self) -> bytes:
         """

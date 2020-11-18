@@ -35,18 +35,21 @@ class COM(object):
             # Determine if the field is an inherited interface (e.g., IUnknown)
             if issubclass(field_obj, ctypes.Structure):
                 if field_name not in comdefs.IFACE_TYPES:
-                    raise Win32EmuError('COM interface %s inherits unsupported interface %s' % (name, field_name))
+                    raise Win32EmuError('COM interface %s inherits unsupported interface %s' %
+                                        (name, field_name))
 
                 # Iterate inherited interface fields
                 for subfield in field_obj._fields_:
                     subfield_name, subfield_type = subfield
-                    if issubclass(subfield_type, (ctypes.c_uint32, ctypes.c_ulong, ctypes.c_ulonglong)):
+                    if issubclass(subfield_type, (ctypes.c_uint32, ctypes.c_ulong,
+                                                  ctypes.c_ulonglong)):
                         # Inherited inferface field is a method; hook if supported
                         method_name = '%s_%s' % (field_name, subfield_name)
                         if hasattr(com_api.ComApi, method_name):
                             method = getattr(com_api.ComApi, method_name)
                             addr = emu.add_callback(com_api.ComApi.name, method.__apihook__[0])
-                            emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), 'little'))
+                            emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(),
+                                          'little'))
 
                     field_offset += ptr_size
             elif issubclass(field_obj, (ctypes.c_uint32, ctypes.c_ulong, ctypes.c_ulonglong)):
@@ -55,10 +58,12 @@ class COM(object):
                 if hasattr(com_api.ComApi, method_name):
                     method = getattr(com_api.ComApi, method_name)
                     addr = emu.add_callback(com_api.ComApi.name, method.__apihook__[0])
-                    emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), 'little'))
+                    emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(),
+                                  'little'))
 
                 field_offset += ptr_size
             else:
-                raise Win32EmuError('Invalid field type encountered for %s.%s' % (name, field_name))
+                raise Win32EmuError('Invalid field type encountered for %s.%s' %
+                                    (name, field_name))
 
         return ci

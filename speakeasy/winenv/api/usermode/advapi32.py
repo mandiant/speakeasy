@@ -299,10 +299,10 @@ class AdvApi32(api.ApiHandler):
                     argv[1] = lpSubKey
                     self.emu.reg_create_key(key.get_path() + '\\' + lpSubKey)
                 else:
-                    phkResult = hkey
+                    hkey = (hkey).to_bytes(self.get_ptr_size(), 'little')
+                    self.mem_write(phkResult, hkey)
                     rv = windefs.ERROR_SUCCESS
         return rv
-
 
     @apihook('RegQueryInfoKey', argc=12, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryInfoKey(self, emu, argv, ctx={}):

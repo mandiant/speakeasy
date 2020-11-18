@@ -269,10 +269,10 @@ class WinHttp(api.ApiHandler):
         );
         """
         pwszUrl, dwUrlLength, dwFlags, lpUrlComponents = argv
-        cw = 2 # Wide
+        cw = 2  # Wide
         rv = False
         # TODO : implement flags
-        #url = self.read_mem_string(pwszUrl, dwUrlLength)
+        # url = self.read_mem_string(pwszUrl, dwUrlLength)
         if pwszUrl and lpUrlComponents:
             url = self.read_mem_string(pwszUrl, cw)
             argv[0] = url

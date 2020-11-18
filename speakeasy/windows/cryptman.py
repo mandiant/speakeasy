@@ -28,7 +28,8 @@ class CryptContext(object):
         CryptContext.curr_handle += 4
         return hkey
 
-    def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None, param_list=None, flags=None):
+    def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None,
+                   param_list=None, flags=None):
         key = CryptKey(blob_type, blob, blob_len, hnd_import_key, param_list, flags)
         hnd = self.get_handle()
         self.keys.update({hnd: key})

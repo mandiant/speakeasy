@@ -190,56 +190,56 @@ class Shell32(api.ApiHandler):
             path = "C:\\Users\\{}\\Desktop".format(emu.get_user()['name'])
         elif csidl == 2:
             # CSIDL_PROGRAMS
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs".format(emu.get_user()['name']) # noqa
         elif csidl == 6 or csidl == 0x1f:
             # CSIDL_FAVORITES or CSIDL_COMMON_FAVORITES
             path = "C:\\Users\\{}\\Favorites".format(emu.get_user()['name'])
         elif csidl == 7:
             # CSIDL_STARTUP
-            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name']) # noqa
         elif csidl == 8:
             # CSIDL_RECENT
-            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.get_user()['name']) # noqa
         elif csidl == 9:
             # csidl_sendto
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.get_user()['name']) # noqa
         elif csidl == 0xb:
             # CSIDL_STARTMENU
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu".format(emu.get_user()['name']) # noqa
         elif csidl == 0x13:
             # CSIDL_NETHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts".format(emu.get_user()['name']) # noqa
         elif csidl == 0x15:
             # CSIDL_TEMPLATES
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Templates".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Templates".format(emu.get_user()['name']) # noqa
         elif csidl == 0x1b:
             # CSIDL_PRINTHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts".format(emu.get_user()['name']) # noqa
         elif csidl == 0x1c:
             # CSIDL_LOCAL_APPDATA
             path = "C:\\Users\\{}\\AppData\\Local".format(emu.get_user()['name'])
         elif csidl == 0x20:
             # CSIDL_INTERNET_CACHE
-            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\Temporary Internet File".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\Temporary Internet File".format(emu.get_user()['name']) # noqa
         elif csidl == 0x21:
             # CSIDL_COOKIES
-            path = "C:\\Users\\{}\\AppData\\AppData\\Roaming\\Microsoft\\Windows\\Cookies".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\AppData\\Roaming\\Microsoft\\Windows\\Cookies".format(emu.get_user()['name']) # noqa
         elif csidl == 0x22:
             # CSIDL_HISTORY
-            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\History".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\History".format(emu.get_user()['name']) # noqa
         elif csidl == 0x27:
             # CSIDL_MYPICTURES
             path = "C:\\Users\\{}\\Pictures".format(emu.get_user()['name'])
         elif csidl == 0x2f or csidl == 0x30:
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Administrative Tools".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Administrative Tools".format(emu.get_user()['name']) # noqa
         elif csidl == 0x1d:
             # CSIDL_ALTSTARTUP
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name'])
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name']) # noqa
         elif csidl == 0x1e:
             path = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
         elif csidl == 0x2a or csidl == 0x26:
             path = "C:\\Program Files"
-        elif csidl ==0x2b or csidl == 0x2c:
+        elif csidl == 0x2b or csidl == 0x2c:
             path = "C:\\Program Files\\Common Files"
         elif csidl == 0x24:
             path = "C:\\Windows"
@@ -254,4 +254,3 @@ class Shell32(api.ApiHandler):
             path = "C:\\Windows\\Temp"
         self.mem_write(pszPath, path.encode('utf-8'))
         return 0
-

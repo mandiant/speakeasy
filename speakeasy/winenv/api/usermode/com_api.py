@@ -63,12 +63,14 @@ class ComApi(api.ApiHandler):
             IWbemServices **ppNamespace
         );
         """
-        ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, pCtx, ppNamespace = argv
+        ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, \
+            pCtx, ppNamespace = argv
         argv[1] = self.read_wide_string(strNetworkResource)
 
         if ppNamespace:
             ci = emu.com.get_interface(emu, emu.get_ptr_size(), 'IWbemServices')
-            pNamespace = self.mem_alloc(emu.get_ptr_size(), tag='emu.COM.ppNamespace_IWbemServices')
+            pNamespace = self.mem_alloc(emu.get_ptr_size(),
+                                        tag='emu.COM.ppNamespace_IWbemServices')
             self.mem_write(pNamespace, ci.address.to_bytes(emu.get_ptr_size(), 'little'))
             self.mem_write(ppNamespace, pNamespace.to_bytes(emu.get_ptr_size(), 'little'))
 

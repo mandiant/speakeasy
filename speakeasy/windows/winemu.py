@@ -1109,7 +1109,8 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
                 except Exception as e:
-                    self.log_exception('0x%x: Error while calling API handler for %s:' % (oret, imp_api))
+                    self.log_exception('0x%x: Error while calling API handler for %s:' %
+                                       (oret, imp_api))
                     error = self.get_error_info(str(e), self.get_pc(),
                                                 traceback=traceback.format_exc())
                     self.curr_run.error = error

@@ -280,7 +280,7 @@ class Kernel32(api.ApiHandler):
 
         argv[1] = name
         return hnd
-    
+
     @apihook('LoadLibrary', argc=1)
     def LoadLibrary(self, emu, argv, ctx={}):
         '''HMODULE LoadLibrary(
@@ -2350,7 +2350,7 @@ class Kernel32(api.ApiHandler):
 
         cchWideChar = cchWideChar & 0xFFFFFFFF
         cbMultiByte = cbMultiByte & 0xFFFFFFFF
-        
+
         rv = 0
         if cchWideChar == 0:
             if cbMultiByte == 0xFFFFFFFF:
@@ -3000,7 +3000,6 @@ class Kernel32(api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
-
 
     @apihook('ReadFile', argc=5)
     def ReadFile(self, emu, argv, ctx={}):

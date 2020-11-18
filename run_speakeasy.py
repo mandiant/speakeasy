@@ -26,7 +26,8 @@ def get_logger():
     return logger
 
 
-def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='', dump_path='', raw_offset=0x0):
+def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='', dump_path='',
+                   raw_offset=0x0):
     """
     Setup the binary for emulation
     """
@@ -147,13 +148,14 @@ class Main(object):
             # Emulate within the current process, losing some control with execution but
             # allows us to debug speakeasy.
             emulate_binary(q, evt, args.target,
-                self.cfg, self.argv, self.do_raw, self.arch,
-                self.drop_files_path, self.dump_path,
-                raw_offset=self.raw_offset
-            )
+                           self.cfg, self.argv, self.do_raw, self.arch,
+                           self.drop_files_path, self.dump_path,
+                           raw_offset=self.raw_offset
+                           )
             report = q.get()
         else:
-            # We are using a child process here so we can maintain absolute control over its execution
+            # We are using a child process here so we can maintain absolute control over its
+            # execution
             p = mp.Process(target=emulate_binary,
                            args=(q, evt, args.target, self.cfg,
                                  self.argv, self.do_raw, self.arch,
@@ -169,7 +171,7 @@ class Main(object):
                 if self.timeout and self.timeout < (time.time() - start_time):
                     evt.set()
                     self.logger.error('* Child process timeout reached after %d seconds' %
-                                    (self.timeout))
+                                      (self.timeout))
                     report = q.get(5)
                 try:
                     report = q.get(timeout=1)
@@ -213,7 +215,7 @@ if __name__ == '__main__':
                         required=False, help='Attempt to emulate file as-is '
                                              'with no parsing (e.g. shellcode)')
     parser.add_argument('--raw_offset', type=lambda s: int(s, 0x10), default=0,
-                        required=False, help='When in raw mode, offset (in hex) to start emulating')
+                        required=False, help='When in raw mode, offset (hex) to start emulating')
     parser.add_argument('-a', '--arch', action='store', dest='arch',
                         required=False,
                         help='Force architecture to use during emulation (for '

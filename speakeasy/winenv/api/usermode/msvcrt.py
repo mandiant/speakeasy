@@ -371,7 +371,7 @@ class Msvcrt(api.ApiHandler):
             ret = 0
 
         return ret
-    
+
     @apihook('wcsstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcsstr(self, emu, argv, ctx={}):
         """
@@ -397,7 +397,7 @@ class Msvcrt(api.ApiHandler):
             ret = 0
 
         return ret
-    
+
     @apihook('strncat_s', argc=4, conv=e_arch.CALL_CONV_CDECL)
     def strncat_s(self, emu, argv, ctx={}):
         """
@@ -820,15 +820,15 @@ class Msvcrt(api.ApiHandler):
         size_t size
         );
         """
-        num,size, = argv
+        num, size, = argv
 
         chunk = self.heap_alloc(num*size, heap='HeapAlloc')
-        
+
         buf = b'\x00' * (num*size)
         self.mem_write(chunk, buf)
-        
-        return chunk    
-    
+
+        return chunk
+
     @apihook('free', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def free(self, emu, argv, ctx={}):
         """

@@ -755,7 +755,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook('_snprintf', argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def sprintf(self, emu, argv, ctx={}):
+    def _snprintf(self, emu, argv, ctx={}):
         """
         int _snprintf(
             char *buffer,
@@ -2521,7 +2521,7 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        NotifyRoutine = argv
+        NotifyRoutine = argv # noqa
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2535,7 +2535,7 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        NotifyRoutine = argv
+        NotifyRoutine = argv # noqa
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2549,7 +2549,7 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        NotifyRoutine = argv
+        NotifyRoutine = argv # noqa
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2563,7 +2563,7 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        NotifyRoutine = argv
+        NotifyRoutine = argv # noqa
         rv = ddk.STATUS_SUCCESS
 
         return rv
