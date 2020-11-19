@@ -1058,8 +1058,8 @@ class AdvApi32(api.ApiHandler):
         hnd.update(data)
         return 1
 
-    @apihook('RegGetValueW', argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def RegGetValueW(self, emu, argv, ctx={}):
+    @apihook('RegGetValue', argc=7, conv=_arch.CALL_CONV_STDCALL)
+    def RegGetValue(self, emu, argv, ctx={}):
         '''
         LSTATUS RegGetValueW(
             HKEY    hkey,
