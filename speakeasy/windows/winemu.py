@@ -132,6 +132,7 @@ class WindowsEmulator(BinaryEmulator):
         self.do_strings = self.config_analysis.get('strings', False)
         self.registry_config = self.config.get('registry', {})
         self.modules_always_exist = self.config_modules.get('modules_always_exist', False)
+        self.functions_always_exist = self.config_modules.get('functions_always_exist', False)
 
     def get_registry_config(self):
         """
@@ -1144,6 +1145,16 @@ class WindowsEmulator(BinaryEmulator):
                 ret = self.get_ret_address()
                 self.log_api(ret, imp_api, rv, argv)
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
+                return
+            elif self.functions_always_exist:
+                imp_api = '%s.%s' % (dll, name)
+                conv = _arch.CALL_CONV_STDCALL
+                argc = 4
+                argv = self.get_func_argv(conv, argc)
+                rv = 1
+                ret = self.get_ret_address()
+                self.log_api(ret, imp_api, rv, argv)
+                self.do_call_return(argc, ret, rv, conv=conv)
                 return
 
             run = self.get_current_run()
