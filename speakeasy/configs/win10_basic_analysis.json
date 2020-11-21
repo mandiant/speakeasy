@@ -182,6 +182,8 @@
 
     "modules": {
         "modules_always_exist": false,
+        "functions_always_exist": false,
+
         "module_directory_x86": "$ROOT$/winenv/decoys/x86",
         "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
 
