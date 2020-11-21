@@ -18,7 +18,7 @@ def autoload_api_handlers():
         for clsname, clsobj in modobj.__dict__.items():
             if type(clsobj).__name__ not in ('type', 'class'):
                 continue
-            if issubclass(clsobj, api.ApiHandler):
+            if clsobj is not api.ApiHandler and issubclass(clsobj, api.ApiHandler):
                 api_handlers.append((clsobj.name, clsobj))
 
     return tuple(api_handlers)
