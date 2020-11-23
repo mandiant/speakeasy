@@ -1,5 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import sys
+import inspect
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
@@ -10,14 +13,10 @@ from speakeasy.winenv.api.usermode import *
 def autoload_api_handlers():
     api_handlers = []
 
-    for modname, modobj in globals().items():
-        if type(modobj).__name__ != 'module':
+    for modname, modobj in sys.modules.items():
+        if not modname.startswith(('speakeasy.winenv.api.kernelmode.', 'speakeasy.winenv.api.usermode.')):
             continue
-        if not modobj.__name__.startswith(('speakeasy.winenv.api.kernelmode.', 'speakeasy.winenv.api.usermode.')):
-            continue
-        for clsname, clsobj in modobj.__dict__.items():
-            if type(clsobj).__name__ not in ('type', 'class'):
-                continue
+        for clsname, clsobj in inspect.getmembers(modobj, inspect.isclass):
             if clsobj is not api.ApiHandler and issubclass(clsobj, api.ApiHandler):
                 api_handlers.append((clsobj.name, clsobj))
 
