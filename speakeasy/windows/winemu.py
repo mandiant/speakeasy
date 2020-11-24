@@ -475,7 +475,10 @@ class WindowsEmulator(BinaryEmulator):
         """
         Terminate a process (i.e. remove it from the known process list)
         """
-        self.processes.remove(proc)
+        try:
+            self.processes.remove(proc)
+        except ValueError:
+            pass
 
     def get_current_thread(self):
         """
@@ -1690,7 +1693,7 @@ class WindowsEmulator(BinaryEmulator):
         if isinstance(base, str):
             base = int(base, 16)
 
-        mod.decoy_path = modconf.get('path', emu_path)
+        mod.decoy_path = modconf.get('path', emu_path) or (name + '.dll')
         # Reserve memory for the module
         res, size = self.get_valid_ranges(mod.image_size,
                                           base)
