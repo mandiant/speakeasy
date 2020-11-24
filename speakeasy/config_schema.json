@@ -454,6 +454,10 @@
                     "type": "boolean",
                     "description": "When a sample attempts to load a module, always present a decoy module"
                 },
+                "functions_always_exist": {
+                    "type": "boolean",
+                    "description": "When a sample attempts to call a non-implemented API, always present a fake return value"
+                },
                 "user_modules": {
                     "type": "array",
                     "items": {
