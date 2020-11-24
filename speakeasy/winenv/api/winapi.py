@@ -1,50 +1,28 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import sys
+import inspect
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import ApiEmuError
-from speakeasy.winenv.api.kernelmode import ntoskrnl, hal, wdfldr, netio, ndis, fwpkclnt, usbd
-from speakeasy.winenv.api.usermode import ws2_32, kernel32, wininet, winhttp, user32, \
-                                          advapi32, msvcrt, wtsapi32, mscoree, dnsapi, \
-                                          ntdll, crypt32, shell32, shlwapi, advpack, gdi32, \
-                                          urlmon, ole32, oleaut32, comctl32, com_api, msimg32, \
-                                          msi32, lz32, ncrypt
+from speakeasy.winenv.api import api
+from speakeasy.winenv.api.kernelmode import *
+from speakeasy.winenv.api.usermode import *
 
-API_HANDLERS = (
-                    # Kernel mode
-                    ('ntoskrnl', ntoskrnl.Ntoskrnl),
-                    ('wdfldr', wdfldr.Wdfldr),
-                    ('hal', hal.Hal),
-                    ('usbd', usbd.Usbd),
-                    ('netio', netio.Netio),
-                    ('ndis', ndis.Ndis),
-                    ('fwpkclnt', fwpkclnt.Fwpkclnt),
-                    # User mode
-                    ('ws2_32', ws2_32.Ws2_32),
-                    ('kernel32', kernel32.Kernel32),
-                    ('ntdll', ntdll.Ntdll),
-                    ('wininet', wininet.Wininet),
-                    ('winhttp', winhttp.WinHttp),
-                    ('user32', user32.User32),
-                    ('msvcrt', msvcrt.Msvcrt),
-                    ('wtsapi32', wtsapi32.WtsApi32),
-                    ('advapi32', advapi32.AdvApi32),
-                    ('dnsapi', dnsapi.DnsApi),
-                    ('mscoree', mscoree.Mscoree),
-                    ('crypt32', crypt32.Crypt32),
-                    ('shell32', shell32.Shell32),
-                    ('shlwapi', shlwapi.Shlwapi),
-                    ('advpack', advpack.Advpack),
-                    ('gdi32', gdi32.GDI32),
-                    ('urlmon', urlmon.Urlmon),
-                    ('ole32', ole32.Ole32),
-                    ('oleaut32', oleaut32.OleAut32),
-                    ('comctl32', comctl32.Comctl32),
-                    ('com_api', com_api.ComApi),
-                    ('msimg32', msimg32.Msimg32),
-                    ('msi', msi32.Msi32),
-                    ('lz32', lz32.Lz32),
-                    ('ncrypt', ncrypt.Ncrypt)
-               )
+
+def autoload_api_handlers():
+    api_handlers = []
+
+    for modname, modobj in sys.modules.items():
+        if not modname.startswith(('speakeasy.winenv.api.kernelmode.', 'speakeasy.winenv.api.usermode.')):
+            continue
+        for clsname, clsobj in inspect.getmembers(modobj, inspect.isclass):
+            if clsobj is not api.ApiHandler and issubclass(clsobj, api.ApiHandler):
+                api_handlers.append((clsobj.name, clsobj))
+
+    return tuple(api_handlers)
+
+API_HANDLERS = autoload_api_handlers()
 
 
 class WindowsApi:
