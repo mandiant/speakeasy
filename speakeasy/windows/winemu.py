@@ -1596,7 +1596,8 @@ class WindowsEmulator(BinaryEmulator):
 
         # Add the newly loaded module to the current process's PEB module list
         proc = self.get_current_process()
-        proc.add_module_to_peb(mod)
+        if self.get_address_map(proc.get_peb_ldr().address):
+            proc.add_module_to_peb(mod)
 
         return mod.get_base()
 
@@ -1701,6 +1702,9 @@ class WindowsEmulator(BinaryEmulator):
         mod.name = modconf.get('name', name)
         self.mem_reserve(size, base=res, tag='emu.module.%s' % (mod.name),
                          perms=common.PERM_MEM_RW)
+
+        if mod.decoy_path == '' and name != '':
+            mod.decoy_path = self.config.get('current_dir', 'C:\\Windows\\system32') + '\\' + name
 
         mod.base_name = ntpath.basename(mod.decoy_path)
 
