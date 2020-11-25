@@ -1,4 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+import re
+import struct
 
 from socket import inet_ntoa, ntohs, htons, ntohl, htonl, inet_aton
 
@@ -185,8 +187,21 @@ class Ws2_32(api.ApiHandler):
         );
         """
         s, level, optname, optval, optlen = argv
+        rv = 0
 
-        return 0
+        opt_level = winsock.get_define(level, 'SOL_')
+        if opt_level:
+            argv[1] = opt_level
+
+        opt_name = winsock.get_define(optname, 'SO_')
+        if opt_name:
+            argv[2] = opt_name
+
+        if opt_name == 'SO_RCVBUF' or opt_name == 'SO_SNDBUF':
+            opt_val = self.mem_read(optval, optlen)
+            argv[3] = struct.unpack('<I', opt_val)[0]
+
+        return rv
 
     @apihook('WSASetLastError', argc=1, ordinal=112)
     def WSASetLastError(self, emu, argv, ctx={}):
@@ -568,5 +583,115 @@ class Ws2_32(api.ApiHandler):
         socket = self.netman.get_socket(s)
         if socket:
             rv = 0
+
+        return rv
+
+    @apihook('getaddrinfo', argc=4, ordinal=178)
+    def getaddrinfo(self, emu, argv, ctx={}):
+        """
+        INT WSAAPI getaddrinfo(
+          PCSTR           pNodeName,
+          PCSTR           pServiceName,
+          const ADDRINFOA *pHints,
+          PADDRINFOA      *ppResult
+        );
+        """
+        pNodeName, pServiceName, pHints, ppResult = argv
+        rv = 0
+
+        host = self.read_string(pNodeName)
+        argv[0] = host
+
+        service_name = self.read_string(pServiceName)
+        argv[1] = service_name
+        if service_name.isnumeric():
+            port = int(service_name)
+        else:
+            port = winsock.SERVICE_PORTS.get(service_name)
+
+        if not port:
+            return rv
+
+        hints_ai = self.wstypes.addrinfo(emu.get_ptr_size())
+        hints_ai = self.mem_cast(hints_ai, pHints)
+
+        # Handles a specific case where an IP address is converted as part of a URL
+        # TODO: handle additional cases
+        ip_url_re = re.compile(r'https?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+        match = re.match(ip_url_re, host)
+        if match:
+            ip_addr = match.group(1)
+        else:
+            # Use default IP address
+            ip_addr = self.netman.name_lookup('default')
+            if not ip_addr:
+                ip_addr = '127.0.0.1'
+
+        ip_bytes = inet_aton(ip_addr)
+
+        # Populate sockaddr_in
+        sockaddr_in = self.wstypes.sockaddr_in(emu.get_ptr_size())
+        sockaddr_in.sin_family = hints_ai.ai_family
+        sockaddr_in.sin_port = htons(port)
+        sockaddr_in.sin_addr = htonl(int(ip_bytes.hex(), 16))
+        p_sockaddr = self.mem_alloc(emu.get_ptr_size())
+        self.mem_write(p_sockaddr, sockaddr_in.get_bytes())
+
+        # Populate addrinfo with sockaddr_in and pHints data
+        addrinfo = self.wstypes.addrinfo(emu.get_ptr_size())
+        # TODO: Update ai_flags as additional cases are added
+        addrinfo.ai_flags = winsock.AI_NUMERICHOST
+        addrinfo.ai_family = hints_ai.ai_family
+        addrinfo.ai_socktype = hints_ai.ai_socktype
+        addrinfo.ai_protocol = hints_ai.ai_protocol
+        addrinfo.ai_addrlen = sockaddr_in.sizeof()
+        addrinfo.ai_addr = p_sockaddr
+
+        # Populate ppResult with addrinfo
+        pResult = self.mem_alloc(emu.get_ptr_size())
+        self.mem_write(pResult, addrinfo.get_bytes())
+        self.mem_write(ppResult, pResult.to_bytes(emu.get_ptr_size(), 'little'))
+
+        return rv
+
+    @apihook('freeaddrinfo', argc=1, ordinal=177)
+    def freeaddrinfo(self, emu, argv, ctx={}):
+        """
+        VOID WSAAPI freeaddrinfo(
+          PADDRINFOA pAddrInfo
+        );
+        """
+        self.mem_free(argv[0])
+
+        return
+
+    @apihook('getsockopt', argc=5, ordinal=7)
+    def getsockopt(self, emu, argv, ctx={}):
+        """
+        int getsockopt(
+          SOCKET s,
+          int    level,
+          int    optname,
+          char   *optval,
+          int    *optlen
+        );
+        """
+        s, level, optname, optval, optlen = argv
+        rv = 0
+
+        opt_level = winsock.get_define(level, 'SOL_')
+        if opt_level:
+            argv[1] = opt_level
+
+        opt_len = self.mem_read(optlen, 4)
+        opt_len = struct.unpack('<I', opt_len)[0]
+        argv[4] = opt_len
+
+        opt_name = winsock.get_define(optname, 'SO_')
+        if opt_name:
+            argv[2] = opt_name
+            if opt_name == 'SO_RCVBUF' or opt_name == 'SO_SNDBUF':
+                opt_val = winsock.SOCK_BUF_SIZE
+                self.mem_write(optval, opt_val.to_bytes(opt_len, 'little'))
 
         return rv
