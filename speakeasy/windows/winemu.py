@@ -387,6 +387,13 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_map(self.page_size, base=0xFFFFF78000000000,
                          tag='emu.struct.KUSER_SHARED_DATA')
 
+    def resume(self, addr, count=-1):
+        """
+        Resume emulation at the specified address.
+        """
+        self.emu_eng.start(addr, timeout=self.timeout,
+                           count=count)
+
     def start(self):
         """
         Begin emulation executing each run in the specified run queue
