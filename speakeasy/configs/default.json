@@ -489,7 +489,7 @@
                     "path": "C:\\Windows\\system32\\comctl32.dll"
                 },
                 {
-                    "name": "secure32",
+                    "name": "secur32",
                     "base_addr": "0x5f600000",
                     "path": "C:\\Windows\\system32\\secur32.dll"
                 },
