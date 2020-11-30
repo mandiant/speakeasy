@@ -277,14 +277,18 @@ class BinaryEmulator(MemoryManager):
                               ('rip', e_arch.AMD64_REG_RIP),
                               ('rsi', e_arch.AMD64_REG_RSI),
                               ('rdi', e_arch.AMD64_REG_RDI),
+                              ('rax', e_arch.AMD64_REG_RAX),
+                              ('rbx', e_arch.AMD64_REG_RBX),
+                              ('rcx', e_arch.AMD64_REG_RCX),
+                              ('rdx', e_arch.AMD64_REG_RDX),
                               ('r8',  e_arch.AMD64_REG_R8),
                               ('r9',  e_arch.AMD64_REG_R9),
                               ('r10', e_arch.AMD64_REG_R10),
                               ('r11', e_arch.AMD64_REG_R11),
-                              ('rax', e_arch.AMD64_REG_RAX),
-                              ('rbx', e_arch.AMD64_REG_RBX),
-                              ('rcx', e_arch.AMD64_REG_RCX),
-                              ('rdx', e_arch.AMD64_REG_RDX)):
+                              ('r12', e_arch.AMD64_REG_R12),
+                              ('r13', e_arch.AMD64_REG_R13),
+                              ('r14', e_arch.AMD64_REG_R14),
+                              ('r15', e_arch.AMD64_REG_R15)):
                 val = self.reg_read(reg)
                 regs[name] = "{0:#0{1}x}".format(val, 2 + (self.get_ptr_size() * 2))
         return regs
