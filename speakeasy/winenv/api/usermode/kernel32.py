@@ -1659,9 +1659,9 @@ class Kernel32(api.ApiHandler):
     @apihook('lstrcpy', argc=2)
     def lstrcpy(self, emu, argv, ctx={}):
         '''
-        LPSTR lstrcpynA(
+        LPSTR lstrcpyA(
           LPSTR  lpString1,
-          LPCSTR lpString2,
+          LPCSTR lpString2
         );
         '''
         dest, src = argv
@@ -1669,8 +1669,10 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(src, cw)
-        self.write_mem_string(s, dest, cw)
         argv[1] = s
+        s += '\x00'
+
+        self.write_mem_string(s, dest, cw)
         return dest
 
     @apihook('IsBadReadPtr', argc=2)
