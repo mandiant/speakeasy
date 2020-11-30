@@ -1,6 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct
+from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
 
 WSADESCRIPTION_LEN = 256
@@ -43,3 +43,16 @@ class hostent(EmuStruct):
         self.h_addrtype = ct.c_uint16
         self.h_length = ct.c_uint16
         self.h_addr_list = ct.c_uint32
+
+
+class addrinfo(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.ai_flags = ct.c_uint32
+        self.ai_family = ct.c_uint32
+        self.ai_socktype = ct.c_uint32
+        self.ai_protocol = ct.c_uint32
+        self.ai_addrlen = ct.c_uint
+        self.ai_canonname = Ptr
+        self.ai_addr = Ptr
+        self.ai_next = Ptr

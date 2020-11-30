@@ -35,6 +35,18 @@ WSAENOTSOCK = 10038
 
 MSG_PEEK = 0x2
 
+AI_NUMERICHOST = 4
+
+# Incomplete mapping of services to ports
+SERVICE_PORTS = dict(ftp=21, ssh=22, smtp=25, http=80, https=443)
+
+SOL_SOCKET = 0xFFFF
+
+SO_SNDBUF = 0x1001
+SO_RCVBUF = 0x1002
+
+SOCK_BUF_SIZE = 0x2000
+
 
 def get_flag_defines(flags, prefix=''):
     defs = []
