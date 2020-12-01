@@ -487,6 +487,31 @@
                     "name": "comctl32",
                     "base_addr": "0x5f500000",
                     "path": "C:\\Windows\\system32\\comctl32.dll"
+                },
+                {
+                    "name": "secur32",
+                    "base_addr": "0x5f600000",
+                    "path": "C:\\Windows\\system32\\secur32.dll"
+                },
+                {
+                    "name": "KtmW32",
+                    "base_addr": "0x5f700000",
+                    "path": "C:\\Windows\\system32\\KtmW32.dll"
+                },
+                {
+                    "name": "oleaut32",
+                    "base_addr": "0x5f800000",
+                    "path": "C:\\Windows\\system32\\oleaut32.dll"
+                },
+                {
+                    "name": "bcrypt",
+                    "base_addr": "0x5f900000",
+                    "path": "C:\\Windows\\system32\\bcrypt.dll"
+                },
+                {
+                    "name": "ncrypt",
+                    "base_addr": "0x5fa00000",
+                    "path": "C:\\Windows\\system32\\ncrypt.dll"
                 }
         ]
     }
