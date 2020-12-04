@@ -547,11 +547,14 @@ class Win32Emulator(WindowsEmulator):
             if proc_mod:
                 all_user_mods = [proc_mod] + self.config_user_modules
                 user_modules = self.init_user_modules(all_user_mods)
-
             else:
                 user_modules = self.init_user_modules(self.config_user_modules)
 
             self.user_modules += user_modules
+            # add sample to user modules list if it is a dll
+            if self.modules and not self.modules[0][0].is_exe():
+                self.user_modules.append(self.modules[0][0])
+
         return self.user_modules
 
     def exit_process(self):

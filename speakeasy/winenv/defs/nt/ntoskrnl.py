@@ -519,7 +519,7 @@ class PEB_LDR_DATA(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.Length = ct.c_uint32
-        self.Initialized = ct.c_uint8
+        self.Initialized = ct.c_uint8 * 4
         self.SsHandle = Ptr
         self.InLoadOrderModuleList = LIST_ENTRY
         self.InMemoryOrderModuleList = LIST_ENTRY

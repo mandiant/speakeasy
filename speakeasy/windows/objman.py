@@ -634,7 +634,6 @@ class Process(KernelObject):
         first = self.ldr_entries[0]
 
         ldte.object.DllBase = module.get_base()
-
         dllname = (module.get_emu_path() + '\x00').encode('utf-16le')
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
@@ -658,24 +657,32 @@ class Process(KernelObject):
         prev.object.InMemoryOrderLinks.Flink = ldte.address + \
             self.sizeof(list_type)
 
-        imol = prev.object.InMemoryOrderLinks.Flink
-        prev.object.InInitializationOrderLinks.Flink = imol + \
-            self.sizeof(list_type)
+        if first is ldte:
+            prev.object.InInitializationOrderLinks.Flink = 0
+        else:
+            imol = prev.object.InMemoryOrderLinks.Flink
+            prev.object.InInitializationOrderLinks.Flink = imol + \
+                self.sizeof(list_type)
 
         ldte.object.InLoadOrderLinks.Blink = prev.address
         ldte.object.InMemoryOrderLinks.Blink = prev.address + \
             self.sizeof(list_type)
 
-        imol = ldte.object.InMemoryOrderLinks.Blink
-        ldte.object.InInitializationOrderLinks.Blink = imol + \
-            self.sizeof(list_type)
+        if first is ldte:
+            ldte.object.InInitializationOrderLinks.Blink = 0
+        else:
+            imol = ldte.object.InMemoryOrderLinks.Blink
+            ldte.object.InInitializationOrderLinks.Blink = imol + \
+                self.sizeof(list_type)
 
         prev.write_back()
         ldte.write_back()
 
         first.object.InLoadOrderLinks.Blink = prev.address
         first.object.InMemoryOrderLinks.Blink = prev.address
-        first.object.InInitializationOrderLinks.Blink = prev.address
+        if first is not ldte:
+            first.object.InInitializationOrderLinks.Blink = prev.address
+
         first.write_back()
 
         pld.object.InLoadOrderModuleList.Flink = first.address
@@ -683,9 +690,12 @@ class Process(KernelObject):
             pld.object.InLoadOrderModuleList.Flink + \
             self.sizeof(list_type)
 
-        pld.object.InInitializationOrderModuleList.Flink = \
-            pld.object.InMemoryOrderModuleList.Flink + \
-            self.sizeof(list_type)
+        # Lets just copy InMemoryOrderModuleList but skip the main EXE module
+        head = pld.object.InMemoryOrderModuleList.Flink
+        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()),
+                               head)
+
+        pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
 
         pld.object.InLoadOrderModuleList.Blink = prev.address
         pld.object.InMemoryOrderModuleList.Blink = \
