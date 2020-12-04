@@ -690,9 +690,12 @@ class Process(KernelObject):
             pld.object.InLoadOrderModuleList.Flink + \
             self.sizeof(list_type)
 
-        # start init order list with ntdll
-        if ntpath.basename(module.get_emu_path())[:5] == "ntdll":
-            pld.object.InInitializationOrderModuleList.Flink = ldte.address + self.sizeof(list_type) * 2
+        # Lets just copy InMemoryOrderModuleList but skip the main EXE module
+        head = pld.object.InMemoryOrderModuleList.Flink
+        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()),
+                               head)
+
+        pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
 
         pld.object.InLoadOrderModuleList.Blink = prev.address
         pld.object.InMemoryOrderModuleList.Blink = \

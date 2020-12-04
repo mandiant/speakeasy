@@ -553,7 +553,7 @@ class Win32Emulator(WindowsEmulator):
             self.user_modules += user_modules
             # add sample to user modules list if it is a dll
             if self.modules and not self.modules[0][0].is_exe():
-                self.user_modules.insert(1, self.modules[0][0])
+                self.user_modules.append(self.modules[0][0])
 
         return self.user_modules
 
