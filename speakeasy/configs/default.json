@@ -344,14 +344,14 @@
 
         "user_modules": [
                 {
-                    "name": "kernel32",
-                    "base_addr": "0x77000000",
-                    "path": "C:\\Windows\\system32\\kernel32.dll"
-                },
-                {
                     "name": "ntdll",
                     "base_addr": "0x7C000000",
                     "path": "C:\\Windows\\system32\\ntdll.dll"
+                },
+                {
+                    "name": "kernel32",
+                    "base_addr": "0x77000000",
+                    "path": "C:\\Windows\\system32\\kernel32.dll"
                 },
                 {
                     "name": "ws2_32",
