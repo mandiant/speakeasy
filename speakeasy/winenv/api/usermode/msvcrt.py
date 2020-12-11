@@ -726,8 +726,14 @@ class Msvcrt(api.ApiHandler):
             rec = self.wintypes.EH4_SCOPETABLE_RECORD(emu.get_ptr_size())
             # The trylevel will tell us what scope record to get
             scope_record_offset = scope_table + st.sizeof()
-            scope_record_offset += (rec.sizeof() * reg.TryLevel)
+            tl = reg.TryLevel
+            if reg.TryLevel & 0x80000000:
+                tl = -0x100000000 + reg.TryLevel
 
+            if tl == -2: # -2 is the outermost scope
+                tl = 0
+
+            scope_record_offset += (rec.sizeof() * tl)
             rec = self.mem_cast(rec, scope_record_offset)
 
             seh.add_frame(reg, st, [rec, ])
@@ -1077,3 +1083,33 @@ class Msvcrt(api.ApiHandler):
         argv[1] = fmt_str
 
         return rv
+
+    @apihook('__stdio_common_vsprintf', argc=7, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vsprintf(self, emu, argv, ctx={}):
+        """
+        int __stdio_common_vsprintf(
+            unsigned int64 Options,
+            char *Buffer,
+            unsigned int BufferCount,
+            const char *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        options_lo, options_hi, buffer, count, _format, locale, argptr = argv
+        rv = 0
+        fmt_str = self.read_mem_string(_format, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(argptr, fmt_cnt)
+
+        fin = self.do_str_format(fmt_str, vargs)
+        fin = fin[:count] + '\x00'
+
+        rv = len(fin)
+        self.mem_write(buffer, fin.encode('utf-8'))
+        argv[0] = fin.replace('\x00', '')
+        argv[1] = fmt_str
+
+        return rv
+

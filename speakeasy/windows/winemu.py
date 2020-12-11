@@ -2050,7 +2050,7 @@ class WindowsEmulator(BinaryEmulator):
         exception_list = self._get_exception_list()
         if exception_list and self.dispatch_handlers:
             # Catch software breakpoint interrupts
-            if intnum == 3:
+            if intnum == 3 or intnum == 0x2d:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT
                 self.prev_pc = self.get_pc()
                 self.enable_code_hook()
