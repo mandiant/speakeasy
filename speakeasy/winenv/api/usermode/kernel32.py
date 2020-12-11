@@ -1595,7 +1595,7 @@ class Kernel32(api.ApiHandler):
         DWORD GetTickCount();
         '''
 
-        self.tick_counter += 200
+        self.tick_counter += 20
 
         return self.tick_counter
 
@@ -1605,7 +1605,7 @@ class Kernel32(api.ApiHandler):
         ULONGLONG GetTickCount64();
         '''
 
-        self.tick_counter += 200
+        self.tick_counter += 20
 
         return self.tick_counter
 
