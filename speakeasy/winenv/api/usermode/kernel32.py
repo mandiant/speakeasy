@@ -36,6 +36,7 @@ class Kernel32(api.ApiHandler):
         self.heaps = []
         self.curr_handle = 0x1800
         self.find_files = {}
+        self.find_volumes = {}
         self.snapshots = {}
         self.find_resources = {}
         self.tick_counter = 86400000  # 1 day in millisecs
@@ -4254,16 +4255,19 @@ class Kernel32(api.ApiHandler):
     def GetDriveType(self, emu, argv, ctx={}):
         '''
         UINT GetDriveType(
-        LPCSTR lpRootPathName
+          LPCSTR lpRootPathName
         );
         '''
         lpRootPathName, = argv
-        DRIVE_FIXED = 3
+
         cw = self.get_char_width(ctx)
         name = self.read_mem_string(lpRootPathName, cw)
-        argv[0] = name
+        if name:
+            argv[0] = name
 
-        return DRIVE_FIXED
+        dm = emu.get_drive_manager()
+
+        return dm.get_drive_type(name)
 
     @apihook('GetExitCodeProcess', argc=2)
     def GetExitCodeProcess(self, emu, argv, ctx={}):
@@ -4514,12 +4518,55 @@ class Kernel32(api.ApiHandler):
           DWORD  cchBufferLength
         );
         """
-        lpszVolumeName, cchBufferLength = argv
+        lpszVolumeName, _ = argv
 
-        # TODO: Implement volume enumeration
+        cw = self.get_char_width(ctx)
+
+        dm = emu.get_drive_manager()
+        dw = dm.walk_drives()
         hnd = self.get_handle()
+        self.find_volumes.update({hnd: {"walker": dw}})
+
+        # Each drive contains a single volume
+        curr_drive = next(dw)
+        if curr_drive:
+            volume_guid_path = curr_drive.get('volume_guid_path')
+            argv[0] = volume_guid_path
+
+            self.write_mem_string(volume_guid_path + '\x00', lpszVolumeName, cw)
 
         return hnd
+
+    @apihook('FindNextVolume', argc=3)
+    def FindNextVolume(self, emu, argv, ctx={}):
+        """
+        BOOL FindNextVolumeW(
+          HANDLE hFindVolume,
+          LPWSTR lpszVolumeName,
+          DWORD  cchBufferLength
+        );
+        """
+        hFindVolume, lpszVolumeName, cchBufferLength = argv
+
+        cw = self.get_char_width(ctx)
+
+        dsearch = self.find_volumes.get(hFindVolume)
+        if not hFindVolume or not dsearch:
+            return 0
+
+        # Get next drive; each drive contains one volume
+        walker = dsearch.get('walker')
+        try:
+            next_drive = next(walker)
+        except StopIteration:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
+            return 0
+
+        volume_guid_path = next_drive.get('volume_guid_path')
+        argv[1] = volume_guid_path
+        self.write_mem_string(volume_guid_path + '\x00', lpszVolumeName, cw)
+
+        return 1
 
     @apihook('FindVolumeClose', argc=1)
     def FindVolumeClose(self, emu, argv, ctx={}):
@@ -4528,9 +4575,13 @@ class Kernel32(api.ApiHandler):
           HANDLE hFindVolume
         );
         """
-        hFindVolume = argv[0]
+        hFindVolume, = argv
 
-        # TODO: Implement proper close
+        try:
+            self.find_volumes.pop(hFindVolume)
+        except KeyError:
+            return 0
+
         return 1
 
     @apihook('CreateIoCompletionPort', argc=4)
@@ -4543,9 +4594,45 @@ class Kernel32(api.ApiHandler):
           _In_     DWORD     NumberOfConcurrentThreads
         );
         """
-        FileHandle, ExistingCompletionPort, CompletionKey, NumberOfConcurrentThreads = argv
+        FileHandle, ExistingCompletionPort, CompletionKey, \
+        NumberOfConcurrentThreads = argv
 
         # TODO: Implement completion port creation
         hnd = self.get_handle()
 
         return hnd
+
+    @apihook('GetVolumePathNamesForVolumeName', argc=4)
+    def GetVolumePathNamesForVolumeName(self, emu, argv, ctx={}):
+        """
+        BOOL GetVolumePathNamesForVolumeNameW(
+          LPCWSTR lpszVolumeName,
+          LPWCH   lpszVolumePathNames,
+          DWORD   cchBufferLength,
+          PDWORD  lpcchReturnLength
+        );
+        """
+        lpszVolumeName, lpszVolumePathNames, cchBufferLength, \
+        lpcchReturnLength = argv
+
+        cw = self.get_char_width(ctx)
+
+        volume_guid_path = self.read_mem_string(lpszVolumeName, cw)
+        if volume_guid_path:
+            argv[0] = volume_guid_path
+
+        dm = emu.get_drive_manager()
+        drive = dm.get_drive(volume_guid_path=volume_guid_path)
+        if drive:
+            root_path = drive.get('root_path')
+            argv[1] = root_path
+            root_path += '\x00\x00'  # additional NULL to terminate list
+
+            root_path_len = len(root_path)
+            argv[3] = root_path_len
+
+            self.write_mem_string(root_path, lpszVolumePathNames, cw)
+            self.mem_write(lpcchReturnLength,
+                           root_path_len.to_bytes(4, 'little'))
+
+        return 1

@@ -108,6 +108,7 @@ class BinaryEmulator(MemoryManager):
         self.timeout = config.get('timeout', 0)
         self.max_api_count = config.get('max_api_count', 5000)
         self.exceptions = config.get('exceptions', {})
+        self.drive_config = config.get('drives', [])
         self.filesystem_config = config.get('filesystem', {})
         self.keep_memory_on_free = config.get('keep_memory_on_free', False)
 
@@ -197,6 +198,12 @@ class BinaryEmulator(MemoryManager):
         Get the filesystem settings specified in the filesystem section of the config file
         """
         return self.filesystem_config
+
+    def get_drive_config(self):
+        """
+        Get the drive settings specified in the drives section of the config file
+        """
+        return self.drive_config
 
     def reg_write(self, reg, val):
         """

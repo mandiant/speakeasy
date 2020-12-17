@@ -62,6 +62,29 @@
         }
     ],
 
+    "drives": [
+        {
+            "root_path": "C:\\",
+            "drive_type": "DRIVE_FIXED",
+            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\"
+        },
+        {
+            "root_path": "D:\\",
+            "drive_type": "DRIVE_CDROM",
+            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\"
+        },
+        {
+            "root_path": "E:\\",
+            "drive_type": "DRIVE_REMOTE",
+            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000003}\\"
+        },
+        {
+            "root_path": "F:\\",
+            "drive_type": "DRIVE_REMOVABLE",
+            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000004}\\"
+        }
+    ],
+
     "filesystem": {
         "files": [
             {
