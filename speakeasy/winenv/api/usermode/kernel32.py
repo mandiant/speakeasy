@@ -2,6 +2,7 @@
 
 import os
 import ntpath
+import string
 import fnmatch
 import datetime
 import ctypes as ct
@@ -4636,3 +4637,17 @@ class Kernel32(api.ApiHandler):
                            root_path_len.to_bytes(4, 'little'))
 
         return 1
+
+    @apihook('GetLogicalDrives', argc=0)
+    def GetLogicalDrives(self, emu, argv, ctx={}):
+        """
+        DWORD GetLogicalDrives();
+        """
+        dm = emu.get_drive_manager()
+        rv = 0
+        for i, dl in enumerate(string.ascii_uppercase):
+            if dl in dm.drive_letters:
+                rv |= (1 << i)
+
+        return rv
+

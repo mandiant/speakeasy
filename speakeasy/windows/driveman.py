@@ -10,6 +10,10 @@ class DriveManager(object):
     def __init__(self, config=None):
         super(DriveManager, self).__init__()
         self.drives = config
+        self.drive_letters = []
+
+        for drive in self.drives:
+            self.drive_letters.append(drive.get('root_path')[0])
 
     def walk_drives(self):
         for drive in self.drives:
