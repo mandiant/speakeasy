@@ -67,3 +67,22 @@ class Mpr(api.ApiHandler):
         );
         """
         return mpr.ERROR_NO_NETWORK
+
+    @apihook('WNetGetConnection', argc=3, conv=_arch.CALL_CONV_STDCALL)
+    def WNetGetConnection(self, emu, argv, ctx={}):
+        """
+        DWORD WNetGetConnectionA(
+          LPCSTR  lpLocalName,
+          LPSTR   lpRemoteName,
+          LPDWORD lpnLength
+        );
+        """
+        lpLocalName, lpRemoteName, lpnLength = argv
+
+        cw = self.get_char_width(ctx)
+
+        local_name = self.read_mem_string(lpLocalName, cw)
+        if local_name:
+            argv[0] = local_name
+
+        return mpr.ERROR_NO_NETWORK
