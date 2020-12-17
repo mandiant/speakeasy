@@ -32,6 +32,16 @@ DRIVE_REMOTE = 4
 DRIVE_CDROM = 5
 DRIVE_RAMDISK = 6
 
+ComputerNameNetBIOS = 0
+ComputerNameDnsHostname = 1
+ComputerNameDnsDomain = 2
+ComputerNameDnsFullyQualified = 3
+ComputerNamePhysicalNetBIOS = 4
+ComputerNamePhysicalDnsHostname = 5
+ComputerNamePhysicalDnsDomain = 6
+ComputerNamePhysicalDnsFullyQualified = 7
+ComputerNameMax = 8
+
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):

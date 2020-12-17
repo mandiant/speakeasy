@@ -4680,3 +4680,30 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook('GetComputerNameEx', argc=3)
+    def GetComputerNameEx(self, emu, argv, ctx={}):
+        """
+        BOOL GetComputerNameExA(
+          COMPUTER_NAME_FORMAT NameType,
+          LPSTR                lpBuffer,
+          LPDWORD              nSize
+        );
+        """
+        NameType, lpBuffer, nSize = argv
+
+        cw = self.get_char_width(ctx)
+
+        name_type = k32types.get_define(NameType, prefix='ComputerName')
+        if name_type:
+            argv[0] = name_type
+
+        hostname = emu.get_hostname()
+        argv[1] = hostname
+
+        hostname_len = len(hostname)
+        argv[2] = hostname_len
+
+        self.write_mem_string(hostname, lpBuffer, cw)
+        self.mem_write(nSize, hostname_len.to_bytes(4, 'little'))
+
+        return 1
