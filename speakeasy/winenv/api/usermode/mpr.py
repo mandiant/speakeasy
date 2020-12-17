@@ -42,7 +42,7 @@ class Mpr(api.ApiHandler):
         if usage:
             argv[2] = usage
 
-        return 0
+        return mpr.ERROR_NO_NETWORK
 
     @apihook('WNetEnumResource', argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WNetEnumResource(self, emu, argv, ctx={}):
@@ -54,7 +54,7 @@ class Mpr(api.ApiHandler):
           LPDWORD lpBufferSize
         );
         """
-        return 0
+        return mpr.ERROR_NO_NETWORK
 
     @apihook('WNetAddConnection2', argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WNetAddConnection2(self, emu, argv, ctx={}):
@@ -66,4 +66,4 @@ class Mpr(api.ApiHandler):
           DWORD          dwFlags
         );
         """
-        return 0
+        return mpr.ERROR_NO_NETWORK
