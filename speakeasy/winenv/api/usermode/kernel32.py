@@ -1396,6 +1396,28 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook('lstrcmp', argc=2)
+    def lstrcmp(self, emu, argv, ctx={}):
+        '''int lstrcmpiA(
+          LPCSTR lpString1,
+          LPCSTR lpString2
+        );'''
+        cw = self.get_char_width(ctx)
+
+        string1, string2 = argv
+        rv = 1
+
+        cs1 = self.read_mem_string(string1, cw)
+        cs2 = self.read_mem_string(string2, cw)
+
+        argv[0] = cs1
+        argv[1] = cs2
+
+        if cs1 == cs2:
+            rv = 0
+
+        return rv
+
     @apihook('QueryPerformanceCounter', argc=1)
     def QueryPerformanceCounter(self, emu, argv, ctx={}):
         '''BOOL WINAPI QueryPerformanceCounter(
@@ -3780,6 +3802,8 @@ class Kernel32(api.ApiHandler):
 
         srch = self.read_mem_string(lpFileName, cw)
         argv[0] = srch
+        if srch.startswith('\\\\?\\'):
+            srch = srch.replace('\\\\?\\', '')
 
         fm = emu.get_file_manager()
         fw = fm.walk_files()
@@ -4266,8 +4290,13 @@ class Kernel32(api.ApiHandler):
         if name:
             argv[0] = name
 
-        dm = emu.get_drive_manager()
+        if name.startswith('\\\\?\\'):
+            name = name.replace('\\\\?\\', '')
 
+        if name.endswith(':'):
+            name += '\\'
+
+        dm = emu.get_drive_manager()
         return dm.get_drive_type(name)
 
     @apihook('GetExitCodeProcess', argc=2)
