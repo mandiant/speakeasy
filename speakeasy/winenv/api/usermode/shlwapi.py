@@ -213,8 +213,8 @@ class Shlwapi(api.ApiHandler):
 
         return rv
 
-    @apihook('wnsprintfA', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
-    def wnsprintfA(self, emu, argv, ctx={}):
+    @apihook('wnsprintf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def wnsprintf(self, emu, argv, ctx={}):
         """
         int wnsprintfA(
           PSTR  pszDest,
@@ -223,12 +223,15 @@ class Shlwapi(api.ApiHandler):
           ...
         );
         """
-        buf, max_buf_size, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
-        fmt_str = self.read_string(fmt)
-        argv[2] = fmt_str
+        argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
+        buf, max_buf_size, fmt = argv
+
+        cw = self.get_char_width(ctx)
+
+        fmt_str = self.read_mem_string(fmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
         if not fmt_cnt:
-            self.write_string(fmt_str, buf)
+            self.write_mem_string(fmt_str, buf, cw)
             return len(fmt_str)
 
         _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
@@ -236,8 +239,9 @@ class Shlwapi(api.ApiHandler):
         rv = len(fin)
 
         if rv <= max_buf_size:
-            self.write_string(fin, buf)
+            self.write_mem_string(fin, buf, cw)
             argv[0] = fin
+            argv[2] = fmt_str
             return rv
         else:
             return -1
