@@ -20,9 +20,11 @@ RPC_C_IMP_LEVEL_IDENTIFY = 2
 RPC_C_IMP_LEVEL_IMPERSONATE = 3
 RPC_C_IMP_LEVEL_DELEGATE = 4
 
-CLSID_WbemLocator = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
+CLSID_WbemLocator = '{4590F811-1D3A-11D0-891F-00AA004B2E24}'
+CLSID_IWbemContext = '{674B6698-EE92-11D0-AD71-00C04FD8FDFF}'
 
-IID_IWbemLocator = "{DC12A687-737F-11CF-884D-00AA004B2E24}"
+IID_IWbemLocator = '{DC12A687-737F-11CF-884D-00AA004B2E24}'
+IID_IWbemContext = '{44ACA674-E8FC-11D0-A07C-00C04FB68820}'
 
 
 class ComInterface(object):
@@ -88,10 +90,26 @@ class IWbemServices(EmuStruct):
         self.ExecMethodAsync = Ptr
 
 
+class IWbemContext(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.IUnknown = IUnknown
+        self.Clone = Ptr
+        self.GetNames = Ptr
+        self.BeginEnumeration = Ptr
+        self.Next = Ptr
+        self.EndEnumeration = Ptr
+        self.SetValue = Ptr
+        self.GetValue = Ptr
+        self.DeleteValue = Ptr
+        self.DeleteAll = Ptr
+
+
 IFACE_TYPES = {'IUnknown': IUnknown,
                'IMalloc':  IMalloc,
                'IWbemLocator': IWbemLocator,
-               'IWbemServices': IWbemServices}
+               'IWbemServices': IWbemServices,
+               'IWbemContext': IWbemContext}
 
 
 def get_define_int(define, prefix=''):

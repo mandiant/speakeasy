@@ -1118,3 +1118,31 @@ class AdvApi32(api.ApiHandler):
                                      buffer=lpData)
 
         return rv
+
+    @apihook('EnumServicesStatus', argc=8, conv=_arch.CALL_CONV_STDCALL)
+    def EnumServicesStatus(self, emu, argv, ctx={}):
+        '''
+        BOOL EnumServicesStatusA(
+          SC_HANDLE              hSCManager,
+          DWORD                  dwServiceType,
+          DWORD                  dwServiceState,
+          LPENUM_SERVICE_STATUSA lpServices,
+          DWORD                  cbBufSize,
+          LPDWORD                pcbBytesNeeded,
+          LPDWORD                lpServicesReturned,
+          LPDWORD                lpResumeHandle
+        );
+        '''
+        hSCManager, dwServiceType, dwServiceState, lpServices, cbBufSize, \
+            pcbBytesNeeded, lpServicesReturned, lpResumeHandle = argv
+
+        service_type_str = adv32.get_define_int(dwServiceType, 'SERVICE_')
+        if service_type_str:
+            argv[1] = service_type_str
+
+        service_state_str = adv32.get_define_int(dwServiceState, 'SERVICE_')
+        if service_state_str:
+            argv[2] = service_state_str
+
+        # TODO: Populate service status output
+        return 1

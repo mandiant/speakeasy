@@ -1,19 +1,18 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
+RESOURCE_CONNECTED = 1
+RESOURCE_GLOBALNET = 2
+RESOURCE_REMEMBERED = 3
+RESOURCE_CONTEXT = 5
 
-NTE_BAD_ALGID = 0x80090008
+RESOURCETYPE_ANY = 0
+RESOURCETYPE_DISK = 1
+RESOURCETYPE_PRINT = 2
 
-SERVICE_WIN32 = 0x30
-
-SERVICE_ACTIVE = 0x1
-
-
-class SERVICE_TABLE_ENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.lpServiceName = Ptr
-        self.lpServiceProc = Ptr
+RESOURCEUSAGE_CONNECTABLE = 1
+RESOURCEUSAGE_CONTAINER = 2
+RESOURCEUSAGE_ATTACHED = 0x10
+RESOURCEUSAGE_ALL = 0x13
 
 
 def get_define_int(define, prefix=''):

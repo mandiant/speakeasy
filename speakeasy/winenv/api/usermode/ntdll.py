@@ -178,3 +178,17 @@ class Ntdll(api.ApiHandler):
         dest, length = argv
         buf = b'\x00' * length
         self.mem_write(dest, buf)
+
+    @apihook('NtSetInformationProcess', argc=4)
+    def NtSetInformationProcess(self, emu, argv, ctx={}):
+        """
+        NTSTATUS
+        NTAPI
+        NtSetInformationProcess(
+            _In_ HANDLE ProcessHandle,
+            _In_ PROCESSINFOCLASS ProcessInformationClass,
+            _In_ PVOID ProcessInformation,
+            _In_ ULONG ProcessInformationLength
+        );
+        """
+        return 0

@@ -4505,3 +4505,47 @@ class Kernel32(api.ApiHandler):
         lpFrequency = argv[0]
         self.mem_write(lpFrequency, (10000000).to_bytes(8, 'little'))
         return 1
+
+    @apihook('FindFirstVolume', argc=2)
+    def FindFirstVolume(self, emu, argv, ctx={}):
+        """
+        HANDLE FindFirstVolumeW(
+          LPWSTR lpszVolumeName,
+          DWORD  cchBufferLength
+        );
+        """
+        lpszVolumeName, cchBufferLength = argv
+
+        # TODO: Implement volume enumeration
+        hnd = self.get_handle()
+
+        return hnd
+
+    @apihook('FindVolumeClose', argc=1)
+    def FindVolumeClose(self, emu, argv, ctx={}):
+        """
+        BOOL FindVolumeClose(
+          HANDLE hFindVolume
+        );
+        """
+        hFindVolume = argv[0]
+
+        # TODO: Implement proper close
+        return 1
+
+    @apihook('CreateIoCompletionPort', argc=4)
+    def CreateIoCompletionPort(self, emu, argv, ctx={}):
+        """
+        HANDLE WINAPI CreateIoCompletionPort(
+          _In_     HANDLE    FileHandle,
+          _In_opt_ HANDLE    ExistingCompletionPort,
+          _In_     ULONG_PTR CompletionKey,
+          _In_     DWORD     NumberOfConcurrentThreads
+        );
+        """
+        FileHandle, ExistingCompletionPort, CompletionKey, NumberOfConcurrentThreads = argv
+
+        # TODO: Implement completion port creation
+        hnd = self.get_handle()
+
+        return hnd
