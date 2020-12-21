@@ -4707,3 +4707,108 @@ class Kernel32(api.ApiHandler):
         self.mem_write(nSize, hostname_len.to_bytes(4, 'little'))
 
         return 1
+
+    @apihook('GetDateFormat', argc=6)
+    def GetDateFormat(self, emu, argv, ctx={}):
+        """
+        int GetDateFormatA(
+          LCID             Locale,
+          DWORD            dwFlags,
+          const SYSTEMTIME *lpDate,
+          LPCSTR           lpFormat,
+          LPSTR            lpDateStr,
+          int              cchDate
+        );
+        """
+        Locale, dwFlags, lpDate, lpFormat, lpDateStr, cchDate = argv
+
+        cw = self.get_char_width(ctx)
+
+        locale = k32types.get_define(Locale, prefix='LOCALE_')
+        if locale:
+            argv[0] = locale
+
+        if lpDate == 0:
+            self.GetSystemTimeAsFileTime(emu, [lpDate], ctx)
+
+        sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
+        sys_time = self.mem_cast(sys_time, lpDate)
+
+        date_format = self.read_mem_string(lpFormat, cw)
+        if date_format:
+            argv[3] = date_format
+
+        # Working from example "ddd, dd MMM yyyy "; TODO: expand this
+        date = datetime.date(sys_time.wYear, sys_time.wMonth, sys_time.wDay)
+        date_format = date_format.replace('ddd', '%a')
+        date_format = date_format.replace('dd', '%d')
+        date_format = date_format.replace('MMM', '%b')
+        date_format = date_format.replace('yyyy', '%Y')
+
+        try:
+            date_str = date.strftime(date_format)
+        except:
+            return 0
+        else:
+            if cchDate == 0:
+                return len(date_str) + 1
+
+            self.write_mem_string(date_str + '\x00' * cw, lpDateStr, cw)
+            argv[4] = date_str
+
+        return 1
+
+    @apihook('GetTimeFormat', argc=6)
+    def GetTimeFormat(self, emu, argv, ctx={}):
+        """
+        int GetTimeFormatA(
+          LCID             Locale,
+          DWORD            dwFlags,
+          const SYSTEMTIME *lpTime,
+          LPCSTR           lpFormat,
+          LPSTR            lpTimeStr,
+          int              cchTime
+        );
+        """
+        Locale, dwFlags, lpTime, lpFormat, lpTimeStr, cchTime = argv
+
+        cw = self.get_char_width(ctx)
+
+        locale = k32types.get_define(Locale, prefix='LOCALE_')
+        if locale:
+            argv[0] = locale
+
+        if lpTime == 0:
+            self.GetSystemTimeAsFileTime(emu, [lpTime], ctx)
+
+        sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
+        sys_time = self.mem_cast(sys_time, lpTime)
+
+        if lpFormat:
+            time_format = self.read_mem_string(lpFormat, cw)
+            if time_format:
+                argv[3] = time_format
+        else:
+            # Using this as default; TODO: use proper string based on locale
+            time_format = 'hh:mm:ss'
+
+        # Working from "hh:mm:ss"; TODO: expand this
+        t = datetime.time(hour=sys_time.wHour,
+                          minute=sys_time.wMinute,
+                          second=sys_time.wSecond)
+        time_format = time_format.replace('hh', '%I')
+        time_format = time_format.replace('mm', '%M')
+        time_format = time_format.replace('ss', '%S')
+
+        try:
+            time_str = t.strftime(time_format)
+        except:
+            return 0
+        else:
+            if cchTime == 0:
+                return len(time_str) + 1
+
+            self.write_mem_string(time_str + '\x00' * cw, lpTimeStr, cw)
+            argv[4] = time_str
+
+        return 1
