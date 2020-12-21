@@ -17,6 +17,7 @@ from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.hammer import ApiHammer
+from speakeasy.windows.driveman import DriveManager
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
@@ -99,6 +100,7 @@ class WindowsEmulator(BinaryEmulator):
         self.regman = RegistryManager(self.get_registry_config())
         self.fileman = FileManager(self.get_filesystem_config())
         self.netman = NetworkManager(config=self.get_network_config())
+        self.driveman = DriveManager(config=self.get_drive_config())
         self.cryptman = CryptoManager()
         self.hammer = ApiHammer(self)
 
@@ -253,6 +255,12 @@ class WindowsEmulator(BinaryEmulator):
         Get the crypto manager
         """
         return self.cryptman
+
+    def get_drive_manager(self):
+        """
+        Get the drive manager
+        """
+        return self.driveman
 
     def reg_open_key(self, path, create=False):
         """

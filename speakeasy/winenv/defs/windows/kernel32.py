@@ -24,6 +24,24 @@ LOCALE_SYSTEM_DEFAULT = 0x800
 LOCALE_SENGLISHLANGUAGENAME = 0x1001
 LOCALE_SENGLISHCOUNTRYNAME = 0x1002
 
+DRIVE_UNKNOWN = 0
+DRIVE_NO_ROOT_DIR = 1
+DRIVE_REMOVABLE = 2
+DRIVE_FIXED = 3
+DRIVE_REMOTE = 4
+DRIVE_CDROM = 5
+DRIVE_RAMDISK = 6
+
+ComputerNameNetBIOS = 0
+ComputerNameDnsHostname = 1
+ComputerNameDnsDomain = 2
+ComputerNameDnsFullyQualified = 3
+ComputerNamePhysicalNetBIOS = 4
+ComputerNamePhysicalDnsHostname = 5
+ComputerNamePhysicalDnsDomain = 6
+ComputerNamePhysicalDnsFullyQualified = 7
+ComputerNameMax = 8
+
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
@@ -164,6 +182,17 @@ def get_define(define, prefix=''):
                 return k
         else:
             return k
+
+
+def get_define_value(define, prefix=''):
+    for k, v in globals().items():
+        if not isinstance(v, int) or k != define:
+            continue
+        if prefix:
+            if k.startswith(prefix):
+                return v
+        else:
+            return v
 
 
 def get_flag_defines(flags, prefix=''):

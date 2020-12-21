@@ -14,6 +14,8 @@ RESOURCEUSAGE_CONTAINER = 2
 RESOURCEUSAGE_ATTACHED = 0x10
 RESOURCEUSAGE_ALL = 0x13
 
+ERROR_NO_NETWORK = 0x4C6
+
 
 def get_define_int(define, prefix=''):
     for k, v in globals().items():

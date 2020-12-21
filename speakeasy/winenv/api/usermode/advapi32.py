@@ -799,6 +799,7 @@ class AdvApi32(api.ApiHandler):
 
         user = emu.get_user()
         user_name = user.get('name')
+        argv[0] = user_name
 
         if lpBuffer:
             if cw == 2:

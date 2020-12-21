@@ -263,6 +263,27 @@
                 ]
             }
         },
+        "drives": {
+            "type": "array",
+            "description": "Lists attached drives and their type",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "root_path": {
+                        "type": "string",
+                        "description": "The root path of the drive"
+                    },
+                    "drive_type": {
+                        "type": "string",
+                        "description": "The drive type (e.g., DRIVE_FIXED)"
+                    },
+                    "volume_guid_path": {
+                        "type": "string",
+                        "description": "Assuming each drive only has a single volume, this is the volume GUID"
+                    }
+                }
+            }
+        },
         "filesystem": {
             "type": "object",
             "properties": {
