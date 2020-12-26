@@ -121,12 +121,93 @@ class GDI32(api.ApiHandler):
         """
         return 1
 
+    @apihook('BitBlt', argc=9)
+    def BitBlt(self, emu, argv, ctx={}):
+        """
+        BOOL BitBlt(
+        HDC   hdc,
+        int   x,
+        int   y,
+        int   cx,
+        int   cy,
+        HDC   hdcSrc,
+        int   x1,
+        int   y1,
+        DWORD rop
+        """
+        return 1
+
+    @apihook('DeleteDC', argc=1)
+    def DeleteDC(self, emu, argv, ctx={}):
+        """
+        BOOL DeleteDC(
+        HDC hdc
+        );
+        """
+        return 1
+
     @apihook('SelectObject', argc=2)
     def SelectObject(self, emu, argv, ctx={}):
         """
         HGDIOBJ SelectObject(
           HDC     hdc,
           HGDIOBJ h
+        );
+        """
+        return 0
+
+    @apihook('DeleteObject', argc=1)
+    def DeleteObject(self, emu, argv, ctx={}):
+        """
+        BOOL DeleteObject(
+        HGDIOBJ ho
+        );
+        """
+        return 1
+
+    @apihook('CreateCompatibleBitmap', argc=3)
+    def CreateCompatibleBitmap(self, emu, argv, ctx={}):
+        """
+        HBITMAP CreateCompatibleBitmap(
+        HDC hdc,
+        int cx,
+        int cy
+        );
+        """
+        return 0
+
+    @apihook('CreateCompatibleDC', argc=1)
+    def CreateCompatibleDC(self, emu, argv, ctx={}):
+        """
+        HDC CreateCompatibleDC(
+        HDC hdc
+        );
+        """
+        return 0
+
+    @apihook('GetDIBits', argc=7)
+    def GetDIBits(self, emu, argv, ctx={}):
+        """
+        int GetDIBits(
+        HDC          hdc,
+        HBITMAP      hbm,
+        UINT         start,
+        UINT         cLines,
+        LPVOID       lpvBits,
+        LPBITMAPINFO lpbmi,
+        UINT         usage
+        );
+        """
+        return 0
+
+    @apihook('CreateDCA', argc=4)
+    def CreateDCA(self, emu, argv, ctx={}):
+        """
+        HDC CreateDCA(
+        LPCSTR         pwszDriver,
+        LPCSTR         pwszDevice,
+        LPCSTR         pszPort,
+        const DEVMODEA *pdm
         );
         """
         return 0

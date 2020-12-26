@@ -3565,6 +3565,39 @@ class Kernel32(api.ApiHandler):
             hnd = windefs.INVALID_HANDLE_VALUE
         return hnd
 
+    @apihook('CreatePipe', argc=4)
+    def CreatePipe(self, emu, argv, ctx={}):
+        '''
+        BOOL CreatePipe(
+        PHANDLE               hReadPipe,
+        PHANDLE               hWritePipe,
+        LPSECURITY_ATTRIBUTES lpPipeAttributes,
+        DWORD                 nSize
+        );
+        '''
+        hReadPipe, hWritePipe, lpPipeAttributes, nSize = argv
+
+        hnd = emu.pipe_open('', 0, 1, nSize, nSize)
+        if not hnd:
+            hnd = windefs.INVALID_HANDLE_VALUE
+        return hnd
+
+    @apihook('PeekNamedPipe', argc=6)
+    def PeekNamedPipe(self, emu, argv, ctx={}):
+        '''
+        BOOL PeekNamedPipe(
+        HANDLE  hNamedPipe,
+        LPVOID  lpBuffer,
+        DWORD   nBufferSize,
+        LPDWORD lpBytesRead,
+        LPDWORD lpTotalBytesAvail,
+        LPDWORD lpBytesLeftThisMessage
+        );
+        '''
+        (hNamedPipe, lpBuffer, nBufferSize, lpBytesRead,
+         lpTotalBytesAvail, lpBytesLeftThisMessage) = argv
+        return True
+
     @apihook('ConnectNamedPipe', argc=2)
     def ConnectNamedPipe(self, emu, argv, ctx={}):
         '''
@@ -4625,7 +4658,7 @@ class Kernel32(api.ApiHandler):
         );
         """
         FileHandle, ExistingCompletionPort, CompletionKey, \
-        NumberOfConcurrentThreads = argv
+            NumberOfConcurrentThreads = argv
 
         # TODO: Implement completion port creation
         hnd = self.get_handle()
@@ -4643,7 +4676,7 @@ class Kernel32(api.ApiHandler):
         );
         """
         lpszVolumeName, lpszVolumePathNames, cchBufferLength, \
-        lpcchReturnLength = argv
+            lpcchReturnLength = argv
 
         cw = self.get_char_width(ctx)
 
@@ -4679,6 +4712,55 @@ class Kernel32(api.ApiHandler):
                 rv |= (1 << i)
 
         return rv
+
+    @apihook('GlobalMemoryStatus', argc=1)
+    def GlobalMemoryStatus(self, emu, argv, ctx={}):
+        """
+        void GlobalMemoryStatus(
+        LPMEMORYSTATUS lpBuffer
+        );
+        """
+        return
+
+    @apihook('GetDiskFreeSpaceEx', argc=4)
+    def GetDiskFreeSpaceEx(self, emu, argv, ctx={}):
+        """
+        BOOL GetDiskFreeSpaceEx(
+        LPCSTR          lpDirectoryName,
+        PULARGE_INTEGER lpFreeBytesAvailableToCaller,
+        PULARGE_INTEGER lpTotalNumberOfBytes,
+        PULARGE_INTEGER lpTotalNumberOfFreeBytes
+        );
+        """
+        return True
+
+    @apihook('GetSystemDefaultLangID', argc=0)
+    def GetSystemDefaultLangID(self, emu, argv, ctx={}):
+        """
+        LANGID GetSystemDefaultLangID();
+        """
+        return True
+
+    @apihook('ResetEvent', argc=1)
+    def ResetEvent(self, emu, argv, ctx={}):
+        """
+        BOOL ResetEvent(
+        HANDLE hEvent
+        );
+        """
+        return True
+
+    @apihook('WaitForMultipleObjects', argc=4)
+    def WaitForMultipleObjects(self, emu, argv, ctx={}):
+        """
+        DWORD WaitForMultipleObjects(
+        DWORD        nCount,
+        const HANDLE *lpHandles,
+        BOOL         bWaitAll,
+        DWORD        dwMilliseconds
+        );
+        """
+        return 0
 
     @apihook('GetComputerNameEx', argc=3)
     def GetComputerNameEx(self, emu, argv, ctx={}):
@@ -4747,7 +4829,7 @@ class Kernel32(api.ApiHandler):
 
         try:
             date_str = date.strftime(date_format)
-        except:
+        except Exception:
             return 0
         else:
             if cchDate == 0:
@@ -4757,6 +4839,38 @@ class Kernel32(api.ApiHandler):
             argv[4] = date_str
 
         return 1
+
+    @apihook('DeviceIoControl', argc=8)
+    def DeviceIoControl(self, emu, argv, ctx={}):
+        """
+        BOOL DeviceIoControl(
+            HANDLE       hDevice,
+            DWORD        dwIoControlCode,
+            LPVOID       lpInBuffer,
+            DWORD        nInBufferSize,
+            LPVOID       lpOutBuffer,
+            DWORD        nOutBufferSize,
+            LPDWORD      lpBytesReturned,
+            LPOVERLAPPED lpOverlapped
+        );
+        """
+        hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv # noqa
+        nts = ddk.STATUS_SUCCESS
+
+        obj = self.get_object_from_handle(hnd)
+
+        in_buf = b''
+        if InputBuffer:
+            in_buf = self.mem_read(InputBuffer, in_len)
+
+        nts, outbuf = emu.dev_ioctl(emu.get_ptr_size(), obj, ioctl, in_buf)
+
+        if out_buf:
+            if out_len < len(outbuf):
+                nts = ddk.STATUS_BUFFER_TOO_SMALL
+            else:
+                self.mem_write(out_buf, outbuf)
+        return nts
 
     @apihook('GetTimeFormat', argc=6)
     def GetTimeFormat(self, emu, argv, ctx={}):
@@ -4802,7 +4916,7 @@ class Kernel32(api.ApiHandler):
 
         try:
             time_str = t.strftime(time_format)
-        except:
+        except Exception:
             return 0
         else:
             if cchTime == 0:

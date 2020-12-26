@@ -532,6 +532,22 @@ class AdvApi32(api.ApiHandler):
 
         return 0x1
 
+    @apihook('RevertToSelf', argc=0)
+    def RevertToSelf(self, emu, argv, ctx={}):
+        '''
+        BOOL RevertToSelf();
+        '''
+        return 1
+
+    @apihook('ImpersonateLoggedOnUser', argc=1)
+    def ImpersonateLoggedOnUser(self, emu, argv, ctx={}):
+        '''
+        BOOL ImpersonateLoggedOnUser(
+        HANDLE hToken
+        );
+        '''
+        return 1
+
     @apihook('OpenSCManager', argc=3)
     def OpenSCManager(self, emu, argv, ctx={}):
         '''

@@ -534,6 +534,31 @@ class Msvcrt(api.ApiHandler):
         argv.append(fin)
         return len(fin)
 
+    @apihook('_snprintf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _snprintf(self, emu, argv, ctx={}):
+        """
+        int _snprintf(
+        char *buffer,
+        size_t count,
+        const char *format [,
+        argument] ...
+        );
+        """
+        buf, count, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+        if not fmt_cnt:
+            self.write_string(fmt_str, buf)
+            return len(fmt_str)
+
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, _argv)
+
+        self.write_string(fin, buf)
+        argv.clear()
+        argv.append(fin)
+        return len(fin)
+
     @apihook('atoi', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def atoi(self, emu, argv, ctx={}):
         """
@@ -730,7 +755,7 @@ class Msvcrt(api.ApiHandler):
             if reg.TryLevel & 0x80000000:
                 tl = -0x100000000 + reg.TryLevel
 
-            if tl == -2: # -2 is the outermost scope
+            if tl == -2:  # -2 is the outermost scope
                 tl = 0
 
             scope_record_offset += (rec.sizeof() * tl)
@@ -753,6 +778,19 @@ class Msvcrt(api.ApiHandler):
         except_num, exc_ptr = argv
         rv = 1
 
+        return rv
+
+    @apihook('_except_handler3', argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _except_handler3(self, emu, argv, ctx={}):
+        """
+        int _except_handler3(
+        PEXCEPTION_RECORD exception_record,
+        PEXCEPTION_REGISTRATION registration,
+        PCONTEXT context,
+        PEXCEPTION_REGISTRATION dispatcher
+        );
+        """
+        rv = 1
         return rv
 
     @apihook('_seh_filter_dll', argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -864,6 +902,20 @@ class Msvcrt(api.ApiHandler):
         if thrdaddr:
             self.mem_write(thrdaddr, obj.get_id().to_bytes(4, 'little'))
 
+        return handle
+
+    @apihook('_beginthread', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _beginthread(self, emu, argv, ctx={}):
+        """
+        uintptr_t _beginthread
+        void( __cdecl *start_address )( void * ),
+        unsigned stack_size,
+        void *arglist
+        );
+        """
+        start_address, stack_size, arglist = argv
+
+        handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
         return handle
 
     @apihook('system', argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1045,6 +1097,84 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('strrchr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strrchr(self, emu, argv, ctx={}):
+        """
+        char *strrchr(
+            const char *str,
+            int c
+            );
+        """
+        cstr, c = argv
+        cs = self.read_string(cstr)
+        hay = cs.encode('utf-8')
+        needle = c.to_bytes(1, 'little')
+
+        offset = hay.rfind(needle)
+        if offset < 0:
+            rv = 0
+        else:
+            rv = cstr + offset
+
+        argv[0] = cs
+        argv[1] = needle.decode('utf-8')
+
+        return rv
+
+    @apihook('_ftol', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _ftol(self, emu, argv, ctx={}):
+        """
+        int _ftol(int);
+        """
+        f, = argv
+        return int(f)
+
+    @apihook('_adjust_fdiv', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _adjust_fdiv(self, emu, argv, ctx={}):
+        """
+        void _adjust_fdiv(void)
+        """
+        return
+
+    @apihook('tolower', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def tolower(self, emu, argv, ctx={}):
+        """
+        int tolower ( int c );
+        """
+        c, = argv
+        return c | 0x20
+
+    @apihook('sscanf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def sscanf(self, emu, argv, ctx={}):
+        """
+        int sscanf ( const char * s, const char * format, ...);
+        """
+        return
+
+    @apihook('strchr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strchr(self, emu, argv, ctx={}):
+        """
+        char *strchr(
+            const char *str,
+            int c
+            );
+        """
+        cstr, c = argv
+        cs = self.read_string(cstr)
+        hay = cs.encode('utf-8')
+        needle = c.to_bytes(1, 'little')
+
+        offset = hay.find(needle)
+        if offset < 0:
+            rv = 0
+        else:
+            rv = cstr + offset
+
+        argv[0] = cs
+        argv[1] = needle.decode('utf-8')
+
+        return rv
+
     @apihook('_set_invalid_parameter_handler', argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_invalid_parameter_handler(self, emu, argv, ctx={}):
         """
@@ -1054,6 +1184,19 @@ class Msvcrt(api.ApiHandler):
         """
         pNew, = argv
 
+        return 0
+
+    @apihook('__CxxFrameHandler', argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def __CxxFrameHandler(self, emu, argv, ctx={}):
+        """
+        EXCEPTION_DISPOSITION __CxxFrameHandler(
+            EHExceptionRecord  *pExcept,
+            EHRegistrationNode *pRN,
+            void               *pContext,
+            DispatcherContext  *pDC
+        )
+        """
+        pExcept, pRN, pContext, pDC, = argv
         return 0
 
     @apihook('_vsnprintf', argc=4, conv=e_arch.CALL_CONV_CDECL)
@@ -1113,3 +1256,35 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('_strcmpi', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _strcmpi(self, emu, argv, ctx={}):
+        """
+        int _strcmpi(
+                const char *string1,
+                const char *string2
+                );
+        """
+        string1, string2 = argv
+        rv = 1
+
+        if not string1 or not string2:
+            return rv
+
+        cs1 = self.read_string(string1)
+        cs2 = self.read_string(string2)
+
+        argv[0] = cs1
+        argv[1] = cs2
+
+        if cs1.lower() == cs2.lower():
+            rv = 0
+
+        return rv
+
+    @apihook('??3@YAXPAX@Z', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __3_YAXPAX_Z(self, emu, argv, ctx={}):
+        return
+
+    @apihook('??2@YAPAXI@Z', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __2_YAPAXI_Z(self, emu, argv, ctx={}):
+        return
