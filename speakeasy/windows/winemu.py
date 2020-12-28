@@ -1653,6 +1653,7 @@ class WindowsEmulator(BinaryEmulator):
             func_names = new
 
             func_names = [fn for o, fn in func_names]
+            func_names.sort()
 
             exports = []
             ords = [o for o, fn in funcs if o is not None]
