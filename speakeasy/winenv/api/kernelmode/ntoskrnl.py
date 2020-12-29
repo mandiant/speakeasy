@@ -395,6 +395,8 @@ class Ntoskrnl(api.ApiHandler):
             name = self.read_unicode_string(name).replace('\x00', '')
 
         driver_obj = self.get_object_from_addr(drv)
+        if not driver_obj:
+            return ddk.STATUS_INVALID_PARAMETER
 
         dev = emu.create_device_object(name, driver_obj, ext_size, devtype,
                                        chars, tag='api.object')

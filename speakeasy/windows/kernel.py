@@ -95,14 +95,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                              (self.get_system_root(), os.path.basename(bn)))
             pe.decoy_base = pe.get_base()
 
-            ep = pe.get_base() + pe.ep
-            drv.object.MajorFunction[ddk.IRP_MJ_CREATE] = ep + 1
-            drv.object.MajorFunction[ddk.IRP_MJ_READ] = ep + 2
-            drv.object.MajorFunction[ddk.IRP_MJ_WRITE] = ep + 3
-            drv.object.MajorFunction[ddk.IRP_MJ_DEVICE_CONTROL] = ep + 4
-            drv.object.MajorFunction[ddk.IRP_MJ_PNP] = ep + 5
-            drv.object.MajorFunction[ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL] = ep+6
-
         else:
             if not name:
                 bn = pe.path
@@ -112,6 +104,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 pe.decoy_base = pe.base
 
         drv.init_driver_object(name, pe)
+
         self.add_object(drv)
 
         self.drivers.append(drv)

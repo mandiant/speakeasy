@@ -392,6 +392,13 @@ class Netio(api.ApiHandler):
 
         return
 
+    @apihook('NsiEnumerateObjectsAllParametersEx', argc=0)
+    def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx={}):
+        """
+        N/A
+        """
+        return
+
     @apihook('WskDeregister', argc=1)
     def WskDeregister(self, emu, argv, ctx={}):
         """

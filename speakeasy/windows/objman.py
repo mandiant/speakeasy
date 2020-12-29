@@ -275,6 +275,14 @@ class Driver(KernelObject):
             drvobj.DriverSize = pe.image_size
             drvobj.DriverInit = pe.get_base() + pe.ep
 
+            ep = pe.get_base() + pe.ep
+            drvobj.MajorFunction[ddk.IRP_MJ_CREATE] = ep + 1
+            drvobj.MajorFunction[ddk.IRP_MJ_READ] = 0
+            drvobj.MajorFunction[ddk.IRP_MJ_WRITE] = 0
+            drvobj.MajorFunction[ddk.IRP_MJ_DEVICE_CONTROL] = ep + 4
+            drvobj.MajorFunction[ddk.IRP_MJ_PNP] = ep + 5
+            drvobj.MajorFunction[ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL] = ep+6
+
             if not name:
                 drvname = os.path.splitext(pe.path)[0]
                 drvname = os.path.basename(drvname)

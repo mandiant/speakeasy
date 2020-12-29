@@ -6,21 +6,23 @@ import inspect
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
-from speakeasy.winenv.api.kernelmode import *
-from speakeasy.winenv.api.usermode import *
+from speakeasy.winenv.api.kernelmode import * # noqa
+from speakeasy.winenv.api.usermode import * # noqa
 
 
 def autoload_api_handlers():
     api_handlers = []
 
     for modname, modobj in sys.modules.items():
-        if not modname.startswith(('speakeasy.winenv.api.kernelmode.', 'speakeasy.winenv.api.usermode.')):
+        if not modname.startswith(('speakeasy.winenv.api.kernelmode.',
+                                   'speakeasy.winenv.api.usermode.')):
             continue
         for clsname, clsobj in inspect.getmembers(modobj, inspect.isclass):
             if clsobj is not api.ApiHandler and issubclass(clsobj, api.ApiHandler):
                 api_handlers.append((clsobj.name, clsobj))
 
     return tuple(api_handlers)
+
 
 API_HANDLERS = autoload_api_handlers()
 

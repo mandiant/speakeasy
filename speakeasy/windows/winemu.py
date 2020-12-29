@@ -1631,6 +1631,7 @@ class WindowsEmulator(BinaryEmulator):
             jit = winemu.JitPeFile(self.get_arch())
 
             funcs = [(f[4], f[0]) for k, f in mod_handler.funcs.items() if isinstance(k, str)]
+            data_exports = [k for k, d in mod_handler.data.items() if isinstance(k, str)]
 
             new = funcs.copy()
 
@@ -1674,6 +1675,7 @@ class WindowsEmulator(BinaryEmulator):
             if not exports:
                 exports = func_names
 
+            exports += data_exports
             img = jit.get_decoy_pe_image(modname, exports)
             mod = winemu.DecoyModule(data=img)
 
