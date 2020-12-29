@@ -650,6 +650,9 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self._set_entry_point_names()
         return super(WinKernelEmulator, self).get_json_report()
 
+    def get_ssdt_ptr(self):
+        return self.ssdt_ptr
+
     def setup_kernel_mode(self):
 
         idt = objman.IDT(self)
@@ -663,10 +666,10 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         ssdt = self.ktypes.SSDT(self.get_ptr_size())
         size = self.get_ptr_size() * 256
 
-        ptr = self.mem_map(size, base=None, tag='api.struct.SSDT')
+        self.ssdt_ptr = self.mem_map(size, base=None, tag='api.struct.SSDT')
         ssdt.NumberOfServices = 256
-        ssdt.pServiceTable = ptr + self.sizeof(ssdt)
-        self.mem_write(ptr, self.get_bytes(ssdt))
+        ssdt.pServiceTable = self.ssdt_ptr + self.sizeof(ssdt)
+        self.mem_write(self.ssdt_ptr, self.get_bytes(ssdt))
 
         self.get_sys_modules()
 

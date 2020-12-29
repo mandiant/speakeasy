@@ -67,21 +67,7 @@ class Ntoskrnl(api.ApiHandler):
     @impdata('KeServiceDescriptorTable')
     def KeServiceDescriptorTable(self, ptr=0):
         """Kernel table containing SSDT"""
-        ssdt = self.win.SSDT(self.emu.get_ptr_size())
-        size = self.sizeof(ssdt)
-        size += (self.get_ptr_size() * 256)
-        desc_tbl = ptr
-
-        if not ptr:
-            desc_tbl = self.mem_alloc(size, base=None,
-                                      tag='emu.struct.SSDT')
-
-        ssdt.NumberOfServices = 256
-        ssdt.pServiceTable = desc_tbl + self.sizeof(ssdt)
-
-        self.mem_write(desc_tbl, self.get_bytes(ssdt))
-
-        return desc_tbl
+        return self.emu.get_ssdt_ptr()
 
     @impdata('KdDebuggerEnabled')
     def KdDebuggerEnabled(self, ptr=0):
