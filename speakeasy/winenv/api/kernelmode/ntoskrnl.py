@@ -3072,8 +3072,10 @@ class Ntoskrnl(api.ApiHandler):
                 fname = fname.replace('.', '_')
                 mm.update_tag('%s.%s.0x%x' % (tag_prefix, fname, buf))
                 self.mem_write(buf, data)
+                if ViewSize:
+                    self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), 'little'))
                 argv[2] = buf
-                argv[3] = size
+                argv[6] = size
             elif not pref_address:
                 if bytes_to_map == 0:
                     bytes_to_map = sect.size
@@ -3082,8 +3084,10 @@ class Ntoskrnl(api.ApiHandler):
                                      process=proc_obj)
                 mm = emu.get_address_map(buf)
                 mm.update_tag('%s.0x%x' % (tag_prefix, buf))
+                if ViewSize:
+                    self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), 'little'))
                 argv[2] = buf
-                argv[3] = size
+                argv[6] = size
                 sect.add_view(buf, full_offset, size, access)
             else:
                 buf = pref_address
