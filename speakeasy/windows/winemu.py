@@ -1930,6 +1930,12 @@ class WindowsEmulator(BinaryEmulator):
             return True
         return False
 
+    def get_reserved_ranges(self):
+        """
+        Get the allocated memory ranges that the emulator reserves
+        """
+        return (winemu.EMU_RESERVED, winemu.EMU_RESERVED_END)
+
     def _continue_seh_x86(self):
         """
         Get the next exception handler while processing SEH

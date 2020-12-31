@@ -265,7 +265,8 @@ class Speakeasy(object):
         """
         return self.emu.get_json_report()
 
-    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None, enable_wild_cards=True):
+    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None,
+                     enable_wild_cards=True):
         """
         Set a callback to fire when a specified API is called during emulation
 
@@ -283,7 +284,8 @@ class Speakeasy(object):
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
             return
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc,
-                                     call_conv=call_conv, emu=self, enable_wild_cards=enable_wild_cards)
+                                     call_conv=call_conv, emu=self,
+                                     enable_wild_cards=enable_wild_cards)
 
     def resume(self, addr, count=-1):
         """
@@ -295,6 +297,7 @@ class Speakeasy(object):
         return:
             None
         """
+        self.emu.run_complete = False
         self.emu.resume(addr, count=count)
 
     def stop(self) -> None:
@@ -415,6 +418,24 @@ class Speakeasy(object):
             A memory map object that holds the specified address
         """
         return self.emu.get_address_map(addr)
+
+    def get_user_modules(self) -> list:
+        """
+        Get the address ranges of loaded user modules
+
+        return:
+            List of all currently loaded user modules
+        """
+        return self.emu.get_user_modules()
+
+    def get_sys_modules(self) -> list:
+        """
+        Get the address ranges of loaded system modules
+
+        return:
+            List of all currently loaded system modules
+        """
+        return self.emu.get_sys_modules()
 
     def mem_alloc(self, size, base=None, tag='speakeasy.None') -> int:
         """
@@ -698,6 +719,15 @@ class Speakeasy(object):
             pointer size
         """
         return self.emu.ptr_size
+
+    def get_all_registers(self) -> dict:
+        """
+        Get the state of all registers
+
+        return:
+            Dict containing emulation register states
+        """
+        return self.emu.get_register_state()
 
     def get_symbol_from_address(self, address: int) -> str:
         """
