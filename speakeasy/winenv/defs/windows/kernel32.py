@@ -46,6 +46,10 @@ ComputerNamePhysicalDnsDomain = 6
 ComputerNamePhysicalDnsFullyQualified = 7
 ComputerNameMax = 8
 
+NetSetupUnknownStatus = 0
+NetSetupUnjoined = 1
+NetSetupWorkgroupName = 2
+NetSetupDomainName = 3
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
@@ -103,6 +107,17 @@ class WIN32_FIND_DATA(EmuStruct):
         self.dwReserved1 = ct.c_uint32
         self.cFileName = ct.c_uint8 * (260 * width)
         self.cAlternateFileName = ct.c_uint8 * (14 * width)
+
+
+class WIN32_FILE_ATTRIBUTE_DATA(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.dwFileAttributes = ct.c_uint32
+        self.ftCreationTime = FILETIME
+        self.ftLastAccessTime = FILETIME
+        self.ftLastWriteTime = FILETIME
+        self.nFileSizeHigh = ct.c_uint32
+        self.nFileSizeLow = ct.c_uint32
 
 
 class SYSTEM_INFO(EmuStruct):
