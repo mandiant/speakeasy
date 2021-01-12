@@ -1107,8 +1107,11 @@ class AdvApi32(api.ApiHandler):
                 'md5': (0x00008003, 'CALG_MD5')
             }
             id_tuple = hash_algs.get(hnd.name)
-            data = id_tuple[0].to_bytes(4, 'little')
-            argv[2] = id_tuple[1]
+            if id_tuple:
+                data = id_tuple[0].to_bytes(4, 'little')
+                argv[2] = id_tuple[1]
+            else:
+                return False
         elif dwParam == adv32.HP_HASHSIZE:
             data = hnd.digest_size.to_bytes(4, 'little')
         elif dwParam == adv32.HP_HASHVAL:
