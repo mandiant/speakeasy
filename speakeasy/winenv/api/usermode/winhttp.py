@@ -300,3 +300,67 @@ class WinHttp(api.ApiHandler):
             self.mem_write(lpUrlComponents, url_comp.get_bytes())
 
         return rv
+
+    @apihook('WinHttpAddRequestHeaders', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    def WinHttpAddRequestHeaders(self, emu, argv, ctx={}):
+        """
+        BOOLAPI WinHttpAddRequestHeaders(
+          HINTERNET hRequest,
+          LPCWSTR   lpszHeaders,
+          DWORD     dwHeadersLength,
+          DWORD     dwModifiers
+        );
+        """
+        hnd, headers, dwHeaderlen, dwModfier = argv
+
+        headers = self.read_wide_string(headers, dwHeaderlen)
+        argv[1] = headers
+        flags = windefs.get_header_info_winhttp(dwModfier)
+        argv[3] = ' | '.join(flags)
+        rv = 1
+
+        return rv
+
+    @apihook('WinHttpQueryHeaders', argc=6, conv=_arch.CALL_CONV_STDCALL)
+    def WinHttpQueryHeaders(self, emu, argv, ctx={}):
+        """
+       BOOLAPI WinHttpQueryHeaders(
+          HINTERNET hRequest,
+          DWORD     dwInfoLevel,
+          LPCWSTR   pwszName,
+          LPVOID    lpBuffer,
+          LPDWORD   lpdwBufferLength,
+          LPDWORD   lpdwIndex
+        );
+        """
+        hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
+
+        header_query = windefs.get_header_query(dwInfoLevel)
+        argv[2] = header_query
+
+        if buffer == 0:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+
+        # If program checks for WINHTTP_QUERY_STATUS_CODE and the buffer is set, write '200' to buffer
+        if (header_query == windefs.WINHTTP_QUERY_STATUS_CODE) and (buffer != 0):
+            self.mem_write(buffer, b'\x32\x00\x30\x00\x30\x00\x00\x00')
+            argv[3] = buffer
+            self.mem_write(bufferLen, 8)
+            argv[4] = bufferLen
+
+        argv[5] = 0
+        rv = 1
+
+        return rv
+
+    @apihook('WinHttpCloseHandle', argc=1, conv=_arch.CALL_CONV_STDCALL)
+    def WinHttpCloseHandle(self, emu, argv, ctx={}):
+        """
+        BOOLAPI WinHttpCloseHandle(
+          HINTERNET hInternet
+        );
+        """
+        rv = 1
+
+        return rv
