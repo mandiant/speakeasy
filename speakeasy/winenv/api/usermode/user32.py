@@ -709,6 +709,7 @@ class User32(api.ApiHandler):
         self.write_string(fin, buf)
         argv.clear()
         argv.append(fin)
+        argv.append(fmt_str)
         return len(fin)
 
     @apihook('ReleaseDC', argc=2)
@@ -1218,3 +1219,19 @@ class User32(api.ApiHandler):
         );
         """
         return 0
+
+    @apihook('GetKeyboardLayoutList', argc=2)
+    def GetKeyboardLayoutList(self, emu, argv, ctx={}):
+        """
+        int GetKeyboardLayoutList(
+          int nBuff,
+          HKL *lpList
+        );
+        """
+        nBuff, lpList = argv
+
+        locale = 0x409      # English - United States
+        self.mem_write(lpList, locale.to_bytes(2, 'little'))
+        self.mem_write(lpList + 4, locale.to_bytes(2, 'little'))
+
+        return 1

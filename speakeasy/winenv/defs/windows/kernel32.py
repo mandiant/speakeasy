@@ -51,6 +51,9 @@ NetSetupUnjoined = 1
 NetSetupWorkgroupName = 2
 NetSetupDomainName = 3
 
+GetFileExInfoStandard = 0
+
+
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)

@@ -1208,13 +1208,10 @@ class Kernel32(api.ApiHandler):
             st.wHour = dt.hour
             st.wMinute = dt.minute
             st.wSecond = dt.second
-            rv = True
             if lpSystemTime:
                 self.mem_write(lpSystemTime, st.get_bytes())
-        else:
-            rv = True
 
-        return rv
+        return True
 
     @apihook('GetSystemTimeAsFileTime', argc=1)
     def GetSystemTimeAsFileTime(self, emu, argv, ctx={}):
@@ -1478,7 +1475,6 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         if not mod_name:
-
             proc = emu.get_current_process()
             rv = proc.base
         else:
@@ -1491,6 +1487,7 @@ class Kernel32(api.ApiHandler):
                 fname, _ = os.path.splitext(img)
                 if fname.lower() == sname.lower():
                     rv = mod.get_base()
+                    break
 
         return rv
 
@@ -1543,7 +1540,7 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook('SleepEx', argc=2)
-    def Sleep(self, emu, argv, ctx={}):
+    def SleepEx(self, emu, argv, ctx={}):
         '''DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);
         '''
         millisec, bAlertable = argv
@@ -2683,22 +2680,23 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         fn = ctx['func_name']
         if 'GetWindowsDirectory' in fn:
-            sysroot = emu.get_windows_dir()
+            sysroot = 'C:\\Windows'
         else:
-            sysroot = emu.get_system_root()
-        if sysroot:
-            sysroot += '\x00'
-            if cw == 2:
-                out = sysroot.encode('utf-16le')
-            elif cw == 1:
-                out = sysroot.encode('utf-8')
+            sysroot = 'C:\\Windows\\system32'
 
-            if len(sysroot) > uSize:
-                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-            else:
-                self.mem_write(lpBuffer, out)
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-                rv = len(sysroot)
+        argv[0] = sysroot
+        sysroot += '\x00'
+        if cw == 2:
+            out = sysroot.encode('utf-16le')
+        elif cw == 1:
+            out = sysroot.encode('utf-8')
+
+        if len(sysroot) > uSize:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+        else:
+            self.mem_write(lpBuffer, out)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            rv = len(sysroot)
 
         return rv
 
@@ -2902,30 +2900,21 @@ class Kernel32(api.ApiHandler):
           GET_FILEEX_INFO_LEVELS fInfoLevelId,
           LPVOID                 lpFileInformation
         );
-
-        lpFileInformation: Return parameter, is a WIN32_FILE_ATTRIBUTE_DATA structure
-
-        typedef struct _WIN32_FILE_ATTRIBUTE_DATA {
-          DWORD    dwFileAttributes;
-          FILETIME ftCreationTime;
-          FILETIME ftLastAccessTime;
-          FILETIME ftLastWriteTime;
-          DWORD    nFileSizeHigh;
-          DWORD    nFileSizeLow;
-        } WIN32_FILE_ATTRIBUTE_DATA, *LPWIN32_FILE_ATTRIBUTE_DATA;
         '''
         lpFileName, fInfoLevelId, lpFileInformation = argv
 
-        if not lpFileInformation:
-            return windefs.INVALID_HANDLE_VALUE
+        cw = self.get_char_width(ctx)
 
-        if fInfoLevelId != 0:
-            return 0
+        filename = self.read_mem_string(lpFileName, cw)
+        argv[0] = filename
+
+        level_id = k32types.get_define(fInfoLevelId, 'GetFileExInfo')
+        if not level_id:
+            return False
+
+        argv[1] = level_id
 
         file_data = k32types.WIN32_FILE_ATTRIBUTE_DATA(emu.get_ptr_size())
-
-        if not file_data:
-            return 0
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.dwFileAttributes to Normal
         file_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
@@ -2936,28 +2925,25 @@ class Kernel32(api.ApiHandler):
         file_data.ftCreationTime.dwHighDateTime = timestamp >> 32
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
-        cw = self.get_char_width(ctx)
-        if lpFileName:
-            file_name = self.read_mem_string(lpFileName, cw)
-            fHandle = self.file_open(file_name)
-            if fHandle:
-                full_size = fHandle.get_size()
-                high = (0xFFFFFFFF & (full_size >> 32))
-                low = 0xFFFFFFFF & full_size
-                high = high.to_bytes(4, 'little')
+        fHandle = self.file_open(filename)
+        if fHandle:
+            full_size = fHandle.get_size()
+            high = (0xFFFFFFFF & (full_size >> 32))
+            low = 0xFFFFFFFF & full_size
+            high = high.to_bytes(4, 'little')
 
-                if file_data.nFileSizeHigh:
-                    file_data.ftCreationTime.nFileSizeHigh = high
-                emu.set_last_error(windefs.ERROR_SUCCESS)
+            if file_data.nFileSizeHigh:
+                file_data.ftCreationTime.nFileSizeHigh = high
+            emu.set_last_error(windefs.ERROR_SUCCESS)
 
-            else:
-                low = 0xFFFFFFFF
-                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        else:
+            low = 0xFFFFFFFF
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-            file_data.ftCreationTime.nFileSizeLow = low
+        file_data.ftCreationTime.nFileSizeLow = low
 
         self.mem_write(lpFileInformation, file_data.get_bytes())
-        return 1
+        return True
 
     @apihook('CreateDirectory', argc=2)
     def CreateDirectory(self, emu, argv, ctx={}):
