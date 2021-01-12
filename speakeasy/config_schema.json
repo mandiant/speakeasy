@@ -195,6 +195,10 @@
                 "type": "string"
             }
         },
+        "domain": {
+            "type": "string",
+            "description": "Domain returned during emulation"
+        },
         "hostname": {
             "type": "string",
             "description": "Hostname returned during emulation"
