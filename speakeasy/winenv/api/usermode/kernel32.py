@@ -3757,10 +3757,10 @@ class Kernel32(api.ApiHandler):
     @apihook('GetComputerName', argc=2)
     def GetComputerName(self, emu, argv, ctx={}):
         '''
-    BOOL GetComputerName(
-        LPSTR   lpBuffer,
-        LPDWORD nSize
-    );
+        BOOL GetComputerName(
+            LPSTR   lpBuffer,
+            LPDWORD nSize
+        );
         '''
 
         lpBuffer, nSize = argv
@@ -3768,6 +3768,8 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         host = emu.get_hostname()
+        argv[0] = host
+        argv[1] = len(host)
 
         if lpBuffer and host:
             if cw == 2:
