@@ -4972,6 +4972,7 @@ class Kernel32(api.ApiHandler):
                           minute=sys_time.wMinute,
                           second=sys_time.wSecond)
         time_format = time_format.replace('hh', '%I')
+        time_format = time_format.replace('HH', '%H')
         time_format = time_format.replace('mm', '%M')
         time_format = time_format.replace('ss', '%S')
 
