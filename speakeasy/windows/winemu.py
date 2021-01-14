@@ -1434,6 +1434,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when non-writable address is written to
         """
+        # ignore patches to APIs
+        if address >= winemu.EMU_RESERVED and \
+                address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
+            return True
+
         if self.dispatch_handlers:
             rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:

@@ -2995,6 +2995,7 @@ class Ntoskrnl(api.ApiHandler):
             size = int.from_bytes(size, 'little')
         hmap = fm.file_create_mapping(FileHandle, name, size, SectionPageProtection)
         self.mem_write(SectionHandle, hmap.to_bytes(self.get_ptr_size(), byteorder='little'))
+        argv[0] = hmap
 
         return ddk.STATUS_SUCCESS
 
