@@ -40,6 +40,7 @@ class NetApi32(api.ApiHandler):
         self.write_wide_string(domain, namebuf)
         self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), 'little'))
 
+        argv[2] = netapi32defs.NetSetupDomainName
         self.mem_write(BufferType, netapi32defs.NetSetupDomainName.to_bytes(4, 'little'))
 
         return netapi32defs.NERR_Success
