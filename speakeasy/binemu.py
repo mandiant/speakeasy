@@ -96,6 +96,7 @@ class BinaryEmulator(MemoryManager):
         self.osversion = config.get('os_ver', {})
         self.env = config.get('env', {})
         self.user_config = config.get('user', {})
+        self.domain = config.get('domain')
         self.hostname = config.get('hostname')
         self.symlinks = config.get('symlinks', [])
         self.config_modules = config.get('modules', {})
@@ -139,6 +140,12 @@ class BinaryEmulator(MemoryManager):
             if major is not None and minor is not None:
                 verstr = '%s.%d_%d' % (os_name, major, minor)
                 return verstr
+
+    def get_domain(self):
+        """
+        Get domain of the machine being emulated
+        """
+        return self.domain
 
     def get_hostname(self):
         """

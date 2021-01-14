@@ -1037,8 +1037,7 @@ class AdvApi32(api.ApiHandler):
         }
 
         hProv, Algid, hKey, dwFlags, phHash = argv
-        if Algid in hash_algs:
-            argv[1] = hash_algs.get(Algid)[0]
+        argv[1] = hash_algs.get(Algid, Algid)
 
         if hKey != 0:
             return 0
@@ -1075,78 +1074,6 @@ class AdvApi32(api.ApiHandler):
         data = self.mem_read(pbData, dwDataLen)
         hnd.update(data)
         return 1
-
-    @apihook('CryptGetHashParam', argc=5)
-    def CryptGetHashParam(self, emu, argv, ctx={}):
-        '''
-        BOOL CryptGetHashParam(
-          HCRYPTHASH hHash,
-          DWORD      dwParam,
-          BYTE       *pbData,
-          DWORD      *pdwDataLen,
-          DWORD      dwFlags
-        );
-        '''
-        hHash, dwParam, pbData, pdwDataLen, dwFlags = argv
-
-        hnd = self.hash_objects.get(hHash, None)
-        if hnd is None:
-            emu.set_last_error(adv32.NTE_BAD_HASH)
-            return False
-
-        param = adv32.get_define_int(dwParam, 'HP_')
-        if param:
-            argv[1] = param
-
-        if dwParam == adv32.HP_ALGID:
-            hash_algs = {
-                'sha1': (0x00008004, 'CALG_SHA1'),
-                'sha256': (0x0000800c, 'CALG_SHA_256'),
-                'sha384': (0x0000800d, 'CALG_SHA_384'),
-                'sha512': (0x0000800e, 'CALG_SHA_512'),
-                'md5': (0x00008003, 'CALG_MD5')
-            }
-            id_tuple = hash_algs.get(hnd.name)
-            if id_tuple:
-                data = id_tuple[0].to_bytes(4, 'little')
-                argv[2] = id_tuple[1]
-            else:
-                return False
-        elif dwParam == adv32.HP_HASHSIZE:
-            data = hnd.digest_size.to_bytes(4, 'little')
-        elif dwParam == adv32.HP_HASHVAL:
-            data = hnd.digest()
-            argv[2] = hnd.hexdigest()
-        else:
-            emu.set_last_error(adv32.NTE_BAD_TYPE)
-            return False
-
-        if pbData:
-            self.mem_write(pbData, data)
-
-        data_len = len(data)
-        argv[3] = data_len
-        self.mem_write(pdwDataLen, data_len.to_bytes(4, 'little'))
-
-        return True
-
-    @apihook('CryptDestroyHash', argc=1)
-    def CryptDestroyHash(self, emu, argv, ctx={}):
-        '''
-        BOOL CryptDestroyHash(
-          HCRYPTHASH hHash
-        );
-        '''
-        hHash, = argv
-
-        hnd = self.hash_objects.get(hHash, None)
-        if hnd is None:
-            emu.set_last_error(adv32.NTE_BAD_HASH)
-            return False
-
-        self.hash_objects.pop(hHash)
-
-        return True
 
     @apihook('RegGetValue', argc=7, conv=_arch.CALL_CONV_STDCALL)
     def RegGetValue(self, emu, argv, ctx={}):

@@ -39,6 +39,8 @@
         "programfiles": "C:\\Program Files"
     },
 
+    "domain": "speakeasy_domain",
+
     "hostname": "speakeasy_host",
 
     "user": {
@@ -535,6 +537,11 @@
                     "name": "ncrypt",
                     "base_addr": "0x5fa00000",
                     "path": "C:\\Windows\\system32\\ncrypt.dll"
+                },
+                {
+                    "name": "netutils",
+                    "base_addr": "0x5fb00000",
+                    "path": "C:\\Windows\\system32\\netutils.dll"
                 }
         ]
     }
