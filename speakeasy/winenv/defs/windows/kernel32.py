@@ -46,11 +46,6 @@ ComputerNamePhysicalDnsDomain = 6
 ComputerNamePhysicalDnsFullyQualified = 7
 ComputerNameMax = 8
 
-NetSetupUnknownStatus = 0
-NetSetupUnjoined = 1
-NetSetupWorkgroupName = 2
-NetSetupDomainName = 3
-
 GetFileExInfoStandard = 0
 
 
