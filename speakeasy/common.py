@@ -13,6 +13,7 @@ HOOK_MEM_ACCESS = 1006
 HOOK_MEM_PERM_WRITE = 1007
 HOOK_API = 1008
 HOOK_DYN_CODE = 1009
+HOOK_INSN = 1010
 
 # Emulation memory protection types
 PERM_MEM_NONE = 0
@@ -93,6 +94,16 @@ class Hook(object):
     def _wrap_intr_cb(self, emu, num, ctx=[]):
         if self.enabled:
             return self.cb(self.se_obj, num, self.ctx)
+        return True
+
+    def _wrap_in_insn_cb(self, emu, port, size, ctx=[]):
+        if self.enabled:
+            return self.cb(self.se_obj, port, size)
+        return True
+
+    def _wrap_syscall_insn_cb(self, emu, ctx=[]):
+        if self.enabled:
+            return self.cb(self.se_obj)
         return True
 
     def _wrap_memory_access_cb(self, emu, access, addr, size, value, ctx):
@@ -209,5 +220,20 @@ class InterruptHook(Hook):
     def add(self):
         if not self.added and self.native_hook:
             self.handle = self.emu_eng.hook_add(htype=HOOK_INTERRUPT, cb=self._wrap_intr_cb)
+        self.added = True
+        self.enabled = True
+
+class InstructionHook(Hook):
+    """
+    This hook will fire each time a instruction hook is triggered,
+    Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
+    """
+    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True, insn=None):
+        super(InstructionHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+        self.insn = insn
+
+    def add(self):
+        if not self.added and self.native_hook:
+            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb, arg1=self.insn)
         self.added = True
         self.enabled = True
