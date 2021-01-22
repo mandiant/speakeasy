@@ -426,7 +426,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         dev.object.Characteristics = chars
         dev.object.DeviceType = devtype
         if ext_size > 0:
-            dev.object.DeviceObjectExtension = dev.address + dev.sizeof()
+            dev.object.DeviceExtension = dev.address + dev.sizeof()
 
         dev.write_back()
 
