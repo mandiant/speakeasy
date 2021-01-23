@@ -103,7 +103,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 pe.decoy_path = path
                 pe.decoy_base = pe.base
 
-        drv.init_driver_object(name, pe)
+        drv.init_driver_object(name, pe, is_decoy=False)
 
         self.add_object(drv)
 

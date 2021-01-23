@@ -360,6 +360,15 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(dest, data)
         return dest
 
+    @apihook('IoDeleteDriver', argc=1)
+    def IoDeleteDriver(self, emu, argv, ctx={}):
+        """
+        VOID IoDeleteDriver(PDRIVER_OBJECT DriverObject)
+        """
+        drv, = argv
+
+        return
+
     @apihook('IoCreateDevice', argc=7)
     def IoCreateDevice(self, emu, argv, ctx={}):
         """
@@ -1725,6 +1734,23 @@ class Ntoskrnl(api.ApiHandler):
         sys_time = self.mem_read(SystemTime, 8)
         int_sys_time = int.from_bytes(sys_time, 'little')
         self.mem_write(LocalTime, int_sys_time.to_bytes(8, 'little'))
+
+    @apihook('CmRegisterCallbackEx', argc=6)
+    def CmRegisterCallbackEx(self, emu, argv, ctx={}):
+        """
+        NTSTATUS CmRegisterCallbackEx(
+            PEX_CALLBACK_FUNCTION Function,
+            PCUNICODE_STRING      Altitude,
+            PVOID                 Driver,
+            PVOID                 Context,
+            PLARGE_INTEGER        Cookie,
+            PVOID                 Reserved
+        );
+        """
+        # TODO: Emulate the callback routine
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
 
     @apihook('CmRegisterCallback', argc=3)
     def CmRegisterCallback(self, emu, argv, ctx={}):
