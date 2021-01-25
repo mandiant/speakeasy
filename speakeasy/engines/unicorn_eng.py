@@ -131,7 +131,8 @@ class EmuEngine(object):
                         common.HOOK_MEM_PERM_WRITE: uc.UC_HOOK_MEM_WRITE_PROT,
                         common.HOOK_MEM_READ: uc.UC_HOOK_MEM_READ,
                         common.HOOK_MEM_WRITE: uc.UC_HOOK_MEM_WRITE,
-                        common.HOOK_INTERRUPT: uc.UC_HOOK_INTR
+                        common.HOOK_INTERRUPT: uc.UC_HOOK_INTR,
+                        common.HOOK_INSN : uc.UC_HOOK_INSN
         }
 
     def _sec_to_usec(self, sec):
@@ -209,7 +210,7 @@ class EmuEngine(object):
         timeout = self._sec_to_usec(timeout)
         return self.emu.emu_start(addr, 0xFFFFFFFF, timeout=timeout, count=count)
 
-    def hook_add(self, addr=None, cb=None, htype=None, ctx=None, begin=1, end=0):
+    def hook_add(self, addr=None, cb=None, htype=None, ctx=None, begin=1, end=0, arg1=0):
         """
         Add a callback function for a specific event type or address
         """
@@ -222,7 +223,14 @@ class EmuEngine(object):
         # The unicorn bindings have a default python wrapper. We want to use
         # our own wrapper and don't need the extra overhead. Add callbacks directly
         # to the unicorn library here.
-        if hook_type == uc.UC_HOOK_CODE:
+        if hook_type == uc.UC_HOOK_INSN:
+            if arg1 == u.UC_X86_INS_IN: # IN instruction
+                cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_IN_CB(cb),
+                                 unicorn.unicorn.UC_HOOK_INSN_IN_CB)
+            elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER): # SYSCALL/SYSENTER instruciton
+                cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB(cb),
+                                 unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB)
+        elif hook_type == uc.UC_HOOK_CODE:
             cb = ct.cast(unicorn.unicorn.UC_HOOK_CODE_CB(cb),
                          unicorn.unicorn.UC_HOOK_CODE_CB)
         elif hook_type in (uc.UC_HOOK_MEM_READ, uc.UC_HOOK_MEM_WRITE):
@@ -234,9 +242,14 @@ class EmuEngine(object):
         else:
             return self.emu.hook_add(htype=hook_type, callback=cb, user_data=ctx,
                                      begin=begin, end=end)
-
         ptr = ct.cast(cb, ct.c_void_p)
-        rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value,
+        # uc_hook_add requires an additional paramter for the hook type UC_HOOK_INSN
+        if hook_type == uc.UC_HOOK_INSN:
+            insn = ct.c_int(arg1)
+            rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value,
+                             None, begin, end, insn)
+        else:
+            rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value,
                              None, begin, end)
         if rv != uc.UC_ERR_OK:
             raise uc.UcError(rv)
