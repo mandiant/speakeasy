@@ -76,6 +76,23 @@ EMPTY_PE_64 = DOS_HEADER + b'PE\x00\x00d\x86\x00\x00ABCD\x00\x00\x00\x00\x00\x00
                            b'\x00\x00\x00\x10' + (b'\x00' * 131)
 
 
+def normalize_dll_name(name):
+    ret = name
+
+    # Funnel CRTs into a single handler
+    if name.lower().startswith(('api-ms-win-crt', 'vcruntime', 'ucrtbased', 'ucrtbase')):
+        ret = 'msvcrt'
+
+    # Redirect windows sockets 1.0 to windows sockets 2.0
+    elif name.lower().startswith(('winsock', 'wsock32')):
+        ret = 'ws2_32'
+
+    elif name.lower().startswith('api-ms-win-core'):
+        ret = 'kernel32'
+
+    return ret
+
+
 class PeParseException(Exception):
     pass
 
@@ -321,9 +338,10 @@ class DecoyModule(PeFile):
     We use decoy modules so that shellcode
     (or other modules) can parse the PE file to resolve exports.
     """
-    def __init__(self, path=None, data=None, fast_load=True, base=0, emu_path=''):
+    def __init__(self, path=None, data=None, fast_load=True, base=0, emu_path='', is_jitted=False):
         self.image_size = 0
         self.ep = 0
+        self.is_jitted = is_jitted
         if path or data:
             super(DecoyModule, self).__init__(path=path, data=data, fast_load=fast_load)
 
@@ -338,7 +356,7 @@ class DecoyModule(PeFile):
 
     def get_memory_mapped_image(self, max_virtual_address=0x10000000, base=None):
         mmi = super(DecoyModule, self).get_memory_mapped_image(max_virtual_address, base)
-        if len(mmi) < len(self.__data__):
+        if self.is_jitted and len(mmi) < len(self.__data__):
             return self.__data__
         return mmi
 

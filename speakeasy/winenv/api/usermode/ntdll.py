@@ -29,12 +29,6 @@ class Ntdll(api.ApiHandler):
 
         super(Ntdll, self).__get_hook_attrs__(self)
 
-    def normalize_dll_name(self, name):
-        ret = name
-        if (name.lower().startswith('api-ms-win-crt') or name.lower().startswith('vcruntime')):
-            ret = 'msvcrt'
-        return ret
-
     @apihook('RtlGetLastWin32Error', argc=0)
     def RtlGetLastWin32Error(self, emu, argv, ctx={}):
         '''DWORD RtlGetLastWin32Error();'''

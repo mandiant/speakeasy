@@ -758,11 +758,14 @@ class PEB(KernelObject):
     fields that are used internally by Windows. Shellcode may parse this structure in
     order to resolve exported functions.
     """
-    def __init__(self, emu):
+    def __init__(self, emu, address=None):
         super(PEB, self).__init__(emu=emu)
 
         self.object = self.nt_types.PEB(emu.get_ptr_size())
-        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+        if not address:
+            self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+        else:
+            self.address = address
 
 
 class TEB(KernelObject):

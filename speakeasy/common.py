@@ -13,6 +13,7 @@ HOOK_MEM_ACCESS = 1006
 HOOK_MEM_PERM_WRITE = 1007
 HOOK_API = 1008
 HOOK_DYN_CODE = 1009
+HOOK_MEM_MAP = 1010
 
 # Emulation memory protection types
 PERM_MEM_NONE = 0
@@ -180,6 +181,20 @@ class WriteMemHook(Hook):
             self.handle = self.emu_eng.hook_add(htype=HOOK_MEM_WRITE,
                                                 cb=self._wrap_memory_access_cb,
                                                 begin=self.begin, end=self.end)
+        self.added = True
+        self.enabled = True
+
+
+class MapMemHook(Hook):
+    """
+    This hook will fire each time a chunk of memory is mapped
+    """
+    def __init__(self, se_obj, emu_eng, cb, begin=1, end=0):
+        super(MapMemHook, self).__init__(se_obj, emu_eng, cb)
+        self.begin = begin
+        self.end = end
+
+    def add(self):
         self.added = True
         self.enabled = True
 

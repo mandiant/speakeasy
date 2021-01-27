@@ -52,6 +52,7 @@ class Speakeasy(object):
         self.mem_write_hooks = []
         self.mem_invalid_hooks = []
         self.interrupt_hooks = []
+        self.mem_map_hooks = []
 
     def __enter__(self):
         return self
@@ -142,6 +143,9 @@ class Speakeasy(object):
             h = self.interrupt_hooks.pop(0)
             cb, ctx = h
             self.add_interrupt_hook(cb, ctx)
+        while self.mem_map_hooks:
+            h = self.mem_map_hooks.pop(0)
+            self.add_mem_map_hook(h)
 
     def disasm(self, addr: int, size: int, fast=True):
         """
@@ -752,6 +756,22 @@ class Speakeasy(object):
             True if address is valid, false otherwise
         """
         return self.emu.is_address_valid(address)
+
+    def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
+        """
+        Set a callback to fire when a memory address is mapped
+
+        args:
+            cb: Callable python function to execute
+            begin: beginning of the address range to hook
+            end: end of the address range to hook
+        return:
+            Hook object for newly registered hooks
+        """
+        if not self.emu:
+            self.mem_map_hooks.append((cb, begin, end))
+            return
+        return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)
 
     def create_memdump_archive(self) -> bytes:
         """
