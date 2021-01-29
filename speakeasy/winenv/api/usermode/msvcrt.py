@@ -598,6 +598,10 @@ class Msvcrt(api.ApiHandler):
         """
         return
 
+    @apihook('_set_app_type', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _set_app_type(self, emu, argv, ctx={}):
+        return
+
     @apihook('__p__fmode', argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__fmode(self, emu, argv, ctx={}):
         """
@@ -1288,3 +1292,70 @@ class Msvcrt(api.ApiHandler):
     @apihook('??2@YAPAXI@Z', argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __2_YAPAXI_Z(self, emu, argv, ctx={}):
         return
+
+    @apihook('__current_exception_context', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __current_exception_context(self, emu, argv, ctx={}):
+        return
+
+    @apihook('__current_exception', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __current_exception(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_set_new_mode', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _set_new_mode(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_configthreadlocale', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _configthreadlocale(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_setusermatherr', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _setusermatherr(self, emu, argv, ctx={}):
+        return
+
+    @apihook('__setusermatherr', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __setusermatherr(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_cexit', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _cexit(self, emu, argv, ctx={}):
+        # TODO: handle atexit flavor functions
+        self.exit_process()
+
+    @apihook('_c_exit', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _c_exit(self, emu, argv, ctx={}):
+        self.exit_process()
+
+    @apihook('_register_thread_local_exe_atexit_callback', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _register_thread_local_exe_atexit_callback(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_crt_atexit', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _crt_atexit(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_controlfp_s', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _controlfp_s(self, emu, argv, ctx={}):
+        return
+
+    @apihook('terminate', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def terminate(self, emu, argv, ctx={}):
+        self.exit_process()
+
+    @apihook('_crt_atexit', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _crt_atexit(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_initialize_narrow_environment', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _initialize_narrow_environment(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_configure_narrow_argv', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _configure_narrow_argv(self, emu, argv, ctx={}):
+        return
+
+    @apihook('_set_fmode', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _set_fmode(self, emu, argv, ctx={}):
+        return
+
+

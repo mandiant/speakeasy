@@ -530,9 +530,8 @@ class Process(KernelObject):
         self.peb = PEB(emu=emu)
         self.peb_ldr_data = PebLdrData(self.emu)
         self.is_peb_active = False
-        self.set_process_parameters()
-
         self.path = path
+        self.set_process_parameters(emu)
         self.image = ''
         self.title = ''
 
@@ -547,10 +546,9 @@ class Process(KernelObject):
         self.peb.write_back()
         self.peb_ldr_data.address = addr
 
-    def set_process_parameters(self):
-        self.peb.object.ProcessParameters = self.emu.mem_map(0x40,
-                                                             tag=self.get_mem_tag() +
-                                                             '.ProcessParameters')
+    def set_process_parameters(self, emu):
+        process_parameters = RTL_USER_PROCESS_PARAMETERS(emu=emu, proc=self)
+        self.peb.object.ProcessParameters = process_parameters.address
         self.peb.write_back()
 
     def get_peb_ldr(self):
@@ -642,6 +640,10 @@ class Process(KernelObject):
         self.ldr_entries.append(ldte)
         first = self.ldr_entries[0]
 
+        ldte.object.InLoadOrderLinks.Flink = first.address
+        ldte.object.InMemoryOrderLinks.Flink = first.address + self.sizeof(list_type)
+        ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
+
         ldte.object.DllBase = module.get_base()
         dllname = (module.get_emu_path() + '\x00').encode('utf-16le')
         name_addr = ldte.address + ldte.sizeof()
@@ -726,17 +728,45 @@ class Process(KernelObject):
             self.add_module_to_peb(mod)
 
 
+class RTL_USER_PROCESS_PARAMETERS(KernelObject):
+    def __init__(self, emu, proc):
+        super(RTL_USER_PROCESS_PARAMETERS, self).__init__(emu=emu)
+
+        self.object = self.nt_types.RTL_USER_PROCESS_PARAMETERS(emu.get_ptr_size())
+        proc_path = (proc.path + '\x00').encode('utf-16le')
+        proc_cmdline = (proc.cmdline + '\x00').encode('utf-16le')
+        size = self.sizeof()
+        size += len(proc_path)
+        size += len(proc_cmdline)
+        self.address = emu.mem_map(size,
+                                   tag=proc.get_mem_tag() + '.ProcessParameters')
+        emu.mem_write(self.address + self.sizeof(), proc_path)
+        emu.mem_write(self.address + self.sizeof() + len(proc_path), proc_cmdline)
+
+        self.object.ImagePathName.Length = len(proc_path) - 2
+        self.object.ImagePathName.MaxLength = len(proc_path)
+        self.object.ImagePathName.Buffer = self.address + self.sizeof()
+
+        self.object.CommandLine.Length = len(proc_cmdline) - 2
+        self.object.CommandLine.MaxLength = len(proc_cmdline)
+        self.object.CommandLine.Buffer = self.address + self.sizeof() + len(proc_path)
+        self.write_back()
+
+
 class PEB(KernelObject):
     """
     Represents the process environment block. This structure contains a large amount of
     fields that are used internally by Windows. Shellcode may parse this structure in
     order to resolve exported functions.
     """
-    def __init__(self, emu):
+    def __init__(self, emu, address=None):
         super(PEB, self).__init__(emu=emu)
 
         self.object = self.nt_types.PEB(emu.get_ptr_size())
-        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+        if not address:
+            self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+        else:
+            self.address = address
 
 
 class TEB(KernelObject):

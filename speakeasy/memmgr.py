@@ -114,7 +114,7 @@ class MemMap(object):
 class MemoryManager(object):
 
     """
-    Primative memory manager used to block OS sized allocation units into something more practical
+    Primitive memory manager used to block OS sized allocation units into something more practical
     """
 
     def __init__(self, *args, **kwargs):
@@ -127,12 +127,22 @@ class MemoryManager(object):
         self.block_offset = 0
         self.page_size = 0x1000
 
+    def _hook_mem_map_dispatch(self, mm):
+        hl = self.hooks.get(common.HOOK_MEM_MAP, [])
+        ctx = {}
+        for mem_map_hook in hl:
+            if mem_map_hook.enabled:
+                # the mapped memory region's base address falls within the hook's bounds
+                if mem_map_hook.begin <= mm.get_base():
+                    if not mem_map_hook.end or mem_map_hook.end > mm.get_base():
+                        mem_map_hook.cb(self, mm.get_base(), mm.get_size(),
+                                             mm.get_tag(), mm.get_prot(), mm.get_flags(), ctx)
+
     def mem_map(self, size, base=None, perms=common.PERM_MEM_RWX,
                 tag=None, flags=0, shared=False, process=None):
         """
-        Map a block of memory with specifed permissions and a tag
+        Map a block of memory with specified permissions and a tag
         """
-
         if not process and tag and not tag.startswith('emu'):
             process = self.get_current_process()
 
@@ -156,6 +166,7 @@ class MemoryManager(object):
                             shared, process)
 
                 self.maps.append(mm)
+                self._hook_mem_map_dispatch(mm)
                 return base
 
         block = self.get_valid_ranges(size, addr=base)
@@ -167,6 +178,7 @@ class MemoryManager(object):
         mm = MemMap(base, size, tag, perms, flags, base, block_size, shared, process)
         self.emu_eng.mem_map(base, size, perms=perms)
         self.maps.append(mm)
+        self._hook_mem_map_dispatch(mm)
         return base
 
     def mem_free(self, base):

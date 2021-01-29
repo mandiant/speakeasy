@@ -10,6 +10,7 @@ import ctypes as ct
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.common as common
+import speakeasy.windows.common as winemu
 from speakeasy.errors import ApiEmuError
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.kernel32 as k32types
@@ -92,14 +93,6 @@ class Kernel32(api.ApiHandler):
             if (emu_perms & common.PERM_MEM_WRITE):
                 new |= windefs.PAGE_READWRITE
         return new
-
-    def normalize_dll_name(self, name):
-        ret = name
-        if (name.lower().startswith('api-ms-win-crt') or name.lower().startswith('vcruntime')):
-            ret = 'msvcrt'
-        if (name.lower().startswith('api-ms-win-core')):
-            ret = 'kernel32'
-        return ret
 
     def normalize_res_identifier(self, emu, cw, val):
         mask = (16 ** (emu.get_ptr_size() // 2) - 1) << 16
@@ -294,7 +287,7 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         req_lib = self.read_mem_string(lib_name, cw)
-        lib = self.normalize_dll_name(req_lib)
+        lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
         argv[0] = req_lib
@@ -525,7 +518,7 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         req_lib = self.read_mem_string(lib_name, cw)
-        lib = self.normalize_dll_name(req_lib)
+        lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
 
@@ -1481,6 +1474,7 @@ class Kernel32(api.ApiHandler):
             lib = self.read_mem_string(mod_name, cw)
             argv[0] = lib
             sname, _ = os.path.splitext(lib)
+            sname = winemu.normalize_dll_name(sname)
             mods = emu.get_user_modules()
             for mod in mods:
                 img = ntpath.basename(mod.get_emu_path())

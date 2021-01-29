@@ -452,6 +452,7 @@ class Win32Emulator(WindowsEmulator):
         peb = proc.get_peb()
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
+        peb.object.OSBuildNumber = self.osversion['build']
         peb.write_back()
         return peb
 

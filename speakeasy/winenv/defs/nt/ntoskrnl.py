@@ -513,6 +513,12 @@ class PEB(EmuStruct):
         self.ProcessParameters = Ptr
         self.SubSystemData = Ptr
         self.ProcessHeap = Ptr
+        self.Skip = ct.c_uint8 * 0x88
+        self.OSMajorVersion = ct.c_uint32
+        self.OSMinorVersion = ct.c_uint32
+        self.OSBuildNumber = ct.c_uint16
+        self.OSCSDVersion = ct.c_uint16
+        self.OSPlatformId = ct.c_uint32
 
 
 class PEB_LDR_DATA(EmuStruct):
@@ -549,3 +555,12 @@ class LARGE_INTEGER(EmuStruct):
         super().__init__(ptr_size)
         self.LowPart = ct.c_uint32
         self.HighPart = ct.c_uint32
+
+
+class RTL_USER_PROCESS_PARAMETERS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Reserved1 = ct.c_uint8 * 16
+        self.Reserved2 = ct.c_uint32 * 10
+        self.ImagePathName = UNICODE_STRING
+        self.CommandLine = UNICODE_STRING

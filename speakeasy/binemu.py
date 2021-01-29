@@ -959,6 +959,24 @@ class BinaryEmulator(MemoryManager):
 
         return hook
 
+    def add_mem_map_hook(self, cb, begin=1, end=0, emu=None):
+        """
+        Add a hook that will fire for memory maps
+        """
+        if not emu:
+            emu = self
+        hook = common.MapMemHook(emu, self.emu_eng, cb, begin, end)
+        hl = self.hooks.get(common.HOOK_MEM_MAP)
+        if not hl:
+            self.hooks.update({common.HOOK_MEM_MAP: [hook, ]})
+        else:
+            hl.insert(0, hook)
+
+        if self.emu_eng:
+            hook.add()
+
+        return hook
+
     def _hook_mem_invalid_dispatch(self, emu, access, address, size, value, ctx):
         """
         This handler will dispatch other invalid memory hooks
