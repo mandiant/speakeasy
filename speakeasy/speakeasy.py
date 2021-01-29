@@ -371,6 +371,38 @@ class Speakeasy(object):
             return
         return self.emu.add_mem_write_hook(cb, begin=begin, end=end, emu=self)
 
+    def add_IN_instruction_hook(self, cb: Callable, begin=1, end=0):
+        """
+        Set a callback to fire when an IN instruction executes
+
+        args:
+            cb: Callable python function to execute
+            begin: beginning of the address range to hook
+            end: end of the address range to hook
+        return:
+            Hook object for newly registered hooks
+        """
+        if not self.emu:
+            self.mem_write_hooks.append((cb, begin, end))
+            return
+        return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=218)
+
+    def add_SYSCALL_instruction_hook(self, cb: Callable, begin=1, end=0):
+        """
+        Set a callback to fire when a SYSCALL / SYSENTER instruction executes
+
+        args:
+            cb: Callable python function to execute
+            begin: beginning of the address range to hook
+            end: end of the address range to hook
+        return:
+            Hook object for newly registered hooks
+        """
+        if not self.emu:
+            self.mem_write_hooks.append((cb, begin, end))
+            return
+        return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
+
     def add_mem_invalid_hook(self, cb: Callable):
         """
         Get a callback for when a memory access violation occurs

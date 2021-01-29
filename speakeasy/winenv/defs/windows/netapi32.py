@@ -4,7 +4,11 @@ from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
 
 NERR_Success = 0
-ERROR_INVALID_LEVEL = 0x7C
+
+NetSetupUnknownStatus = 0
+NetSetupUnjoined = 1
+NetSetupWorkgroupName = 2
+NetSetupDomainName = 3
 
 
 class WKSTA_INFO_100(EmuStruct):

@@ -1,14 +1,16 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.windows.kernel32 as k32types
+import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.netapi32 as netapi32defs
-import speakeasy.winenv.arch as _arch
 
 from .. import api
 
 
 class NetApi32(api.ApiHandler):
-    name = 'NETAPI32'
+    """
+    Implements exported functions from netapi32.dll
+    """
+    name = 'netapi32'
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -16,30 +18,30 @@ class NetApi32(api.ApiHandler):
         super(NetApi32, self).__init__(emu)
         super(NetApi32, self).__get_hook_attrs__(self)
 
-    @apihook('NetGetJoinInformation', argc=3, conv=_arch.CALL_CONV_STDCALL)
+    @apihook('NetGetJoinInformation', argc=3)
     def NetGetJoinInformation(self, emu, argv, ctx={}):
         """
         NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
-         LPCWSTR lpServer,
-         LPWSTR *lpNameBuffer,
-         PNETSETUP_JOIN_STATUS BufferType
-         );
-            lpServer: Pointer to a constant string that specifies the DNS or NetBIOS name of the computer on which to call the function.
-            If this parameter is NULL, the local computer is used.
-
-            lpNameBuffer: Pointer to the buffer that receives the NetBIOS name of the domain or workgroup to which the computer is joined.
-            This buffer is allocated by the system and must be freed using the NetApiBufferFree function.
-
-            BufferType: Receives the join status of the specified computer. This parameter can have one of the following values.
+          LPCWSTR lpServer,
+          LPWSTR *lpNameBuffer,
+          PNETSETUP_JOIN_STATUS BufferType
+        );
         """
         lpServer, lpNameBuffer, BufferType = argv
 
-        name = 'FLARE_Test_Domain'
-        name_bytes = str.encode(name)
+        if lpServer:
+            server = self.read_wide_string(lpServer)
+            argv[0] = server
 
-        lpServer = 0
-        lpNameBuffer = name_bytes
-        BufferType = k32types.NetSetupWorkgroupName
+        # Assumes the server being queried is the local computer
+        domain = emu.get_domain()
+        argv[1] = domain
+        namebuf = self.mem_alloc(emu.get_ptr_size())
+        self.write_wide_string(domain, namebuf)
+        self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), 'little'))
+
+        argv[2] = netapi32defs.NetSetupDomainName
+        self.mem_write(BufferType, netapi32defs.NetSetupDomainName.to_bytes(4, 'little'))
 
         return netapi32defs.NERR_Success
 
@@ -55,7 +57,7 @@ class NetApi32(api.ApiHandler):
         servername, level, bufptr = argv
 
         if level not in [100, 101, 102]:
-            return netapi32defs.ERROR_INVALID_LEVEL
+            return windefs.ERROR_INVALID_LEVEL
 
         if level == 100:
             wki = netapi32defs.WKSTA_INFO_100(emu.get_ptr_size())

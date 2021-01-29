@@ -542,6 +542,11 @@
                     "name": "netutils",
                     "base_addr": "0x5fb00000",
                     "path": "C:\\Windows\\system32\\netutils.dll"
+                },
+                {
+                    "name": "wkscli",
+                    "base_addr": "0x5fc00000",
+                    "path": "C:\\Windows\\system32\\wkscli.dll"
                 }
         ]
     }

@@ -103,7 +103,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 pe.decoy_path = path
                 pe.decoy_base = pe.base
 
-        drv.init_driver_object(name, pe)
+        drv.init_driver_object(name, pe, is_decoy=False)
 
         self.add_object(drv)
 
@@ -426,7 +426,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         dev.object.Characteristics = chars
         dev.object.DeviceType = devtype
         if ext_size > 0:
-            dev.object.DeviceObjectExtension = dev.address + dev.sizeof()
+            dev.object.DeviceExtension = dev.address + dev.sizeof()
 
         dev.write_back()
 

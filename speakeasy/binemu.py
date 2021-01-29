@@ -1032,3 +1032,21 @@ class BinaryEmulator(MemoryManager):
             hook.add()
 
         return hook
+
+    def add_instruction_hook(self, cb, begin=1, end=0, ctx=[], emu=None, insn=None):
+        """
+        Add a hook that will fire for IN, SYSCALL, or SYSENTER instructions
+        """
+        if not emu:
+            emu = self
+        hook = common.InstructionHook(emu, self.emu_eng, cb, ctx=[], insn=insn)
+        hl = self.hooks.get(common.HOOK_INSN)
+        if not hl:
+            self.hooks.update({common.HOOK_INSN: [hook, ]})
+        else:
+            hl.insert(0, hook)
+
+        if self.emu_eng:
+            hook.add()
+
+        return hook
