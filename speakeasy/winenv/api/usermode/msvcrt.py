@@ -708,6 +708,29 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dest, data)
         return dest
 
+    @apihook('memcmp', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def memcmp(self, emu, argv, ctx={}):
+        """
+        int memcmp(
+           const void *buffer1,
+           const void *buffer2,
+           size_t count
+        );
+        """
+        diff = 0
+        buff1, buff2, cnt = argv
+        for i in range(cnt):
+            b1 = self.mem_read(buff1, 1)
+            b2 = self.mem_read(buff2, 1)
+            if b1 > b2:
+                diff = 1
+                break
+            elif b1 < b2:
+                diff = -1
+                break
+
+        return diff
+
     @apihook('_except_handler4_common', argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler4_common(self, emu, argv, ctx={}):
         """
@@ -1285,6 +1308,31 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('_wcsicmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wcsicmp(self, emu, argv, ctx={}):
+        """
+        int _wcsicmp(
+                const wchar_t *string1,
+                const wchar_t *string2
+                );
+        """
+        string1, string2 = argv
+        rv = 1
+
+        if not string1 or not string2:
+            return rv
+
+        cs1 = self.read_wide_string(string1)
+        cs2 = self.read_wide_string(string2)
+
+        argv[0] = cs1
+        argv[1] = cs2
+
+        if cs1.lower() == cs2.lower():
+            rv = 0
+
+        return rv
+
     @apihook('??3@YAXPAX@Z', argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __3_YAXPAX_Z(self, emu, argv, ctx={}):
         return
@@ -1358,4 +1406,10 @@ class Msvcrt(api.ApiHandler):
     def _set_fmode(self, emu, argv, ctx={}):
         return
 
+    @apihook('_itoa', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _itoa(self, emu, argv, ctx={}):
+        return
 
+    @apihook('_itow', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _itow(self, emu, argv, ctx={}):
+        return
