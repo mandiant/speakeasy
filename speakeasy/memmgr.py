@@ -136,7 +136,7 @@ class MemoryManager(object):
                 if mem_map_hook.begin <= mm.get_base():
                     if not mem_map_hook.end or mem_map_hook.end > mm.get_base():
                         mem_map_hook.cb(self, mm.get_base(), mm.get_size(),
-                                             mm.get_tag(), mm.get_prot(), mm.get_flags(), ctx)
+                                        mm.get_tag(), mm.get_prot(), mm.get_flags(), ctx)
 
     def mem_map(self, size, base=None, perms=common.PERM_MEM_RWX,
                 tag=None, flags=0, shared=False, process=None):

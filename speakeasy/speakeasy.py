@@ -157,7 +157,10 @@ class Speakeasy(object):
         return:
             A tuple of: (mnemonic, operands, and the full instruction)
         """
-        return self.emu.get_disasm(addr, size, fast)
+        try:
+            return self.emu.get_disasm(addr, size, fast)
+        except Exception:
+            raise SpeakeasyError("Failed to disassemble at address: 0x%x" % (addr))
 
     def is_pe(self, data: bytes) -> bool:
         """
