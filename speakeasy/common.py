@@ -238,17 +238,20 @@ class InterruptHook(Hook):
         self.added = True
         self.enabled = True
 
+
 class InstructionHook(Hook):
     """
     This hook will fire each time a instruction hook is triggered,
     Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
     """
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True, insn=None):
-        super(InstructionHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+        super(InstructionHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx,
+                                              native_hook=native_hook)
         self.insn = insn
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb, arg1=self.insn)
+            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb,
+                                                arg1=self.insn)
         self.added = True
         self.enabled = True

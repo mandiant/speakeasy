@@ -507,7 +507,10 @@ class Speakeasy(object):
         return:
             Python bytes object contained the data read
         """
-        return self.emu.mem_read(addr, size)
+        try:
+            return self.emu.mem_read(addr, size)
+        except Exception:
+            raise SpeakeasyError("Failed to read %d bytes at address: 0x%x" % (size, addr))
 
     def mem_write(self, addr: int, data: bytes) -> None:
         """
@@ -519,7 +522,10 @@ class Speakeasy(object):
         return:
             None
         """
-        return self.emu.mem_write(addr, data)
+        try:
+            return self.emu.mem_write(addr, data)
+        except Exception:
+            raise SpeakeasyError("Failed to write %d bytes at address: 0x%x" % (len(data), addr))
 
     def mem_cast(self, obj, addr: int):
         """
