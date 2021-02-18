@@ -74,6 +74,7 @@ class Bcrypt(api.ApiHandler):
         blob_type = self.read_wide_string(pszBlobType)
         argv[2] = blob_type
 
+        cbInput = cbInput & 0xFFFFFFFF
         blob = self.mem_read(pbInput, cbInput)
         argv[4] = base64.b64encode(blob).decode('utf-8')
 

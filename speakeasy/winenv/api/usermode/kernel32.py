@@ -4999,3 +4999,51 @@ class Kernel32(api.ApiHandler):
             argv[4] = time_str
 
         return 1
+
+    @apihook('FlushFileBuffers', argc=1)
+    def FlushFileBuffers(self, emu, argv, ctx={}):
+        '''BOOL FlushFileBuffers(
+        HANDLE hFile
+        );'''
+
+        hFile = argv
+        rv = 1
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return rv
+
+    @apihook('InitializeConditionVariable', argc=1)
+    def InitializeConditionVariable(self, emu, argv, ctx={}):
+        '''
+        void InitializeConditionVariable(
+        PCONDITION_VARIABLE ConditionVariable
+        );
+        '''
+        ConditionVariable = argv
+        rv = 0
+
+        return rv
+
+    @apihook('Wow64DisableWow64FsRedirection', argc=1)
+    def Wow64DisableWow64FsRedirection(self, emu, argv, ctx={}):
+        '''
+        BOOL Wow64DisableWow64FsRedirection(
+          PVOID *OldValue
+        );
+        '''
+        OldValue = argv
+        rv = 1
+
+        return rv
+
+    @apihook('Wow64RevertWow64FsRedirection', argc=1)
+    def Wow64RevertWow64FsRedirection(self, emu, argv, ctx={}):
+        '''
+        BOOL Wow64RevertWow64FsRedirection(
+          PVOID OlValue
+        );
+        '''
+        OlValue = argv
+        rv = 1
+
+        return rv

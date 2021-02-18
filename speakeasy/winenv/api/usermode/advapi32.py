@@ -1037,7 +1037,7 @@ class AdvApi32(api.ApiHandler):
         }
 
         hProv, Algid, hKey, dwFlags, phHash = argv
-        argv[1] = hash_algs.get(Algid, Algid)
+        argv[1] = hash_algs.get(Algid, Algid)[0]
 
         if hKey != 0:
             return 0
@@ -1073,6 +1073,42 @@ class AdvApi32(api.ApiHandler):
 
         data = self.mem_read(pbData, dwDataLen)
         hnd.update(data)
+        return 1
+
+    @apihook('CryptGetHashParam', argc=5)
+    def CryptGetHashParam(self, emu, argv, ctx={}):
+        '''
+        BOOL CryptGetHashParam(
+          HCRYPTHASH hHash,
+          DWORD      dwParam,
+          BYTE       *pbData,
+          DWORD      *pdwDataLen,
+          DWORD      dwFlags
+        );
+        '''
+        hHash, dwParam, pbData, pdwDataLen, dwFlags = argv
+
+        param_enums = {
+            1: "HP_ALGID",
+            2: "HP_HASHVAL",
+            4: "HP_HASHSIZE",
+            5: "HP_HMAC_INFO"
+        }
+
+        if dwParam in param_enums.keys():
+            argv[1] = param_enums[dwParam]
+
+        return 1
+
+    @apihook('CryptDestroyHash', argc=1)
+    def CryptDestroyHash(self, emu, argv, ctx={}):
+        """
+        BOOL CryptDestroyHash(
+          HCRYPTHASH hHash
+        );
+        """
+        hHash = argv
+
         return 1
 
     @apihook('RegGetValue', argc=7, conv=_arch.CALL_CONV_STDCALL)
