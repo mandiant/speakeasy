@@ -246,6 +246,28 @@ class EmuStruct(object, metaclass=CMeta):
     def get_cstruct(self):
         return self.__struct__.__class__
 
+    def get_sub_field_name(self, cstruc, offset):
+        for (name,t) in cstruc._fields_:
+            noff = cstruc.__dict__[name].offset
+            nsize = cstruc.__dict__[name].size
+            if offset == noff:
+                return name
+            elif noff < offset < noff + nsize:
+                # access into the sub-structure recursively
+                return name + '.' + self.get_sub_field_name(t, offset - noff)
+
+    def get_field_name(self, offset):
+        cstruc = self.get_cstruct()
+        for (name,t) in self.__fields__:
+            noff = cstruc.__dict__[name].offset
+            nsize = cstruc.__dict__[name].size
+            if offset == noff:
+                return name
+            elif noff < offset < noff + nsize:
+                # access into the sub-structure
+                return name + '.' + self.get_sub_field_name(t, offset - noff)
+        return None
+
     def __struct_factory(self, name):
         """
         Factory used to generate ctypes structures using the ctypes metaclass

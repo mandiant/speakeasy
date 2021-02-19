@@ -171,6 +171,9 @@
                 "minor": {
                     "type": "number"
                 },
+                "release": {
+                    "type": "number"
+                },
                 "build": {
                     "type": "number"
                 }
@@ -499,6 +502,27 @@
                             "path": {
                                 "type": "string",
                                 "description": "Emulated full path that will be presented to samples"
+                            },
+                            "images": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "arch": {
+                                            "type": "string",
+                                            "description": "Image architecture (x86 or x64)"
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Image file name (no extension)"
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "required": [
+                                        "arch",
+                                        "name"
+                                    ]
+                                }
                             }
                         },
                         "additionalProperties": false,

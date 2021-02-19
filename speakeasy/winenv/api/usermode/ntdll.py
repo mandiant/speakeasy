@@ -186,3 +186,29 @@ class Ntdll(api.ApiHandler):
         );
         """
         return 0
+
+    @apihook('RtlEncodePointer', argc=1)
+    def RtlEncodePointer(self, emu, argv, ctx={}):
+        '''
+        PVOID
+        NTAPI
+        RtlEncodePointer(IN PVOID Pointer)
+        '''
+        Ptr,  = argv
+        # Just increment the pointer for now like kernel32.EncodePointer
+        rv = Ptr + 1
+
+        return rv
+
+    @apihook('RtlDecodePointer', argc=1)
+    def RtlDecodePointer(self, emu, argv, ctx={}):
+        '''
+        PVOID
+        NTAPI
+        RtlDecodePointer(IN PVOID Pointer)
+        '''
+        Ptr,  = argv
+        # Just decrement the pointer for now like kernel32.DecodePointer
+        rv = Ptr - 1
+
+        return rv

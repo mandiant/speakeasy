@@ -487,17 +487,21 @@ class TEB(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.NtTib = NT_TIB
-        self.Reserved1 = Ptr
+        self.EnvironmentPointer = Ptr
         self.ClientId = CLIENT_ID
         if ptr_size == 8:
             self.pad0 = Ptr
-        self.Reserved2 = Ptr
-        self.Reserved3 = Ptr
+        self.ActiveRpcHandle = Ptr
+        self.ThreadLocalStoragePointer = Ptr
         self.ProcessEnvironmentBlock = Ptr
         self.LastErrorValue = ct.c_uint32
-        self.Reserved4 = ct.c_uint32
-        self.Reserved5 = Ptr
-        self.Reserved6 = Ptr
+        self.CountOfOwnedCriticalSections = ct.c_uint32
+        self.CsrClientThread = Ptr
+        self.Win32ThreadInfo = Ptr
+        self.User32Reserved = ct.c_uint32 * 26
+        self.UserReserved = ct.c_uint32 * 5
+        self.WOW32Reserved = Ptr
+        self.CurrentLocale = ct.c_uint32
 
 
 class PEB(EmuStruct):
@@ -513,12 +517,78 @@ class PEB(EmuStruct):
         self.ProcessParameters = Ptr
         self.SubSystemData = Ptr
         self.ProcessHeap = Ptr
-        self.Skip = ct.c_uint8 * 0x88
+        self.FastPebLock = Ptr
+        self.AtlThunkSListPtr = Ptr
+        self.IFEOKey = Ptr
+        self.CrossProcessFlags = Ptr
+        self.UserSharedInfoPtr = Ptr
+        self.SystemReserved = ct.c_uint32
+        self.AtlThunkSListPtr32 = ct.c_uint32
+        self.ApiSetMap = Ptr
+        self.TlsExpansionCounter = Ptr
+        self.TlsBitmap = Ptr
+        self.TlsBitmapBits = ct.c_uint32 * 2
+        self.ReadOnlySharedMemoryBase = Ptr
+        self.SharedData = Ptr # HotpatchInformation
+        self.ReadOnlyStaticServerData = Ptr
+        self.AnsiCodePageData = Ptr
+        self.OemCodePageData = Ptr
+        self.UnicodeCaseTableData = Ptr
+        self.NumberOfProcessors = ct.c_uint32
+        self.NtGlobalFlag = ct.c_uint32
+        self.CriticalSectionTimeout = ct.c_longlong # LARGE_INTEGER
+        self.HeapSegmentReserve = Ptr
+        self.HeapSegmentCommit = Ptr
+        self.HeapDeCommitTotalFreeThreshold = Ptr
+        self.HeapDeCommitFreeBlockThreshold = Ptr
+        self.NumberOfHeaps = ct.c_uint32
+        self.MaximumNumberOfHeaps = ct.c_uint32
+        self.ProcessHeaps = Ptr
+        self.GdiSharedHandleTable = Ptr
+        self.ProcessStarterHelper = Ptr
+        self.GdiDCAttributeList = Ptr
+        self.LoaderLock = Ptr
         self.OSMajorVersion = ct.c_uint32
         self.OSMinorVersion = ct.c_uint32
         self.OSBuildNumber = ct.c_uint16
         self.OSCSDVersion = ct.c_uint16
         self.OSPlatformId = ct.c_uint32
+        self.ImageSubsystem = ct.c_uint32
+        self.ImageSubsystemMajorVersion = ct.c_uint32
+        self.ImageSubsystemMinorVersion = Ptr
+        self.ActiveProcessAffinityMask = Ptr
+        if ptr_size == 8:
+            self.GdiHandleBuffer = ct.c_uint32 * 60
+        else:
+            self.GdiHandleBuffer = ct.c_uint32 * 34
+        self.PostProcessInitRoutine = Ptr
+        self.TlsExpansionBitmap = Ptr
+        self.TlsExpansionBitmapBits = ct.c_uint32 * 32
+        self.SessionId = Ptr
+        self.AppCompatFlags = ct.c_ulonglong # ULARGE_INTEGER
+        self.AppCompatFlagsUser = ct.c_ulonglong # ULARGE_INTEGER
+        self.pShimData = Ptr
+        self.AppCompatInfo = Ptr
+        self.CSDVersion = UNICODE_STRING
+        self.ActivationContextData = Ptr
+        self.ProcessAssemblyStorageMap = Ptr
+        self.SystemDefaultActivationContextData = Ptr
+        self.SystemAssemblyStorageMap = Ptr
+        self.MinimumStackCommit = Ptr
+        self.FlsCallback = Ptr
+        self.FlsListHead = LIST_ENTRY
+        self.FlsBitmap = Ptr
+        self.FlsBitmapBits = ct.c_uint32 * 4
+        self.FlsHighIndex = Ptr
+        self.WerRegistrationData = Ptr
+        self.WerShipAssertPtr = Ptr
+        self.pUnused = Ptr # pContextData
+        self.pImageHeaderHash = Ptr
+        self.TracingFlags = ct.c_uint64
+        self.CsrServerReadOnlySharedMemoryBase = ct.c_uint64
+        self.TppWorkerpListLock = Ptr
+        self.TppWorkerpList = LIST_ENTRY
+        self.WaitOnAddressHashTable = Ptr * 128
 
 
 class PEB_LDR_DATA(EmuStruct):
