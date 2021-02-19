@@ -1699,7 +1699,7 @@ class WindowsEmulator(BinaryEmulator):
         for img in images:
             arch = img['arch']
             if arch == self.get_arch():
-                path = img['path']
+                path = self.get_native_module_path(mod_name=img['name'])
 
         if not path:
             path = default_file_path

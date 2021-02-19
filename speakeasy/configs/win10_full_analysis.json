@@ -18,7 +18,8 @@
             "name": "windows",
             "major": 10,
             "minor": 0,
-            "build": 1703
+            "release": 1703,
+            "build": 15063
     },
 
     "current_dir": "C:\\Windows\\system32",

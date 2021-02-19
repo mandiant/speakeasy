@@ -309,6 +309,19 @@ class Kernel32(api.ApiHandler):
             hnd = self.get_handle()
             index = 0
             self.snapshots.update({hnd: [index, emu.get_processes()]})
+        elif k32types.TH32CS_SNAPTHREAD == dwFlags:
+            hnd = self.get_handle()
+            index = 0
+            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+                proc = emu.curr_process
+            else:
+                for p in emu.get_processes():
+                    if th32ProcessID == p.get_pid():
+                        proc = p
+                        break
+                else:
+                    raise ApiEmuError('The specified PID not found')
+            self.snapshots.update({hnd: [index, proc.threads, proc.get_pid()]})
         else:
             raise ApiEmuError('Unsupported snapshot type: 0x%x' % (dwFlags))
 
@@ -392,6 +405,66 @@ class Kernel32(api.ApiHandler):
             pe.szExeFile = proc.image.encode('utf-8') + b'\x00'
 
         self.mem_write(pe32, self.get_bytes(data))
+        rv = True
+        return rv
+
+    @apihook('Thread32First', argc=2)
+    def Thread32First(self, emu, argv, ctx={}):
+        '''
+        BOOL Thread32First(
+        HANDLE          hSnapshot,
+        LPTHREADENTRY32 lpte
+        );
+        '''
+
+        hSnapshot, te32, = argv
+        rv = False
+
+        snap = self.snapshots.get(hSnapshot)
+        if not snap or not te32:
+            return rv
+
+        # Reset the handle index
+        snap[0] = 1
+        thread = snap[1][0]
+
+        te = self.k32types.THREADENTRY32(emu.get_ptr_size())
+        data = self.mem_cast(te, te32)
+        te.th32ThreadID = thread.tid
+        te.th32OwnerProcessID = snap[2]
+
+        self.mem_write(te32, self.get_bytes(data))
+        rv = True
+        return rv
+
+    @apihook('Thread32Next', argc=2)
+    def Thread32Next(self, emu, argv, ctx={}):
+        '''
+        BOOL Thread32Next(
+        HANDLE          hSnapshot,
+        LPTHREADENTRY32 lpte
+        );
+        '''
+
+        hSnapshot, te32, = argv
+        rv = False
+
+        snap = self.snapshots.get(hSnapshot)
+        if not snap or not te32:
+            return rv
+
+        index = snap[0]
+        snap[0] += 1
+        if index >= len(snap[1]):
+            return rv
+        thread = snap[1][index]
+
+        te = self.k32types.THREADENTRY32(emu.get_ptr_size())
+        data = self.mem_cast(te, te32)
+        te.th32ThreadID = thread.tid
+        te.th32OwnerProcessID = snap[2]
+
+        self.mem_write(te32, self.get_bytes(data))
         rv = True
         return rv
 

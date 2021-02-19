@@ -64,6 +64,18 @@ class PROCESSENTRY32(EmuStruct):
         self.szExeFile = ct.c_uint8 * (260 * width)
 
 
+class THREADENTRY32(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.dwSize = ct.c_uint32
+        self.cntUsage = ct.c_uint32
+        self.th32ThreadID = ct.c_uint32
+        self.th32OwnerProcessID = ct.c_uint32
+        self.tpBasePri = ct.c_uint32
+        self.tpDeltaPri = ct.c_uint32
+        self.dwFlags = ct.c_uint32
+
+
 class PROCESS_INFORMATION(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
