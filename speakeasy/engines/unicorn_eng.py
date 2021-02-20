@@ -22,8 +22,8 @@ _uc.uc_hook_add.restype = ct.c_uint32
 hook_id = ct.c_void_p()
 
 # Unicorn version we can assert on
-# 1.0.2rc4
-__required_version__ = '1.0.2rc4'
+# 1.0.2
+__required_version__ = '1.0.2'
 
 
 def is_platform_intel():
@@ -132,7 +132,7 @@ class EmuEngine(object):
                         common.HOOK_MEM_READ: uc.UC_HOOK_MEM_READ,
                         common.HOOK_MEM_WRITE: uc.UC_HOOK_MEM_WRITE,
                         common.HOOK_INTERRUPT: uc.UC_HOOK_INTR,
-                        common.HOOK_INSN : uc.UC_HOOK_INSN
+                        common.HOOK_INSN: uc.UC_HOOK_INSN
         }
 
     def _sec_to_usec(self, sec):
@@ -224,12 +224,12 @@ class EmuEngine(object):
         # our own wrapper and don't need the extra overhead. Add callbacks directly
         # to the unicorn library here.
         if hook_type == uc.UC_HOOK_INSN:
-            if arg1 == u.UC_X86_INS_IN: # IN instruction
+            if arg1 == u.UC_X86_INS_IN:  # IN instruction
                 cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_IN_CB(cb),
-                                 unicorn.unicorn.UC_HOOK_INSN_IN_CB)
-            elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER): # SYSCALL/SYSENTER instruciton
+                             unicorn.unicorn.UC_HOOK_INSN_IN_CB)
+            elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):  # SYSCALL/SYSENTER
                 cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB(cb),
-                                 unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB)
+                             unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB)
         elif hook_type == uc.UC_HOOK_CODE:
             cb = ct.cast(unicorn.unicorn.UC_HOOK_CODE_CB(cb),
                          unicorn.unicorn.UC_HOOK_CODE_CB)
@@ -247,10 +247,10 @@ class EmuEngine(object):
         if hook_type == uc.UC_HOOK_INSN:
             insn = ct.c_int(arg1)
             rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value,
-                             None, begin, end, insn)
+                                 None, begin, end, insn)
         else:
             rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value,
-                             None, begin, end)
+                                 None, begin, end)
         if rv != uc.UC_ERR_OK:
             raise uc.UcError(rv)
 
