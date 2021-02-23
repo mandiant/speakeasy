@@ -1,3 +1,5 @@
+# Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
+
 import os
 import cmd
 import shlex
