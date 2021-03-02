@@ -1225,6 +1225,35 @@ class Kernel32(api.ApiHandler):
 
         return None
 
+    @apihook('SetHandleInformation', argc=3)
+    def SetHandleInformation(self, emu, argv, ctx={}):
+        '''
+        BOOL SetHandleInformation(
+          HANDLE hObject,
+          DWORD  dwMask,
+          DWORD  dwFlags
+        );
+        '''
+
+        # Non-zero value for success.
+        rv = 1
+
+        return rv
+
+    @apihook('GetHandleInformation', argc=2)
+    def GetHandleInformation(self, emu, argv, ctx={}):
+        '''
+        BOOL GetHandleInformation(
+          HANDLE  hObject,
+          LPDWORD lpdwFlags
+        );
+        '''
+
+        # Non-zero value for success.
+        rv = 1
+
+        return rv
+
     @apihook('ExitProcess', argc=1)
     def ExitProcess(self, emu, argv, ctx={}):
         '''void ExitProcess(
