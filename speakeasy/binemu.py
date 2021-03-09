@@ -4,6 +4,7 @@ import re
 import json
 import fnmatch
 import traceback
+from typing import List
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as e_arch
@@ -804,59 +805,42 @@ class BinaryEmulator(MemoryManager):
                 return mod[0]
         return None
 
-    def get_api_hook(self, mod_name, func_name):
+    def get_api_hooks(self, mod_name, func_name) -> List[common.ApiHook]:
         """
         If an API hook has been set, return it here
         """
+        user_hooks = self.hooks.get(common.HOOK_API)
+        if not user_hooks:
+            return []
 
-        hooks = self.hooks.get(common.HOOK_API)
-        if not hooks:
-            return None
-
-        # See if we can quickly resolve the api hook
-        quick_look, wild_list = hooks
         api = (mod_name + '.' + func_name).lower()
-        qh = quick_look.get(api)
-        if qh:
-            return qh
+        # The list always start with the most accurate
+        try:
+            found_hooks = user_hooks[api]
+        except KeyError:
+            found_hooks = []
 
-        # See if a wild card api hook was registered
-        for hook in wild_list:
-            if fnmatch.fnmatch(mod_name.lower(), hook.module.lower()):
-                if fnmatch.fnmatch(func_name.lower(), hook.api_name.lower()):
-                    return hook
-        return None
+        # Retrieve every hook that was saved with a key that matches the request
+        for hook_api, hooks in user_hooks.items():
+            if fnmatch.fnmatch(api, hook_api) and hook_api != api:
+                found_hooks.extend(hooks)
 
-    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None,
-                     enable_wild_cards=True):
+        return found_hooks
+
+    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None):
         """
         Add an API level hook (e.g. kernel32.CreateFile) here
         """
-
-        contains_wild_cards = False
-        if enable_wild_cards:
-            for wc in ['?', '*', '[', ']']:
-                if wc in api_name:
-                    contains_wild_cards = True
-                    break
-
         if not emu:
             emu = self
         hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
         _hooks = self.hooks.get(common.HOOK_API)
         api = (module + '.' + api_name).lower()
         if not _hooks:
-            if not contains_wild_cards:
-                obj = ({api: hook}, [hook, ])
-            else:
-                obj = ({}, [hook, ])
+            obj = {api: [hook]}
             self.hooks.update({common.HOOK_API: obj})
         else:
-            quick_look, wild_list = _hooks
-            if not contains_wild_cards:
-                quick_look.update({api: hook})
-            else:
-                wild_list.append(hook)
+            _hooks.setdefault(api, []).append(hook)
 
     def add_code_hook(self, cb, begin=1, end=0, ctx={}, emu=None):
         """

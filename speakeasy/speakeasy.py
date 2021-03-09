@@ -272,8 +272,7 @@ class Speakeasy(object):
         """
         return self.emu.get_json_report()
 
-    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None,
-                     enable_wild_cards=True):
+    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None):
         """
         Set a callback to fire when a specified API is called during emulation
 
@@ -283,7 +282,6 @@ class Speakeasy(object):
             api_name: Name of the API to hook. Wild cards (e.g. *) are supported.
             argc: force the emulator to account for this amount of arguments (for stack cleanup)
             call_conv: force the emulator to use the supplied calling convention for this hook
-            enable_wild_cards: enable wild cards for this hook
         return:
             Hook object for newly registered hooks
         """
@@ -291,8 +289,7 @@ class Speakeasy(object):
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
             return
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc,
-                                     call_conv=call_conv, emu=self,
-                                     enable_wild_cards=enable_wild_cards)
+                                     call_conv=call_conv, emu=self)
 
     def resume(self, addr, count=-1):
         """
