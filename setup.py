@@ -26,7 +26,7 @@ setuptools.setup(
         'pefile',
         'capstone',
         'lznt1',
-        'unicorn==1.0.2rc4',
+        'unicorn==1.0.2',
         'jsonschema'
     ],
     classifiers=[
