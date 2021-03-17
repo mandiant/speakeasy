@@ -4,7 +4,7 @@ import re
 import json
 import fnmatch
 import traceback
-from typing import List
+from typing import List, Tuple, Dict
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as e_arch
@@ -19,6 +19,9 @@ EMU_ENGINES = (
               ('unicorn', unicorn_eng.EmuEngine),
               )
 
+WILDCARD_FLAG = bool
+API_LEVEL = Tuple[Dict[str, List[common.ApiHook]], WILDCARD_FLAG]
+MODULE_LEVEL = Tuple[Dict[str, API_LEVEL], WILDCARD_FLAG]
 
 # Generic emulator class for binary code
 class BinaryEmulator(MemoryManager):
@@ -809,38 +812,75 @@ class BinaryEmulator(MemoryManager):
         """
         If an API hook has been set, return it here
         """
-        user_hooks = self.hooks.get(common.HOOK_API)
-        if not user_hooks:
-            return []
 
-        api = (mod_name + '.' + func_name).lower()
-        # The list always start with the most accurate
+        mod_name = mod_name.lower()
+        func_name = func_name.lower()
         try:
-            found_hooks = user_hooks[api]
+            hook_struct, wildcard_module = self.hooks[common.HOOK_API]
         except KeyError:
-            found_hooks = []
+            return []
+        try:
+            modules = [hook_struct[mod_name]]
+        except KeyError:
+            modules = []
+        if wildcard_module:
+            for module_name_saved, value in hook_struct.items():
+                if fnmatch.fnmatch(mod_name, module_name_saved) and mod_name != module_name_saved:
+                    modules.append(value)
+        user_hooks = []
+        for module in modules:
+            hooks, wildcard_api = module
+            try:
+                user_hooks.extend(hooks[func_name])
+            except KeyError:
+                pass
+            if wildcard_api:
+                for func_name_saved, list_of_hooks in hooks.items():
+                    if fnmatch.fnmatch(func_name, func_name_saved) and func_name != func_name_saved:
+                        user_hooks.extend(list_of_hooks)
+        return user_hooks
 
-        # Retrieve every hook that was saved with a key that matches the request
-        for hook_api, hooks in user_hooks.items():
-            if fnmatch.fnmatch(api, hook_api) and hook_api != api:
-                found_hooks.extend(hooks)
-
-        return found_hooks
-
-    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None):
+    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None) -> common.ApiHook:
         """
         Add an API level hook (e.g. kernel32.CreateFile) here
         """
+        module = module.lower()
+        api_name = api_name.lower()
+
+        wildcard_module, wildcard_api = False, False
+        for wc in ['?', '*', '[', ']']:
+            if wc in module:
+                wildcard_module = True
+            if wc in api_name:
+                wildcard_api = True
+
         if not emu:
             emu = self
         hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
-        _hooks = self.hooks.get(common.HOOK_API)
-        api = (module + '.' + api_name).lower()
+        _hooks: MODULE_LEVEL = self.hooks.get(common.HOOK_API)
+
+        api_dictionary = (
+            {
+              api_name: [hook]
+            },
+            wildcard_api)
         if not _hooks:
-            obj = {api: [hook]}
-            self.hooks.update({common.HOOK_API: obj})
+            # First addition
+            obj = ({module: api_dictionary}, wildcard_module)
         else:
-            _hooks.setdefault(api, []).append(hook)
+            module_dict, previous_wildcard_module = _hooks
+            try:
+                api_dict, previous_wildcard_api = module_dict[module]
+            except KeyError:
+                # The module asked is not present, so we just add the api dictionary
+                module_dict[module] = api_dictionary
+            else:
+                # The module asked is present, so we can just add the hook
+                api_dict.setdefault(api_name, []).append(hook)
+                module_dict[module] = (api_dict, previous_wildcard_api | wildcard_api)
+            obj = (module_dict, previous_wildcard_module | wildcard_module)
+        self.hooks.update({common.HOOK_API: obj})
+        return hook
 
     def add_code_hook(self, cb, begin=1, end=0, ctx={}, emu=None):
         """
