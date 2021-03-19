@@ -1112,12 +1112,14 @@ class WindowsEmulator(BinaryEmulator):
             default_ctx = {'func_name': imp_api}
 
             self.hammer.handle_import_func(imp_api, conv, argc)
-            hook = self.get_api_hook(dll, name)
-            if hook:
+            hooks = self.get_api_hooks(dll, name)
+            if hooks:
                 from types import MethodType
                 hooked_func = MethodType(func, mod)
                 orig = lambda args: hooked_func(self, args, default_ctx) # noqa
-                rv = hook.cb(self, imp_api, orig, argv)
+                for hook in hooks:
+                    # each hook is called with the arguments, and only the last return value is considered
+                    rv = hook.cb(self, imp_api, orig, argv)
             else:
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
@@ -1145,8 +1147,10 @@ class WindowsEmulator(BinaryEmulator):
 
         else:
             # See if a user defined a hook for this unsupported function
-            hook = self.get_api_hook(dll, name)
-            if hook:
+            hooks = self.get_api_hooks(dll, name)
+            if hooks:
+                # Since the function is unsupported, just call the most accurate defined hook
+                hook = hooks[0]
                 imp_api = '%s.%s' % (dll, name)
 
                 if hook.call_conv is None:
