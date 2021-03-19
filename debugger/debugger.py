@@ -1,11 +1,11 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
 import os
+import sys
 import cmd
 import shlex
 import fnmatch
 import logging
-import readline # noqa (used by cmd)
 import binascii
 import argparse
 import traceback
@@ -15,6 +15,9 @@ import hexdump
 import speakeasy
 import speakeasy.winenv.arch as e_arch
 from speakeasy.errors import SpeakeasyError
+
+if sys.platform != 'win32':
+    import readline # noqa (used by cmd)
 
 
 class DebuggerException(Exception):
@@ -51,15 +54,17 @@ class SpeakeasyDebugger(cmd.Cmd):
 
     file = None
 
-    def __init__(self, parser, logger=None):
+    def __init__(self, target=None, is_sc=False, arch=None, data=None, logger=None, se_inst=None):
         super(SpeakeasyDebugger, self).__init__()
-        args = parser.parse_args()
 
-        self.target = args.target
-        self.is_sc = args.raw
-        self.arch = args.arch
+        self.target = target
+        self.is_sc = is_sc
+        self.arch = arch
         self.logger = logger
-        self.se = speakeasy.Speakeasy(logger=self.logger)
+        if not se_inst:
+            self.se = speakeasy.Speakeasy(logger=self.logger)
+        else:
+            self.se = se_inst
         self.loaded_modules = []
         self.loaded_shellcode = []
         self.targets = []
@@ -76,11 +81,12 @@ class SpeakeasyDebugger(cmd.Cmd):
         if self.is_sc and not self.arch:
             raise DebuggerException('Architecture required when debugging shellcode')
 
-        if not self.is_sc:
-            # Load the initial target module
-            self._load_module(self.target)
-        else:
-            self._load_shellcode(self.target, self.arch)
+        if self.target:
+            if not self.is_sc:
+                # Load the initial target module
+                self.load_module(self.target)
+            else:
+                self.load_shellcode(self.target, self.arch)
 
     def error(self, msg):
         self.logger.error('[-] ' + msg)
@@ -331,7 +337,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         for i in instrs:
             self.info('0x%x: %s %s' % (i.address, i.mnemonic, i.op_str))
 
-    def _load_module(self, module):
+    def load_module(self, module):
         '''
         Load a module into the emulation space
         '''
@@ -341,7 +347,7 @@ class SpeakeasyDebugger(cmd.Cmd):
             module = self.se.load_module(module)
             self.loaded_modules.append(module)
 
-    def _load_shellcode(self, sc_path, arch):
+    def load_shellcode(self, sc_path, arch):
         '''
         Load shellcode into the emulation space
         '''
@@ -365,7 +371,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         '''
         Wrapper to load a module
         '''
-        self._load_module(arg)
+        self.load_module(arg)
 
     def do_eb(self, args):
         '''
@@ -563,7 +569,11 @@ if __name__ == '__main__':
                              'multi-architecture files or shellcode). '
                              'Supported archs: [ x86 | amd64 ]')
 
-    dbg = SpeakeasyDebugger(parser, logger=get_logger())
+    args = parser.parse_args()
+
+    # debugger.SpeakeasyDebugger('C:\\Users\\user\\Desktop\\win32_wincalc.bin', True, 'x86', logger=debugger.get_logger())
+
+    dbg = SpeakeasyDebugger(args.target, args.raw, args.arch, logger=get_logger())
     dbg.info('Welcome to the speakeasy debugger')
     while True:
         try:
