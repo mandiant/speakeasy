@@ -571,8 +571,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # debugger.SpeakeasyDebugger('C:\\Users\\user\\Desktop\\win32_wincalc.bin', True, 'x86', logger=debugger.get_logger())
-
     dbg = SpeakeasyDebugger(args.target, args.raw, args.arch, logger=get_logger())
     dbg.info('Welcome to the speakeasy debugger')
     while True:
