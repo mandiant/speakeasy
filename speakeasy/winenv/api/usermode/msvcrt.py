@@ -92,6 +92,12 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook('_CrtSetCheckCount', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _crtsetcheckcount(self, emu, argv, ctx={}):
+        """int _CrtSetCheckCount( int chk_count );"""
+        rv = 0
+        return rv
+
     @apihook('__getmainargs', argc=5)
     def __getmainargs(self, emu, argv, ctx={}):
         """
@@ -434,6 +440,27 @@ class Msvcrt(api.ApiHandler):
             else:
                 self.mem_copy(strDest + slen1, src, count)
 
+        return rv
+
+    @apihook('printf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def printf(self, emu, argv, ctx={}):
+
+        arch = emu.get_arch()
+        if arch == e_arch.ARCH_AMD64:
+            fmt, va_list = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)[:2]
+        else:
+            fmt, va_list = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)[:2]
+
+        rv = 0
+
+        fmt_str = self.read_mem_string(fmt, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args2(fmt_cnt)
+        fin = self.do_str_format(fmt_str, vargs)
+
+        rv = len(fin)
+        argv.append(fin)
         return rv
 
     @apihook('__stdio_common_vfprintf', argc=e_arch.VAR_ARGS,
@@ -843,6 +870,21 @@ class Msvcrt(api.ApiHandler):
         s, = argv
 
         string = self.read_mem_string(s, 1)
+        argv[0] = string
+        rv = len(string)
+
+        return rv
+
+    @apihook('_putws', argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _putws(self, emu, argv, ctx={}):
+        """
+        int _putws(
+           const wchar_t *str
+        );
+        """
+        s, = argv
+
+        string = self.read_wide_string(s, 20)
         argv[0] = string
         rv = len(string)
 

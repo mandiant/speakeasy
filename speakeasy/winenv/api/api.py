@@ -355,6 +355,20 @@ class ApiHandler(object):
             c += fmt.count('%ll')
         return c - i
 
+    def va_args2(self, num_args): # <-- Works only X86?
+        """
+        Get the variable argument list
+        """
+        args = []
+        ptr = self.emu.reg_read(_arch.X86_REG_ESP)+4
+        ptrsize = self.get_ptr_size()
+
+        for n in range(num_args):
+            arg = int.from_bytes(self.emu.mem_read(ptr, ptrsize), 'little')
+            args.append(arg)
+            ptr += ptrsize
+        return args
+
     def va_args(self, va_list, num_args):
         """
         Get the variable argument list

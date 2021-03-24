@@ -80,7 +80,7 @@ def normalize_dll_name(name):
     ret = name
 
     # Funnel CRTs into a single handler
-    if name.lower().startswith(('api-ms-win-crt', 'vcruntime', 'ucrtbased', 'ucrtbase')):
+    if name.lower().startswith(('api-ms-win-crt', 'vcruntime', 'ucrtbased', 'ucrtbase', 'msvcr')): 
         ret = 'msvcrt'
 
     # Redirect windows sockets 1.0 to windows sockets 2.0

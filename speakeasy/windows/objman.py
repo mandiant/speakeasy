@@ -627,96 +627,96 @@ class Process(KernelObject):
         self.threads.append(thr)
 
     def add_module_to_peb(self, module):
-        pld = self.peb_ldr_data
-        list_type = self.nt_types.LIST_ENTRY(self.emu.get_ptr_size())
+        # Create new ListEntry
+        new_ldte = LdrDataTableEntry(self.emu, module.get_emu_path())
 
-        # Initialize the LDTE
-        ldte = LdrDataTableEntry(self.emu, module.get_emu_path())
-        if not self.ldr_entries:
-            prev = ldte
-        else:
-            prev = self.ldr_entries[-1]
-
-        self.ldr_entries.append(ldte)
-        first = self.ldr_entries[0]
-
-        ldte.object.InLoadOrderLinks.Flink = first.address
-        ldte.object.InMemoryOrderLinks.Flink = first.address + self.sizeof(list_type)
-        ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
-
-        ldte.object.DllBase = module.get_base()
+        new_ldte.object.DllBase = module.get_base()
         dllname = (module.get_emu_path() + '\x00').encode('utf-16le')
-        name_addr = ldte.address + ldte.sizeof()
+        name_addr = new_ldte.address + new_ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
         # Set the dll full name
-        ldte.object.FullDllName.Length = len(dllname) - 2
-        ldte.object.FullDllName.MaximumLength = len(dllname)
-        ldte.object.FullDllName.Buffer = name_addr
+        new_ldte.object.FullDllName.Length = len(dllname) - 2
+        new_ldte.object.FullDllName.MaximumLength = len(dllname)
+        new_ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = (ntpath.basename(module.get_emu_path()) +
-                   '\x00').encode('utf-16le')
+        dllname = (ntpath.basename(module.get_emu_path()) + '\x00').encode('utf-16le')
 
-        ldte.object.BaseDllName.Length = len(dllname) - 2
-        ldte.object.BaseDllName.MaximumLength = len(dllname)
-        ldte.object.BaseDllName.Buffer = name_addr + \
-            (ldte.object.FullDllName.MaximumLength - len(dllname))
-        ldte.write_back()
+        new_ldte.object.BaseDllName.Length = len(dllname) - 2
+        new_ldte.object.BaseDllName.MaximumLength = len(dllname)
+        new_ldte.object.BaseDllName.Buffer = name_addr + \
+            (new_ldte.object.FullDllName.MaximumLength - len(dllname))
+        new_ldte.write_back()
 
-        prev.object.InLoadOrderLinks.Flink = ldte.address
-        prev.object.InMemoryOrderLinks.Flink = ldte.address + \
-            self.sizeof(list_type)
+        pld = self.peb_ldr_data
+        list_type = self.nt_types.LIST_ENTRY(self.emu.get_ptr_size())
+        _first_link = False
+        
+        # Link created list_entry to LDR_MODULE
+        if not self.ldr_entries:
+            # first link
+            _first_link = True
+            prev = pld
+            
+            prev.object.InLoadOrderModuleList.Flink = new_ldte.address
+            prev.object.InMemoryOrderModuleList.Flink = new_ldte.address + self.sizeof(list_type)
+            prev.object.InInitializationOrderModuleList.Flink = 0
 
-        if first is ldte:
-            prev.object.InInitializationOrderLinks.Flink = 0
+            blinks_addr=prev.address + 0xC
+
         else:
-            imol = prev.object.InMemoryOrderLinks.Flink
-            prev.object.InInitializationOrderLinks.Flink = imol + \
-                self.sizeof(list_type)
+            last_etry = self.ldr_entries[-1]
+            prev = last_etry
 
-        ldte.object.InLoadOrderLinks.Blink = prev.address
-        ldte.object.InMemoryOrderLinks.Blink = prev.address + \
-            self.sizeof(list_type)
+            prev.object.InLoadOrderLinks.Flink = new_ldte.address
+            prev.object.InMemoryOrderLinks.Flink = new_ldte.address + self.sizeof(list_type)
+            
+            pprev_addr = prev.object.InLoadOrderLinks.Blink
+            pprev = None
+            for ldr_etry in self.ldr_entries:
+                if pprev_addr == ldr_etry.address:
+                    pprev = ldr_etry
 
-        if first is ldte:
-            ldte.object.InInitializationOrderLinks.Blink = 0
+            if pprev_addr == pld.address + 0xC:
+                pld.object.InInitializationOrderModuleList.Flink = new_ldte.address + self.sizeof(list_type)*2
+            elif pprev_addr != pld.address and pprev is not None:
+                pprev.object.InInitializationOrderLinks.Flink = new_ldte.address + self.sizeof(list_type)*2
+            else:
+                raise Exception("Test Error")
+
+            blinks_addr=prev.address
+
+        new_ldte.object.InLoadOrderLinks.Blink = blinks_addr
+        new_ldte.object.InMemoryOrderLinks.Blink = blinks_addr + self.sizeof(list_type)
+
+        if _first_link:
+            new_ldte.object.InInitializationOrderLinks.Blink = 0
         else:
-            imol = ldte.object.InMemoryOrderLinks.Blink
-            ldte.object.InInitializationOrderLinks.Blink = imol + \
-                self.sizeof(list_type)
+            new_ldte.object.InInitializationOrderLinks.Blink = prev.object.InLoadOrderLinks.Blink + self.sizeof(list_type)*2
+            
+        pld.object.InLoadOrderModuleList.Blink = new_ldte.address
+        pld.object.InMemoryOrderModuleList.Blink = new_ldte.address + self.sizeof(list_type)
+        
+        if _first_link:
+            pld.object.InInitializationOrderModuleList.Blink = 0
+        else:
+            if len(self.ldr_entries) >= 2:
+                pld.object.InInitializationOrderModuleList.Blink = (self.ldr_entries[-2]).address + self.sizeof(list_type)*2
+            else:
+                pld.object.InInitializationOrderModuleList.Blink = 0
+
+        new_ldte.object.InLoadOrderLinks.Flink = pld.address + 0xC
+        new_ldte.object.InMemoryOrderLinks.Flink = pld.address + 0xC + self.sizeof(list_type)
+        if _first_link:
+            new_ldte.object.InInitializationOrderLinks.Flink = 0
+        else:
+            new_ldte.object.InInitializationOrderLinks.Flink = pld.address + 0xC + self.sizeof(list_type)*2
+
+        self.ldr_entries.append(new_ldte)
 
         prev.write_back()
-        ldte.write_back()
-
-        first.object.InLoadOrderLinks.Blink = prev.address
-        first.object.InMemoryOrderLinks.Blink = prev.address
-        if first is not ldte:
-            first.object.InInitializationOrderLinks.Blink = prev.address
-
-        first.write_back()
-
-        pld.object.InLoadOrderModuleList.Flink = first.address
-        pld.object.InMemoryOrderModuleList.Flink = \
-            pld.object.InLoadOrderModuleList.Flink + \
-            self.sizeof(list_type)
-
-        # Lets just copy InMemoryOrderModuleList but skip the main EXE module
-        head = pld.object.InMemoryOrderModuleList.Flink
-        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()),
-                               head)
-
-        pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
-
-        pld.object.InLoadOrderModuleList.Blink = prev.address
-        pld.object.InMemoryOrderModuleList.Blink = \
-            pld.object.InLoadOrderModuleList.Blink + \
-            self.sizeof(list_type)
-
-        pld.object.InInitializationOrderModuleList.Blink = \
-            pld.object.InMemoryOrderModuleList.Blink + \
-            self.sizeof(list_type)
-
+        new_ldte.write_back()
         pld.write_back()
 
         self.peb.object.Ldr = pld.address
@@ -738,8 +738,7 @@ class RTL_USER_PROCESS_PARAMETERS(KernelObject):
         size = self.sizeof()
         size += len(proc_path)
         size += len(proc_cmdline)
-        self.address = emu.mem_map(size,
-                                   tag=proc.get_mem_tag() + '.ProcessParameters')
+        self.address = emu.mem_map(size, tag=proc.get_mem_tag() + '.ProcessParameters')
         emu.mem_write(self.address + self.sizeof(), proc_path)
         emu.mem_write(self.address + self.sizeof() + len(proc_path), proc_cmdline)
 

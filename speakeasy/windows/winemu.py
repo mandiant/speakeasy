@@ -618,8 +618,7 @@ class WindowsEmulator(BinaryEmulator):
         if not p:
             p = self.curr_process
         p.init_peb(user_mods)
-        self.mem_write(self.peb_addr,
-                       p.peb.address.to_bytes(self.get_ptr_size(), 'little'))
+        self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), 'little'))
         return p.peb
 
     def init_teb(self, thread, peb):
@@ -1201,7 +1200,7 @@ class WindowsEmulator(BinaryEmulator):
             if not self.tmp_code_hook and not self.mem_tracing_enabled:
                 self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
 
-            self.enable_code_hook()
+            self.enable_code_hook() # <-- This is the api call hook point
 
             if access == common.INVALID_MEM_EXEC:
 

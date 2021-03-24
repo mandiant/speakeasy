@@ -583,7 +583,7 @@ class Win32Emulator(WindowsEmulator):
         return super(Win32Emulator, self)._hook_mem_unmapped(emu, access, address, size,
                                                              value, user_data)
 
-    def set_hooks(self):
+    def set_hooks(self): # <-- Set Emulator Hook
         """Set the emulator callbacks"""
 
         super(Win32Emulator, self).set_hooks()
