@@ -36,6 +36,8 @@ class Kernel32(api.ApiHandler):
         self.data = {}
 
         self.heaps = []
+        self.curr_local_atom = 0xc000
+        self.local_atom_table = {}
         self.curr_handle = 0x1800
         self.find_files = {}
         self.find_volumes = {}
@@ -50,6 +52,52 @@ class Kernel32(api.ApiHandler):
         self.k32types = k32types
 
         super(Kernel32, self).__get_hook_attrs__(self)
+
+    def add_local_atom(self, s):
+        atom, cnt = self.get_local_atom(s)
+        if atom is None:
+            self.local_atom_table[self.curr_local_atom] = s, 1
+            self.curr_local_atom += 1  # this is not accurate, but fast and simple and shouldn't hurt anything
+            return self.curr_local_atom - 1
+
+        # if the atom already exists, increase its ref count
+        self.local_atom_table[atom] = self.local_atom_table[atom][0], cnt + 1
+        return atom
+
+    def find_local_atom(self, s):
+        atom = None
+        for k, v in self.local_atom_table.items():
+            if v[0].lower() == s.lower():
+                atom = k
+                break
+
+        return atom
+
+    # gets atom and its reference count
+    def get_local_atom(self, s):
+        atom = None, None
+        for k, v in self.local_atom_table.items():
+            if v[0].lower() == s.lower():
+                atom = k, v[1]
+                break
+
+        return atom
+
+    def delete_local_atom(self, atom):
+        if atom in self.local_atom_table:
+            s, cnt = self.local_atom_table[atom]
+            cnt -= 1
+            if cnt == 0:
+                del (self.local_atom_table[atom])
+            else:
+                self.local_atom_table[atom] = s, cnt
+
+            return True
+
+        return False
+
+    def get_local_atom_name(self, atom):
+        return self.local_atom_table.get(atom, (None, None))[0]
 
     def get_handle(self):
         self.curr_handle += 4
@@ -4682,7 +4730,92 @@ class Kernel32(api.ApiHandler):
           LPCWSTR lpString
         );
         """
-        return 0
+        ATOM_RESERVED = 0xC000
+        lpString, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpString, cw)
+        if len(s) == 0:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        argv[0] = s
+        if s[0] == '#' and int(s[1:]) < ATOM_RESERVED:
+            return int(s[1:])
+
+        return self.add_local_atom(s)
+
+    @apihook('FindAtom', argc=1)
+    def FindAtom(self, emu, argv, ctx={}):
+        """
+        ATOM FindAtomA(
+          LPCSTR lpString
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        lpString, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpString, cw)
+        if len(s) == 0:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        argv[0] = s
+        if s[0] == '#' and int(s[1:]) < ATOM_RESERVED:
+            return int(s[1:])
+
+        atom = self.find_local_atom(s)
+        if atom is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        return atom
+
+    @apihook('GetAtomName', argc=3)
+    def GetAtomName(self, emu, argv, ctx={}):
+        """
+        UINT GetAtomNameA(
+          ATOM  nAtom,
+          LPSTR lpBuffer,
+          int   nSize
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        nAtom, lpBuffer, nSize = argv
+        cw = self.get_char_width(ctx)
+        if nAtom < ATOM_RESERVED:
+            s = "#%d" % nAtom
+        elif nAtom not in self.local_atom_table:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+        else:
+            s = self.get_local_atom_name(nAtom)
+
+        argv[1] = s
+        s += '\0'
+        if len(s) > nSize:
+            s = s[:nSize - 1] + '\0'
+
+        self.write_mem_string(s, lpBuffer, cw)
+        return len(s) - 1
+
+    @apihook('DeleteAtom', argc=1)
+    def DeleteAtom(self, emu, argv, ctx={}):
+        """
+        ATOM DeleteAtom(
+          ATOM nAtom
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        nAtom, = argv
+
+        if nAtom < ATOM_RESERVED:
+            return 0
+
+        if self.delete_local_atom(nAtom):
+            return 0
+
+        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+        return nAtom
 
     @apihook('GetProcessHandleCount', argc=1)
     def GetProcessHandleCount(self, emu, argv, ctx={}):
