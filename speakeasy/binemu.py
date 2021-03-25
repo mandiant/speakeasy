@@ -505,17 +505,32 @@ class BinaryEmulator(MemoryManager):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             self.reg_write(e_arch.AMD64_REG_RSP, addr)
 
+    def format_stack(self, num_ptrs):
+        """
+        Get the stack and format it for display
+        """
+        out = []
+        sp = self.get_stack_ptr()
+        for i in range(num_ptrs):
+            try:
+                ptr = self.mem_read(sp, self.get_ptr_size())
+            except Exception:
+                return out
+            ptr = int.from_bytes(ptr, 'little')
+            tag = self.get_address_tag(ptr)
+            out.append((sp, ptr, tag))
+            sp += self.get_ptr_size()
+        return out
+
     def print_stack(self, num_ptrs):
         """
         This a debug function used to print the current stack state
         """
-        sp = self.get_stack_ptr()
+        ptrs = self.format_stack(num_ptrs)
         print('Stack:')
         print('***********************')
-        for i in range(num_ptrs):
-            ptr = self.mem_read(sp, self.get_ptr_size())
-            ptr = int.from_bytes(ptr, 'little')
-            tag = self.get_address_tag(ptr)
+        for p in ptrs:
+            sp, ptr, tag = p
             if tag:
                 fmt = 'sp=0x%x:\t0x%x\t->\t%s' % (sp, ptr, tag)
             else:
@@ -712,10 +727,13 @@ class BinaryEmulator(MemoryManager):
         pat = b'[\x20-\x7f]{%d,}' % (min_len)
         res = re.compile(pat)
         hits = res.findall(data)
+        offset = 0
         for s in hits:
             try:
+                offset = data.find(s, offset)
                 s = s.decode('utf-8')
-                astrs.append(s)
+                astrs.append((offset, s))
+                offset += 1
             except UnicodeDecodeError:
                 continue
         return astrs
@@ -728,10 +746,13 @@ class BinaryEmulator(MemoryManager):
         pat = b'(?:[\x20-\x7f]\x00){%d,}' % (min_len)
         res = re.compile(pat)
         hits = res.findall(data)
+        offset = 0
         for ws in hits:
             try:
+                offset = data.find(ws, offset)
                 ws = ws.decode('utf-16le')
-                wstrs.append(ws)
+                wstrs.append((offset, ws))
+                offset += 1
             except UnicodeDecodeError:
                 continue
         return wstrs

@@ -547,6 +547,44 @@ class SpeakeasyDebugger(cmd.Cmd):
             self.step = True
             self.se.resume(self.next_pc, count=1)
 
+    def do_stack(self, arg):
+        '''
+        Show the current stack layout
+        '''
+        stack = self.se.emu.format_stack(16)
+        ptr_size = self.se.emu.get_ptr_size()
+        ptr_fmt = '0x%0' + str(ptr_size * 2) + 'x'
+        for loc in stack:
+            sp, ptr, tag = loc
+
+            if tag:
+                fmt = 'sp=0x%x:\t' + ptr_fmt + '\t->\t%s'
+                fmt = fmt % (sp, ptr, tag)
+            else:
+                fmt = 'sp=0x%x:\t' + ptr_fmt + '\t'
+                fmt = fmt % (sp, ptr)
+            self.info(fmt.expandtabs(5))
+
+    def do_strings(self, arg):
+        '''
+        Scan all memory segments for strings
+        '''
+        tgt_tag_prefixes = ('emu.stack', 'api')
+        for mmap in self.se.emu.get_mem_maps():
+            tag = mmap.get_tag()
+            base = mmap.get_base()
+            if tag and tag.startswith(tgt_tag_prefixes) and tag != self.se.emu.input.get('mem_tag'):
+                data = self.se.mem_read(mmap.get_base(), mmap.get_size()-1)
+                ansi_strings = self.se.emu.get_ansi_strings(data)
+                for offset, astr in ansi_strings:
+                    addr = base + offset
+                    self.info('0x%x: %s' % (addr, astr))
+
+                uni_strings = self.se.emu.get_unicode_strings(data)
+                for offset, wstr in uni_strings:
+                    addr = base + offset
+                    self.info('0x%x: %s' % (addr, wstr))
+
     def do_exit(self, arg):
         '''
         Quit debugging
