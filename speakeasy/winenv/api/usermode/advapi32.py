@@ -273,7 +273,7 @@ class AdvApi32(api.ApiHandler):
                             name = name.encode('utf-8')
                         self.mem_write(lpName, name)
                         rv = windefs.ERROR_SUCCESS
-
+            self.log_registry_access(key.get_path(), "list_subkeys")
         return rv
 
     @apihook('RegCreateKey', argc=3)
@@ -297,7 +297,9 @@ class AdvApi32(api.ApiHandler):
                 if lpSubKey:
                     lpSubKey = self.read_mem_string(lpSubKey, cw)
                     argv[1] = lpSubKey
-                    self.emu.reg_create_key(key.get_path() + '\\' + lpSubKey)
+                    sub_key_path = key.get_path() + '\\' + lpSubKey
+                    self.emu.reg_create_key(sub_key_path)
+                    self.log_registry_access(sub_key_path, "create_key")
                 else:
                     hkey = (hkey).to_bytes(self.get_ptr_size(), 'little')
                     self.mem_write(phkResult, hkey)
