@@ -267,18 +267,20 @@ class SpeakeasyDebugger(cmd.Cmd):
         split_args = shlex.split(args)
         address = split_args[0]
         try:
-
             address = self.convert_bin_str(address)
             bp = Breakpoint(address)
             msg = '[*] Breakpoint %d set at address 0x%x' % (bp.id, address)
+            rv = address
         except Exception:
             orig = address
             address = address.lower()
             bp = Breakpoint(address)
             msg = '[*] Breakpoint %d set at %s' % (bp.id, orig)
+            rv = None
 
         self.breakpoints.update({address: bp})
         self.info(msg)
+        return rv
 
     def do_bc(self, args):
         '''
@@ -293,13 +295,13 @@ class SpeakeasyDebugger(cmd.Cmd):
             _id = int(split_args[0])
         except Exception:
             self.error('Invalid breakpoint id')
-            return
+            return None
 
         for addr, bp in self.breakpoints.items():
             if _id == bp.id:
                 self.info('[*] Removing breakpoint %d' % (_id))
                 self.breakpoints.pop(addr)
-                break
+                return addr
 
     def do_disas(self, args):
         '''
@@ -366,6 +368,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         else:
             sc = self.se.load_shellcode(sc_path, arch)
             self.loaded_shellcode.append(sc)
+            return sc
 
     def do_load_module(self, arg):
         '''
