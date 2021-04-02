@@ -6,6 +6,9 @@ import ctypes as ct
 WSADESCRIPTION_LEN = 256
 WSASYS_STATUS_LEN = 128
 
+MAX_PATH = 260
+MAX_MODULE_NAME32 = 255
+
 FILE_ATTRIBUTE_NORMAL = 0x80
 
 TH32CS_INHERIT = 0x80000000
@@ -61,7 +64,7 @@ class PROCESSENTRY32(EmuStruct):
         self.th32ParentProcessID = ct.c_uint32
         self.pcPriClassBase = ct.c_uint32
         self.dwFlags = ct.c_uint32
-        self.szExeFile = ct.c_uint8 * (260 * width)
+        self.szExeFile = ct.c_uint8 * (MAX_PATH * width)
 
 
 class THREADENTRY32(EmuStruct):
@@ -74,6 +77,21 @@ class THREADENTRY32(EmuStruct):
         self.tpBasePri = ct.c_uint32
         self.tpDeltaPri = ct.c_uint32
         self.dwFlags = ct.c_uint32
+
+
+class MODULEENTRY32(EmuStruct):
+    def __init__(self, ptr_size, width):
+        super().__init__(ptr_size)
+        self.dwSize = ct.c_uint32
+        self.th32ModuleID = ct.c_uint32
+        self.th32ProcessID = ct.c_uint32
+        self.GlblcntUsage = ct.c_uint32
+        self.ProccntUsage = ct.c_uint32
+        self.modBaseAddr = Ptr
+        self.modBaseSize = ct.c_uint32
+        self.hModule = ct.c_uint32
+        self.szModule = ct.c_uint8 * ((MAX_MODULE_NAME32 + 1) * width)
+        self.szExePath = ct.c_uint8 * (MAX_PATH * width)
 
 
 class PROCESS_INFORMATION(EmuStruct):
