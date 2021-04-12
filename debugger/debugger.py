@@ -68,16 +68,8 @@ class SpeakeasyDebugger(cmd.Cmd):
         self.loaded_modules = []
         self.loaded_shellcode = []
         self.targets = []
-        self.se.add_code_hook(self.code_hook)
-        self.se.add_api_hook(self.api_hook, '*', '*')  # hook every API
-        self.step = False
-        self.running = False
-        self._do_stop = False
-        self.exit = False
-        self.step_over = 0
-        self.next_pc = 0
         self.breakpoints = {}
-
+        self.init_state()
         if self.is_sc and not self.arch:
             raise DebuggerException('Architecture required when debugging shellcode')
 
@@ -87,6 +79,17 @@ class SpeakeasyDebugger(cmd.Cmd):
                 self.load_module(self.target)
             else:
                 self.load_shellcode(self.target, self.arch)
+
+    def init_state(self):
+        if self.se:
+            self.se.add_code_hook(self.code_hook)
+            self.se.add_api_hook(self.api_hook, '*', '*')  # hook every API
+        self.step = False
+        self.running = False
+        self._do_stop = False
+        self.exit = False
+        self.step_over = 0
+        self.next_pc = 0
 
     def error(self, msg):
         self.logger.error('[-] ' + msg)
@@ -370,6 +373,20 @@ class SpeakeasyDebugger(cmd.Cmd):
             self.loaded_shellcode.append(sc)
             return sc
 
+    def do_restart(self, arg):
+        '''
+        Restart emulation from the entry point
+        '''
+        self.se = speakeasy.Speakeasy(logger=self.logger)
+        if self.target:
+            if not self.is_sc:
+                # Load the initial target module
+                self.load_module(self.target)
+            else:
+                self.load_shellcode(self.target, self.arch)
+        self.init_state()
+        self.do_run(None)
+
     def do_load_module(self, arg):
         '''
         Wrapper to load a module
@@ -517,7 +534,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         else:
             self.info('%s=%s' % (arg, val))
 
-    def do_run(self, module):
+    def do_run(self, arg):
         '''Begin emulation of a loaded module'''
         if not self.is_sc and not len(self.loaded_modules):
             self.error('No modules have been loaded yet')

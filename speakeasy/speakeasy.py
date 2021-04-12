@@ -310,6 +310,13 @@ class Speakeasy(object):
         """
         return self.emu.stop()
 
+    def shutdown(self) -> None:
+        """
+        Closes the emulation instance
+        """
+        # TODO
+        return
+
     def call(self, addr: int, params=[]) -> None:
         """
         Start emulating at the specified address
