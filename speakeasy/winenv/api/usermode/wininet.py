@@ -404,6 +404,7 @@ class Wininet(api.ApiHandler):
             port = 80
         else:
             port = 443
+        self.log_http(crack.netloc, port, headers=lpszHeaders)
         sess = wini.new_session(crack.netloc, port, '', '', '', defs, dwContext)
         if not sess:
             return 0
