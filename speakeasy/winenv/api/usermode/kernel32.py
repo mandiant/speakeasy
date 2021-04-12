@@ -36,6 +36,8 @@ class Kernel32(api.ApiHandler):
         self.data = {}
 
         self.heaps = []
+        self.curr_local_atom = 0xc000
+        self.local_atom_table = {}
         self.curr_handle = 0x1800
         self.find_files = {}
         self.find_volumes = {}
@@ -50,6 +52,52 @@ class Kernel32(api.ApiHandler):
         self.k32types = k32types
 
         super(Kernel32, self).__get_hook_attrs__(self)
+
+    def add_local_atom(self, s):
+        atom, cnt = self.get_local_atom(s)
+        if atom is None:
+            self.local_atom_table[self.curr_local_atom] = s, 1
+            self.curr_local_atom += 1  # this is not accurate, but fast and simple and shouldn't hurt anything
+            return self.curr_local_atom - 1
+
+        # if the atom already exists, increase its ref count
+        self.local_atom_table[atom] = self.local_atom_table[atom][0], cnt + 1
+        return atom
+
+    def find_local_atom(self, s):
+        atom = None
+        for k, v in self.local_atom_table.items():
+            if v[0].lower() == s.lower():
+                atom = k
+                break
+
+        return atom
+
+    # gets atom and its reference count
+    def get_local_atom(self, s):
+        atom = None, None
+        for k, v in self.local_atom_table.items():
+            if v[0].lower() == s.lower():
+                atom = k, v[1]
+                break
+
+        return atom
+
+    def delete_local_atom(self, atom):
+        if atom in self.local_atom_table:
+            s, cnt = self.local_atom_table[atom]
+            cnt -= 1
+            if cnt == 0:
+                del (self.local_atom_table[atom])
+            else:
+                self.local_atom_table[atom] = s, cnt
+
+            return True
+
+        return False
+
+    def get_local_atom_name(self, atom):
+        return self.local_atom_table.get(atom, (None, None))[0]
 
     def get_handle(self):
         self.curr_handle += 4
@@ -304,11 +352,10 @@ class Kernel32(api.ApiHandler):
         '''
 
         dwFlags, th32ProcessID, = argv
-
         if k32types.TH32CS_SNAPPROCESS == dwFlags:
             hnd = self.get_handle()
             index = 0
-            self.snapshots.update({hnd: [index, emu.get_processes()]})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
         elif k32types.TH32CS_SNAPTHREAD == dwFlags:
             hnd = self.get_handle()
             index = 0
@@ -321,7 +368,42 @@ class Kernel32(api.ApiHandler):
                         break
                 else:
                     raise ApiEmuError('The specified PID not found')
-            self.snapshots.update({hnd: [index, proc.threads, proc.get_pid()]})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
+        elif k32types.TH32CS_SNAPMODULE == dwFlags:
+            hnd = self.get_handle()
+            index = 0
+            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+                proc = emu.curr_process
+            else:
+                for p in emu.get_processes():
+                    if th32ProcessID == p.get_pid():
+                        proc = p
+                        break
+                else:
+                    raise ApiEmuError('The specified PID not found')
+
+            # self.snapshots.update({hnd: [index, proc.modules, proc.get_pid()]}) <-- proc.modules is not populated
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+
+        elif (k32types.TH32CS_SNAPHEAPLIST | k32types.TH32CS_SNAPPROCESS |
+              k32types.TH32CS_SNAPTHREAD | k32types.TH32CS_SNAPMODULE) == dwFlags:
+            # ignoring HEAPLIST for now
+            hnd = self.get_handle()
+            index = 0
+            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+                proc = emu.curr_process
+            else:
+                for p in emu.get_processes():
+                    if th32ProcessID == p.get_pid():
+                        proc = p
+                        break
+                else:
+                    raise ApiEmuError('The specified PID not found')
+
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+
         else:
             raise ApiEmuError('Unsupported snapshot type: 0x%x' % (dwFlags))
 
@@ -345,12 +427,12 @@ class Kernel32(api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not pe32:
+        if not snap or not pe32 or k32types.TH32CS_SNAPPROCESS not in snap:
             return rv
 
         # Reset the handle index
-        snap[0] = 1
-        proc = snap[1][0]
+        snap[k32types.TH32CS_SNAPPROCESS][0] = 1
+        proc = snap[k32types.TH32CS_SNAPPROCESS][1][0]
 
         try:
             cw = self.get_char_width(ctx)
@@ -382,14 +464,14 @@ class Kernel32(api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not pe32:
+        if not snap or not pe32 or k32types.TH32CS_SNAPPROCESS not in snap:
             return rv
 
-        index = snap[0]
-        snap[0] += 1
-        if index >= len(snap[1]):
+        index = snap[k32types.TH32CS_SNAPPROCESS][0]
+        snap[k32types.TH32CS_SNAPPROCESS][0] += 1
+        if index >= len(snap[k32types.TH32CS_SNAPPROCESS][1]):
             return rv
-        proc = snap[1][index]
+        proc = snap[k32types.TH32CS_SNAPPROCESS][1][index]
 
         try:
             cw = self.get_char_width(ctx)
@@ -421,17 +503,17 @@ class Kernel32(api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not te32:
+        if not snap or not te32 or k32types.TH32CS_SNAPTHREAD not in snap:
             return rv
 
         # Reset the handle index
-        snap[0] = 1
-        thread = snap[1][0]
+        snap[k32types.TH32CS_SNAPTHREAD][0] = 1
+        thread = snap[k32types.TH32CS_SNAPTHREAD][1][0]
 
         te = self.k32types.THREADENTRY32(emu.get_ptr_size())
         data = self.mem_cast(te, te32)
         te.th32ThreadID = thread.tid
-        te.th32OwnerProcessID = snap[2]
+        te.th32OwnerProcessID = snap[k32types.TH32CS_SNAPTHREAD][2]
 
         self.mem_write(te32, self.get_bytes(data))
         rv = True
@@ -450,21 +532,108 @@ class Kernel32(api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not te32:
+        if not snap or not te32 or k32types.TH32CS_SNAPTHREAD not in snap:
             return rv
 
-        index = snap[0]
-        snap[0] += 1
-        if index >= len(snap[1]):
+        index = snap[k32types.TH32CS_SNAPTHREAD][0]
+        snap[k32types.TH32CS_SNAPTHREAD][0] += 1
+        if index >= len(snap[k32types.TH32CS_SNAPTHREAD][1]):
             return rv
-        thread = snap[1][index]
+        thread = snap[k32types.TH32CS_SNAPTHREAD][1][index]
 
         te = self.k32types.THREADENTRY32(emu.get_ptr_size())
         data = self.mem_cast(te, te32)
         te.th32ThreadID = thread.tid
-        te.th32OwnerProcessID = snap[2]
+        te.th32OwnerProcessID = snap[k32types.TH32CS_SNAPTHREAD][2]
 
         self.mem_write(te32, self.get_bytes(data))
+        rv = True
+        return rv
+
+    @apihook('Module32First', argc=2)
+    def Module32First(self, emu, argv, ctx={}):
+        '''
+        BOOL Module32First(
+          HANDLE          hSnapshot,
+          LPMODULEENTRY32 lpme
+        );
+        '''
+
+        hSnapshot, mod32, = argv
+        rv = False
+
+        snap = self.snapshots.get(hSnapshot)
+        if not snap or not mod32 or k32types.TH32CS_SNAPMODULE not in snap:
+            return rv
+
+        # Reset the handle index
+        snap[k32types.TH32CS_SNAPMODULE][0] = 1
+        module = snap[k32types.TH32CS_SNAPMODULE][1][0]
+
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
+
+        mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
+        data = self.mem_cast(mod, mod32)
+        if cw == 2:
+            if hasattr(module, "decoy_path"):
+                mod.szExePath = module.decoy_path.encode('utf-16le') + b'\x00'
+            mod.szModule = module.name.encode('utf-16le') + b'\x00'
+        else:
+            if hasattr(module, "decoy_path"):
+                mod.szExePath = module.decoy_path.encode('utf-8') + b'\x00'
+            mod.szModule = module.name.encode('utf-8') + b'\x00'
+
+        mod.modBaseAddr = module.base
+        mod.modBaseSize = module.image_size
+        mod.th32ProcessID = snap[k32types.TH32CS_SNAPMODULE][2]
+        self.mem_write(mod32, self.get_bytes(data))
+        rv = True
+        return rv
+
+    @apihook('Module32Next', argc=2)
+    def Module32Next(self, emu, argv, ctx={}):
+        '''
+        BOOL Module32Next(
+          HANDLE          hSnapshot,
+          LPMODULEENTRY32 lpme
+        );
+        '''
+
+        hSnapshot, mod32, = argv
+        rv = False
+
+        snap = self.snapshots.get(hSnapshot)
+        if not snap or not mod32 or k32types.TH32CS_SNAPMODULE not in snap:
+            return rv
+
+        index = snap[k32types.TH32CS_SNAPMODULE][0]
+        snap[k32types.TH32CS_SNAPMODULE][0] += 1
+        if index >= len(snap[k32types.TH32CS_SNAPMODULE][1]):
+            return rv
+        module = snap[k32types.TH32CS_SNAPMODULE][1][index]
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
+
+        mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
+        data = self.mem_cast(mod, mod32)
+        if cw == 2:
+            if hasattr(module, "decoy_path"):
+                mod.szExePath = module.decoy_path.encode('utf-16le') + b'\x00'
+            mod.szModule = module.name.encode('utf-16le') + b'\x00'
+        else:
+            if hasattr(module, "decoy_path"):
+                mod.szExePath = module.decoy_path.encode('utf-8') + b'\x00'
+            mod.szModule = module.name.encode('utf-8') + b'\x00'
+
+        mod.modBaseAddr = module.base
+        mod.modBaseSize = module.image_size
+        mod.th32ProcessID = snap[k32types.TH32CS_SNAPMODULE][2]
+        self.mem_write(mod32, self.get_bytes(data))
         rv = True
         return rv
 
@@ -4682,7 +4851,92 @@ class Kernel32(api.ApiHandler):
           LPCWSTR lpString
         );
         """
-        return 0
+        ATOM_RESERVED = 0xC000
+        lpString, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpString, cw)
+        if len(s) == 0:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        argv[0] = s
+        if s[0] == '#' and int(s[1:]) < ATOM_RESERVED:
+            return int(s[1:])
+
+        return self.add_local_atom(s)
+
+    @apihook('FindAtom', argc=1)
+    def FindAtom(self, emu, argv, ctx={}):
+        """
+        ATOM FindAtomA(
+          LPCSTR lpString
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        lpString, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(lpString, cw)
+        if len(s) == 0:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        argv[0] = s
+        if s[0] == '#' and int(s[1:]) < ATOM_RESERVED:
+            return int(s[1:])
+
+        atom = self.find_local_atom(s)
+        if atom is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        return atom
+
+    @apihook('GetAtomName', argc=3)
+    def GetAtomName(self, emu, argv, ctx={}):
+        """
+        UINT GetAtomNameA(
+          ATOM  nAtom,
+          LPSTR lpBuffer,
+          int   nSize
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        nAtom, lpBuffer, nSize = argv
+        cw = self.get_char_width(ctx)
+        if nAtom < ATOM_RESERVED:
+            s = "#%d" % nAtom
+        elif nAtom not in self.local_atom_table:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+        else:
+            s = self.get_local_atom_name(nAtom)
+
+        argv[1] = s
+        s += '\0'
+        if len(s) > nSize:
+            s = s[:nSize - 1] + '\0'
+
+        self.write_mem_string(s, lpBuffer, cw)
+        return len(s) - 1
+
+    @apihook('DeleteAtom', argc=1)
+    def DeleteAtom(self, emu, argv, ctx={}):
+        """
+        ATOM DeleteAtom(
+          ATOM nAtom
+        );
+        """
+        ATOM_RESERVED = 0xC000
+        nAtom, = argv
+
+        if nAtom < ATOM_RESERVED:
+            return 0
+
+        if self.delete_local_atom(nAtom):
+            return 0
+
+        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+        return nAtom
 
     @apihook('GetProcessHandleCount', argc=1)
     def GetProcessHandleCount(self, emu, argv, ctx={}):
