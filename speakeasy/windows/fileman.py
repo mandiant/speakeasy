@@ -114,7 +114,7 @@ class File(object):
                 # Reset the file pointer
                 self.data.seek(0)
             else:
-                return None
+                return b''
 
         return self.data.read(size)
 
