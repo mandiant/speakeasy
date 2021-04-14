@@ -50,14 +50,14 @@ class Crypt32(api.ApiHandler):
         else:
             s = self.read_mem_string(pszString, cw)
 
-        argv[0] = s
-
         if dwFlags != CRYPT_STRING_BASE64:
             # self.logger.info("%s: currently unsupported flags (%08X)" % (api_name, dwFlags))
             return 1
 
         if type(s) != str:
             s = s.decode('utf8')
+
+        argv[0] = s
 
         try:
             decoded = base64.b64decode(s)

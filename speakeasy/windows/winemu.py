@@ -1118,7 +1118,8 @@ class WindowsEmulator(BinaryEmulator):
                 hooked_func = MethodType(func, mod)
                 orig = lambda args: hooked_func(self, args, default_ctx) # noqa
                 for hook in hooks:
-                    # each hook is called with the arguments, and only the last return value is considered
+                    # each hook is called with the arguments, and only the last return value is
+                    # considered
                     rv = hook.cb(self, imp_api, orig, argv)
             else:
                 try:
@@ -2066,7 +2067,7 @@ class WindowsEmulator(BinaryEmulator):
             hook_obj.disable()
 
         exception_list = self._get_exception_list()
-        if (exception_list or self.unhandled_exception_filter) and self.dispatch_handlers:
+        if exception_list and self.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2d:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT

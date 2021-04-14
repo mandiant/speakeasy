@@ -23,6 +23,7 @@ WILDCARD_FLAG = bool
 API_LEVEL = Tuple[Dict[str, List[common.ApiHook]], WILDCARD_FLAG]
 MODULE_LEVEL = Tuple[Dict[str, API_LEVEL], WILDCARD_FLAG]
 
+
 # Generic emulator class for binary code
 class BinaryEmulator(MemoryManager):
     """
@@ -857,11 +858,13 @@ class BinaryEmulator(MemoryManager):
                 pass
             if wildcard_api:
                 for func_name_saved, list_of_hooks in hooks.items():
-                    if fnmatch.fnmatch(func_name, func_name_saved) and func_name != func_name_saved:
+                    if (fnmatch.fnmatch(func_name, func_name_saved) and
+                       func_name != func_name_saved):
                         user_hooks.extend(list_of_hooks)
         return user_hooks
 
-    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None, emu=None) -> common.ApiHook:
+    def add_api_hook(self, cb, module='', api_name='', argc=0, call_conv=None,
+                     emu=None) -> common.ApiHook:
         """
         Add an API level hook (e.g. kernel32.CreateFile) here
         """

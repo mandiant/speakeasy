@@ -593,7 +593,8 @@ class SpeakeasyDebugger(cmd.Cmd):
         for mmap in self.se.emu.get_mem_maps():
             tag = mmap.get_tag()
             base = mmap.get_base()
-            if tag and tag.startswith(tgt_tag_prefixes) and tag != self.se.emu.input.get('mem_tag'):
+            if (tag and tag.startswith(tgt_tag_prefixes) and
+               tag != self.se.emu.input.get('mem_tag')):
                 data = self.se.mem_read(mmap.get_base(), mmap.get_size()-1)
                 ansi_strings = self.se.emu.get_ansi_strings(data)
                 for offset, astr in ansi_strings:
