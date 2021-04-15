@@ -14,6 +14,8 @@ NameDnsDomain = 0xC
 NameGivenName = 0xD
 NameSurname = 0xE
 
+SEC_E_INVALID_HANDLE = 0x80090301
+
 
 def get_define(define, prefix=''):
     for k, v in globals().items():

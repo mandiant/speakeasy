@@ -45,3 +45,18 @@ class Secur32(api.ApiHandler):
         self.mem_write(nSize, user_name_len.to_bytes(4, 'little'))
 
         return 1
+
+    @apihook('EncryptMessage', argc=4)
+    def EncryptMessage(self, emu, argv, ctx={}):
+        """
+        SECURITY_STATUS SEC_ENTRY EncryptMessage(
+        PCtxtHandle    phContext,
+        unsigned long  fQOP,
+        PSecBufferDesc pMessage,
+        unsigned long  MessageSeqNo
+        );
+        """
+
+        PCtxtHandle, fQOP, pMessage, MessageSeqNo = argv
+
+        return sec32defs.SEC_E_INVALID_HANDLE

@@ -152,8 +152,9 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         # Strings the initial buffer so that we can detect decoded strings later on
         if self.profiler and self.do_strings:
-            astrs = self.get_ansi_strings(pe.mapped_image)
-            wstrs = self.get_unicode_strings(pe.mapped_image)
+
+            astrs = [a[1] for a in self.get_ansi_strings(pe.mapped_image)]
+            wstrs = [u[1] for u in self.get_unicode_strings(pe.mapped_image)]
 
             for s in astrs:
                 if s not in self.profiler.strings['ansi']:

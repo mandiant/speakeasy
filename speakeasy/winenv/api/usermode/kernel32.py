@@ -57,7 +57,8 @@ class Kernel32(api.ApiHandler):
         atom, cnt = self.get_local_atom(s)
         if atom is None:
             self.local_atom_table[self.curr_local_atom] = s, 1
-            self.curr_local_atom += 1  # this is not accurate, but fast and simple and shouldn't hurt anything
+            # this is not accurate, but fast and simple and shouldn't hurt anything
+            self.curr_local_atom += 1
             return self.curr_local_atom - 1
 
         # if the atom already exists, increase its ref count
@@ -355,7 +356,8 @@ class Kernel32(api.ApiHandler):
         if k32types.TH32CS_SNAPPROCESS == dwFlags:
             hnd = self.get_handle()
             index = 0
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index,
+                                                                       emu.get_processes()]}})
         elif k32types.TH32CS_SNAPTHREAD == dwFlags:
             hnd = self.get_handle()
             index = 0
@@ -368,7 +370,8 @@ class Kernel32(api.ApiHandler):
                         break
                 else:
                     raise ApiEmuError('The specified PID not found')
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads,
+                                                                      proc.get_pid()]}})
         elif k32types.TH32CS_SNAPMODULE == dwFlags:
             hnd = self.get_handle()
             index = 0
@@ -382,8 +385,9 @@ class Kernel32(api.ApiHandler):
                 else:
                     raise ApiEmuError('The specified PID not found')
 
-            # self.snapshots.update({hnd: [index, proc.modules, proc.get_pid()]}) <-- proc.modules is not populated
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index,
+                                                                      emu.get_user_modules(),
+                                                                      proc.get_pid()]}})
 
         elif (k32types.TH32CS_SNAPHEAPLIST | k32types.TH32CS_SNAPPROCESS |
               k32types.TH32CS_SNAPTHREAD | k32types.TH32CS_SNAPMODULE) == dwFlags:
@@ -400,9 +404,13 @@ class Kernel32(api.ApiHandler):
                 else:
                     raise ApiEmuError('The specified PID not found')
 
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index,
+                                                                       emu.get_processes()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads,
+                                                                      proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index,
+                                                                      emu.get_user_modules(),
+                                                                      proc.get_pid()]}})
 
         else:
             raise ApiEmuError('Unsupported snapshot type: 0x%x' % (dwFlags))
@@ -3184,7 +3192,8 @@ class Kernel32(api.ApiHandler):
         # Set WIN32_FILE_ATTRIBUTE_DATA.dwFileAttributes to Normal
         file_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
 
-        # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime, using current date time
+        # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime,
+        # using current date time
         timestamp = 116444736000000000 + int(datetime.datetime.utcnow().timestamp()) * 10000000
         file_data.ftCreationTime.dwLowDateTime = 0xFFFFFFFF & timestamp
         file_data.ftCreationTime.dwHighDateTime = timestamp >> 32
@@ -5345,11 +5354,25 @@ class Kernel32(api.ApiHandler):
         HANDLE hFile
         );'''
 
-        hFile = argv
+        hFile, = argv
         rv = 1
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
+
+    @apihook('GetExitCodeThread', argc=2)
+    def GetExitCodeThread(self, emu, argv, ctx={}):
+        '''
+        BOOL GetExitCodeThread(
+        HANDLE  hThread,
+        LPDWORD lpExitCode
+        );
+        '''
+
+        hThread, lpExitCode = argv
+        if lpExitCode:
+            self.mem_write(lpExitCode, int(0).to_bytes(4, 'little'))
+        return True
 
     @apihook('InitializeConditionVariable', argc=1)
     def InitializeConditionVariable(self, emu, argv, ctx={}):
@@ -5358,7 +5381,7 @@ class Kernel32(api.ApiHandler):
         PCONDITION_VARIABLE ConditionVariable
         );
         '''
-        ConditionVariable = argv
+        ConditionVariable, = argv
         rv = 0
 
         return rv
@@ -5370,7 +5393,7 @@ class Kernel32(api.ApiHandler):
           PVOID *OldValue
         );
         '''
-        OldValue = argv
+        OldValue, = argv
         rv = 1
 
         return rv
@@ -5382,7 +5405,7 @@ class Kernel32(api.ApiHandler):
           PVOID OlValue
         );
         '''
-        OlValue = argv
+        OlValue, = argv
         rv = 1
 
         return rv

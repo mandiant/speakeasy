@@ -169,8 +169,8 @@ class Win32Emulator(WindowsEmulator):
 
         # Strings the initial buffer so that we can detect decoded strings later on
         if self.profiler and self.do_strings:
-            self.profiler.strings['ansi'] = self.get_ansi_strings(data)
-            self.profiler.strings['unicode'] = self.get_unicode_strings(data)
+            self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(data)]
+            self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(data)]
 
         # Set the emulated path
         emu_path = ''
@@ -370,9 +370,8 @@ class Win32Emulator(WindowsEmulator):
             self.profiler.add_input_metadata(self.input)
             # Strings the initial buffer so that we can detect decoded strings later on
             if self.do_strings:
-                self.profiler.strings['ansi'] = self.get_ansi_strings(sc)
-                self.profiler.strings['unicode'] = self.get_unicode_strings(sc)
-
+                self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(sc)]
+                self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(sc)]
         self.setup()
 
         return sc_addr
@@ -607,8 +606,9 @@ class Win32Emulator(WindowsEmulator):
             self.emu_complete = True
             if self.do_strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
-                dec_ansi = [a for a in dec_ansi if a not in self.profiler.strings['ansi']]
-                dec_unicode = [u for u in dec_unicode if u not in self.profiler.strings['unicode']]
+                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings['ansi']]
+                dec_unicode = [u[1] for u in dec_unicode
+                               if u not in self.profiler.strings['unicode']]
                 self.profiler.decoded_strings['ansi'] = dec_ansi
                 self.profiler.decoded_strings['unicode'] = dec_unicode
         self.stop()
