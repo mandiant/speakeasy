@@ -197,7 +197,8 @@ class Profiler(object):
             if event_type == et:
                 for fa in run.file_access:
                     if path == fa.get('path') and fa['event'] == et:
-                        fa['size'] += size
+                        if size:
+                            fa['size'] += size
                         return
 
         enc = None
