@@ -165,8 +165,10 @@ class Wininet(api.ApiHandler):
             url_comp = self.mem_cast(uc, lpUrlComponents)
 
             crack = urlparse(url)
+            secure = False
             if crack.scheme == 'https':
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
+                secure = True
             elif crack.scheme == 'http':
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
             if url_comp.dwHostNameLength > 0:
@@ -174,6 +176,11 @@ class Wininet(api.ApiHandler):
                     host = crack.netloc + '\x00'
                     enc = self.get_encoding(cw)
                     self.mem_write(url_comp.lpszHostName, host.encode(enc))
+                    self.log_http(
+                        host,
+                        port=80 if not secure else 443,
+                        secure=secure
+                    )
                 else:
                     offset = url.find(crack.netloc)
                     ptr = lpszUrl + (offset * cw)
