@@ -1790,7 +1790,7 @@ class Kernel32(api.ApiHandler):
                 bn = mod.get_base_name()
                 mname, _ = os.path.splitext(bn)
                 rv = emu.get_proc(mname, proc)
-
+                break
         return rv
 
     @apihook('GetConsoleWindow', argc=0)
