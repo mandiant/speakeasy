@@ -2513,8 +2513,9 @@ class Kernel32(api.ApiHandler):
         nStdHandle, = argv
 
         proc = emu.get_current_process()
-        hnd = proc.get_std_handle(nStdHandle)
-
+        hnd, name = proc.get_std_handle(nStdHandle)
+        if name:
+            argv[0] = name
         return hnd
 
     @apihook('GetFileType', argc=1)
@@ -2525,10 +2526,10 @@ class Kernel32(api.ApiHandler):
         );
         '''
         FILE_TYPE_DISK = 1
-
+        FILE_TYPE_CHAR = 2
         hFile, = argv
-
-        return FILE_TYPE_DISK
+        return FILE_TYPE_CHAR
+        # return FILE_TYPE_DISK
 
     @apihook('SetHandleCount', argc=1)
     def SetHandleCount(self, emu, argv, ctx={}):

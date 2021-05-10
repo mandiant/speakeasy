@@ -2,6 +2,7 @@
 
 import os
 import ntpath
+from enum import Enum
 
 import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
 import speakeasy.winenv.arch as _arch
@@ -581,18 +582,15 @@ class Process(KernelObject):
         return self.token
 
     def get_std_handle(self, dev):
-        STD_INPUT_HANDLE = 0xfffffff6
-        STD_OUTPUT_HANDLE = 0xfffffff5
-        STD_ERROR_HANDLE = 0xfffffff4
-
-        for k, v in ((STD_INPUT_HANDLE, self.stdin),
-                     (STD_OUTPUT_HANDLE, self.stdout),
-                     (STD_ERROR_HANDLE, self.stderr),
-                     ):
-
-            if k == dev:
-                return v
-        return 0
+        class Handles(Enum):
+            STD_INPUT_HANDLE = (0xfffffff6, self.stdin)
+            STD_OUTPUT_HANDLE = (0xfffffff5, self.stdout)
+            STD_ERROR_HANDLE = (0xfffffff4, self.stderr)
+        for handle in Handles:
+            handle_dev, obj = handle.value
+            if dev == handle_dev:
+                return obj, handle.name
+        return 0, ""
 
     def get_title_name(self):
         return self.title
