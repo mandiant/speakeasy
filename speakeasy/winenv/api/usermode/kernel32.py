@@ -1786,6 +1786,7 @@ class Kernel32(api.ApiHandler):
         mods = emu.get_user_modules()
         for mod in mods:
             if mod.get_base() == hmod:
+                argv[0] = mod.base_name
                 bn = mod.get_base_name()
                 mname, _ = os.path.splitext(bn)
                 rv = emu.get_proc(mname, proc)
