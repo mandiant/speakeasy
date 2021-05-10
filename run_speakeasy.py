@@ -12,6 +12,9 @@ from speakeasy import Speakeasy
 
 import speakeasy.winenv.arch as e_arch
 
+def empty(*args, **kwargs):
+    return 0
+
 
 def get_logger():
     """
@@ -50,6 +53,7 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(fpath)
+            se.add_api_hook(empty, module="*", api_name="GetSystemTimePreciseAsFileTime")
             se.run_module(module, all_entrypoints=True)
 
     finally:
