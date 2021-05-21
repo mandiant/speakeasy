@@ -1891,6 +1891,17 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
         return size
+    #
+    # @apihook('HeapValidate', argc=3)
+    # def HeapValidate(self, emu, argv, ctx={}):
+    #     '''
+    #     BOOL HeapValidate(
+    #       HANDLE  hHeap,
+    #       DWORD   dwFlags,
+    #       LPCVOID lpMem
+    #     );
+    #     '''
+    #     return 1
 
     @apihook('GetTickCount', argc=0)
     def GetTickCount(self, emu, argv, ctx={}):

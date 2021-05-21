@@ -11,10 +11,21 @@ import speakeasy
 from speakeasy import Speakeasy
 
 import speakeasy.winenv.arch as e_arch
-
-def empty(*args, **kwargs):
+def zero(*args, **kwargs):
     return 0
 
+def one(*args, **kwargs):
+    return 1
+
+def checker(*args, **kwargs):
+    print(args, kwargs)
+
+    #emu, val1, val2, cxt = args
+    #print(hex(val1), hex(val2))
+
+
+# Api : (func, argc_length)
+FAST_HOOKS = {"HeapValidate": (one, 3), "GetCursorInfo": (zero, 1), "GetSystemTimePreciseAsFileTime": (zero, 1)}
 
 def get_logger():
     """
@@ -53,14 +64,24 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(fpath)
-            se.add_api_hook(empty, module="*", api_name="GetSystemTimePreciseAsFileTime")
+            #se.add_IN_instruction_hook(checker)
+            se.emu.add_instruction_hook(checker, insn=218)
+            [
+                se.add_api_hook(
+                    value[0],
+                    "*",
+                    key,
+                    value[1]
+                )
+                for key, value in FAST_HOOKS.items()
+            ]
             se.run_module(module, all_entrypoints=True)
 
     finally:
 
         report = se.get_json_report()
         q.put(report)
-
+        #print(report)
         # If a memory dump was requested, do it now
         if dump_path:
             data = se.create_memdump_archive()
