@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import os
+import zlib
 
 from .. import api
 
@@ -212,3 +213,18 @@ class Ntdll(api.ApiHandler):
         rv = Ptr - 1
 
         return rv
+
+
+    @apihook("strlen", argc=2)
+    def Strlen(self, emu, argv, ctx={}):
+        string_ptr, local = argv
+        string = self.read_mem_string(string_ptr, 1)
+        argv[0] = string
+        return len(string)
+
+    @apihook("RtlComputeCrc32", argc=3)
+    def RtlComputeCrc32(self, emu, argv, ctx={}):
+        dwInitial, pData, iLen = argv
+        string = self.read_mem_string(pData, 1)
+        crc = zlib.crc32(string.encode(), dwInitial) % (1<<32)
+        return crc
