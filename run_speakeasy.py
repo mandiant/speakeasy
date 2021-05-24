@@ -25,7 +25,13 @@ def checker(*args, **kwargs):
 
 
 # Api : (func, argc_length)
-FAST_HOOKS = {"HeapValidate": (one, 3), "GetCursorInfo": (zero, 1), "GetSystemTimePreciseAsFileTime": (zero, 1)}
+FAST_HOOKS = {"HeapValidate": (one, 3),
+              "GetCursorInfo": (zero, 1),
+              "GetSystemTimePreciseAsFileTime": (zero, 1),
+              "MoveWindow": (one, 5),
+              "GetConsoleScreenBufferInfo": (one, 1),
+              "SetConsoleTextAttribute": (one,2),
+              }
 
 def get_logger():
     """
