@@ -8,7 +8,7 @@ import json
 import hashlib
 
 from collections import deque
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
 PROC_CREATE = 'create'
 MEM_ALLOC = 'mem_alloc'
@@ -192,9 +192,6 @@ class Profiler(object):
         Log file access events. This will include things like handles being opened,
         data reads, and data writes.
         """
-        enc = None
-        if data:
-            enc = self.handle_binary_data(data[:1024])
 
         for et in ('write', 'read'):
             if event_type == et:
@@ -202,9 +199,12 @@ class Profiler(object):
                     if path == fa.get('path') and fa['event'] == et:
                         if size:
                             fa['size'] += size
-                        if enc:
-                            fa["data"] += enc
+                        if data:
+                            fa["data"] = self.handle_binary_data(b64decode(fa["data"]) + data)
                         return
+        enc = None
+        if data:
+            enc = self.handle_binary_data(data[:1024])
 
         event = {'event': event_type, 'path': path}
         if enc:
