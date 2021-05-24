@@ -31,6 +31,7 @@ FAST_HOOKS = {"HeapValidate": (one, 3),
               "MoveWindow": (one, 5),
               "GetConsoleScreenBufferInfo": (one, 1),
               "SetConsoleTextAttribute": (one,2),
+              "UnhandledExceptionFilter":(one, 1),
               }
 
 def get_logger():
@@ -87,7 +88,7 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='
 
         report = se.get_json_report()
         q.put(report)
-        #print(report)
+        # print(report)
         # If a memory dump was requested, do it now
         if dump_path:
             data = se.create_memdump_archive()

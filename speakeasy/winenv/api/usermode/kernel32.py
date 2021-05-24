@@ -3439,16 +3439,20 @@ class Kernel32(api.ApiHandler):
             path = f.get_path()
             if data:
                 f.add_data(data)
-                # Log the file event
+                data = data.hex()
+
+                argv[1] = "%s (%s)" % (hex(lpBuffer), data[:0x20])
 
         else:
             proc = emu.get_current_process()
             if hFile == proc.stdout:
                 path = "STD_OUTPUT"
+                argv[1] = data.decode()
         if path:
+            # Log the file event
+            argv[0] = path
             self.log_file_access(path, 'write', data=data, buffer=lpBuffer, size=num_bytes)
-            data = data.hex()
-            argv[1] = "%s (%s)" % (hex(lpBuffer), data[:0x20])
+
 
             rv = 1
             emu.set_last_error(windefs.ERROR_SUCCESS)

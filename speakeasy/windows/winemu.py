@@ -2067,6 +2067,11 @@ class WindowsEmulator(BinaryEmulator):
             hook_obj.disable()
 
         exception_list = self._get_exception_list()
+        if not hasattr(self, "interrupts"):
+            self.interrupts = []
+        if not hasattr(self, "syscalls_counter"):
+            self.syscalls_counter = 0
+        self.interrupts.append((intnum, self.syscalls_counter))
         if exception_list and self.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2d:
@@ -2092,6 +2097,8 @@ class WindowsEmulator(BinaryEmulator):
             if ecx == 6:
                 ctx.append(self.add_code_hook(cb=_tmp_hook, ctx=ctx))
                 return True
+            # whatever
+            return True
 
         pc = self.get_pc()
         self.log_error('0x%x: Unhandled interrupt: intnum=0x%x' % (pc, intnum))
