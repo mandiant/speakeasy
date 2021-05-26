@@ -88,7 +88,8 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='
 
         report = se.get_json_report()
         q.put(report)
-        # print(report)
+        with open("/tmp/report", "w+") as f:
+            json.dump(report, f, indent=5)
         # If a memory dump was requested, do it now
         if dump_path:
             data = se.create_memdump_archive()
