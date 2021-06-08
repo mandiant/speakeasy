@@ -427,6 +427,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self.profiler:
                     if self.profiler.get_run_time() > self.timeout:
                         self.log_error('* Timeout of %d sec(s) reached.' % (self.timeout))
+                        self.curr_run.error = {"type": "Timeout reached"}
             except KeyboardInterrupt:
                 self.log_error('* User exited.')
                 return
