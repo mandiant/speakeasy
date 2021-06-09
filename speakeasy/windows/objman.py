@@ -506,7 +506,7 @@ class Process(KernelObject):
                  name='', path='', cmdline='', base=0, session=0):
         super(Process, self).__init__(emu=emu)
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
-        ldr_entries = []
+        self.ldr_entries = []
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xe0000000)
         self.name = name
