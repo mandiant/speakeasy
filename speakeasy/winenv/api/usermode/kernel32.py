@@ -3286,6 +3286,8 @@ class Kernel32(api.ApiHandler):
         if ad:
             argv[1] = ' | '.join(ad)
 
+        disp_bytes = disp.to_bytes(8, 'little')
+        disp = int(int.from_bytes(disp_bytes[0:4], 'little')
         cd = windefs.get_create_disposition(disp)
         if cd:
             argv[4] = cd
