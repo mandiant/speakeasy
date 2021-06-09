@@ -1158,6 +1158,7 @@ class WindowsEmulator(BinaryEmulator):
                     hook.call_conv = _arch.CALL_CONV_STDCALL
 
                 argv = self.get_func_argv(hook.call_conv, hook.argc)
+                self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
                 ret = self.get_ret_address()
                 self.log_api(ret, imp_api, rv, argv)
