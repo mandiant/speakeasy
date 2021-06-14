@@ -32,6 +32,7 @@ FAST_HOOKS = {"HeapValidate": (one, 3),
               "GetConsoleScreenBufferInfo": (one, 1),
               "SetConsoleTextAttribute": (one,2),
               "UnhandledExceptionFilter":(one, 1),
+              "ThunRTMain": (one, 1)
               }
 
 def get_logger():
