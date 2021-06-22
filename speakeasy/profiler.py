@@ -339,34 +339,17 @@ class Profiler(object):
         run.process_events.append(event)
         self.last_event = event
 
-    def log_dns(self, run, domain, ip=''):
+    def log_dns(self, run, domain, clock, ip=''):
         """
         Log DNS name lookups for the emulation report
         """
 
-        query = {"query": domain, "response": ip}
+        query = {"query": domain, "response": ip, "clock":clock}
         if query not in run.network['dns']:
             run.network['dns'].append(query)
 
-    def log_http(self, run, server, port, proto='http',
-                 headers='', body=b'', secure=False):
-        """
-        Log HTTP traffic that occur during emulation
-        """
-        conns = run.network['traffic']
 
-        proto = 'http'
-        if secure:
-            proto = 'https'
 
-        http_conn = {'server': server, 'proto': 'tcp.%s' % (proto), 'port': port,
-                     'headers': headers}
-        if body:
-            data = self.handle_binary_data(body[:0x3000])
-            http_conn.update({'body': data})
-
-        if http_conn not in conns:
-            conns.append(http_conn)
 
     def log_dyn_code(self, run, tag, base, size):
         """
@@ -378,21 +361,22 @@ class Profiler(object):
             run.dyn_code['mmap'].append(entry)
             run.dyn_code['base_addrs'].add(base)
 
-    def log_network(self, run, server, port, typ='unknown', proto='unknown', data=b'', method=''):
+    def log_network(self, run, server, port,clock, typ=None, proto='unknown', data=b'', method='', headers=""):
         """
         Log network activity for an emulation run
         """
         conns = run.network['traffic']
 
-        conn = {'server': server, 'proto': proto, 'port': port}
+        conn = {'server': server, 'proto': proto, 'port': port, "clock":clock}
         if data:
             data = self.handle_binary_data(data[:0x3000])
             conn.update({'data': data})
-
+        if headers:
+            conn.update({"headers": headers})
         if method:
             conn.update({'method': method})
-
-        conn.update({'type': typ})
+        if typ:
+            conn.update({'type': typ})
 
         conns.append(conn)
 

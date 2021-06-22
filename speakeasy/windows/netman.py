@@ -154,10 +154,7 @@ class WininetRequest(WininetComponent):
 
     def format_http_request(self, headers=None):
         request_string = ''
-        action = '%s %s %s\n' % (self.verb.upper(), self.objname.path,
-                                 self.ver.upper())
 
-        request_string += action
         if headers:
             request_string += headers
 

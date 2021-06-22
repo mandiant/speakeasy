@@ -234,21 +234,15 @@ class ApiHandler(object):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_dns(run, domain, ip)
+            profiler.log_dns(run, domain, clock=self.emu.syscalls_counter,ip=ip)
 
-    def log_network(self, server, port, typ='unknown', proto='unknown', data=b'', method=''):
+    def log_network(self, server, port, typ='unknown', proto='unknown', data=b'', method='', headers=""):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             profiler.log_network(run, server, port, typ=typ, proto=proto,
-                                 data=data, method=method)
+                                 data=data, method=method, headers=headers, clock=self.emu.syscalls_counter)
 
-    def log_http(self, server, port, headers='', body=b'', secure=False):
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            profiler.log_http(run, server, port, headers=headers,
-                              body=body, secure=secure)
 
     def get_max_int(self):
         # Byte order is irrelevant here

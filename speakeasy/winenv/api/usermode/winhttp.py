@@ -216,8 +216,8 @@ class WinHttp(api.ApiHandler):
         rv = 1
         req_str = req.format_http_request(headers=headers)
 
-        self.log_http(srv, port, headers=req_str,
-                      body=body, secure=req.is_secure())
+        self.log_network(srv + req.objname.path, port, headers=req_str,
+                         data=body, proto="https" if not req.is_secure() else "http", method=req.verb.upper())
         return rv
 
     @apihook('WinHttpReceiveResponse', argc=2, conv=_arch.CALL_CONV_STDCALL)

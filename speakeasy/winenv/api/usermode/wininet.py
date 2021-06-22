@@ -171,11 +171,7 @@ class Wininet(api.ApiHandler):
                 secure = True
             elif crack.scheme == 'http':
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
-            self.log_http(
-                crack.netloc + crack.path,
-                port=80 if not secure else 443,
-                secure=secure
-            )
+
             if url_comp.dwHostNameLength > 0:
                 if url_comp.lpszHostName:
                     host = crack.netloc + '\x00'
@@ -239,9 +235,13 @@ class Wininet(api.ApiHandler):
 
         rv = 1
         req_str = req.format_http_request(headers=headers)
-
-        self.log_http(srv, port, headers=req_str,
-                      body=body, secure=req.is_secure())
+        print("PUTTANAMADONNA1")
+        print("PUTTANAMADONNA2")
+        print("PUTTANAMADONNA3")
+        print("PUTTANAMADONNA4")
+        print("PUTTANAMADONNA5")
+        self.log_network(srv + req.objname.path, port, headers=req_str,
+                         data=body, proto="https" if not req.is_secure() else "http", method=req.verb.upper())
         return rv
 
     @apihook('InternetErrorDlg', argc=5, conv=_arch.CALL_CONV_STDCALL)
@@ -392,6 +392,7 @@ class Wininet(api.ApiHandler):
         """
         hInternet, lpszUrl, lpszHeaders, dwHeadersLength, dwFlags, dwContext = argv
         cw = self.get_char_width(ctx)
+        headers = ""
         if lpszUrl:
             url = self.read_mem_string(lpszUrl, cw)
             argv[1] = url
@@ -411,9 +412,11 @@ class Wininet(api.ApiHandler):
             port = 80
         else:
             port = 443
-        self.log_http(crack.netloc, port, headers=lpszHeaders)
         sess = wini.new_session(crack.netloc, port, '', '', '', defs, dwContext)
         if not sess:
             return 0
         req = sess.new_request("GET", url, None, None, None, defs, dwContext)
+        req_str = req.format_http_request(headers=headers)
+        self.log_network(req.get_server() + req.objname.path, port, headers=req_str,
+                         proto="https" if not req.is_secure() else "http", method=req.verb.upper())
         return req.get_handle()
