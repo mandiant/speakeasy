@@ -17,7 +17,7 @@ def normalize_response_path(path):
     def _get_speakeasy_root():
         return os.path.join(os.path.dirname(__file__), os.pardir)
 
-    root_var = '$ROOT$'
+    root_var = "$ROOT$"
 
     if root_var in path:
         root = _get_speakeasy_root()
@@ -30,15 +30,16 @@ class Socket(object):
     """
     Represents a Windows network socket
     """
+
     def __init__(self, fd, family, stype, protocol, flags):
         self.fd = fd
         self.family = family
         self.type = stype
         self.protocol = protocol
         self.flags = flags
-        self.connected_host = ''
+        self.connected_host = ""
         self.connected_port = 0
-        self.curr_packet = BytesIO(b'')
+        self.curr_packet = BytesIO(b"")
         self.packet_queue = []
 
     def get_fd(self):
@@ -57,12 +58,12 @@ class Socket(object):
     def fill_recv_queue(self, responses):
 
         for resp in responses:
-            mode = resp.get('mode', '')
-            if mode.lower() == 'default':
-                default_resp_path = resp.get('path')
+            mode = resp.get("mode", "")
+            if mode.lower() == "default":
+                default_resp_path = resp.get("path")
                 if default_resp_path:
                     default_resp_path = normalize_response_path(default_resp_path)
-                    with open(default_resp_path, 'rb') as f:
+                    with open(default_resp_path, "rb") as f:
                         self.curr_packet = BytesIO(f.read())
 
     def get_recv_data(self, size, peek=False):
@@ -79,9 +80,9 @@ class WSKSocket(Socket):
     """
     Represents a WSK socket used in kernel mode applications
     """
+
     def __init__(self, fd, family, stype, protocol, flags):
-        super(WSKSocket, self).__init__(self, fd, family, stype,
-                                        protocol, flags)
+        super(WSKSocket, self).__init__(self, fd, family, stype, protocol, flags)
 
 
 class WininetComponent(object):
@@ -109,24 +110,25 @@ class WininetRequest(WininetComponent):
     """
     WinInet request object
     """
+
     def __init__(self, session, verb, objname, ver, ref, accepts, flags, ctx):
         super(WininetRequest, self).__init__()
 
         # The WiniNet APIs default to a HTTP "GET" if no verb is specified
         if not verb:
-            self.verb = 'get'
+            self.verb = "get"
         else:
             self.verb = verb.lower()
 
         self.objname = objname
         if not self.objname:
-            self.objname = ''
+            self.objname = ""
         self.objname = urlparse(self.objname)
 
         self.session = session
 
         if not ver:
-            ver = 'HTTP/1.1'
+            ver = "HTTP/1.1"
         self.ver = ver
         self.referrer = ref
         self.accept_types = accepts
@@ -148,12 +150,12 @@ class WininetRequest(WininetComponent):
         return sess.get_instance()
 
     def is_secure(self):
-        if 'INTERNET_FLAG_SECURE' in self.flags:
+        if "INTERNET_FLAG_SECURE" in self.flags:
             return True
         return False
 
     def format_http_request(self, headers=None):
-        request_string = ''
+        request_string = ""
 
         if headers:
             request_string += headers
@@ -162,19 +164,19 @@ class WininetRequest(WininetComponent):
         sess = self.get_session()
 
         host = sess.server
-        request_string += 'Host: %s\n' % (host)
+        request_string += "Host: %s\n" % (host)
 
         ua = inst.get_user_agent()
         if ua:
-            request_string += 'User-Agent: %s\n' % (ua)
+            request_string += "User-Agent: %s\n" % (ua)
 
-        if 'INTERNET_FLAG_KEEP_CONNECTION' in self.flags:
-            request_string += 'Connection: Keep-Alive\n'
+        if "INTERNET_FLAG_KEEP_CONNECTION" in self.flags:
+            request_string += "Connection: Keep-Alive\n"
         else:
-            request_string += 'Connection: Close\n'
+            request_string += "Connection: Close\n"
 
-        if 'INTERNET_FLAG_DONT_CACHE' in self.flags:
-            request_string += 'Cache-Control: no-cache\n'
+        if "INTERNET_FLAG_DONT_CACHE" in self.flags:
+            request_string += "Cache-Control: no-cache\n"
 
         return request_string
 
@@ -196,41 +198,42 @@ class WininetRequest(WininetComponent):
         if self.response:
             return self.response
 
-        http = cfg.get('http')
+        http = cfg.get("http")
         if not http:
-            raise NetworkEmuError('No HTTP configuration supplied')
-        resps = http.get('responses')
+            raise NetworkEmuError("No HTTP configuration supplied")
+        resps = http.get("responses")
         if not resps:
-            raise NetworkEmuError('No HTTP responses supplied')
+            raise NetworkEmuError("No HTTP responses supplied")
 
         self.response = None
         for res in resps:
-            verb = res.get('verb', '')
+            verb = res.get("verb", "")
             if verb.lower() == self.verb:
 
-                resp_files = res.get('files', [])
+                resp_files = res.get("files", [])
                 if resp_files:
                     for file in resp_files:
-                        mode = file.get('mode', '')
-                        if mode.lower() == 'by_ext':
-                            ext = file.get('ext', '')
+                        mode = file.get("mode", "")
+                        if mode.lower() == "by_ext":
+                            ext = file.get("ext", "")
                             fn, obj_ext = os.path.splitext(self.objname.path)
 
-                            if (ext.lower().strip('.') ==
-                               obj_ext.lower().strip('.')):
-                                path = file.get('path')
+                            if ext.lower().strip(".") == obj_ext.lower().strip("."):
+                                path = file.get("path")
                                 path = normalize_response_path(path)
 
-                                with open(path, 'rb') as f:
+                                with open(path, "rb") as f:
                                     self.response = BytesIO(f.read())
-                        elif mode.lower() == 'default':
+                        elif mode.lower() == "default":
 
-                            default_resp_path = file.get('path')
-                            default_resp_path = normalize_response_path(default_resp_path)
+                            default_resp_path = file.get("path")
+                            default_resp_path = normalize_response_path(
+                                default_resp_path
+                            )
 
                     if not self.response and default_resp_path:
                         default_resp_path = normalize_response_path(default_resp_path)
-                        with open(default_resp_path, 'rb') as f:
+                        with open(default_resp_path, "rb") as f:
                             self.response = BytesIO(f.read())
 
         return self.response
@@ -240,8 +243,7 @@ class WininetRequest(WininetComponent):
 
 
 class WininetSession(WininetComponent):
-    def __init__(self, instance, server, port, user,
-                 password, service, flags, ctx):
+    def __init__(self, instance, server, port, user, password, service, flags, ctx):
         super(WininetSession, self).__init__()
         self.server = server
         self.port = port
@@ -261,8 +263,7 @@ class WininetSession(WininetComponent):
         return self.flags
 
     def new_request(self, verb, objname, ver, ref, accepts, flags, ctx):
-        req = WininetRequest(self, verb, objname, ver, ref,
-                             accepts, flags, ctx)
+        req = WininetRequest(self, verb, objname, ver, ref, accepts, flags, ctx)
         hdl = req.get_handle()
         self.requests.update({hdl: req})
         return req
@@ -285,8 +286,7 @@ class WininetInstance(WininetComponent):
         self.sessions.update({handle: session})
 
     def new_session(self, server, port, user, password, service, flags, ctx):
-        sess = WininetSession(self, server, port, user,
-                              password, service, flags, ctx)
+        sess = WininetSession(self, server, port, user, password, service, flags, ctx)
         hdl = sess.get_handle()
         self.sessions.update({hdl: sess})
         return sess
@@ -299,6 +299,7 @@ class NetworkManager(object):
     """
     Class that manages network connections during emulation
     """
+
     def __init__(self, config):
         super(NetworkManager, self).__init__()
         self.sockets = {}
@@ -309,7 +310,7 @@ class NetworkManager(object):
         self.dns = {}
 
         WininetComponent.config = config
-        self.dns = self.config.get('dns')
+        self.dns = self.config.get("dns")
 
     def new_socket(self, family, stype, protocol, flags):
 
@@ -319,9 +320,9 @@ class NetworkManager(object):
         self.curr_fd += 4
 
         if self.config:
-            winsock = self.config.get('winsock')
+            winsock = self.config.get("winsock")
             if winsock:
-                responses = winsock.get('responses')
+                responses = winsock.get("responses")
                 if responses:
                     sock.fill_recv_queue(responses)
 
@@ -333,12 +334,12 @@ class NetworkManager(object):
         if not self.dns:
             return None
 
-        names = self.dns.get('names')
+        names = self.dns.get("names")
 
         # Do we have an IP for this name?
         if domain.lower() not in names.keys():
             # use the default IP (if any)
-            return names.get('default')
+            return names.get("default")
 
         return names.get(domain)
 
@@ -346,28 +347,29 @@ class NetworkManager(object):
         """
         Return a configured DNS TXT record (if any)
         """
+
         def _read_txt_data(txt):
-            path = txt.get('path')
+            path = txt.get("path")
             if path:
                 path = normalize_response_path(path)
-                with open(path, 'rb') as f:
+                with open(path, "rb") as f:
                     return f.read()
 
         if not self.dns:
             return None
 
-        txts = self.dns.get('txt', [])
-        txt = [t for t in txts if t.get('name', '') == domain]
+        txts = self.dns.get("txt", [])
+        txt = [t for t in txts if t.get("name", "") == domain]
         if txt:
             return _read_txt_data(txt[0])
-        txt = [t for t in txts if t.get('name', '') == 'default']
+        txt = [t for t in txts if t.get("name", "") == "default"]
         if txt:
             return _read_txt_data(txt[0])
 
     def ip_lookup(self, ip):
         for item in self.dns:
-            if item['response'] == ip:
-                return item['query']
+            if item["response"] == ip:
+                return item["query"]
         return None
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):

@@ -11,7 +11,8 @@ class Bcrypt(api.ApiHandler):
     """
     Implements exported functions from bcrypt.dll
     """
-    name = 'bcrypt'
+
+    name = "bcrypt"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -24,7 +25,7 @@ class Bcrypt(api.ApiHandler):
 
         super(Bcrypt, self).__get_hook_attrs__(self)
 
-    @apihook('BCryptOpenAlgorithmProvider', argc=4)
+    @apihook("BCryptOpenAlgorithmProvider", argc=4)
     def BCryptOpenAlgorithmProvider(self, emu, argv, ctx={}):
         """
         NTSTATUS BCryptOpenAlgorithmProvider(
@@ -40,7 +41,7 @@ class Bcrypt(api.ApiHandler):
         if algid:
             argv[1] = algid
 
-        implementation = ''
+        implementation = ""
         if pszImplementation:
             implementation = self.read_wide_string(pszImplementation)
             if implementation:
@@ -49,13 +50,12 @@ class Bcrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         hnd = cm.crypt_open(pname=implementation, ptype=algid, flags=dwFlags)
         if hnd:
-            self.mem_write(phAlgorithm,
-                           hnd.to_bytes(emu.get_ptr_size(), 'little'))
+            self.mem_write(phAlgorithm, hnd.to_bytes(emu.get_ptr_size(), "little"))
             argv[0] = hnd
 
         return ntdefs.STATUS_SUCCESS
 
-    @apihook('BCryptImportKeyPair', argc=7)
+    @apihook("BCryptImportKeyPair", argc=7)
     def BCryptImportKeyPair(self, emu, argv, ctx={}):
         """
         NTSTATUS BCryptImportKeyPair(
@@ -68,31 +68,28 @@ class Bcrypt(api.ApiHandler):
           ULONG             dwFlags
         );
         """
-        hAlgorithm, hImportKey, pszBlobType, phKey, pbInput, cbInput, dwFlags \
-            = argv
+        hAlgorithm, hImportKey, pszBlobType, phKey, pbInput, cbInput, dwFlags = argv
 
         blob_type = self.read_wide_string(pszBlobType)
         argv[2] = blob_type
 
         cbInput = cbInput & 0xFFFFFFFF
         blob = self.mem_read(pbInput, cbInput)
-        argv[4] = base64.b64encode(blob).decode('utf-8')
+        argv[4] = base64.b64encode(blob).decode("utf-8")
 
         cm = emu.get_crypt_manager()
         if hAlgorithm and phKey:
             ctx = cm.crypt_get(hAlgorithm)
-            hnd = ctx.import_key(blob_type=blob_type,
-                                 blob=blob,
-                                 blob_len=cbInput,
-                                 flags=dwFlags)
+            hnd = ctx.import_key(
+                blob_type=blob_type, blob=blob, blob_len=cbInput, flags=dwFlags
+            )
             if hnd:
-                self.mem_write(phKey,
-                               hnd.to_bytes(emu.get_ptr_size(), 'little'))
+                self.mem_write(phKey, hnd.to_bytes(emu.get_ptr_size(), "little"))
                 argv[3] = hnd
 
         return ntdefs.STATUS_SUCCESS
 
-    @apihook('BCryptCloseAlgorithmProvider', argc=2)
+    @apihook("BCryptCloseAlgorithmProvider", argc=2)
     def BCryptCloseAlgorithmProvider(self, emu, argv, ctx={}):
         """
         NTSTATUS BCryptCloseAlgorithmProvider(
@@ -108,7 +105,7 @@ class Bcrypt(api.ApiHandler):
 
         return ntdefs.STATUS_SUCCESS
 
-    @apihook('BCryptGetProperty', argc=6)
+    @apihook("BCryptGetProperty", argc=6)
     def BCryptGetProperty(self, emu, argv, ctx={}):
         """
         NTSTATUS BCryptGetProperty(
@@ -130,14 +127,14 @@ class Bcrypt(api.ApiHandler):
 
         return ntdefs.STATUS_SUCCESS
 
-    @apihook('BCryptDestroyKey', argc=1)
+    @apihook("BCryptDestroyKey", argc=1)
     def BCryptDestroyKey(self, emu, argv, ctx={}):
         """
         NTSTATUS BCryptDestroyKey(
           BCRYPT_KEY_HANDLE hKey
         );
         """
-        hKey, = argv
+        (hKey,) = argv
         cm = emu.get_crypt_manager()
         for hnd, ctx in cm.ctx_handles.items():
             hnd_key = ctx.get_key(hKey)

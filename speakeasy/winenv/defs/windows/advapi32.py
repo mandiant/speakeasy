@@ -16,7 +16,7 @@ class SERVICE_TABLE_ENTRY(EmuStruct):
         self.lpServiceProc = Ptr
 
 
-def get_define_int(define, prefix=''):
+def get_define_int(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue

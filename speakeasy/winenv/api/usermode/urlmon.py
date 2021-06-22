@@ -9,7 +9,7 @@ from .. import api
 
 class Urlmon(api.ApiHandler):
 
-    name = 'urlmon'
+    name = "urlmon"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -22,7 +22,7 @@ class Urlmon(api.ApiHandler):
         self.netman = emu.get_network_manager()
         self.names = {}
 
-    @apihook('URLDownloadToFile', argc=5)
+    @apihook("URLDownloadToFile", argc=5)
     def URLDownloadToFile(self, emu, argv, ctx={}):
         """
         HRESULT URLDownloadToFile(
@@ -49,7 +49,7 @@ class Urlmon(api.ApiHandler):
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
             argv[2] = name
-            self.log_file_access(name, 'create')
-            self.log_file_access(name, 'write')
+            self.log_file_access(name, "create")
+            self.log_file_access(name, "write")
 
         return rv

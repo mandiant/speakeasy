@@ -10,7 +10,7 @@ class Msimg32(api.ApiHandler):
     Implements exported functions from msimg.dll
     """
 
-    name = 'msimg32'
+    name = "msimg32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -19,9 +19,9 @@ class Msimg32(api.ApiHandler):
         super(Msimg32, self).__init__(emu)
         super(Msimg32, self).__get_hook_attrs__(self)
 
-    @apihook('TransparentBlt', argc=11)
+    @apihook("TransparentBlt", argc=11)
     def TransparentBlt(self, emu, argv, ctx={}):
-        '''
+        """
         BOOL TransparentBlt(
           HDC  hdcDest,
           int  xoriginDest,
@@ -35,5 +35,5 @@ class Msimg32(api.ApiHandler):
           int  hSrc,
           UINT crTransparent
         );
-        '''
+        """
         return 1

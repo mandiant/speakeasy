@@ -24,7 +24,7 @@ class Wininet(api.ApiHandler):
     Implements network functions from wininet.dll
     """
 
-    name = 'wininet'
+    name = "wininet"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -38,7 +38,7 @@ class Wininet(api.ApiHandler):
         self.netman = netman.NetworkManager(config=emu.get_network_config())
         super(Wininet, self).__get_hook_attrs__(self)
 
-    @apihook('InternetOpen', argc=5, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def InternetOpen(self, emu, argv, ctx={}):
         """
         void InternetOpenA(
@@ -66,7 +66,7 @@ class Wininet(api.ApiHandler):
         hnd = conn.get_handle()
         return hnd
 
-    @apihook('InternetConnect', argc=8, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetConnect", argc=8, conv=_arch.CALL_CONV_STDCALL)
     def InternetConnect(self, emu, argv, ctx={}):
         """
         void InternetConnect(
@@ -98,12 +98,11 @@ class Wininet(api.ApiHandler):
         if not wini:
             return 0
 
-        sess = wini.new_session(server, port, user, password,
-                                service, flags, dwctx)
+        sess = wini.new_session(server, port, user, password, service, flags, dwctx)
         hdl = sess.get_handle()
         return hdl
 
-    @apihook('HttpOpenRequest', argc=8, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("HttpOpenRequest", argc=8, conv=_arch.CALL_CONV_STDCALL)
     def HttpOpenRequest(self, emu, argv, ctx={}):
         """
         void HttpOpenRequest(
@@ -134,14 +133,14 @@ class Wininet(api.ApiHandler):
             argv[4] = ref
 
         defs = windefs.get_flag_defines(flags)
-        argv[6] = ' | '.join(defs)
+        argv[6] = " | ".join(defs)
 
         sess = self.netman.get_wininet_object(hnd)
         req = sess.new_request(verb, objname, ver, ref, accepts, defs, dwctx)
         hdl = req.get_handle()
         return hdl
 
-    @apihook('InternetCrackUrl', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetCrackUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetCrackUrl(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetCrackUrl(
@@ -165,16 +164,14 @@ class Wininet(api.ApiHandler):
             url_comp = self.mem_cast(uc, lpUrlComponents)
 
             crack = urlparse(url)
-            secure = False
-            if crack.scheme == 'https':
+            if crack.scheme == "https":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
-                secure = True
-            elif crack.scheme == 'http':
+            elif crack.scheme == "http":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
 
             if url_comp.dwHostNameLength > 0:
                 if url_comp.lpszHostName:
-                    host = crack.netloc + '\x00'
+                    host = crack.netloc + "\x00"
                     enc = self.get_encoding(cw)
                     self.mem_write(url_comp.lpszHostName, host.encode(enc))
                 else:
@@ -187,7 +184,7 @@ class Wininet(api.ApiHandler):
 
         return rv
 
-    @apihook('InternetSetOption', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetSetOption(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetSetOption(
@@ -203,7 +200,7 @@ class Wininet(api.ApiHandler):
 
         return rv
 
-    @apihook('HttpSendRequest', argc=5, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("HttpSendRequest", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def HttpSendRequest(self, emu, argv, ctx={}):
         """
         BOOLAPI HttpSendRequest(
@@ -216,7 +213,7 @@ class Wininet(api.ApiHandler):
         """
         hnd, headers, hdrlen, lpOptional, dwOptionalLength = argv
 
-        body = b''
+        body = b""
 
         cw = self.get_char_width(ctx)
         if headers:
@@ -235,16 +232,17 @@ class Wininet(api.ApiHandler):
 
         rv = 1
         req_str = req.format_http_request(headers=headers)
-        print("PUTTANAMADONNA1")
-        print("PUTTANAMADONNA2")
-        print("PUTTANAMADONNA3")
-        print("PUTTANAMADONNA4")
-        print("PUTTANAMADONNA5")
-        self.log_network(srv + req.objname.path, port, headers=req_str,
-                         data=body, proto="https" if not req.is_secure() else "http", method=req.verb.upper())
+        self.log_network(
+            srv + req.objname.path,
+            port,
+            headers=req_str,
+            data=body,
+            proto="https" if not req.is_secure() else "http",
+            method=req.verb.upper(),
+        )
         return rv
 
-    @apihook('InternetErrorDlg', argc=5, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetErrorDlg", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def InternetErrorDlg(self, emu, argv, ctx={}):
         """
         void InternetErrorDlg(
@@ -259,7 +257,7 @@ class Wininet(api.ApiHandler):
 
         return
 
-    @apihook('InternetQueryOption', argc=4)
+    @apihook("InternetQueryOption", argc=4)
     def InternetQueryOption(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetQueryOption(
@@ -278,12 +276,12 @@ class Wininet(api.ApiHandler):
         if dwOption == windefs.INTERNET_OPTION_SECURITY_FLAGS:
             if lpBuffer:
                 sec_flags = windefs.SECURITY_FLAG_SECURE
-                self.mem_write(lpBuffer, (sec_flags).to_bytes(4, 'little'))
+                self.mem_write(lpBuffer, (sec_flags).to_bytes(4, "little"))
                 rv = True
 
         return rv
 
-    @apihook('InternetReadFile', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("InternetReadFile", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetReadFile(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetReadFile(
@@ -305,11 +303,11 @@ class Wininet(api.ApiHandler):
             self.mem_write(buf, data)
 
         if bytes_read:
-            self.mem_write(bytes_read, (len(data)).to_bytes(4, 'little'))
+            self.mem_write(bytes_read, (len(data)).to_bytes(4, "little"))
 
         return rv
 
-    @apihook('HttpQueryInfo', argc=5)
+    @apihook("HttpQueryInfo", argc=5)
     def HttpQueryInfo(self, emu, argv, ctx={}):
         """
         BOOLAPI HttpQueryInfo(
@@ -330,19 +328,19 @@ class Wininet(api.ApiHandler):
         if windefs.HTTP_QUERY_STATUS_CODE == dwInfoLevel:
             if lpBuffer:
                 buf_len = self.mem_read(lpdwBufferLength, 4)
-                buf_len = int.from_bytes(buf_len, 'little')
+                buf_len = int.from_bytes(buf_len, "little")
 
                 if cw == 2:
-                    enc = 'utf-16le'
+                    enc = "utf-16le"
                 elif cw == 1:
-                    enc = 'utf-8'
+                    enc = "utf-8"
                 out = windefs.HTTP_STATUS_OK.encode(enc)
                 self.mem_write(lpBuffer, out)
                 rv = True
 
         return rv
 
-    @apihook('InternetQueryDataAvailable', argc=4)
+    @apihook("InternetQueryDataAvailable", argc=4)
     def InternetQueryDataAvailable(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetQueryDataAvailable(
@@ -359,26 +357,26 @@ class Wininet(api.ApiHandler):
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
-            self.mem_write(lpdwNumberOfBytesAvailable, (avail.to_bytes(4, 'little')))
+            self.mem_write(lpdwNumberOfBytesAvailable, (avail.to_bytes(4, "little")))
             rv = True
 
         return rv
 
-    @apihook('InternetCloseHandle', argc=1)
+    @apihook("InternetCloseHandle", argc=1)
     def InternetCloseHandle(self, emu, argv, ctx={}):
         """
         BOOLAPI InternetCloseHandle(
             HINTERNET hInternet
         );
         """
-        hInternet, = argv
+        (hInternet,) = argv
         rv = True
 
         self.netman.close_wininet_object(hInternet)
 
         return rv
 
-    @apihook('InternetOpenUrl', argc=6)
+    @apihook("InternetOpenUrl", argc=6)
     def InternetOpenUrl(self, emu, argv, ctx={}):
         """
         void InternetOpenUrlA(
@@ -401,7 +399,7 @@ class Wininet(api.ApiHandler):
             argv[2] = headers
 
         defs = windefs.get_flag_defines(dwFlags)
-        argv[4] = ' | '.join(defs)
+        argv[4] = " | ".join(defs)
 
         wini = self.netman.get_wininet_object(hInternet)
         if not wini:
@@ -412,11 +410,16 @@ class Wininet(api.ApiHandler):
             port = 80
         else:
             port = 443
-        sess = wini.new_session(crack.netloc, port, '', '', '', defs, dwContext)
+        sess = wini.new_session(crack.netloc, port, "", "", "", defs, dwContext)
         if not sess:
             return 0
         req = sess.new_request("GET", url, None, None, None, defs, dwContext)
         req_str = req.format_http_request(headers=headers)
-        self.log_network(req.get_server() + req.objname.path, port, headers=req_str,
-                         proto="https" if not req.is_secure() else "http", method=req.verb.upper())
+        self.log_network(
+            req.get_server() + req.objname.path,
+            port,
+            headers=req_str,
+            proto="https" if not req.is_secure() else "http",
+            method=req.verb.upper(),
+        )
         return req.get_handle()

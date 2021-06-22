@@ -17,7 +17,7 @@ class Ntdll(api.ApiHandler):
     the kernel export handler.
     """
 
-    name = 'ntdll'
+    name = "ntdll"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -30,61 +30,61 @@ class Ntdll(api.ApiHandler):
 
         super(Ntdll, self).__get_hook_attrs__(self)
 
-    @apihook('RtlGetLastWin32Error', argc=0)
+    @apihook("RtlGetLastWin32Error", argc=0)
     def RtlGetLastWin32Error(self, emu, argv, ctx={}):
-        '''DWORD RtlGetLastWin32Error();'''
+        """DWORD RtlGetLastWin32Error();"""
 
         return emu.get_last_error()
 
-    @apihook('RtlFlushSecureMemoryCache', argc=2)
+    @apihook("RtlFlushSecureMemoryCache", argc=2)
     def RtlFlushSecureMemoryCache(self, emu, argv, ctx={}):
-        '''DWORD RtlFlushSecureMemoryCache(PVOID arg0, PVOID arg1);'''
+        """DWORD RtlFlushSecureMemoryCache(PVOID arg0, PVOID arg1);"""
         return True
 
-    @apihook('RtlAddVectoredExceptionHandler', argc=2)
+    @apihook("RtlAddVectoredExceptionHandler", argc=2)
     def RtlAddVectoredExceptionHandler(self, emu, argv, ctx={}):
-        '''
+        """
         PVOID AddVectoredExceptionHandler(
             ULONG                       First,
             PVECTORED_EXCEPTION_HANDLER Handler
         );
-        '''
+        """
         First, Handler = argv
 
         emu.add_vectored_exception_handler(First, Handler)
 
         return Handler
 
-    @apihook('NtYieldExecution', argc=0)
+    @apihook("NtYieldExecution", argc=0)
     def NtYieldExecution(self, emu, argv, ctx={}):
-        '''
+        """
         NtYieldExecution();
-        '''
+        """
         return 0
 
-    @apihook('RtlRemoveVectoredExceptionHandler', argc=1)
+    @apihook("RtlRemoveVectoredExceptionHandler", argc=1)
     def RtlRemoveVectoredExceptionHandler(self, emu, argv, ctx={}):
-        '''
+        """
         ULONG RemoveVectoredExceptionHandler(
             PVOID Handle
         );
-        '''
-        Handler, = argv
+        """
+        (Handler,) = argv
 
         emu.remove_vectored_exception_handler(Handler)
 
         return Handler
 
-    @apihook('LdrLoadDll', argc=4)
+    @apihook("LdrLoadDll", argc=4)
     def LdrLoadDll(self, emu, argv, ctx={}):
-        '''NTSTATUS
+        """NTSTATUS
         NTAPI
         LdrLoadDll(
         IN PWSTR SearchPath OPTIONAL,
         IN PULONG LoadFlags OPTIONAL,
         IN PUNICODE_STRING Name,
         OUT PVOID *BaseAddress OPTIONAL
-        );'''
+        );"""
 
         SearchPath, LoadFlags, Name, BaseAddress = argv
 
@@ -96,21 +96,22 @@ class Ntdll(api.ApiHandler):
         hmod = emu.load_library(lib)
 
         flags = {
-            0x1: 'DONT_RESOLVE_DLL_REFERENCES',
-            0x10: 'LOAD_IGNORE_CODE_AUTHZ_LEVEL',
-            0x2: 'LOAD_LIBRARY_AS_DATAFILE',
-            0x40: 'LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE',
-            0x20: 'LOAD_LIBRARY_AS_IMAGE_RESOURCE',
-            0x200: 'LOAD_LIBRARY_SEARCH_APPLICATION_DIR',
-            0x1000: 'LOAD_LIBRARY_SEARCH_DEFAULT_DIRS',
-            0x100: 'LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR',
-            0x800: 'LOAD_LIBRARY_SEARCH_SYSTEM32',
-            0x400: 'LOAD_LIBRARY_SEARCH_USER_DIRS',
-            0x8: 'LOAD_WITH_ALTERED_SEARCH_PATH',
+            0x1: "DONT_RESOLVE_DLL_REFERENCES",
+            0x10: "LOAD_IGNORE_CODE_AUTHZ_LEVEL",
+            0x2: "LOAD_LIBRARY_AS_DATAFILE",
+            0x40: "LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE",
+            0x20: "LOAD_LIBRARY_AS_IMAGE_RESOURCE",
+            0x200: "LOAD_LIBRARY_SEARCH_APPLICATION_DIR",
+            0x1000: "LOAD_LIBRARY_SEARCH_DEFAULT_DIRS",
+            0x100: "LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR",
+            0x800: "LOAD_LIBRARY_SEARCH_SYSTEM32",
+            0x400: "LOAD_LIBRARY_SEARCH_USER_DIRS",
+            0x8: "LOAD_WITH_ALTERED_SEARCH_PATH",
         }
 
-        pretty_flags = ' | '.join([name for bit, name in flags.items()
-                                   if LoadFlags & bit])
+        pretty_flags = " | ".join(
+            [name for bit, name in flags.items() if LoadFlags & bit]
+        )
 
         if SearchPath:
             argv[0] = self.read_mem_string(SearchPath, 2)
@@ -123,20 +124,20 @@ class Ntdll(api.ApiHandler):
             return STATUS_DLL_NOT_FOUND
 
         if BaseAddress:
-            self.mem_write(BaseAddress, hmod.to_bytes(self.get_ptr_size(), 'little'))
+            self.mem_write(BaseAddress, hmod.to_bytes(self.get_ptr_size(), "little"))
 
         return 0
 
-    @apihook('LdrGetProcedureAddress', argc=4)
+    @apihook("LdrGetProcedureAddress", argc=4)
     def LdrGetProcedureAddress(self, emu, argv, ctx={}):
-        '''
+        """
         NTSTATUS LdrGetProcedureAddress(
             HMODULE ModuleHandle,
             PANSI_STRING FunctionName,
             WORD Oridinal,
             OUT PVOID *FunctionAddress
         );
-        '''
+        """
 
         hmod, proc_name, ordinal, func_addr = argv
         rv = ddk.STATUS_PROCEDURE_NOT_FOUND
@@ -149,7 +150,7 @@ class Ntdll(api.ApiHandler):
             argv[1] = proc
 
         elif ordinal:
-            proc = 'ordinal_%d' % (proc_name)
+            proc = "ordinal_%d" % (proc_name)
 
         mods = emu.get_user_modules()
         for mod in mods:
@@ -158,11 +159,11 @@ class Ntdll(api.ApiHandler):
                 mname, _ = os.path.splitext(bn)
                 addr = emu.get_proc(mname, proc)
                 rv = ddk.STATUS_SUCCESS
-                self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), 'little'))
+                self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
-    @apihook('RtlZeroMemory', argc=2)
+    @apihook("RtlZeroMemory", argc=2)
     def RtlZeroMemory(self, emu, argv, ctx={}):
         """
         void RtlZeroMemory(
@@ -171,10 +172,10 @@ class Ntdll(api.ApiHandler):
         );
         """
         dest, length = argv
-        buf = b'\x00' * length
+        buf = b"\x00" * length
         self.mem_write(dest, buf)
 
-    @apihook('NtSetInformationProcess', argc=4)
+    @apihook("NtSetInformationProcess", argc=4)
     def NtSetInformationProcess(self, emu, argv, ctx={}):
         """
         NTSTATUS
@@ -188,32 +189,31 @@ class Ntdll(api.ApiHandler):
         """
         return 0
 
-    @apihook('RtlEncodePointer', argc=1)
+    @apihook("RtlEncodePointer", argc=1)
     def RtlEncodePointer(self, emu, argv, ctx={}):
-        '''
+        """
         PVOID
         NTAPI
         RtlEncodePointer(IN PVOID Pointer)
-        '''
-        Ptr,  = argv
+        """
+        (Ptr,) = argv
         # Just increment the pointer for now like kernel32.EncodePointer
         rv = Ptr + 1
 
         return rv
 
-    @apihook('RtlDecodePointer', argc=1)
+    @apihook("RtlDecodePointer", argc=1)
     def RtlDecodePointer(self, emu, argv, ctx={}):
-        '''
+        """
         PVOID
         NTAPI
         RtlDecodePointer(IN PVOID Pointer)
-        '''
-        Ptr,  = argv
+        """
+        (Ptr,) = argv
         # Just decrement the pointer for now like kernel32.DecodePointer
         rv = Ptr - 1
 
         return rv
-
 
     @apihook("strlen", argc=2)
     def Strlen(self, emu, argv, ctx={}):
@@ -226,5 +226,5 @@ class Ntdll(api.ApiHandler):
     def RtlComputeCrc32(self, emu, argv, ctx={}):
         dwInitial, pData, iLen = argv
         string = self.read_mem_string(pData, 1)
-        crc = zlib.crc32(string.encode(), dwInitial) % (1<<32)
+        crc = zlib.crc32(string.encode(), dwInitial) % (1 << 32)
         return crc

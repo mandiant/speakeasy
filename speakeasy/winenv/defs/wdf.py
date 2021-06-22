@@ -12,7 +12,9 @@ WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeDeconfig = 
 WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeSingleInterface = 2
 WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeMultiInterface = 3
 WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeInterfacesPairs = 4
-WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeInterfacesDescriptor = 5
+WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeInterfacesDescriptor = (
+    5
+)
 WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeUrb = 6
 
 WdfUsbTargetDeviceSelectSettingType = Enum()

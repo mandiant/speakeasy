@@ -37,10 +37,11 @@ def normalize_package_path(path):
     """
     Get the supplied path in relation to the package root
     """
+
     def _get_speakeasy_root():
         return os.path.join(os.path.dirname(__file__))
 
-    root_var = '$ROOT$'
+    root_var = "$ROOT$"
     if root_var in path:
         root = _get_speakeasy_root()
         return path.replace(root_var, root)
@@ -51,6 +52,7 @@ class Hook(object):
     """
     Base class for all emulator hooks
     """
+
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=False):
         """
         Arguments:
@@ -124,7 +126,10 @@ class ApiHook(Hook):
     """
     This hook type is used when using a specific API (e.g. kernel32.CreateFile)
     """
-    def __init__(self, se_obj, emu_eng, cb, module='', api_name='', argc=0, call_conv=None):
+
+    def __init__(
+        self, se_obj, emu_eng, cb, module="", api_name="", argc=0, call_conv=None
+    ):
         super(ApiHook, self).__init__(se_obj, emu_eng, cb)
         self.module = module
         self.api_name = api_name
@@ -137,6 +142,7 @@ class DynCodeHook(Hook):
     This hook type is used to get a callback when dynamically created/copied code is executed
     Currently, this will only fire once per dynamic code mapping. Could be useful for unpacking.
     """
+
     def __init__(self, se_obj, emu_eng, cb, ctx=[]):
         super(DynCodeHook, self).__init__(se_obj, emu_eng, cb)
 
@@ -146,16 +152,18 @@ class CodeHook(Hook):
     This hook callback will fire for every CPU instruction
     """
 
-    def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, ctx=[],
-                 native_hook=True):
-        super(CodeHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+    def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, ctx=[], native_hook=True):
+        super(CodeHook, self).__init__(
+            se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook
+        )
         self.begin = begin
         self.end = end
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_CODE, cb=self._wrap_code_cb,
-                                                begin=self.begin, end=self.end)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_CODE, cb=self._wrap_code_cb, begin=self.begin, end=self.end
+            )
         self.added = True
         self.enabled = True
 
@@ -164,6 +172,7 @@ class ReadMemHook(Hook):
     """
     This hook will fire each time a valid chunk of memory is read from
     """
+
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super(ReadMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
         self.begin = begin
@@ -171,9 +180,12 @@ class ReadMemHook(Hook):
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_MEM_READ,
-                                                cb=self._wrap_memory_access_cb,
-                                                begin=self.begin, end=self.end)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_MEM_READ,
+                cb=self._wrap_memory_access_cb,
+                begin=self.begin,
+                end=self.end,
+            )
         self.added = True
         self.enabled = True
 
@@ -182,6 +194,7 @@ class WriteMemHook(Hook):
     """
     This hook will fire each time a valid chunk of memory is written to
     """
+
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super(WriteMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
         self.begin = begin
@@ -189,9 +202,12 @@ class WriteMemHook(Hook):
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_MEM_WRITE,
-                                                cb=self._wrap_memory_access_cb,
-                                                begin=self.begin, end=self.end)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_MEM_WRITE,
+                cb=self._wrap_memory_access_cb,
+                begin=self.begin,
+                end=self.end,
+            )
         self.added = True
         self.enabled = True
 
@@ -200,6 +216,7 @@ class MapMemHook(Hook):
     """
     This hook will fire each time a chunk of memory is mapped
     """
+
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0):
         super(MapMemHook, self).__init__(se_obj, emu_eng, cb)
         self.begin = begin
@@ -214,13 +231,17 @@ class InvalidMemHook(Hook):
     """
     This hook will fire each time a invalid chunk of memory is accessed
     """
+
     def __init__(self, se_obj, emu_eng, cb, native_hook=False):
-        super(InvalidMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
+        super(InvalidMemHook, self).__init__(
+            se_obj, emu_eng, cb, native_hook=native_hook
+        )
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_MEM_INVALID,
-                                                cb=self._wrap_memory_access_cb)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_MEM_INVALID, cb=self._wrap_memory_access_cb
+            )
         self.added = True
         self.enabled = True
 
@@ -229,12 +250,17 @@ class InterruptHook(Hook):
     """
     This hook will fire each time a a software interrupt is triggered
     """
+
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
-        super(InterruptHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+        super(InterruptHook, self).__init__(
+            se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook
+        )
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_INTERRUPT, cb=self._wrap_intr_cb)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_INTERRUPT, cb=self._wrap_intr_cb
+            )
         self.added = True
         self.enabled = True
 
@@ -244,14 +270,17 @@ class InstructionHook(Hook):
     This hook will fire each time a instruction hook is triggered,
     Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
     """
+
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True, insn=None):
-        super(InstructionHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx,
-                                              native_hook=native_hook)
+        super(InstructionHook, self).__init__(
+            se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook
+        )
         self.insn = insn
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb,
-                                                arg1=self.insn)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb, arg1=self.insn
+            )
         self.added = True
         self.enabled = True

@@ -1,9 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+
 class GuiObject(object):
     """
     Base class for all GUI objects
     """
+
     curr_handle = 0x120
 
     def __init__(self):
@@ -19,12 +21,13 @@ class Session(GuiObject):
     """
     Represents a windows Session
     """
+
     def __init__(self, sess_id):
         super(Session, self).__init__()
         self.id = sess_id
         self.stations = {}
 
-    def new_station(self, name='WinSta0'):
+    def new_station(self, name="WinSta0"):
         stat = Station(name=name)
         self.stations.update({stat.get_handle(): stat})
         return stat
@@ -34,12 +37,13 @@ class Station(GuiObject):
     """
     Represents a window station
     """
-    def __init__(self, name=''):
+
+    def __init__(self, name=""):
         super(Station, self).__init__()
         self.name = name
         self.desktops = {}
 
-    def new_desktop(self, name=''):
+    def new_desktop(self, name=""):
         desk = Desktop(name=name)
         self.desktops.update({desk.get_handle(): desk})
         return desk
@@ -52,7 +56,8 @@ class Desktop(GuiObject):
     """
     Represents a Desktop object
     """
-    def __init__(self, name=''):
+
+    def __init__(self, name=""):
         super(Desktop, self).__init__()
         self.windows = {}
         self.desktop_window = self.new_window()
@@ -75,6 +80,7 @@ class Window(GuiObject):
     """
     Represents a GUI window
     """
+
     def __init__(self, name=None, class_name=None):
         super(Window, self).__init__()
         self.name = name
@@ -85,6 +91,7 @@ class WindowClass(GuiObject):
     """
     Represents a GUI window class
     """
+
     def __init__(self, wclass, name):
         super(WindowClass, self).__init__()
         self.wclass = wclass
@@ -96,6 +103,7 @@ class SessionManager(object):
     The session manager for the emulator. This will manage things like desktops,
     windows, and session isolation
     """
+
     def __init__(self, config):
         super(SessionManager, self).__init__()
         self.sessions = {}
@@ -111,12 +119,12 @@ class SessionManager(object):
         self.curr_session = Session(sess_id=0)
 
         # create WinSta0
-        self.curr_station = self.curr_session.new_station(name='WinSta0')
+        self.curr_station = self.curr_session.new_station(name="WinSta0")
 
         # Create a desktop
-        self.curr_station.new_desktop('Winlogon')
-        default = self.curr_station.new_desktop('Default')
-        self.curr_station.new_desktop('Disconnect')
+        self.curr_station.new_desktop("Winlogon")
+        default = self.curr_station.new_desktop("Default")
+        self.curr_station.new_desktop("Disconnect")
 
         # For now lets default to the Default desktop
         self.curr_desktop = default

@@ -30,9 +30,11 @@ class Win32Emulator(WindowsEmulator):
     """
     User Mode Windows Emulator Class
     """
+
     def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        super(Win32Emulator, self).__init__(config, debug=debug, logger=logger,
-                                            exit_event=exit_event)
+        super(Win32Emulator, self).__init__(
+            config, debug=debug, logger=logger, exit_event=exit_event
+        )
 
         self.last_error = 0
         self.peb_addr = 0
@@ -46,7 +48,7 @@ class Win32Emulator(WindowsEmulator):
         Get command line arguments (if any) that are being passed
         to the emulated process. (e.g. main(argv))
         """
-        argv0 = ''
+        argv0 = ""
         out = []
 
         if len(self.argv):
@@ -106,18 +108,18 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self)
             self.add_object(p)
 
-            p.name = proc.get('name', '')
-            new_pid = proc.get('pid')
+            p.name = proc.get("name", "")
+            new_pid = proc.get("pid")
             if new_pid:
                 p.pid = new_pid
 
-            base = proc.get('base_addr')
+            base = proc.get("base_addr")
 
             if isinstance(base, str):
                 base = int(base, 16)
             p.base = base
-            p.path = proc.get('path')
-            p.session = proc.get('session', 0)
+            p.path = proc.get("path")
+            p.session = proc.get("session", 0)
             p.image = ntpath.basename(p.path)
 
             self.processes.append(p)
@@ -133,7 +135,7 @@ class Win32Emulator(WindowsEmulator):
         elif pe.arch == _arch.ARCH_AMD64:
             disasm_mode = cs.CS_MODE_64
         else:
-            raise Win32EmuError('Unsupported architecture: %s', pe.arch)
+            raise Win32EmuError("Unsupported architecture: %s", pe.arch)
 
         if not self.arch:
             self.arch = pe.arch
@@ -145,7 +147,7 @@ class Win32Emulator(WindowsEmulator):
             self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
         if not data:
-            file_name = os.path.basename(path) + '.exe'
+            file_name = os.path.basename(path) + ".exe"
             mod_name = os.path.splitext(file_name)[0]
 
         else:
@@ -153,31 +155,33 @@ class Win32Emulator(WindowsEmulator):
             mod_hash.update(data)
             mod_hash = mod_hash.hexdigest()
             mod_name = mod_hash
-            file_name = '%s.exe' % (mod_name)
+            file_name = "%s.exe" % (mod_name)
 
         self.api = WindowsApi(self)
 
         cd = self.get_cd()
-        if not cd.endswith('\\'):
-            cd += '\\'
+        if not cd.endswith("\\"):
+            cd += "\\"
         emu_path = cd + file_name
 
         if not data:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 data = f.read()
         self.fileman.add_existing_file(emu_path, data)
 
         # Strings the initial buffer so that we can detect decoded strings later on
         if self.profiler and self.do_strings:
-            self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(data)]
-            self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(data)]
+            self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(data)]
+            self.profiler.strings["unicode"] = [
+                u[1] for u in self.get_unicode_strings(data)
+            ]
 
         # Set the emulated path
-        emu_path = ''
+        emu_path = ""
         self.cd = self.get_cd()
         if self.cd:
-            if not self.cd.endswith('\\'):
-                self.cd += '\\'
+            if not self.cd.endswith("\\"):
+                self.cd += "\\"
             emu_path = self.cd + os.path.basename(file_name)
 
         pe.set_emu_path(emu_path)
@@ -199,8 +203,7 @@ class Win32Emulator(WindowsEmulator):
                 data_ptr = self.handle_import_data(mn, fn)
                 sym = "%s.%s" % (mn, fn)
                 self.global_data.update({addr: [sym, data_ptr]})
-                self.mem_write(addr, data_ptr.to_bytes(self.get_ptr_size(),
-                                                       'little'))
+                self.mem_write(addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
         return pe
 
     def run_module(self, module, all_entrypoints=False):
@@ -213,7 +216,7 @@ class Win32Emulator(WindowsEmulator):
 
         if not module:
             self.stop()
-            raise Win32EmuError('Module not found')
+            raise Win32EmuError("Module not found")
 
         # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
@@ -222,7 +225,7 @@ class Win32Emulator(WindowsEmulator):
             if base < cb_addr < base + module.get_image_size():
                 run = Run()
                 run.start_addr = cb_addr
-                run.type = 'tls_callback_%d' % (i)
+                run.type = "tls_callback_%d" % (i)
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
@@ -235,15 +238,17 @@ class Win32Emulator(WindowsEmulator):
         main_exe = None
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
-            run.type = 'dll_entry.DLL_PROCESS_ATTACH'
+            run.type = "dll_entry.DLL_PROCESS_ATTACH"
             container = self.init_container_process()
             if container:
                 self.processes.append(container)
                 self.curr_process = container
         else:
-            run.type = 'module_entry'
+            run.type = "module_entry"
             main_exe = module
-            run.args = [self.mem_map(8, tag='emu.module_arg_%d' % (i)) for i in range(4)]
+            run.args = [
+                self.mem_map(8, tag="emu.module_arg_%d" % (i)) for i in range(4)
+            ]
 
         if main_exe:
             self.user_modules = [main_exe] + self.user_modules
@@ -254,20 +259,23 @@ class Win32Emulator(WindowsEmulator):
             # Only emulate a subset of all the exported functions
             # There are some modules (such as the windows kernel) with
             # thousands of exports
-            exports = [k for k in module.get_exports()[: MAX_EXPORTS_TO_EMULATE]]
+            exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
 
             if exports:
-                args = [self.mem_map(8, tag='emu.export_arg_%d' % (i), base=0x41420000) for i in range(4)] # noqa
+                args = [
+                    self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000)
+                    for i in range(4)
+                ]  # noqa
                 for exp in exports:
-                    if exp.name in ('DllMain', 'ServiceMain'):
+                    if exp.name in ("DllMain", "ServiceMain"):
                         continue
                     run = Run()
                     if exp.name:
                         fn = exp.name
                     else:
-                        fn = 'no_name'
+                        fn = "no_name"
 
-                    run.type = 'export.%s' % (fn)
+                    run.type = "export.%s" % (fn)
                     run.start_addr = exp.address
                     # Here we set dummy args to pass into the export function
                     run.args = args
@@ -279,17 +287,22 @@ class Win32Emulator(WindowsEmulator):
         # Create an empty process object for the module if none is
         # supplied
         if len(self.processes) == 0:
-            p = objman.Process(self, path=module.get_emu_path(), base=module.base,
-                               pe=module, cmdline=self.command_line)
+            p = objman.Process(
+                self,
+                path=module.get_emu_path(),
+                base=module.base,
+                pe=module,
+                cmdline=self.command_line,
+            )
             self.curr_process = p
             self.om.objects.update({p.address: p})
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
 
-        t = objman.Thread(self,
-                          stack_base=self.stack_base,
-                          stack_commit=module.stack_commit)
+        t = objman.Thread(
+            self, stack_base=self.stack_base, stack_commit=module.stack_commit
+        )
 
         self.om.objects.update({t.address: t})
         self.curr_process.threads.append(t)
@@ -316,9 +329,9 @@ class Win32Emulator(WindowsEmulator):
         """
         sc_hash = None
 
-        if arch == 'x86':
+        if arch == "x86":
             arch = _arch.ARCH_X86
-        elif arch in ('x64', 'amd64'):
+        elif arch in ("x64", "amd64"):
             arch = _arch.ARCH_AMD64
 
         self.arch = arch
@@ -329,7 +342,7 @@ class Win32Emulator(WindowsEmulator):
             sc_hash = sc_hash.hexdigest()
             sc = data
         else:
-            with open(path, 'rb') as scpath:
+            with open(path, "rb") as scpath:
                 sc = scpath.read()
 
             sc_hash = hashlib.sha256()
@@ -341,14 +354,14 @@ class Win32Emulator(WindowsEmulator):
         elif self.arch == _arch.ARCH_AMD64:
             disasm_mode = cs.CS_MODE_64
         else:
-            raise Win32EmuError('Unsupported architecture: %s' % self.arch)
+            raise Win32EmuError("Unsupported architecture: %s" % self.arch)
 
         self.emu_eng.init_engine(_arch.ARCH_X86, self.arch)
 
         if not self.disasm_eng:
             self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
-        sc_tag = 'emu.shellcode.%s' % (sc_hash)
+        sc_tag = "emu.shellcode.%s" % (sc_hash)
 
         # Map the shellcode into memory
         sc_addr = self.mem_map(len(sc), tag=sc_tag)
@@ -356,22 +369,31 @@ class Win32Emulator(WindowsEmulator):
 
         self.pic_buffers.append((path, sc_addr, len(sc)))
 
-        sc_arch = 'unknown'
+        sc_arch = "unknown"
         if arch == _arch.ARCH_AMD64:
-            sc_arch = 'x64'
+            sc_arch = "x64"
         elif arch == _arch.ARCH_X86:
-            sc_arch = 'x86'
+            sc_arch = "x86"
 
         if self.profiler:
-            self.input = {'path': path, 'sha256': sc_hash, 'size': len(sc),
-                          'arch': sc_arch, 'mem_tag': sc_tag,
-                          'emu_version': self.get_emu_version(),
-                          'os_run': self.get_osver_string()}
+            self.input = {
+                "path": path,
+                "sha256": sc_hash,
+                "size": len(sc),
+                "arch": sc_arch,
+                "mem_tag": sc_tag,
+                "emu_version": self.get_emu_version(),
+                "os_run": self.get_osver_string(),
+            }
             self.profiler.add_input_metadata(self.input)
             # Strings the initial buffer so that we can detect decoded strings later on
             if self.do_strings:
-                self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(sc)]
-                self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(sc)]
+                self.profiler.strings["ansi"] = [
+                    a[1] for a in self.get_ansi_strings(sc)
+                ]
+                self.profiler.strings["unicode"] = [
+                    u[1] for u in self.get_unicode_strings(sc)
+                ]
         self.setup()
 
         return sc_addr
@@ -388,7 +410,7 @@ class Win32Emulator(WindowsEmulator):
                 break
 
         if not target:
-            raise Win32EmuError('Invalid shellcode address')
+            raise Win32EmuError("Invalid shellcode address")
 
         stack_commit = 0x4000
 
@@ -396,12 +418,14 @@ class Win32Emulator(WindowsEmulator):
         self.set_func_args(self.stack_base, self.return_hook, 0x7000)
 
         run = Run()
-        run.type = 'shellcode'
+        run.type = "shellcode"
         run.start_addr = sc_addr + offset
         run.instr_cnt = 0
-        args = [self.mem_map(1024, tag='emu.shellcode_arg_%d' % (i), base=0x41420000 + i)
-                for i in range(4)]
-        run.args = (args)
+        args = [
+            self.mem_map(1024, tag="emu.shellcode_arg_%d" % (i), base=0x41420000 + i)
+            for i in range(4)
+        ]
+        run.args = args
 
         self.reg_write(_arch.X86_REG_ECX, 1024)
 
@@ -422,8 +446,7 @@ class Win32Emulator(WindowsEmulator):
         if mm:
             mm.set_process(self.curr_process)
 
-        t = objman.Thread(self,
-                          stack_base=self.stack_base, stack_commit=stack_commit)
+        t = objman.Thread(self, stack_base=self.stack_base, stack_commit=stack_commit)
         self.om.objects.update({t.address: t})
         self.curr_process.threads.append(t)
 
@@ -445,15 +468,15 @@ class Win32Emulator(WindowsEmulator):
             return
         size = proc.get_peb_ldr().sizeof()
         res, size = self.get_valid_ranges(size)
-        self.mem_reserve(size, base=res, tag='emu.struct.PEB_LDR_DATA')
+        self.mem_reserve(size, base=res, tag="emu.struct.PEB_LDR_DATA")
         proc.set_peb_ldr_address(res)
 
         peb = proc.get_peb()
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
-        peb.object.OSMajorVersion = self.osversion['major']
-        peb.object.OSMinorVersion = self.osversion['minor']
-        peb.object.OSBuildNumber = self.osversion['build']
+        peb.object.OSMajorVersion = self.osversion["major"]
+        peb.object.OSMinorVersion = self.osversion["minor"]
+        peb.object.OSBuildNumber = self.osversion["build"]
         peb.write_back()
         return peb
 
@@ -482,7 +505,7 @@ class Win32Emulator(WindowsEmulator):
 
         # Init symlinks
         for sl in self.symlinks:
-            self.om.add_symlink(sl['name'], sl['target'])
+            self.om.add_symlink(sl["name"], sl["target"])
 
         self.init_sys_modules(self.config_system_modules)
 
@@ -495,19 +518,19 @@ class Win32Emulator(WindowsEmulator):
         for modconf in modules_config:
 
             mod = w32common.DecoyModule()
-            mod.name = modconf['name']
-            base = modconf.get('base_addr')
+            mod.name = modconf["name"]
+            base = modconf.get("base_addr")
             if isinstance(base, str):
                 base = int(base, 16)
 
             mod.decoy_base = base
-            mod.decoy_path = modconf['path']
+            mod.decoy_path = modconf["path"]
 
-            drv = modconf.get('driver')
+            drv = modconf.get("driver")
             if drv:
-                devs = drv.get('devices')
+                devs = drv.get("devices")
                 for dev in devs:
-                    name = dev.get('name', '')
+                    name = dev.get("name", "")
                     do = self.new_object(objman.Device)
                     do.name = name
 
@@ -519,16 +542,17 @@ class Win32Emulator(WindowsEmulator):
         Create a process to be used to host shellcode or DLLs
         """
         for p in self.config_processes:
-            if p.get('is_main_exe'):
-                name = p.get('name', '')
-                emu_path = p.get('path', '')
-                base = p.get('base_addr', 0)
+            if p.get("is_main_exe"):
+                name = p.get("name", "")
+                emu_path = p.get("path", "")
+                base = p.get("base_addr", 0)
                 if isinstance(base, str):
                     base = int(base, 0)
-                cmd_line = p.get('command_line', '')
+                cmd_line = p.get("command_line", "")
 
-                proc = objman.Process(self, name=name,
-                                      path=emu_path, base=base, cmdline=cmd_line)
+                proc = objman.Process(
+                    self, name=name, path=emu_path, base=base, cmdline=cmd_line
+                )
                 return proc
         return None
 
@@ -542,7 +566,7 @@ class Win32Emulator(WindowsEmulator):
             proc_mod = None
             for p in self.config_processes:
 
-                if not self.user_modules and p.get('is_main_exe'):
+                if not self.user_modules and p.get("is_main_exe"):
                     proc_mod = p
                     break
 
@@ -579,8 +603,9 @@ class Win32Emulator(WindowsEmulator):
                 user_mods = self.get_user_modules()
                 self.init_peb(user_mods)
                 return True
-        return super(Win32Emulator, self)._hook_mem_unmapped(emu, access, address, size,
-                                                             value, user_data)
+        return super(Win32Emulator, self)._hook_mem_unmapped(
+            emu, access, address, size, value, user_data
+        )
 
     def set_hooks(self):
         """Set the emulator callbacks"""
@@ -606,11 +631,16 @@ class Win32Emulator(WindowsEmulator):
             self.emu_complete = True
             if self.do_strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
-                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings['ansi']]
-                dec_unicode = [u[1] for u in dec_unicode
-                               if u not in self.profiler.strings['unicode']]
-                self.profiler.decoded_strings['ansi'] = dec_ansi
-                self.profiler.decoded_strings['unicode'] = dec_unicode
+                dec_ansi = [
+                    a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]
+                ]
+                dec_unicode = [
+                    u[1]
+                    for u in dec_unicode
+                    if u not in self.profiler.strings["unicode"]
+                ]
+                self.profiler.decoded_strings["ansi"] = dec_ansi
+                self.profiler.decoded_strings["unicode"] = dec_unicode
         self.stop()
 
     def on_run_complete(self):
@@ -625,10 +655,10 @@ class Win32Emulator(WindowsEmulator):
 
         return self._exec_next_run()
 
-    def heap_alloc(self, size, heap='None'):
+    def heap_alloc(self, size, heap="None"):
         """
         Allocate a memory chunk and add it to the "heap"
         """
-        addr = self.mem_map(size, base=None, tag='api.heap.%s' % (heap))
+        addr = self.mem_map(size, base=None, tag="api.heap.%s" % (heap))
         self.heap_allocs.append((addr, size, heap))
         return addr

@@ -5,17 +5,17 @@ from speakeasy.struct import Enum
 WINDOWS_CONSOLE = 3
 
 # IRQL Levels
-PASSIVE_LEVEL = 0             # Passive release level
-LOW_LEVEL = 0                 # Lowest interrupt level
-APC_LEVEL = 1                 # APC interrupt level
-DISPATCH_LEVEL = 2            # Dispatcher level
-CMCI_LEVEL = 5                # CMCI handler level
-PROFILE_LEVEL = 27            # timer used for profiling.
-CLOCK1_LEVEL = 28             # Interval clock 1 level - Not used on x86
-CLOCK2_LEVEL = 28             # Interval clock 2 level
-IPI_LEVEL = 29                # Interprocessor interrupt level
-POWER_LEVEL = 30              # Power failure level
-HIGH_LEVEL = 31               # Highest interrupt level
+PASSIVE_LEVEL = 0  # Passive release level
+LOW_LEVEL = 0  # Lowest interrupt level
+APC_LEVEL = 1  # APC interrupt level
+DISPATCH_LEVEL = 2  # Dispatcher level
+CMCI_LEVEL = 5  # CMCI handler level
+PROFILE_LEVEL = 27  # timer used for profiling.
+CLOCK1_LEVEL = 28  # Interval clock 1 level - Not used on x86
+CLOCK2_LEVEL = 28  # Interval clock 2 level
+IPI_LEVEL = 29  # Interprocessor interrupt level
+POWER_LEVEL = 30  # Power failure level
+HIGH_LEVEL = 31  # Highest interrupt level
 
 STATUS_SUCCESS = 0
 STATUS_BREAKPOINT = 0x80000003
@@ -56,12 +56,12 @@ IRP_MJ_SET_INFORMATION = 0x06
 IRP_MJ_QUERY_EA = 0x07
 IRP_MJ_SET_EA = 0x08
 IRP_MJ_FLUSH_BUFFERS = 0x09
-IRP_MJ_QUERY_VOLUME_INFORMATION = 0x0a
-IRP_MJ_SET_VOLUME_INFORMATION = 0x0b
-IRP_MJ_DIRECTORY_CONTROL = 0x0c
-IRP_MJ_FILE_SYSTEM_CONTROL = 0x0d
-IRP_MJ_DEVICE_CONTROL = 0x0e
-IRP_MJ_INTERNAL_DEVICE_CONTROL = 0x0f
+IRP_MJ_QUERY_VOLUME_INFORMATION = 0x0A
+IRP_MJ_SET_VOLUME_INFORMATION = 0x0B
+IRP_MJ_DIRECTORY_CONTROL = 0x0C
+IRP_MJ_FILE_SYSTEM_CONTROL = 0x0D
+IRP_MJ_DEVICE_CONTROL = 0x0E
+IRP_MJ_INTERNAL_DEVICE_CONTROL = 0x0F
 IRP_MJ_SHUTDOWN = 0x10
 IRP_MJ_LOCK_CONTROL = 0x11
 IRP_MJ_CLEANUP = 0x12
@@ -72,10 +72,10 @@ IRP_MJ_POWER = 0x16
 IRP_MJ_SYSTEM_CONTROL = 0x17
 IRP_MJ_DEVICE_CHANGE = 0x18
 IRP_MJ_QUERY_QUOTA = 0x19
-IRP_MJ_SET_QUOTA = 0x1a
-IRP_MJ_PNP = 0x1b
+IRP_MJ_SET_QUOTA = 0x1A
+IRP_MJ_PNP = 0x1B
 IRP_MJ_PNP_POWER = IRP_MJ_PNP
-IRP_MJ_MAXIMUM_FUNCTION = 0x1b
+IRP_MJ_MAXIMUM_FUNCTION = 0x1B
 
 COMPRESSION_FORMAT_LZNT1 = 0x2
 COMPRESSION_FORMAT_XPRESS = 0x3
@@ -113,11 +113,11 @@ FILE_WRITE_ATTRIBUTES = 0x0100  # all
 PROCESSINFOCLASS = Enum()
 PROCESSINFOCLASS.ProcessBasicInformation = 0
 PROCESSINFOCLASS.ProcessDebugPort = 7
-PROCESSINFOCLASS.ProcessWow64Information = 0x1a
-PROCESSINFOCLASS.ProcessImageFileName = 0x1b
-PROCESSINFOCLASS.ProcessBreakOnTermination = 0x1d
-PROCESSINFOCLASS.ProcessDebugObjectHandle = 0x1e
-PROCESSINFOCLASS.ProcessProtectionInformation = 0x3d
+PROCESSINFOCLASS.ProcessWow64Information = 0x1A
+PROCESSINFOCLASS.ProcessImageFileName = 0x1B
+PROCESSINFOCLASS.ProcessBreakOnTermination = 0x1D
+PROCESSINFOCLASS.ProcessDebugObjectHandle = 0x1E
+PROCESSINFOCLASS.ProcessProtectionInformation = 0x3D
 
 
 SYSTEM_INFORMATION_CLASS = Enum()
@@ -173,12 +173,12 @@ MODE.KernelMode = 0
 MODE.UserMode = 1
 MODE.MaximumMode = 2
 
-IMAGE_DOS_SIGNATURE = b'MZ'
+IMAGE_DOS_SIGNATURE = b"MZ"
 PE32_BIT = 0x0100
 PE32_PLUS_BIT = 0x0200
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if isinstance(v, int):
@@ -191,7 +191,7 @@ def get_flag_defines(flags, prefix=''):
     return defs
 
 
-def get_const_defines(const, prefix=''):
+def get_const_defines(const, prefix=""):
     defs = []
     for k, v in globals().items():
         if isinstance(v, int):
@@ -206,9 +206,17 @@ def get_const_defines(const, prefix=''):
 
 def get_access_defines(flags):
     defs = []
-    accesses = ('DELETE', 'READ_CONTROL', 'WRITE_DAC',
-                'WRITE_OWNER', 'SYNCHRONIZE', 'GENERIC_READ',
-                'GENERIC_WRITE', 'GENERIC_EXECUTE', 'GENERIC_ALL')
+    accesses = (
+        "DELETE",
+        "READ_CONTROL",
+        "WRITE_DAC",
+        "WRITE_OWNER",
+        "SYNCHRONIZE",
+        "GENERIC_READ",
+        "GENERIC_WRITE",
+        "GENERIC_EXECUTE",
+        "GENERIC_ALL",
+    )
 
     for k, v in [(k, v) for k, v in globals().items() if k in accesses]:
         if isinstance(v, int):
@@ -219,16 +227,21 @@ def get_access_defines(flags):
 
 
 def get_file_access_defines(flags):
-    defs = get_flag_defines(flags, 'FILE_')
-    defs = [d for d in defs if d.startswith(('FILE_READ', 'FILE_WRITE',
-                                            'FILE_DELETE', 'FILE_APPEND', 'FILE_EXECUTE'))]
+    defs = get_flag_defines(flags, "FILE_")
+    defs = [
+        d
+        for d in defs
+        if d.startswith(
+            ("FILE_READ", "FILE_WRITE", "FILE_DELETE", "FILE_APPEND", "FILE_EXECUTE")
+        )
+    ]
 
     return defs
 
 
 def get_create_disposition(disp):
-    defs = get_const_defines(disp, 'FILE_')
-    defs = [d for d in defs if not d.startswith('FILE_SHARE')]
+    defs = get_const_defines(disp, "FILE_")
+    defs = [d for d in defs if not d.startswith("FILE_SHARE")]
 
     ret = 0
     if len(defs):
