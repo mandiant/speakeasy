@@ -152,6 +152,9 @@ class WindowsEmulator(BinaryEmulator):
         raise NotImplementedError()
 
     def enable_code_hook(self):
+        if not self.tmp_code_hook and not self.mem_tracing_enabled:
+            self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
+
         if self.tmp_code_hook:
             self.tmp_code_hook.enable()
 
