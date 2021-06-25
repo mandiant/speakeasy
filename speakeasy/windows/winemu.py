@@ -671,7 +671,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Map the specified PE into the emulation space
         """
-        image_size = len(pe.mapped_image)
+        image_size = pe.image_size
         base = pe.base
         ranges = self.get_valid_ranges(image_size, addr=base)
         base, size = ranges
@@ -1932,6 +1932,8 @@ class WindowsEmulator(BinaryEmulator):
                                            "registers": regs,
                                            })
 
+            # EBX clobber, -1 is what I observed inside a VM
+            self.reg_write(_arch.X86_REG_EBX, 0xffffffff)
             self.set_pc(entry.Handler)
             return True
         return False
@@ -1953,6 +1955,15 @@ class WindowsEmulator(BinaryEmulator):
 
         if seh.handler_ret_val is None:
             seh.handler_ret_val = ret_val
+
+        ctx = seh.get_context()
+
+        if seh.context_address:
+            ctx = self.mem_cast(ctx, seh.context_address)
+
+        # Always restore thread context, is it correct to always
+        # do this?
+        self.load_thread_context(ctx)
 
         for frame in seh.get_frames():
             if not frame.searched:

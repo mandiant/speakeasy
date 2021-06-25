@@ -9,6 +9,7 @@ import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.windows.objman as objman
 
 from .. import api
+from Crypto.Cipher import ARC4
 import hashlib
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
@@ -34,6 +35,8 @@ class AdvApi32(api.ApiHandler):
         self.curr_rand = 0
         self.curr_handle = 0x2800
         self.service_status_handle = SERVICE_STATUS_HANDLE_BASE
+
+        self.rc4 = None
 
         super(AdvApi32, self).__get_hook_attrs__(self)
 
@@ -1110,6 +1113,99 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hHash = argv
+
+        return 1
+
+    @apihook('CryptDeriveKey', argc=5)
+    def CryptDeriveKey(self, emu, argv, ctx={}):
+        """
+        BOOL CryptDeriveKey(
+          HCRYPTPROV hProv,
+          ALG_ID     Algid,
+          HCRYPTHASH hBaseData,
+          DWORD      dwFlags,
+          HCRYPTKEY  *phKey
+        );
+        """
+
+        hProv, Algid, hBaseData, dwFlags, phKey = argv
+
+        # Only RC4 supported right now
+        if Algid != 0x6801:
+            return 0
+
+        hnd = self.hash_objects.get(hBaseData, None)
+
+        if hnd is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        # CryptDeriveKey zeroes out the last 11 bytes of the hash,
+        # so we gotta do the same before it is written to the
+        # phKey structure
+        fixed_digest = hnd.digest()[:5] + b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+        ptrsz = emu.get_ptr_size()
+
+        hKey = self.win.HCRYPTKEY(ptrsz)
+        hKey.Algid = Algid
+        hKey.keylen = hnd.digest_size
+        hKey.keyp = self.mem_alloc(hKey.keylen)
+
+        hKeyp = self.mem_alloc(hKey.sizeof())
+
+        self.mem_write(hKey.keyp, fixed_digest)
+
+        self.mem_write(hKeyp, hKey.get_bytes())
+        self.mem_write(phKey, hKeyp.to_bytes(ptrsz, "little"))
+
+        return 1
+
+    @apihook('CryptDecrypt', argc=6)
+    def CryptDecrypt(self, emu, argv, ctx={}):
+        """
+        BOOL CryptDecrypt(
+          HCRYPTKEY  hKey,
+          HCRYPTHASH hHash,
+          BOOL       Final,
+          DWORD      dwFlags,
+          BYTE       *pbData,
+          DWORD      *pdwDataLen
+        );
+        """
+
+        hKey, hHash, Final, dwFlags, pbData, pdwDataLen = argv
+
+        # Hashing not supported
+        if hHash:
+            return 0
+
+        ptrsz = emu.get_ptr_size()
+
+        hKey = self.mem_cast(self.win.HCRYPTKEY(ptrsz), hKey)
+
+        # Only RC4 supported right now
+        if hKey.Algid != 0x6801:
+            return 0
+
+        encdatalen_b = self.mem_read(pdwDataLen, 4)
+        encdatalen = int.from_bytes(encdatalen_b, "little")
+
+        encdata = self.mem_read(pbData, encdatalen)
+
+        key = self.mem_read(hKey.keyp, hKey.keylen)
+
+        if self.rc4 is None:
+            self.rc4 = ARC4.new(key)
+
+        dec = self.rc4.decrypt(encdata)
+        declen = len(dec)
+
+        self.mem_write(pbData, dec)
+        self.mem_write(pdwDataLen, int.to_bytes(declen, 4, "little"))
+
+        if Final == True:
+            self.rc4 = None
 
         return 1
 
