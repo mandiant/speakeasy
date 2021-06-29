@@ -710,7 +710,7 @@ class BinaryEmulator(MemoryManager):
         i = 0
 
         if width == 1:
-            decode = "utf-8"
+            decode = "latin1"
         elif width == 2:
             decode = "utf-16le"
         else:

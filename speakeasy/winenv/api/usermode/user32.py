@@ -800,7 +800,20 @@ class User32(api.ApiHandler):
 
         return rv
 
-    @apihook("DialogBoxParam", argc=5)
+    @apihook('SetWindowLong', argc=3)
+    def SetWindowLong(self, emu, argv, ctx={}):
+        """
+        LONG SetWindowLongA(
+          HWND hWnd,
+          int  nIndex,
+          LONG dwNewLong
+        );
+        """
+
+
+        return 1
+
+    @apihook('DialogBoxParam', argc=5)
     def DialogBoxParam(self, emu, argv, ctx={}):
         """
         INT_PTR DialogBoxParam(
