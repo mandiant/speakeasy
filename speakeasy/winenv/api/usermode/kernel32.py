@@ -451,7 +451,7 @@ class Kernel32(api.ApiHandler):
         data = self.mem_cast(pe, pe32)
         pe.th32ProcessID = proc.get_pid()
         if cw == 2:
-            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00'
+            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00\x00'
         else:
             pe.szExeFile = proc.image.encode('utf-8') + b'\x00'
 
@@ -490,7 +490,7 @@ class Kernel32(api.ApiHandler):
         data = self.mem_cast(pe, pe32)
         pe.th32ProcessID = proc.get_pid()
         if cw == 2:
-            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00'
+            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00\x00'
         else:
             pe.szExeFile = proc.image.encode('utf-8') + b'\x00'
 
