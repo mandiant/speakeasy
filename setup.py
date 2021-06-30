@@ -12,6 +12,9 @@ with open("speakeasy/version.py", encoding='utf8') as fp:
         raise Exception('Invalid version file found')
     version = ver_num.strip().strip("\"\'")
 
+with open("requirements.txt", encoding="utf-8") as f:
+    requirements = [line.strip() for line in f.readlines()]
+
 setuptools.setup(
     name='speakeasy-emulator',
     author='Andrew Davis',
@@ -22,13 +25,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     url='https://github.com/fireeye/speakeasy',
     include_package_data=True,
-    install_requires=[
-        'pefile',
-        'capstone',
-        'lznt1',
-        'unicorn==1.0.2',
-        'jsonschema'
-    ],
+    install_requires=requirements,
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
