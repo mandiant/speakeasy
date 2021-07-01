@@ -1332,3 +1332,18 @@ class AdvApi32(api.ApiHandler):
 
         # TODO: Populate service status output
         return 1
+
+    @apihook('OpenService', argc=3, conv=_arch.CALL_CONV_STDCALL)
+    def OpenService(self, emu, argv, ctx={}):
+        '''
+        SC_HANDLE OpenServiceA(
+          SC_HANDLE hSCManager,
+          LPCSTR    lpServiceName,
+          DWORD     dwDesiredAccess
+        );
+        '''
+        hSCManager, lpServiceName, dwDesiredAccess = argv
+        cw = self.get_char_width(ctx)
+        svcname = self.read_mem_string(lpServiceName, cw)
+        argv[1] = svcname
+        return self.get_handle()
