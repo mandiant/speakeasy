@@ -133,6 +133,7 @@ class Shell32(api.ApiHandler):
         ptrsize = emu.get_ptr_size()
 
         split = cl.split()
+        nargs = len(split)
 
         # Get the total size we need
         size = (len(split) + 1) * ptrsize
@@ -151,7 +152,11 @@ class Shell32(api.ApiHandler):
             else:
                 s = p.encode('utf-8')
             self.mem_write(strs, s)
+
             strs += len(s)
+
+        if argc:
+            self.mem_write(argc, nargs.to_bytes(4, "little"))
 
         return buf
 

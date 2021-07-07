@@ -44,6 +44,7 @@ class Speakeasy(object):
         self.emu = None
         self.api_hooks = []
         self.code_hooks = []
+        self.dyn_code_hooks = []
         self.mem_read_hooks = []
         self.argv = argv
         self.exit_event = exit_event
@@ -127,6 +128,10 @@ class Speakeasy(object):
             h = self.code_hooks.pop(0)
             cb, begin, end, ctx = h
             self.add_code_hook(cb, begin, end, ctx)
+        while self.dyn_code_hooks:
+            h = self.dyn_code_hooks.pop(0)
+            cb, ctx = h
+            self.add_dyn_code_hook(cb, ctx)
         while self.mem_read_hooks:
             h = self.mem_read_hooks.pop(0)
             cb, begin, end = h
@@ -345,6 +350,21 @@ class Speakeasy(object):
             self.code_hooks.append((cb, begin, end, ctx))
             return
         return self.emu.add_code_hook(cb, begin=begin, end=end, ctx=ctx, emu=self)
+
+    def add_dyn_code_hook(self, cb: Callable, ctx={}):
+        """
+        Set a callback to fire when dynamically generated/copied code is executed
+
+        args:
+            cb: Callable python function to execute
+            ctx: Optional context to pass back and forth between the hook function
+        return:
+            Hook object for newly registered hooks
+        """
+        if not self.emu:
+            self.dyn_code_hooks.append((cb, ctx))
+            return
+        return self.emu.add_dyn_code_hook(cb, ctx=ctx, emu=self)
 
     def add_mem_read_hook(self, cb: Callable, begin=1, end=0):
         """

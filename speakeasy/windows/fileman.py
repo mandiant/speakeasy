@@ -6,6 +6,7 @@ import ntpath
 import hashlib
 import fnmatch
 import speakeasy.winenv.defs.windows.windows as windefs
+import speakeasy.winenv.arch as _arch
 from speakeasy.errors import FileSystemEmuError
 
 
@@ -188,12 +189,28 @@ class FileManager(object):
     """
     Manages file system activity during emulation
     """
-    def __init__(self, config=None):
+    def __init__(self, config=None, modules=None, cmdline=None, emu=None):
         super(FileManager, self).__init__()
         self.file_handles = {}
         self.pipe_handles = {}
         self.file_maps = {}
         self.config = config
+        # self.all_modules is the modules key from the config JSON file
+        self.all_modules = modules
+
+        # This allows us to serve the emulated module for when the full
+        # path to it is not given
+        space = cmdline.find(" ")
+
+        if space != -1:
+            binname = cmdline[:space]
+        else:
+            binname = cmdline
+
+        self.emulated_binname = binname
+
+        self.emu = emu
+
         self.files = []
 
     def file_create_mapping(self, hfile, name, size, prot):
@@ -235,6 +252,11 @@ class FileManager(object):
         return self.pipe_handles.get(handle)
 
     def get_file_from_path(self, path):
+        # The emulated sample is requesting itself. The module path
+        # for it is(?) always the first entry in self.files
+        if self.emulated_binname in path:
+            return self.files[0]
+
         for f in self.files:
             if f.get_path().lower() == path.lower():
                 return f
@@ -293,6 +315,31 @@ class FileManager(object):
             if mode == 'full_path':
                 if fnmatch.fnmatch(path.lower(), f.get('emu_path').lower()):
                     return f
+
+        if self.emu.arch == _arch.ARCH_X86:
+            decoy_dir = self.all_modules.get('module_directory_x86', [])
+        else:
+            decoy_dir = self.all_modules.get('module_directory_x64', [])
+
+        dot = path.rfind(".")
+        
+        if dot != -1:
+            ext = path[dot:]
+        else:
+            ext = ""
+
+        # Check if we can load the contents of a decoy DLL
+        for f in self.all_modules.get('user_modules', []):
+            if f.get('path') == path:
+                newconf = dict()
+                newconf['path'] = decoy_dir + "/" + f.get('name') + ext
+                return newconf
+
+        for f in self.all_modules.get('system_modules', []):
+            if f.get('path') == path:
+                newconf = dict()
+                newconf['path'] = decoy_dir + "/" + f.get('name') + ext
+                return newconf
 
         # If no full path handler exists, do we have an extension handler?
         for f in self.config.get('files', []):
