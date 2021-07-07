@@ -54,9 +54,9 @@ class RPCRT4(api.ApiHandler):
             return 1
 
         uuid_bytes = self.mem_read(uuidp, windefs.GUID().sizeof())
-        uuid = uuid.UUID(bytes=uuid_bytes)
+        uuid_obj = uuid.UUID(bytes=uuid_bytes)
 
-        string = str(uuid)
+        string = str(uuid_obj)
 
         self.mem_write(stringp, string.encode("utf-8"))
 
