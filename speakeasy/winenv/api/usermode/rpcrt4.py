@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import random
+import uuid
 
 import speakeasy.winenv.defs.windows.windows as windefs
 
@@ -52,15 +53,11 @@ class RPCRT4(api.ApiHandler):
         if not uuidp or not stringp:
             return 1
 
-        uuid = self.mem_cast(windefs.GUID(), uuidp)
+        uuid_bytes = self.mem_read(uuidp, windefs.GUID().sizeof())
+        uuid = uuid.UUID(bytes=uuid_bytes)
 
-        last = int.from_bytes(uuid.Data4, "little")
+        string = str(uuid)
 
-        string = "%x-%x-%x-%x-%x" % (int(hex(uuid.Data1), 16),
-                int(hex(uuid.Data2), 16), int(hex(uuid.Data3), 16),
-                int(hex(last >> 48), 16),
-                int(hex(last & 0xffffffffffff), 16))
-
-        self.mem_write(stringp, bytes(string, "utf8"))
+        self.mem_write(stringp, string.encode("utf-8"))
 
         return 0

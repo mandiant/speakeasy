@@ -647,7 +647,8 @@ class WindowsEmulator(BinaryEmulator):
 
         if module:
             modname = module.emu_path
-            modname = modname[modname.find("\\")+2:]
+            tokens = modname.split("\\")
+            modname = tokens[len(tokens) - 1]
 
             # Get the virtual address of the TLS directory, which will always
             # be 9 in the data directory
@@ -656,7 +657,7 @@ class WindowsEmulator(BinaryEmulator):
 
             tls_dir = self.mem_read(tls_dirp, ptrsz)
 
-            thread.init_tls(tls_dir, modname[:modname.find(".")])
+            thread.init_tls(tls_dir, os.path.splitext(modname)[0])
 
         return
 

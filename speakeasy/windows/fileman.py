@@ -5,6 +5,7 @@ import io
 import ntpath
 import hashlib
 import fnmatch
+import shlex
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import FileSystemEmuError
@@ -200,12 +201,11 @@ class FileManager(object):
 
         # This allows us to serve the emulated module for when the full
         # path to it is not given
-        binname = cmdline.partition(" ")[0]
-
-        self.emulated_binname = binname
+        self.emulated_binname = shlex.split(cmdline)[0]
 
         self.emu = emu
 
+        # First file in this list seems to always be the module itself
         self.files = []
 
     def file_create_mapping(self, hfile, name, size, prot):
@@ -316,24 +316,19 @@ class FileManager(object):
         else:
             decoy_dir = self.all_modules.get('module_directory_x64', [])
 
-        dot = path.rfind(".")
-        
-        if dot != -1:
-            ext = path[dot:]
-        else:
-            ext = ""
+        ext = os.path.splitext(path)[1]
 
         # Check if we can load the contents of a decoy DLL
         for f in self.all_modules.get('user_modules', []):
             if f.get('path') == path:
                 newconf = dict()
-                newconf['path'] = decoy_dir + "/" + f.get('name') + ext
+                newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
                 return newconf
 
         for f in self.all_modules.get('system_modules', []):
             if f.get('path') == path:
                 newconf = dict()
-                newconf['path'] = decoy_dir + "/" + f.get('name') + ext
+                newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
                 return newconf
 
         # If no full path handler exists, do we have an extension handler?

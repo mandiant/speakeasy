@@ -5452,7 +5452,7 @@ class Kernel32(api.ApiHandler):
         processes = emu.get_processes()
 
         lpidProcess_cursor = lpidProcess
-        lim = min(cb / 4, len(processes))
+        lim = min(cb // 4, len(processes))
 
         for i in range(lim):
             pid = processes[i].pid.to_bytes(4, "little")
@@ -5495,7 +5495,7 @@ class Kernel32(api.ApiHandler):
             elif cw == 1:
                 out = filename.encode('utf-8')
 
-            size = int(len(out) / cw)
+            size = len(out) // cw
             if nSize < size + 1 * cw:  # null terminator
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 out = out[:nSize - 1 * cw] + b'\0' * cw
