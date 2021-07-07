@@ -200,12 +200,7 @@ class FileManager(object):
 
         # This allows us to serve the emulated module for when the full
         # path to it is not given
-        space = cmdline.find(" ")
-
-        if space != -1:
-            binname = cmdline[:space]
-        else:
-            binname = cmdline
+        binname = cmdline.partition(" ")[0]
 
         self.emulated_binname = binname
 
