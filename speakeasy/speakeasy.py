@@ -45,6 +45,7 @@ class Speakeasy(object):
         self.api_hooks = []
         self.code_hooks = []
         self.dyn_code_hooks = []
+        self.invalid_insn_hooks = []
         self.mem_read_hooks = []
         self.argv = argv
         self.exit_event = exit_event
@@ -132,6 +133,10 @@ class Speakeasy(object):
             h = self.dyn_code_hooks.pop(0)
             cb, ctx = h
             self.add_dyn_code_hook(cb, ctx)
+        while self.invalid_insn_hooks:
+            h = self.invalid_insn_hooks.pop(0)
+            cb, ctx = h
+            self.add_invalid_instruction_hook(cb, ctx)
         while self.mem_read_hooks:
             h = self.mem_read_hooks.pop(0)
             cb, begin, end = h
@@ -429,6 +434,21 @@ class Speakeasy(object):
             self.mem_write_hooks.append((cb, begin, end))
             return
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
+
+    def add_invalid_instruction_hook(self, cb: Callable, ctx=[]):
+        """
+        Set a callback to fire when an invalid instruction is attempted
+        to be executed
+
+        args:
+            cb: Callable python function to execute
+        return:
+            Hook object for newly registered hooks
+        """
+        if not self.emu:
+            self.invalid_insn_hooks.append((cb, ctx))
+            return
+        return self.emu.add_invalid_instruction_hook(cb, ctx)
 
     def add_mem_invalid_hook(self, cb: Callable):
         """

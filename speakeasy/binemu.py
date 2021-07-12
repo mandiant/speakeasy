@@ -1098,3 +1098,20 @@ class BinaryEmulator(MemoryManager):
             hook.add()
 
         return hook
+
+    def add_invalid_instruction_hook(self, cb, ctx=[], emu=None):
+        if not emu:
+            emu = self
+
+        hook = common.InvalidInstructionHook(emu, self.emu_eng, cb, ctx=[])
+        hl = self.hooks.get(common.HOOK_INSN)
+
+        if not hl:
+            self.hooks.update({common.HOOK_INSN_INVALID: [hook, ]})
+        else:
+            hl.insert(0, hook)
+
+        if self.emu_eng:
+            hook.add()
+
+        return hook
