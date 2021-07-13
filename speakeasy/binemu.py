@@ -1104,7 +1104,7 @@ class BinaryEmulator(MemoryManager):
             emu = self
 
         hook = common.InvalidInstructionHook(emu, self.emu_eng, cb, ctx=[])
-        hl = self.hooks.get(common.HOOK_INSN)
+        hl = self.hooks.get(common.HOOK_INSN_INVALID)
 
         if not hl:
             self.hooks.update({common.HOOK_INSN_INVALID: [hook, ]})
