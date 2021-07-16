@@ -201,7 +201,8 @@ class FileManager(object):
 
         # This allows us to serve the emulated module for when the full
         # path to it is not given
-        self.emulated_binname = shlex.split(cmdline)[0]
+        if cmdline is not None:
+            self.emulated_binname = shlex.split(cmdline)[0]
 
         self.emu = emu
 
