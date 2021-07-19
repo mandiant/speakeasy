@@ -190,21 +190,25 @@ class FileManager(object):
     """
     Manages file system activity during emulation
     """
-    def __init__(self, config=None, modules=None, cmdline=None, emu=None):
+    def __init__(self, config, emu):
         super(FileManager, self).__init__()
         self.file_handles = {}
         self.pipe_handles = {}
         self.file_maps = {}
+
+        # top level config
         self.config = config
-        # self.all_modules is the modules key from the config JSON file
-        self.all_modules = modules
 
-        # This allows us to serve the emulated module for when the full
-        # path to it is not given
-        if cmdline is not None:
-            self.emulated_binname = shlex.split(cmdline)[0]
-
+        # "files" key of config
+        self.file_config = self.config.get('filesystem', {})
         self.emu = emu
+
+        cmdline = self.config.get('command_line')
+
+        if cmdline is None:
+            cmdline = ""
+
+        self.emulated_binname = shlex.split(cmdline)[0]
 
         # First file in this list seems to always be the module itself
         self.files = []
@@ -223,7 +227,7 @@ class FileManager(object):
             return hnd
 
     def walk_files(self):
-        for f in self.config.get('files', []):
+        for f in self.file_config.get('files', []):
             path = f.get('emu_path')
             if not path:
                 continue
@@ -306,34 +310,36 @@ class FileManager(object):
     def get_emu_file(self, path):
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
-        for f in self.config.get('files', []):
+        for f in self.file_config.get('files', []):
             mode = f.get('mode')
             if mode == 'full_path':
                 if fnmatch.fnmatch(path.lower(), f.get('emu_path').lower()):
                     return f
 
+        all_modules = self.config.get('modules')
+
         if self.emu.arch == _arch.ARCH_X86:
-            decoy_dir = self.all_modules.get('module_directory_x86', [])
+            decoy_dir = all_modules.get('module_directory_x86', [])
         else:
-            decoy_dir = self.all_modules.get('module_directory_x64', [])
+            decoy_dir = all_modules.get('module_directory_x64', [])
 
         ext = os.path.splitext(path)[1]
 
         # Check if we can load the contents of a decoy DLL
-        for f in self.all_modules.get('user_modules', []):
+        for f in all_modules.get('user_modules', []):
             if f.get('path') == path:
                 newconf = dict()
                 newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
                 return newconf
 
-        for f in self.all_modules.get('system_modules', []):
+        for f in all_modules.get('system_modules', []):
             if f.get('path') == path:
                 newconf = dict()
                 newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
                 return newconf
 
         # If no full path handler exists, do we have an extension handler?
-        for f in self.config.get('files', []):
+        for f in self.file_config.get('files', []):
             path_ext = ntpath.splitext(path)[-1:][0].strip('.')
             if path_ext:
                 mode = f.get('mode')
@@ -342,7 +348,7 @@ class FileManager(object):
                         return f
 
         # Finally, do we have a catch-all default handler?
-        for f in self.config.get('files', []):
+        for f in self.file_config.get('files', []):
 
             mode = f.get('mode')
             if mode == 'default':

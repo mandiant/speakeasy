@@ -98,8 +98,7 @@ class WindowsEmulator(BinaryEmulator):
         self.wintypes = windef
         # OS resource managers
         self.regman = RegistryManager(self.get_registry_config())
-        self.fileman = FileManager(self.get_filesystem_config(),
-                self.config_modules, self.command_line, self)
+        self.fileman = FileManager(config, self)
         self.netman = NetworkManager(config=self.get_network_config())
         self.driveman = DriveManager(config=self.get_drive_config())
         self.cryptman = CryptoManager()
