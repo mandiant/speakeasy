@@ -781,6 +781,13 @@ class BinaryEmulator(MemoryManager):
         enc_str = string.encode(encode)
         self.mem_write(address, enc_str)
 
+    def read_ptr(self, address):
+        val = self.mem_read(address, self.ptr_size)
+        return int.from_bytes(val, 'little')
+
+    def write_ptr(self, address, val):
+        self.mem_write(address, val.to_bytes(self.ptr_size, 'little'))
+
     def get_ptr_size(self):
         """
         Get the pointer size of the current emulation state
