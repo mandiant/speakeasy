@@ -340,6 +340,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Begin emulating the specified run
         """
+        self.log_info("* exec: %s" % run.type)
+
         self.curr_run = run
         if self.profiler:
             self.profiler.add_run(run)
