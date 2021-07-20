@@ -259,7 +259,7 @@ class Win32Emulator(WindowsEmulator):
             if exports:
                 args = [self.mem_map(8, tag='emu.export_arg_%d' % (i), base=0x41420000) for i in range(4)] # noqa
                 for exp in exports:
-                    if exp.name in ('DllMain', 'ServiceMain'):
+                    if exp.name in ('DllMain', ):
                         continue
                     run = Run()
                     if exp.name:
@@ -269,8 +269,23 @@ class Win32Emulator(WindowsEmulator):
 
                     run.type = 'export.%s' % (fn)
                     run.start_addr = exp.address
-                    # Here we set dummy args to pass into the export function
-                    run.args = args
+                    if exp.name == 'ServiceMain':
+                        # argc: 1
+                        # argv:
+                        #   0x00: (argv[0]) pointer to +0x10 -+
+                        #   0x08: (argv[1]) 0x0               |
+                        #   0x10: "IPRIP"  <------------------+
+                        svc_name = "IPRIP".encode('ascii') + b'\x00'
+                        argc = 1
+                        argv = self.mem_map(len(svc_name) + 0x10, tag='emu.export_ServiceMain_argv', base=0x41420000)
+
+                        self.write_ptr(argv, argv + 0x10)
+                        self.mem_write(argv + 0x10, svc_name)
+
+                        run.args = [argc, argv]
+                    else:
+                        # Here we set dummy args to pass into the export function
+                        run.args = args
                     # Store these runs and only queue them before the unload
                     # routine this is because some exports may not be ready to
                     # be called yet
