@@ -270,7 +270,7 @@ class Win32Emulator(WindowsEmulator):
                     run.type = 'export.%s' % (fn)
                     run.start_addr = exp.address
                     if exp.name == 'ServiceMain':
-                        # ServiceMain accepts and (argc, argv) pair like main().
+                        # ServiceMain accepts a (argc, argv) pair like main().
                         #
                         # now, we're not exactly sure if we're in A or W mode.
                         # maybe there are some hints we could take to guess this.
