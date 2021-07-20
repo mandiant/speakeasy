@@ -275,7 +275,7 @@ class Win32Emulator(WindowsEmulator):
                         #   0x00: (argv[0]) pointer to +0x10 -+
                         #   0x08: (argv[1]) 0x0               |
                         #   0x10: "IPRIP"  <------------------+
-                        svc_name = "IPRIP".encode('ascii') + b'\x00'
+                        svc_name = "IPRIP\x00".encode('utf-16le')
                         argc = 1
                         argv = self.mem_map(len(svc_name) + 0x10, tag='emu.export_ServiceMain_argv', base=0x41420000)
 
