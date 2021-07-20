@@ -1413,3 +1413,18 @@ class Msvcrt(api.ApiHandler):
     @apihook('_itow', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itow(self, emu, argv, ctx={}):
         return
+
+    @apihook('wcstombs', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcstombs(self, emu, argv, ctx={}):
+        '''
+        size_t wcstombs(
+            char *mbstr,
+            const wchar_t *wcstr,
+            size_t count
+        );
+        '''
+        mbstr, wcstr, count = argv
+
+        s = self.read_wide_string(wcstr, count)
+        self.write_string(s, mbstr)
+        return len(s.encode("ascii"))
