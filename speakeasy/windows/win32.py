@@ -270,11 +270,22 @@ class Win32Emulator(WindowsEmulator):
                     run.type = 'export.%s' % (fn)
                     run.start_addr = exp.address
                     if exp.name == 'ServiceMain':
-                        # argc: 1
-                        # argv:
-                        #   0x00:    (argv[0]) pointer to +0x10 -+
-                        #   0x04/08: (argv[1]) 0x0               |
-                        #   0x10:    "IPRIP"  <------------------+
+                        # ServiceMain accepts and (argc, argv) pair like main().
+                        #
+                        # now, we're not exactly sure if we're in A or W mode.
+                        # maybe there are some hints we could take to guess this.
+                        # instead, we'll assume W mode and use default service name "IPRIP".
+                        #
+                        # hack: if we're actually in A mode, then string routines
+                        # will think the service name is "I" which isn't perfect,
+                        # but might still be good enough.
+                        #
+                        # layout:
+                        #   argc: 1
+                        #   argv:
+                        #     0x00:    (argv[0]) pointer to +0x10 -+
+                        #     0x04/08: (argv[1]) 0x0               |
+                        #     0x10:    "IPRIP"  <------------------+
                         svc_name = "IPRIP\x00".encode('utf-16le')
                         argc = 1
                         argv = self.mem_map(len(svc_name) + 0x10, tag='emu.export_ServiceMain_argv', base=0x41420000)
