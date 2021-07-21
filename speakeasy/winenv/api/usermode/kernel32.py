@@ -197,6 +197,29 @@ class Kernel32(api.ApiHandler):
         '''
         return 0xC000
 
+    @apihook('SetThreadLocale', argc=1)
+    def SetThreadLocale(self, emu, argv, ctx={}):
+        '''
+        LCID SetThreadLocale(
+            LCID Locale
+        );
+        '''
+
+        lcid, = argv
+        return lcid
+
+    @apihook('IsValidLocale', argc=2)
+    def IsValidLocale(self, emu, argv, ctx={}):
+        '''
+        BOOL IsValidLocale(
+            LCID  Locale,
+            DWORD dwFlags
+        );
+        '''
+
+        lcid, flags = argv
+        return True
+
     @apihook('OutputDebugString', argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         '''
