@@ -15,6 +15,7 @@ HOOK_API = 1008
 HOOK_DYN_CODE = 1009
 HOOK_INSN = 1010
 HOOK_MEM_MAP = 1011
+HOOK_INSN_INVALID = 1012
 
 # Emulation memory protection types
 PERM_MEM_NONE = 0
@@ -119,6 +120,10 @@ class Hook(object):
             self.se_obj.stop()
             return False
 
+    def _wrap_invalid_insn_cb(self, emu, ctx=[]):
+        if self.enabled:
+            return self.cb(self.se_obj, self.ctx)
+        return True
 
 class ApiHook(Hook):
     """
@@ -253,5 +258,22 @@ class InstructionHook(Hook):
         if not self.added and self.native_hook:
             self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb,
                                                 arg1=self.insn)
+        self.added = True
+        self.enabled = True
+
+class InvalidInstructionHook(Hook):
+    """
+    This hook will fire every time an invalid instruction is attempted
+    to be executed
+    """
+    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
+        super(InvalidInstructionHook, self).__init__(se_obj, emu_eng, cb,
+                ctx=ctx, native_hook=native_hook)
+
+    def add(self):
+        if not self.added and self.native_hook:
+            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN_INVALID,
+                    cb=self._wrap_invalid_insn_cb)
+
         self.added = True
         self.enabled = True

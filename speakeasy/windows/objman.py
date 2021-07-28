@@ -487,6 +487,17 @@ class Thread(KernelObject):
     def get_token(self):
         return self.token
 
+    def init_tls(self, tls_dir, modname):
+        ptrsz = self.emu.get_ptr_size()
+
+        tls_dirp = self.emu.mem_map(ptrsz, tag='emu.tls.%s' % (modname))
+
+        self.emu.mem_write(tls_dirp, tls_dir)
+
+        self.teb.object.ThreadLocalStoragePointer = tls_dirp
+        self.teb.write_back()
+
+        return
 
 class Token(KernelObject):
     """
