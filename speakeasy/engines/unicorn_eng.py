@@ -132,7 +132,8 @@ class EmuEngine(object):
                         common.HOOK_MEM_READ: uc.UC_HOOK_MEM_READ,
                         common.HOOK_MEM_WRITE: uc.UC_HOOK_MEM_WRITE,
                         common.HOOK_INTERRUPT: uc.UC_HOOK_INTR,
-                        common.HOOK_INSN: uc.UC_HOOK_INSN
+                        common.HOOK_INSN: uc.UC_HOOK_INSN,
+                        common.HOOK_INSN_INVALID: uc.UC_HOOK_INSN_INVALID
         }
 
     def _sec_to_usec(self, sec):

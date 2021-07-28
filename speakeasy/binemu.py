@@ -781,6 +781,13 @@ class BinaryEmulator(MemoryManager):
         enc_str = string.encode(encode)
         self.mem_write(address, enc_str)
 
+    def read_ptr(self, address):
+        val = self.mem_read(address, self.ptr_size)
+        return int.from_bytes(val, 'little')
+
+    def write_ptr(self, address, val):
+        self.mem_write(address, val.to_bytes(self.ptr_size, 'little'))
+
     def get_ptr_size(self):
         """
         Get the pointer size of the current emulation state
@@ -1091,6 +1098,23 @@ class BinaryEmulator(MemoryManager):
         hl = self.hooks.get(common.HOOK_INSN)
         if not hl:
             self.hooks.update({common.HOOK_INSN: [hook, ]})
+        else:
+            hl.insert(0, hook)
+
+        if self.emu_eng:
+            hook.add()
+
+        return hook
+
+    def add_invalid_instruction_hook(self, cb, ctx=[], emu=None):
+        if not emu:
+            emu = self
+
+        hook = common.InvalidInstructionHook(emu, self.emu_eng, cb, ctx=[])
+        hl = self.hooks.get(common.HOOK_INSN_INVALID)
+
+        if not hl:
+            self.hooks.update({common.HOOK_INSN_INVALID: [hook, ]})
         else:
             hl.insert(0, hook)
 

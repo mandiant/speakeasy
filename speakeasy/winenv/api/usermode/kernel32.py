@@ -197,6 +197,29 @@ class Kernel32(api.ApiHandler):
         '''
         return 0xC000
 
+    @apihook('SetThreadLocale', argc=1)
+    def SetThreadLocale(self, emu, argv, ctx={}):
+        '''
+        LCID SetThreadLocale(
+            LCID Locale
+        );
+        '''
+
+        lcid, = argv
+        return lcid
+
+    @apihook('IsValidLocale', argc=2)
+    def IsValidLocale(self, emu, argv, ctx={}):
+        '''
+        BOOL IsValidLocale(
+            LCID  Locale,
+            DWORD dwFlags
+        );
+        '''
+
+        lcid, flags = argv
+        return True
+
     @apihook('OutputDebugString', argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         '''
@@ -1220,6 +1243,25 @@ class Kernel32(api.ApiHandler):
         obj.suspend_count += 1
         return rv
 
+    @apihook('GetThreadId', argc=1)
+    def GetThreadId(self, emu, argv, ctx={}):
+        """
+        DWORD GetThreadId(
+          HANDLE Thread
+        );
+        """
+        Thread, = argv
+
+        if not Thread:
+            return 0
+
+        obj = self.get_object_from_handle(Thread)
+
+        if not obj:
+            return 0
+
+        return obj.get_id()
+
     @apihook('VirtualQuery', argc=3)
     def VirtualQuery(self, emu, argv, ctx={}):
         '''
@@ -2071,10 +2113,9 @@ class Kernel32(api.ApiHandler):
         '''
         HANDLE GetCurrentThread();
         '''
-
-        rv = self.get_max_int()
-
-        return rv
+        thread = emu.get_current_thread()
+        obj = emu.om.get_object_from_addr(thread.address)
+        return emu.get_object_handle(obj)
 
     @apihook('TlsAlloc', argc=0)
     def TlsAlloc(self, emu, argv, ctx={}):
@@ -5388,6 +5429,15 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook('WakeAllConditionVariable', argc=1)
+    def WakeAllConditionVariable(self, emu, argv, ctx={}):
+        '''
+        void WakeAllConditionVariable(
+          PCONDITION_VARIABLE ConditionVariable
+        );
+        '''
+        return
+
     @apihook('Wow64DisableWow64FsRedirection', argc=1)
     def Wow64DisableWow64FsRedirection(self, emu, argv, ctx={}):
         '''
@@ -5411,3 +5461,70 @@ class Kernel32(api.ApiHandler):
         rv = 1
 
         return rv
+
+    @apihook('EnumProcesses', argc=3)
+    def EnumProcesses(self, emu, argv, ctx={}):
+        '''
+        BOOL EnumProcesses(
+          DWORD   *lpidProcess,
+          DWORD   cb,
+          LPDWORD lpcbNeeded
+        );
+        '''
+        lpidProcess, cb, lpcbNeeded = argv
+        processes = emu.get_processes()
+
+        lpidProcess_cursor = lpidProcess
+        lim = min(cb // 4, len(processes))
+
+        for i in range(lim):
+            pid = processes[i].pid.to_bytes(4, "little")
+            self.mem_write(lpidProcess_cursor, pid)
+            lpidProcess_cursor += 4
+
+        pcbNeeded = lim
+        self.mem_write(lpcbNeeded, pcbNeeded.to_bytes(4, "little"))
+
+        return 1
+
+    @apihook('GetModuleFileNameExA', argc=4)
+    def GetModuleFileNameExA(self, emu, argv, ctx={}):
+        '''
+        DWORD GetModuleFileNameExA(
+          HANDLE  hProcess,
+          HMODULE hModule,
+          LPSTR   lpFilename,
+          DWORD   nSize
+        );
+        '''
+        hProcess, hModule, lpFilename, nSize = argv
+
+        if hModule:
+            return self.GetModuleFileName(hModule, lpFilename, nSize)
+
+        size = 0
+        cw = self.get_char_width(ctx)
+
+        proc = self.get_object_from_handle(hProcess)
+
+        if proc == None:
+            return 
+
+        filename = proc.get_process_path()
+
+        if filename:
+            if cw == 2:
+                out = filename.encode('utf-16le')
+            elif cw == 1:
+                out = filename.encode('utf-8')
+
+            size = len(out) // cw
+            if nSize < size + 1 * cw:  # null terminator
+                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                out = out[:nSize - 1 * cw] + b'\0' * cw
+            else:
+                out += b'\0' * cw
+
+            self.mem_write(lpFilename, out)
+
+        return size

@@ -1448,3 +1448,18 @@ class Msvcrt(api.ApiHandler):
         # ret     0
         emu.push_stack(eax)
         return
+
+    @apihook('wcstombs', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcstombs(self, emu, argv, ctx={}):
+        '''
+        size_t wcstombs(
+            char *mbstr,
+            const wchar_t *wcstr,
+            size_t count
+        );
+        '''
+        mbstr, wcstr, count = argv
+
+        s = self.read_wide_string(wcstr, count)
+        self.write_string(s, mbstr)
+        return len(s.encode("ascii"))
