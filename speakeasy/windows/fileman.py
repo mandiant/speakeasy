@@ -212,7 +212,7 @@ class FileManager(object):
 
         if cmdline is None:
             cmdline = ""
-        self.emulated_binname = shlex.split(cmdline if cmdline else emu.command_line)[0]
+        self.emulated_binname = shlex.split(cmdline)[0] if cmdline else emu.get_argv()[0]
 
         # First file in this list seems to always be the module itself
         self.files = []
