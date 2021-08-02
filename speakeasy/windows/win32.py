@@ -32,14 +32,15 @@ class Win32Emulator(WindowsEmulator):
     """
 
     def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        super(Win32Emulator, self).__init__(
-            config, debug=debug, logger=logger, exit_event=exit_event
-        )
-
         self.last_error = 0
         self.peb_addr = 0
         self.heap_allocs = []
         self.argv = argv
+
+        super(Win32Emulator, self).__init__(
+            config, debug=debug, logger=logger, exit_event=exit_event
+        )
+
         self.sessman = SessionManager(config)
         self.com = COM(config)
 
