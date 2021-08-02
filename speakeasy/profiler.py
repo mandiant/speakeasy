@@ -238,7 +238,7 @@ class Profiler(object):
 
         if access:
             event.update({"access_flags": access})
-
+        event["clock"] = run.get_api_count()
         if event not in run.file_access:
             run.file_access.append(event)
 
@@ -254,7 +254,6 @@ class Profiler(object):
         access=[],
         buffer=0,
         size=None,
-        clock=0,
     ):
         """
         Log registry access events. This includes values and keys being accessed and
@@ -264,7 +263,7 @@ class Profiler(object):
         if data:
             enc = self.handle_binary_data(data[:1024])
 
-        event = {"event": event_type, "path": path, "clock": clock}
+        event = {"event": event_type, "path": path, "clock": run.get_api_count()}
         if enc:
             event.update({"data": enc})
 
@@ -360,16 +359,16 @@ class Profiler(object):
             event.update({"path": proc.get_process_path()})
             event.update({"start_addr": hex(kwargs["start_addr"])})
             event.update({"param": hex(kwargs["param"])})
-
+        event["clock"] = run.get_api_count()
         run.process_events.append(event)
         self.last_event = event
 
-    def log_dns(self, run, domain, clock, ip=""):
+    def log_dns(self, run, domain, ip=""):
         """
         Log DNS name lookups for the emulation report
         """
 
-        query = {"query": domain, "response": ip, "clock": clock}
+        query = {"query": domain, "response": ip, "clock": run.get_api_count()}
         if query not in run.network["dns"]:
             run.network["dns"].append(query)
 
@@ -388,7 +387,6 @@ class Profiler(object):
         run,
         server,
         port,
-        clock,
         typ=None,
         proto="unknown",
         data=b"",
@@ -400,7 +398,12 @@ class Profiler(object):
         """
         conns = run.network["traffic"]
 
-        conn = {"server": server, "proto": proto, "port": port, "clock": clock}
+        conn = {
+            "server": server,
+            "proto": proto,
+            "port": port,
+            "clock": run.get_api_count(),
+        }
         if data:
             data = self.handle_binary_data(data[:0x3000])
             conn.update({"data": data})

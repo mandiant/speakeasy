@@ -103,7 +103,6 @@ class WindowsEmulator(BinaryEmulator):
         self.driveman = DriveManager(config=self.get_drive_config())
         self.cryptman = CryptoManager()
         self.hammer = ApiHammer(self)
-        self.syscalls_counter = 0
 
     def _parse_config(self, config):
         """
@@ -1167,7 +1166,6 @@ class WindowsEmulator(BinaryEmulator):
         mod, func_attrs = self.api.get_export_func_handler(dll, name)
         if not func_attrs:
             mod, func_attrs = self.normalize_import_miss(dll, name)
-        self.syscalls_counter += 1
         if func_attrs:
             handler_name, func, argc, conv, ordinal = func_attrs
 

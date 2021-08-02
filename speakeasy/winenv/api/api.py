@@ -263,14 +263,13 @@ class ApiHandler(object):
                 access,
                 buffer,
                 size,
-                clock=self.emu.syscalls_counter,
             )
 
     def log_dns(self, domain, ip=""):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_dns(run, domain, clock=self.emu.syscalls_counter, ip=ip)
+            profiler.log_dns(run, domain, ip=ip)
 
     def log_network(
         self,
@@ -294,7 +293,6 @@ class ApiHandler(object):
                 data=data,
                 method=method,
                 headers=headers,
-                clock=self.emu.syscalls_counter,
             )
 
     def get_max_int(self):
