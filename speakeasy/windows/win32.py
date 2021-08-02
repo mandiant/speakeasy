@@ -267,7 +267,7 @@ class Win32Emulator(WindowsEmulator):
                     for i in range(4)
                 ]  # noqa
                 for exp in exports:
-                    if exp.name in ('DllMain', ):
+                    if exp.name in ("DllMain",):
                         continue
                     run = Run()
                     if exp.name:
@@ -277,7 +277,7 @@ class Win32Emulator(WindowsEmulator):
 
                     run.type = "export.%s" % (fn)
                     run.start_addr = exp.address
-                    if exp.name == 'ServiceMain':
+                    if exp.name == "ServiceMain":
                         # ServiceMain accepts a (argc, argv) pair like main().
                         #
                         # now, we're not exactly sure if we're in A or W mode.
@@ -294,9 +294,13 @@ class Win32Emulator(WindowsEmulator):
                         #     0x00:    (argv[0]) pointer to +0x10 -+
                         #     0x04/08: (argv[1]) 0x0               |
                         #     0x10:    "IPRIP"  <------------------+
-                        svc_name = "IPRIP\x00".encode('utf-16le')
+                        svc_name = "IPRIP\x00".encode("utf-16le")
                         argc = 1
-                        argv = self.mem_map(len(svc_name) + 0x10, tag='emu.export_ServiceMain_argv', base=0x41420000)
+                        argv = self.mem_map(
+                            len(svc_name) + 0x10,
+                            tag="emu.export_ServiceMain_argv",
+                            base=0x41420000,
+                        )
 
                         self.write_ptr(argv, argv + 0x10)
                         self.mem_write(argv + 0x10, svc_name)

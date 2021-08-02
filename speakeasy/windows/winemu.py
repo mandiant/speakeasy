@@ -2060,7 +2060,7 @@ class WindowsEmulator(BinaryEmulator):
             )
 
             # EBX clobber, -1 is what I observed inside a VM
-            self.reg_write(_arch.X86_REG_EBX, 0xffffffff)
+            self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
             self.set_pc(entry.Handler)
             return True
         return False

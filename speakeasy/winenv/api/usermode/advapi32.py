@@ -1142,7 +1142,7 @@ class AdvApi32(api.ApiHandler):
 
         return 1
 
-    @apihook('CryptDeriveKey', argc=5)
+    @apihook("CryptDeriveKey", argc=5)
     def CryptDeriveKey(self, emu, argv, ctx={}):
         """
         BOOL CryptDeriveKey(
@@ -1169,7 +1169,9 @@ class AdvApi32(api.ApiHandler):
         # CryptDeriveKey zeroes out the last 11 bytes of the hash,
         # so we gotta do the same before it is written to the
         # phKey structure
-        fixed_digest = hnd.digest()[:5] + b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+        fixed_digest = (
+            hnd.digest()[:5] + b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        )
 
         ptrsz = emu.get_ptr_size()
 
@@ -1187,7 +1189,7 @@ class AdvApi32(api.ApiHandler):
 
         return 1
 
-    @apihook('CryptDecrypt', argc=6)
+    @apihook("CryptDecrypt", argc=6)
     def CryptDecrypt(self, emu, argv, ctx={}):
         """
         BOOL CryptDecrypt(
@@ -1333,15 +1335,15 @@ class AdvApi32(api.ApiHandler):
         # TODO: Populate service status output
         return 1
 
-    @apihook('OpenService', argc=3, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
     def OpenService(self, emu, argv, ctx={}):
-        '''
+        """
         SC_HANDLE OpenServiceA(
           SC_HANDLE hSCManager,
           LPCSTR    lpServiceName,
           DWORD     dwDesiredAccess
         );
-        '''
+        """
         hSCManager, lpServiceName, dwDesiredAccess = argv
         cw = self.get_char_width(ctx)
         svcname = self.read_mem_string(lpServiceName, cw)

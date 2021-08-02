@@ -1447,7 +1447,7 @@ class Msvcrt(api.ApiHandler):
     def _itow(self, emu, argv, ctx={}):
         return
 
-    @apihook('_EH_prolog', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("_EH_prolog", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _EH_prolog(self, emu, argv, ctx={}):
         # push    -1
         emu.push_stack(0xFFFFFFFF)
@@ -1463,34 +1463,30 @@ class Msvcrt(api.ApiHandler):
         eax = emu.read_ptr(emu.reg_read(e_arch.X86_REG_ESP) + 12)
 
         # mov     DWORD PTR fs:[0], esp
-        emu.write_ptr(
-            emu.fs_addr + 0,
-            emu.reg_read(e_arch.X86_REG_ESP))
+        emu.write_ptr(emu.fs_addr + 0, emu.reg_read(e_arch.X86_REG_ESP))
 
         # mov     DWORD PTR [esp+12], ebp
         emu.write_ptr(
-            emu.reg_read(e_arch.X86_REG_ESP) + 12,
-            emu.reg_read(e_arch.X86_REG_EBP))
+            emu.reg_read(e_arch.X86_REG_ESP) + 12, emu.reg_read(e_arch.X86_REG_EBP)
+        )
 
         # lea     ebp, DWORD PTR [esp+12]
-        emu.reg_write(
-            e_arch.X86_REG_EBP,
-            emu.reg_read(e_arch.X86_REG_ESP) + 12)
+        emu.reg_write(e_arch.X86_REG_EBP, emu.reg_read(e_arch.X86_REG_ESP) + 12)
 
         # push    eax
         # ret     0
         emu.push_stack(eax)
         return
 
-    @apihook('wcstombs', argc=3, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("wcstombs", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def wcstombs(self, emu, argv, ctx={}):
-        '''
+        """
         size_t wcstombs(
             char *mbstr,
             const wchar_t *wcstr,
             size_t count
         );
-        '''
+        """
         mbstr, wcstr, count = argv
 
         s = self.read_wide_string(wcstr, count)

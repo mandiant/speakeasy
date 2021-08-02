@@ -202,30 +202,30 @@ class Kernel32(api.ApiHandler):
         """
         return 0xC000
 
-    @apihook('SetThreadLocale', argc=1)
+    @apihook("SetThreadLocale", argc=1)
     def SetThreadLocale(self, emu, argv, ctx={}):
-        '''
+        """
         LCID SetThreadLocale(
             LCID Locale
         );
-        '''
+        """
 
-        lcid, = argv
+        (lcid,) = argv
         return lcid
 
-    @apihook('IsValidLocale', argc=2)
+    @apihook("IsValidLocale", argc=2)
     def IsValidLocale(self, emu, argv, ctx={}):
-        '''
+        """
         BOOL IsValidLocale(
             LCID  Locale,
             DWORD dwFlags
         );
-        '''
+        """
 
         lcid, flags = argv
         return True
 
-    @apihook('OutputDebugString', argc=1)
+    @apihook("OutputDebugString", argc=1)
     def OutputDebugString(self, emu, argv, ctx={}):
         """
         void OutputDebugStringA(
@@ -525,7 +525,7 @@ class Kernel32(api.ApiHandler):
         data = self.mem_cast(pe, pe32)
         pe.th32ProcessID = proc.get_pid()
         if cw == 2:
-            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00\x00'
+            pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
         else:
             pe.szExeFile = proc.image.encode("utf-8") + b"\x00"
 
@@ -567,7 +567,7 @@ class Kernel32(api.ApiHandler):
         data = self.mem_cast(pe, pe32)
         pe.th32ProcessID = proc.get_pid()
         if cw == 2:
-            pe.szExeFile = proc.image.encode('utf-16le') + b'\x00\x00'
+            pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
         else:
             pe.szExeFile = proc.image.encode("utf-8") + b"\x00"
 
@@ -1349,14 +1349,14 @@ class Kernel32(api.ApiHandler):
         obj.suspend_count += 1
         return rv
 
-    @apihook('GetThreadId', argc=1)
+    @apihook("GetThreadId", argc=1)
     def GetThreadId(self, emu, argv, ctx={}):
         """
         DWORD GetThreadId(
           HANDLE Thread
         );
         """
-        Thread, = argv
+        (Thread,) = argv
 
         if not Thread:
             return 0
@@ -1368,7 +1368,7 @@ class Kernel32(api.ApiHandler):
 
         return obj.get_id()
 
-    @apihook('VirtualQuery', argc=3)
+    @apihook("VirtualQuery", argc=3)
     def VirtualQuery(self, emu, argv, ctx={}):
         """
         SIZE_T VirtualQuery(
@@ -2691,7 +2691,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hFile
         );
         """
-        FILE_TYPE_DISK = 1
         FILE_TYPE_CHAR = 2
         (hFile,) = argv
         return FILE_TYPE_CHAR
@@ -5634,16 +5633,16 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
-    @apihook('WakeAllConditionVariable', argc=1)
+    @apihook("WakeAllConditionVariable", argc=1)
     def WakeAllConditionVariable(self, emu, argv, ctx={}):
-        '''
+        """
         void WakeAllConditionVariable(
           PCONDITION_VARIABLE ConditionVariable
         );
-        '''
+        """
         return
 
-    @apihook('Wow64DisableWow64FsRedirection', argc=1)
+    @apihook("Wow64DisableWow64FsRedirection", argc=1)
     def Wow64DisableWow64FsRedirection(self, emu, argv, ctx={}):
         """
         BOOL Wow64DisableWow64FsRedirection(
@@ -5667,15 +5666,15 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
-    @apihook('EnumProcesses', argc=3)
+    @apihook("EnumProcesses", argc=3)
     def EnumProcesses(self, emu, argv, ctx={}):
-        '''
+        """
         BOOL EnumProcesses(
           DWORD   *lpidProcess,
           DWORD   cb,
           LPDWORD lpcbNeeded
         );
-        '''
+        """
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -5692,16 +5691,16 @@ class Kernel32(api.ApiHandler):
 
         return 1
 
-    @apihook('GetModuleFileNameExA', argc=4)
+    @apihook("GetModuleFileNameExA", argc=4)
     def GetModuleFileNameExA(self, emu, argv, ctx={}):
-        '''
+        """
         DWORD GetModuleFileNameExA(
           HANDLE  hProcess,
           HMODULE hModule,
           LPSTR   lpFilename,
           DWORD   nSize
         );
-        '''
+        """
         hProcess, hModule, lpFilename, nSize = argv
 
         if hModule:
@@ -5719,16 +5718,16 @@ class Kernel32(api.ApiHandler):
 
         if filename:
             if cw == 2:
-                out = filename.encode('utf-16le')
+                out = filename.encode("utf-16le")
             elif cw == 1:
-                out = filename.encode('utf-8')
+                out = filename.encode("utf-8")
 
             size = len(out) // cw
             if nSize < size + 1 * cw:  # null terminator
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-                out = out[:nSize - 1 * cw] + b'\0' * cw
+                out = out[: nSize - 1 * cw] + b"\0" * cw
             else:
-                out += b'\0' * cw
+                out += b"\0" * cw
 
             self.mem_write(lpFilename, out)
 

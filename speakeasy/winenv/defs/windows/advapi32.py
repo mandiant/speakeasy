@@ -16,6 +16,7 @@ class SERVICE_TABLE_ENTRY(EmuStruct):
         self.lpServiceName = Ptr
         self.lpServiceProc = Ptr
 
+
 class HCRYPTKEY(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)

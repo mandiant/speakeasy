@@ -127,6 +127,7 @@ class Hook(object):
             return self.cb(self.se_obj, self.ctx)
         return True
 
+
 class ApiHook(Hook):
     """
     This hook type is used when using a specific API (e.g. kernel32.CreateFile)
@@ -290,19 +291,23 @@ class InstructionHook(Hook):
         self.added = True
         self.enabled = True
 
+
 class InvalidInstructionHook(Hook):
     """
     This hook will fire every time an invalid instruction is attempted
     to be executed
     """
+
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
-        super(InvalidInstructionHook, self).__init__(se_obj, emu_eng, cb,
-                ctx=ctx, native_hook=native_hook)
+        super(InvalidInstructionHook, self).__init__(
+            se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook
+        )
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN_INVALID,
-                    cb=self._wrap_invalid_insn_cb)
+            self.handle = self.emu_eng.hook_add(
+                htype=HOOK_INSN_INVALID, cb=self._wrap_invalid_insn_cb
+            )
 
         self.added = True
         self.enabled = True

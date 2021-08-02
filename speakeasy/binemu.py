@@ -807,10 +807,10 @@ class BinaryEmulator(MemoryManager):
 
     def read_ptr(self, address):
         val = self.mem_read(address, self.ptr_size)
-        return int.from_bytes(val, 'little')
+        return int.from_bytes(val, "little")
 
     def write_ptr(self, address, val):
-        self.mem_write(address, val.to_bytes(self.ptr_size, 'little'))
+        self.mem_write(address, val.to_bytes(self.ptr_size, "little"))
 
     def get_ptr_size(self):
         """
@@ -1188,7 +1188,13 @@ class BinaryEmulator(MemoryManager):
         hl = self.hooks.get(common.HOOK_INSN_INVALID)
 
         if not hl:
-            self.hooks.update({common.HOOK_INSN_INVALID: [hook, ]})
+            self.hooks.update(
+                {
+                    common.HOOK_INSN_INVALID: [
+                        hook,
+                    ]
+                }
+            )
         else:
             hl.insert(0, hook)
 
