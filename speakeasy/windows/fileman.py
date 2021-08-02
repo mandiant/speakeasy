@@ -208,14 +208,12 @@ class FileManager(object):
         self.file_config = self.config.get("filesystem", {})
         self.emu = emu
 
-        cmdline = self.config.get("command_line")
-
-        if cmdline is None:
-            cmdline = ""
-        self.emulated_binname = shlex.split(cmdline)[0] if cmdline else emu.get_argv()[0]
 
         # First file in this list seems to always be the module itself
         self.files = []
+    @property
+    def emulated_binname(self):
+        return self.emu.bin_base_name
 
     def file_create_mapping(self, hfile, name, size, prot):
         if hfile not in (windefs.INVALID_HANDLE_VALUE, 0):

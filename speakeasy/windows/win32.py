@@ -32,15 +32,14 @@ class Win32Emulator(WindowsEmulator):
     """
 
     def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        self.last_error = 0
-        self.peb_addr = 0
-        self.heap_allocs = []
-        self.argv = argv
-
         super(Win32Emulator, self).__init__(
             config, debug=debug, logger=logger, exit_event=exit_event
         )
 
+        self.last_error = 0
+        self.peb_addr = 0
+        self.heap_allocs = []
+        self.argv = argv
         self.sessman = SessionManager(config)
         self.com = COM(config)
 
@@ -176,14 +175,14 @@ class Win32Emulator(WindowsEmulator):
             self.profiler.strings["unicode"] = [
                 u[1] for u in self.get_unicode_strings(data)
             ]
-
+        self.bin_base_name = os.path.basename(file_name)
         # Set the emulated path
         emu_path = ""
         self.cd = self.get_cd()
         if self.cd:
             if not self.cd.endswith("\\"):
                 self.cd += "\\"
-            emu_path = self.cd + os.path.basename(file_name)
+            emu_path = self.cd + self.bin_base_name
 
         pe.set_emu_path(emu_path)
 
