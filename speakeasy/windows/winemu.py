@@ -98,7 +98,7 @@ class WindowsEmulator(BinaryEmulator):
         self.wintypes = windef
         # OS resource managers
         self.regman = RegistryManager(self.get_registry_config())
-        self.fileman = FileManager(self.get_filesystem_config())
+        self.fileman = FileManager(config, self)
         self.netman = NetworkManager(config=self.get_network_config())
         self.driveman = DriveManager(config=self.get_drive_config())
         self.cryptman = CryptoManager()
@@ -344,6 +344,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Begin emulating the specified run
         """
+        self.log_info("* exec: %s" % run.type)
+
         self.curr_run = run
         if self.profiler:
             self.profiler.add_run(run)
@@ -372,6 +374,7 @@ class WindowsEmulator(BinaryEmulator):
             thread = self.get_current_thread()
             if thread:
                 self.init_teb(thread, self.curr_process.get_peb())
+                self.init_tls(thread)
 
         self.set_pc(run.start_addr)
         return run
@@ -666,6 +669,31 @@ class WindowsEmulator(BinaryEmulator):
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
             thread.init_teb(self.gs_addr, peb.address)
+
+    def init_tls(self, thread):
+        """
+        Initialize implicit thread local storage. Meant to be
+        called after init_teb.
+        """
+        ptrsz = self.get_ptr_size()
+        run = self.curr_run
+        module = self.get_mod_from_addr(run.start_addr)
+
+        if module:
+            modname = module.emu_path
+            tokens = modname.split("\\")
+            modname = tokens[len(tokens) - 1]
+
+            # Get the virtual address of the TLS directory, which will always
+            # be 9 in the data directory
+            tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
+            tls_dirp += module.OPTIONAL_HEADER.ImageBase
+
+            tls_dir = self.mem_read(tls_dirp, ptrsz)
+
+            thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+
+        return
 
     def load_pe(self, path=None, data=None, imp_id=winemu.IMPORT_HOOK_ADDR):
         """

@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from .. import api
+import shlex
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 
@@ -132,7 +133,8 @@ class Shell32(api.ApiHandler):
 
         ptrsize = emu.get_ptr_size()
 
-        split = cl.split()
+        split = shlex.split(cl)
+        nargs = len(split)
 
         # Get the total size we need
         size = (len(split) + 1) * ptrsize
@@ -153,7 +155,11 @@ class Shell32(api.ApiHandler):
             else:
                 s = p.encode("utf-8")
             self.mem_write(strs, s)
+
             strs += len(s)
+
+        if argc:
+            self.mem_write(argc, nargs.to_bytes(4, "little"))
 
         return buf
 
