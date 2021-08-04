@@ -2213,7 +2213,7 @@ class WindowsEmulator(BinaryEmulator):
         exception_list = self._get_exception_list()
         if not hasattr(self, "interrupts"):
             self.interrupts = []
-        self.interrupts.append((intnum, self.syscalls_counter))
+        self.interrupts.append((intnum, self.curr_run.get_api_count()))
         if exception_list and self.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2D:
