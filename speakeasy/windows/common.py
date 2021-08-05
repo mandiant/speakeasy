@@ -331,6 +331,9 @@ class PeFile(pefile.PE):
                 return True
         return False
 
+    def rebase(self, to):
+
+        return
 
 class DecoyModule(PeFile):
     """

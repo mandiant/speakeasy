@@ -3,6 +3,7 @@
 import os
 import ntpath
 import traceback
+import shlex
 
 import speakeasy.winenv.arch as _arch
 from speakeasy.binemu import BinaryEmulator
@@ -312,6 +313,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         try:
             run = self.run_queue.pop(0)
+            self.log_info("winemu.py:_exec_next_run: cur run ep @ 0x%x" % run.start_addr)
         except IndexError:
             self.on_emu_complete()
             return None
@@ -372,6 +374,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.init_teb(thread, self.curr_process.get_peb())
                 self.init_tls(thread)
 
+        self.log_info("winemu.py:_exec_run: setting PC to 0x%x" % run.start_addr)
         self.set_pc(run.start_addr)
         return run
 
@@ -424,9 +427,14 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.set_start_time()
         self._exec_run(run)
 
+        self.log_info("winemu.py:start: self.run_queue is {}" % self.run_queue)
+
         while True:
 
             try:
+                self.log_info("winemu.py:start: running another module")
+                self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
+
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
                 self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout,
                                    count=self.max_instructions)
@@ -828,18 +836,35 @@ class WindowsEmulator(BinaryEmulator):
     def new_object(self, otype):
         return self.om.new_object(otype)
 
-    def create_process(self, path='', cmdline='', image=None):
+    # def create_process(self, path='', cmdline='', image=None):
+    def create_process(self, path=None, cmdline=None, image=None):
         """
         Create a process object that will exist in the emulator
         """
+        if not path and cmdline:
+            path = cmdline
+
+        # See if we are trying to create a process based off a file
+        # inside the object manager and serve that
+        # TODO: what should I do when path is not None?
+        file_path = shlex.split(path)[0]
+
+        new_mod = self.init_module_from_emu_file(file_path)
+        mod_name = "mod_name TODO"
+
+        if not new_mod:
+            self.log_info("winemu.py:create_process: TODO map decoy here")
+            return None
+
         p = self.om.new_object(objman.Process)
         p.path = path
-
         p.cmdline = cmdline
-        if not p.path and p.cmdline:
-            p.path = cmdline
+        # if not p.path and p.cmdline:
+        #     p.path = cmdline
 
-        p.path = self.search_path(p.path)
+        # self.log_info("winemu.py:create_process: p.path before %s" % p.path)
+        # p.path = self.search_path(p.path)
+        # self.log_info("winemu.py:create_process: p.path after %s" % p.path)
 
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)
@@ -847,23 +872,45 @@ class WindowsEmulator(BinaryEmulator):
         t.tid = self.om.new_id()
         p.threads.append(t)
 
-        mod_name = ntpath.basename(p.path)
-        mod_name = os.path.splitext(mod_name)[0]
 
-        decoy_mod = self.init_module(name=mod_name, emu_path=p.path)
-        size = decoy_mod.image_size
-        if size < self.page_size:
-            size = self.page_size * 2
-        self.map_decoy(decoy_mod)
+        # mod_name = ntpath.basename(p.path)
+        # self.log_info("winemu.py:create_process: mod_name %s" % mod_name)
+        # mod_name = os.path.splitext(mod_name)[0]
+        # self.log_info("winemu.py:create_process: mod_name %s" % mod_name)
 
-        p.pe = decoy_mod
+
+
+        # decoy_mod = self.init_module(name=mod_name, emu_path=p.path)
+        # size = decoy_mod.image_size
+        # if size < self.page_size:
+        #     size = self.page_size * 2
+        # self.map_decoy(decoy_mod)
+
+        # p.pe = decoy_mod
+        
+
+        p.pe = new_mod
         p.name = mod_name
         self.alloc_peb(p)
 
+        # TODO: this will not suffice; ideally this would register a
+        # brand new module so we can emulate all of its entrypoints
+
         if self.get_arch() == _arch.ARCH_X86:
-            t.ctx.Eax = decoy_mod.base + decoy_mod.ep
+            # t.ctx.Eax = decoy_mod.base + decoy_mod.ep
+            t.ctx.Eax = new_mod.base + new_mod.ep
+            self.log_info("winemu.py:create_process: setting entryp to 0x%x" % t.ctx.Eax)
             t.ctx.Eip = t.ctx.Eax
             t.ctx.Ebx = p.get_peb().address
+
+            # Add this process's main thread to the run queue
+            # run = Run()
+            # run.type = 'thread'
+            # run.start_addr = t.ctx.Eip
+            # run.instr_cnt = 0
+            # run.args = (ctx,)
+            # run.process_context = p
+            # run.thread = t
 
         self.processes.append(p)
         return p
@@ -1760,6 +1807,48 @@ class WindowsEmulator(BinaryEmulator):
             mod.decoy_path = self.config.get('current_dir', 'C:\\Windows\\system32') + '\\' + name
 
         mod.base_name = ntpath.basename(mod.decoy_path)
+
+        return mod
+
+    def rebase_module(self, mod, base):
+
+        return
+
+    # XXX Justin: It doesn't look safe to mess with init_module,
+    # so create_process will call this instead
+    # This will create a module from a file inside Speakeasy's
+    # object manager. file_path is expected to point to a valid PE
+    # file, like it would on a real Windows machine
+    def init_module_from_emu_file(self, file_path):
+        if not self.does_file_exist(file_path):
+            self.log_info("winemu.py:init_real_module: %s does not exist" % file_path)
+            return None
+
+        mod_file = self.fileman.get_file_from_path(file_path)
+
+        if not mod_file:
+            self.log_info("winemu.py:init_real_module: file_open for %s failed" % file_path)
+            return None
+
+        mod_data = mod_file.get_data(reset_pointer=True)
+        mod = winemu.PeFile(data=mod_data)
+
+        # self.log_info(mod)
+        ep = mod.ep
+        self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
+
+        base, size = self.get_valid_ranges(mod.image_size, mod.base)
+
+        self.log_info("winemu.py: base @ 0x%x" % base)
+
+        # TODO rename tag
+        self.mem_reserve(size, base=base, tag='emu.module.child',
+                perms=common.PERM_MEM_RWX)
+
+        # Since we are likely not going to be able to get
+        # memory that reflects where the child module is gonna be loaded in
+        # virtual memory, we have to rebase it
+        mod.rebase(base)
 
         return mod
 

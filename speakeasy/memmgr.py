@@ -90,9 +90,13 @@ class MemMap(object):
 
     def set_free(self):
         """
-        Set the current mapping to be in a free state
+        Set the current mapping to be in a free state,
+        unless this memory represents a mapping for a child process
         """
-        self.free = True
+        if "emu.module." not in self.tag:
+            self.free = True
+        else:
+            print("memmgr.py:set_free: Not freeing module memory for %s" % self.tag)
 
     def is_free(self):
         """

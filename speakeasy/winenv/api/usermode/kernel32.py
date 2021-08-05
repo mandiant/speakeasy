@@ -12,6 +12,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
 from speakeasy.errors import ApiEmuError
+from speakeasy.profiler import Run
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 
@@ -884,15 +885,39 @@ class Kernel32(api.ApiHandler):
         emu.map_decoy(mod)
 
         thread = proc.threads[0]
+
         thread_hnd = self.get_object_handle(thread)
         if windefs.CREATE_SUSPENDED & flags:
             thread.suspend_count = 1
 
-        ctx = windefs.CONTEXT(emu.get_ptr_size())
-        if emu.get_arch() == e_arch.ARCH_X86:
-            ctx.Eax = proc.get_ep()
-            ctx.Eip = ctx.Eax
-            thread.set_context(ctx)
+        # Make sure we add the new process's thread to the run queue
+        # TODO Justin: This will still be broken for x64 code, not really
+        # sure how that would work
+        if self.emu.get_arch() == e_arch.ARCH_X86:
+            run = Run()
+            run.type = 'thread'
+            
+            # Thread context has already been set up by create_process
+            run.start_addr = thread.ctx.Eip
+            run.instr_count = 0
+            # run.args = (thread.ctx,)
+            # XXX needs to be argc, argv, etc?
+            run.args = (0, 0, 0,)
+            run.process_context = proc
+            run.thread = thread
+
+            if thread.suspend_count > 0:
+                self.emu.suspended_runs.append(run)
+            else:
+                self.emu.run_queue.append(run)
+        else:
+            # Justin: Don't do this for x86 code, since this would
+            # mess the thread context set up inside create_process
+            ctx = windefs.CONTEXT(emu.get_ptr_size())
+            if emu.get_arch() == e_arch.ARCH_X86:
+                ctx.Eax = proc.get_ep()
+                ctx.Eip = ctx.Eax
+                thread.set_context(ctx)
 
         _pi = self.k32types.PROCESS_INFORMATION(emu.get_ptr_size())
         data = self.mem_cast(_pi, ppi)
@@ -3559,6 +3584,8 @@ class Kernel32(api.ApiHandler):
           HANDLE hObject
         );
         '''
+        print("CloseHandle: NOT CLOSING ANYTHING TEMPORARILY")
+        return True
         hObject, = argv
         obj = self.get_object_from_handle(hObject)
         if obj:
