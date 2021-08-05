@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import binascii
 import os
 import shlex
 
@@ -182,7 +183,9 @@ class Win32Emulator(WindowsEmulator):
 
         pe.set_emu_path(emu_path)
 
-        self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
+        base = self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
+        self.log_info("win32.py:load_module: pe mapped @ 0x%x" % base)
+
         self.mem_write(pe.base, pe.mapped_image)
 
         self.setup(first_time_setup=first_time_setup)
@@ -219,6 +222,7 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
+        self.log_info("win32.py:prepare_module_for_emulation: 0x%x + 0x%x" % (module.base, module.ep))
         ep = module.base + module.ep
 
         run = Run()
@@ -361,8 +365,17 @@ class Win32Emulator(WindowsEmulator):
             self.load_module(data=child.pe.__data__, first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
-
             self.log_info("* exec child process %d" % p.pid)
+
+            mem = self.mem_read(0x6c3650, 0x20)
+            self.log_info(binascii.hexlify(mem))
+
+            # f = open("./child.exe", "wb")
+            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
+            # f.write(bytez)
+            # f.flush()
+            # f.close()
+
             self.start()
 
         return
@@ -529,9 +542,8 @@ class Win32Emulator(WindowsEmulator):
         self.unhandled_exception_filter = handler_addr
 
     def setup(self, stack_commit=0, first_time_setup=True):
-
-        # Set the emulator to run in protected mode
         if first_time_setup:
+            # Set the emulator to run in protected mode
             self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()

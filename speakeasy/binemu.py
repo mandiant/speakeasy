@@ -6,6 +6,8 @@ import fnmatch
 import traceback
 from typing import List, Tuple, Dict
 
+import binascii
+
 import speakeasy.common as common
 import speakeasy.winenv.arch as e_arch
 from speakeasy.engines import unicorn_eng
@@ -255,6 +257,9 @@ class BinaryEmulator(MemoryManager):
         """
         Disassemble bytes using capstone
         """
+        # if addr > 0x600000:
+        # print("binemu.py:_cs_disasm: addr 0x%x" % addr)
+        # print(binascii.hexlify(mem))
         try:
             if fast:
                 tu = [i for i in self.disasm_eng.disasm_lite(bytes(mem), addr)]
@@ -1036,6 +1041,7 @@ class BinaryEmulator(MemoryManager):
         """
         This handler will dispatch other invalid memory hooks
         """
+        # print("binemu.py:_hook_mem_invalid_dispatch: addr 0x%x" % address)
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
 
         rv = True

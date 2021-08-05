@@ -436,10 +436,13 @@ class WindowsEmulator(BinaryEmulator):
         while True:
 
             try:
+                # self.run_complete = False
+                # self.set_hooks()
+                # self._set_emu_hooks()
                 self.log_info("winemu.py:start: running another module")
-                self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
 
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
+                self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
                 self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout,
                                    count=self.max_instructions)
                 if self.profiler:
