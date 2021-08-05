@@ -84,6 +84,10 @@ class WindowsEmulator(BinaryEmulator):
         self.emu_complete = False
         self.global_data = {}
         self.processes = []
+        # Child processes created by calls to CreateProcess
+        # by any module. This is separate from self.processes in order
+        # to not mix up config processes with child processes
+        self.child_processes = []
         self.curr_thread = None
         self.curr_exception_code = 0
         self.prev_pc = 0
@@ -641,6 +645,7 @@ class WindowsEmulator(BinaryEmulator):
         Initialize the Thread Information Block
         """
         if self.get_arch() == _arch.ARCH_X86:
+            self.log_info("winemu.py:init_teb: fs addr 0x%x" % self.fs_addr)
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
             thread.init_teb(self.gs_addr, peb.address)
@@ -837,7 +842,7 @@ class WindowsEmulator(BinaryEmulator):
         return self.om.new_object(otype)
 
     # def create_process(self, path='', cmdline='', image=None):
-    def create_process(self, path=None, cmdline=None, image=None):
+    def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
         Create a process object that will exist in the emulator
         """
@@ -891,17 +896,19 @@ class WindowsEmulator(BinaryEmulator):
 
         p.pe = new_mod
         p.name = mod_name
-        self.alloc_peb(p)
+
+        peb = self.alloc_peb(p)
+        self.init_teb(t, peb)
 
         # TODO: this will not suffice; ideally this would register a
         # brand new module so we can emulate all of its entrypoints
 
-        if self.get_arch() == _arch.ARCH_X86:
-            # t.ctx.Eax = decoy_mod.base + decoy_mod.ep
-            t.ctx.Eax = new_mod.base + new_mod.ep
-            self.log_info("winemu.py:create_process: setting entryp to 0x%x" % t.ctx.Eax)
-            t.ctx.Eip = t.ctx.Eax
-            t.ctx.Ebx = p.get_peb().address
+        # if self.get_arch() == _arch.ARCH_X86:
+        #     # t.ctx.Eax = decoy_mod.base + decoy_mod.ep
+        #     t.ctx.Eax = new_mod.base + new_mod.ep
+        #     self.log_info("winemu.py:create_process: setting entryp to 0x%x" % t.ctx.Eax)
+        #     t.ctx.Eip = t.ctx.Eax
+        #     t.ctx.Ebx = p.get_peb().address
 
             # Add this process's main thread to the run queue
             # run = Run()
@@ -912,7 +919,11 @@ class WindowsEmulator(BinaryEmulator):
             # run.process_context = p
             # run.thread = t
 
-        self.processes.append(p)
+        if child:
+            self.child_processes.append(p)
+        else:
+            self.processes.append(p)
+
         return p
 
     def create_thread(self, addr, ctx, proc_obj, thread_type='thread', is_suspended=False):
@@ -1810,10 +1821,6 @@ class WindowsEmulator(BinaryEmulator):
 
         return mod
 
-    def rebase_module(self, mod, base):
-
-        return
-
     # XXX Justin: It doesn't look safe to mess with init_module,
     # so create_process will call this instead
     # This will create a module from a file inside Speakeasy's
@@ -1831,24 +1838,31 @@ class WindowsEmulator(BinaryEmulator):
             return None
 
         mod_data = mod_file.get_data(reset_pointer=True)
+
+        # TODO: this will be done another time inside win32.py:load_module
         mod = winemu.PeFile(data=mod_data)
 
         # self.log_info(mod)
         ep = mod.ep
         self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
 
-        base, size = self.get_valid_ranges(mod.image_size, mod.base)
+        # base, size = self.get_valid_ranges(mod.image_size)
+        # TODO rename tag
+        # base = self.map_pe(mod, mod_name="emu.module.child")
 
-        self.log_info("winemu.py: base @ 0x%x" % base)
+        # self.log_info("winemu.py: base @ 0x%x" % base)
 
         # TODO rename tag
-        self.mem_reserve(size, base=base, tag='emu.module.child',
-                perms=common.PERM_MEM_RWX)
+        # self.mem_reserve(size, base=base, tag='emu.module.child',
+        #         perms=common.PERM_MEM_RWX)
 
         # Since we are likely not going to be able to get
         # memory that reflects where the child module is gonna be loaded in
         # virtual memory, we have to rebase it
-        mod.rebase(base)
+        # mod.rebase(base)
+
+        # ep = mod.ep
+        # self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
 
         return mod
 

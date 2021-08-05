@@ -461,6 +461,7 @@ class Thread(KernelObject):
         self.teb.object.NtTib.Self = teb_addr
         self.teb.object.NtTib.StackLimit = self.stack_commit
         self.teb.object.ProcessEnvironmentBlock = peb_addr
+        # print("addr 0x%x" % self.teb.address)
         self.teb.write_back()
 
     def get_teb(self):

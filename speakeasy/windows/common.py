@@ -332,6 +332,61 @@ class PeFile(pefile.PE):
         return False
 
     def rebase(self, to):
+        # print("rebase: image base before 0x%x" % self.OPTIONAL_HEADER.ImageBase)
+
+        # print(len(self.OPTIONAL_HEADER.DATA_DIRECTORY))
+        # print(self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size)
+
+        # super(PeFile, self).relocate_image(to)
+
+        # For whatever reason, PEFile does not rebase if the image base
+        # relocation data directory has a size of zero, so we will do
+        # this ourselves. Copied from PEFile's relocate_image
+        # self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size = 1
+
+        if (len(self.OPTIONAL_HEADER.DATA_DIRECTORY)<6 or
+                self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size == 0):
+            diff = to - self.OPTIONAL_HEADER.ImageBase
+            self.OPTIONAL_HEADER.ImageBase = to
+
+            #correct VAs(virtual addresses) occurrences in directory information
+            if hasattr(self, 'DIRECTORY_ENTRY_IMPORT'):
+                for dll in self.DIRECTORY_ENTRY_IMPORT:
+                    for func in dll.imports:
+                        func.address += diff
+            if hasattr(self, 'DIRECTORY_ENTRY_TLS'):
+                self.DIRECTORY_ENTRY_TLS.struct.StartAddressOfRawData += diff
+                self.DIRECTORY_ENTRY_TLS.struct.EndAddressOfRawData   += diff
+                self.DIRECTORY_ENTRY_TLS.struct.AddressOfIndex        += diff
+                self.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks    += diff
+            if hasattr(self, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.LockPrefixTable:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.LockPrefixTable += diff
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.EditList:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.EditList += diff
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.SecurityCookie:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.SecurityCookie += diff
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.SEHandlerTable:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.SEHandlerTable += diff
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.GuardCFCheckFunctionPointer:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.GuardCFCheckFunctionPointer += diff
+                if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.GuardCFFunctionTable:
+                    self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.GuardCFFunctionTable += diff
+
+        else:
+            self.relocate_image(to)
+        # self.write()
+        # super(PeFile, self).__init__(name=None, data=self.__data__)
+        # self.write()
+        # super(PeFile, self).__init__(name=None, data=self.write())
+
+        # print("rebase: image base after 0x%x" % self.OPTIONAL_HEADER.ImageBase)
+        self.base = to
+        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
+
+        self.pe_sections = self._get_pe_sections()
+        # Re-patch imports (XXX is this needed)
+        self._patch_imports()
 
         return
 

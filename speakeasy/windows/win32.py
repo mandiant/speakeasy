@@ -122,7 +122,7 @@ class Win32Emulator(WindowsEmulator):
 
             self.processes.append(p)
 
-    def load_module(self, path=None, data=None):
+    def load_module(self, path=None, data=None, first_time_setup=True):
         """
         Load a module into the emulator space from the specified path
         """
@@ -185,7 +185,7 @@ class Win32Emulator(WindowsEmulator):
         self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
         self.mem_write(pe.base, pe.mapped_image)
 
-        self.setup()
+        self.setup(first_time_setup=first_time_setup)
 
         if not self.stack_base:
             self.stack_base, stack_addr = self.alloc_stack(0x12000)
@@ -203,14 +203,7 @@ class Win32Emulator(WindowsEmulator):
                                                        'little'))
         return pe
 
-    def run_module(self, module, all_entrypoints=False):
-        """
-        Begin emulating a previously loaded module
-
-        Arguments:
-            module: Module to emulate
-        """
-
+    def prepare_module_for_emulation(self, module, all_entrypoints):
         if not module:
             self.stop()
             raise Win32EmuError('Module not found')
@@ -226,7 +219,6 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
-        # Queue up the module's main entry point
         ep = module.base + module.ep
 
         run = Run()
@@ -302,8 +294,19 @@ class Win32Emulator(WindowsEmulator):
                     # be called yet
                     self.add_run(run)
 
+        return
+
+    def run_module(self, module, all_entrypoints=False, emulate_children=False):
+        """
+        Begin emulating a previously loaded module
+
+        Arguments:
+            module: Module to emulate
+        """
+        self.prepare_module_for_emulation(module, all_entrypoints)
+
         # Create an empty process object for the module if none is
-        # supplied
+        # supplied, only do this for the main module
         if len(self.processes) == 0:
             p = objman.Process(self, path=module.get_emu_path(), base=module.base,
                                pe=module, cmdline=self.command_line)
@@ -328,6 +331,41 @@ class Win32Emulator(WindowsEmulator):
 
         # Begin emulation
         self.start()
+
+        self.log_info("win32.py:run_module: %d child processes to emulate" % len(self.child_processes))
+        self.log_info(self.child_processes)
+
+        for p in self.child_processes:
+            self.log_info(p.path)
+
+        if not emulate_children or len(self.child_processes) == 0:
+            return
+
+        # Emulate any child processes
+        while len(self.child_processes) > 0:
+            child = self.child_processes.pop(0)
+
+            self.curr_process = child
+            self.curr_thread = child.threads[0]
+
+            self.curr_process.is_peb_active = 0
+            # PEB and TEB initialized in create_process
+            peb = self.alloc_peb(self.curr_process)
+
+            # Set the TEB
+            self.init_teb(self.curr_thread, peb)
+            self.stack_base = 0
+
+            self.log_info("TEB @ 0x%x" % self.curr_thread.teb.address)
+
+            self.load_module(data=child.pe.__data__, first_time_setup=False)
+            self.prepare_module_for_emulation(child.pe, all_entrypoints)
+
+
+            self.log_info("* exec child process %d" % p.pid)
+            self.start()
+
+        return
 
     def emulate_module(self, path):
         """
@@ -466,6 +504,7 @@ class Win32Emulator(WindowsEmulator):
         """
         Allocate memory for the Process Environment Block (PEB)
         """
+        self.log_info("win32.py:alloc_peb: is peb active? %d" % proc.is_peb_active)
 
         if proc.is_peb_active:
             return
@@ -489,10 +528,11 @@ class Win32Emulator(WindowsEmulator):
         """
         self.unhandled_exception_filter = handler_addr
 
-    def setup(self, stack_commit=0):
+    def setup(self, stack_commit=0, first_time_setup=True):
 
         # Set the emulator to run in protected mode
-        self.om = objman.ObjectManager(emu=self)
+        if first_time_setup:
+            self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()
         self._setup_gdt(arch)
