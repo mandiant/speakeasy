@@ -4,6 +4,7 @@ from itertools import groupby
 from operator import itemgetter
 
 import speakeasy.common as common
+import mmap
 
 
 class MemMap(object):
@@ -205,6 +206,34 @@ class MemoryManager(object):
                 self.mem_unmap(mm.block_base, mm.block_size)
                 [self.maps.remove(mm) for mm in ml]
 
+    def mem_remap(self, frm, to):
+        """
+        Remap a block of emulated memory, and return the new address,
+        or -1 on error
+        Protections remain the same
+        """
+        map = self.get_address_map(frm)
+
+        if not map:
+            return -1
+
+        prot = map.prot
+        size = map.size
+        tag = map.tag
+
+        # contents = mmap.mmap(-1, map.size, flags=mmap.MAP_PRIVATE |
+        #         mmap.MAP_ANONYMOUS, prot=mmap.PROT_READ | mmap.PROT_WRITE)
+
+        # contents.write(
+
+        contents = self.mem_read(map.base, size)
+
+        self.mem_unmap(map.base, size)
+        newmem = self.mem_map(size, base=to, perms=prot, tag=tag)
+        self.mem_write(newmem, contents)
+
+        return newmem
+
     def mem_unmap(self, base, size):
         """
         Free a block of emulated memory
@@ -268,6 +297,17 @@ class MemoryManager(object):
         for m in self.maps:
             if address >= m.base and address <= (m.base + m.size) - 1:
                 return m.tag
+
+    # XXX justin: debug only
+    def dump_mem_maps(self):
+        out = ""
+        for mm in self.get_mem_maps():
+            base = mm.get_base()
+            size = mm.get_size()
+            tag = mm.get_tag()
+            out += "%s -> %s (%s)\n" % (hex(base), hex(base + size), tag)
+
+        return out
 
     def mem_reserve(self, size, base=None, perms=None, tag=None, flags=0, shared=False):
         """

@@ -424,6 +424,7 @@ class WindowsEmulator(BinaryEmulator):
         except IndexError:
             return
 
+        self.log_info("winemu.py:start: module emulation begin")
         self.run_complete = False
         self.set_hooks()
         self._set_emu_hooks()
@@ -471,6 +472,7 @@ class WindowsEmulator(BinaryEmulator):
                 continue
             break
 
+        self.log_info("winemu.py:start: module emulation complete")
         self.on_emu_complete()
 
     def get_current_run(self):
@@ -648,7 +650,7 @@ class WindowsEmulator(BinaryEmulator):
         Initialize the Thread Information Block
         """
         if self.get_arch() == _arch.ARCH_X86:
-            self.log_info("winemu.py:init_teb: fs addr 0x%x" % self.fs_addr)
+            # self.log_info("winemu.py:init_teb: fs addr 0x%x" % self.fs_addr)
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
             thread.init_teb(self.gs_addr, peb.address)
@@ -670,7 +672,11 @@ class WindowsEmulator(BinaryEmulator):
             # Get the virtual address of the TLS directory, which will always
             # be 9 in the data directory
             tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
+            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
             tls_dirp += module.OPTIONAL_HEADER.ImageBase
+            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
+
+            # self.log_info(self.dump_mem_maps())
 
             tls_dir = self.mem_read(tls_dirp, ptrsz)
 
@@ -716,6 +722,12 @@ class WindowsEmulator(BinaryEmulator):
         Map the specified PE into the emulation space
         """
         image_size = pe.image_size
+        # self.log_info("winemu.py:map_pe: image size before 0x%x" % image_size)
+        # self.log_info("winemu.py:map_pe: mapping image size 0x%x" % len(pe.mapped_image))
+        # image_size = len(pe.mapped_image)
+        # if image_size & 0xfff:
+        #     image_size = (image_size + 0x1000) & ~0xfff
+        # self.log_info("winemu.py:map_pe: image size after 0x%x" % image_size)
         base = pe.base
         ranges = self.get_valid_ranges(image_size, addr=base)
         base, size = ranges

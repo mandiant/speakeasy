@@ -140,10 +140,12 @@ class Win32Emulator(WindowsEmulator):
             self.arch = pe.arch
             self.set_ptr_size(self.arch)
 
-        self.emu_eng.init_engine(_arch.ARCH_X86, pe.arch)
+        # No need to initialize the engine and Capstone again
+        if first_time_setup:
+            self.emu_eng.init_engine(_arch.ARCH_X86, pe.arch)
 
-        if not self.disasm_eng:
-            self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
+            if not self.disasm_eng:
+                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
         if not data:
             file_name = os.path.basename(path)
@@ -183,8 +185,69 @@ class Win32Emulator(WindowsEmulator):
 
         pe.set_emu_path(emu_path)
 
-        base = self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
-        self.log_info("win32.py:load_module: pe mapped @ 0x%x" % base)
+        # There's a bit of a problem here, if we cannot reserve memory
+        # at the PE's desired base address, and the relocation table
+        # is not present, we can't rebase it. So this is gonna have to
+        # be a bit of a hack for binaries without a relocation table.
+        # This logic is really only for child processes, since we're pretty
+        # much guarenteed memory at the base address of the main module.
+        #   1. If the memory at the child's desired load address is already
+        #      being used, remap it somewhere else. I'm pretty sure that
+        #      the already-used memory will always be for a module,
+        #      since desired load addresses don't really vary across PEs
+        #   2. Fix up any modules that speakeasy has open for the parent
+        #      to reflect where it was remapped
+        #   3. Try and grab memory at the child's desired base address,
+        #      if that isn't still isn't possible, we're out of luck
+        #
+        # But if the relocation table is present, we can rebase it,
+        # so we do that instead of the above hack.
+        imgbase = pe.OPTIONAL_HEADER.ImageBase
+        ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
+        base, size = ranges
+
+        if pe.has_reloc_table():
+            self.log_info("win32.py:load_module: reloc table present")
+
+            if base != imgbase:
+                self.log_info("win32.py:load_module: rebasing to 0x%x" % base)
+                pe.rebase(base)
+        else:
+            self.log_info("win32.py:load_module: reloc table not present")
+
+            # Already being used by the parent, so let's remap the parent
+            # to what was returned by get_valid_ranges
+            if base != imgbase:
+                self.log_info("win32.py:load_module: want 0x%x for child but got back 0x%x" % (imgbase, base))
+                new_parent_mem = self.mem_remap(imgbase, base)
+                self.log_info("win32.py:load_module: remapped parent to 0x%x" % new_parent_mem)
+                # TODO: update parent module pointer
+                # Alright, let's try to grab that memory again
+                ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
+                base, size = ranges
+
+                if base == imgbase:
+                    self.log_info("win32.py:load_module: got wanted base addr for child 0x%x" % base)
+                else:
+                    # Out of luck
+                    # XXX what to do here
+                    pass
+
+        self.mem_map(size, base=base, tag='emu.module.%s' % (mod_name))
+        self.modules.append((pe, ranges, emu_path))
+        # base = self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
+
+        # self.log_info("win32.py:load_module: pe mapped @ 0x%x" % base)
+
+        # self.log_info("win32.py:load_module: before pe base is 0x%x" % pe.base)
+        # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
+        # self.log_info("win32.py:load_module: before rebase mapped image len 0x%x" % len(pe.mapped_image))
+        # pe.rebase(base)
+        # self.log_info("win32.py:load_module: after rebase pe base is 0x%x" % pe.base)
+        # self.log_info("win32.py:load_module: after rebase mapped image len 0x%x" % len(pe.mapped_image))
+        # # self.mem_write(pe.base, b'\x41')
+        # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
+        # self.log_info(self.dump_mem_maps())
 
         self.mem_write(pe.base, pe.mapped_image)
 
@@ -333,7 +396,7 @@ class Win32Emulator(WindowsEmulator):
         # Set the TEB
         self.init_teb(t, peb)
 
-        # Begin emulation
+        # Begin emulation of main module
         self.start()
 
         self.log_info("win32.py:run_module: %d child processes to emulate" % len(self.child_processes))
@@ -352,23 +415,21 @@ class Win32Emulator(WindowsEmulator):
             self.curr_process = child
             self.curr_thread = child.threads[0]
 
-            self.curr_process.is_peb_active = 0
             # PEB and TEB initialized in create_process
-            peb = self.alloc_peb(self.curr_process)
 
-            # Set the TEB
-            self.init_teb(self.curr_thread, peb)
             self.stack_base = 0
 
-            self.log_info("TEB @ 0x%x" % self.curr_thread.teb.address)
+            # self.log_info("TEB @ 0x%x" % self.curr_thread.teb.address)
 
-            self.load_module(data=child.pe.__data__, first_time_setup=False)
+            # self.hooks.clear()
+            child.pe = self.load_module(data=child.pe.__data__, first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
+
 
             self.log_info("* exec child process %d" % p.pid)
 
-            mem = self.mem_read(0x6c3650, 0x20)
-            self.log_info(binascii.hexlify(mem))
+            # mem = self.mem_read(0x6c3650, 0x20)
+            # self.log_info(binascii.hexlify(mem))
 
             # f = open("./child.exe", "wb")
             # bytez = self.mem_read(child.pe.base, child.pe.image_size)
@@ -674,6 +735,8 @@ class Win32Emulator(WindowsEmulator):
 
     def stop(self):
         self.run_complete = True
+        # self._unset_emu_hooks()
+        # self.unset_hooks()
         super(Win32Emulator, self).stop()
 
     def on_emu_complete(self):

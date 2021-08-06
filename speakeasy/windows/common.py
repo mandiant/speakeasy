@@ -67,7 +67,7 @@ EMPTY_PE_32 = DOS_HEADER + b'PE\x00\x00L\x01\x00\x00ABCD\x00\x00\x00\x00\x00\x00
 # Blank header used for a 64-bit PE header
 EMPTY_PE_64 = DOS_HEADER + b'PE\x00\x00d\x86\x00\x00ABCD\x00\x00\x00\x00\x00\x00\x00\x00'   \
                            b'\xf0\x00\x03\x10\x0b\x02\x08\x00\x04\x00\x00\x00\x00\x00\x00'  \
-                           b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@' \
+                          b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@' \
                            b'\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x06\x00'  \
                            b'\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xb8'  \
                            b'\x01\x00\x00\x00\x00\x00\x00AAAA\x02\x00\x00\x04\x00\x00\x10'  \
@@ -331,7 +331,24 @@ class PeFile(pefile.PE):
                 return True
         return False
 
+    def has_reloc_table(self):
+        return len(self.OPTIONAL_HEADER.DATA_DIRECTORY) >= 6 and \
+    self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
+
     def rebase(self, to):
+        self.relocate_image(to)
+
+        self.base = to
+        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
+
+        self.pe_sections = self._get_pe_sections()
+        self.imports = self._get_pe_imports()
+        self.exports = self._get_pe_exports()
+        # Re-patch imports (XXX is this needed)
+        self._patch_imports()
+
+        return
+
         # print("rebase: image base before 0x%x" % self.OPTIONAL_HEADER.ImageBase)
 
         # print(len(self.OPTIONAL_HEADER.DATA_DIRECTORY))
@@ -346,20 +363,24 @@ class PeFile(pefile.PE):
 
         if (len(self.OPTIONAL_HEADER.DATA_DIRECTORY)<6 or
                 self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size == 0):
+            print("dskjlfdkls")
             diff = to - self.OPTIONAL_HEADER.ImageBase
             self.OPTIONAL_HEADER.ImageBase = to
 
             #correct VAs(virtual addresses) occurrences in directory information
             if hasattr(self, 'DIRECTORY_ENTRY_IMPORT'):
+                print("rebasing imports")
                 for dll in self.DIRECTORY_ENTRY_IMPORT:
                     for func in dll.imports:
                         func.address += diff
             if hasattr(self, 'DIRECTORY_ENTRY_TLS'):
+                print("rebasing tls")
                 self.DIRECTORY_ENTRY_TLS.struct.StartAddressOfRawData += diff
                 self.DIRECTORY_ENTRY_TLS.struct.EndAddressOfRawData   += diff
                 self.DIRECTORY_ENTRY_TLS.struct.AddressOfIndex        += diff
                 self.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks    += diff
             if hasattr(self, 'DIRECTORY_ENTRY_LOAD_CONFIG'):
+                print("rebasing load config")
                 if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.LockPrefixTable:
                     self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.LockPrefixTable += diff
                 if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.EditList:
@@ -376,17 +397,23 @@ class PeFile(pefile.PE):
         else:
             self.relocate_image(to)
         # self.write()
-        # super(PeFile, self).__init__(name=None, data=self.__data__)
-        # self.write()
         # super(PeFile, self).__init__(name=None, data=self.write())
 
         # print("rebase: image base after 0x%x" % self.OPTIONAL_HEADER.ImageBase)
         self.base = to
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
 
-        self.pe_sections = self._get_pe_sections()
-        # Re-patch imports (XXX is this needed)
-        self._patch_imports()
+        # self.write()
+        # print("rebase: image base after 0x%x" % self.OPTIONAL_HEADER.ImageBase)
+        # super(PeFile, self).__init__(name=None, data=self.__data__)
+        # print("rebase: image base after 0x%x" % self.OPTIONAL_HEADER.ImageBase)
+        # self.image_size = self.OPTIONAL_HEADER.SizeOfImage
+
+        # self.pe_sections = self._get_pe_sections()
+        # self.imports = self._get_pe_imports()
+        # self.exports = self._get_pe_exports()
+        # # Re-patch imports (XXX is this needed)
+        # self._patch_imports()
 
         return
 
