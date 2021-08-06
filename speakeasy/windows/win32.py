@@ -434,8 +434,8 @@ class Win32Emulator(WindowsEmulator):
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
-            self.curr_process = child
-            self.curr_thread = child.threads[0]
+            # self.curr_process = child
+            # self.curr_thread = child.threads[0]
 
             # PEB and TEB initialized in create_process
 
@@ -447,7 +447,6 @@ class Win32Emulator(WindowsEmulator):
             child.pe = self.load_module(data=child.pe.__data__, first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
-
             self.log_info("* exec child process %d" % p.pid)
 
             # mem = self.mem_read(0x6c3650, 0x20)
@@ -458,6 +457,18 @@ class Win32Emulator(WindowsEmulator):
             # f.write(bytez)
             # f.flush()
             # f.close()
+
+            self.curr_process = child
+            self.curr_thread = child.threads[0]
+
+            # PEB and TEB will be initialized when the next run happens
+
+            # child.is_peb_active = False
+            # peb = self.alloc_peb(child)
+            # self.init_teb(self.curr_thread, peb)
+
+            self.log_info("win32.py:run_module: current thread {}".format(self.curr_thread))
+
 
             self.start()
 

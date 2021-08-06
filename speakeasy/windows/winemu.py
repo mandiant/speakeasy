@@ -374,6 +374,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.kernel_mode:
             # Reset the TIB data
             thread = self.get_current_thread()
+            self.log_info("winemu.py:_exec_run: current thread {}".format(thread))
             if thread:
                 self.init_teb(thread, self.curr_process.get_peb())
                 self.init_tls(thread)
@@ -672,9 +673,9 @@ class WindowsEmulator(BinaryEmulator):
             # Get the virtual address of the TLS directory, which will always
             # be 9 in the data directory
             tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
-            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
+            self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
             tls_dirp += module.OPTIONAL_HEADER.ImageBase
-            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
+            self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
 
             # self.log_info(self.dump_mem_maps())
 
@@ -907,32 +908,12 @@ class WindowsEmulator(BinaryEmulator):
         # self.map_decoy(decoy_mod)
 
         # p.pe = decoy_mod
-        
 
         p.pe = new_mod
         p.name = mod_name
 
-        peb = self.alloc_peb(p)
-        self.init_teb(t, peb)
-
-        # TODO: this will not suffice; ideally this would register a
-        # brand new module so we can emulate all of its entrypoints
-
-        # if self.get_arch() == _arch.ARCH_X86:
-        #     # t.ctx.Eax = decoy_mod.base + decoy_mod.ep
-        #     t.ctx.Eax = new_mod.base + new_mod.ep
-        #     self.log_info("winemu.py:create_process: setting entryp to 0x%x" % t.ctx.Eax)
-        #     t.ctx.Eip = t.ctx.Eax
-        #     t.ctx.Ebx = p.get_peb().address
-
-            # Add this process's main thread to the run queue
-            # run = Run()
-            # run.type = 'thread'
-            # run.start_addr = t.ctx.Eip
-            # run.instr_cnt = 0
-            # run.args = (ctx,)
-            # run.process_context = p
-            # run.thread = t
+        # peb = self.alloc_peb(p)
+        # self.init_teb(t, peb)
 
         if child:
             self.child_processes.append(p)

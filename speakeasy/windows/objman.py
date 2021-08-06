@@ -495,6 +495,8 @@ class Thread(KernelObject):
 
         self.emu.mem_write(tls_dirp, tls_dir)
 
+        # print("Set TLS to 0x%x" % int.from_bytes(tls_dir, "little"))
+
         self.teb.object.ThreadLocalStoragePointer = tls_dirp
         self.teb.write_back()
 
