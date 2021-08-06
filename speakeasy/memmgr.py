@@ -230,6 +230,10 @@ class MemoryManager(object):
 
         self.mem_unmap(map.base, size)
         newmem = self.mem_map(size, base=to, perms=prot, tag=tag)
+        
+        if newmem != to:
+            return -1
+
         self.mem_write(newmem, contents)
 
         return newmem
