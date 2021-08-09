@@ -206,18 +206,16 @@ class Win32Emulator(WindowsEmulator):
         ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
         base, size = ranges
 
-        if pe.has_reloc_table():
-            self.log_info("win32.py:load_module: reloc table present")
-
-            if base != imgbase:
+        if base != imgbase:
+            if pe.has_reloc_table():
+                self.log_info("win32.py:load_module: reloc table present")
                 self.log_info("win32.py:load_module: rebasing to 0x%x" % base)
                 pe.rebase(base)
-        else:
-            self.log_info("win32.py:load_module: reloc table not present")
+            else:
+                self.log_info("win32.py:load_module: reloc table not present")
 
-            # Already being used by the parent, so let's remap the parent
-            # to what was returned by get_valid_ranges
-            if base != imgbase:
+                # Already being used by the parent, so let's remap the parent
+                # to what was returned by get_valid_ranges
                 self.log_info("win32.py:load_module: want 0x%x for child but got back 0x%x" % (imgbase, base))
                 new_parent_mem = self.mem_remap(imgbase, base)
                 self.log_info("win32.py:load_module: remapped parent to 0x%x" % new_parent_mem)
@@ -253,26 +251,11 @@ class Win32Emulator(WindowsEmulator):
 
         self.log_info("win32.py:load_module: child base 0x%x img size 0x%x" % (base, pe.image_size))
 
-        self.mem_map(pe.image_size, base=base, tag='emu.module.%s' % (mod_name))
+        self.mem_map(pe.image_size, base=base,
+                tag='emu.module.%s' % (mod_name))
+
         self.modules.append((pe, ranges, emu_path))
-
-        # base = self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
-
-        # self.log_info("win32.py:load_module: pe mapped @ 0x%x" % base)
-
-        # self.log_info("win32.py:load_module: before pe base is 0x%x" % pe.base)
-        # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
-        # self.log_info("win32.py:load_module: before rebase mapped image len 0x%x" % len(pe.mapped_image))
-        # pe.rebase(base)
-        # self.log_info("win32.py:load_module: after rebase pe base is 0x%x" % pe.base)
-        # self.log_info("win32.py:load_module: after rebase mapped image len 0x%x" % len(pe.mapped_image))
-        # # self.mem_write(pe.base, b'\x41')
-
-
         self.mem_write(pe.base, pe.mapped_image)
-
-        # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
-        # self.log_info(self.dump_mem_maps())
 
         self.setup(first_time_setup=first_time_setup)
 
@@ -436,11 +419,21 @@ class Win32Emulator(WindowsEmulator):
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
+            self.stack_base = 0
+
             child.pe = self.load_module(data=child.pe_data,
                     first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
             self.log_info("* exec child process %d" % p.pid)
+
+            f = open("./child.exe", "wb")
+            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
+            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
+            f.write(child.pe.__data__)
+            f.flush()
+            f.close()
+
 
             self.command_line = child.cmdline
 

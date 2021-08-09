@@ -884,6 +884,7 @@ class WindowsEmulator(BinaryEmulator):
         mod_data = self.get_module_data_from_emu_file(file_path)
 
         if mod_data:
+            # We'll create a PE out of this when we go to execute it
             p.pe_data = mod_data
         else:
             new_mod = self.init_module(name=file_name, emu_path=path)

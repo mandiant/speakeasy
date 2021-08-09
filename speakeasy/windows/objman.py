@@ -461,7 +461,6 @@ class Thread(KernelObject):
         self.teb.object.NtTib.Self = teb_addr
         self.teb.object.NtTib.StackLimit = self.stack_commit
         self.teb.object.ProcessEnvironmentBlock = peb_addr
-        # print("addr 0x%x" % self.teb.address)
         self.teb.write_back()
 
     def get_teb(self):
@@ -494,8 +493,6 @@ class Thread(KernelObject):
         tls_dirp = self.emu.mem_map(ptrsz, tag='emu.tls.%s' % (modname))
 
         self.emu.mem_write(tls_dirp, tls_dir)
-
-        # print("Set TLS to 0x%x" % int.from_bytes(tls_dir, "little"))
 
         self.teb.object.ThreadLocalStoragePointer = tls_dirp
         self.teb.write_back()
