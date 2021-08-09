@@ -219,12 +219,9 @@ class MemoryManager(object):
 
         prot = map.prot
         size = map.size
-        tag = map.tag
-
-        # contents = mmap.mmap(-1, map.size, flags=mmap.MAP_PRIVATE |
-        #         mmap.MAP_ANONYMOUS, prot=mmap.PROT_READ | mmap.PROT_WRITE)
-
-        # contents.write(
+        
+        # Exclude old memory region in tag name
+        tag = map.tag[:map.tag.rfind(".")]
 
         contents = self.mem_read(map.base, size)
 

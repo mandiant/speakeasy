@@ -231,8 +231,6 @@ class Win32Emulator(WindowsEmulator):
                 for pe_, ranges_, emu_path_ in self.modules:
                     base_, size_ = ranges_
 
-                    # self.log_info(pe)
-                    # self.log_info(ranges)
                     self.log_info("[0x%x, 0x%x)" % (ranges_[0], ranges_[1]))
 
                     if base_ == imgbase:
@@ -257,6 +255,7 @@ class Win32Emulator(WindowsEmulator):
 
         self.mem_map(pe.image_size, base=base, tag='emu.module.%s' % (mod_name))
         self.modules.append((pe, ranges, emu_path))
+
         # base = self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
 
         # self.log_info("win32.py:load_module: pe mapped @ 0x%x" % base)
@@ -268,10 +267,12 @@ class Win32Emulator(WindowsEmulator):
         # self.log_info("win32.py:load_module: after rebase pe base is 0x%x" % pe.base)
         # self.log_info("win32.py:load_module: after rebase mapped image len 0x%x" % len(pe.mapped_image))
         # # self.mem_write(pe.base, b'\x41')
+
+
         self.mem_write(pe.base, pe.mapped_image)
 
         # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
-        # self.log_info(self.dump_mem_maps())
+        self.log_info(self.dump_mem_maps())
 
         self.setup(first_time_setup=first_time_setup)
 
@@ -307,12 +308,13 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
-        self.log_info("win32.py:prepare_module_for_emulation: 0x%x + 0x%x" % (module.base, module.ep))
+        # self.log_info("win32.py:prepare_module_for_emulation: 0x%x + 0x%x" % (module.base, module.ep))
         ep = module.base + module.ep
 
         run = Run()
         run.start_addr = ep
 
+        # TODO: handle cmd line args for child processes
         main_exe = None
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
@@ -434,16 +436,10 @@ class Win32Emulator(WindowsEmulator):
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
-            # self.curr_process = child
-            # self.curr_thread = child.threads[0]
-
             # PEB and TEB initialized in create_process
 
             self.stack_base = 0
 
-            # self.log_info("TEB @ 0x%x" % self.curr_thread.teb.address)
-
-            # self.hooks.clear()
             child.pe = self.load_module(data=child.pe.__data__, first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
@@ -463,12 +459,7 @@ class Win32Emulator(WindowsEmulator):
 
             # PEB and TEB will be initialized when the next run happens
 
-            # child.is_peb_active = False
-            # peb = self.alloc_peb(child)
-            # self.init_teb(self.curr_thread, peb)
-
-            self.log_info("win32.py:run_module: current thread {}".format(self.curr_thread))
-
+            # self.log_info("win32.py:run_module: current thread {}".format(self.curr_thread))
 
             self.start()
 

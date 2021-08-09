@@ -374,7 +374,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.kernel_mode:
             # Reset the TIB data
             thread = self.get_current_thread()
-            self.log_info("winemu.py:_exec_run: current thread {}".format(thread))
+            # self.log_info("winemu.py:_exec_run: current thread {}".format(thread))
             if thread:
                 self.init_teb(thread, self.curr_process.get_peb())
                 self.init_tls(thread)
@@ -857,7 +857,6 @@ class WindowsEmulator(BinaryEmulator):
     def new_object(self, otype):
         return self.om.new_object(otype)
 
-    # def create_process(self, path='', cmdline='', image=None):
     def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
         Create a process object that will exist in the emulator
@@ -867,53 +866,32 @@ class WindowsEmulator(BinaryEmulator):
 
         # See if we are trying to create a process based off a file
         # inside the object manager and serve that
-        # TODO: what should I do when path is not None?
-        file_path = shlex.split(path)[0]
+        # Setting posix to false makes shlex not treat '\' as an
+        # escape character, but if each token was surrounded with
+        # quotes, those are kept, so we have to delete them
+        file_path = shlex.split(path, posix=False)[0]
+
+        if file_path[0] == '\"' and file_path[len(file_path) - 1] == '\"':
+            file_path = file_path[1:-1]
 
         new_mod = self.init_module_from_emu_file(file_path)
-        mod_name = "mod_name TODO"
 
         if not new_mod:
-            self.log_info("winemu.py:create_process: TODO map decoy here")
-            return None
+            new_mod = self.init_module(name=file_name, emu_path=path)
+            self.map_decoy(new_mod)
 
         p = self.om.new_object(objman.Process)
-        p.path = path
-        p.cmdline = cmdline
-        # if not p.path and p.cmdline:
-        #     p.path = cmdline
 
-        # self.log_info("winemu.py:create_process: p.path before %s" % p.path)
-        # p.path = self.search_path(p.path)
-        # self.log_info("winemu.py:create_process: p.path after %s" % p.path)
+        p.path = file_path
+        p.cmdline = cmdline
+        p.pe = new_mod
 
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)
         t.process = p
         t.tid = self.om.new_id()
+
         p.threads.append(t)
-
-
-        # mod_name = ntpath.basename(p.path)
-        # self.log_info("winemu.py:create_process: mod_name %s" % mod_name)
-        # mod_name = os.path.splitext(mod_name)[0]
-        # self.log_info("winemu.py:create_process: mod_name %s" % mod_name)
-
-
-
-        # decoy_mod = self.init_module(name=mod_name, emu_path=p.path)
-        # size = decoy_mod.image_size
-        # if size < self.page_size:
-        #     size = self.page_size * 2
-        # self.map_decoy(decoy_mod)
-
-        # p.pe = decoy_mod
-
-        p.pe = new_mod
-        p.name = mod_name
-
-        # peb = self.alloc_peb(p)
-        # self.init_teb(t, peb)
 
         if child:
             self.child_processes.append(p)
@@ -1839,24 +1817,6 @@ class WindowsEmulator(BinaryEmulator):
         mod = winemu.PeFile(data=mod_data)
 
         # self.log_info(mod)
-        ep = mod.ep
-        self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
-
-        # base, size = self.get_valid_ranges(mod.image_size)
-        # TODO rename tag
-        # base = self.map_pe(mod, mod_name="emu.module.child")
-
-        # self.log_info("winemu.py: base @ 0x%x" % base)
-
-        # TODO rename tag
-        # self.mem_reserve(size, base=base, tag='emu.module.child',
-        #         perms=common.PERM_MEM_RWX)
-
-        # Since we are likely not going to be able to get
-        # memory that reflects where the child module is gonna be loaded in
-        # virtual memory, we have to rebase it
-        # mod.rebase(base)
-
         # ep = mod.ep
         # self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
 
