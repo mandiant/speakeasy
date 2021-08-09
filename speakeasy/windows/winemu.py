@@ -356,6 +356,11 @@ class WindowsEmulator(BinaryEmulator):
 
         stk_ptr = self.get_stack_ptr()
 
+        # print(run.args)
+        # print(*run.args)
+        # run.args = [0x414141,0x4242]
+        # print(*run.args)
+
         self.set_func_args(stk_ptr, self.return_hook, *run.args)
         stk_ptr = self.get_stack_ptr()
         stk_map = self.get_address_map(stk_ptr)
@@ -425,7 +430,7 @@ class WindowsEmulator(BinaryEmulator):
         except IndexError:
             return
 
-        self.log_info("winemu.py:start: module emulation begin")
+        # self.log_info("winemu.py:start: module emulation begin")
         self.run_complete = False
         self.set_hooks()
         self._set_emu_hooks()
@@ -433,7 +438,7 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.set_start_time()
         self._exec_run(run)
 
-        self.log_info("winemu.py:start: self.run_queue is {}" % self.run_queue)
+        # self.log_info("winemu.py:start: self.run_queue is {}" % self.run_queue)
 
         while True:
 
@@ -441,10 +446,10 @@ class WindowsEmulator(BinaryEmulator):
                 # self.run_complete = False
                 # self.set_hooks()
                 # self._set_emu_hooks()
-                self.log_info("winemu.py:start: running another module")
+                # self.log_info("winemu.py:start: running another module")
 
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
+                # self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
                 self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout,
                                    count=self.max_instructions)
                 if self.profiler:
@@ -473,7 +478,7 @@ class WindowsEmulator(BinaryEmulator):
                 continue
             break
 
-        self.log_info("winemu.py:start: module emulation complete")
+        # self.log_info("winemu.py:start: module emulation complete")
         self.on_emu_complete()
 
     def get_current_run(self):
@@ -673,9 +678,9 @@ class WindowsEmulator(BinaryEmulator):
             # Get the virtual address of the TLS directory, which will always
             # be 9 in the data directory
             tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
-            self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
+            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
             tls_dirp += module.OPTIONAL_HEADER.ImageBase
-            self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
+            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
 
             # self.log_info(self.dump_mem_maps())
 
@@ -887,7 +892,6 @@ class WindowsEmulator(BinaryEmulator):
 
         p.path = file_path
         p.cmdline = cmdline
-        # p.pe = new_mod
 
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)
@@ -1815,9 +1819,7 @@ class WindowsEmulator(BinaryEmulator):
             self.log_info("winemu.py:init_real_module: file_open for %s failed" % file_path)
             return None
 
-        mod_data = mod_file.get_data(reset_pointer=True)
-
-        return mod_data
+        return mod_file.get_data(reset_pointer=True)
 
         # TODO: this will be done another time inside win32.py:load_module
         # mod = winemu.PeFile(data=mod_data)

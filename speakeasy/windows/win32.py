@@ -272,7 +272,7 @@ class Win32Emulator(WindowsEmulator):
         self.mem_write(pe.base, pe.mapped_image)
 
         # self.log_info(binascii.hexlify(self.mem_read(pe.base, 0x20)))
-        self.log_info(self.dump_mem_maps())
+        # self.log_info(self.dump_mem_maps())
 
         self.setup(first_time_setup=first_time_setup)
 
@@ -423,11 +423,11 @@ class Win32Emulator(WindowsEmulator):
         # Begin emulation of main module
         self.start()
 
-        self.log_info("win32.py:run_module: %d child processes to emulate" % len(self.child_processes))
-        self.log_info(self.child_processes)
+        # self.log_info("win32.py:run_module: %d child processes to emulate" % len(self.child_processes))
+        # self.log_info(self.child_processes)
 
-        for p in self.child_processes:
-            self.log_info(p.path)
+        # for p in self.child_processes:
+        #     self.log_info(p.path)
 
         if not emulate_children or len(self.child_processes) == 0:
             return
@@ -436,30 +436,18 @@ class Win32Emulator(WindowsEmulator):
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
-            # PEB and TEB initialized in create_process
-
-            self.stack_base = 0
-
-            child.pe = self.load_module(data=child.pe_data, first_time_setup=False)
+            child.pe = self.load_module(data=child.pe_data,
+                    first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
             self.log_info("* exec child process %d" % p.pid)
 
-            # mem = self.mem_read(0x6c3650, 0x20)
-            # self.log_info(binascii.hexlify(mem))
-
-            # f = open("./child.exe", "wb")
-            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
-            # f.write(bytez)
-            # f.flush()
-            # f.close()
+            self.command_line = child.cmdline
 
             self.curr_process = child
             self.curr_thread = child.threads[0]
 
             # PEB and TEB will be initialized when the next run happens
-
-            # self.log_info("win32.py:run_module: current thread {}".format(self.curr_thread))
 
             self.start()
 

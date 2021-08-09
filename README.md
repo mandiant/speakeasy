@@ -92,10 +92,8 @@ For more examples, see the [examples](examples/) directory.
 For users who don't wish to programatically interact with the speakeasy framework as a library, a standalone script is provided to automatically emulate Windows binaries. Speakeasy can be invoked via the `run_speakeasy.py` script located within the base repo directory. This script will parse a specified PE and invoke the appropriate emulator (kernel mode or user mode). The script's parameters are shown below.
 
 ```
-usage: run_speakeasy.py [-h] [-t TARGET] [-o OUTPUT]
-                        [-p [PARAMS [PARAMS ...]]] [-c CONFIG] [-m] [-r]
-                        [-a ARCH] [-d DUMP_PATH] [-q TIMEOUT]
-                        [-z DROP_FILES_PATH] [-l MODULE_DIR]
+usage: run_speakeasy.py [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-m] [-r] [--raw_offset RAW_OFFSET]
+                        [-a ARCH] [-d DUMP_PATH] [-q TIMEOUT] [-z DROP_FILES_PATH] [-l MODULE_DIR] [-k] [--no-mp]
 
 Emulate a Windows binary with speakeasy
 
@@ -105,18 +103,16 @@ optional arguments:
                         Path to input file to emulate
   -o OUTPUT, --output OUTPUT
                         Path to output file to save report
-  -p [PARAMS [PARAMS ...]], --params [PARAMS [PARAMS ...]]
-                        Commandline parameters to supply to emulated process
-                        (e.g. main(argv)
+  -p [PARAMS ...], --params [PARAMS ...]
+                        Commandline parameters to supply to emulated process (e.g. main(argv))
   -c CONFIG, --config CONFIG
                         Path to emulator config file
-  -m, --mem-tracing     Enables memory tracing. This will log all memory
-                        access by the sample but will impact speed
-  -r, --raw             Attempt to emulate file as-is with no parsing (e.g.
-                        shellcode
-  -a ARCH, --arch ARCH  Force architecture to use during emulation (for multi-
-                        architecture files or shellcode). Supported archs: [
-                        x86 | amd64 ]
+  -m, --mem-tracing     Enables memory tracing. This will log all memory access by the sample but will impact speed
+  -r, --raw             Attempt to emulate file as-is with no parsing (e.g. shellcode)
+  --raw_offset RAW_OFFSET
+                        When in raw mode, offset (hex) to start emulating
+  -a ARCH, --arch ARCH  Force architecture to use during emulation (for multi-architecture files or shellcode). Supported
+                        archs: [ x86 | amd64 ]
   -d DUMP_PATH, --dump DUMP_PATH
                         Path to store compressed memory dump package
   -q TIMEOUT, --timeout TIMEOUT
@@ -124,10 +120,12 @@ optional arguments:
   -z DROP_FILES_PATH, --dropped-files DROP_FILES_PATH
                         Path to store files created during emulation
   -l MODULE_DIR, --module-dir MODULE_DIR
-                        Path to directory containing loadable PE modules. When
-                        modules are parsed or loaded by samples, PEs from this
-                        directory will be loaded into the emulated address
-                        space
+                        Path to directory containing loadable PE modules. When modules are parsed or loaded by samples, PEs
+                        from this directory will be loaded into the emulated address space
+  -k, --emulate-children
+                        Emulate any processes created with the CreateProcess APIs after the input file finishes emulating
+  --no-mp               Run emulation in the current process to assist instead of a child process. Useful when
+                        debuggingspeakeasy itself (using pdb.set_trace()).
 ```
 
 ---

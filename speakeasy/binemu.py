@@ -243,20 +243,6 @@ class BinaryEmulator(MemoryManager):
 
         return self.emu_eng.reg_read(reg)
 
-    # XXX Justin: this can probably be removed
-    def unset_hooks(self):
-        """
-        Unset instruction level hooks
-        """
-        self.log_info("binemu.py:unset_hooks: begin disabling hooks")
-        for ht in (common.HOOK_CODE, common.HOOK_MEM_READ, common.HOOK_MEM_WRITE,
-                   common.HOOK_MEM_INVALID, common.HOOK_INTERRUPT):
-            for hook in self.hooks.get(ht, []):
-                self.log_info("binemu.py:unset_hooks: disabling hook {}".format(hook))
-                hook.disable()
-
-        return
-
     def set_hooks(self):
         """
         Set instruction level hooks
