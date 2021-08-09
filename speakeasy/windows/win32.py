@@ -291,13 +291,11 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
-        # self.log_info("win32.py:prepare_module_for_emulation: 0x%x + 0x%x" % (module.base, module.ep))
         ep = module.base + module.ep
 
         run = Run()
         run.start_addr = ep
 
-        # TODO: handle cmd line args for child processes
         main_exe = None
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
@@ -427,17 +425,17 @@ class Win32Emulator(WindowsEmulator):
 
             self.log_info("* exec child process %d" % p.pid)
 
-            f = open("./child.exe", "wb")
+            # f = open("./child.exe", "wb")
             # bytez = self.mem_read(child.pe.base, child.pe.image_size)
             # bytez = self.mem_read(child.pe.base, child.pe.image_size)
-            f.write(child.pe.__data__)
-            f.flush()
-            f.close()
-
+            # f.write(child.pe.__data__)
+            # f.flush()
+            # f.close()
 
             self.command_line = child.cmdline
 
             self.curr_process = child
+            self.curr_process.base = child.pe.base
             self.curr_thread = child.threads[0]
 
             # PEB and TEB will be initialized when the next run happens
