@@ -440,7 +440,7 @@ class Win32Emulator(WindowsEmulator):
 
             self.stack_base = 0
 
-            child.pe = self.load_module(data=child.pe.__data__, first_time_setup=False)
+            child.pe = self.load_module(data=child.pe_data, first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
             self.log_info("* exec child process %d" % p.pid)

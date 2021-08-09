@@ -874,17 +874,20 @@ class WindowsEmulator(BinaryEmulator):
         if file_path[0] == '\"' and file_path[len(file_path) - 1] == '\"':
             file_path = file_path[1:-1]
 
-        new_mod = self.init_module_from_emu_file(file_path)
+        p = self.om.new_object(objman.Process)
 
-        if not new_mod:
+        mod_data = self.get_module_data_from_emu_file(file_path)
+
+        if mod_data:
+            p.pe_data = mod_data
+        else:
             new_mod = self.init_module(name=file_name, emu_path=path)
             self.map_decoy(new_mod)
-
-        p = self.om.new_object(objman.Process)
+            p.pe = new_mod
 
         p.path = file_path
         p.cmdline = cmdline
-        p.pe = new_mod
+        # p.pe = new_mod
 
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)
@@ -1800,7 +1803,8 @@ class WindowsEmulator(BinaryEmulator):
     # This will create a module from a file inside Speakeasy's
     # object manager. file_path is expected to point to a valid PE
     # file, like it would on a real Windows machine
-    def init_module_from_emu_file(self, file_path):
+    # Returns: raw data that represents a PE file
+    def get_module_data_from_emu_file(self, file_path):
         if not self.does_file_exist(file_path):
             self.log_info("winemu.py:init_real_module: %s does not exist" % file_path)
             return None
@@ -1813,14 +1817,16 @@ class WindowsEmulator(BinaryEmulator):
 
         mod_data = mod_file.get_data(reset_pointer=True)
 
+        return mod_data
+
         # TODO: this will be done another time inside win32.py:load_module
-        mod = winemu.PeFile(data=mod_data)
+        # mod = winemu.PeFile(data=mod_data)
 
         # self.log_info(mod)
         # ep = mod.ep
         # self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
 
-        return mod
+        # return mod
 
     def init_sys_modules(self, modules_config):
         """

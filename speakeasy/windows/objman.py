@@ -535,6 +535,7 @@ class Process(KernelObject):
         self.token = Token(self.emu)
         emu.add_object(self.token)
         self.pe = pe
+        self.pe_data = None
 
         self.stdin = (0xf000) + 1
         self.stdout = (0xf000) + 2
