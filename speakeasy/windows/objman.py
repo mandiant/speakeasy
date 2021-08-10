@@ -897,6 +897,10 @@ class ObjectManager(object):
 
     def add_object(self, obj):
         if not self.get_object_from_addr(obj.address):
+            # print("adding %s with addr {}" % (type(obj), obj.address))
+            # print("obj {}".format(obj))
+            # if obj.address:
+
             self.objects.update({obj.address: obj})
         if not obj.id:
             obj.id = self.new_id()

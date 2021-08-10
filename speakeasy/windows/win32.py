@@ -404,20 +404,12 @@ class Win32Emulator(WindowsEmulator):
         # Begin emulation of main module
         self.start()
 
-        # self.log_info("win32.py:run_module: %d child processes to emulate" % len(self.child_processes))
-        # self.log_info(self.child_processes)
-
-        # for p in self.child_processes:
-        #     self.log_info(p.path)
-
         if not emulate_children or len(self.child_processes) == 0:
             return
 
         # Emulate any child processes
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
-
-            self.stack_base = 0
 
             child.pe = self.load_module(data=child.pe_data,
                     first_time_setup=False)
@@ -437,6 +429,8 @@ class Win32Emulator(WindowsEmulator):
             self.curr_process = child
             self.curr_process.base = child.pe.base
             self.curr_thread = child.threads[0]
+
+            self.om.objects.update({self.curr_thread.address: self.curr_thread})
 
             # PEB and TEB will be initialized when the next run happens
 

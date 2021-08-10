@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import io
 import os
 import ntpath
 import traceback
@@ -1803,33 +1804,23 @@ class WindowsEmulator(BinaryEmulator):
 
         return mod
 
-    # XXX Justin: It doesn't look safe to mess with init_module,
-    # so create_process will call this instead
     # This will create a module from a file inside Speakeasy's
     # object manager. file_path is expected to point to a valid PE
     # file, like it would on a real Windows machine
     # Returns: raw data that represents a PE file
     def get_module_data_from_emu_file(self, file_path):
         if not self.does_file_exist(file_path):
-            self.log_info("winemu.py:init_real_module: %s does not exist" % file_path)
             return None
 
         mod_file = self.fileman.get_file_from_path(file_path)
 
         if not mod_file:
-            self.log_info("winemu.py:init_real_module: file_open for %s failed" % file_path)
             return None
 
-        return mod_file.get_data(reset_pointer=True)
-
-        # TODO: this will be done another time inside win32.py:load_module
-        # mod = winemu.PeFile(data=mod_data)
-
-        # self.log_info(mod)
-        # ep = mod.ep
-        # self.log_info("winemu.py:init_real_module: mod entryp 0x%x" % ep)
-
-        # return mod
+        # This file could have been read from, so don't mess
+        # with its file offset pointer. Just get the raw bytes
+        # from the BytesIO object
+        return mod_file.data.getvalue()
 
     def init_sys_modules(self, modules_config):
         """

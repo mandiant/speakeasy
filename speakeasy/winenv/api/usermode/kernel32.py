@@ -3329,7 +3329,6 @@ class Kernel32(api.ApiHandler):
         if obj:
             hnd = self.get_object_handle(obj)
         else:
-            # Does the file being opened exist in our emulation space?
             op = 'open'
             if self.does_file_exist(target):
                 if disp == windefs.CREATE_ALWAYS:
@@ -3551,8 +3550,8 @@ class Kernel32(api.ApiHandler):
           HANDLE hObject
         );
         '''
-        print("CloseHandle: NOT CLOSING ANYTHING TEMPORARILY")
-        return True
+        # print("CloseHandle: NOT CLOSING ANYTHING TEMPORARILY")
+        # return True
         hObject, = argv
         obj = self.get_object_from_handle(hObject)
         if obj:
