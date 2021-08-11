@@ -858,7 +858,7 @@ class WindowsEmulator(BinaryEmulator):
             # We'll create a PE out of this when we go to execute it
             p.pe_data = mod_data
         else:
-            new_mod = self.init_module(name=file_name, emu_path=path)
+            new_mod = self.init_module(name=file_path, emu_path=path)
             self.map_decoy(new_mod)
             p.pe = new_mod
 
