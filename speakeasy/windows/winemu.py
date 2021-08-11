@@ -318,7 +318,6 @@ class WindowsEmulator(BinaryEmulator):
         """
         try:
             run = self.run_queue.pop(0)
-            self.log_info("winemu.py:_exec_next_run: cur run ep @ 0x%x" % run.start_addr)
         except IndexError:
             self.on_emu_complete()
             return None
@@ -357,11 +356,6 @@ class WindowsEmulator(BinaryEmulator):
 
         stk_ptr = self.get_stack_ptr()
 
-        # print(run.args)
-        # print(*run.args)
-        # run.args = [0x414141,0x4242]
-        # print(*run.args)
-
         self.set_func_args(stk_ptr, self.return_hook, *run.args)
         stk_ptr = self.get_stack_ptr()
         stk_map = self.get_address_map(stk_ptr)
@@ -380,12 +374,10 @@ class WindowsEmulator(BinaryEmulator):
         if not self.kernel_mode:
             # Reset the TIB data
             thread = self.get_current_thread()
-            # self.log_info("winemu.py:_exec_run: current thread {}".format(thread))
             if thread:
                 self.init_teb(thread, self.curr_process.get_peb())
                 self.init_tls(thread)
 
-        self.log_info("winemu.py:_exec_run: setting PC to 0x%x" % run.start_addr)
         self.set_pc(run.start_addr)
         return run
 
@@ -431,7 +423,6 @@ class WindowsEmulator(BinaryEmulator):
         except IndexError:
             return
 
-        # self.log_info("winemu.py:start: module emulation begin")
         self.run_complete = False
         self.set_hooks()
         self._set_emu_hooks()
@@ -439,18 +430,9 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.set_start_time()
         self._exec_run(run)
 
-        # self.log_info("winemu.py:start: self.run_queue is {}" % self.run_queue)
-
         while True:
-
             try:
-                # self.run_complete = False
-                # self.set_hooks()
-                # self._set_emu_hooks()
-                # self.log_info("winemu.py:start: running another module")
-
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                # self.log_info("winemu.py:start: entrypoint @ 0x%x" % self.curr_run.start_addr)
                 self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout,
                                    count=self.max_instructions)
                 if self.profiler:
@@ -479,7 +461,6 @@ class WindowsEmulator(BinaryEmulator):
                 continue
             break
 
-        # self.log_info("winemu.py:start: module emulation complete")
         self.on_emu_complete()
 
     def get_current_run(self):
@@ -657,7 +638,6 @@ class WindowsEmulator(BinaryEmulator):
         Initialize the Thread Information Block
         """
         if self.get_arch() == _arch.ARCH_X86:
-            # self.log_info("winemu.py:init_teb: fs addr 0x%x" % self.fs_addr)
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
             thread.init_teb(self.gs_addr, peb.address)
@@ -679,11 +659,7 @@ class WindowsEmulator(BinaryEmulator):
             # Get the virtual address of the TLS directory, which will always
             # be 9 in the data directory
             tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
-            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
             tls_dirp += module.OPTIONAL_HEADER.ImageBase
-            # self.log_info("winemu.py:init_tls: TLS dirp 0x%x" % tls_dirp)
-
-            # self.log_info(self.dump_mem_maps())
 
             tls_dir = self.mem_read(tls_dirp, ptrsz)
 
@@ -729,12 +705,6 @@ class WindowsEmulator(BinaryEmulator):
         Map the specified PE into the emulation space
         """
         image_size = pe.image_size
-        # self.log_info("winemu.py:map_pe: image size before 0x%x" % image_size)
-        # self.log_info("winemu.py:map_pe: mapping image size 0x%x" % len(pe.mapped_image))
-        # image_size = len(pe.mapped_image)
-        # if image_size & 0xfff:
-        #     image_size = (image_size + 0x1000) & ~0xfff
-        # self.log_info("winemu.py:map_pe: image size after 0x%x" % image_size)
         base = pe.base
         ranges = self.get_valid_ranges(image_size, addr=base)
         base, size = ranges

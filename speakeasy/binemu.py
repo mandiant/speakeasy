@@ -247,27 +247,16 @@ class BinaryEmulator(MemoryManager):
         """
         Set instruction level hooks
         """
-        # self.log_info("binemu.py:set_hooks: begin setting hooks")
         for ht in (common.HOOK_CODE, common.HOOK_MEM_READ, common.HOOK_MEM_WRITE,
                    common.HOOK_MEM_INVALID, common.HOOK_INTERRUPT):
             for hook in self.hooks.get(ht, []):
-                # self.log_info("binemu.py:set_hooks: hook {} added? {} enabled? {}".format(hook, hook.added, hook.enabled))
-
-                # hook.added = False
                 if not hook.added:
-                    # self.log_info("binemu.py:set_hooks: adding hook {}".format(hook))
                     hook.add()
-                # elif not hook.enabled:
-                #     # self.log_info("binemu.py:set_hooks: enabling hook {}".format(hook))
-                #     hook.enable()
 
     def _cs_disasm(self, mem, addr, fast=True):
         """
         Disassemble bytes using capstone
         """
-        # if addr > 0x600000:
-        # print("binemu.py:_cs_disasm: addr 0x%x" % addr)
-        # print(binascii.hexlify(mem))
         try:
             if fast:
                 tu = [i for i in self.disasm_eng.disasm_lite(bytes(mem), addr)]
@@ -1049,7 +1038,6 @@ class BinaryEmulator(MemoryManager):
         """
         This handler will dispatch other invalid memory hooks
         """
-        # print("binemu.py:_hook_mem_invalid_dispatch: addr 0x%x" % address)
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
 
         rv = True

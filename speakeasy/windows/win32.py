@@ -208,17 +208,15 @@ class Win32Emulator(WindowsEmulator):
 
         if base != imgbase:
             if pe.has_reloc_table():
-                self.log_info("win32.py:load_module: reloc table present")
-                self.log_info("win32.py:load_module: rebasing to 0x%x" % base)
                 pe.rebase(base)
             else:
-                self.log_info("win32.py:load_module: reloc table not present")
+                parent_map = self.get_address_map(imgbase)
 
                 # Already being used by the parent, so let's remap the parent
-                # to what was returned by get_valid_ranges
-                self.log_info("win32.py:load_module: want 0x%x for child but got back 0x%x" % (imgbase, base))
-                new_parent_mem = self.mem_remap(imgbase, base)
-                self.log_info("win32.py:load_module: remapped parent to 0x%x" % new_parent_mem)
+                # Do get_valid_ranges on the parent map size so we get a
+                # suitable region for it
+                new_parent_mem, unused = self.get_valid_ranges(parent_map.size)
+                new_parent_mem = self.mem_remap(imgbase, new_parent_mem)
 
                 # Failed
                 if new_parent_mem == -1:
@@ -229,27 +227,19 @@ class Win32Emulator(WindowsEmulator):
                 for pe_, ranges_, emu_path_ in self.modules:
                     base_, size_ = ranges_
 
-                    self.log_info("[0x%x, 0x%x)" % (ranges_[0], ranges_[1]))
-
                     if base_ == imgbase:
-                        self.log_info("win32.py:load_module: found parent module, base 0x%x" % base_)
                         self.modules.remove((pe_, ranges_, emu_path_))
                         self.modules.append((pe_, (new_parent_mem, size_), emu_path_))
-                        self.log_info("win32.py:load_module: updated parent module to base 0x%x" % new_parent_mem)
                         break
 
                 # Alright, let's try to grab that memory for the child again
                 ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
                 base, size = ranges
 
-                if base == imgbase:
-                    self.log_info("win32.py:load_module: got wanted base addr for child 0x%x" % base)
-                else:
+                if base != imgbase:
                     # Out of luck
                     # XXX what to do here
                     pass
-
-        self.log_info("win32.py:load_module: child base 0x%x img size 0x%x" % (base, pe.image_size))
 
         self.mem_map(pe.image_size, base=base,
                 tag='emu.module.%s' % (mod_name))
@@ -415,15 +405,6 @@ class Win32Emulator(WindowsEmulator):
                     first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
-            self.log_info("* exec child process %d" % p.pid)
-
-            # f = open("./child.exe", "wb")
-            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
-            # bytez = self.mem_read(child.pe.base, child.pe.image_size)
-            # f.write(child.pe.__data__)
-            # f.flush()
-            # f.close()
-
             self.command_line = child.cmdline
 
             self.curr_process = child
@@ -575,8 +556,6 @@ class Win32Emulator(WindowsEmulator):
         """
         Allocate memory for the Process Environment Block (PEB)
         """
-        self.log_info("win32.py:alloc_peb: is peb active? %d" % proc.is_peb_active)
-
         if proc.is_peb_active:
             return
         size = proc.get_peb_ldr().sizeof()

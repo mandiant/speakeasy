@@ -3550,8 +3550,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hObject
         );
         '''
-        # print("CloseHandle: NOT CLOSING ANYTHING TEMPORARILY")
-        # return True
         hObject, = argv
         obj = self.get_object_from_handle(hObject)
         if obj:

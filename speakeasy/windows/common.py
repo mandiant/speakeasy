@@ -333,7 +333,7 @@ class PeFile(pefile.PE):
 
     def has_reloc_table(self):
         return len(self.OPTIONAL_HEADER.DATA_DIRECTORY) >= 6 and \
-    self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
+                self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
 
     def rebase(self, to):
         self.relocate_image(to)

@@ -4,7 +4,6 @@ from itertools import groupby
 from operator import itemgetter
 
 import speakeasy.common as common
-import mmap
 
 
 class MemMap(object):
@@ -91,13 +90,8 @@ class MemMap(object):
 
     def set_free(self):
         """
-        Set the current mapping to be in a free state,
-        unless this memory represents a mapping for a child process
+        Set the current mapping to be in a free state
         """
-        # if "emu.module." not in self.tag:
-        #     self.free = True
-        # else:
-        #     print("memmgr.py:set_free: Not freeing module memory for %s" % self.tag)
         self.free = True
 
     def is_free(self):
@@ -219,13 +213,15 @@ class MemoryManager(object):
 
         prot = map.prot
         size = map.size
-        
+
         # Exclude old memory region in tag name
         tag = map.tag[:map.tag.rfind(".")]
 
         contents = self.mem_read(map.base, size)
 
-        self.mem_unmap(map.base, size)
+        # Will unmap as well
+        self.mem_free(map.base)
+
         newmem = self.mem_map(size, base=to, perms=prot, tag=tag)
         
         if newmem != to:
