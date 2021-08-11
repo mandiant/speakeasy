@@ -235,7 +235,7 @@ class Speakeasy(object):
         """
         self._init_hooks()
 
-        if isinstance(self, Win32Emulator):
+        if isinstance(self.emu, Win32Emulator):
             return self.emu.run_module(module=module,
                     all_entrypoints=all_entrypoints,
                     emulate_children=emulate_children)
