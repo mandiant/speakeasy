@@ -200,6 +200,37 @@ class MemoryManager(object):
                 self.mem_unmap(mm.block_base, mm.block_size)
                 [self.maps.remove(mm) for mm in ml]
 
+    def mem_remap(self, frm, to):
+        """
+        Remap a block of emulated memory, and return the new address,
+        or -1 on error
+        Protections remain the same
+        """
+        map = self.get_address_map(frm)
+
+        if not map:
+            return -1
+
+        prot = map.prot
+        size = map.size
+
+        # Exclude old memory region in tag name
+        tag = map.tag[:map.tag.rfind(".")]
+
+        contents = self.mem_read(map.base, size)
+
+        # Will unmap as well
+        self.mem_free(map.base)
+
+        newmem = self.mem_map(size, base=to, perms=prot, tag=tag)
+        
+        if newmem != to:
+            return -1
+
+        self.mem_write(newmem, contents)
+
+        return newmem
+
     def mem_unmap(self, base, size):
         """
         Free a block of emulated memory

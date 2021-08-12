@@ -78,6 +78,11 @@ class File(object):
         self.is_dir = False
         self.config = config
 
+    def duplicate(self):
+        new = File(self.path, config=self.config, data=self.data.getvalue())
+        new.is_dir = self.is_dir
+        return new
+        
     def get_handle(self):
         hfile = File.curr_handle
         File.curr_handle += 4
@@ -392,11 +397,14 @@ class FileManager(object):
             hnd = f.get_handle()
             self.file_handles.update({hnd: f})
         else:
-
             f = self.get_file_from_path(path)
+
             if f:
-                hnd = f.get_handle()
-                self.file_handles.update({hnd: f})
+                # Deep-copy this file so we can have separate file
+                # offset pointers
+                dup = f.duplicate()
+                hnd = dup.get_handle()
+                self.file_handles.update({hnd: dup})
                 return hnd
 
             fconf = self.get_emu_file(path)

@@ -67,7 +67,7 @@ EMPTY_PE_32 = DOS_HEADER + b'PE\x00\x00L\x01\x00\x00ABCD\x00\x00\x00\x00\x00\x00
 # Blank header used for a 64-bit PE header
 EMPTY_PE_64 = DOS_HEADER + b'PE\x00\x00d\x86\x00\x00ABCD\x00\x00\x00\x00\x00\x00\x00\x00'   \
                            b'\xf0\x00\x03\x10\x0b\x02\x08\x00\x04\x00\x00\x00\x00\x00\x00'  \
-                           b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@' \
+                          b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@' \
                            b'\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x06\x00'  \
                            b'\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xb8'  \
                            b'\x01\x00\x00\x00\x00\x00\x00AAAA\x02\x00\x00\x04\x00\x00\x10'  \
@@ -117,8 +117,8 @@ class PeFile(pefile.PE):
         self.hash = self._hash_pe(path=path, data=data)
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
-
         self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xf0000000)
+        # self.mapped_image = None
         self.image_size = self.OPTIONAL_HEADER.SizeOfImage
         self.import_table = {}
         self.is_mapped = True
@@ -331,6 +331,25 @@ class PeFile(pefile.PE):
                 return True
         return False
 
+    def has_reloc_table(self):
+        return len(self.OPTIONAL_HEADER.DATA_DIRECTORY) >= 6 and \
+                self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
+
+    def rebase(self, to):
+        self.relocate_image(to)
+
+        self.base = to
+        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
+
+        # After relocation, generate a new memory mapped image
+        self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xf0000000)
+
+        self.pe_sections = self._get_pe_sections()
+        self.imports = self._get_pe_imports()
+        self.exports = self._get_pe_exports()
+        self._patch_imports()
+
+        return
 
 class DecoyModule(PeFile):
     """

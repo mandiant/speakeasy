@@ -26,8 +26,8 @@ def get_logger():
     return logger
 
 
-def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='', dump_path='',
-                   raw_offset=0x0):
+def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='',
+        drop_path='', dump_path='', raw_offset=0x0, emulate_children=False):
     """
     Setup the binary for emulation
     """
@@ -50,7 +50,8 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='', drop_path='
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(fpath)
-            se.run_module(module, all_entrypoints=True)
+            se.run_module(module, all_entrypoints=True,
+                    emulate_children=emulate_children)
 
     finally:
 
@@ -85,6 +86,7 @@ class Main(object):
         self.dump_path = args.dump_path
         self.drop_files_path = args.drop_files_path
         self.config_path = args.config
+        self.emulate_children = args.emulate_children
         self.cfg = None
         self.do_raw = args.do_raw
         self.raw_offset = args.raw_offset
@@ -150,8 +152,8 @@ class Main(object):
             emulate_binary(q, evt, args.target,
                            self.cfg, self.argv, self.do_raw, self.arch,
                            self.drop_files_path, self.dump_path,
-                           raw_offset=self.raw_offset
-                           )
+                           raw_offset=self.raw_offset,
+                           emulate_children=self.emulate_children)
             report = q.get()
         else:
             # We are using a child process here so we can maintain absolute control over its
@@ -161,7 +163,8 @@ class Main(object):
                                  self.argv, self.do_raw, self.arch,
                                  self.drop_files_path, self.dump_path),
                            kwargs={
-                               "raw_offset": self.raw_offset
+                               "raw_offset": self.raw_offset,
+                               "emulate_children": self.emulate_children,
                            })
             p.start()
 
@@ -232,6 +235,10 @@ if __name__ == '__main__':
                                              'When modules are parsed or loaded by samples,\n'
                                              'PEs from this directory will be loaded into the\n'
                                              'emulated address space')
+    parser.add_argument('-k', '--emulate-children', action='store_true', dest='emulate_children',
+                        required=False, help='Emulate any processes created with\n'
+                                             'the CreateProcess APIs after the\n'
+                                             'input file finishes emulating')
     parser.add_argument('--no-mp', action='store_true', dest='no_mp',
                         required=False, help='Run emulation in the current process to assist\n'
                                              'instead of a child process. Useful when debugging'
