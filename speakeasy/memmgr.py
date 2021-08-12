@@ -295,17 +295,6 @@ class MemoryManager(object):
             if address >= m.base and address <= (m.base + m.size) - 1:
                 return m.tag
 
-    # XXX justin: debug only
-    def dump_mem_maps(self):
-        out = ""
-        for mm in self.get_mem_maps():
-            base = mm.get_base()
-            size = mm.get_size()
-            tag = mm.get_tag()
-            out += "%s -> %s (%s)\n" % (hex(base), hex(base + size), tag)
-
-        return out
-
     def mem_reserve(self, size, base=None, perms=None, tag=None, flags=0, shared=False):
         """
         Reserve (but do not map) a block of memory
