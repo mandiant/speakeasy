@@ -75,6 +75,7 @@ def emulate_binary(
     try:
         report = None
         se = Speakeasy(config=cfg, logger=logger, argv=argv, exit_event=exit_event)
+        data = open(fpath, "rb").read()
         if do_raw:
             arch = arch.lower()
             if arch == "x86":
@@ -83,11 +84,10 @@ def emulate_binary(
                 arch = e_arch.ARCH_AMD64
             else:
                 raise Exception("Unsupported architecture: %s" % arch)
-
-            sc_addr = se.load_shellcode(fpath, arch)
+            sc_addr = se.load_shellcode(fpath, arch, data=data)
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
-            module = se.load_module(fpath)
+            module = se.load_module(data=data)
             # se.add_IN_instruction_hook(checker)
             se.emu.add_instruction_hook(checker, insn=218)
             [
