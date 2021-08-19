@@ -212,3 +212,26 @@ class Ntdll(api.ApiHandler):
         rv = Ptr - 1
 
         return rv
+
+    @apihook('NtWaitForSingleObject', argc=3)
+    def NtWaitForSingleObject(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI
+        NTSTATUS
+        NtWaitForSingleObject(
+            HANDLE         Handle,
+            BOOLEAN        Alertable,
+            PLARGE_INTEGER Timeout
+        );
+        '''
+        hHandle, alertable, timeout = argv
+
+        # Other documented return status are:
+        #      STATUS_TIMEOUT = 0x00000102
+        #      STATUS_ACCESS_DENIED = 0xC0000022
+        #      STATUS_ALERTED = 0x00000101
+        #      STATUS_INVALID_HANDLE = 0xC0000008
+        #      STATUS_USER_APC = 0x000000C0
+        rv = ddk.STATUS_SUCCESS
+
+        return rv
