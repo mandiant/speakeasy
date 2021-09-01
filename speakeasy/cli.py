@@ -197,7 +197,8 @@ class Main(object):
                     f.write(report)
 
 
-if __name__ == '__main__':
+def main():
+    """ speakeasy command line entrypoint """
 
     parser = argparse.ArgumentParser(description='Emulate a Windows binary with speakeasy')
     parser.add_argument('-t', '--target', action='store', dest='target',
@@ -245,3 +246,6 @@ if __name__ == '__main__':
                                              'speakeasy itself (using pdb.set_trace()).\n')
 
     Main(parser)
+
+if __name__ == "__main__":
+    main()
