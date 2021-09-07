@@ -54,7 +54,36 @@ class Shlwapi(api.ApiHandler):
             argv[0] = pn
 
         return rv
+    
+    @apihook('StrStr', argc=2)
+    def StrStr(self, emu, argv, ctx={}):
+        '''
+        PCSTR StrStr(
+            PCSTR pszFirst,
+            PCSTR pszSrch
+        );
+        '''
 
+        hay, needle = argv
+
+        cw = self.get_char_width(ctx)
+
+        if hay:
+            _hay = self.read_mem_string(hay, cw)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, cw)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+
+        return ret
+    
     @apihook('StrStrI', argc=2)
     def StrStrI(self, emu, argv, ctx={}):
         '''
