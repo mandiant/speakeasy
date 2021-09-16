@@ -6,6 +6,7 @@ from .. import api
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.windows.common as winemu
 
 
 class Ntdll(api.ApiHandler):
@@ -90,7 +91,7 @@ class Ntdll(api.ApiHandler):
         hmod = 0
 
         req_lib = self.read_unicode_string(Name)
-        lib = self.normalize_dll_name(req_lib)
+        lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
 
