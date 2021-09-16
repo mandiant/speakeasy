@@ -97,6 +97,26 @@ class Ws2_32(api.ApiHandler):
 
         return fd
 
+    @apihook('WSAIoctl', argc=9, conv=_arch.CALL_CONV_STDCALL)
+    def WSAIoctl(self, emu, argv, ctx={}):
+        """
+        int WSAAPI WSAIoctl(
+          SOCKET                             s,
+          DWORD                              dwIoControlCode,
+          LPVOID                             lpvInBuffer,
+          DWORD                              cbInBuffer,
+          LPVOID                             lpvOutBuffer,
+          DWORD                              cbOutBuffer,
+          LPDWORD                            lpcbBytesReturned,
+          LPWSAOVERLAPPED                    lpOverlapped,
+          LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+        );
+        """
+
+        # TODO: Add actual function logic. However, for now, returning 0 (success) should cover most use cases.
+
+        return windefs.ERROR_SUCCESS
+
     @apihook('socket', argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=23)
     def socket(self, emu, argv, ctx={}):
         """
