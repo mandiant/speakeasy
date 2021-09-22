@@ -131,6 +131,11 @@ class File(object):
         if self.data:
             self.data.seek(offset, whence)
 
+    def tell(self):
+        if self.data:
+            return self.data.tell()
+        return None
+
     def add_data(self, data):
 
         if not self.data:
