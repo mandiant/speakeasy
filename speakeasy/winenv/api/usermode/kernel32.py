@@ -3488,7 +3488,7 @@ class Kernel32(api.ApiHandler):
         if f:
             # TODO add high offset, log access?
             f.seek(lDistanceToMove, dwMoveMethod)
-            rv = 1
+            rv = f.tell()
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
@@ -3881,7 +3881,7 @@ class Kernel32(api.ApiHandler):
         dest = int.from_bytes(dest_bytes, 'little')
 
         if dest == Comperand:
-            self.mem_write(pDest, dest_bytes)
+            self.mem_write(pDest, ExChange.to_bytes(4, 'little'))
 
         return dest
 
