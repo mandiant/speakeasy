@@ -89,10 +89,10 @@ For more examples, see the [examples](examples/) directory.
 
 ### As a standalone command line tool
 
-For users who don't wish to programatically interact with the speakeasy framework as a library, a standalone script is provided to automatically emulate Windows binaries. Speakeasy can be invoked via the `run_speakeasy.py` script located within the base repo directory. This script will parse a specified PE and invoke the appropriate emulator (kernel mode or user mode). The script's parameters are shown below.
+For users who don't wish to programatically interact with the speakeasy framework as a library, a standalone script is provided to automatically emulate Windows binaries. Speakeasy can be invoked by running the command `speakeasy`. This command will parse a specified PE and invoke the appropriate emulator (kernel mode or user mode). The script's parameters are shown below.
 
 ```
-usage: run_speakeasy.py [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-m] [-r] [--raw_offset RAW_OFFSET]
+usage: speakeasy [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-m] [-r] [--raw_offset RAW_OFFSET]
                         [-a ARCH] [-d DUMP_PATH] [-q TIMEOUT] [-z DROP_FILES_PATH] [-l MODULE_DIR] [-k] [--no-mp]
 
 Emulate a Windows binary with speakeasy
@@ -134,17 +134,17 @@ optional arguments:
 
 Emulating a Windows driver:
 ```console
-user@mybox:~/speakeasy$ python3 run_speakeasy.py -t ~/drivers/MyDriver.sys
+user@mybox:~/speakeasy$ speakeasy -t ~/drivers/MyDriver.sys
 ```
 
 Emulating 32-bit Windows shellcode:
 ```console
-user@mybox:~/speakeasy$ python3 run_speakeasy.py -t ~/sc.bin  -r -a x86
+user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x86
 ```
 
 Emulating 64-bit Windows shellcode and create a full memory dump:
 ```console
-user@mybox:~/speakeasy$ python3 run_speakeasy.py -t ~/sc.bin  -r -a x64 -d memdump.zip
+user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x64 -d memdump.zip
 ```
 
 ---
