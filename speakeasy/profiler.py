@@ -204,25 +204,12 @@ class Profiler(object):
         Log file access events. This will include things like handles being opened,
         data reads, and data writes.
         """
-
-        for et in ("write", "read"):
-            if event_type == et:
-                for fa in run.file_access:
-                    if path == fa.get("path") and fa["event"] == et:
-                        if size:
-                            fa["size"] += size
-                        if data:
-                            fa["data"] = self.handle_binary_data(
-                                b64decode(fa["data"]) + data
-                            )
-                        return
-        enc = None
-        if data:
-            enc = self.handle_binary_data(data[:1024])
+        if isinstance(data, bytes):
+            data = self.handle_binary_data(data)
 
         event = {"event": event_type, "path": path}
-        if enc:
-            event.update({"data": enc})
+        if data:
+            event.update({"data": data})
 
         if handle:
             event.update({"handle": handle})
