@@ -372,13 +372,13 @@ class Profiler(object):
         if query not in run.network["dns"]:
             run.network["dns"].append(query)
 
-    def log_dyn_code(self, run, tag, base, size):
+    def log_dyn_code(self, run, tag, base, size, content):
         """
         Log code that is generated at runtime and then executed
         """
 
         if base not in run.dyn_code["base_addrs"]:
-            entry = {"tag": tag, "base": hex(base), "size": hex(size), "clock":run.get_api_count(), "code":run.read()}
+            entry = {"tag": tag, "base": hex(base), "size": hex(size), "clock":run.get_api_count(), "code":self.handle_binary_data(content)}
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 
