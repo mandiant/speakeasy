@@ -3577,7 +3577,6 @@ class Kernel32(api.ApiHandler):
 
         hFile, lpBuffer, num_bytes, bytes_read, lpOverlapped = argv
         rv = False
-
         f = self.file_get(hFile)
         if f:
             path = f.get_path()

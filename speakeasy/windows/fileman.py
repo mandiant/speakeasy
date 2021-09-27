@@ -5,7 +5,6 @@ import io
 import ntpath
 import hashlib
 import fnmatch
-import shlex
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import FileSystemEmuError
@@ -208,9 +207,9 @@ class FileManager(object):
         self.file_config = self.config.get("filesystem", {})
         self.emu = emu
 
-
         # First file in this list seems to always be the module itself
         self.files = []
+
     @property
     def emulated_binname(self):
         return self.emu.bin_base_name

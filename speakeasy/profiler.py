@@ -378,7 +378,13 @@ class Profiler(object):
         """
 
         if base not in run.dyn_code["base_addrs"]:
-            entry = {"tag": tag, "base": hex(base), "size": hex(size), "clock":run.get_api_count(), "code":self.handle_binary_data(content)}
+            entry = {
+                "tag": tag,
+                "base": hex(base),
+                "size": hex(size),
+                "clock": run.get_api_count(),
+                "code": self.handle_binary_data(content),
+            }
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 

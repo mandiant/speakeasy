@@ -976,7 +976,13 @@ class BinaryEmulator(MemoryManager):
         mm = self.get_address_map(addr)
         if profiler:
             run = self.get_current_run()
-            profiler.log_dyn_code(run, mm.get_tag(), mm.get_base(), mm.get_size(), emu.mem_read(addr, size))
+            profiler.log_dyn_code(
+                run,
+                mm.get_tag(),
+                mm.get_base(),
+                mm.get_size(),
+                emu.mem_read(addr, size),
+            )
 
         for h in self.hooks.get(common.HOOK_DYN_CODE, []):
             h.cb(mm)
