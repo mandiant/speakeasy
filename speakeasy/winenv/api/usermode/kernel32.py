@@ -3586,7 +3586,9 @@ class Kernel32(api.ApiHandler):
             if lpBuffer:
                 _write_output(emu, data, lpBuffer, bytes_read)
 
-                self.log_file_access(path, "read", buffer=lpBuffer, size=len(data))
+                self.log_file_access(
+                    path, "read", buffer=lpBuffer, size=len(data), data=data
+                )
 
                 rv = True
                 emu.set_last_error(windefs.ERROR_SUCCESS)

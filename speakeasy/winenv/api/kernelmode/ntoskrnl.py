@@ -3027,7 +3027,7 @@ class Ntoskrnl(api.ApiHandler):
                 self.mem_write(buf, data[:length])
 
             # Log the file event
-            self.log_file_access(path, "read", buffer=buf, size=length)
+            self.log_file_access(path, "read", buffer=buf, size=length, data=data)
 
             nts = ddk.STATUS_SUCCESS
 
