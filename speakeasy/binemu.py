@@ -818,15 +818,13 @@ class BinaryEmulator(MemoryManager):
         """
         return self.ptr_size
 
-    def get_mem_strings(self):
+    def get_mem_strings(self, cached=False):
         """
         Get ansi and unicode strings from emulated memory
         """
         tgt_tag_prefixes = ("emu.stack", "api")
-        ansi_strings = []
-        unicode_strings = []
-        ret_ansi = []
-        ret_unicode = []
+        ansi_strings = set()
+        unicode_strings = set()
 
         for mmap in self.get_mem_maps():
             tag = mmap.get_tag()
@@ -836,13 +834,14 @@ class BinaryEmulator(MemoryManager):
                 and tag != self.input.get("mem_tag")
             ):
                 data = self.mem_read(mmap.get_base(), mmap.get_size() - 1)
-                ansi_strings += self.get_ansi_strings(data)
-                unicode_strings += self.get_unicode_strings(data)
-
-        [ret_ansi.append(a) for a in ansi_strings if a not in ret_ansi]
-        [ret_unicode.append(a) for a in unicode_strings if a not in ret_unicode]
-
-        return (ret_ansi, ret_unicode)
+                ansi_strings |= set(self.get_ansi_strings(data))
+                unicode_strings |= set(self.get_unicode_strings(data))
+        if cached:
+            both = ansi_strings | unicode_strings
+            new_strings = both - self.strings
+            self.strings |= new_strings
+            return new_strings
+        return ansi_strings, unicode_strings
 
     def set_ptr_size(self, arch):
         """
