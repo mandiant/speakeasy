@@ -1,8 +1,10 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import io
 import os
 import ntpath
 import traceback
+import shlex
 
 import speakeasy.winenv.arch as _arch
 from speakeasy.binemu import BinaryEmulator
@@ -83,6 +85,10 @@ class WindowsEmulator(BinaryEmulator):
         self.emu_complete = False
         self.global_data = {}
         self.processes = []
+        # Child processes created by calls to CreateProcess
+        # by any module. This is separate from self.processes in order
+        # to not mix up config processes with child processes
+        self.child_processes = []
         self.curr_thread = None
         self.curr_exception_code = 0
         self.prev_pc = 0
@@ -431,7 +437,6 @@ class WindowsEmulator(BinaryEmulator):
         self._exec_run(run)
 
         while True:
-
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
                 self.emu_eng.start(
@@ -863,44 +868,50 @@ class WindowsEmulator(BinaryEmulator):
     def new_object(self, otype):
         return self.om.new_object(otype)
 
-    def create_process(self, path="", cmdline="", image=None):
+    def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
         Create a process object that will exist in the emulator
         """
+        if not path and cmdline:
+            path = cmdline
+
+        # See if we are trying to create a process based off a file
+        # inside the object manager and serve that
+        # Setting posix to false makes shlex not treat '\' as an
+        # escape character, but if each token was surrounded with
+        # quotes, those are kept, so we have to delete them
+        file_path = shlex.split(path, posix=False)[0]
+
+        if file_path[0] == '\"' and file_path[len(file_path) - 1] == '\"':
+            file_path = file_path[1:-1]
+
         p = self.om.new_object(objman.Process)
-        p.path = path
 
+        mod_data = self.get_module_data_from_emu_file(file_path)
+
+        if mod_data:
+            # We'll create a PE out of this when we go to execute it
+            p.pe_data = mod_data
+        else:
+            new_mod = self.init_module(name=file_path, emu_path=path)
+            self.map_decoy(new_mod)
+            p.pe = new_mod
+
+        p.path = file_path
         p.cmdline = cmdline
-        if not p.path and p.cmdline:
-            p.path = cmdline
-
-        p.path = self.search_path(p.path)
 
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)
         t.process = p
         t.tid = self.om.new_id()
+
         p.threads.append(t)
 
-        mod_name = ntpath.basename(p.path)
-        mod_name = os.path.splitext(mod_name)[0]
+        if child:
+            self.child_processes.append(p)
+        else:
+            self.processes.append(p)
 
-        decoy_mod = self.init_module(name=mod_name, emu_path=p.path)
-        size = decoy_mod.image_size
-        if size < self.page_size:
-            size = self.page_size * 2
-        self.map_decoy(decoy_mod)
-
-        p.pe = decoy_mod
-        p.name = mod_name
-        self.alloc_peb(p)
-
-        if self.get_arch() == _arch.ARCH_X86:
-            t.ctx.Eax = decoy_mod.base + decoy_mod.ep
-            t.ctx.Eip = t.ctx.Eax
-            t.ctx.Ebx = p.get_peb().address
-
-        self.processes.append(p)
         return p
 
     def create_thread(
@@ -1841,6 +1852,24 @@ class WindowsEmulator(BinaryEmulator):
         mod.base_name = ntpath.basename(mod.decoy_path)
 
         return mod
+
+    # This will create a module from a file inside Speakeasy's
+    # object manager. file_path is expected to point to a valid PE
+    # file, like it would on a real Windows machine
+    # Returns: raw data that represents a PE file
+    def get_module_data_from_emu_file(self, file_path):
+        if not self.does_file_exist(file_path):
+            return None
+
+        mod_file = self.fileman.get_file_from_path(file_path)
+
+        if not mod_file:
+            return None
+
+        # This file could have been read from, so don't mess
+        # with its file offset pointer. Just get the raw bytes
+        # from the BytesIO object
+        return mod_file.data.getvalue()
 
     def init_sys_modules(self, modules_config):
         """

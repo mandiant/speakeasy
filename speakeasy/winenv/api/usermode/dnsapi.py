@@ -59,6 +59,7 @@ class DnsApi(api.ApiHandler):
 
         pszName, wType, Options, pExtra, ppQueryResults, pReserved = argv
         rv = windefs.ERROR_INVALID_PARAMETER
+        rr = None
 
         cw = self.get_char_width(ctx)
         if pszName:

@@ -65,6 +65,7 @@ def emulate_binary(
     drop_path="",
     dump_path="",
     raw_offset=0x0,
+    emulate_children=False,
 ):
     """
     Setup the binary for emulation
@@ -88,13 +89,12 @@ def emulate_binary(
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(data=data)
-            # se.add_IN_instruction_hook(checker)
-            se.emu.add_instruction_hook(checker, insn=218)
             [
                 se.add_api_hook(value[0], "*", key, value[1])
                 for key, value in FAST_HOOKS.items()
             ]
-            se.run_module(module, all_entrypoints=True)
+            se.run_module(module, all_entrypoints=True,
+                    emulate_children=emulate_children)
 
     finally:
 
@@ -131,6 +131,7 @@ class Main(object):
         self.dump_path = args.dump_path
         self.drop_files_path = args.drop_files_path
         self.config_path = args.config
+        self.emulate_children = args.emulate_children
         self.cfg = None
         self.do_raw = args.do_raw
         self.raw_offset = args.raw_offset
@@ -211,6 +212,7 @@ class Main(object):
                 self.drop_files_path,
                 self.dump_path,
                 raw_offset=self.raw_offset,
+                emulate_children=self.emulate_children,
             )
             report = q.get()
         else:
@@ -229,7 +231,10 @@ class Main(object):
                     self.drop_files_path,
                     self.dump_path,
                 ),
-                kwargs={"raw_offset": self.raw_offset},
+                kwargs={
+                    "raw_offset": self.raw_offset,
+                    "emulate_children": self.emulate_children,
+                },
             )
             p.start()
 
@@ -264,7 +269,8 @@ class Main(object):
                     f.write(report)
 
 
-if __name__ == "__main__":
+def main():
+    """ speakeasy command line entrypoint """
 
     parser = argparse.ArgumentParser(
         description="Emulate a Windows binary with speakeasy"
@@ -375,6 +381,10 @@ if __name__ == "__main__":
         "PEs from this directory will be loaded into the\n"
         "emulated address space",
     )
+    parser.add_argument('-k', '--emulate-children', action='store_true', dest='emulate_children',
+                        required=False, help='Emulate any processes created with\n'
+                                             'the CreateProcess APIs after the\n'
+                                             'input file finishes emulating')
     parser.add_argument(
         "--no-mp",
         action="store_true",
@@ -385,4 +395,9 @@ if __name__ == "__main__":
         "speakeasy itself (using pdb.set_trace()).\n",
     )
 
+
     Main(parser)
+
+
+if __name__ == "__main__":
+    main()

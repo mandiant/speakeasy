@@ -12,6 +12,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
 from speakeasy.errors import ApiEmuError
+from speakeasy.profiler import Run
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 
@@ -943,23 +944,14 @@ class Kernel32(api.ApiHandler):
             def_flags = " | ".join(def_flags)
             argv[5] = def_flags
 
-        proc = emu.create_process(path=appstr, cmdline=cmdstr)
+        proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
         proc_hnd = self.get_object_handle(proc)
-
-        mod = proc.get_module()
-        # Map the PE image for the new process
-        emu.map_decoy(mod)
 
         thread = proc.threads[0]
         thread_hnd = self.get_object_handle(thread)
+
         if windefs.CREATE_SUSPENDED & flags:
             thread.suspend_count = 1
-
-        ctx = windefs.CONTEXT(emu.get_ptr_size())
-        if emu.get_arch() == e_arch.ARCH_X86:
-            ctx.Eax = proc.get_ep()
-            ctx.Eip = ctx.Eax
-            thread.set_context(ctx)
 
         _pi = self.k32types.PROCESS_INFORMATION(emu.get_ptr_size())
         data = self.mem_cast(_pi, ppi)
@@ -3662,7 +3654,7 @@ class Kernel32(api.ApiHandler):
         if f:
             # TODO add high offset, log access?
             f.seek(lDistanceToMove, dwMoveMethod)
-            rv = 1
+            rv = f.tell()
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
@@ -4055,7 +4047,7 @@ class Kernel32(api.ApiHandler):
         dest = int.from_bytes(dest_bytes, "little")
 
         if dest == Comperand:
-            self.mem_write(pDest, dest_bytes)
+            self.mem_write(pDest, ExChange.to_bytes(4, 'little'))
 
         return dest
 

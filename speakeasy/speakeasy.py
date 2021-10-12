@@ -235,7 +235,7 @@ class Speakeasy(object):
         return self.emu.load_module(path=path, data=data)
 
     @check_init
-    def run_module(self, module, all_entrypoints=False) -> None:
+    def run_module(self, module, all_entrypoints=False, emulate_children=False) -> None:
         """
         Run a previously loaded module through the configured emulator
 
@@ -243,11 +243,21 @@ class Speakeasy(object):
             module: The module whose entry point to be run
             all_entrypoints: If true, all exports will be emulated, otherwise
             just the main PE entry point is emulated.
+            emulate_children: If true, any child processes created by this
+            module will be emulated, otherwise, just this module is
+            emulated.
         return:
             None
         """
         self._init_hooks()
-        return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)
+
+        if isinstance(self.emu, Win32Emulator):
+            return self.emu.run_module(module=module,
+                    all_entrypoints=all_entrypoints,
+                    emulate_children=emulate_children)
+        else:
+            return self.emu.run_module(module=module,
+                    all_entrypoints=all_entrypoints)
 
     def load_shellcode(self, fpath, arch, data=None) -> int:
         """

@@ -4,7 +4,6 @@
 
 import platform
 import ctypes as ct
-import pkg_resources
 
 import unicorn as uc
 import unicorn.unicorn
@@ -27,10 +26,6 @@ _uc.uc_hook_add.argtypes = [
 ]
 _uc.uc_hook_add.restype = ct.c_uint32
 hook_id = ct.c_void_p()
-
-# Unicorn version we can assert on
-# 1.0.2
-__required_version__ = "1.0.2"
 
 
 def is_platform_intel():
@@ -66,11 +61,6 @@ class EmuEngine(object):
         self.emu = None
         self.mmap = None
         self._callbacks = {}
-
-        unicorn_ver = pkg_resources.get_distribution("unicorn").version
-        assert __required_version__ == unicorn_ver, "Requires unicorn version: %s" % (
-            __required_version__
-        )
 
         self.regs = {
             arch.X86_REG_EAX: u.UC_X86_REG_EAX,

@@ -27,7 +27,6 @@ RUN mkdir ${APP_HOME}
 WORKDIR ${APP_HOME}
 
 COPY ./speakeasy/ ${APP_HOME}/speakeasy
-COPY ./run_speakeasy.py ${APP_HOME}
 COPY ./setup.py ${APP_HOME}
 COPY ./README.md ${APP_HOME}
 COPY ./MANIFEST.in ${APP_HOME}

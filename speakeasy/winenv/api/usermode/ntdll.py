@@ -7,6 +7,7 @@ from .. import api
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.windows.common as winemu
 
 
 class Ntdll(api.ApiHandler):
@@ -91,7 +92,7 @@ class Ntdll(api.ApiHandler):
         hmod = 0
 
         req_lib = self.read_unicode_string(Name)
-        lib = self.normalize_dll_name(req_lib)
+        lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
 
@@ -212,6 +213,29 @@ class Ntdll(api.ApiHandler):
         (Ptr,) = argv
         # Just decrement the pointer for now like kernel32.DecodePointer
         rv = Ptr - 1
+
+        return rv
+
+    @apihook('NtWaitForSingleObject', argc=3)
+    def NtWaitForSingleObject(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI
+        NTSTATUS
+        NtWaitForSingleObject(
+            HANDLE         Handle,
+            BOOLEAN        Alertable,
+            PLARGE_INTEGER Timeout
+        );
+        '''
+        hHandle, alertable, timeout = argv
+
+        # Other documented return status are:
+        #      STATUS_TIMEOUT = 0x00000102
+        #      STATUS_ACCESS_DENIED = 0xC0000022
+        #      STATUS_ALERTED = 0x00000101
+        #      STATUS_INVALID_HANDLE = 0xC0000008
+        #      STATUS_USER_APC = 0x000000C0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 

@@ -135,7 +135,6 @@ class PeFile(pefile.PE):
         self.hash = self._hash_pe(path=path, data=data)
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
-
         self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
         self.image_size = self.OPTIONAL_HEADER.SizeOfImage
         self.import_table = {}
@@ -372,6 +371,25 @@ class PeFile(pefile.PE):
                 return True
         return False
 
+    def has_reloc_table(self):
+        return len(self.OPTIONAL_HEADER.DATA_DIRECTORY) >= 6 and \
+                self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
+
+    def rebase(self, to):
+        self.relocate_image(to)
+
+        self.base = to
+        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
+
+        # After relocation, generate a new memory mapped image
+        self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xf0000000)
+
+        self.pe_sections = self._get_pe_sections()
+        self.imports = self._get_pe_imports()
+        self.exports = self._get_pe_exports()
+        self._patch_imports()
+
+        return
 
 class DecoyModule(PeFile):
     """

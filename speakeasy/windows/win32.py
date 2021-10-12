@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import binascii
 import os
 import shlex
 
@@ -124,7 +125,7 @@ class Win32Emulator(WindowsEmulator):
 
             self.processes.append(p)
 
-    def load_module(self, path=None, data=None):
+    def load_module(self, path=None, data=None, first_time_setup=True):
         """
         Load a module into the emulator space from the specified path
         """
@@ -141,10 +142,12 @@ class Win32Emulator(WindowsEmulator):
             self.arch = pe.arch
             self.set_ptr_size(self.arch)
 
-        self.emu_eng.init_engine(_arch.ARCH_X86, pe.arch)
+        # No need to initialize the engine and Capstone again
+        if first_time_setup:
+            self.emu_eng.init_engine(_arch.ARCH_X86, pe.arch)
 
-        if not self.disasm_eng:
-            self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
+            if not self.disasm_eng:
+                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
         if not data:
             file_name = os.path.basename(path)
@@ -186,10 +189,69 @@ class Win32Emulator(WindowsEmulator):
 
         pe.set_emu_path(emu_path)
 
-        self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
+        # There's a bit of a problem here, if we cannot reserve memory
+        # at the PE's desired base address, and the relocation table
+        # is not present, we can't rebase it. So this is gonna have to
+        # be a bit of a hack for binaries without a relocation table.
+        # This logic is really only for child processes, since we're pretty
+        # much guarenteed memory at the base address of the main module.
+        #   1. If the memory at the child's desired load address is already
+        #      being used, remap it somewhere else. I'm pretty sure that
+        #      the already-used memory will always be for a module,
+        #      since desired load addresses don't really vary across PEs
+        #   2. Fix up any modules that speakeasy has open for the parent
+        #      to reflect where it was remapped
+        #   3. Try and grab memory at the child's desired base address,
+        #      if that isn't still isn't possible, we're out of luck
+        #
+        # But if the relocation table is present, we can rebase it,
+        # so we do that instead of the above hack.
+        imgbase = pe.OPTIONAL_HEADER.ImageBase
+        ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
+        base, size = ranges
+
+        if base != imgbase:
+            if pe.has_reloc_table():
+                pe.rebase(base)
+            else:
+                parent_map = self.get_address_map(imgbase)
+
+                # Already being used by the parent, so let's remap the parent
+                # Do get_valid_ranges on the parent map size so we get a
+                # suitable region for it
+                new_parent_mem, unused = self.get_valid_ranges(parent_map.size)
+                new_parent_mem = self.mem_remap(imgbase, new_parent_mem)
+
+                # Failed
+                if new_parent_mem == -1:
+                    # XXX what to do here
+                    pass
+
+                # Update parent module pointer
+                for pe_, ranges_, emu_path_ in self.modules:
+                    base_, size_ = ranges_
+
+                    if base_ == imgbase:
+                        self.modules.remove((pe_, ranges_, emu_path_))
+                        self.modules.append((pe_, (new_parent_mem, size_), emu_path_))
+                        break
+
+                # Alright, let's try to grab that memory for the child again
+                ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
+                base, size = ranges
+
+                if base != imgbase:
+                    # Out of luck
+                    # XXX what to do here
+                    pass
+
+        self.mem_map(pe.image_size, base=base,
+                tag='emu.module.%s' % (mod_name))
+
+        self.modules.append((pe, ranges, emu_path))
         self.mem_write(pe.base, pe.mapped_image)
 
-        self.setup()
+        self.setup(first_time_setup=first_time_setup)
 
         if not self.stack_base:
             self.stack_base, stack_addr = self.alloc_stack(0x12000)
@@ -206,14 +268,7 @@ class Win32Emulator(WindowsEmulator):
                 self.mem_write(addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
         return pe
 
-    def run_module(self, module, all_entrypoints=False):
-        """
-        Begin emulating a previously loaded module
-
-        Arguments:
-            module: Module to emulate
-        """
-
+    def prepare_module_for_emulation(self, module, all_entrypoints):
         if not module:
             self.stop()
             raise Win32EmuError("Module not found")
@@ -229,7 +284,6 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
-        # Queue up the module's main entry point
         ep = module.base + module.ep
 
         run = Run()
@@ -314,8 +368,19 @@ class Win32Emulator(WindowsEmulator):
                     # be called yet
                     self.add_run(run)
 
+        return
+
+    def run_module(self, module, all_entrypoints=False, emulate_children=False):
+        """
+        Begin emulating a previously loaded module
+
+        Arguments:
+            module: Module to emulate
+        """
+        self.prepare_module_for_emulation(module, all_entrypoints)
+
         # Create an empty process object for the module if none is
-        # supplied
+        # supplied, only do this for the main module
         if len(self.processes) == 0:
             p = objman.Process(
                 self,
@@ -343,8 +408,33 @@ class Win32Emulator(WindowsEmulator):
         # Set the TEB
         self.init_teb(t, peb)
 
-        # Begin emulation
+        # Begin emulation of main module
         self.start()
+
+        if not emulate_children or len(self.child_processes) == 0:
+            return
+
+        # Emulate any child processes
+        while len(self.child_processes) > 0:
+            child = self.child_processes.pop(0)
+
+            child.pe = self.load_module(data=child.pe_data,
+                    first_time_setup=False)
+            self.prepare_module_for_emulation(child.pe, all_entrypoints)
+
+            self.command_line = child.cmdline
+
+            self.curr_process = child
+            self.curr_process.base = child.pe.base
+            self.curr_thread = child.threads[0]
+
+            self.om.objects.update({self.curr_thread.address: self.curr_thread})
+
+            # PEB and TEB will be initialized when the next run happens
+
+            self.start()
+
+        return
 
     def emulate_module(self, path):
         """
@@ -493,7 +583,6 @@ class Win32Emulator(WindowsEmulator):
         """
         Allocate memory for the Process Environment Block (PEB)
         """
-
         if proc.is_peb_active:
             return
         size = proc.get_peb_ldr().sizeof()
@@ -516,10 +605,10 @@ class Win32Emulator(WindowsEmulator):
         """
         self.unhandled_exception_filter = handler_addr
 
-    def setup(self, stack_commit=0):
-
-        # Set the emulator to run in protected mode
-        self.om = objman.ObjectManager(emu=self)
+    def setup(self, stack_commit=0, first_time_setup=True):
+        if first_time_setup:
+            # Set the emulator to run in protected mode
+            self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()
         self._setup_gdt(arch)
@@ -651,6 +740,8 @@ class Win32Emulator(WindowsEmulator):
 
     def stop(self):
         self.run_complete = True
+        # self._unset_emu_hooks()
+        # self.unset_hooks()
         super(Win32Emulator, self).stop()
 
     def on_emu_complete(self):
