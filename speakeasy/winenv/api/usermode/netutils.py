@@ -7,7 +7,7 @@ from .. import api
 
 class NetUtils(api.ApiHandler):
 
-    name = 'netutils'
+    name = "netutils"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -16,7 +16,7 @@ class NetUtils(api.ApiHandler):
         super(NetUtils, self).__init__(emu)
         super(NetUtils, self).__get_hook_attrs__(self)
 
-    @apihook('NetApiBufferFree', argc=1)
+    @apihook("NetApiBufferFree", argc=1)
     def NetApiBufferFree(self, emu, argv, ctx={}):
         """
         NET_API_STATUS NET_API_FUNCTION NetApiBufferFree(

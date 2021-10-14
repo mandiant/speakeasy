@@ -9,7 +9,7 @@ from speakeasy import Speakeasy
 
 
 def get_test_bin_path(bin_name):
-    fp = os.path.join(os.path.dirname(__file__), 'bins', bin_name)
+    fp = os.path.join(os.path.dirname(__file__), "bins", bin_name)
     return fp
 
 
@@ -21,8 +21,8 @@ def get_test_bin_data(bin_name):
 
 
 def get_config():
-    fp = os.path.join(os.path.dirname(__file__), 'test.json')
-    with open(fp, 'r') as f:
+    fp = os.path.join(os.path.dirname(__file__), "test.json")
+    with open(fp, "r") as f:
         return json.load(f)
 
 

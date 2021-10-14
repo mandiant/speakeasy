@@ -23,7 +23,7 @@ class WinHttp(api.ApiHandler):
     Implements HTTP functions from winhttp.dll
     """
 
-    name = 'winhttp'
+    name = "winhttp"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -37,7 +37,7 @@ class WinHttp(api.ApiHandler):
         self.netman = netman.NetworkManager(config=emu.get_network_config())
         super(WinHttp, self).__get_hook_attrs__(self)
 
-    @apihook('WinHttpOpen', argc=5, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpOpen(self, emu, argv, ctx={}):
         """
         WINHTTPAPI HINTERNET WinHttpOpen(
@@ -65,7 +65,7 @@ class WinHttp(api.ApiHandler):
         hnd = conn.get_handle()
         return hnd
 
-    @apihook('WinHttpConnect', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpConnect", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpConnect(self, emu, argv, ctx={}):
         """
         WINHTTPAPI HINTERNET WinHttpConnect(
@@ -86,12 +86,11 @@ class WinHttp(api.ApiHandler):
         if not wini:
             return 0
 
-        sess = wini.new_session(server, port, None, None,
-                                0, 0, None)
+        sess = wini.new_session(server, port, None, None, 0, 0, None)
         hdl = sess.get_handle()
         return hdl
 
-    @apihook('WinHttpOpenRequest', argc=7, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpOpenRequest", argc=7, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpOpenRequest(self, emu, argv, ctx={}):
         """
         WINHTTPAPI HINTERNET WinHttpOpenRequest(
@@ -123,7 +122,7 @@ class WinHttp(api.ApiHandler):
             argv[5] = accepts
 
         defs = windefs.get_flag_defines(flags)
-        argv[6] = ' | '.join(defs)
+        argv[6] = " | ".join(defs)
 
         sess = self.netman.get_wininet_object(hnd)
         req = sess.new_request(verb, objname, ver, ref, accepts, defs, None)
@@ -131,7 +130,9 @@ class WinHttp(api.ApiHandler):
 
         return hdl
 
-    @apihook('WinHttpGetIEProxyConfigForCurrentUser', argc=1, conv=_arch.CALL_CONV_STDCALL)
+    @apihook(
+        "WinHttpGetIEProxyConfigForCurrentUser", argc=1, conv=_arch.CALL_CONV_STDCALL
+    )
     def WinHttpGetIEProxyConfigForCurrentUser(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpGetIEProxyConfigForCurrentUser(
@@ -139,14 +140,14 @@ class WinHttp(api.ApiHandler):
         );
         """
 
-        proxy_config, = argv
+        (proxy_config,) = argv
 
         if proxy_config:
-            self.mem_write(proxy_config, (1).to_bytes(4, 'little'))
+            self.mem_write(proxy_config, (1).to_bytes(4, "little"))
 
         return True
 
-    @apihook('WinHttpGetProxyForUrl', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpGetProxyForUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpGetProxyForUrl(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpGetProxyForUrl(
@@ -165,7 +166,7 @@ class WinHttp(api.ApiHandler):
 
         return True
 
-    @apihook('WinHttpSetOption', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpSetOption(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpSendRequest(
@@ -182,7 +183,7 @@ class WinHttp(api.ApiHandler):
 
         return True
 
-    @apihook('WinHttpSendRequest', argc=7, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpSendRequest", argc=7, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpSendRequest(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpSendRequest(
@@ -197,7 +198,7 @@ class WinHttp(api.ApiHandler):
         """
         hnd, headers, hdrlen, lpOptional, dwOptionalLength, totlen, context = argv
 
-        body = b''
+        body = b""
 
         if headers:
             headers = self.read_mem_string(headers, 2)
@@ -216,11 +217,17 @@ class WinHttp(api.ApiHandler):
         rv = 1
         req_str = req.format_http_request(headers=headers)
 
-        self.log_http(srv, port, headers=req_str,
-                      body=body, secure=req.is_secure())
+        self.log_network(
+            srv + req.objname.path,
+            port,
+            headers=req_str,
+            data=body,
+            proto="https" if not req.is_secure() else "http",
+            method=req.verb.upper(),
+        )
         return rv
 
-    @apihook('WinHttpReceiveResponse', argc=2, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpReceiveResponse", argc=2, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpReceiveResponse(self, emu, argv, ctx={}):
         """
         WINHTTPAPI BOOL WinHttpReceiveResponse(
@@ -232,7 +239,7 @@ class WinHttp(api.ApiHandler):
 
         return True
 
-    @apihook('WinHttpReadData', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpReadData", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpReadData(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpReadData(
@@ -254,11 +261,11 @@ class WinHttp(api.ApiHandler):
             self.mem_write(buf, data)
 
         if bytes_read:
-            self.mem_write(bytes_read, (len(data)).to_bytes(4, 'little'))
+            self.mem_write(bytes_read, (len(data)).to_bytes(4, "little"))
 
         return rv
 
-    @apihook('WinHttpCrackUrl', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpCrackUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpCrackUrl(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpCrackUrl(
@@ -282,13 +289,13 @@ class WinHttp(api.ApiHandler):
             url_comp = self.mem_cast(uc, lpUrlComponents)
 
             crack = urlparse(url)
-            if crack.scheme == 'https':
+            if crack.scheme == "https":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
-            elif crack.scheme == 'http':
+            elif crack.scheme == "http":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
             if url_comp.dwHostNameLength > 0:
                 if url_comp.lpszHostName:
-                    host = crack.netloc + '\x00'
+                    host = crack.netloc + "\x00"
                     enc = self.get_encoding(cw)
                     self.mem_write(url_comp.lpszHostName, host.encode(enc))
                 else:
@@ -301,7 +308,7 @@ class WinHttp(api.ApiHandler):
 
         return rv
 
-    @apihook('WinHttpAddRequestHeaders', argc=4, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpAddRequestHeaders", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpAddRequestHeaders(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpAddRequestHeaders(
@@ -316,22 +323,22 @@ class WinHttp(api.ApiHandler):
         headers = self.read_wide_string(headers, dwHeaderlen)
         argv[1] = headers
         flags = windefs.get_header_info_winhttp(dwModfier)
-        argv[3] = ' | '.join(flags)
+        argv[3] = " | ".join(flags)
         rv = 1
 
         return rv
 
-    @apihook('WinHttpQueryHeaders', argc=6, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpQueryHeaders", argc=6, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpQueryHeaders(self, emu, argv, ctx={}):
         """
-       BOOLAPI WinHttpQueryHeaders(
-          HINTERNET hRequest,
-          DWORD     dwInfoLevel,
-          LPCWSTR   pwszName,
-          LPVOID    lpBuffer,
-          LPDWORD   lpdwBufferLength,
-          LPDWORD   lpdwIndex
-        );
+        BOOLAPI WinHttpQueryHeaders(
+           HINTERNET hRequest,
+           DWORD     dwInfoLevel,
+           LPCWSTR   pwszName,
+           LPVOID    lpBuffer,
+           LPDWORD   lpdwBufferLength,
+           LPDWORD   lpdwIndex
+         );
         """
         hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
 
@@ -344,7 +351,7 @@ class WinHttp(api.ApiHandler):
 
         # If program checks for WINHTTP_QUERY_STATUS_CODE and the buffer is set, write '200' to buffer
         if (header_query == windefs.WINHTTP_QUERY_STATUS_CODE) and (buffer != 0):
-            self.mem_write(buffer, b'\x32\x00\x30\x00\x30\x00\x00\x00')
+            self.mem_write(buffer, b"\x32\x00\x30\x00\x30\x00\x00\x00")
             argv[3] = buffer
             self.mem_write(bufferLen, 8)
             argv[4] = bufferLen
@@ -354,7 +361,7 @@ class WinHttp(api.ApiHandler):
 
         return rv
 
-    @apihook('WinHttpCloseHandle', argc=1, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WinHttpCloseHandle", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpCloseHandle(self, emu, argv, ctx={}):
         """
         BOOLAPI WinHttpCloseHandle(

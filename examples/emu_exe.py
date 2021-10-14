@@ -8,7 +8,7 @@ def get_logger():
     """
     Get the default logger for speakeasy
     """
-    logger = logging.getLogger('emu_exe')
+    logger = logging.getLogger("emu_exe")
     if not logger.handlers:
         sh = logging.StreamHandler()
         logger.addHandler(sh)
@@ -37,7 +37,7 @@ def hook_ntreadfile(emu, api_name, func, params):
     logger.log(logging.INFO, data)
 
     # Write something to the buffer instead
-    emu.mem_write(buf, b'A' * size)
+    emu.mem_write(buf, b"A" * size)
 
     return rv
 
@@ -48,10 +48,7 @@ def main(args):
     se = speakeasy.Speakeasy(logger=get_logger())
 
     # Hook ntdll!NtReadFile so we can modify the returned buffer
-    se.add_api_hook(hook_ntreadfile,
-                    'ntdll',
-                    'NtReadFile'
-                    )
+    se.add_api_hook(hook_ntreadfile, "ntdll", "NtReadFile")
 
     # Load the module into the emulation space
     module = se.load_module(args.file)
@@ -60,10 +57,18 @@ def main(args):
     se.run_module(module)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Emulate an EXE and call its entry point')
-    parser.add_argument('-f', '--file', action='store', dest='file',
-                        required=True, help='Path of EXE to emulate')
+    parser = argparse.ArgumentParser(
+        description="Emulate an EXE and call its entry point"
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        action="store",
+        dest="file",
+        required=True,
+        help="Path of EXE to emulate",
+    )
     args = parser.parse_args()
     main(args)

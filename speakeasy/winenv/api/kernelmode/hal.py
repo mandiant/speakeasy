@@ -11,7 +11,7 @@ class Hal(api.ApiHandler):
     Windows to interact with hardware at a high level.
     """
 
-    name = 'hal'
+    name = "hal"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -27,7 +27,7 @@ class Hal(api.ApiHandler):
 
         super(Hal, self).__get_hook_attrs__(self)
 
-    @apihook('KeGetCurrentIrql', argc=0)
+    @apihook("KeGetCurrentIrql", argc=0)
     def KeGetCurrentIrql(self, emu, argv, ctx={}):
         """
         NTHALAPI KIRQL KeGetCurrentIrql();
@@ -35,7 +35,7 @@ class Hal(api.ApiHandler):
         irql = emu.get_current_irql()
         return irql
 
-    @apihook('ExAcquireFastMutex', argc=1, conv=_arch.CALL_CONV_FASTCALL)
+    @apihook("ExAcquireFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ExAcquireFastMutex(self, emu, argv, ctx={}):
         """
         VOID ExAcquireFastMutex(
@@ -44,7 +44,7 @@ class Hal(api.ApiHandler):
         """
         return
 
-    @apihook('ExReleaseFastMutex', argc=1, conv=_arch.CALL_CONV_FASTCALL)
+    @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ExReleaseFastMutex(self, emu, argv, ctx={}):
         """
         VOID ExReleaseFastMutex(

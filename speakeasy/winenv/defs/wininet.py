@@ -165,7 +165,7 @@ class URL_COMPONENTS(EmuStruct):
         self.dwExtraInfoLength = ct.c_uint32
 
 
-def get_const_defines(flags, prefix=''):
+def get_const_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if isinstance(v, int):
@@ -179,26 +179,26 @@ def get_const_defines(flags, prefix=''):
 
 
 def get_flag_defines(flags):
-    return get_const_defines(flags, prefix='INTERNET_FLAG')
+    return get_const_defines(flags, prefix="INTERNET_FLAG")
 
 
 def get_header_info(info):
     for k, v in globals().items():
-        if k.startswith('HTTP_QUERY') and v == info:
+        if k.startswith("HTTP_QUERY") and v == info:
             return k
 
 
 def get_option_define(opt):
     for k, v in globals().items():
-        if k.startswith('INTERNET_OPTION_') and v == opt:
+        if k.startswith("INTERNET_OPTION_") and v == opt:
             return k
 
 
 def get_header_info_winhttp(flags):
-    return get_const_defines(flags, prefix='WINHTTP_ADDREQ_')
+    return get_const_defines(flags, prefix="WINHTTP_ADDREQ_")
 
 
 def get_header_query(opt):
     for k, v in globals().items():
-        if k.startswith('WINHTTP_QUERY_') and v == opt:
+        if k.startswith("WINHTTP_QUERY_") and v == opt:
             return k

@@ -63,7 +63,7 @@ class KEY_VALUE_FULL_INFORMATION(EmuStruct):
         self.NameLength = ct.c_uint32
 
 
-def get_defines(define, prefix=''):
+def get_defines(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -79,8 +79,8 @@ def get_flag_value(flag):
 
 
 def get_value_type(define):
-    return get_defines(define, prefix='REG_')
+    return get_defines(define, prefix="REG_")
 
 
 def get_hkey_type(define):
-    return get_defines(define, prefix='HKEY_')
+    return get_defines(define, prefix="HKEY_")

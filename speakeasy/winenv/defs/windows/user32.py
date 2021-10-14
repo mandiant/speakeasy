@@ -63,7 +63,7 @@ class WNDCLASSEX(EmuStruct):
         self.hIconSm = Ptr
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -75,4 +75,4 @@ def get_flag_defines(flags, prefix=''):
 
 
 def get_windowhook_flags(flags):
-    return get_flag_defines(flags, prefix='WH_')
+    return get_flag_defines(flags, prefix="WH_")

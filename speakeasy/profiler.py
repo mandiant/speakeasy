@@ -1,21 +1,21 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 # Data format versioning
-__report_version__ = '1.1.0'
+__report_version__ = "1.1.0"
 
 import time
 import json
 import hashlib
 
 from collections import deque
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
-PROC_CREATE = 'create'
-MEM_ALLOC = 'mem_alloc'
-MEM_WRITE = 'mem_write'
-MEM_READ = 'mem_read'
-MEM_PROTECT = 'mem_protect'
-THREAD_INJECT = 'thread_inject'
+PROC_CREATE = "create"
+MEM_ALLOC = "mem_alloc"
+MEM_WRITE = "mem_write"
+MEM_READ = "mem_read"
+MEM_PROTECT = "mem_protect"
+THREAD_INJECT = "thread_inject"
 
 
 class ProfileError(Exception):
@@ -26,6 +26,7 @@ class MemAccess(object):
     """
     Represents a symbolicated chunk of memory that can be tracked
     """
+
     def __init__(self, base=None, sym=None, size=0):
         self.base = base
         self.size = size
@@ -41,18 +42,19 @@ class Run(object):
     A "run" can represent any form of execution: a thread, a callback, an exported function,
     or even a child process.
     """
+
     def __init__(self):
         self.instr_cnt = 0
         self.ret_val = None
         self.apis = []
         self.sym_access = {}
-        self.network = {'dns': [], 'traffic': []}
+        self.network = {"dns": [], "traffic": []}
         self.file_access = []
         self.dropped_files = []
         self.registry_access = []
         self.process_events = []
         self.mem_access = {}
-        self.dyn_code = {'mmap': [], 'base_addrs': set()}
+        self.dyn_code = {"mmap": [], "base_addrs": set()}
         self.process_context = None
         self.thread = None
         self.unique_apis = []
@@ -82,12 +84,13 @@ class Profiler(object):
     The profiler class exists to generate an execution report
     for all runs that occur within a binary emulation.
     """
+
     def __init__(self):
         super(Profiler, self).__init__()
 
         self.start_time = 0
-        self.strings = {'ansi': [], 'unicode': []}
-        self.decoded_strings = {'ansi': [], 'unicode': []}
+        self.strings = {"ansi": [], "unicode": []}
+        self.decoded_strings = {"ansi": [], "unicode": []}
         self.last_data = [0, 0]
         self.last_event = {}
         self.set_start_time()
@@ -136,15 +139,15 @@ class Profiler(object):
         """
         Compress and encode binary data to be included in a report
         """
-        return b64encode(data).decode('utf-8')
+        return b64encode(data).decode("utf-8")
 
     def log_error(self, error):
         """
         Log a top level emulator error for the emulation report
         """
-        if not self.meta.get('errors'):
-            self.meta['errors'] = []
-        self.meta['errors'].append(error)
+        if not self.meta.get("errors"):
+            self.meta["errors"] = []
+        self.meta["errors"].append(error)
 
     def log_dropped_files(self, run, files):
         for f in files:
@@ -153,7 +156,7 @@ class Profiler(object):
                 continue
 
             _hash = f.get_hash()
-            entry = {'path': f.get_path(), 'size': len(data), 'sha256': _hash}
+            entry = {"path": f.get_path(), "size": len(data), "sha256": _hash}
             run.dropped_files.append(entry)
 
     def log_api(self, run, pc, name, ret, argv, ctx=[]):
@@ -164,7 +167,7 @@ class Profiler(object):
         run.num_apis += 1
 
         if name not in run.unique_apis:
-            run.api_hash.update(name.lower().encode('utf-8'))
+            run.api_hash.update(name.lower().encode("utf-8"))
             run.unique_apis.append(name)
 
         if not run.apis:
@@ -180,57 +183,65 @@ class Profiler(object):
             if isinstance(arg, int):
                 args[i] = hex(arg)
 
-        entry = {'pc': pc, 'api_name': name, 'args': args, 'ret_val': ret}
+        entry = {"pc": pc, "api_name": name, "args": args, "ret_val": ret}
 
         if entry not in run.apis[-3:]:
             run.apis.append(entry)
 
-    def log_file_access(self, run, path, event_type, data=None,
-                        handle=0, disposition=[], access=[], buffer=0,
-                        size=None):
+    def log_file_access(
+        self,
+        run,
+        path,
+        event_type,
+        data=None,
+        handle=0,
+        disposition=[],
+        access=[],
+        buffer=0,
+        size=None,
+    ):
         """
         Log file access events. This will include things like handles being opened,
         data reads, and data writes.
         """
-        enc = None
+        if isinstance(data, bytes):
+            data = self.handle_binary_data(data)
+
+        event = {"event": event_type, "path": path}
         if data:
-            enc = self.handle_binary_data(data[:1024])
-
-        for et in ('write', 'read'):
-            if event_type == et:
-                for fa in run.file_access:
-                    if path == fa.get('path') and fa['event'] == et:
-                        if size:
-                            fa['size'] += size
-                        if enc:
-                            fa["data"] += enc
-                        return
-
-        event = {'event': event_type, 'path': path}
-        if enc:
-            event.update({'data': enc})
+            event.update({"data": data})
 
         if handle:
-            event.update({'handle': handle})
+            event.update({"handle": handle})
 
         if size is not None:
-            event.update({'size': size})
+            event.update({"size": size})
 
         if buffer:
-            event.update({'buffer': hex(buffer)})
+            event.update({"buffer": hex(buffer)})
 
         if disposition:
-            event.update({'open_flags': disposition})
+            event.update({"open_flags": disposition})
 
         if access:
-            event.update({'access_flags': access})
-
+            event.update({"access_flags": access})
+        event["clock"] = run.get_api_count()
         if event not in run.file_access:
             run.file_access.append(event)
 
-    def log_registry_access(self, run, path, event_type, value_name=None, data=None,
-                            handle=0, disposition=[], access=[], buffer=0,
-                            size=None):
+    def log_registry_access(
+        self,
+        run,
+        path,
+        event_type,
+        value_name=None,
+        data=None,
+        handle=0,
+        disposition=[],
+        access=[],
+        buffer=0,
+        size=None,
+    ):
         """
         Log registry access events. This includes values and keys being accessed and
         being read/written
@@ -239,27 +250,27 @@ class Profiler(object):
         if data:
             enc = self.handle_binary_data(data[:1024])
 
-        event = {'event': event_type, 'path': path}
+        event = {"event": event_type, "path": path, "clock": run.get_api_count()}
         if enc:
-            event.update({'data': enc})
+            event.update({"data": enc})
 
         if handle:
-            event.update({'handle': hex(handle)})
+            event.update({"handle": hex(handle)})
 
         if value_name:
-            event.update({'value_name': value_name})
+            event.update({"value_name": value_name})
 
         if size is not None:
-            event.update({'size': size})
+            event.update({"size": size})
 
         if buffer:
-            event.update({'buffer': hex(buffer)})
+            event.update({"buffer": hex(buffer)})
 
         if disposition:
-            event.update({'open_flags': disposition})
+            event.update({"open_flags": disposition})
 
         if access:
-            event.update({'access_flags': access})
+            event.update({"access_flags": access})
 
         if event not in run.registry_access:
             run.registry_access.append(event)
@@ -272,127 +283,129 @@ class Profiler(object):
         """
         event = {}
         if event_type == PROC_CREATE:
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
-            event.update({'cmdline': proc.get_command_line()})
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
+            event.update({"cmdline": proc.get_command_line()})
 
         elif event_type == MEM_ALLOC:
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
             event.update(kwargs)
 
         elif event_type == MEM_PROTECT:
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
             event.update(kwargs)
 
         elif event_type == MEM_WRITE:
-            base = kwargs['base']
-            size = kwargs['size']
-            data = kwargs['data']
+            base = kwargs["base"]
+            size = kwargs["size"]
+            data = kwargs["data"]
             last_base, last_size = self.last_data
-            last_evt_type = self.last_event.get('event')
+            last_evt_type = self.last_event.get("event")
             if event_type == last_evt_type and (last_base + last_size) == base:
-                self.last_event['data'] += data
-                self.last_event['size'] += len(data)
+                self.last_event["data"] += data
+                self.last_event["size"] += len(data)
                 self.last_data = [base, size]
                 return
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
-            data = kwargs['data']
-            event.update({'data': data})
-            event.update({'base': base})
-            event.update({'size': size})
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
+            data = kwargs["data"]
+            event.update({"data": data})
+            event.update({"base": base})
+            event.update({"size": size})
             self.last_data = [base, size]
 
         elif event_type == MEM_READ:
-            base = kwargs['base']
-            size = kwargs['size']
-            data = kwargs['data']
+            base = kwargs["base"]
+            size = kwargs["size"]
+            data = kwargs["data"]
             last_base, last_size = self.last_data
-            last_evt_type = self.last_event.get('event')
+            last_evt_type = self.last_event.get("event")
             if event_type == last_evt_type and (last_base + last_size) == base:
-                self.last_event['data'] += data
-                self.last_event['size'] += len(data)
+                self.last_event["data"] += data
+                self.last_event["size"] += len(data)
                 self.last_data = [base, size]
                 return
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
-            data = kwargs['data']
-            event.update({'data': data})
-            event.update({'size': size})
-            event.update({'base': base})
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
+            data = kwargs["data"]
+            event.update({"data": data})
+            event.update({"size": size})
+            event.update({"base": base})
             self.last_data = [base, size]
 
         elif event_type == THREAD_INJECT:
-            event.update({'event': event_type})
-            event.update({'pid': proc.get_id()})
-            event.update({'path': proc.get_process_path()})
-            event.update({'start_addr': hex(kwargs['start_addr'])})
-            event.update({'param': hex(kwargs['param'])})
-
+            event.update({"event": event_type})
+            event.update({"pid": proc.get_id()})
+            event.update({"path": proc.get_process_path()})
+            event.update({"start_addr": hex(kwargs["start_addr"])})
+            event.update({"param": hex(kwargs["param"])})
+        event["clock"] = run.get_api_count()
         run.process_events.append(event)
         self.last_event = event
 
-    def log_dns(self, run, domain, ip=''):
+    def log_dns(self, run, domain, ip=""):
         """
         Log DNS name lookups for the emulation report
         """
 
-        query = {"query": domain, "response": ip}
-        if query not in run.network['dns']:
-            run.network['dns'].append(query)
+        query = {"query": domain, "response": ip, "clock": run.get_api_count()}
+        if query not in run.network["dns"]:
+            run.network["dns"].append(query)
 
-    def log_http(self, run, server, port, proto='http',
-                 headers='', body=b'', secure=False):
-        """
-        Log HTTP traffic that occur during emulation
-        """
-        conns = run.network['traffic']
-
-        proto = 'http'
-        if secure:
-            proto = 'https'
-
-        http_conn = {'server': server, 'proto': 'tcp.%s' % (proto), 'port': port,
-                     'headers': headers}
-        if body:
-            data = self.handle_binary_data(body[:0x3000])
-            http_conn.update({'body': data})
-
-        if http_conn not in conns:
-            conns.append(http_conn)
-
-    def log_dyn_code(self, run, tag, base, size):
+    def log_dyn_code(self, run, tag, base, size, content):
         """
         Log code that is generated at runtime and then executed
         """
 
-        if base not in run.dyn_code['base_addrs']:
-            entry = {'tag': tag, 'base': hex(base), 'size': hex(size)}
-            run.dyn_code['mmap'].append(entry)
-            run.dyn_code['base_addrs'].add(base)
+        if base not in run.dyn_code["base_addrs"]:
+            entry = {
+                "tag": tag,
+                "base": hex(base),
+                "size": hex(size),
+                "clock": run.get_api_count(),
+                "code": self.handle_binary_data(content),
+            }
+            run.dyn_code["mmap"].append(entry)
+            run.dyn_code["base_addrs"].add(base)
 
-    def log_network(self, run, server, port, typ='unknown', proto='unknown', data=b'', method=''):
+    def log_network(
+        self,
+        run,
+        server,
+        port,
+        typ=None,
+        proto="unknown",
+        data=b"",
+        method="",
+        headers="",
+    ):
         """
         Log network activity for an emulation run
         """
-        conns = run.network['traffic']
+        conns = run.network["traffic"]
 
-        conn = {'server': server, 'proto': proto, 'port': port}
+        conn = {
+            "server": server,
+            "proto": proto,
+            "port": port,
+            "clock": run.get_api_count(),
+        }
         if data:
             data = self.handle_binary_data(data[:0x3000])
-            conn.update({'data': data})
-
+            conn.update({"data": data})
+        if headers:
+            conn.update({"headers": headers})
         if method:
-            conn.update({'method': method})
-
-        conn.update({'type': typ})
+            conn.update({"method": method})
+        if typ:
+            conn.update({"type": typ})
 
         conns.append(conn)
 
@@ -410,9 +423,9 @@ class Profiler(object):
         profile = {}
 
         meta = self.meta
-        meta.update({'report_version': __report_version__})
-        meta.update({'emulation_total_runtime': round(self.runtime, 3)})
-        meta.update({'timestamp': int(self.start_time)})
+        meta.update({"report_version": __report_version__})
+        meta.update({"emulation_total_runtime": round(self.runtime, 3)})
+        meta.update({"timestamp": int(self.start_time)})
 
         # For now, we only support single file emulation
         exec_paths = []
@@ -431,75 +444,89 @@ class Profiler(object):
                 else:
                     args.append(a)
 
-            ep = {'ep_type': r.type,
-                  'start_addr': hex(r.start_addr),
-                  'ep_args': args,
-                  }
+            ep = {
+                "ep_type": r.type,
+                "start_addr": hex(r.start_addr),
+                "ep_args": args,
+            }
 
             if r.instr_cnt:
-                ep.update({'instr_count': r.instr_cnt})
+                ep.update({"instr_count": r.instr_cnt})
 
             ep.update(
-                  {
-                   'apihash': r.api_hash.hexdigest(),
-                   'apis': r.apis,
-                   'ret_val': ret,
-                   'error': r.error
-                  }
+                {
+                    "apihash": r.api_hash.hexdigest(),
+                    "apis": r.apis,
+                    "ret_val": ret,
+                    "error": r.error,
+                }
             )
 
             if r.handled_exceptions:
                 ep.update({"handled_exceptions": r.handled_exceptions})
 
-            if r.network and (r.network.get('dns', []) or
-                              r.network.get('traffic', {})):
-                ep.update({'network_events': r.network})
+            if r.network and (r.network.get("dns", []) or r.network.get("traffic", {})):
+                ep.update({"network_events": r.network})
 
             if r.file_access:
-                ep.update({'file_access': r.file_access})
+                ep.update({"file_access": r.file_access})
 
             if r.registry_access:
-                ep.update({'registry_access': r.registry_access})
+                ep.update({"registry_access": r.registry_access})
 
             if r.process_events:
                 for evt in r.process_events:
-                    if evt.get('event') in (MEM_WRITE, MEM_READ):
-                        evt['data'] = self.handle_binary_data(evt['data'][:1024])
-                    if evt.get('base'):
-                        evt['base'] = hex(evt['base'])
-                ep.update({'process_events': r.process_events})
+                    if evt.get("event") in (MEM_WRITE, MEM_READ):
+                        evt["data"] = self.handle_binary_data(evt["data"][:1024])
+                    if evt.get("base"):
+                        evt["base"] = hex(evt["base"])
+                ep.update({"process_events": r.process_events})
 
             if r.mem_access:
                 mem_accesses = []
                 for mmap, maccess in r.mem_access.items():
-                    mem_accesses.append({'tag': mmap.get_tag(),
-                                         'base': hex(mmap.get_base()),
-                                         'reads': maccess.reads,
-                                         'writes': maccess.writes,
-                                         'execs': maccess.execs})
+                    mem_accesses.append(
+                        {
+                            "tag": mmap.get_tag(),
+                            "base": hex(mmap.get_base()),
+                            "reads": maccess.reads,
+                            "writes": maccess.writes,
+                            "execs": maccess.execs,
+                        }
+                    )
 
-                ep.update({'mem_access': mem_accesses})
+                ep.update({"mem_access": mem_accesses})
 
                 sym_accesses = []
                 for address, maccess in r.sym_access.items():
-                    sym_accesses.append({'symbol': maccess.sym,
-                                         'reads': maccess.reads,
-                                         'writes': maccess.writes,
-                                         'execs': maccess.execs})
+                    sym_accesses.append(
+                        {
+                            "symbol": maccess.sym,
+                            "reads": maccess.reads,
+                            "writes": maccess.writes,
+                            "execs": maccess.execs,
+                        }
+                    )
                 if sym_accesses:
-                    ep.update({'sym_accesses': sym_accesses})
+                    ep.update({"sym_accesses": sym_accesses})
 
             if r.dyn_code:
-                ep.update({'dynamic_code_segments': r.dyn_code['mmap']})
+                ep.update({"dynamic_code_segments": r.dyn_code["mmap"]})
 
             exec_paths.append(ep)
 
             if r.dropped_files:
-                ep.update({'dropped_files': r.dropped_files})
+                ep.update({"dropped_files": r.dropped_files})
 
-        if (self.strings['ansi'] or self.strings['unicode'] or
-           self.decoded_strings['ansi'] or self.decoded_strings['unicode']):
-           meta.update({'strings': {'static':self.strings, 'in_memory': self.decoded_strings}})  # noqa
+        if (
+            self.strings["ansi"]
+            or self.strings["unicode"]
+            or self.decoded_strings["ansi"]
+            or self.decoded_strings["unicode"]
+        ):
+            meta.update(
+                {"strings": {"static": self.strings, "in_memory": self.decoded_strings}}
+            )  # noqa
         profile = {**profile, **meta}
-        profile.update({'entry_points': exec_paths})
+        profile.update({"entry_points": exec_paths})
         return profile

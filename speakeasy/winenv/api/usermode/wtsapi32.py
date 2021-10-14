@@ -17,7 +17,7 @@ class WTS_SESSION_INFO(EmuStruct):
 
 class WtsApi32(api.ApiHandler):
 
-    name = 'wtsapi32'
+    name = "wtsapi32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -28,7 +28,7 @@ class WtsApi32(api.ApiHandler):
         self.data = {}
         super(WtsApi32, self).__get_hook_attrs__(self)
 
-    @apihook('WTSEnumerateSessions', argc=5, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WTSEnumerateSessions", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def WTSEnumerateSessions(self, emu, argv, ctx={}):
         """
         BOOL WTSEnumerateSessions(
@@ -43,19 +43,19 @@ class WtsApi32(api.ApiHandler):
         hServer, res, ver, ppSessionInfo, pCount = argv
         rv = 0
 
-        fn = ctx['func_name']
+        fn = ctx["func_name"]
         cw = self.get_char_width(ctx)
 
-        winstatname = 'RDP-Tcp#1' + '\x00'
+        winstatname = "RDP-Tcp#1" + "\x00"
         if cw == 2:
-            sn = winstatname.encode('utf-16le')
+            sn = winstatname.encode("utf-16le")
         elif cw == 1:
-            sn = winstatname.encode('utf-8')
+            sn = winstatname.encode("utf-8")
 
         wsi = WTS_SESSION_INFO(emu.get_ptr_size())
 
         size = len(sn) + wsi.sizeof()
-        buf = self.mem_alloc(size=size, tag='api.%s' % (fn))
+        buf = self.mem_alloc(size=size, tag="api.%s" % (fn))
 
         wsi.SessionId = 1
         # Write the string at the end of the structure
@@ -69,22 +69,22 @@ class WtsApi32(api.ApiHandler):
 
         # Write the total session count
         if ppSessionInfo and pCount:
-            self.mem_write(pCount, (1).to_bytes(4, 'little'))
+            self.mem_write(pCount, (1).to_bytes(4, "little"))
             # Write the session buffer
-            self.mem_write(ppSessionInfo, (buf).to_bytes(self.get_ptr_size(), 'little'))
+            self.mem_write(ppSessionInfo, (buf).to_bytes(self.get_ptr_size(), "little"))
 
             rv = 1
 
         return rv
 
-    @apihook('WTSFreeMemory', argc=1, conv=_arch.CALL_CONV_STDCALL)
+    @apihook("WTSFreeMemory", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def WTSFreeMemory(self, emu, argv, ctx={}):
         """
         void WTSFreeMemory(
           IN PVOID pMemory
         );
         """
-        pMemory, = argv
+        (pMemory,) = argv
         rv = 1
 
         self.mem_free(pMemory)

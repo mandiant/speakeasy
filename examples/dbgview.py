@@ -4,9 +4,9 @@ import speakeasy
 
 
 class DbgView(speakeasy.Speakeasy):
-    '''
+    """
     Print debug port prints to the console
-    '''
+    """
 
     def __init__(self, debug=False):
         super(DbgView, self).__init__(debug=debug)
@@ -35,24 +35,26 @@ def main(args):
     dbg = DbgView()
     module = dbg.load_module(args.file)
 
-    dbg.add_api_hook(dbg.debug_print_hook,
-                     'ntoskrnl',
-                     'DbgPrint'
-                     )
+    dbg.add_api_hook(dbg.debug_print_hook, "ntoskrnl", "DbgPrint")
 
-    dbg.add_api_hook(dbg.debug_printex_hook,
-                     'ntoskrnl',
-                     'DbgPrintEx'
-                     )
+    dbg.add_api_hook(dbg.debug_printex_hook, "ntoskrnl", "DbgPrintEx")
 
     # Emulate the module
     dbg.run_module(module, all_entrypoints=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Print debug port prints to the console')
-    parser.add_argument('-f', '--file', action='store', dest='file',
-                        required=True, help='Path of driver to emulate')
+    parser = argparse.ArgumentParser(
+        description="Print debug port prints to the console"
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        action="store",
+        dest="file",
+        required=True,
+        help="Path of driver to emulate",
+    )
     args = parser.parse_args()
     main(args)

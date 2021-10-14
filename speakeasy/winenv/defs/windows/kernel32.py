@@ -220,7 +220,7 @@ class OSVERSIONINFOEX(EmuStruct):
         self.wReserved = ct.c_uint8
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -231,7 +231,7 @@ def get_define(define, prefix=''):
             return k
 
 
-def get_define_value(define, prefix=''):
+def get_define_value(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or k != define:
             continue
@@ -242,7 +242,7 @@ def get_define_value(define, prefix=''):
             return v
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):

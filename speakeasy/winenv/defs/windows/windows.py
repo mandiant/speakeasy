@@ -120,7 +120,6 @@ class UNICODE_STRING(EmuStruct):
 
 
 class EXCEPTION_POINTERS(EmuStruct):
-
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.ExceptionRecord = Ptr
@@ -275,8 +274,13 @@ class CONTEXT64(EmuStruct):
 
 def get_create_disposition(flags):
     disp = None
-    dispostions = ('CREATE_ALWAYS', 'CREATE_NEW', 'OPEN_ALWAYS',
-                   'OPEN_EXISTING', 'TRUNCATE_EXISTING')
+    dispostions = (
+        "CREATE_ALWAYS",
+        "CREATE_NEW",
+        "OPEN_ALWAYS",
+        "OPEN_EXISTING",
+        "TRUNCATE_EXISTING",
+    )
 
     for k, v in [(k, v) for k, v in globals().items() if k in dispostions]:
         if isinstance(v, int):
@@ -287,7 +291,7 @@ def get_create_disposition(flags):
     return disp
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -298,7 +302,7 @@ def get_define(define, prefix=''):
             return k
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -310,8 +314,8 @@ def get_flag_defines(flags, prefix=''):
 
 
 def get_page_rights(define):
-    return get_flag_defines(define, prefix='PAGE_')
+    return get_flag_defines(define, prefix="PAGE_")
 
 
 def get_creation_flags(flags):
-    return get_flag_defines(flags, prefix='CREATE_')
+    return get_flag_defines(flags, prefix="CREATE_")

@@ -8,7 +8,7 @@ def get_logger():
     """
     Get the default logger for speakeasy
     """
-    logger = logging.getLogger('emu_dll')
+    logger = logging.getLogger("emu_dll")
     if not logger.handlers:
         sh = logging.StreamHandler()
         logger.addHandler(sh)
@@ -32,11 +32,11 @@ def hook_messagebox(emu, api_name, func, params):
 
     hWnd, lpText, lpCaption, uType = params
 
-    msg = '%s text: %s' % (api_name, lpText)
+    msg = "%s text: %s" % (api_name, lpText)
     logger.log(logging.INFO, msg)
 
     # Lets read where the stack pointer is
-    logger.log(logging.INFO, 'Stack pointer is at: 0x%x' % (emu.reg_read('esp')))
+    logger.log(logging.INFO, "Stack pointer is at: 0x%x" % (emu.reg_read("esp")))
 
     return rv
 
@@ -53,16 +53,16 @@ def hook_mem_write(emu, access, address, size, value, ctx):
 
     # For a quick example, lets just log writes that occur to the stack
     for mm in emu.get_mem_maps():
-        if mm.tag and mm.tag.startswith('emu.stack'):
+        if mm.tag and mm.tag.startswith("emu.stack"):
             start = mm.get_base()
             end = start + mm.get_size()
             if start < address < end:
                 logger = get_logger()
 
                 # Get the assembly instruction that did the write
-                mnem, op, instr = emu.disasm(emu.reg_read('eip'), 0x20)
+                mnem, op, instr = emu.disasm(emu.reg_read("eip"), 0x20)
 
-                msg = 'Stack written to: instr: %s addr:0x%x' % (instr, address)
+                msg = "Stack written to: instr: %s addr:0x%x" % (instr, address)
                 logger.log(logging.INFO, msg)
     return
 
@@ -80,10 +80,7 @@ def main(args):
 
     # Hook user32!MessageBoxA/W and call our function; wild cards are supported here so we can
     # hook both versions with a single hook
-    se.add_api_hook(hook_messagebox,
-                    'user32',
-                    'MessageBox*'
-                    )
+    se.add_api_hook(hook_messagebox, "user32", "MessageBox*")
 
     # Hook all memory writes as an example
     se.add_mem_write_hook(hook_mem_write)
@@ -93,18 +90,26 @@ def main(args):
     arg1 = 0x1
     # Walk the DLLs exports
     for exp in module.get_exports():
-        if exp.name == 'emu_test_one':
+        if exp.name == "emu_test_one":
             # Call an export named 'emu_test_one' and emulate it
             se.call(exp.address, [arg0, arg1])
-        if exp.name == 'emu_test_two':
+        if exp.name == "emu_test_two":
             # Call an export named 'emu_test_two' and emulate it
             se.call(exp.address, [arg0, arg1])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Emulate a DLL and manually call its exports')
-    parser.add_argument('-f', '--file', action='store', dest='file',
-                        required=True, help='Path of DLL to emulate')
+    parser = argparse.ArgumentParser(
+        description="Emulate a DLL and manually call its exports"
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        action="store",
+        dest="file",
+        required=True,
+        help="Path of DLL to emulate",
+    )
     args = parser.parse_args()
     main(args)

@@ -48,7 +48,7 @@ SO_RCVBUF = 0x1002
 SOCK_BUF_SIZE = 0x2000
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -59,7 +59,7 @@ def get_flag_defines(flags, prefix=''):
     return defs
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -71,12 +71,12 @@ def get_define(define, prefix=''):
 
 
 def get_addr_family(define):
-    return get_define(define, prefix='AF_')
+    return get_define(define, prefix="AF_")
 
 
 def get_sock_type(define):
-    return get_define(define, prefix='SOCK_')
+    return get_define(define, prefix="SOCK_")
 
 
 def get_proto_type(define):
-    return get_define(define, prefix='IPPROTO_')
+    return get_define(define, prefix="IPPROTO_")

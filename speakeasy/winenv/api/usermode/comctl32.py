@@ -6,7 +6,7 @@ from .. import api
 
 class Comctl32(api.ApiHandler):
 
-    name = 'comctl32'
+    name = "comctl32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -19,14 +19,14 @@ class Comctl32(api.ApiHandler):
         self.netman = emu.get_network_manager()
         self.names = {}
 
-    @apihook('InitCommonControlsEx', argc=1)
+    @apihook("InitCommonControlsEx", argc=1)
     def InitCommonControlsEx(self, emu, argv, ctx={}):
         """
         BOOL InitCommonControlsEx(
             const INITCOMMONCONTROLSEX *picce
         );
         """
-        picce, = argv
+        (picce,) = argv
         rv = True
 
         return rv

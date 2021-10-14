@@ -14,7 +14,7 @@ class Crypt32(api.ApiHandler):
     Implements exported functions from user32.dll
     """
 
-    name = 'crypt32'
+    name = "crypt32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -27,9 +27,9 @@ class Crypt32(api.ApiHandler):
 
         super(Crypt32, self).__get_hook_attrs__(self)
 
-    @apihook('CryptStringToBinary', argc=7)
+    @apihook("CryptStringToBinary", argc=7)
     def CryptStringToBinary(self, emu, argv, ctx={}):
-        '''
+        """
         BOOL CryptStringToBinaryA(
         LPCSTR pszString,
         DWORD  cchString,
@@ -39,7 +39,7 @@ class Crypt32(api.ApiHandler):
         DWORD  *pdwSkip,
         DWORD  *pdwFlags
         );
-        '''
+        """
 
         cw = self.get_char_width(ctx)
 
@@ -55,7 +55,7 @@ class Crypt32(api.ApiHandler):
             return 1
 
         if type(s) != str:
-            s = s.decode('utf8')
+            s = s.decode("utf8")
 
         argv[0] = s
 
@@ -64,7 +64,7 @@ class Crypt32(api.ApiHandler):
         except Exception:
             return 0
 
-        cbBinary = int.from_bytes(self.mem_read(pcbBinary, 4), 'little')
+        cbBinary = int.from_bytes(self.mem_read(pcbBinary, 4), "little")
         out_len = len(decoded)
 
         if pbBinary == 0:
@@ -75,7 +75,7 @@ class Crypt32(api.ApiHandler):
             return 0
 
         self.mem_write(pbBinary, decoded)
-        self.mem_write(pcbBinary, out_len.to_bytes(4, 'little'))
+        self.mem_write(pcbBinary, out_len.to_bytes(4, "little"))
 
         if pdwSkip:
             self.mem_write(pdwSkip, b"\x00" * 4)
