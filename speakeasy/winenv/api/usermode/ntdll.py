@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import os
+import binascii 
 
 from .. import api
 
@@ -236,3 +237,19 @@ class Ntdll(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         return rv
+    
+    @apihook('RtlComputeCrc32', argc=3)
+    def RtlComputeCrc32(self, emu, argv, ctx={}):
+        '''
+        DWORD RtlComputeCrc32(
+            DWORD       dwInitial,
+            const BYTE* pData,
+            INT         iLen
+        )
+        '''
+        dwInitial, pData, iLen = argv
+
+        data_to_compute = self.mem_read(pData, iLen)
+        dwInitial = binascii.crc32(data_to_compute)
+
+        return dwInitial
