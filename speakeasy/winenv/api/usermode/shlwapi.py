@@ -293,3 +293,16 @@ class Shlwapi(api.ApiHandler):
         out += '\0'
         self.write_mem_string(out, pszPath, cw)
         return 1
+    
+    @apihook('PathCanonicalize', argc=2)
+    def PathCanonicalize(self, emu, argv, ctx={}):
+        """
+        BOOL PathCanonicalizeW(
+            [out] LPWSTR  pszBuf,
+            [in]  LPCWSTR pszPath
+        );
+        """
+        pszBuf, pszPath = argv
+        path = self.read_wide_string(pszPath)
+        self.write_wide_string(path, pszBuf)
+        return 1
