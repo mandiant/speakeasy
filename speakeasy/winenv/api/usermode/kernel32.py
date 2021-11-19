@@ -4829,7 +4829,7 @@ class Kernel32(api.ApiHandler):
           DWORD    dwOptions
         )
         """
-        return 0
+        return 1
 
     @apihook('GetBinaryType', argc=2)
     def GetBinaryType(self, emu, argv, ctx={}):
@@ -5519,3 +5519,24 @@ class Kernel32(api.ApiHandler):
             self.mem_write(lpFilename, out)
 
         return size
+
+    @apihook('GetThreadPriority', argc=1)
+    def GetThreadPriority(self, emu, argv, ctx={}):
+        """
+        HANDLE hThread;
+        """
+        return k32types.THREAD_PRIORITY_NORMAL
+
+    @apihook('UnhandledExceptionFilter', argc=1)
+    def UnhandledExceptionFilter(self, emu, argv, ctx={}):
+        """
+        _EXCEPTION_POINTERS *ExceptionInfo;
+        """
+        return k32types.EXCEPTION_CONTINUE_SEARCH
+
+    @apihook('SetUnhandledExceptionFilter', argc=1)
+    def SetUnhandledExceptionFilter(self, emu, argv, ctx={}):
+        """
+        LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter
+        """
+        return k32types.EXCEPTION_CONTINUE_SEARCH

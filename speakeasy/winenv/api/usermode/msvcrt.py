@@ -1463,3 +1463,70 @@ class Msvcrt(api.ApiHandler):
         s = self.read_wide_string(wcstr, count)
         self.write_string(s, mbstr)
         return len(s.encode("ascii"))
+
+    @apihook('_stricmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _stricmp(self, emu, argv, ctx={}):
+        """
+        int _stricmp(
+                const char *string1,
+                const char *string2
+                );
+        """
+        string1, string2 = argv
+        rv = 1
+
+        if not string1 or not string2:
+            return rv
+
+        cs1 = self.read_string(string1)
+        cs2 = self.read_string(string2)
+
+        argv[0] = cs1
+        argv[1] = cs2
+
+        if cs1.lower() == cs2.lower():
+            rv = 0
+
+        return rv
+
+    @apihook('_wcsicmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wcsicmp(self, emu, argv, ctx={}):
+        """
+        int wcsicmp(
+            const wchar_t *string1,
+            const wchar_t *string2
+            );
+        """
+        string1, string2 = argv
+        rv = 1
+
+        ws1 = self.read_wide_string(string1)
+        ws2 = self.read_wide_string(string2)
+
+        argv[0] = ws1
+        argv[1] = ws2
+
+        if ws1.lower() == ws2.lower():
+            rv = 0
+
+        return rv
+
+    @apihook('wcscmp', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcscmp(self, emu, argv, ctx={}):
+        """
+        int wcscmp(
+            const wchar_t *string1,
+            const wchar_t *string2,
+        );
+        """
+        s1, s2 = argv
+        rv = 1
+
+        string1 = self.read_wide_string(s1)
+        string2 = self.read_wide_string(s2)
+        if string1 == string2:
+            rv = 0
+        argv[0] = string1
+        argv[1] = string2
+
+        return rv

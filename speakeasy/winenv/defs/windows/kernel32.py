@@ -51,6 +51,10 @@ ComputerNameMax = 8
 
 GetFileExInfoStandard = 0
 
+EXCEPTION_CONTINUE_SEARCH = 0
+EXCEPTION_EXECUTE_HANDLER = 1
+
+THREAD_PRIORITY_NORMAL = 0
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
