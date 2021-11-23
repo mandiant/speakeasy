@@ -28,6 +28,7 @@ WORKDIR ${APP_HOME}
 
 COPY ./speakeasy/ ${APP_HOME}/speakeasy
 COPY ./setup.py ${APP_HOME}
+COPY ./requirements.txt ${APP_HOME}
 COPY ./README.md ${APP_HOME}
 COPY ./MANIFEST.in ${APP_HOME}
 COPY ./examples/ ${APP_HOME}/examples
