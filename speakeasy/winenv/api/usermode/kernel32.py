@@ -5,6 +5,7 @@ import ntpath
 import string
 import fnmatch
 import datetime
+import time 
 import ctypes as ct
 
 import speakeasy.winenv.arch as e_arch
@@ -4829,7 +4830,7 @@ class Kernel32(api.ApiHandler):
           DWORD    dwOptions
         )
         """
-        return 0
+        return 1
 
     @apihook('GetBinaryType', argc=2)
     def GetBinaryType(self, emu, argv, ctx={}):
@@ -5519,3 +5520,34 @@ class Kernel32(api.ApiHandler):
             self.mem_write(lpFilename, out)
 
         return size
+
+    @apihook('GetThreadPriority', argc=1)
+    def GetThreadPriority(self, emu, argv, ctx={}):
+        """
+        HANDLE hThread;
+        """
+        return k32types.THREAD_PRIORITY_NORMAL
+
+    @apihook('UnhandledExceptionFilter', argc=1)
+    def UnhandledExceptionFilter(self, emu, argv, ctx={}):
+        """
+        _EXCEPTION_POINTERS *ExceptionInfo;
+        """
+        return k32types.EXCEPTION_EXECUTE_HANDLER
+
+    @apihook('GetSystemTimePreciseAsFileTime', argc=1)
+    def GetSystemTimePreciseAsFileTime(self, emu, argv, ctx={}):
+        '''void GetSystemTimePreciseAsFileTime(
+          LPFILETIME lpSystemTimeAsFileTime
+        );'''
+
+        lpSystemTimeAsFileTime, = argv
+        ft = self.k32types.FILETIME(emu.get_ptr_size())
+
+        timestamp = 116444736000000000 + int(time.time_ns())
+        ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+        ft.dwHighDateTime = (timestamp >> 32)
+
+        self.mem_write(lpSystemTimeAsFileTime, self.get_bytes(ft))
+
+        return
