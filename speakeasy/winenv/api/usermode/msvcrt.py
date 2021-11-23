@@ -1530,3 +1530,30 @@ class Msvcrt(api.ApiHandler):
         argv[1] = string2
 
         return rv
+    
+    @apihook('_snwprintf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _snwprintf(self, emu, argv, ctx={}):
+        """
+               int _snwprintf(
+                   wchar_t *buffer,
+                   size_t count,
+                   const wchar_t *format [,
+                   argument] ...
+                   );
+               """
+        buf, cnt, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
+        fmt_str = self.read_wide_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        if not fmt_cnt:
+            self.write_wide_string(fmt_str, buf)
+            return len(fmt_str)
+
+        argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, argv)
+
+        self.write_wide_string(fin, buf)
+
+        argv = [buf, cnt, fmt] + argv
+        argv[2] = fmt_str
+        return len(fin)
