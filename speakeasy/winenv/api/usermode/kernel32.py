@@ -5,6 +5,7 @@ import ntpath
 import string
 import fnmatch
 import datetime
+import time 
 import ctypes as ct
 
 import speakeasy.winenv.arch as e_arch
@@ -5532,11 +5533,21 @@ class Kernel32(api.ApiHandler):
         """
         _EXCEPTION_POINTERS *ExceptionInfo;
         """
-        return k32types.EXCEPTION_CONTINUE_SEARCH
+        return k32types.EXCEPTION_EXECUTE_HANDLER
 
-    @apihook('SetUnhandledExceptionFilter', argc=1)
-    def SetUnhandledExceptionFilter(self, emu, argv, ctx={}):
-        """
-        LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter
-        """
-        return k32types.EXCEPTION_CONTINUE_SEARCH
+    @apihook('GetSystemTimePreciseAsFileTime', argc=1)
+    def GetSystemTimePreciseAsFileTime(self, emu, argv, ctx={}):
+        '''void GetSystemTimePreciseAsFileTime(
+          LPFILETIME lpSystemTimeAsFileTime
+        );'''
+
+        lpSystemTimeAsFileTime, = argv
+        ft = self.k32types.FILETIME(emu.get_ptr_size())
+
+        timestamp = 116444736000000000 + int(time.time_ns())
+        ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+        ft.dwHighDateTime = (timestamp >> 32)
+
+        self.mem_write(lpSystemTimeAsFileTime, self.get_bytes(ft))
+
+        return
