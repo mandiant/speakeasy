@@ -3,6 +3,7 @@
 from urllib.parse import urlparse
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.const import FILE_WRITE, FILE_CREATE
 
 from .. import api
 
@@ -49,7 +50,7 @@ class Urlmon(api.ApiHandler):
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
             argv[2] = name
-            self.log_file_access(name, 'create')
-            self.log_file_access(name, 'write')
+            self.log_file_access(name, FILE_CREATE)
+            self.log_file_access(name, FILE_WRITE)
 
         return rv

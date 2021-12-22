@@ -10,12 +10,7 @@ import hashlib
 from collections import deque
 from base64 import b64encode
 
-PROC_CREATE = 'create'
-MEM_ALLOC = 'mem_alloc'
-MEM_WRITE = 'mem_write'
-MEM_READ = 'mem_read'
-MEM_PROTECT = 'mem_protect'
-THREAD_INJECT = 'thread_inject'
+from speakeasy.const import PROC_CREATE, MEM_ALLOC, MEM_WRITE, MEM_READ, MEM_PROTECT, THREAD_INJECT, THREAD_CREATE
 
 
 class ProfileError(Exception):
@@ -329,7 +324,7 @@ class Profiler(object):
             event.update({'base': base})
             self.last_data = [base, size]
 
-        elif event_type == THREAD_INJECT:
+        elif event_type == THREAD_INJECT or event_type == THREAD_CREATE:
             event.update({'event': event_type})
             event.update({'pid': proc.get_id()})
             event.update({'path': proc.get_process_path()})
