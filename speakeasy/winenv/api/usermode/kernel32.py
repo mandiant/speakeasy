@@ -3368,7 +3368,7 @@ class Kernel32(api.ApiHandler):
                 elif disp == windefs.TRUNCATE_EXISTING:
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
-            self.log_file_access(target, op, disposition=cd, access=ad)
+            self.log_file_access(target, op, disposition=[cd], access=ad)
         return hnd
 
     @apihook('DeleteFile', argc=1)
