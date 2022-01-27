@@ -5551,3 +5551,17 @@ class Kernel32(api.ApiHandler):
         self.mem_write(lpSystemTimeAsFileTime, self.get_bytes(ft))
 
         return
+
+    @apihook('AddVectoredExceptionHandler', argc=2)
+    def AddVectoredExceptionHandler(self, emu, argv, ctx={}):
+        '''
+        PVOID AddVectoredExceptionHandler(
+            ULONG                       First,
+            PVECTORED_EXCEPTION_HANDLER Handler
+        );
+        '''
+        First, Handler = argv
+
+        emu.add_vectored_exception_handler(First, Handler)
+
+        return Handler
