@@ -1,5 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
-
+from speakeasy.const import PROC_CREATE
 from .. import api
 import shlex
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -92,7 +92,7 @@ class Shell32(api.ApiHandler):
             fn = '%s\\%s' % (dn, fn)
 
         proc = emu.create_process(path=fn, cmdline=param)
-        self.log_process_event(proc, 'create')
+        self.log_process_event(proc, PROC_CREATE)
 
         return 33
 

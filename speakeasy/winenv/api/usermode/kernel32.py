@@ -12,6 +12,8 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+from speakeasy.const import FILE_WRITE, FILE_CREATE, FILE_READ, PROC_CREATE, MEM_ALLOC, MEM_WRITE, MEM_READ, \
+    MEM_PROTECT, THREAD_INJECT, THREAD_CREATE
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -774,7 +776,7 @@ class Kernel32(api.ApiHandler):
             argv[0] = cmd
             app = cmd.split()[0]
             proc = emu.create_process(path=app, cmdline=cmd)
-            self.log_process_event(proc, 'create')
+            self.log_process_event(proc, PROC_CREATE)
             rv = 32
 
         return rv
@@ -898,7 +900,7 @@ class Kernel32(api.ApiHandler):
 
         rv = 1
 
-        self.log_process_event(proc, 'create')
+        self.log_process_event(proc, PROC_CREATE)
         return rv
 
     @apihook('VirtualAlloc', argc=4)
@@ -1012,7 +1014,7 @@ class Kernel32(api.ApiHandler):
                                      flags=flProtect, perms=emu_perms, process=obj)
                 mm = emu.get_address_map(buf)
 
-                self.log_process_event(obj, 'mem_alloc', base=buf,
+                self.log_process_event(obj, MEM_ALLOC, base=buf,
                                        size=dwSize, type=flAllocationType,
                                        protect=argv[4])
 
@@ -1054,7 +1056,7 @@ class Kernel32(api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.log_process_event(obj, 'mem_write', base=lpBaseAddress,
+        self.log_process_event(obj, MEM_WRITE, base=lpBaseAddress,
                                size=nSize, data=data)
 
         return rv
@@ -1097,7 +1099,7 @@ class Kernel32(api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.log_process_event(obj, 'mem_read', base=lpBaseAddress,
+        self.log_process_event(obj, MEM_READ, base=lpBaseAddress,
                                size=nSize, data=data)
 
         return rv
@@ -1132,10 +1134,10 @@ class Kernel32(api.ApiHandler):
 
         if is_remote:
             run_type = 'injected_thread_%s_%x' % (proc_path, proc_obj.get_id())
-            evt_type = 'thread_inject'
+            evt_type = THREAD_INJECT
         else:
             run_type = 'thread'
-            evt_type = 'thread'
+            evt_type = THREAD_CREATE
 
         handle, obj = self.create_thread(lpStartAddress, lpParameter,
                                          proc_obj, thread_type=run_type)
@@ -1362,7 +1364,7 @@ class Kernel32(api.ApiHandler):
             prot_def = ' | '.join(prot_def)
             argv[3] = prot_def
 
-        self.log_process_event(proc_obj, 'mem_protect', base=lpAddress,
+        self.log_process_event(proc_obj, MEM_PROTECT, base=lpAddress,
                                size=dwSize, protect=prot_def)
 
         return rv
@@ -3288,8 +3290,8 @@ class Kernel32(api.ApiHandler):
             _dst = self.read_mem_string(dst, cw)
             argv[1] = _dst
             self.file_open(_dst, create=True)
-            self.log_file_access(_dst, 'create')
-            self.log_file_access(_dst, 'write')
+            self.log_file_access(_dst, FILE_CREATE)
+            self.log_file_access(_dst, FILE_WRITE)
         return True
 
     @apihook('CreateFile', argc=7)
@@ -3424,7 +3426,7 @@ class Kernel32(api.ApiHandler):
             if lpBuffer:
                 _write_output(emu, data, lpBuffer, bytes_read)
 
-                self.log_file_access(path, 'read', buffer=lpBuffer, size=len(data))
+                self.log_file_access(path, FILE_READ, buffer=lpBuffer, size=len(data))
 
                 rv = True
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -3462,7 +3464,7 @@ class Kernel32(api.ApiHandler):
             if data:
                 f.add_data(data)
                 # Log the file event
-                self.log_file_access(path, 'write', data=data, buffer=lpBuffer, size=num_bytes)
+                self.log_file_access(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
                 data = data.hex()
                 argv[1] = "%s (%s)" % (hex(lpBuffer), data[:0x20])
