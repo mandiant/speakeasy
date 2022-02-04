@@ -126,10 +126,12 @@ class Msvcrt(api.ApiHandler):
             else:
                 if count == _TRUNCATE:
                     self.mem_write(wcstr, ws[:(sizeInWords - 1) * 2])
-                    self.mem_write(pReturnValue, struct.pack("<I",sizeInWords))
+                    if pReturnValue:
+                        self.mem_write(pReturnValue, struct.pack("<I",sizeInWords))
                 else:
                     self.mem_write(wcstr, ws[:count * 2])
-                    self.mem_write(pReturnValue, struct.pack("<I",count + 1))
+                    if pReturnValue:
+                        self.mem_write(pReturnValue, struct.pack("<I",count + 1))
 
         return rv
 
