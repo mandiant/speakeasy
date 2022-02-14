@@ -1294,15 +1294,6 @@ class User32(api.ApiHandler):
         # 983055
         return 983055
 
-    @apihook("GetMessagePos", argc=0)
-    def GetMenuCheckMarkDimensions(self, emu, argv, ctx={}):
-        '''
-        DWORD GetMessagePos();
-        '''
-        # >>> ctypes.windll.user32.GetMenuCheckMarkDimensions()
-        # 983055
-        return 983055
-
     @apihook("GetOpenClipboardWindow", argc=0)
     def GetOpenClipboardWindow(self, emu, argv, ctx={}):
         '''
