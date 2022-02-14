@@ -1248,3 +1248,123 @@ class User32(api.ApiHandler):
         self.mem_write(lpList + 4, locale.to_bytes(2, 'little'))
 
         return 1
+
+        @apihook("GetKBCodePage", argc=0)
+    def GetKBCodePage(self, emu, argv, ctx={}):
+        '''
+        INT GetKBCodePage();
+        '''
+        # >>> ctypes.windll.user32.GetKBCodePage()
+        # 437
+        # https://docs.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
+        return 437 # OEM United States
+
+    @apihook("GetClipboardViewer", argc=0)
+    def GetClipboardViewer(self, emu, argv, ctx={}):
+        '''
+        HWND GetClipboardViewer();
+        '''
+        hnd = 0
+
+        desk = self.sessman.get_current_desktop()
+        window = desk.get_desktop_window()
+        hnd = window.get_handle()
+
+        return hnd
+
+    @apihook("GetClipboardOwner", argc=0)
+    def GetClipboardOwner(self, emu, argv, ctx={}):
+        '''
+        HWND GetClipboardOwner();
+        '''
+        hnd = 0
+
+        desk = self.sessman.get_current_desktop()
+        window = desk.get_desktop_window()
+        hnd = window.get_handle()
+
+        return hnd
+
+    @apihook("GetMenuCheckMarkDimensions", argc=0)
+    def GetMenuCheckMarkDimensions(self, emu, argv, ctx={}):
+        '''
+        LONG GetMenuCheckMarkDimensions();
+        '''
+        # >>> ctypes.windll.user32.GetMenuCheckMarkDimensions()
+        # 983055
+        return 983055
+
+    @apihook("GetMessagePos", argc=0)
+    def GetMenuCheckMarkDimensions(self, emu, argv, ctx={}):
+        '''
+        DWORD GetMessagePos();
+        '''
+        # >>> ctypes.windll.user32.GetMenuCheckMarkDimensions()
+        # 983055
+        return 983055
+
+    @apihook("GetOpenClipboardWindow", argc=0)
+    def GetOpenClipboardWindow(self, emu, argv, ctx={}):
+        '''
+        HWND GetOpenClipboardWindow();
+        '''
+        hnd = 0
+
+        desk = self.sessman.get_current_desktop()
+        window = desk.get_desktop_window()
+        hnd = window.get_handle()
+
+        return hnd
+
+    @apihook("GetFocus", argc=0)
+    def GetFocus(self, emu, argv, ctx={}):
+        '''
+        HWND GetFocus();
+        '''
+        hnd = 0
+
+        desk = self.sessman.get_current_desktop()
+        window = desk.get_desktop_window()
+        hnd = window.get_handle()
+
+        return hnd
+
+    @apihook("GetCursor", argc=0)
+    def GetCursor(self, emu, argv, ctx={}):
+        '''
+        HCURSOR GetCursor();
+        '''
+        hnd = 0
+
+        desk = self.sessman.get_current_desktop()
+        window = desk.get_desktop_window()
+        hnd = window.get_handle()
+
+        return hnd
+
+    @apihook("GetClipboardSequenceNumber", argc=0)
+    def GetClipboardSequenceNumber(self, emu, argv, ctx={}):
+        '''
+        DWORD GetClipboardSequenceNumber();
+        '''
+        # >>> ctypes.windll.user32.GetClipboardSequenceNumber()
+        # 295
+        return 295
+
+    @apihook("GetCaretBlinkTime", argc=0)
+    def GetCaretBlinkTime(self, emu, argv, ctx={}):
+        '''
+        UINT GetCaretBlinkTime();
+        '''
+        # >>> ctypes.windll.user32.GetCaretBlinkTime()
+        # 530
+        return 530
+
+    @apihook("GetDoubleClickTime", argc=0)
+    def GetDoubleClickTime(self, emu, argv, ctx={}):
+        '''
+        UINT GetDoubleClickTime();
+        '''
+        # >>> ctypes.windll.user32.GetDoubleClickTime()
+        # 500
+        return 500
