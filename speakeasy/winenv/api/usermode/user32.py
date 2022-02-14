@@ -1249,7 +1249,7 @@ class User32(api.ApiHandler):
 
         return 1
 
-        @apihook("GetKBCodePage", argc=0)
+    @apihook("GetKBCodePage", argc=0)
     def GetKBCodePage(self, emu, argv, ctx={}):
         '''
         INT GetKBCodePage();
