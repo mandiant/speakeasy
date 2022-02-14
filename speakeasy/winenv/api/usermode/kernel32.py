@@ -5567,3 +5567,158 @@ class Kernel32(api.ApiHandler):
         emu.add_vectored_exception_handler(First, Handler)
 
         return Handler
+
+    @apihook("GetSystemDefaultUILanguage", argc=0)
+    def GetSystemDefaultUILanguage(self, emu, argv, ctx={}):
+        '''
+        LANGID GetSystemDefaultUILanguage();
+        '''
+        return int("0x0409", 16) #"English (United States)"
+
+    @apihook("GetUserDefaultLangID", argc=0)
+    def GetUserDefaultLangID(self, emu, argv, ctx={}):
+        '''
+        LANGID GetUserDefaultLangID();
+        '''
+        return int("0x0409", 16) #"English (United States)"
+
+    @apihook("FindResourceExW", argc=4)
+    def FindResourceExW(self, emu, argv, ctx={}):
+        '''
+        HRSRC FindResourceExW(
+            [in, optional] HMODULE hModule,
+            [in]           LPCWSTR lpType,
+            [in]           LPCWSTR lpName,
+            [in]           WORD    wLanguage
+        );
+        '''
+        # repeates code in FindResource()
+        cw = self.get_char_width(ctx)
+        hModule, lpType, lpName, wLanguage = argv
+        if hModule == 0:
+            pe = emu.modules[0][0]
+        else:
+            pe = emu.get_mod_from_addr(hModule)
+            if pe and hModule != pe.get_base():
+                return 0
+
+        name = self.normalize_res_identifier(emu, cw, lpName)
+        type_ = self.normalize_res_identifier(emu, cw, lpType)
+        res = self.find_resource(pe, name, type_)
+        if res is None:
+            return 0
+
+        hnd = self.get_handle()
+        self.find_resources.update({hnd: {"ptr": pe.get_base() + res.data.struct.OffsetToData,
+                                          "size": res.data.struct.Size}})
+        return hnd
+
+    @apihook("GetUserDefaultLCID", argc=0)
+    def GetUserDefaultLCID(self, emu, argv, ctx={}):
+        '''
+        LCID GetUserDefaultLCID();
+        '''
+        # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
+        return int("0x0400", 16)
+
+    @apihook("GetTempFileNameW", argc=4)
+    def GetTempFileNameW(self, emu, argv, ctx={}):
+        '''
+        UINT GetTempFileNameW(
+            [in]  LPCWSTR lpPathName,
+            [in]  LPCWSTR lpPrefixString,
+            [in]  UINT    uUnique,
+            [out] LPWSTR  lpTempFileName
+        );
+        '''
+        lpPathName, lpPrefixString, uUnique, lpTempFileName = argv
+
+        cw = self.get_char_width(ctx)
+        path = self.read_mem_string(lpPathName, cw)
+        prefix = self.read_mem_string(lpPrefixString, cw)
+
+        import time
+        if prefix:
+            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+        else:
+            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+        argv[1] = out
+        self.write_mem_string(out, lpTempFileName, cw)
+
+        return len(out) + 1
+
+    @apihook('_llseek', argc=3)
+    def _llseek(self, emu, argv, ctx={}):
+        """
+        LONG _llseek(
+            HFILE hFile,
+            LONG  lOffset,
+            int   iOrigin
+        );
+        """
+        hFile, lOffset, iOrigin = argv
+        rv = 0
+
+        f = self.file_get(hFile)
+        if f:
+            rv = f.tell()
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return rv
+
+    @apihook("_lopen", argc=2)
+    def _lopen(self, emu, argv, ctx={}):
+        '''
+        HFILE _lopen(
+            LPCSTR lpPathName,
+            int    iReadWrite
+        );
+        '''
+        lpFileName, iRedWrite = argv
+        cw = self.get_char_width(ctx)
+        filename = self.read_mem_string(lpFileName, cw)
+        fHandle = self.file_open(filename)
+        return fHandle
+
+    @apihook('_lclose', argc=1)
+    def _lclose(self, emu, argv, ctx={}):
+        '''
+        HFILE _lclose(
+            HFILE hFile
+            );
+        '''
+        hObject, = argv
+        obj = self.get_object_from_handle(hObject)
+        if obj:
+            emu.dec_ref(obj)
+            return True
+        return False
+
+    @apihook('GetConsoleTitle', argc=2)
+    def GetConsoleTitle(self, emu, argv, ctx={}):
+        '''
+        DWORD WINAPI GetConsoleTitle(
+            _Out_ LPTSTR lpConsoleTitle,
+            _In_  DWORD  nSize
+        ); 
+        '''   
+        #lpBuffer, nSize = argv
+        lpConsoleTitle, nSize = argv
+        cw = self.get_char_width(ctx)
+        rv = False
+
+        example_title = "explorer.exe"
+        argv[0] = example_title
+        argv[1] = len(example_title)
+
+        if lpConsoleTitle and example_title:
+            if cw == 2:
+                out = example_title.encode('utf-16le')
+            elif cw == 1:
+                out = example_title.encode('utf-8')
+            self.mem_write(lpConsoleTitle, out)
+            rv = True
+        if nSize:
+            self.mem_write(nSize, (len(example_title)).to_bytes(4, 'little'))
+
+        return rv
