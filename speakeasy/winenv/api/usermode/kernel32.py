@@ -5580,7 +5580,7 @@ class Kernel32(api.ApiHandler):
         '''
         LANGID GetUserDefaultLangID();
         '''
-        return int("0x0409", 16) #"English (United States)"
+        return 0x409 #"English (United States)"
 
     @apihook("FindResourceExW", argc=4)
     def FindResourceExW(self, emu, argv, ctx={}):
