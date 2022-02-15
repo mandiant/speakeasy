@@ -22,6 +22,8 @@ import speakeasy.winenv.defs.windows.kernel32 as k32types
 from .. import api
 
 PAGE_SIZE = 0x1000
+LANG_EN_US = 0x409
+LOCALE_USER_DEFAULT = 0x400
 
 
 class Kernel32(api.ApiHandler):
@@ -5573,14 +5575,14 @@ class Kernel32(api.ApiHandler):
         '''
         LANGID GetSystemDefaultUILanguage();
         '''
-        return 0x409 #"English (United States)"
+        return LANG_EN_US
 
     @apihook("GetUserDefaultLangID", argc=0)
     def GetUserDefaultLangID(self, emu, argv, ctx={}):
         '''
         LANGID GetUserDefaultLangID();
         '''
-        return 0x409 #"English (United States)"
+        return LANG_EN_US
 
     @apihook("FindResourceExW", argc=4)
     def FindResourceExW(self, emu, argv, ctx={}):
@@ -5619,7 +5621,7 @@ class Kernel32(api.ApiHandler):
         LCID GetUserDefaultLCID();
         '''
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
-        return 0x400
+        return LOCALE_USER_DEFAULT
 
     @apihook("GetTempFileNameW", argc=4)
     def GetTempFileNameW(self, emu, argv, ctx={}):
@@ -5656,11 +5658,14 @@ class Kernel32(api.ApiHandler):
             int   iOrigin
         );
         """
+        # _llseek is 16-bit variant of SetFilePointer
+        # code replicates SetFilePointer()
         hFile, lOffset, iOrigin = argv
         rv = 0
 
         f = self.file_get(hFile)
         if f:
+            f.seek(lOffset, 1) # io.SEEK_CUR == 1
             rv = f.tell()
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -5702,20 +5707,22 @@ class Kernel32(api.ApiHandler):
             _In_  DWORD  nSize
         ); 
         '''   
-        #lpBuffer, nSize = argv
         lpConsoleTitle, nSize = argv
         cw = self.get_char_width(ctx)
         rv = False
+        
+        # TODO: consider enumeration logic
+        temp_title = "explorer.exe"
+        
+        if cw == 2: 
+            temp_title = temp_title.encode('utf-16le') + b'\x00\x00' 
+        else: 
+            temp_title = temp_title.encode('utf-8') + b'\x00' 
 
-        example_title = "explorer.exe"
-        argv[0] = example_title
-        argv[1] = len(example_title)
+        argv[0] = temp_title
+        argv[1] = len(temp_title)
 
         if lpConsoleTitle and example_title:
-            if cw == 2:
-                out = example_title.encode('utf-16le')
-            elif cw == 1:
-                out = example_title.encode('utf-8')
             self.mem_write(lpConsoleTitle, out)
             rv = True
         if nSize:
