@@ -5619,7 +5619,7 @@ class Kernel32(api.ApiHandler):
         LCID GetUserDefaultLCID();
         '''
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
-        return int("0x0400", 16)
+        return 0x400
 
     @apihook("GetTempFileNameW", argc=4)
     def GetTempFileNameW(self, emu, argv, ctx={}):
