@@ -5722,10 +5722,10 @@ class Kernel32(api.ApiHandler):
         argv[0] = temp_title
         argv[1] = len(temp_title)
 
-        if lpConsoleTitle and example_title:
+        if lpConsoleTitle and temp_title:
             self.mem_write(lpConsoleTitle, out)
             rv = True
         if nSize:
-            self.mem_write(nSize, (len(example_title)).to_bytes(4, 'little'))
+            self.mem_write(nSize, (len(temp_title)).to_bytes(4, 'little'))
 
         return rv
