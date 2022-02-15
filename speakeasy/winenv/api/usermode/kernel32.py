@@ -5573,7 +5573,7 @@ class Kernel32(api.ApiHandler):
         '''
         LANGID GetSystemDefaultUILanguage();
         '''
-        return int("0x0409", 16) #"English (United States)"
+        return 0x409 #"English (United States)"
 
     @apihook("GetUserDefaultLangID", argc=0)
     def GetUserDefaultLangID(self, emu, argv, ctx={}):
