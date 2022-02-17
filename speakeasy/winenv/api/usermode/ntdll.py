@@ -292,9 +292,8 @@ class Ntdll(api.ApiHandler):
             if pe and DllHandle != pe.get_base():
                 return 0
 
-        # There has to be an easier way to dereference a pointer ...
-        type_ptr = int.from_bytes(self.mem_read(ResourceInfo, emu.get_ptr_size()), byteorder='little')
-        name_ptr = int.from_bytes(self.mem_read(ResourceInfo + emu.get_ptr_size(), emu.get_ptr_size()), byteorder='little')
+        type_ptr = emu.read_ptr(ResourceInfo)
+        name_ptr = emu.read_ptr(ResourceInfo  + emu.get_ptr_size())
 
         name = k32.normalize_res_identifier(emu, cw, name_ptr)
         _type = k32.normalize_res_identifier(emu, cw, type_ptr)
@@ -308,8 +307,8 @@ class Ntdll(api.ApiHandler):
 
         k32.find_resources.update({hnd: resource})
 
+        ptr_data_entry = emu.read_ptr(ResourceDataEntry)
         # Write the output struct ResourceDataEntry
-        ptr_data_entry = int.from_bytes(self.mem_read(ResourceDataEntry, emu.get_ptr_size()), byteorder='little')
         self.mem_write(ptr_data_entry, resource['ptr'].to_bytes(4, 'little'))
         self.mem_write(ptr_data_entry+4, resource['size'].to_bytes(4, 'little'))
 
@@ -326,8 +325,8 @@ class Ntdll(api.ApiHandler):
         '''
         BaseAddress, ResourceDataEntry, Resource, Size = argv
 
-        offset = int.from_bytes(self.mem_read(ResourceDataEntry, 4), byteorder='little')
-        size = int.from_bytes(self.mem_read(ResourceDataEntry + 4, 4), byteorder='little')
+        offset = emu.read_ptr(ResourceDataEntry)
+        size = emu.read_ptr(ResourceDataEntry + 4)
 
         # Fill in the Resource struct
         self.mem_write(Size, size.to_bytes(4, 'little'))
