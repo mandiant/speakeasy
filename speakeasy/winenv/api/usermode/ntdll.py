@@ -253,3 +253,84 @@ class Ntdll(api.ApiHandler):
         dwInitial = binascii.crc32(data_to_compute)
 
         return dwInitial
+
+    @apihook('LdrFindResource_U', argc=4)
+    def LdrFindResource_U(self, emu, argv, ctx={}):
+        '''
+        pub unsafe extern "system" fn LdrFindResource_U(
+            DllHandle: PVOID, 
+            ResourceInfo: PLDR_RESOURCE_INFO, 
+            Level: ULONG, 
+            ResourceDataEntry: *mut PIMAGE_RESOURCE_DATA_ENTRY
+        ) -> NTSTATUS
+
+         typedef struct _LDR_RESOURCE_INFO
+         {
+             ULONG_PTR Type;
+             ULONG_PTR Name;
+             ULONG_PTR Language;
+         } LDR_RESOURCE_INFO, *PLDR_RESOURCE_INFO;
+
+         typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
+           ULONG OffsetToData;
+           ULONG Size;
+           ULONG CodePage;
+           ULONG Reserved;
+         } IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
+        '''
+        DllHandle, ResourceInfo, Level, ResourceDataEntry = argv
+
+        # Reusing some functions from kernel32 module that are used to 
+        # handle the very similar function FindResourceA
+        k32 =  emu.api.mods.get('kernel32')
+
+        cw = 1 # Always ASCII for this function
+        if DllHandle == 0:
+            pe = emu.modules[0][0]
+        else:
+            pe = emu.get_mod_from_addr(DllHandle)
+            if pe and DllHandle != pe.get_base():
+                return 0
+
+        type_ptr = emu.read_ptr(ResourceInfo)
+        name_ptr = emu.read_ptr(ResourceInfo  + emu.get_ptr_size())
+
+        name = k32.normalize_res_identifier(emu, cw, name_ptr)
+        _type = k32.normalize_res_identifier(emu, cw, type_ptr)
+
+        res = k32.find_resource(pe, name, _type)
+        if res is None:
+            return 0
+
+        hnd = k32.get_handle()
+        resource = {"ptr": pe.get_base() + res.data.struct.OffsetToData,"size": res.data.struct.Size}
+
+        k32.find_resources.update({hnd: resource})
+
+        ptr_data_entry = emu.read_ptr(ResourceDataEntry)
+        # Write the output struct ResourceDataEntry
+        self.mem_write(ptr_data_entry, resource['ptr'].to_bytes(4, 'little'))
+        self.mem_write(ptr_data_entry+4, resource['size'].to_bytes(4, 'little'))
+
+        return hnd
+        
+    @apihook('LdrAccessResource', argc=4)
+    def LdrAccessResource(self, emu, argv, ctx={}):
+        '''
+        NTSTATUS NTAPI LdrAccessResource 	( 	_In_ PVOID  	BaseAddress,
+                _In_ PIMAGE_RESOURCE_DATA_ENTRY  	ResourceDataEntry,
+                _Out_opt_ PVOID *  	Resource,
+                _Out_opt_ PULONG  	Size 
+            ) 	
+        '''
+        BaseAddress, ResourceDataEntry, Resource, Size = argv
+
+        offset = emu.read_ptr(ResourceDataEntry)
+        size = emu.read_ptr(ResourceDataEntry + 4)
+
+        # Fill in the Resource struct
+        self.mem_write(Size, size.to_bytes(4, 'little'))
+        self.mem_write(Resource, offset.to_bytes(4, 'little'))
+        
+        return 0
+
