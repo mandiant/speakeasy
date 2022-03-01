@@ -1874,6 +1874,27 @@ class Kernel32(api.ApiHandler):
 
         return chunk
 
+    @apihook('GlobalSize', argc=1)
+    def GlobalSize(self, emu, argv, ctx={}):
+        '''
+        SIZE_T GlobalSize(
+          [in] HGLOBAL hMem
+        );
+        '''
+
+        hMem, = argv
+        size = 0
+
+        for mmap in emu.get_mem_maps():
+            if hMem == mmap.get_base():
+                size = mmap.get_size()
+                emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        if not size:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+
+        return size
+
     @apihook('LocalAlloc', argc=2)
     def LocalAlloc(self, emu, argv, ctx={}):
         '''
