@@ -265,24 +265,27 @@ class Ws2_32(api.ApiHandler):
         name = self.read_mem_string(name, 1)
         ptr_hostent = 0
 
-        hostent = 0
         ip = self.netman.name_lookup(name)
 
         if ip:
             hostent = self.wstypes.hostent(emu.get_ptr_size())
-            buflen = len(name)
-            buflen += 8
-            buflen += len(ip)
-            ptr_hostent = self.mem_alloc(buflen, tag='api.struct.HOSTENT')
+            ptr_hostent = self.mem_alloc(hostent.sizeof(), tag='api.struct.HOSTENT')
             hostent.h_name = argv[0]
-            hostent.h_length = len(ip)
-            ip_bytes = inet_aton(ip)
-            ptr_h_addr = self.mem_alloc(len(ip_bytes)*3, tag='api.struct.HOSTENT.h_addr')
 
-            ptr = (ptr_h_addr + self.get_ptr_size())
-            self.mem_write(ptr_h_addr, ptr.to_bytes(self.get_ptr_size(), 'little'))
-            self.mem_write(ptr, ip_bytes)
-            hostent.h_addr_list = ptr_h_addr
+            # List contains no aliases so just the NULL terminator
+            ptr_h_aliases = self.mem_alloc(emu.get_ptr_size(), tag='api.struct.HOSTENT.h_aliases')
+            hostent.h_aliases = ptr_h_aliases
+
+            hostent.h_addrtype = winsock.AF_INET
+            hostent.h_length = 4
+
+            # List contains one addr pointer and the NULL terminator
+            ptr_h_addr_list = self.mem_alloc(emu.get_ptr_size() * 2, tag='api.struct.HOSTENT.h_addr_list')
+            ptr_h_addr_0 = self.mem_alloc(hostent.h_length, tag='api.struct.HOSTENT.h_addr_0')
+            ip_bytes = inet_aton(ip)
+            self.mem_write(ptr_h_addr_0, ip_bytes)
+            self.mem_write(ptr_h_addr_list, ptr_h_addr_0.to_bytes(self.get_ptr_size(), 'little'))
+            hostent.h_addr_list = ptr_h_addr_list
 
             # Write the hostent struct
             self.mem_write(ptr_hostent, self.get_bytes(hostent))
