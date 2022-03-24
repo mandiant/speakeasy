@@ -38,11 +38,11 @@ class sockaddr_in(EmuStruct):
 class hostent(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.h_name = ct.c_uint32
-        self.h_aliases = ct.c_uint32
+        self.h_name = Ptr
+        self.h_aliases = Ptr
         self.h_addrtype = ct.c_uint16
         self.h_length = ct.c_uint16
-        self.h_addr_list = ct.c_uint32
+        self.h_addr_list = Ptr
 
 
 class addrinfo(EmuStruct):
