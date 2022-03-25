@@ -166,7 +166,6 @@
     },
 
     "network": {
-
         "dns": {
             "names":{
                 "speakeasy_host": "127.0.0.1",
@@ -181,7 +180,6 @@
                 }
             ]
         },
-
         "http": {
             "responses": [
                 {
@@ -213,7 +211,18 @@
                     "path": "$ROOT$/resources/web/stager.bin"
                 }
             ]
-        }
+        },
+        "adapters": [
+            {
+                "name": "{00000000-0000-0000-0000-000000000000}",
+                "description": "Intel(R) PRO/1000 MT Network Connection",
+                "mac_address": "00-13-CE-12-34-56",
+                "type": "ethernet",
+                "ip_address": "127.0.0.1",
+                "subnet_mask": "255.0.0.0",
+                "dhcp_enabled": true
+            }
+        ]
     },
 
     "processes": [
@@ -547,6 +556,11 @@
                     "name": "wkscli",
                     "base_addr": "0x5fc00000",
                     "path": "C:\\Windows\\system32\\wkscli.dll"
+                },
+                {
+                    "name": "iphlpapi",
+                    "base_addr": "0x5fd00000",
+                    "path": "C:\\Windows\\system32\\iphlpapi.dll"
                 }
         ]
     }
