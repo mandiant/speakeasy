@@ -429,6 +429,43 @@
                             }
                         }
                     }
+                },
+                "adapters": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the adapter"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the adapter"
+                            },
+                            "mac_address": {
+                                "type": "string",
+                                "description": "Hardware address of the adapter"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "Adapter type (e.g., 'ethernet')"
+                            },
+                            "ip_address": {
+                                "type": "string",
+                                "description": "IPv4 address associated with the adapter. Currently only supports one address instead of a list."
+                            },
+                            "subnet_mask": {
+                                "type": "string",
+                                "description": "IPv4 subnet mask"
+                            },
+                            "dhcp_enabled": {
+                                "type": "boolean",
+                                "description": "DHCP enabled"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 }
             },
             "additionalProperties": false

@@ -121,6 +121,7 @@ class BinaryEmulator(MemoryManager):
         self.keep_memory_on_free = config.get('keep_memory_on_free', False)
 
         self.network_config = config.get('network', {})
+        self.network_adapters = self.network_config.get('adapters', [])
         self.command_line = config.get('command_line', '')
 
     def get_emu_version(self):
@@ -206,6 +207,12 @@ class BinaryEmulator(MemoryManager):
         Get the network settings specified in the network section of the config file
         """
         return self.network_config
+
+    def get_network_adapters(self):
+        """
+        Get the network adapters specified in the network section of the config file
+        """
+        return self.network_adapters
 
     def get_filesystem_config(self):
         """
