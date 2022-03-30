@@ -919,6 +919,18 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook('GetSidIdentifierAuthority', argc=1)
+    def GetSidIdentifierAuthority(self, emu, argv, ctx={}):
+        '''
+        PSID_IDENTIFIER_AUTHORITY GetSidIdentifierAuthority(
+          [in] PSID pSid
+        );
+        '''
+        sid, = argv
+
+        # IdentifierAuthority is at offset 0x02 in the SID structure
+        return sid + 2
+
     @apihook('GetSidSubAuthorityCount', argc=1)
     def GetSidSubAuthorityCount(self, emu, argv, ctx={}):
         '''
@@ -931,6 +943,93 @@ class AdvApi32(api.ApiHandler):
 
         if sid:
             rv = sid + 1
+
+        return rv
+
+    @apihook('GetSidSubAuthority', argc=2)
+    def GetSidSubAuthority(self, emu, argv, ctx={}):
+        '''
+        PDWORD GetSidSubAuthority(
+          [in] PSID  pSid,
+          [in] DWORD nSubAuthority
+        );
+        '''
+        sid, nsub = argv
+
+        # SubAuthorities begin at offset 0x8
+        return sid + 8 + (nsub * 4)
+
+    @apihook('LookupAccountName', argc=7)
+    def LookupAccountName(self, emu, argv, ctx={}):
+        '''
+        BOOL LookupAccountNameA(
+          [in, optional]  LPCSTR        lpSystemName,
+          [in]            LPCSTR        lpAccountName,
+          [out, optional] PSID          Sid,
+          [in, out]       LPDWORD       cbSid,
+          [out, optional] LPSTR         ReferencedDomainName,
+          [in, out]       LPDWORD       cchReferencedDomainName,
+          [out]           PSID_NAME_USE peUse
+        );
+        '''
+
+        ptr_sysname, ptr_acctname, ptr_sid, ptr_cbsid, ptr_domname, ptr_cchdomname, ptr_peuse = argv
+        rv = 0
+
+        cw = self.get_char_width(ctx)
+
+        if ptr_sysname:
+            sn = self.read_mem_string(ptr_sysname, cw)
+            argv[0] = sn
+
+        if not ptr_acctname:
+            return rv
+
+        acctname = self.read_mem_string(ptr_acctname, cw)
+        argv[1] = acctname
+
+        user = emu.get_user().get('name')
+        # Currently only supporting user SIDs specified in the config
+        if user != acctname:
+            return rv
+
+        str_sid = emu.get_user().get('sid')
+        if not str_sid:
+            return rv
+
+        argv[2] = str_sid
+        sid_struct = windefs.convert_sid_str_to_struct(emu.get_ptr_size(), str_sid)
+        side_struct_size = sid_struct.sizeof()
+
+        cbsid = self.mem_read(ptr_cbsid, 4)
+        cbsid = int.from_bytes(cbsid, 'little')
+        argv[3] = cbsid
+        if not cbsid:
+            self.mem_write(ptr_cbsid, side_struct_size.to_bytes(4, 'little'))
+            return rv
+
+        if cbsid < side_struct_size:
+            return rv
+
+        domain = emu.get_domain()
+        cchdomname = self.mem_read(ptr_cchdomname, 4)
+        cbcchdomname = int.from_bytes(cchdomname, 'little')
+        argv[5] = cbcchdomname
+        if not cbcchdomname:
+            buf_size = len(domain) + 1
+            self.mem_write(ptr_cchdomname, buf_size.to_bytes(4, 'little'))
+            return rv
+
+        rv = 1
+
+        self.mem_write(ptr_sid, self.get_bytes(sid_struct))
+
+        self.write_mem_string(domain, ptr_domname, cw)
+        argv[4] = domain
+
+        # Currently only supporting user SIDs (SidTypeUser = 1)
+        self.mem_write(ptr_peuse, (1).to_bytes(4, 'little'))
+        argv[6] = 1
 
         return rv
 

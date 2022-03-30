@@ -216,6 +216,10 @@
                 "is_admin": {
                     "type": "boolean",
                     "description": "Determines if this user is an administrator"
+                },
+                "sid": {
+                    "type": "string",
+                    "description": "SID associated with the user account"
                 }
             },
             "additionalProperties": false,
