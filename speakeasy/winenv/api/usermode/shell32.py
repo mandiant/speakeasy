@@ -96,7 +96,7 @@ class Shell32(api.ApiHandler):
 
         return 33
 
-    @apihook('IsUserAnAdmin', argc=0)
+    @apihook('IsUserAnAdmin', argc=0, ordinal=680)
     def IsUserAnAdmin(self, emu, argv, ctx={}):
         """
         BOOL IsUserAnAdmin();

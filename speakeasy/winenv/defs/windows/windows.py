@@ -87,6 +87,15 @@ class GUID(EmuStruct):
         self.Data4 = ct.c_uint8 * 8
 
 
+class SID(EmuStruct):
+    def __init__(self, ptr_size, sub_authority_count):
+        super().__init__(ptr_size)
+        self.Revision = ct.c_uint8
+        self.SubAuthorityCount = ct.c_uint8
+        self.IdentifierAuthority = ct.c_uint8 * 6
+        self.SubAuthority = ct.c_uint32 * sub_authority_count
+
+
 class KSYSTEM_TIME(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
@@ -315,3 +324,19 @@ def get_page_rights(define):
 
 def get_creation_flags(flags):
     return get_flag_defines(flags, prefix='CREATE_')
+
+
+def convert_sid_str_to_struct(ptr_size, sid_str):
+    sid_elements = sid_str.split('-')
+    sid_elements.remove('S')
+    sub_authority_count = len(sid_elements) - 2
+
+    sid_struct = SID(ptr_size, sub_authority_count)
+    sid_struct.Revision = int(sid_elements[0])
+    sid_struct.SubAuthorityCount = sub_authority_count
+    sid_struct.IdentifierAuthority = int(sid_elements[1]).to_bytes(6, 'big')
+    sub_authorities = sid_elements[2:]
+    for i in range(len(sub_authorities)):
+        sid_struct.SubAuthority[i] = int(sub_authorities[i])
+ 
+    return sid_struct

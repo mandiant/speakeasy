@@ -163,7 +163,7 @@ class BinaryEmulator(MemoryManager):
 
     def get_user(self):
         """
-        Get the current emulated user's name
+        Get the current emulated user properties
         """
         return self.user_config
 

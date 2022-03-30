@@ -1240,6 +1240,25 @@ class Kernel32(api.ApiHandler):
         obj.suspend_count += 1
         return rv
 
+    @apihook('TerminateThread', argc=2)
+    def TerminateThread(self, emu, argv, ctx={}):
+        '''
+        BOOL TerminateThread(
+          [in, out] HANDLE hThread,
+          [in]      DWORD  dwExitCode
+        );
+        '''
+        hThread, dwExitCode = argv
+        rv = 0
+        obj = self.get_object_from_handle(hThread)
+        if not obj:
+            return rv
+
+        rv = 1
+        # Thread termination not implemented
+
+        return rv
+
     @apihook('GetThreadId', argc=1)
     def GetThreadId(self, emu, argv, ctx={}):
         """
@@ -4595,7 +4614,7 @@ class Kernel32(api.ApiHandler):
 
         return
 
-    @apihook('VerSetConditionMask', argc=3)
+    @apihook('VerSetConditionMask', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def VerSetConditionMask(self, emu, argv, ctx={}):
         '''
         NTSYSAPI ULONGLONG VerSetConditionMask(
@@ -4609,7 +4628,7 @@ class Kernel32(api.ApiHandler):
 
         return 0
 
-    @apihook('VerifyVersionInfo', argc=3)
+    @apihook('VerifyVersionInfo', argc=3, conv=e_arch.CALL_CONV_CDECL)
     def VerifyVersionInfo(self, emu, argv, ctx={}):
         '''
         BOOL VerifyVersionInfo(
