@@ -55,12 +55,13 @@ class User32(api.ApiHandler):
         return hnd
 
     def find_string_resource_by_id(self, pe, uID):
-        for entry in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-            if entry.id == 6:  # "String Table"
-                for str_entry in entry.directory.entries:
-                    s = str_entry.directory.strings.get(uID, None)
-                    if s is not None:
-                        return s
+        if hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):
+            for entry in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+                if entry.id == 6:  # "String Table"
+                    for str_entry in entry.directory.entries:
+                        s = str_entry.directory.strings.get(uID, None)
+                        if s is not None:
+                            return s
         return None
 
     @apihook('GetDesktopWindow', argc=0)
@@ -299,6 +300,19 @@ class User32(api.ApiHandler):
             wn = None
         hnd = self.sessman.create_window(wn, cn)
         return hnd
+
+    @apihook('SetLayeredWindowAttributes', argc=4)
+    def SetLayeredWindowAttributes(self, emu, argv, ctx={}):
+        '''
+        BOOL SetLayeredWindowAttributes(
+          [in] HWND     hwnd,
+          [in] COLORREF crKey,
+          [in] BYTE     bAlpha,
+          [in] DWORD    dwFlags
+        );
+        '''
+        hwnd, crKey, bAlpha, dwFlags = argv
+        return 1
 
     @apihook('MessageBox', argc=4)
     def MessageBox(self, emu, argv, ctx={}):
