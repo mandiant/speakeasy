@@ -16,7 +16,7 @@ class OleAut32(api.ApiHandler):
         super(OleAut32, self).__init__(emu)
         super(OleAut32, self).__get_hook_attrs__(self)
 
-    @apihook('SysAllocString', argc=1)
+    @apihook('SysAllocString', argc=1, ordinal=2)
     def SysAllocString(self, emu, argv, ctx={}):
         """
         BSTR SysAllocString(
@@ -42,7 +42,37 @@ class OleAut32(api.ApiHandler):
 
         return 0
 
-    @apihook('SysFreeString', argc=1)
+    @apihook('SysAllocStringLen', argc=2, ordinal=4)
+    def SysAllocStringLen(self, emu, argv, ctx={}):
+        """
+        BSTR SysAllocStringLen(
+          [in] const OLECHAR *strIn,
+          [in] UINT          ui
+        );
+        """
+        strin, ui = argv
+
+        ws_len = (ui + 1) * 2
+        bstr = self.mem_alloc(4 + ws_len)
+
+        if not strin:
+            bstr_bytes = struct.pack('<I', ui * 2)
+        else:
+            alloc_str = self.read_mem_string(strin, 2)
+            if alloc_str:
+                argv[0] = alloc_str
+                alloc_str = alloc_str[:ui]
+                alloc_str += '\x00'
+                ws = alloc_str.encode('utf-16le')
+                bstr_bytes = struct.pack('<I', ui * 2) + ws
+            else:
+                return 0
+
+        self.mem_write(bstr, bstr_bytes)
+
+        return bstr + 4
+
+    @apihook('SysFreeString', argc=1, ordinal=6)
     def SysFreeString(self, emu, argv, ctx={}):
         """
         void SysFreeString(
