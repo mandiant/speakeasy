@@ -200,6 +200,20 @@ class GDI32(api.ApiHandler):
         """
         return 0
 
+    @apihook('CreateDIBSection', argc=6)
+    def CreateDIBSection(self, emu, argv, ctx={}):
+        """
+        HBITMAP CreateDIBSection(
+          [in]  HDC              hdc,
+          [in]  const BITMAPINFO *pbmi,
+          [in]  UINT             usage,
+          [out] VOID             **ppvBits,
+          [in]  HANDLE           hSection,
+          [in]  DWORD            offset
+        );
+        """
+        return 0
+
     @apihook('CreateDCA', argc=4)
     def CreateDCA(self, emu, argv, ctx={}):
         """
