@@ -50,7 +50,6 @@ INTERNET_SCHEME_GOPHER = 2
 INTERNET_SCHEME_HTTP = 3
 INTERNET_SCHEME_HTTPS = 4
 
-HTTP_QUERY_STATUS_CODE = 19
 HTTP_STATUS_OK = "200"
 
 WINHTTP_ADDREQ_INDEX_MASK = 0x0000FFFF
@@ -180,12 +179,6 @@ def get_const_defines(flags, prefix=''):
 
 def get_flag_defines(flags):
     return get_const_defines(flags, prefix='INTERNET_FLAG')
-
-
-def get_header_info(info):
-    for k, v in globals().items():
-        if k.startswith('HTTP_QUERY') and v == info:
-            return k
 
 
 def get_option_define(opt):
