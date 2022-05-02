@@ -462,6 +462,16 @@ class User32(api.ApiHandler):
         rv = self.get_handle()
         return rv
 
+    @apihook('GetClientRect', argc=2)
+    def GetClientRect(self, emu, argv, ctx={}):
+        """
+        BOOL GetClientRect(
+          [in]  HWND   hWnd,
+          [out] LPRECT lpRect
+        );
+        """
+        return 0
+
     @apihook('RegisterWindowMessage', argc=1)
     def RegisterWindowMessage(self, emu, argv, ctx={}):
         '''

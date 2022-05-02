@@ -317,10 +317,12 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         rv = False
-        info_str = windefs.get_header_info(dwInfoLevel)
+        info_str = windefs.get_header_query(dwInfoLevel)
         if info_str:
             argv[1] = info_str
-        if windefs.HTTP_QUERY_STATUS_CODE == dwInfoLevel:
+        if not lpBuffer:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+        if windefs.WINHTTP_QUERY_STATUS_CODE == dwInfoLevel:
             if lpBuffer:
                 buf_len = self.mem_read(lpdwBufferLength, 4)
                 buf_len = int.from_bytes(buf_len, 'little')

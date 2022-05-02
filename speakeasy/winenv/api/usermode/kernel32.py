@@ -1832,6 +1832,7 @@ class Kernel32(api.ApiHandler):
         hmod, proc_name = argv
         rv = 0
 
+        proc = ''
         if proc_name:
             try:
                 proc = self.read_mem_string(proc_name, 1)
@@ -1839,14 +1840,15 @@ class Kernel32(api.ApiHandler):
             except Exception:
                 if isinstance(proc_name, int) and proc_name < 0xFFFF:
                     # Import is most likely an ordinal
-                    proc = 'ordinal_%d' % (proc_name)
+                    proc = 'ordinal_%d' % proc_name
 
-        mods = emu.get_user_modules()
-        for mod in mods:
-            if mod.get_base() == hmod:
-                bn = mod.get_base_name()
-                mname, _ = os.path.splitext(bn)
-                rv = emu.get_proc(mname, proc)
+        if proc:
+            mods = emu.get_user_modules()
+            for mod in mods:
+                if mod.get_base() == hmod:
+                    bn = mod.get_base_name()
+                    mname, _ = os.path.splitext(bn)
+                    rv = emu.get_proc(mname, proc)
 
         return rv
 
@@ -2759,7 +2761,7 @@ class Kernel32(api.ApiHandler):
                 else:
                     self.mem_write(lpWideCharStr, ws)
                     emu.set_last_error(windefs.ERROR_SUCCESS)
-                    rv = len(ws)
+                    rv = len(mbs)
             else:
                 emu.set_last_error(windefs.ERROR_SUCCESS)
                 cs = self.mem_read(lpMultiByteStr, cbMultiByte)
