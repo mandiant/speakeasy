@@ -48,7 +48,6 @@ class Kernel32(api.ApiHandler):
         self.find_files = {}
         self.find_volumes = {}
         self.snapshots = {}
-        self.find_resources = {}
         self.tick_counter = 86400000  # 1 day in millisecs
         self.perf_counter = 0x5fd27d571f
 
@@ -4451,15 +4450,53 @@ class Kernel32(api.ApiHandler):
                 return 0
 
         name = self.normalize_res_identifier(emu, cw, lpName)
+        argv[1] = name
         type_ = self.normalize_res_identifier(emu, cw, lpType)
+        argv[2] = type_
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
 
-        hnd = self.get_handle()
-        self.find_resources.update({hnd: {"ptr": pe.get_base() + res.data.struct.OffsetToData,
-                                          "size": res.data.struct.Size}})
-        return hnd
+        res_dir_rva = pe.get_resource_dir_rva()
+        if res_dir_rva:
+            return pe.get_base() + res_dir_rva + res.struct.OffsetToData
+        else:
+            return 0
+
+    @apihook("FindResourceEx", argc=4)
+    def FindResourceEx(self, emu, argv, ctx={}):
+        '''
+        HRSRC FindResourceExW(
+            [in, optional] HMODULE hModule,
+            [in]           LPCWSTR lpType,
+            [in]           LPCWSTR lpName,
+            [in]           WORD    wLanguage
+        );
+        '''
+
+        # repeats code from FindResource()
+        cw = self.get_char_width(ctx)
+        hModule, lpType, lpName, wLanguage = argv
+        if hModule == 0:
+            pe = emu.modules[0][0]
+        else:
+            pe = emu.get_mod_from_addr(hModule)
+            if pe and hModule != pe.get_base():
+                return 0
+
+        name = self.normalize_res_identifier(emu, cw, lpName)
+        argv[1] = name
+        type_ = self.normalize_res_identifier(emu, cw, lpType)
+        argv[2] = type_
+        res = self.find_resource(pe, name, type_)
+        if res is None:
+            return 0
+
+        res_dir_rva = pe.get_resource_dir_rva()
+        if res_dir_rva:
+            return pe.get_base() + res_dir_rva + res.struct.OffsetToData
+        else:
+            return 0
 
     @apihook('LoadResource', argc=2)
     def LoadResource(self, emu, argv, ctx={}):
@@ -4471,7 +4508,19 @@ class Kernel32(api.ApiHandler):
         '''
 
         hModule, hResInfo = argv
-        return hResInfo  # we're just using the same handle to index the resource data
+
+        if hModule == 0:
+            pe = emu.modules[0][0]
+        else:
+            pe = emu.get_mod_from_addr(hModule)
+            if pe and hModule != pe.get_base():
+                return 0
+
+        res_rva = self.mem_read(hResInfo, 4)
+        if res_rva:
+            return pe.get_base() + int.from_bytes(res_rva, "little")
+        else:
+            return 0
 
     @apihook('LockResource', argc=1)
     def LockResource(self, emu, argv, ctx={}):
@@ -4481,11 +4530,37 @@ class Kernel32(api.ApiHandler):
         );
         '''
 
-        res = self.find_resources.get(argv[0], None)
-        if res is None:
-            return 0
+        hResData, = argv
 
-        return res['ptr']
+        return hResData
+
+    @apihook('SizeofResource', argc=2)
+    def SizeofResource(self, emu, argv, ctx={}):
+        '''
+        DWORD SizeofResource(
+          HMODULE hModule,
+          HRSRC   hResInfo
+        );
+        '''
+
+        hModule, hResInfo = argv
+
+        if hResInfo:
+            res_size = self.mem_read(hResInfo + 4, 4)
+            if res_size:
+                return int.from_bytes(res_size, "little")
+
+        return 0
+
+    @apihook('FreeResource', argc=1)
+    def FreeResource(self, emu, argv, ctx={}):
+        '''
+        BOOL FreeResource(
+          [in] HGLOBAL hResData
+        );
+        '''
+
+        return 0
 
     @apihook('GetCurrentDirectory', argc=2)
     def GetCurrentDirectory(self, emu, argv, ctx={}):
@@ -4510,30 +4585,6 @@ class Kernel32(api.ApiHandler):
         self.mem_write(lpBuffer, data)
 
         return len(cd)
-
-    @apihook('SizeofResource', argc=2)
-    def SizeofResource(self, emu, argv, ctx={}):
-        '''
-        DWORD SizeofResource(
-          HMODULE hModule,
-          HRSRC   hResInfo
-        );
-        '''
-
-        hModule, hResInfo = argv
-
-        if hModule == 0:
-            pe = emu.modules[0][0]
-        else:
-            pe = emu.get_mod_from_addr(hModule)
-            if pe and hModule != pe.get_base():
-                return 0
-
-        res = self.find_resources.get(hResInfo, None)
-        if res is None:
-            return 0
-
-        return res['size']
 
     @apihook('VirtualAllocExNuma', argc=6)
     def VirtualAllocExNuma(self, emu, argv, ctx={}):
@@ -5625,37 +5676,6 @@ class Kernel32(api.ApiHandler):
         LANGID GetUserDefaultLangID();
         '''
         return LANG_EN_US
-
-    @apihook("FindResourceExW", argc=4)
-    def FindResourceExW(self, emu, argv, ctx={}):
-        '''
-        HRSRC FindResourceExW(
-            [in, optional] HMODULE hModule,
-            [in]           LPCWSTR lpType,
-            [in]           LPCWSTR lpName,
-            [in]           WORD    wLanguage
-        );
-        '''
-        # repeates code in FindResource()
-        cw = self.get_char_width(ctx)
-        hModule, lpType, lpName, wLanguage = argv
-        if hModule == 0:
-            pe = emu.modules[0][0]
-        else:
-            pe = emu.get_mod_from_addr(hModule)
-            if pe and hModule != pe.get_base():
-                return 0
-
-        name = self.normalize_res_identifier(emu, cw, lpName)
-        type_ = self.normalize_res_identifier(emu, cw, lpType)
-        res = self.find_resource(pe, name, type_)
-        if res is None:
-            return 0
-
-        hnd = self.get_handle()
-        self.find_resources.update({hnd: {"ptr": pe.get_base() + res.data.struct.OffsetToData,
-                                          "size": res.data.struct.Size}})
-        return hnd
 
     @apihook("GetUserDefaultLCID", argc=0)
     def GetUserDefaultLCID(self, emu, argv, ctx={}):

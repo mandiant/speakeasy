@@ -99,7 +99,7 @@ class PeParseException(Exception):
 
 class PeFile(pefile.PE):
     """
-    Class the will represent all PE files loaded into the emulator
+    Represents PE files loaded into the emulator
     """
     def __init__(self, path=None, data=None, imp_id=IMPORT_HOOK_ADDR,
                  imp_step=4, emu_path='', fast_load=False):
@@ -155,6 +155,15 @@ class PeFile(pefile.PE):
                     break
                 callbacks.append(ptr)
         return callbacks
+
+    def get_resource_dir_rva(self):
+        res_dir_rva = 0
+        for dd in self.OPTIONAL_HEADER.DATA_DIRECTORY:
+            if dd.name == "IMAGE_DIRECTORY_ENTRY_RESOURCE":
+                res_dir_rva = dd.VirtualAddress
+                break
+
+        return res_dir_rva
 
     def get_emu_path(self):
         """
