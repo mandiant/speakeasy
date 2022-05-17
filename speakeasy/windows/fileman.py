@@ -45,6 +45,7 @@ class FileMap(object):
         self.backed_file = backed_file
         self.views = {}
         self.size = size
+        self.prot = prot
 
     def get_handle(self):
         hmap = FileMap.curr_handle
@@ -53,6 +54,9 @@ class FileMap(object):
 
     def get_name(self):
         return self.name
+
+    def get_prot(self):
+        return self.prot
 
     def get_backed_file(self):
         return self.backed_file

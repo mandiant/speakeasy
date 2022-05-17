@@ -25,6 +25,8 @@ PAGE_SIZE = 0x1000
 LANG_EN_US = 0x409
 LOCALE_USER_DEFAULT = 0x400
 
+SEC_IMAGE = 0x1000000
+
 
 class Kernel32(api.ApiHandler):
     """
@@ -3159,18 +3161,37 @@ class Kernel32(api.ApiHandler):
                 if bytes_to_map != 0:
                     data = data[full_offset: full_offset + bytes_to_map]
 
-                base, size = emu.get_valid_ranges(len(data))
-                while base and base & 0xFFF:
-                    base, size = emu.get_valid_ranges(size)
-
-                buf = self.mem_alloc(base=base, size=size, shared=True)
-                mm = emu.get_address_map(buf)
                 fname = ntpath.basename(f.get_path())
                 fname = fname.replace('.', '_')
-                mm.update_tag('%s.%s.0x%x' % (tag_prefix, fname, buf))
-                mapping.add_view(buf, full_offset, size, access)
-                self.mem_write(buf, data)
-                emu.set_last_error(windefs.ERROR_SUCCESS)
+                
+                # If the call to CreateFileMapping (done before calling this API)
+                # has beed done with SEC_IMAGE protection, the mapping is not
+                # done as a contigous stream of bytes, but it is mapped as
+                # PE file
+                pe_mapping = mapping.get_prot() & SEC_IMAGE
+                if pe_mapping:
+                    # Now map the file as PE file
+                    pe = emu.load_pe(data=data)
+                    base, size = emu.get_valid_ranges(pe.image_size)
+                    while base and base & 0xFFF:
+                        base, size = emu.get_valid_ranges(size)
+                        
+                    emu.mem_map(pe.image_size, base=base,tag='%s.%s.0x%x' % (tag_prefix, fname, base))
+                    mapping.add_view(base, full_offset, size, access)
+                    self.mem_write(base, pe.mapped_image)
+                    buf = base
+                else:
+                    # Just copy the bytes as they are
+                    base, size = emu.get_valid_ranges(len(data))
+                    while base and base & 0xFFF:
+                        base, size = emu.get_valid_ranges(size)
+
+                    buf = self.mem_alloc(base=base, size=size, shared=True)
+                    mm = emu.get_address_map(buf)
+                    mm.update_tag('%s.%s.0x%x' % (tag_prefix, fname, buf))
+                    mapping.add_view(buf, full_offset, size, access)
+                    self.mem_write(buf, data)
+                    emu.set_last_error(windefs.ERROR_SUCCESS)
             else:
                 base, size = emu.get_valid_ranges(bytes_to_map)
                 buf = self.mem_alloc(base=base, size=size, tag=tag_prefix,
