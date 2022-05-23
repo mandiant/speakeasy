@@ -997,7 +997,7 @@ class Kernel32(api.ApiHandler):
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
-        if mm and mm.get_tag().startswith(tag_prefix):
+        if mm and mm.get_tag() and mm.get_tag().startswith(tag_prefix):
             buf = lpAddress
         else:
 
