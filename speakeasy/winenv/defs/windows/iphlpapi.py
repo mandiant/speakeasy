@@ -36,8 +36,8 @@ class IP_ADAPTER_INFO(EmuStruct):
         self.HaveWins = ct.c_uint32
         self.PrimaryWinsServer = IP_ADDR_STRING
         self.SecondaryWinsServer = IP_ADDR_STRING
-        self.LeaseObtained = ct.c_uint32
-        self.LeaseExpires = ct.c_uint32
+        self.LeaseObtained = Ptr
+        self.LeaseExpires = Ptr
 
 
 class IP_ADDR_STRING(EmuStruct):
