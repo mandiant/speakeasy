@@ -2,6 +2,7 @@
 
 import binascii
 
+import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.iphlpapi as iphlpapi_types
 
 from .. import api
@@ -28,6 +29,13 @@ class Iphlpapi(api.ApiHandler):
 
         adapters = emu.get_network_adapters()
         adapter_count = len(adapters)
+
+        if not ptr_adapter_info:
+            adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
+            size = adapter_info.sizeof()
+            self.mem_write(size_ptr, size.to_bytes(4, 'little'))
+            return windefs.ERROR_BUFFER_OVERFLOW
+
         for index, adapter in enumerate(adapters):
             adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
 

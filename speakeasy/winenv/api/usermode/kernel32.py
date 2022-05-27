@@ -2205,6 +2205,7 @@ class Kernel32(api.ApiHandler):
         );
         '''
         dwTlsIndex, = argv
+        dwTlsIndex &= 0xFFFFFFFF
         rv = 0
 
         thread = emu.get_current_thread()
@@ -5812,3 +5813,67 @@ class Kernel32(api.ApiHandler):
             self.mem_write(nSize, (len(temp_title)).to_bytes(4, 'little'))
 
         return rv
+
+    @apihook('InitializeSRWLock', argc=1)
+    def InitializeSRWLock(self, emu, argv, ctx={}):
+        '''
+        void InitializeSRWLock(
+          [out] PSRWLOCK SRWLock
+        );
+        '''
+
+        return
+
+    @apihook('AcquireSRWLockShared', argc=1)
+    def AcquireSRWLockShared(self, emu, argv, ctx={}):
+        '''
+        void AcquireSRWLockShared(
+          [in, out] PSRWLOCK SRWLock
+        );
+        '''
+
+        return
+
+    @apihook('ReleaseSRWLockShared', argc=1)
+    def ReleaseSRWLockShared(self, emu, argv, ctx={}):
+        '''
+        void ReleaseSRWLockShared(
+          [in, out] PSRWLOCK SRWLock
+        );
+        '''
+
+        return
+
+    @apihook('AcquireSRWLockExclusive', argc=1)
+    def AcquireSRWLockExclusive(self, emu, argv, ctx={}):
+        '''
+        void AcquireSRWLockExclusive(
+          [in, out] PSRWLOCK SRWLock
+        );
+        '''
+
+        return
+
+    @apihook('ReleaseSRWLockExclusive', argc=1)
+    def ReleaseSRWLockExclusive(self, emu, argv, ctx={}):
+        '''
+        void ReleaseSRWLockExclusive(
+          [in, out] PSRWLOCK SRWLock
+        );
+        '''
+
+        return
+
+    @apihook('GetPhysicallyInstalledSystemMemory', argc=1)
+    def GetPhysicallyInstalledSystemMemory(self, emu, argv, ctx={}):
+        '''
+        BOOL GetPhysicallyInstalledSystemMemory(
+          [out] PULONGLONG TotalMemoryInKilobytes
+        );
+        '''
+
+        TotalMemoryInKilobytes, = argv
+
+        # 2GB
+        self.mem_write(TotalMemoryInKilobytes, (0x200000).to_bytes(8, 'little'))
+        return 1
