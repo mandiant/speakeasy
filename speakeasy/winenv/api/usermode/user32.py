@@ -421,6 +421,21 @@ class User32(api.ApiHandler):
         rv = 0
         return rv
 
+    @apihook('GetAsyncKeyState', argc=1)
+    def GetAsyncKeyState(self, emu, argv, ctx={}):
+        '''
+        SHORT GetAsyncKeyState(
+          [in] int vKey
+        );
+        '''
+
+        # From MS docs:
+        # If the most significant bit is set, the key is down, 
+        # and if the least significant bit is set, the key was 
+        # pressed after the previous call to GetAsyncKeyState
+
+        return 0
+
     @apihook('GetKeyboardType', argc=1)
     def GetKeyboardType(self, emu, argv, ctx={}):
         '''

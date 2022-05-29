@@ -1853,6 +1853,13 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook('AllocConsole', argc=0)
+    def AllocConsole(self, emu, argv, ctx={}):
+        '''BOOL WINAPI AllocConsole(void);'''
+
+        # On success, return != 0
+        return 1
+
     @apihook('GetConsoleWindow', argc=0)
     def GetConsoleWindow(self, emu, argv, ctx={}):
         '''HWND WINAPI GetConsoleWindow(void);'''
