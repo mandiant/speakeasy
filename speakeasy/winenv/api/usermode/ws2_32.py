@@ -2,7 +2,7 @@
 import re
 import struct
 
-from socket import inet_ntoa, ntohs, htons, ntohl, htonl, inet_aton
+from socket import inet_ntoa, inet_aton, inet_pton, inet_ntop, ntohs, htons, ntohl, htonl
 
 import speakeasy.winenv.arch as _arch
 
@@ -472,6 +472,64 @@ class Ws2_32(api.ApiHandler):
             self.mem_write(buf, raddr.encode('utf-8'))
             self.addr_bufs.update({raddr: buf})
         return buf
+
+    @apihook('inet_ntop', argc=4, ordinal=180)
+    def inet_ntop(self, emu, argv, ctx={}):
+        """
+        PCSTR WSAAPI inet_ntop(
+          [in]  INT        Family,
+          [in]  const VOID *pAddr,
+          [out] PSTR       pStringBuf,
+          [in]  size_t     StringBufSize
+        );
+        """
+        family, pAddr, pStringBuf, StringBufSize = argv
+
+        fam_str = winsock.get_addr_family(family)
+        argv[0] = fam_str
+
+        # TODO: implement case AF_INET6
+        if fam_str == 'AF_INET':
+            ipv4_bytes = self.mem_read(pAddr, 4)
+            argv[1] = int.from_bytes(ipv4_bytes, 'big')
+            try:
+                ipv4_str = inet_ntop(family, ipv4_bytes)
+            except OSError:
+                return 0
+
+            self.write_string(ipv4_str, pStringBuf)
+            return pStringBuf
+
+        return 0
+
+    @apihook('inet_pton', argc=3, ordinal=181)
+    def inet_pton(self, emu, argv, ctx={}):
+        """
+        INT WSAAPI inet_pton(
+          [in]  INT   Family,
+          [in]  PCSTR pszAddrString,
+          [out] PVOID pAddrBuf
+        );
+        """
+
+        family, pszAddrString, pAddrBuf = argv
+
+        fam_str = winsock.get_addr_family(family)
+        argv[0] = fam_str
+
+        # TODO: implement case AF_INET6
+        if fam_str == 'AF_INET':
+            ipv4_str = self.read_string(pszAddrString)
+            argv[1] = ipv4_str
+            try:
+                ipv4_bytes = inet_pton(family, ipv4_str)
+            except OSError:
+                return 0
+
+            self.mem_write(pAddrBuf, ipv4_bytes)
+            return 1
+
+        return 0
 
     @apihook('htonl', argc=1, ordinal=8)
     def htonl(self, emu, argv, ctx={}):
