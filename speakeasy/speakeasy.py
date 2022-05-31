@@ -770,6 +770,15 @@ class Speakeasy(object):
         """
         self.emu.set_stack_ptr(addr)
 
+    def get_pc(self) -> int:
+        """
+        Get the value of the current program counter
+
+        return:
+            value of the program counter
+        """
+        return self.emu.get_pc()
+
     def set_pc(self, addr: int) -> None:
         """
         Set the value of the current program counter

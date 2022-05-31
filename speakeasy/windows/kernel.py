@@ -164,6 +164,16 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 if s not in self.profiler.strings['unicode']:
                     self.profiler.strings['unicode'].append(s)
 
+        # Set the emulator to run in protected mode
+        self._setup_gdt(self.get_arch())
+
+        self.setup_kernel_mode()
+
+        self.setup_user_shared_data()
+
+        if not self.stack_base:
+            self.stack_base, stack_ptr = self.alloc_stack(pe.stack_commit)
+
         # Init imported data
         for addr, imp in pe.imports.items():
             mn, fn = imp
@@ -175,16 +185,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 self.mem_write(addr,
                                data_ptr.to_bytes(self.get_ptr_size(),
                                                  'little'))
-
-        # Set the emulator to run in protected mode
-        self._setup_gdt(self.get_arch())
-
-        self.setup_kernel_mode()
-
-        self.setup_user_shared_data()
-
-        if not self.stack_base:
-            self.stack_base, stack_ptr = self.alloc_stack(pe.stack_commit)
 
         return pe
 
