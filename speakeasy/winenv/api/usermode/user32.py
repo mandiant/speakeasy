@@ -43,6 +43,7 @@ class User32(api.ApiHandler):
         self.handle = 0
         self.win = None
         self.handles = []
+        self.wndprocs = {}
         self.timer_count = 0
         self.sessman = sessman.SessionManager(config=None)
 
@@ -568,6 +569,10 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         '''
+        hWnd, Msg, wParam, lParam = argv
+        if hWnd in self.wndprocs:
+            emu.set_pc(self.wndprocs[hWnd])
+
         return False
 
     @apihook('SetWindowsHookEx', argc=4)
@@ -843,7 +848,10 @@ class User32(api.ApiHandler):
           LONG dwNewLong
         );
         """
-
+        hWnd, nIndex, dwNewLong = argv
+        if ((self.get_ptr_size() == 4 and nIndex == 0xfffffffc) or
+            (self.get_ptr_size() == 8 and nIndex == 0xfffffffffffffffc)):
+            self.wndprocs[hWnd] = dwNewLong
 
         return 1
 

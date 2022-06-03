@@ -189,7 +189,7 @@ class Kernel32(api.ApiHandler):
 
         for resource_id in resource_type.directory.entries:
             if type(name) is str and resource_id.name is not None:
-                if name == resource_id.name.decode('utf8'):
+                if name.lower() == resource_id.name.decode('utf8').lower():
                     return resource_id.directory.entries[0]
             elif type(name) is int and hasattr(resource_id.struct, 'Id'):
                 if name == resource_id.struct.Id:
