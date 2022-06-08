@@ -1139,6 +1139,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         imp_api = '%s.%s' % (dll, name)
         oret = self.get_ret_address()
+        opc = self.get_pc()
         mod, func_attrs = self.api.get_export_func_handler(dll, name)
         if not func_attrs:
             mod, func_attrs = self.normalize_import_miss(dll, name)
@@ -1176,6 +1177,7 @@ class WindowsEmulator(BinaryEmulator):
                     return
 
             ret = self.get_ret_address()
+            pc = self.get_pc()
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
@@ -1185,7 +1187,7 @@ class WindowsEmulator(BinaryEmulator):
             # Log the API args and return value
             self.log_api(oret, imp_api, rv, argv)
 
-            if not self.run_complete and ret == oret:
+            if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)
 
         else:

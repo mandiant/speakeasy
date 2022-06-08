@@ -730,6 +730,15 @@ class Speakeasy(object):
         """
         return self.emu.get_ret_address()
 
+    def set_ret_address(self, addr) -> int:
+        """
+        Sets the return address on the stack
+
+        return:
+            None
+        """
+        return self.emu.set_ret_address(addr)
+
     def push_stack(self, val: int) -> None:
         """
         Put a value on the stack and adjust the stack pointer

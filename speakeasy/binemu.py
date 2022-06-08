@@ -472,6 +472,14 @@ class BinaryEmulator(MemoryManager):
         ret = int.from_bytes(ret, endian)
         return ret
 
+    def set_ret_address(self, addr):
+        """
+        Set the return address on the stack
+        """
+        
+        sp = self.get_stack_ptr()
+        ret = self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), 'little'))
+
     def push_stack(self, val):
         """
         Put a value on the stack and adjust the stack pointer
