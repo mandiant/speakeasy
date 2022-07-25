@@ -3567,6 +3567,25 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
+    @apihook('SetFilePointerEx', argc=4)
+    def SetFilePointerEx(self, emu, argv, ctx={}):
+        '''
+        BOOL SetFilePointerEx(
+        [in]            HANDLE         hFile,
+        [in]            LARGE_INTEGER  liDistanceToMove,
+        [out, optional] PLARGE_INTEGER lpNewFilePointer,
+        [in]            DWORD          dwMoveMethod
+        );
+        '''
+        hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv
+        f = self.file_get(hFile)
+        if f:
+            f.seek(lDistanceToMove, dwMoveMethod)
+            rv = f.tell()
+            self.mem_write(lpNewFilePointer, rv.to_bytes(8,'little'))
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return True
+        return False
 
     @apihook('GetFileSize', argc=2)
     def GetFileSize(self, emu, argv, ctx={}):
