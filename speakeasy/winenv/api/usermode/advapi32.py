@@ -628,6 +628,27 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook('StartServiceA', argc=3)
+    def StartServiceA(self, emu, argv, ctx={}):
+        return self.StartService(emu,argv,ctx)
+
+    @apihook('ControlService', argc=3)
+    def ControlService(self, emu, argv, ctx={}):
+        '''
+        BOOL ControlService(
+          [in]  SC_HANDLE        hService,
+          [in]  DWORD            dwControl,
+          [out] LPSERVICE_STATUS lpServiceStatus
+        );
+        '''
+        hService, dwControl, lpServiceStatus = argv
+
+        rv = 1
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return rv
+
     @apihook('CloseServiceHandle', argc=1)
     def CloseServiceHandle(self, emu, argv, ctx={}):
         '''
