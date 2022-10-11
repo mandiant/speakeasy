@@ -593,8 +593,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
             if self.do_strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
-                dec_ansi = [a for a in dec_ansi if a not in self.profiler.strings['ansi']]
-                dec_unicode = [u for u in dec_unicode if u not in self.profiler.strings['unicode']]
+                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings['ansi']]
+                dec_unicode = [u[1] for u in dec_unicode if u not in self.profiler.strings['unicode']]
                 self.profiler.decoded_strings['ansi'] = dec_ansi
                 self.profiler.decoded_strings['unicode'] = dec_unicode
         self.stop()
