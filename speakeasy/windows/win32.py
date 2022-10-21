@@ -495,7 +495,7 @@ class Win32Emulator(WindowsEmulator):
 
         return sc_addr
 
-    def run_shellcode(self, sc_addr, offset=0):
+    def run_shellcode(self, sc_addr, stack_commit=0x4000, offset=0):
         """
         Begin emulating position independent code (i.e. shellcode) to prepare for emulation
         """
@@ -508,8 +508,6 @@ class Win32Emulator(WindowsEmulator):
 
         if not target:
             raise Win32EmuError('Invalid shellcode address')
-
-        stack_commit = 0x4000
 
         self.stack_base, stack_addr = self.alloc_stack(stack_commit)
         self.set_func_args(self.stack_base, self.return_hook, 0x7000)
