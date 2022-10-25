@@ -260,7 +260,7 @@ class Speakeasy(object):
         return self.emu.load_shellcode(fpath, arch, data=data)
 
     @check_init
-    def run_shellcode(self, sc_addr: int, offset=0) -> None:
+    def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
         """
         Run a previously loaded shellcode blob by address
 
@@ -271,7 +271,7 @@ class Speakeasy(object):
             None
         """
         self._init_hooks()
-        return self.emu.run_shellcode(sc_addr, offset=offset)
+        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
 
     @check_init
     def get_report(self) -> dict:
