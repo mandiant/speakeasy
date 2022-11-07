@@ -5751,9 +5751,9 @@ class Kernel32(api.ApiHandler):
 
         import time
         if prefix:
-            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+            out = path + f"\\{prefix}_{int(time.time_ns())}.tmp"
         else:
-            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+            out = path + f"{int(time.time_ns())}.tmp"
         argv[1] = out
         self.write_mem_string(out, lpTempFileName, cw)
 
