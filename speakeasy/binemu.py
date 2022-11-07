@@ -703,7 +703,7 @@ class BinaryEmulator(MemoryManager):
         i = 0
 
         if width == 1:
-            decode = 'latin1'
+            decode = 'utf-8'
         elif width == 2:
             decode = 'utf-16le'
         else:
@@ -785,7 +785,7 @@ class BinaryEmulator(MemoryManager):
 
     def write_mem_string(self, string, address, width=1):
         """
-        Write string data to an emulated memory address
+        Write string data to an emulated memory address. Appends terminating zero byte if not present.
         """
 
         if width == 1:
@@ -794,6 +794,9 @@ class BinaryEmulator(MemoryManager):
             encode = 'utf-16le'
         else:
             raise ValueError('Invalid string encoding')
+
+        if not string.endswith("\0"):
+            string += "\0"
 
         enc_str = string.encode(encode)
         self.mem_write(address, enc_str)
