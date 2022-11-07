@@ -5733,14 +5733,14 @@ class Kernel32(api.ApiHandler):
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
 
-    @apihook("GetTempFileNameW", argc=4)
-    def GetTempFileNameW(self, emu, argv, ctx={}):
+    @apihook("GetTempFileName", argc=4)
+    def GetTempFileName(self, emu, argv, ctx={}):
         '''
-        UINT GetTempFileNameW(
-            [in]  LPCWSTR lpPathName,
-            [in]  LPCWSTR lpPrefixString,
-            [in]  UINT    uUnique,
-            [out] LPWSTR  lpTempFileName
+        UINT GetTempFileName(
+            [in]  LPCSTR lpPathName,
+            [in]  LPCSTR lpPrefixString,
+            [in]  UINT   uUnique,
+            [out] LPSTR  lpTempFileName
         );
         '''
         lpPathName, lpPrefixString, uUnique, lpTempFileName = argv
