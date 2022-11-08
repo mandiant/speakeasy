@@ -68,6 +68,7 @@ class Crypt32(api.ApiHandler):
         out_len = len(decoded)
 
         if pbBinary == 0:
+            self.mem_write(pcbBinary, out_len.to_bytes(4, 'little'))
             return out_len
 
         if out_len > cbBinary:
