@@ -1638,19 +1638,21 @@ class Msvcrt(api.ApiHandler):
         argv[1] = string2
 
         return rv
-    
+
     @apihook('_snwprintf', argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _snwprintf(self, emu, argv, ctx={}):
         """
-               int _snwprintf(
-                   wchar_t *buffer,
-                   size_t count,
-                   const wchar_t *format [,
-                   argument] ...
-                   );
-               """
+        int _snwprintf(
+            wchar_t *buffer,
+            size_t count,
+            const wchar_t *format [,
+            argument] ...
+            );
+        """
         buf, cnt, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
-        fmt_str = self.read_wide_string(fmt)
+        # the internal printf implementation requires uppercase S for wide string formatting,
+        # otherwise the function replaces a latin1 string into an utf-16 string
+        fmt_str = self.read_wide_string(fmt).replace(r"%s", r"%S")
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         if not fmt_cnt:
