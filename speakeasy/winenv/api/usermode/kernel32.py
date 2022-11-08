@@ -5946,3 +5946,7 @@ class Kernel32(api.ApiHandler):
         # 2GB
         self.mem_write(TotalMemoryInKilobytes, (0x200000).to_bytes(8, 'little'))
         return 1
+
+    @apihook('WTSGetActiveConsoleSessionId', argc=0)
+    def WTSGetActiveConsoleSessionId(self, emu, argv, ctx={}):
+        return emu.get_current_process().get_session_id()
