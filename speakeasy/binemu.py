@@ -795,8 +795,8 @@ class BinaryEmulator(MemoryManager):
         else:
             raise ValueError('Invalid string encoding')
 
-        if not string.endswith("\0"):
-            string += "\0"
+        if not string.endswith('\0'):
+            string += '\0'
 
         enc_str = string.encode(encode)
         self.mem_write(address, enc_str)
