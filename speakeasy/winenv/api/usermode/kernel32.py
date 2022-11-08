@@ -3361,9 +3361,15 @@ class Kernel32(api.ApiHandler):
         if dst:
             _dst = self.read_mem_string(dst, cw)
             argv[1] = _dst
-            self.file_open(_dst, create=True)
+            dHandle = self.file_open(_dst, create=True)
             self.log_file_access(_dst, FILE_CREATE)
             self.log_file_access(_dst, FILE_WRITE)
+            sHandle = self.file_open(_src)
+            sf = self.file_get(sHandle)
+            df = self.file_get(dHandle)
+            data = sf.get_data()
+            df.add_data(data)
+
         return True
 
     @apihook('CreateFile', argc=7)
