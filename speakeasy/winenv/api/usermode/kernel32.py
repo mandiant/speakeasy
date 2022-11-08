@@ -5,8 +5,9 @@ import ntpath
 import string
 import fnmatch
 import datetime
-import time 
+import time
 import ctypes as ct
+import struct
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -5327,6 +5328,41 @@ class Kernel32(api.ApiHandler):
         LPMEMORYSTATUS lpBuffer
         );
         """
+        return
+
+    @apihook('GlobalMemoryStatusEx', argc=1)
+    def GlobalMemoryStatusEx(self, emu, argv, ctx={}):
+        """
+        void GlobalMemoryStatusEx(
+        LPMEMORYSTATUSEX lpBuffer
+        );
+
+        typedef struct _MEMORYSTATUSEX {
+            DWORD     dwLength;
+            DWORD     dwMemoryLoad;
+            DWORDLONG ullTotalPhys;
+            DWORDLONG ullAvailPhys;
+            DWORDLONG ullTotalPageFile;
+            DWORDLONG ullAvailPageFile;
+            DWORDLONG ullTotalVirtual;
+            DWORDLONG ullAvailVirtual;
+            DWORDLONG ullAvailExtendedVirtual;
+        } MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
+        """
+        GB = 1024 * 1024 * 1024
+        buf = struct.pack(
+            "<IIQQQQQQQ",
+            64,  # dwLength
+            80,  # dwMemoryLoad
+            8 * GB,  # ullTotalPhys
+            5 * GB,  # ullAvailPhys
+            8 * GB,  # ullTotalPageFile
+            4 * GB,  # ullAvailPageFile
+            8 * GB,  # ullTotalVirtual
+            7 * GB,  # ullAvailVirtual
+            16 * GB)  # ullAvailExtendedVirtual
+
+        emu.mem_write(argv[0], buf)
         return
 
     @apihook('GetDiskFreeSpaceEx', argc=4)
