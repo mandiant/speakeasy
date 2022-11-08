@@ -2514,7 +2514,7 @@ class Kernel32(api.ApiHandler):
                     ptr = (lpBuffer + offset).to_bytes(emu.get_ptr_size(), 'little')
                     self.mem_write(lpFilePart, ptr)
 
-                rv = len(fn)
+            rv = len(fn)
 
         return rv
 
