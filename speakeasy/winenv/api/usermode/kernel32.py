@@ -5,8 +5,9 @@ import ntpath
 import string
 import fnmatch
 import datetime
-import time 
+import time
 import ctypes as ct
+import struct
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -2514,7 +2515,7 @@ class Kernel32(api.ApiHandler):
                     ptr = (lpBuffer + offset).to_bytes(emu.get_ptr_size(), 'little')
                     self.mem_write(lpFilePart, ptr)
 
-                rv = len(fn)
+            rv = len(fn)
 
         return rv
 
@@ -3309,7 +3310,8 @@ class Kernel32(api.ApiHandler):
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
         fHandle = self.file_open(filename)
         if fHandle:
-            full_size = fHandle.get_size()
+            f = self.get_object_from_handle(fHandle)
+            full_size = f.get_size()
             high = (0xFFFFFFFF & (full_size >> 32))
             low = 0xFFFFFFFF & full_size
             high = high.to_bytes(4, 'little')
@@ -3361,9 +3363,15 @@ class Kernel32(api.ApiHandler):
         if dst:
             _dst = self.read_mem_string(dst, cw)
             argv[1] = _dst
-            self.file_open(_dst, create=True)
+            dHandle = self.file_open(_dst, create=True)
             self.log_file_access(_dst, FILE_CREATE)
             self.log_file_access(_dst, FILE_WRITE)
+            sHandle = self.file_open(_src)
+            sf = self.file_get(sHandle)
+            df = self.file_get(dHandle)
+            data = sf.get_data()
+            df.add_data(data)
+
         return True
 
     @apihook('CreateFile', argc=7)
@@ -5322,6 +5330,41 @@ class Kernel32(api.ApiHandler):
         """
         return
 
+    @apihook('GlobalMemoryStatusEx', argc=1)
+    def GlobalMemoryStatusEx(self, emu, argv, ctx={}):
+        """
+        void GlobalMemoryStatusEx(
+        LPMEMORYSTATUSEX lpBuffer
+        );
+
+        typedef struct _MEMORYSTATUSEX {
+            DWORD     dwLength;
+            DWORD     dwMemoryLoad;
+            DWORDLONG ullTotalPhys;
+            DWORDLONG ullAvailPhys;
+            DWORDLONG ullTotalPageFile;
+            DWORDLONG ullAvailPageFile;
+            DWORDLONG ullTotalVirtual;
+            DWORDLONG ullAvailVirtual;
+            DWORDLONG ullAvailExtendedVirtual;
+        } MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
+        """
+        GB = 1024 * 1024 * 1024
+        buf = struct.pack(
+            "<IIQQQQQQQ",
+            64,  # dwLength
+            80,  # dwMemoryLoad
+            8 * GB,  # ullTotalPhys
+            5 * GB,  # ullAvailPhys
+            8 * GB,  # ullTotalPageFile
+            4 * GB,  # ullAvailPageFile
+            8 * GB,  # ullTotalVirtual
+            7 * GB,  # ullAvailVirtual
+            16 * GB)  # ullAvailExtendedVirtual
+
+        emu.mem_write(argv[0], buf)
+        return
+
     @apihook('GetDiskFreeSpaceEx', argc=4)
     def GetDiskFreeSpaceEx(self, emu, argv, ctx={}):
         """
@@ -5733,14 +5776,14 @@ class Kernel32(api.ApiHandler):
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
 
-    @apihook("GetTempFileNameW", argc=4)
-    def GetTempFileNameW(self, emu, argv, ctx={}):
+    @apihook("GetTempFileName", argc=4)
+    def GetTempFileName(self, emu, argv, ctx={}):
         '''
-        UINT GetTempFileNameW(
-            [in]  LPCWSTR lpPathName,
-            [in]  LPCWSTR lpPrefixString,
-            [in]  UINT    uUnique,
-            [out] LPWSTR  lpTempFileName
+        UINT GetTempFileName(
+            [in]  LPCSTR lpPathName,
+            [in]  LPCSTR lpPrefixString,
+            [in]  UINT   uUnique,
+            [out] LPSTR  lpTempFileName
         );
         '''
         lpPathName, lpPrefixString, uUnique, lpTempFileName = argv
@@ -5751,9 +5794,9 @@ class Kernel32(api.ApiHandler):
 
         import time
         if prefix:
-            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+            out = path + f"\\{prefix}_{int(time.time_ns())}.tmp"
         else:
-            out = path + f"\\{prefix}_{int(time.time())}.tmp"
+            out = path + f"{int(time.time_ns())}.tmp"
         argv[1] = out
         self.write_mem_string(out, lpTempFileName, cw)
 
@@ -5903,3 +5946,7 @@ class Kernel32(api.ApiHandler):
         # 2GB
         self.mem_write(TotalMemoryInKilobytes, (0x200000).to_bytes(8, 'little'))
         return 1
+
+    @apihook('WTSGetActiveConsoleSessionId', argc=0)
+    def WTSGetActiveConsoleSessionId(self, emu, argv, ctx={}):
+        return emu.get_current_process().get_session_id()

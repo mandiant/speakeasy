@@ -258,5 +258,6 @@ class Shell32(api.ApiHandler):
         else:
             # Temp
             path = "C:\\Windows\\Temp"
-        self.mem_write(pszPath, path.encode('utf-8'))
+
+        emu.write_mem_string(path, pszPath, self.get_char_width(ctx))
         return 0
