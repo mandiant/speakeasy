@@ -3309,7 +3309,8 @@ class Kernel32(api.ApiHandler):
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
         fHandle = self.file_open(filename)
         if fHandle:
-            full_size = fHandle.get_size()
+            f = self.get_object_from_handle(fHandle)
+            full_size = f.get_size()
             high = (0xFFFFFFFF & (full_size >> 32))
             low = 0xFFFFFFFF & full_size
             high = high.to_bytes(4, 'little')
