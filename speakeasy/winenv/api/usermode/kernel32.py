@@ -1674,33 +1674,44 @@ class Kernel32(api.ApiHandler):
         rv = 1
 
         lookup = {
-            25: 'PF_ARM_64BIT_LOADSTORE_ATOMIC',
-            24: 'PF_ARM_DIVIDE_INSTRUCTION_AVAILABLE',
-            26: 'PF_ARM_EXTERNAL_CACHE_AVAILABLE',
-            27: 'PF_ARM_FMAC_INSTRUCTIONS_AVAILABLE',
-            18: 'PF_ARM_VFP_32_REGISTERS_AVAILABLE',
-            7: 'PF_3DNOW_INSTRUCTIONS_AVAILABLE',
-            16: 'PF_CHANNELS_ENABLED',
-            2: 'PF_COMPARE_EXCHANGE_DOUBLE',
-            14: 'PF_COMPARE_EXCHANGE128',
-            15: 'PF_COMPARE64_EXCHANGE128',
-            23: 'PF_FASTFAIL_AVAILABLE',
-            1: 'PF_FLOATING_POINT_EMULATED',
-            0: 'PF_FLOATING_POINT_PRECISION_ERRATA',
-            3: 'PF_MMX_INSTRUCTIONS_AVAILABLE',
-            12: 'PF_NX_ENABLED',
-            9: 'PF_PAE_ENABLED',
-            8: 'PF_RDTSC_INSTRUCTION_AVAILABLE',
-            22: 'PF_RDWRFSGSBASE_AVAILABLE',
-            20: 'PF_SECOND_LEVEL_ADDRESS_TRANSLATION',
-            13: 'PF_SSE3_INSTRUCTIONS_AVAILABLE',
-            21: 'PF_VIRT_FIRMWARE_ENABLED',
-            6: 'PF_XMMI_INSTRUCTIONS_AVAILABLE',
-            10: 'PF_XMMI64_INSTRUCTIONS_AVAILABLE',
-            17: 'PF_XSAVE_ENABLED',
+                0:{"name":"PF_FLOATING_POINT_PRECISION_ERRATA","return":0},
+                1:{"name":"PF_FLOATING_POINT_EMULATED","return":0},
+                2:{"name":"PF_COMPARE_EXCHANGE_DOUBLE","return":1},
+                3:{"name":"PF_MMX_INSTRUCTIONS_AVAILABLE","return":1},
+                4:{"name":"PF_PPC_MOVEMEM_64BIT_OK","return":0},
+                5:{"name":"PF_ALPHA_BYTE_INSTRUCTIONS","return":0},
+                6:{"name":"PF_XMMI_INSTRUCTIONS_AVAILABLE","return":1},
+                7:{"name":"PF_3DNOW_INSTRUCTIONS_AVAILABLE","return":0},
+                8:{"name":"PF_RDTSC_INSTRUCTION_AVAILABLE","return":1},
+                9:{"name":"PF_PAE_ENABLED","return":1},
+                10:{"name":"PF_XMMI64_INSTRUCTIONS_AVAILABLE","return":1},
+                11:{"name":"PF_SSE_DAZ_MODE_AVAILABLE","return":0},
+                12:{"name":"PF_NX_ENABLED","return":1},
+                13:{"name":"PF_SSE3_INSTRUCTIONS_AVAILABLE","return":1},
+                14:{"name":"PF_COMPARE_EXCHANGE128","return":1},
+                15:{"name":"PF_COMPARE64_EXCHANGE128","return":0},
+                16:{"name":"PF_CHANNELS_ENABLED","return":0},
+                17:{"name":"PF_XSAVE_ENABLED","return":1},
+                18:{"name":"PF_ARM_VFP_32_REGISTERS_AVAILABLE","return":0},
+                19:{"name":"PF_ARM_NEON_INSTRUCTIONS_AVAILABLE","return":0},
+                20:{"name":"PF_SECOND_LEVEL_ADDRESS_TRANSLATION","return":0},
+                21:{"name":"PF_VIRT_FIRMWARE_ENABLED","return":1},
+                22:{"name":"PF_RDWRFSGSBASE_AVAILABLE","return":1},
+                23:{"name":"PF_FASTFAIL_AVAILABLE","return":1},
+                24:{"name":"PF_ARM_DIVIDE_INSTRUCTION_AVAILABLE","return":0},
+                25:{"name":"PF_ARM_64BIT_LOADSTORE_ATOMIC","return":0},
+                26:{"name":"PF_ARM_EXTERNAL_CACHE_AVAILABLE","return":0},
+                27:{"name":"PF_ARM_FMAC_INSTRUCTIONS_AVAILABLE","return":0},
+                28:{"name":"PF_RDRAND_INSTRUCTION_AVAILABLE","return":1},
+                29:{"name":"PF_ARM_V8_INSTRUCTIONS_AVAILABLE","return":0},
+                30:{"name":"PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE","return":0},
+                31:{"name":"PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE","return":0},
+                32:{"name":"PF_RDTSCP_INSTRUCTION_AVAILABLE","return":1},
         }
-
-        argv[0] = lookup[argv[0]]
+        
+        rv = lookup[argv[0]]["return"]
+        argv[0] = lookup[argv[0]]["name"]
+        
         return rv
 
     @apihook('lstrcmpi', argc=2)
