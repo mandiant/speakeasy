@@ -1707,6 +1707,15 @@ class Kernel32(api.ApiHandler):
                 30:{"name":"PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE","return":0},
                 31:{"name":"PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE","return":0},
                 32:{"name":"PF_RDTSCP_INSTRUCTION_AVAILABLE","return":1},
+                33:{"name":"PF_RDPID_INSTRUCTION_AVAILABLE","return":0},
+                34:{"name":"PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE","return":0},
+                35:{"name":"PF_MONITORX_INSTRUCTION_AVAILABLE","return":0},
+                36:{"name":"PF_SSSE3_INSTRUCTIONS_AVAILABLE","return":1},
+                37:{"name":"PF_SSE4_1_INSTRUCTIONS_AVAILABLE","return":1},
+                38:{"name":"PF_SSE4_2_INSTRUCTIONS_AVAILABLE","return":1},
+                39:{"name":"PF_AVX_INSTRUCTIONS_AVAILABLE","return":1},
+                40:{"name":"PF_AVX2_INSTRUCTIONS_AVAILABLE","return":1},
+                41:{"name":"PF_AVX512F_INSTRUCTIONS_AVAILABLE","return":0},
         }
         
         rv = lookup[argv[0]]["return"]
