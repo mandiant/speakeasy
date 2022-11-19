@@ -1672,7 +1672,19 @@ class Kernel32(api.ApiHandler):
         );'''
 
         rv = 1
+        ''' 
+        Not all the features must return 1, because those can represent a feature which can be unavailable
+        for your processor. For example PF_FLOATING_POINT_PRECISION_ERRATA is a Pentium instructions 
+        which doesn't exist on new ones, and malware developers are using it to see if they are in an 
+        emulated environment or not.
 
+        To get the correct value you just need write an app to check all the fatures, something like:
+
+        std::cout << IsProcessorFeaturePresent(PF_FLOATING_POINT_PRECISION_ERRATA) << endl;
+        std::cout << IsProcessorFeaturePresent(PF_FLOATING_POINT_EMULATED) << endl;
+        ...
+
+        '''
         lookup = {
                 0:{"name":"PF_FLOATING_POINT_PRECISION_ERRATA","return":0},
                 1:{"name":"PF_FLOATING_POINT_EMULATED","return":0},
