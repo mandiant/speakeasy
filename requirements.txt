@@ -1,6 +1,6 @@
 pefile
 capstone
 lznt1
-unicorn==1.0.2
+unicorn==2.0.0rc7
 jsonschema
 pycryptodome
