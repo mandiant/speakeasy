@@ -5814,6 +5814,7 @@ class Kernel32(api.ApiHandler):
         '''
         LCID GetUserDefaultLCID();
         '''
+        #https://learn.microsoft.com/en-us/windows/win32/intl/locale-system-default
         return LOCALE_SYSTEM_DEFAULT
 
     @apihook("GetTempFileName", argc=4)
