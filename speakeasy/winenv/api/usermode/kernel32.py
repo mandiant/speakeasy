@@ -25,6 +25,7 @@ from .. import api
 PAGE_SIZE = 0x1000
 LANG_EN_US = 0x409
 LOCALE_USER_DEFAULT = 0x400
+LOCALE_SYSTEM_DEFAULT = 0x0800
 
 SEC_IMAGE = 0x1000000
 
@@ -5807,6 +5808,14 @@ class Kernel32(api.ApiHandler):
         '''
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
+
+    @apihook("GetSystemDefaultLCID", argc=0)
+    def GetSystemDefaultLCID(self, emu, argv, ctx={}):
+        '''
+        LCID GetUserDefaultLCID();
+        '''
+        #https://learn.microsoft.com/en-us/windows/win32/intl/locale-system-default
+        return LOCALE_SYSTEM_DEFAULT
 
     @apihook("GetTempFileName", argc=4)
     def GetTempFileName(self, emu, argv, ctx={}):
