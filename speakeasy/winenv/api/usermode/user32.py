@@ -780,6 +780,28 @@ class User32(api.ApiHandler):
             rv = s + cw
         return rv
 
+    @apihook('CharPrev', argc=2)
+    def CharPrev(self, emu, argv, ctx={}):
+        '''
+        LPSTR CharPrev(
+            LPCSTR lpszStart,
+            LPCSTR lpszCurrent
+        );
+        '''
+        '''
+        Got this from wine.          
+        https://github.com/wine-mirror/wine/blob/a8c1d5c108fc57e4d78e9db126f395c89083a83d/dlls/kernelbase/string.c
+        '''
+        s,c = argv
+        cw = self.get_char_width(ctx)
+        while(s<c):
+            n  = s + cw
+            if (n>=c): 
+                break;
+            s = n;
+
+        return s
+
     @apihook('EnumWindows', argc=2)
     def EnumWindows(self, emu, argv, ctx={}):
         '''
