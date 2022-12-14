@@ -3378,6 +3378,22 @@ class Kernel32(api.ApiHandler):
             argv[0] = target
         return True
 
+    @apihook('RemoveDirectory', argc=1)
+    def RemoveDirectory(self, emu, argv, ctx={}):
+        '''
+        BOOL RemoveDirectoryA(
+        [in] LPCSTR lpPathName
+        );
+        '''
+        pn, = argv
+        cw  = self.get_char_width(ctx)
+
+        if pn:
+            target = self.read_mem_string(pn, cw)
+            argv[0] = target
+            
+        return True
+    
     @apihook('CopyFile', argc=3)
     def CopyFile(self, emu, argv, ctx={}):
         '''
@@ -3691,6 +3707,15 @@ class Kernel32(api.ApiHandler):
             emu.dec_ref(obj)
             return True
         return False
+    
+    @apihook('SetEndOfFile', argc=1)
+    def SetEndOfFile(self, emu, argv, ctx={}):
+        '''
+        BOOL SetEndOfFile(
+          HANDLE hFile
+        );
+        '''
+        return True
 
     @apihook('IsDebuggerPresent', argc=0)
     def IsDebuggerPresent(self, emu, argv, ctx={}):
