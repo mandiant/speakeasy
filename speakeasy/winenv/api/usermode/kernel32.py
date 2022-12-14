@@ -1958,6 +1958,26 @@ class Kernel32(api.ApiHandler):
 
         return size
 
+    @apihook('GlobalFlags', argc=1)
+    def GlobalFlags(self, emu, argv, ctx={}):
+        '''
+        UINT GlobalFlags(
+        [in] HGLOBAL hMem
+        );
+        '''
+        hMem, = argv
+        flags = 0
+        for mmap in emu.get_mem_maps():
+            if hMem == mmap.get_base():
+                flags = mmap.get_flags()
+                emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        if not flags:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            flags = 0x8000 #GMEM_INVALID_HANDLE
+
+        return flags
+
     @apihook('LocalAlloc', argc=2)
     def LocalAlloc(self, emu, argv, ctx={}):
         '''
