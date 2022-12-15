@@ -1958,6 +1958,26 @@ class Kernel32(api.ApiHandler):
 
         return size
 
+    @apihook('GlobalFlags', argc=1)
+    def GlobalFlags(self, emu, argv, ctx={}):
+        '''
+        UINT GlobalFlags(
+        [in] HGLOBAL hMem
+        );
+        '''
+        hMem, = argv
+        flags = 0
+        for mmap in emu.get_mem_maps():
+            if hMem == mmap.get_base():
+                flags = mmap.get_flags()
+                emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        if not flags:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            flags = 0x8000 #GMEM_INVALID_HANDLE
+
+        return flags
+
     @apihook('LocalAlloc', argc=2)
     def LocalAlloc(self, emu, argv, ctx={}):
         '''
@@ -3378,6 +3398,22 @@ class Kernel32(api.ApiHandler):
             argv[0] = target
         return True
 
+    @apihook('RemoveDirectory', argc=1)
+    def RemoveDirectory(self, emu, argv, ctx={}):
+        '''
+        BOOL RemoveDirectoryA(
+        [in] LPCSTR lpPathName
+        );
+        '''
+        pn, = argv
+        cw  = self.get_char_width(ctx)
+
+        if pn:
+            target = self.read_mem_string(pn, cw)
+            argv[0] = target
+            
+        return True
+    
     @apihook('CopyFile', argc=3)
     def CopyFile(self, emu, argv, ctx={}):
         '''
@@ -3691,6 +3727,15 @@ class Kernel32(api.ApiHandler):
             emu.dec_ref(obj)
             return True
         return False
+    
+    @apihook('SetEndOfFile', argc=1)
+    def SetEndOfFile(self, emu, argv, ctx={}):
+        '''
+        BOOL SetEndOfFile(
+          HANDLE hFile
+        );
+        '''
+        return True
 
     @apihook('IsDebuggerPresent', argc=0)
     def IsDebuggerPresent(self, emu, argv, ctx={}):
