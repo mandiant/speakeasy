@@ -134,7 +134,7 @@ SYSTEM_INFORMATION_CLASS.SystemFlagsInformation = 0x09
 SYSTEM_INFORMATION_CLASS.SystemCallTimeInformation = 0x0A
 SYSTEM_INFORMATION_CLASS.SystemModuleInformation = 0x0B
 SYSTEM_INFORMATION_CLASS.SystemKernelDebuggerInformation = 0x23
-
+SYSTEM_INFORMATION_CLASS.SystemCodeIntegrityInformation =0x67
 
 FILE_INFORMATION_CLASS = Enum()
 FILE_INFORMATION_CLASS.FileDirectoryInformation = 1

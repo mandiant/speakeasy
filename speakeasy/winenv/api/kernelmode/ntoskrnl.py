@@ -600,7 +600,14 @@ class Ntoskrnl(api.ApiHandler):
                 size = len(out)
                 self.mem_write(sysinfo, out)
                 nts = ddk.STATUS_SUCCESS
-
+                
+        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemCodeIntegrityInformation:
+            if sysinfo and syslen >=8:
+                class_len = (8).to_bytes(4,"little")
+                flags = (1).to_bytes(4,"little")
+                self.mem_write(sysinfo,class_len + flags)
+                nts = ddk.STATUS_SUCCESS
+                
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemProcessInformation:
             procs = emu.get_processes()
             for proc in procs:
