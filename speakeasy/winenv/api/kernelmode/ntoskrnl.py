@@ -5,6 +5,7 @@ import ntpath
 
 import lznt1
 
+import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.registry.reg as regdefs
@@ -42,6 +43,27 @@ class Ntoskrnl(api.ApiHandler):
 
     def set_current_irql(self, irql):
         return self.emu.set_current_irql(irql)
+        
+    def win_perms_to_emu_perms(self, win_perms):
+        """
+        Maps Windows permissions to emulator engine permissions
+        """
+        new = 0
+        if (win_perms & windefs.PAGE_EXECUTE_READWRITE):
+            new = common.PERM_MEM_RWX
+        elif (win_perms & windefs.PAGE_NOACCESS):
+            new = common.PERM_MEM_NONE
+        else:
+            if (win_perms & windefs.PAGE_EXECUTE or
+                    win_perms & windefs.PAGE_EXECUTE_READ):
+                new |= common.PERM_MEM_EXEC
+            if (win_perms & windefs.PAGE_EXECUTE_READ or
+                win_perms & windefs.PAGE_READONLY or
+                win_perms & windefs.PAGE_READWRITE): # noqa
+                new |= common.PERM_MEM_READ
+            if (win_perms & windefs.PAGE_READWRITE):
+                new |= common.PERM_MEM_WRITE
+        return new
 
     @impdata('IoDriverObjectType')
     def IoDriverObjectType(self, ptr=0):
@@ -578,7 +600,14 @@ class Ntoskrnl(api.ApiHandler):
                 size = len(out)
                 self.mem_write(sysinfo, out)
                 nts = ddk.STATUS_SUCCESS
-
+                
+        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemCodeIntegrityInformation:
+            if sysinfo and syslen >= 8:
+                class_len = (8).to_bytes(4, "little")
+                flags = (1).to_bytes(4, "little")
+                self.mem_write(sysinfo, class_len + flags)
+                nts = ddk.STATUS_SUCCESS
+                
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemProcessInformation:
             procs = emu.get_processes()
             for proc in procs:
@@ -3079,7 +3108,7 @@ class Ntoskrnl(api.ApiHandler):
                                       'little')
 
         tag_prefix = 'api.ZwMapViewOfSection'
-        access = Win32Protect
+        access = self.win_perms_to_emu_perms(Win32Protect)
         if sect:
             buf = None
             size = 0
