@@ -333,4 +333,72 @@ class Ntdll(api.ApiHandler):
         self.mem_write(Resource, offset.to_bytes(4, 'little'))
         
         return 0
+    @apihook('wcsstr', argc=2,conv=e_arch.CALL_CONV_CDECL)
+    def wcsstr(self, emu, argv, ctx={}):
+        """
+        wchar_t *wcsstr(
+            const wchar_t *str,
+            const wchar_t *strSearch
+        );
+        """
+        #Copied from msvcrt
+        hay, needle = argv
+
+        if hay:
+            _hay = self.read_mem_string(hay, 2)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, 2)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+        return ret
+        
+    @apihook('towlower', argc=1,conv=e_arch.CALL_CONV_CDECL)
+    def towlower(self, emu, argv, ctx={}):
+        """
+        int tolower ( int c );
+        """
+        #Copied from msvcrt
+        c, = argv
+        return c | 0x20
+    
+    @apihook('tolower', argc=1,conv=e_arch.CALL_CONV_CDECL)
+    def tolower(self, emu, argv, ctx={}):
+        """
+        int tolower ( int c );
+        """
+        #Copied from msvcrt
+        c, = argv
+        return c | 0x20
+
+    @apihook('strstr', argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strstr(self, emu, argv, ctx={}):
+        """
+        char *strstr(
+           const char *str,
+           const char *strSearch
+        );
+        """
+        #Copied from msvcrt
+        hay, needle = argv	
+        if hay:
+            _hay = self.read_mem_string(hay, 1)
+            argv[0] = _hay
+
+        if needle:
+            needle = self.read_mem_string(needle, 1)
+            argv[1] = needle
+
+        ret = _hay.find(needle)
+        if ret != -1:
+            ret = hay + ret
+        else:
+            ret = 0
+        return ret
 
