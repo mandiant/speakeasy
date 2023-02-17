@@ -11,6 +11,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.windows.objman as objman
 from speakeasy.const import FILE_OPEN, FILE_WRITE, FILE_READ, MEM_WRITE
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
