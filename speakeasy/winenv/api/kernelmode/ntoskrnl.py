@@ -3299,7 +3299,7 @@ class Ntoskrnl(api.ApiHandler):
             new_token = emu.new_object(objman.Token)
             hnd_new_token = new_token.get_handle()
 
-            if phNewToken:
+            if hnd_new_token:
                 hnd = (htHandle).to_bytes(self.get_ptr_size(), 'little')
                 self.mem_write(htHandle, hnd)
                 rv = ddk.STATUS_SUCCESS        
