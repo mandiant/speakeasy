@@ -3232,3 +3232,22 @@ class Ntoskrnl(api.ApiHandler):
 
         self.mem_free(lpMem)
         return rv
+
+    @apihook('ZwTerminateProcess', argc=2)
+    def ZwTerminateProcess(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwTerminateProcess(
+  			[in, optional] HANDLE   ProcessHandle,
+  			[in]           NTSTATUS ExitStatus
+		);
+        '''
+		#Copied from TerminateProcess
+        hProcess, uExitCode = argv
+        rv = 0
+
+        proc = emu.get_object_from_handle(hProcess)
+        if not proc:
+            return rv
+
+        emu.kill_process(proc)
+        rv = ddk.STATUS_SUCCESS
