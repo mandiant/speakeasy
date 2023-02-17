@@ -3251,3 +3251,26 @@ class Ntoskrnl(api.ApiHandler):
 
         emu.kill_process(proc)
         rv = ddk.STATUS_SUCCESS
+
+    @apihook('ZwOpenProcess', argc=4)
+    def ZwOpenProcess(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwOpenProcess(
+          [out]          PHANDLE            ProcessHandle,
+          [in]           ACCESS_MASK        DesiredAccess,
+          [in]           POBJECT_ATTRIBUTES ObjectAttributes,
+          [in, optional] PCLIENT_ID         ClientId
+
+        );
+        '''
+		rv = 0
+        hnd, desAccess, pObject, pid = argv
+        proc = emu.get_object_from_handle(int.from_bytes(emu.mem_read(hnd, 4), "little"))
+        if proc:
+            emu.mem_write(hnd,(proc.get_id()).to_bytes(4, "little"))
+            rv = ddk.STATUS_SUCCESS                                 
+        else:
+            emu.mem_write(hnd,(0).to_bytes(4, "little"))
+            rv = ddk.STATUS_INVALID_PARAMETER
+        return rv
+        
