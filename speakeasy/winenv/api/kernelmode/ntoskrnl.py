@@ -3264,11 +3264,15 @@ class Ntoskrnl(api.ApiHandler):
 
         );
         '''
-        rv = 0
-        hnd, desAccess, pObject, pid = argv
-        proc = emu.get_object_from_handle(int.from_bytes(emu.mem_read(hnd, 4), "little"))
-        if proc:
-            emu.mem_write(hnd,(proc.get_id()).to_bytes(4, "little"))
+        (hnd, desAccess, pObject, cid) = argv
+        if not cid:
+            return ddk.STATUS_INVALID_PARAMETER
+        cid_obj = self.win.CLIENT_ID(emu.get_ptr_size())
+        cid_obj = emu.mem_cast(cid_obj, cid)
+        oProc = emu.get_object_from_id(cid_obj.UniqueProcess)
+        hProc = emu.get_object_handle(oProc)
+        if hProc:
+            emu.mem_write(hnd,(hProc).to_bytes(4, "little"))
             rv = ddk.STATUS_SUCCESS                                 
         else:
             emu.mem_write(hnd,(0).to_bytes(4, "little"))
