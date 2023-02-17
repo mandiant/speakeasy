@@ -261,3 +261,45 @@ class Shell32(api.ApiHandler):
 
         emu.write_mem_string(path, pszPath, self.get_char_width(ctx))
         return 0
+
+
+    @apihook('ShellExecuteExW', argc=1)
+    def ShellExecuteExW(self, emu, argv, ctx={}):
+        '''
+        BOOL ShellExecuteExW(
+            [in, out] SHELLEXECUTEINFOW *pExecInfo
+        );
+        '''
+		#Based on ShellExecute
+        pExecInfo, = argv
+
+        cw = self.get_char_width(ctx)
+
+        fn = ''
+        param = ''
+        dn = ''
+        
+        p_op = int.from_bytes(self.mem_read(pExecInfo + 0xC, 4), "little")
+        if p_op:
+            op = self.read_mem_string(p_op, cw)  
+            print(op)
+        p_fn = int.from_bytes(self.mem_read(pExecInfo + 0x10, 4), "little")
+        if p_fn:
+            fn = self.read_mem_string(p_fn, cw)        
+            print(fn)
+        p_param = int.from_bytes(self.mem_read(pExecInfo + 0x14, 4),"little")
+        if p_param:
+            param = self.read_mem_string(p_param, cw) 
+            print(param)
+        p_dn = int.from_bytes(self.mem_read(pExecInfo + 0x18,4), "little")
+        if p_dn:
+            dn = self.read_mem_string(p_dn, cw)            
+            print(dn)
+
+        if dn and fn:
+            fn = '%s\\%s' % (dn, fn)
+
+        proc = emu.create_process(path=fn, cmdline=param)
+        self.log_process_event(proc, PROC_CREATE)
+
+        return 33
