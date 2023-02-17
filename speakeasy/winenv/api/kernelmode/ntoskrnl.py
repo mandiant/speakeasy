@@ -3274,3 +3274,35 @@ class Ntoskrnl(api.ApiHandler):
             rv = ddk.STATUS_INVALID_PARAMETER
         return rv
         
+    @apihook('ZwDuplicateObject', argc=7)    
+    def ZwDuplicateObject (self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwDuplicateObject(
+          [in]            HANDLE      SourceProcessHandle,
+          [in]            HANDLE      SourceHandle,
+          [in, optional]  HANDLE      TargetProcessHandle,
+          [out, optional] PHANDLE     TargetHandle,
+          [in]            ACCESS_MASK DesiredAccess,
+          [in]            ULONG       HandleAttributes,
+          [in]            ULONG       Options
+        );
+        '''
+        #Based on DublicateTokenEx
+        (hsProccessHandle, hsHandle, htProcessHandle,htHandle, mask, attr, opt) = argv
+        rv = 0
+
+        obj = self.get_object_from_handle(hsHandle)
+
+        if obj:
+
+            new_token = emu.new_object(objman.Token)
+            hnd_new_token = new_token.get_handle()
+
+            if phNewToken:
+                hnd = (htHandle).to_bytes(self.get_ptr_size(), 'little')
+                self.mem_write(htHandle, hnd)
+                rv = ddk.STATUS_SUCCESS        
+            else:
+                rv = ddk.STATUS_INVALID_PARAMETER
+
+        return rv
