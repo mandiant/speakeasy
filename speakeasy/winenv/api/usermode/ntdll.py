@@ -8,7 +8,7 @@ from .. import api
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.windows.common as winemu
-
+import speakeasy.winenv.arch as e_arch
 
 class Ntdll(api.ApiHandler):
 
@@ -333,6 +333,7 @@ class Ntdll(api.ApiHandler):
         self.mem_write(Resource, offset.to_bytes(4, 'little'))
         
         return 0
+           
     @apihook('wcsstr', argc=2,conv=e_arch.CALL_CONV_CDECL)
     def wcsstr(self, emu, argv, ctx={}):
         """
@@ -401,4 +402,4 @@ class Ntdll(api.ApiHandler):
         else:
             ret = 0
         return ret
-
+               
