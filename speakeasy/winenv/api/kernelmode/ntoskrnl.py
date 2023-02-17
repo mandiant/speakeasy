@@ -3263,7 +3263,7 @@ class Ntoskrnl(api.ApiHandler):
 
         );
         '''
-		rv = 0
+        rv = 0
         hnd, desAccess, pObject, pid = argv
         proc = emu.get_object_from_handle(int.from_bytes(emu.mem_read(hnd, 4), "little"))
         if proc:
