@@ -240,7 +240,7 @@ class Win32Emulator(WindowsEmulator):
         self.setup(first_time_setup=first_time_setup)
 
         if not self.stack_base:
-            self.stack_base, stack_addr = self.alloc_stack(pe.OPTIONAL_HEADER.SizeOfStackReserve)
+            self.stack_base, stack_addr = self.alloc_stack(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0x12000)
         self.set_func_args(self.stack_base, self.return_hook)
 
         # Init imported data
