@@ -1,4 +1,5 @@
-
+from speakeasy.struct import EmuStruct, Ptr
+import ctypes as ct
 
 CSIDL = {
     0x00: "CSIDL_DESKTOP",
@@ -63,3 +64,22 @@ CSIDL = {
     0x43: "CSIDL_SAMPLE_VIDEOS",
     0x45: "CSIDL_PHOTOALBUMS",
 }
+
+class SHELLEXECUTEINFOA(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.cbSize = ct.c_uint32
+        self.fMask = ct.c_uint32
+        self.hwnd = Ptr
+        self.lpVerb = Ptr
+        self.lpFile = Ptr
+        self.lpParameters = Ptr
+        self.lpDirectory = Ptr
+        self.nShow = ct.c_int32
+        self.hInstApp = Ptr
+        self.lpIDList = Ptr
+        self.lpClass = Ptr
+        self.hkeyClass = Ptr
+        self.dwHotKey = ct.c_uint32
+        self.DummyUnionName = Ptr
+        self.handle = Ptr
