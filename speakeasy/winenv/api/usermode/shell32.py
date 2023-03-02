@@ -96,6 +96,32 @@ class Shell32(api.ApiHandler):
 
         return 33
 
+    @apihook('ShellExecuteEx', argc=1)
+    def ShellExecuteEx(self, emu, argv, ctx={}):
+        '''
+        BOOL ShellExecuteExA(
+            [in, out] SHELLEXECUTEINFOA *pExecInfo
+        );
+        '''
+        lpShellExecuteInfo, = argv
+
+        sei = shell32_defs.SHELLEXECUTEINFOA(emu.get_ptr_size())
+        sei_struct = self.mem_cast(sei, lpShellExecuteInfo)
+
+        self.ShellExecute(
+            emu,
+            [
+                0,
+                sei_struct.lpVerb,
+                sei_struct.lpFile,
+                sei_struct.lpParameters, sei_struct.lpDirectory,
+                0
+            ], 
+            ctx
+        )
+        
+        return True
+        
     @apihook('IsUserAnAdmin', argc=0, ordinal=680)
     def IsUserAnAdmin(self, emu, argv, ctx={}):
         """
