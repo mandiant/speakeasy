@@ -108,8 +108,17 @@ class Shell32(api.ApiHandler):
         sei = shell32_defs.SHELLEXECUTEINFOA(emu.get_ptr_size())
         sei_struct = self.mem_cast(sei, lpShellExecuteInfo)
 
-        self.ShellExecute(emu,[ 0, sei_struct.lpVerb, sei_struct.lpFile,
-                          sei_struct.lpParameters, sei_struct.lpDirectory, 0], ctx)
+        self.ShellExecute(
+            emu,
+            [
+                0,
+                sei_struct.lpVerb,
+                sei_struct.lpFile,
+                sei_struct.lpParameters, sei_struct.lpDirectory,
+                0
+            ], 
+            ctx
+        )
         
         return True
         
