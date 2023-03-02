@@ -1,5 +1,6 @@
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 CSIDL = {
     0x00: "CSIDL_DESKTOP",
