@@ -523,6 +523,19 @@ class AdvApi32(api.ApiHandler):
 
         return self.service_status_handle
 
+    @apihook('RegisterServiceCtrlHandlerEx', argc=3)
+    def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx={}):
+        '''
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerExA(
+            LPCSTR                lpServiceName,
+            LPHANDLER_FUNCTION_EX lpHandlerProc,
+            LPVOID                lpContext
+        );
+        '''
+        lpServiceName, lpHandlerProc, lpContext = argv
+
+        return self.RegisterServiceCtrlHandler(self, emu, [lpServiceName, lpHandlerProc], ctx)
+
     @apihook('SetServiceStatus', argc=2)
     def SetServiceStatus(self, emu, argv, ctx={}):
         '''

@@ -37,6 +37,11 @@ class Ntdll(api.ApiHandler):
 
         return emu.get_last_error()
 
+    @apihook('RtlNtStatusToDosError', argc=1)
+    def RtlNtStatusToDosError(self, emu, argv, ctx={}):
+        '''ULONG RtlNtStatusToDosError(NTSTATUS Status);'''
+        return 0
+
     @apihook('RtlFlushSecureMemoryCache', argc=2)
     def RtlFlushSecureMemoryCache(self, emu, argv, ctx={}):
         '''DWORD RtlFlushSecureMemoryCache(PVOID arg0, PVOID arg1);'''
@@ -146,7 +151,7 @@ class Ntdll(api.ApiHandler):
             fn = ntos.STRING(emu.get_ptr_size())
             fn = self.mem_cast(fn, proc_name)
 
-            proc = self.read_mem_string(fn.Buffer, 1)
+            proc = self.read_mem_string(fn.Buffer, 1, max_chars=fn.Length)
             argv[1] = proc
 
         elif ordinal:
@@ -173,6 +178,15 @@ class Ntdll(api.ApiHandler):
         """
         dest, length = argv
         buf = b'\x00' * length
+        self.mem_write(dest, buf)
+
+    @apihook('RtlMoveMemory', argc=3)
+    def RtlMoveMemory(self, emu, argv, ctx={}):
+        """
+        void RtlMoveMemory(void* pvDest, const void *pSrc, size_t Length);
+        """
+        dest, source, length = argv
+        buf = self.mem_read(source, length)
         self.mem_write(dest, buf)
 
     @apihook('NtSetInformationProcess', argc=4)

@@ -5248,6 +5248,15 @@ class Kernel32(api.ApiHandler):
         buf = b'\x00' * length
         self.mem_write(dest, buf)
 
+    @apihook('RtlMoveMemory', argc=3)
+    def RtlMoveMemory(self, emu, argv, ctx={}):
+        """
+        void RtlMoveMemory(void* pvDest, const void *pSrc, size_t Length);
+        """
+        dest, source, length = argv
+        buf = self.mem_read(source, length)
+        self.mem_write(dest, buf)
+
     @apihook('QueryPerformanceFrequency', argc=1)
     def QueryPerformanceFrequency(self, emu, argv, ctx={}):
         """
@@ -5832,6 +5841,16 @@ class Kernel32(api.ApiHandler):
 
         return Handler
 
+    @apihook('RemoveVectoredExceptionHandler', argc=1)
+    def RemoveVectoredExceptionHandler(self, emu, argv, ctx={}):
+        '''
+        ULONG RemoveVectoredExceptionHandler(
+            PVOID Handle);
+        '''
+        Handler = argv
+        emu.remove_vectored_exception_handler(Handler)
+        return 1
+
     @apihook("GetSystemDefaultUILanguage", argc=0)
     def GetSystemDefaultUILanguage(self, emu, argv, ctx={}):
         '''
@@ -5942,8 +5961,8 @@ class Kernel32(api.ApiHandler):
     def GetConsoleTitle(self, emu, argv, ctx={}):
         '''
         DWORD WINAPI GetConsoleTitle(
-            _Out_ LPTSTR lpConsoleTitle,
-            _In_  DWORD  nSize
+            _Out_ LPTSTR lpConsoleTitle,
+            _In_  DWORD nSize
         );
         '''
         lpConsoleTitle, nSize = argv
@@ -6036,3 +6055,12 @@ class Kernel32(api.ApiHandler):
     @apihook('WTSGetActiveConsoleSessionId', argc=0)
     def WTSGetActiveConsoleSessionId(self, emu, argv, ctx={}):
         return emu.get_current_process().get_session_id()
+
+    @apihook('WaitForSingleObjectEx', argc=3)
+    def WaitForSingleObjectEx(self, emu, argv, ctx={}):
+        return 0    # = WAIT_OBJECT_0
+
+    @apihook('GetProfileInt', argc=3)
+    def GetProfileInt(self, emu, argv, ctx={}):
+        _, _, nDefault = argv
+        return nDefault
