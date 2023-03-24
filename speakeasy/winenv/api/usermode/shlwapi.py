@@ -54,7 +54,7 @@ class Shlwapi(api.ApiHandler):
             argv[0] = pn
 
         return rv
-    
+
     @apihook('StrStr', argc=2)
     def StrStr(self, emu, argv, ctx={}):
         '''
@@ -83,7 +83,7 @@ class Shlwapi(api.ApiHandler):
             ret = 0
 
         return ret
-    
+
     @apihook('StrStrI', argc=2)
     def StrStrI(self, emu, argv, ctx={}):
         '''
@@ -293,7 +293,7 @@ class Shlwapi(api.ApiHandler):
         out += '\0'
         self.write_mem_string(out, pszPath, cw)
         return 1
-    
+
     @apihook('PathCanonicalize', argc=2)
     def PathCanonicalize(self, emu, argv, ctx={}):
         """

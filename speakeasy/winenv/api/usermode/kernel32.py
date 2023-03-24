@@ -1673,10 +1673,10 @@ class Kernel32(api.ApiHandler):
         );'''
 
         rv = 1
-        ''' 
+        '''
         Not all the features must return 1, because those can represent a feature which can be unavailable
-        for your processor. For example PF_FLOATING_POINT_PRECISION_ERRATA is a Pentium instructions 
-        which doesn't exist on new ones, and malware developers are using it to see if they are in an 
+        for your processor. For example PF_FLOATING_POINT_PRECISION_ERRATA is a Pentium instructions
+        which doesn't exist on new ones, and malware developers are using it to see if they are in an
         emulated environment or not.
 
         To get the correct value you just need write an app to check all the fatures, something like:
@@ -1730,10 +1730,10 @@ class Kernel32(api.ApiHandler):
                 40:{"name":"PF_AVX2_INSTRUCTIONS_AVAILABLE","return":1},
                 41:{"name":"PF_AVX512F_INSTRUCTIONS_AVAILABLE","return":0},
         }
-        
+
         rv = lookup[argv[0]]["return"]
         argv[0] = lookup[argv[0]]["name"]
-        
+
         return rv
 
     @apihook('lstrcmpi', argc=2)
@@ -3225,7 +3225,7 @@ class Kernel32(api.ApiHandler):
 
                 fname = ntpath.basename(f.get_path())
                 fname = fname.replace('.', '_')
-                
+
                 # If the call to CreateFileMapping (done before calling this API)
                 # has beed done with SEC_IMAGE protection, the mapping is not
                 # done as a contigous stream of bytes, but it is mapped as
@@ -3237,7 +3237,7 @@ class Kernel32(api.ApiHandler):
                     base, size = emu.get_valid_ranges(pe.image_size)
                     while base and base & 0xFFF:
                         base, size = emu.get_valid_ranges(size)
-                        
+
                     emu.mem_map(pe.image_size, base=base,tag='%s.%s.0x%x' % (tag_prefix, fname, base))
                     mapping.add_view(base, full_offset, size, access)
                     self.mem_write(base, pe.mapped_image)
@@ -3411,9 +3411,9 @@ class Kernel32(api.ApiHandler):
         if pn:
             target = self.read_mem_string(pn, cw)
             argv[0] = target
-            
+
         return True
-    
+
     @apihook('CopyFile', argc=3)
     def CopyFile(self, emu, argv, ctx={}):
         '''
@@ -3727,7 +3727,7 @@ class Kernel32(api.ApiHandler):
             emu.dec_ref(obj)
             return True
         return False
-    
+
     @apihook('SetEndOfFile', argc=1)
     def SetEndOfFile(self, emu, argv, ctx={}):
         '''
@@ -5766,7 +5766,7 @@ class Kernel32(api.ApiHandler):
         proc = self.get_object_from_handle(hProcess)
 
         if proc == None:
-            return 
+            return
 
         filename = proc.get_process_path()
 
@@ -5944,19 +5944,19 @@ class Kernel32(api.ApiHandler):
         DWORD WINAPI GetConsoleTitle(
             _Out_ LPTSTR lpConsoleTitle,
             _In_  DWORD  nSize
-        ); 
-        '''   
+        );
+        '''
         lpConsoleTitle, nSize = argv
         cw = self.get_char_width(ctx)
         rv = False
-        
+
         # TODO: consider enumeration logic
         temp_title = "explorer.exe"
-        
-        if cw == 2: 
-            temp_title = temp_title.encode('utf-16le') + b'\x00\x00' 
-        else: 
-            temp_title = temp_title.encode('utf-8') + b'\x00' 
+
+        if cw == 2:
+            temp_title = temp_title.encode('utf-16le') + b'\x00\x00'
+        else:
+            temp_title = temp_title.encode('utf-8') + b'\x00'
 
         argv[0] = temp_title
         argv[1] = len(temp_title)

@@ -1762,8 +1762,7 @@ class WindowsEmulator(BinaryEmulator):
 
         mod.decoy_path = modconf.get('path', emu_path) or (name + '.dll')
         # Reserve memory for the module
-        res, size = self.get_valid_ranges(mod.image_size,
-                                          base)
+        res, size = self.get_valid_ranges(mod.image_size, base)
         mod.decoy_base = res
         mod.name = modconf.get('name', name)
         self.mem_reserve(size, base=res, tag='emu.module.%s' % (mod.name),
