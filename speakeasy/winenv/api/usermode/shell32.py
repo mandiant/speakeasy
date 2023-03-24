@@ -116,12 +116,12 @@ class Shell32(api.ApiHandler):
                 sei_struct.lpFile,
                 sei_struct.lpParameters, sei_struct.lpDirectory,
                 0
-            ], 
+            ],
             ctx
         )
-        
+
         return True
-        
+
     @apihook('IsUserAnAdmin', argc=0, ordinal=680)
     def IsUserAnAdmin(self, emu, argv, ctx={}):
         """

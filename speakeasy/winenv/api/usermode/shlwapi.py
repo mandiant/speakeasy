@@ -6,6 +6,8 @@ import ntpath
 from .. import api
 import speakeasy.winenv.arch as e_arch
 
+MAX_PATH = 260
+
 
 class Shlwapi(api.ApiHandler):
 
@@ -54,7 +56,7 @@ class Shlwapi(api.ApiHandler):
             argv[0] = pn
 
         return rv
-    
+
     @apihook('StrStr', argc=2)
     def StrStr(self, emu, argv, ctx={}):
         '''
@@ -83,7 +85,7 @@ class Shlwapi(api.ApiHandler):
             ret = 0
 
         return ret
-    
+
     @apihook('StrStrI', argc=2)
     def StrStrI(self, emu, argv, ctx={}):
         '''
@@ -293,7 +295,7 @@ class Shlwapi(api.ApiHandler):
         out += '\0'
         self.write_mem_string(out, pszPath, cw)
         return 1
-    
+
     @apihook('PathCanonicalize', argc=2)
     def PathCanonicalize(self, emu, argv, ctx={}):
         """
@@ -305,4 +307,65 @@ class Shlwapi(api.ApiHandler):
         pszBuf, pszPath = argv
         path = self.read_wide_string(pszPath)
         self.write_wide_string(path, pszBuf)
+        return 1
+
+    @apihook('PathRemoveFileSpec', argc=1)
+    def PathRemoveFileSpec(self, emu, argv, ctx={}):
+        """
+        BOOL PathRemoveFileSpec(LPTSTR pszPath);
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        idx = s.rfind('\\')
+        if idx == -1:
+            return 0
+
+        s = s[:idx]
+        self.write_mem_string(s, pszPath, cw)
+        return 1
+
+    @apihook('PathAddBackslash', argc=1)
+    def PathAddBackslash(self, emu, argv, ctx={}):
+        """
+        LPTSTR PathAddBackslash(LPTSTR pszPath);
+        """
+        pszPath, = argv
+        cw = self.get_char_width(ctx)
+        s = self.read_mem_string(pszPath, cw)
+        if not s.endswith('\\'):
+            s += '\\'
+            if len(s) > MAX_PATH:
+                return 0
+
+        self.write_mem_string(s, pszPath, cw)
+        return pszPath
+
+    @apihook('PathRenameExtension', argc=2)
+    def PathRenameExtension(self, emu, argv, ctx={}):
+        """
+        BOOL PathRenameExtension(
+          [in, out] LPSTR  pszPath,
+          [in]      LPCSTR pszExt
+        );
+        """
+        pszPath, pszExt = argv
+
+        cw = self.get_char_width(ctx)
+        path = self.read_mem_string(pszPath, cw)
+
+        ext = self.read_mem_string(pszExt, cw)
+        if not ext.startswith('.'):
+            return 0
+
+        i = path.rfind('.')
+        if i == -1:
+            path += ext
+        else:
+            path = path[:i] + ext
+
+        if len(path) > MAX_PATH:
+            return 0
+
+        self.write_mem_string(path, pszPath, cw)
         return 1
