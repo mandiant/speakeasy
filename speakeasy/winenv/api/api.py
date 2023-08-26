@@ -155,7 +155,7 @@ class ApiHandler(object):
         return self.emu.mem_copy(dst, src, n)
 
     def read_mem_string(self, addr, width, max_chars=0):
-        string = self.emu.read_mem_string(addr, width=width)
+        string = self.emu.read_mem_string(addr, width=width, max_chars=max_chars)
         return string
 
     def mem_string_len(self, addr, width):
@@ -165,14 +165,14 @@ class ApiHandler(object):
         ans = ntos.STRING(self.emu.get_ptr_size())
         ans = self.mem_cast(ans, addr)
 
-        string = self.emu.read_mem_string(ans.Buffer, width=1)
+        string = self.emu.read_mem_string(ans.Buffer, width=1, max_chars=ans.Length)
         return string
 
     def read_unicode_string(self, addr):
         us = ntos.UNICODE_STRING(self.emu.get_ptr_size())
         us = self.mem_cast(us, addr)
 
-        string = self.emu.read_mem_string(us.Buffer, width=2)
+        string = self.emu.read_mem_string(us.Buffer, width=2, max_chars=us.Length // 2)
         return string
 
     def read_wide_string(self, addr, max_chars=0):

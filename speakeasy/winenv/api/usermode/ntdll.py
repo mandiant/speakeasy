@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import os
-import binascii 
+import binascii
 
 from .. import api
 
@@ -36,6 +36,11 @@ class Ntdll(api.ApiHandler):
         '''DWORD RtlGetLastWin32Error();'''
 
         return emu.get_last_error()
+
+    @apihook('RtlNtStatusToDosError', argc=1)
+    def RtlNtStatusToDosError(self, emu, argv, ctx={}):
+        '''ULONG RtlNtStatusToDosError(NTSTATUS Status);'''
+        return 0
 
     @apihook('RtlFlushSecureMemoryCache', argc=2)
     def RtlFlushSecureMemoryCache(self, emu, argv, ctx={}):
@@ -146,7 +151,7 @@ class Ntdll(api.ApiHandler):
             fn = ntos.STRING(emu.get_ptr_size())
             fn = self.mem_cast(fn, proc_name)
 
-            proc = self.read_mem_string(fn.Buffer, 1)
+            proc = self.read_mem_string(fn.Buffer, 1, max_chars=fn.Length)
             argv[1] = proc
 
         elif ordinal:
@@ -173,6 +178,15 @@ class Ntdll(api.ApiHandler):
         """
         dest, length = argv
         buf = b'\x00' * length
+        self.mem_write(dest, buf)
+
+    @apihook('RtlMoveMemory', argc=3)
+    def RtlMoveMemory(self, emu, argv, ctx={}):
+        """
+        void RtlMoveMemory(void* pvDest, const void *pSrc, size_t Length);
+        """
+        dest, source, length = argv
+        buf = self.mem_read(source, length)
         self.mem_write(dest, buf)
 
     @apihook('NtSetInformationProcess', argc=4)
@@ -237,7 +251,7 @@ class Ntdll(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         return rv
-    
+
     @apihook('RtlComputeCrc32', argc=3)
     def RtlComputeCrc32(self, emu, argv, ctx={}):
         '''
@@ -258,9 +272,9 @@ class Ntdll(api.ApiHandler):
     def LdrFindResource_U(self, emu, argv, ctx={}):
         '''
         pub unsafe extern "system" fn LdrFindResource_U(
-            DllHandle: PVOID, 
-            ResourceInfo: PLDR_RESOURCE_INFO, 
-            Level: ULONG, 
+            DllHandle: PVOID,
+            ResourceInfo: PLDR_RESOURCE_INFO,
+            Level: ULONG,
             ResourceDataEntry: *mut PIMAGE_RESOURCE_DATA_ENTRY
         ) -> NTSTATUS
 
@@ -280,7 +294,7 @@ class Ntdll(api.ApiHandler):
         '''
         DllHandle, ResourceInfo, Level, ResourceDataEntry = argv
 
-        # Reusing some functions from kernel32 module that are used to 
+        # Reusing some functions from kernel32 module that are used to
         # handle the very similar function FindResourceA
         k32 =  emu.api.mods.get('kernel32')
 
@@ -313,15 +327,15 @@ class Ntdll(api.ApiHandler):
         self.mem_write(ptr_data_entry+4, resource['size'].to_bytes(4, 'little'))
 
         return hnd
-        
+
     @apihook('LdrAccessResource', argc=4)
     def LdrAccessResource(self, emu, argv, ctx={}):
         '''
-        NTSTATUS NTAPI LdrAccessResource 	( 	_In_ PVOID  	BaseAddress,
-                _In_ PIMAGE_RESOURCE_DATA_ENTRY  	ResourceDataEntry,
-                _Out_opt_ PVOID *  	Resource,
-                _Out_opt_ PULONG  	Size 
-            ) 	
+        NTSTATUS NTAPI LdrAccessResource    (   _In_ PVOID      BaseAddress,
+                _In_ PIMAGE_RESOURCE_DATA_ENTRY     ResourceDataEntry,
+                _Out_opt_ PVOID *   Resource,
+                _Out_opt_ PULONG    Size
+            )
         '''
         BaseAddress, ResourceDataEntry, Resource, Size = argv
 
@@ -331,6 +345,6 @@ class Ntdll(api.ApiHandler):
         # Fill in the Resource struct
         self.mem_write(Size, size.to_bytes(4, 'little'))
         self.mem_write(Resource, offset.to_bytes(4, 'little'))
-        
+
         return 0
 

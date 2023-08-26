@@ -1311,7 +1311,9 @@ class User32(api.ApiHandler):
         );
         """
         nBuff, lpList = argv
-
+        if not nBuff:
+            # number of items
+            return 1
         locale = 0x409      # English - United States
         self.mem_write(lpList, locale.to_bytes(2, 'little'))
         self.mem_write(lpList + 4, locale.to_bytes(2, 'little'))

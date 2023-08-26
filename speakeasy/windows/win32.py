@@ -86,13 +86,15 @@ class Win32Emulator(WindowsEmulator):
         """
         Add a vectored exception handler that will be executed on an exception
         """
-        self.veh_handlers.append(handler)
+        if handler not in self.veh_handlers:
+            self.veh_handlers.append(handler)
 
     def remove_vectored_exception_handler(self, handler):
         """
         Remove a vectored exception handler
         """
-        self.veh_handlers.remove(handler)
+        if handler in self.veh_handlers:
+            self.veh_handlers.remove(handler)
 
     def get_processes(self):
         if len(self.processes) <= 1:
@@ -232,7 +234,7 @@ class Win32Emulator(WindowsEmulator):
                     pass
 
         self.mem_map(pe.image_size, base=base,
-                tag='emu.module.%s' % (self.mod_name))
+                     tag='emu.module.%s' % (self.mod_name))
 
         self.modules.append((pe, ranges, emu_path))
         self.mem_write(pe.base, pe.mapped_image)
@@ -240,7 +242,7 @@ class Win32Emulator(WindowsEmulator):
         self.setup(first_time_setup=first_time_setup)
 
         if not self.stack_base:
-            self.stack_base, stack_addr = self.alloc_stack(0x12000)
+            self.stack_base, stack_addr = self.alloc_stack(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0x12000)
         self.set_func_args(self.stack_base, self.return_hook)
 
         # Init imported data
@@ -392,7 +394,7 @@ class Win32Emulator(WindowsEmulator):
             child = self.child_processes.pop(0)
 
             child.pe = self.load_module(data=child.pe_data,
-                    first_time_setup=False)
+                                        first_time_setup=False)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
             self.command_line = child.cmdline

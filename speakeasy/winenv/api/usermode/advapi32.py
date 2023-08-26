@@ -523,6 +523,19 @@ class AdvApi32(api.ApiHandler):
 
         return self.service_status_handle
 
+    @apihook('RegisterServiceCtrlHandlerEx', argc=3)
+    def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx={}):
+        '''
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerExA(
+            LPCSTR                lpServiceName,
+            LPHANDLER_FUNCTION_EX lpHandlerProc,
+            LPVOID                lpContext
+        );
+        '''
+        lpServiceName, lpHandlerProc, lpContext = argv
+
+        return self.RegisterServiceCtrlHandler(self, emu, [lpServiceName, lpHandlerProc], ctx)
+
     @apihook('SetServiceStatus', argc=2)
     def SetServiceStatus(self, emu, argv, ctx={}):
         '''
@@ -915,7 +928,6 @@ class AdvApi32(api.ApiHandler):
 
         if info_class == 20 and info and emu.get_user().get('is_admin', True):
             self.mem_write(info, (1).to_bytes(4, 'little'))
-
         if ret_len:
             self.mem_write(ret_len, (4).to_bytes(4, 'little'))
 
