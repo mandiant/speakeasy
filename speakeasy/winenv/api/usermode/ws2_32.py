@@ -117,6 +117,24 @@ class Ws2_32(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
+    @apihook('WSAConnect', argc=7, conv=_arch.CALL_CONV_STDCALL)
+    def WSAConnect(self, emu, argv, ctx={}):
+        """
+        int WSAAPI WSAConnect(
+            SOCKET         s,
+            const sockaddr *name,
+            int            namelen,
+            LPWSABUF       lpCallerData,
+            LPWSABUF       lpCalleeData,
+            LPQOS          lpSQOS,
+            LPQOS          lpGQOS
+        );
+        """
+
+        # TODO: Add actual function logic. However, for now, just call connect()
+
+        return self.connect(emu, argv[:3], ctx)
+
     @apihook('socket', argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=23)
     def socket(self, emu, argv, ctx={}):
         """
