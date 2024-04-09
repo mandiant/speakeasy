@@ -1680,5 +1680,14 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(self.errno_t, _VAL.to_bytes(4, 'little'))
         
         return self.errno_t
-
-        
+    
+    @apihook('fputc', argc=2)
+    def fputc(self, emu, argv, ctx={}):
+        '''
+        int fputc(
+            int c,
+            FILE *stream
+        );
+        '''
+        c, _ = argv
+        return c
