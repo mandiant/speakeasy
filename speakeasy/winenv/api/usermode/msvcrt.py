@@ -40,6 +40,7 @@ class Msvcrt(api.ApiHandler):
         self.wintypes = windef
 
         self.tick_counter = TICK_BASE
+        self.errno_t = None
 
         super(Msvcrt, self).__get_hook_attrs__(self)
 
@@ -1667,3 +1668,17 @@ class Msvcrt(api.ApiHandler):
         argv = [buf, cnt, fmt] + argv
         argv[2] = fmt_str
         return len(fin)
+
+    @apihook('_errno', argc=0)
+    def _errno(self, emu, argv, ctx={}):
+        '''
+        '''
+        _VAL = 0x0C
+
+        if not self.errno_t:
+            self.errno_t = self.mem_alloc(4, tag='api.msvcrt._errno')
+            self.mem_write(self.errno_t, _VAL.to_bytes(4, 'little'))
+        
+        return self.errno_t
+
+        
