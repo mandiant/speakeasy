@@ -6064,3 +6064,49 @@ class Kernel32(api.ApiHandler):
     def GetProfileInt(self, emu, argv, ctx={}):
         _, _, nDefault = argv
         return nDefault
+
+    @apihook('CreateSemaphoreW', argc=4)
+    def CreateSemaphoreW(self, emu, argv, ctx={}):
+        '''
+        HANDLE CreateSemaphoreW(
+            [in, optional] LPSECURITY_ATTRIBUTES lpSemaphoreAttributes,
+            [in]           LONG                  lInitialCount,
+            [in]           LONG                  lMaximumCount,
+            [in, optional] LPCWSTR               lpName
+        );
+        '''
+        return 0
+
+    @apihook('SetThreadStackGuarantee', argc=1)
+    def SetThreadStackGuarantee(self, emu, argv, ctx={}):
+        '''
+        BOOL SetThreadStackGuarantee(
+            [in, out] PULONG StackSizeInBytes
+        );
+        '''
+        return 1
+    
+    @apihook('SetThreadDescription', argc=2)
+    def SetThreadDescription(self, emu, argv, ctx={}):
+        '''
+        HRESULT SetThreadDescription(
+            [in] HANDLE hThread,
+            [in] PCWSTR lpThreadDescription
+        );
+        '''
+        return windefs.ERROR_SUCCESS
+    
+    @apihook('InitOnceBeginInitialize', argc=4)
+    def InitOnceBeginInitialize(self, emu, argv, ctx={}):
+        '''
+        BOOL InitOnceBeginInitialize(
+            [in, out]       LPINIT_ONCE lpInitOnce,
+            [in]            DWORD       dwFlags,
+            [out]           PBOOL       fPending,
+            [out, optional] LPVOID      *lpContext
+        );
+        '''
+        # _, dwFlags, _, _ = argv
+        return 1
+
+
