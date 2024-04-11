@@ -6106,7 +6106,6 @@ class Kernel32(api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         '''
-        # _, dwFlags, _, _ = argv
         return 1
 
 
