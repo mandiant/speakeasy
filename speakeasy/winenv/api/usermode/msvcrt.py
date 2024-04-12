@@ -16,6 +16,23 @@ TIME_BASE = 1576292568
 RAND_BASE = 0
 TICK_BASE = 86400000  # 1 day in millisecs
 
+# Signal types
+SIGINT   = 2   # interrupt
+SIGILL   = 4   # illegal instruction - invalid function image
+SIGFPE   = 8   # floating point exception
+SIGSEGV  = 11  # segment violation
+SIGTERM  = 15  # Software termination signal from kill
+SIGBREAK = 21  # Ctrl-Break sequence
+SIGABRT  = 22  # abnormal termination triggered by abort call
+
+# Signal action codes
+SIG_DFL = 0     # default signal action
+SIG_IGN = 1     # ignore signal
+SIG_GET = 2     # return current value
+SIG_SGE = 3     # signal gets error
+SIG_ACK = 4     # acknowledge
+SIG_ERR = -1    # signal error value
+
 
 class Msvcrt(api.ApiHandler):
     """
@@ -40,6 +57,7 @@ class Msvcrt(api.ApiHandler):
         self.wintypes = windef
 
         self.tick_counter = TICK_BASE
+        self.errno_t = None
 
         super(Msvcrt, self).__get_hook_attrs__(self)
 
@@ -1667,3 +1685,41 @@ class Msvcrt(api.ApiHandler):
         argv = [buf, cnt, fmt] + argv
         argv[2] = fmt_str
         return len(fin)
+
+    @apihook('_errno', argc=0)
+    def _errno(self, emu, argv, ctx={}):
+        '''
+        '''
+        _VAL = 0x0C
+
+        if not self.errno_t:
+            self.errno_t = self.mem_alloc(4, tag='api.msvcrt._errno')
+            self.mem_write(self.errno_t, _VAL.to_bytes(4, 'little'))
+        
+        return self.errno_t
+    
+    @apihook('fputc', argc=2)
+    def fputc(self, emu, argv, ctx={}):
+        '''
+        int fputc(
+            int c,
+            FILE *stream
+        );
+        '''
+        c, _ = argv
+        return c
+
+    @apihook('signal', argc=2)
+    def signal(self, emu, argv, ctx={}):
+        '''
+        void __cdecl *signal(
+            int sig,
+            int (*func)(int, int)
+        );
+        '''
+        sig, _ = argv
+
+        if sig in [SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT]:
+            return SIG_IGN
+        else:
+            return SIG_ERR
