@@ -242,7 +242,7 @@ def main():
                                              'input file finishes emulating')
     parser.add_argument('--no-mp', action='store_true', dest='no_mp',
                         required=False, help='Run emulation in the current process to assist\n'
-                                             'instead of a child process. Useful when debugging'
+                                             'instead of a child process. Useful when debugging '
                                              'speakeasy itself (using pdb.set_trace()).\n')
 
     Main(parser)
