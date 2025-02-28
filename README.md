@@ -125,7 +125,7 @@ optional arguments:
   -k, --emulate-children
                         Emulate any processes created with the CreateProcess APIs after the input file finishes emulating
   --no-mp               Run emulation in the current process to assist instead of a child process. Useful when
-                        debuggingspeakeasy itself (using pdb.set_trace()).
+                        debugging speakeasy itself (using pdb.set_trace()).
 ```
 
 ---
