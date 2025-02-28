@@ -407,6 +407,11 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_map(self.page_size, base=0xFFFFF78000000000,
                          tag='emu.struct.KUSER_SHARED_DATA')
 
+        # This is a read-only address for KUSER_SHARED_DATA,
+        # and this is the same address for 32-bit and 64-bit.
+        self.mem_map(self.page_size, base=0x7FFE0000,
+            tag='emu.struct.KUSER_SHARED_DATA')
+
     def resume(self, addr, count=-1):
         """
         Resume emulation at the specified address.
