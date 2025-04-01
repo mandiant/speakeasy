@@ -228,10 +228,10 @@ class Shell32(api.ApiHandler):
             path = "C:\\Users\\{}\\Favorites".format(emu.get_user()['name'])
         elif csidl == 7:
             # CSIDL_STARTUP
-            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name']) # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(emu.get_user()['name']) # noqa
         elif csidl == 8:
             # CSIDL_RECENT
-            path = "C:\\Users\\{}\\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.get_user()['name']) # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.get_user()['name']) # noqa
         elif csidl == 9:
             # csidl_sendto
             path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.get_user()['name']) # noqa
