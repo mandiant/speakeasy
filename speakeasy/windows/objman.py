@@ -154,14 +154,13 @@ class Driver(KernelObject):
 
     """
     Class that represents DRIVER_OBJECTs created by the Windows kernel
-    """
-
-    ldr_entries = []
+    """    
 
     def __init__(self, emu):
         super(Driver, self).__init__(emu=emu)
         self.pe = None
         self.devices = []
+        self.ldr_entries = []
         self.mj_funcs = [None] * (ddk.IRP_MJ_MAXIMUM_FUNCTION + 1)
         self.on_unload = None
         self.unload_called = False
