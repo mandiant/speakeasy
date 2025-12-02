@@ -1437,7 +1437,6 @@ class Ntoskrnl(api.ApiHandler):
 
         base = self.mem_read(BaseAddress, emu.get_ptr_size())
         base = int.from_bytes(base, 'little')
-        argv[1] = '0x%x->0x%x' % (BaseAddress, base)
         base = self.mem_alloc(size, tag='api.virtalloc.%s' % obj.image, process=obj)
 
         emu._set_dyn_code_hook(base, size)
