@@ -963,8 +963,8 @@ class WindowsEmulator(BinaryEmulator):
             curr_idx = proc_addr if proc_addr else winemu.DYM_IMP_RESERVE
             self.dyn_imps.append((curr_idx, mod_name, func_name))
         else:
-            curr_idx = proc_addr if proc_addr else self.dyn_imps[-1][0] + 1
-            #curr_idx += 1
+            curr_idx = proc_addr if proc_addr else self.dyn_imps[-1][0]
+            curr_idx += 1
             self.dyn_imps.append((curr_idx, mod_name, func_name))
 
         return curr_idx
