@@ -531,6 +531,10 @@ class JitPeFile(object):
         export_rvas = self.init_text_section(exports)
         self.align_file()
 
+        # update header size
+        text_sect = self.get_section_by_name(self.basepe, '.text')
+        self.basepe.OPTIONAL_HEADER.SizeOfHeaders = text_sect.PointerToRawData
+
         self.init_export_section(mod_name.encode('utf-8'), exports, export_rvas)
         return self.get_raw_pe()
 

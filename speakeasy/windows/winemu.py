@@ -1769,7 +1769,14 @@ class WindowsEmulator(BinaryEmulator):
         res, size = self.get_valid_ranges(mod.image_size, base)
         mod.decoy_base = res
         mod.name = modconf.get('name', name)
-        
+
+        # map PE headers
+        headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
+        headers_content = bytes(mod.get_data(length=headers_size))
+        mem_base = self.mem_map(len(headers_content), base=mod.OPTIONAL_HEADER.ImageBase, 
+                                tag='emu.module.header.%s' % (mod.name), perms=common.PERM_MEM_READ)        
+        self.mem_write(mem_base, headers_content)
+
         if hasattr(mod, "sections"):
             IMAGE_SCN_MEM_EXECUTE = 0x20000000
             for section in mod.sections:
