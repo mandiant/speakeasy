@@ -950,7 +950,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return curr_idx
 
-    def get_proc(self, mod_name, func_name):
+    def get_proc(self, mod_name, func_name, proc_addr=None):
         """
         Get a pointer for a supplied function name, similar to how the
         "GetProcAddress" API functions.
@@ -960,11 +960,11 @@ class WindowsEmulator(BinaryEmulator):
                 return addr
 
         if not self.dyn_imps:
-            curr_idx = winemu.DYM_IMP_RESERVE
+            curr_idx = proc_addr if proc_addr else winemu.DYM_IMP_RESERVE
             self.dyn_imps.append((curr_idx, mod_name, func_name))
         else:
-            curr_idx = self.dyn_imps[-1][0]
-            curr_idx += 1
+            curr_idx = proc_addr if proc_addr else self.dyn_imps[-1][0] + 1
+            #curr_idx += 1
             self.dyn_imps.append((curr_idx, mod_name, func_name))
 
         return curr_idx
@@ -1670,10 +1670,9 @@ class WindowsEmulator(BinaryEmulator):
 
         return mod.get_base()
 
-    def generate_export_table(self, modname):
+    def generate_decoy_module(self, modname, base):
         '''
-        Generates a PE export table that can be parsed by malware
-        The export names are based on the API handlers that are currently implemented
+        Generates a synthetic Decoy Module
         '''
 
         if not modname:
@@ -1682,7 +1681,7 @@ class WindowsEmulator(BinaryEmulator):
         mod_handler = self.api.load_api_handler(modname)
         if mod_handler:
 
-            jit = winemu.JitPeFile(self.get_arch())
+            jit = winemu.JitPeFile(self.get_arch(), base=base)
 
             funcs = [(f[4], f[0]) for k, f in mod_handler.funcs.items() if isinstance(k, str)]
             data_exports = [k for k, d in mod_handler.data.items() if isinstance(k, str)]
@@ -1730,7 +1729,7 @@ class WindowsEmulator(BinaryEmulator):
 
             exports += data_exports
             img = jit.get_decoy_pe_image(modname, exports)
-            mod = winemu.DecoyModule(data=img, is_jitted=True)
+            mod = winemu.DecoyModule(data=img, is_jitted=True, fast_load=False)
 
             return mod
         return None
@@ -1739,7 +1738,10 @@ class WindowsEmulator(BinaryEmulator):
         """
         Initialize a module from a config entry
         """
-        modname = modconf.get('name', name)
+        modname = modconf.get('name', name)    
+        base = modconf.get('base_addr', default_base)
+        if isinstance(base, str):
+            base = int(base, 16)
 
         mod = None
 
@@ -1747,7 +1749,7 @@ class WindowsEmulator(BinaryEmulator):
         default_file_path = self.get_native_module_path(mod_name=modname)
         if not images:
             if not default_file_path:
-                mod = self.generate_export_table(modname)
+                mod = self.generate_decoy_module(modname, base)
                 default_file_path = self.get_native_module_path(mod_name='default_exe')
 
         path = None
@@ -1757,20 +1759,29 @@ class WindowsEmulator(BinaryEmulator):
                 path = self.get_native_module_path(mod_name=img['name'])
 
         if not path:
-            path = default_file_path
+            path = default_file_path                
 
         if not mod:
             mod = winemu.DecoyModule(path=path)
-        base = modconf.get('base_addr', default_base)
-        if isinstance(base, str):
-            base = int(base, 16)
-
+        
         mod.decoy_path = modconf.get('path', emu_path) or (name + '.dll')
         # Reserve memory for the module
         res, size = self.get_valid_ranges(mod.image_size, base)
         mod.decoy_base = res
         mod.name = modconf.get('name', name)
-        self.mem_reserve(size, base=res, tag='emu.module.%s' % (mod.name),
+        
+        if hasattr(mod, "sections"):
+            IMAGE_SCN_MEM_EXECUTE = 0x20000000
+            for section in mod.sections:
+                name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+                va = section.VirtualAddress + mod.OPTIONAL_HEADER.ImageBase
+                vsize = section.Misc_VirtualSize
+                perms = common.PERM_MEM_RWX if section.Characteristics & IMAGE_SCN_MEM_EXECUTE else common.PERM_MEM_RW
+                mem_base = self.mem_map(vsize, base=va, tag='emu.module.%s.%s' % (mod.name, name), perms=perms)
+                section_data = bytes(section.get_data())
+                self.mem_write(mem_base, section_data)
+        else:
+            self.mem_reserve(size, base=res, tag='emu.module.%s' % (mod.name),
                          perms=common.PERM_MEM_RW)
 
         if mod.decoy_path == '' and name != '':

@@ -370,13 +370,13 @@ class DecoyModule(PeFile):
         self.image_size = 0
         self.ep = 0
         self.is_jitted = is_jitted
+        self.decoy_base = base
         if path or data:
             super(DecoyModule, self).__init__(path=path, data=data, fast_load=fast_load)
 
         if data:
             self.image_size = len(data)
 
-        self.decoy_base = base
         self.decoy_path = emu_path
         self.base_name = ''
         self.is_mapped = False
@@ -412,18 +412,23 @@ class JitPeFile(object):
     Class used to rapidly assemble a decoy PE that will only contain an export table
     so malware can parse it.
     '''
-    def __init__(self, arch):
+    def __init__(self, arch, base=0):
 
         if arch == _arch.ARCH_X86:
-            self.pattern_size = 9
             husk = EMPTY_PE_32
         else:
-            self.pattern_size = 12
             husk = EMPTY_PE_64
 
         self.arch = arch
 
         self.basepe = pefile.PE(data=husk, fast_load=True)
+
+        # set base properties
+        self.basepe.OPTIONAL_HEADER.FileAlignment = 0x200
+        self.basepe.OPTIONAL_HEADER.SectionAlignment = 0x1000
+
+        if base > 0:            
+            self.basepe.OPTIONAL_HEADER.ImageBase = base
 
     def get_section_by_name(self, pe, name):
         '''
@@ -510,18 +515,26 @@ class JitPeFile(object):
             exp_size += (0x4 + 0x4 + 0x4)
 
         return exp_size
+    
+    def align_file(self):
+        cur_offset = self.get_current_offset()
+        fa = self.basepe.OPTIONAL_HEADER.FileAlignment            
+        aligned_offset = (cur_offset + fa - 1) &~ (fa - 1)
+        padding = b'\x00' * (aligned_offset-cur_offset)
+        self.append_data(padding)
 
     def get_decoy_pe_image(self, mod_name, exports):
+        self.add_section(name='.text', chars=0x60000020)
+        self.add_section(name='.edata', chars=0x40000040)
+        self.align_file()        
 
-        self.add_section(name='.text')
-        self.add_section(name='.edata')
+        export_rvas = self.init_text_section(exports)
+        self.align_file()
 
-        self.init_text_section(exports)
-        self.init_export_section(mod_name.encode('utf-8'), exports)
-        self.update()
+        self.init_export_section(mod_name.encode('utf-8'), exports, export_rvas)
         return self.get_raw_pe()
 
-    def init_export_section(self, name, exports):
+    def init_export_section(self, name, exports, export_rvas):
         '''
         Initialize and add the export table to the PE
         '''
@@ -529,11 +542,15 @@ class JitPeFile(object):
 
         dest_exp_sect = self.get_section_by_name(self.basepe, '.edata')
 
+        cur_offset = self.get_current_offset()
+        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment 
+        sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
+
         dest_exp_sect.Misc_VirtualSize = exports_size
         dest_exp_sect.Misc_PhysicalAddress = 0
-        dest_exp_sect.VirtualAddress = self.get_current_offset()
+        dest_exp_sect.VirtualAddress = sec_rva
         dest_exp_sect.SizeOfRawData = exports_size
-        dest_exp_sect.PointerToRawData = self.get_current_offset()
+        dest_exp_sect.PointerToRawData = cur_offset
 
         self.basepe.OPTIONAL_HEADER.SizeOfInitializedData += exports_size
 
@@ -543,12 +560,14 @@ class JitPeFile(object):
         export_dir.Size = exports_size
 
         offset = self.get_current_offset()
+        rva = sec_rva
         self.append_data(b'\x00' * exports_size)
 
         dest_export_dir = self.basepe.__unpack_data__(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__, # noqa
                                                       pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof() * b'\x00', # noqa
                                                       offset)
         offset += pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof()
+        rva += pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof()
 
         dest_export_dir.Characteristics = 0
         dest_export_dir.TimeDateStamp = 0xD1234567
@@ -560,53 +579,49 @@ class JitPeFile(object):
 
         # Set the address of functions array
         num_funcs = dest_export_dir.NumberOfFunctions
-        funcs_offset = offset
-        names_offset = funcs_offset + (4 * num_funcs)
-        ord_offset = names_offset + (4 * num_funcs)
-        strings_offset = ord_offset + (2 * num_funcs)
+        funcs_rva = rva
+        names_rva = funcs_rva + (4 * num_funcs)
+        ord_rva = names_rva + (4 * num_funcs)
+        strings_rva = ord_rva + (2 * num_funcs)
 
-        dest_export_dir.Name = strings_offset
-
-        dest_export_dir.AddressOfFunctions = offset
-        dest_export_dir.AddressOfNames = names_offset
-        dest_export_dir.AddressOfNameOrdinals = ord_offset
+        dest_export_dir.Name = strings_rva
+        dest_export_dir.AddressOfFunctions = funcs_rva
+        dest_export_dir.AddressOfNames = names_rva
+        dest_export_dir.AddressOfNameOrdinals = ord_rva
+        self.update()
 
         # Set the export name
-        self.basepe.set_bytes_at_offset(strings_offset, name)
-        strings_offset += len(name) + 1
-
-        ep = self.basepe.OPTIONAL_HEADER.AddressOfEntryPoint
+        self.basepe.set_bytes_at_rva(strings_rva, name)
+        strings_rva += len(name) + 1
 
         for i, exp in enumerate(exports):
-
             exp = exp.encode('utf-8')
 
             # Add fluff to pass forwarded export checks
             self.append_data(b'\x00' * len(exports))
 
             # Add the function addresses
-            self.basepe.set_dword_at_offset(funcs_offset, ep)
-            funcs_offset += 4
-            if funcs_offset > self.get_current_offset():
+            self.basepe.set_dword_at_rva(funcs_rva, export_rvas[i])
+            funcs_rva += 4
+            if funcs_rva > sec_rva + exports_size:
                 raise Exception('Functions offset exceeds total PE size')
 
             # Add the ordinals
-            self.basepe.set_word_at_offset(ord_offset, (i + 1) - dest_export_dir.Base)
-            ord_offset += 2
-            if ord_offset > self.get_current_offset():
+            self.basepe.set_dword_at_rva(ord_rva, (i + 1) - dest_export_dir.Base)
+            ord_rva += 2
+            if ord_rva > sec_rva + exports_size:
                 raise Exception('Ordinals offset exceeds total PE size')
 
             # Add the function names in
-            if strings_offset > self.get_current_offset():
+            if strings_rva > sec_rva + exports_size:
                 raise Exception('Export string offset exceeds total PE size')
-            self.basepe.set_dword_at_offset(names_offset, strings_offset)
-            names_offset += 4
-            self.basepe.set_bytes_at_offset(strings_offset, exp)
-            strings_offset += len(exp) + 1
+            self.basepe.set_dword_at_rva(names_rva, strings_rva)
+            names_rva += 4
+            self.basepe.set_bytes_at_rva(strings_rva, exp)
+            strings_rva += len(exp) + 1
 
-            ep += self.pattern_size
-
-        if strings_offset:
+        if strings_rva:
+            strings_offset = self.basepe.get_offset_from_rva(strings_rva)
             self.basepe.__data__ = self.basepe.__data__[:strings_offset]
         self.update()
 
@@ -615,21 +630,30 @@ class JitPeFile(object):
         Initialize and add the text section to the PE
         '''
         pattern = b''
+        export_rvas = list()
+
+        sect = self.get_section_by_name(self.basepe, '.text')
+        cur_offset = self.get_current_offset()
+        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment            
+        sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
+
         # Add placeholder code in case emulated samples want to hook the function
         if self.arch == _arch.ARCH_X86:
             for i in range(len(names)):
+                export_rvas.append(sec_rva + len(pattern))
                 pattern += (b'\x89\xff\x90\xB8' + i.to_bytes(4, 'little') + b'\xc3')
         else:
             for i in range(len(names)):
-                pattern += (b'\x48\x89\xFF\x90\x48\xC7\xC0' + i.to_bytes(4, 'little') + b'\xc3')
+                export_rvas.append(sec_rva + len(pattern))
+                pattern += (b'\x48\x89\xFF\x90\x48\xC7\xC0' + i.to_bytes(4, 'little') + b'\xc3\x90\x90\x90\x90')                
 
         if pattern:
-            sect = self.get_section_by_name(self.basepe, '.text')
-            sect.VirtualAddress = self.get_current_offset()
+            sect.VirtualAddress = sec_rva
             sect.Misc_VirtualSize = len(pattern)
             sect.Misc_PhysicalAddress = 0
             sect.SizeOfRawData = len(pattern)
-            sect.PointerToRawData = self.get_current_offset()
+            sect.PointerToRawData = cur_offset
             self.basepe.OPTIONAL_HEADER.AddressOfEntryPoint = sect.VirtualAddress
             self.append_data(pattern)
         self.update()
+        return export_rvas
