@@ -1672,7 +1672,8 @@ class WindowsEmulator(BinaryEmulator):
 
     def generate_decoy_module(self, modname, base):
         '''
-        Generates a synthetic Decoy Module
+        Create a decoy module that emulates a DLL. The decoy module will contain basic 
+        structures such as a .text section and an .edata section containing a list of exported functions.
         '''
 
         if not modname:
@@ -1759,7 +1760,7 @@ class WindowsEmulator(BinaryEmulator):
                 path = self.get_native_module_path(mod_name=img['name'])
 
         if not path:
-            path = default_file_path                
+            path = default_file_path
 
         if not mod:
             mod = winemu.DecoyModule(path=path)
@@ -1778,12 +1779,13 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_write(mem_base, headers_content)
 
         if hasattr(mod, "sections"):
-            IMAGE_SCN_MEM_EXECUTE = 0x20000000
             for section in mod.sections:
                 name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
                 va = section.VirtualAddress + mod.OPTIONAL_HEADER.ImageBase
                 vsize = section.Misc_VirtualSize
-                perms = common.PERM_MEM_RWX if section.Characteristics & IMAGE_SCN_MEM_EXECUTE else common.PERM_MEM_RW
+                perms = \
+                    common.PERM_MEM_RWX if section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE \
+                    else common.PERM_MEM_RW
                 mem_base = self.mem_map(vsize, base=va, tag='emu.module.%s.%s' % (mod.name, name), perms=perms)
                 section_data = bytes(section.get_data())
                 self.mem_write(mem_base, section_data)
