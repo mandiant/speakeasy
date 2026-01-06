@@ -76,6 +76,37 @@ EMPTY_PE_64 = DOS_HEADER + b'PE\x00\x00d\x86\x00\x00ABCD\x00\x00\x00\x00\x00\x00
                            b'\x10\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00'  \
                            b'\x00\x00\x00\x10' + (b'\x00' * 131)
 
+# a 16-byte-aligned code used to implement exported functions in a 32-bit decoy module
+X86_EXPORTED_FUNCTION = (
+    b'\x8b\xff'                     # mov edi, edi
+    b'\x55'                         # push ebp
+    b'\x8b\xec'                     # mov ebp, esp
+    b'\xb8\x00\x00\x00\x00'         # mov eax, 0
+    b'\x8b\xe5'                     # mov esp, ebp
+    b'\x5d'                         # pop ebp
+    b'\xc3'                         # ret
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+)
+
+# a 16-byte-aligned code used to implement exported functions in a 64-bit decoy module
+X64_EXPORTED_FUNCTION = (
+    b'\x48\x89\xff'                 # mov rdi, rdi
+    b'\x90'                         # nop
+    b'\x48\xc7\xc0\x00\x00\x00\x00' # mov rax, 0
+    b'\xc3'                         # ret
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+)
+
+EXPORTED_FUNCTION = {
+    _arch.ARCH_X86: X86_EXPORTED_FUNCTION,
+    _arch.ARCH_AMD64: X64_EXPORTED_FUNCTION
+}
+
 class ImageSectionCharacteristics(IntFlag):
     IMAGE_SCN_TYPE_NO_PAD            = 0x00000008
 
@@ -694,17 +725,11 @@ class JitPeFile(object):
         sa = self.basepe.OPTIONAL_HEADER.SectionAlignment            
         sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
         
-        def create_pattern(index):
-            if self.arch == _arch.ARCH_X86:
-                p = b'\x89\xff\x90\xB8' + index.to_bytes(4, 'little') + b'\xc3\x90\x90\x90\x90\x90\x90\x90'
-            else:
-                p = b'\x48\x89\xFF\x90\x48\xC7\xC0' + index.to_bytes(4, 'little') + b'\xc3\x90\x90\x90\x90'
-            return p
-
         # Add placeholder code in case emulated samples want to hook the function
         for (i, func_name) in enumerate(names):
             exports_info.append((sec_rva + len(pattern), func_name))
-            pattern += create_pattern(i)              
+            # Using i + 1 to avoid using 0, since the Win32 convention is to return TRUE when the function succeeds
+            pattern += EXPORTED_FUNCTION[self.arch].replace(b'\x00\x00\x00\x00', (i+1).to_bytes(4, 'little'))
 
         if pattern:
             sect.VirtualAddress = sec_rva
