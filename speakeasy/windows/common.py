@@ -3,6 +3,7 @@
 import os
 import ntpath
 import hashlib
+from enum import IntFlag
 from collections import namedtuple
 
 import pefile
@@ -75,6 +76,81 @@ EMPTY_PE_64 = DOS_HEADER + b'PE\x00\x00d\x86\x00\x00ABCD\x00\x00\x00\x00\x00\x00
                            b'\x10\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00'  \
                            b'\x00\x00\x00\x10' + (b'\x00' * 131)
 
+# a 16-byte-aligned code used to implement exported functions in a 32-bit decoy module
+X86_EXPORTED_FUNCTION = (
+    b'\x8b\xff'                     # mov edi, edi
+    b'\x55'                         # push ebp
+    b'\x8b\xec'                     # mov ebp, esp
+    b'\xb8\x00\x00\x00\x00'         # mov eax, 0
+    b'\x8b\xe5'                     # mov esp, ebp
+    b'\x5d'                         # pop ebp
+    b'\xc3'                         # ret
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+)
+
+# a 16-byte-aligned code used to implement exported functions in a 64-bit decoy module
+X64_EXPORTED_FUNCTION = (
+    b'\x48\x89\xff'                 # mov rdi, rdi
+    b'\x90'                         # nop
+    b'\x48\xc7\xc0\x00\x00\x00\x00' # mov rax, 0
+    b'\xc3'                         # ret
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+    b'\xcc'                         # int3
+)
+
+EXPORTED_FUNCTION = {
+    _arch.ARCH_X86: X86_EXPORTED_FUNCTION,
+    _arch.ARCH_AMD64: X64_EXPORTED_FUNCTION
+}
+
+class ImageSectionCharacteristics(IntFlag):
+    IMAGE_SCN_TYPE_NO_PAD            = 0x00000008
+
+    IMAGE_SCN_CNT_CODE               = 0x00000020
+    IMAGE_SCN_CNT_INITIALIZED_DATA   = 0x00000040
+    IMAGE_SCN_CNT_UNINITIALIZED_DATA = 0x00000080
+
+    IMAGE_SCN_LNK_OTHER              = 0x00000100
+    IMAGE_SCN_LNK_INFO               = 0x00000200
+    IMAGE_SCN_LNK_REMOVE             = 0x00000800
+    IMAGE_SCN_LNK_COMDAT             = 0x00001000
+    IMAGE_SCN_LNK_NRELOC_OVFL         = 0x01000000
+
+    IMAGE_SCN_GPREL                  = 0x00008000
+
+    IMAGE_SCN_MEM_PURGEABLE          = 0x00020000
+    IMAGE_SCN_MEM_16BIT              = 0x00020000  # IMAGE_SCN_MEM_PURGEABLE alias
+    IMAGE_SCN_MEM_LOCKED             = 0x00040000
+    IMAGE_SCN_MEM_PRELOAD            = 0x00080000
+
+    # Alignment (object files only)
+    IMAGE_SCN_ALIGN_1BYTES           = 0x00100000
+    IMAGE_SCN_ALIGN_2BYTES           = 0x00200000
+    IMAGE_SCN_ALIGN_4BYTES           = 0x00300000
+    IMAGE_SCN_ALIGN_8BYTES           = 0x00400000
+    IMAGE_SCN_ALIGN_16BYTES          = 0x00500000
+    IMAGE_SCN_ALIGN_32BYTES          = 0x00600000
+    IMAGE_SCN_ALIGN_64BYTES          = 0x00700000
+    IMAGE_SCN_ALIGN_128BYTES         = 0x00800000
+    IMAGE_SCN_ALIGN_256BYTES         = 0x00900000
+    IMAGE_SCN_ALIGN_512BYTES         = 0x00A00000
+    IMAGE_SCN_ALIGN_1024BYTES        = 0x00B00000
+    IMAGE_SCN_ALIGN_2048BYTES        = 0x00C00000
+    IMAGE_SCN_ALIGN_4096BYTES        = 0x00D00000
+    IMAGE_SCN_ALIGN_8192BYTES        = 0x00E00000
+
+    # Memory flags
+    IMAGE_SCN_MEM_DISCARDABLE        = 0x02000000
+    IMAGE_SCN_MEM_NOT_CACHED         = 0x04000000
+    IMAGE_SCN_MEM_NOT_PAGED          = 0x08000000
+    IMAGE_SCN_MEM_SHARED             = 0x10000000
+    IMAGE_SCN_MEM_EXECUTE            = 0x20000000
+    IMAGE_SCN_MEM_READ               = 0x40000000
+    IMAGE_SCN_MEM_WRITE              = 0x80000000
 
 def normalize_dll_name(name):
     ret = name
@@ -370,13 +446,13 @@ class DecoyModule(PeFile):
         self.image_size = 0
         self.ep = 0
         self.is_jitted = is_jitted
+        self.decoy_base = base
         if path or data:
             super(DecoyModule, self).__init__(path=path, data=data, fast_load=fast_load)
 
         if data:
             self.image_size = len(data)
 
-        self.decoy_base = base
         self.decoy_path = emu_path
         self.base_name = ''
         self.is_mapped = False
@@ -412,18 +488,22 @@ class JitPeFile(object):
     Class used to rapidly assemble a decoy PE that will only contain an export table
     so malware can parse it.
     '''
-    def __init__(self, arch):
+    def __init__(self, arch, base=0):
 
         if arch == _arch.ARCH_X86:
-            self.pattern_size = 9
             husk = EMPTY_PE_32
         else:
-            self.pattern_size = 12
             husk = EMPTY_PE_64
 
         self.arch = arch
 
         self.basepe = pefile.PE(data=husk, fast_load=True)
+
+        self.basepe.OPTIONAL_HEADER.FileAlignment = 0x200
+        self.basepe.OPTIONAL_HEADER.SectionAlignment = 0x1000
+
+        if base > 0:            
+            self.basepe.OPTIONAL_HEADER.ImageBase = base
 
     def get_section_by_name(self, pe, name):
         '''
@@ -496,7 +576,7 @@ class JitPeFile(object):
         '''
         self.basepe.__data__ += data
 
-    def get_exports_size(self, name, exports):
+    def get_exports_size(self, name, exports_info):
         '''
         Get the total size of the export directory
         '''
@@ -505,35 +585,60 @@ class JitPeFile(object):
 
         exp_size += (len(name) + 1)
 
-        for exp in exports:
+        for (_, exp) in exports_info:
             exp_size += len(exp) + 1
             exp_size += (0x4 + 0x4 + 0x4)
 
         return exp_size
+    
+    def pad_file(self):
+        cur_offset = self.get_current_offset()
+        fa = self.basepe.OPTIONAL_HEADER.FileAlignment            
+        aligned_offset = (cur_offset + fa - 1) &~ (fa - 1)
+        padding = b'\x00' * (aligned_offset-cur_offset)
+        self.append_data(padding)
 
     def get_decoy_pe_image(self, mod_name, exports):
+        text_chars = \
+            ImageSectionCharacteristics.IMAGE_SCN_MEM_READ |\
+            ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE |\
+            ImageSectionCharacteristics.IMAGE_SCN_CNT_CODE
+        
+        edata_chars = \
+            ImageSectionCharacteristics.IMAGE_SCN_MEM_READ |\
+            ImageSectionCharacteristics.IMAGE_SCN_CNT_INITIALIZED_DATA
+        
+        self.add_section(name='.text', chars=int(text_chars))
+        self.add_section(name='.edata', chars=int(edata_chars))
+        self.pad_file()        
 
-        self.add_section(name='.text')
-        self.add_section(name='.edata')
+        exports_info = self.init_text_section(exports)
+        self.pad_file()
 
-        self.init_text_section(exports)
-        self.init_export_section(mod_name.encode('utf-8'), exports)
-        self.update()
+        # update header size
+        text_sect = self.get_section_by_name(self.basepe, '.text')
+        self.basepe.OPTIONAL_HEADER.SizeOfHeaders = text_sect.PointerToRawData
+
+        self.init_export_section(mod_name.encode('utf-8'), exports_info)
         return self.get_raw_pe()
 
-    def init_export_section(self, name, exports):
+    def init_export_section(self, name, exports_info):
         '''
         Initialize and add the export table to the PE
         '''
-        exports_size = self.get_exports_size(name, exports)
+        exports_size = self.get_exports_size(name, exports_info)
 
         dest_exp_sect = self.get_section_by_name(self.basepe, '.edata')
 
+        cur_offset = self.get_current_offset()
+        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment 
+        sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
+
         dest_exp_sect.Misc_VirtualSize = exports_size
         dest_exp_sect.Misc_PhysicalAddress = 0
-        dest_exp_sect.VirtualAddress = self.get_current_offset()
+        dest_exp_sect.VirtualAddress = sec_rva
         dest_exp_sect.SizeOfRawData = exports_size
-        dest_exp_sect.PointerToRawData = self.get_current_offset()
+        dest_exp_sect.PointerToRawData = cur_offset
 
         self.basepe.OPTIONAL_HEADER.SizeOfInitializedData += exports_size
 
@@ -543,70 +648,68 @@ class JitPeFile(object):
         export_dir.Size = exports_size
 
         offset = self.get_current_offset()
+        rva = sec_rva
         self.append_data(b'\x00' * exports_size)
 
         dest_export_dir = self.basepe.__unpack_data__(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__, # noqa
                                                       pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof() * b'\x00', # noqa
                                                       offset)
         offset += pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof()
+        rva += pefile.Structure(self.basepe.__IMAGE_EXPORT_DIRECTORY_format__).sizeof()
 
         dest_export_dir.Characteristics = 0
         dest_export_dir.TimeDateStamp = 0xD1234567
         dest_export_dir.MajorVersion = 0
         dest_export_dir.MinorVersion = 0
         dest_export_dir.Base = 1
-        dest_export_dir.NumberOfFunctions = len(exports)
-        dest_export_dir.NumberOfNames = len(exports)
+        dest_export_dir.NumberOfFunctions = len(exports_info)
+        dest_export_dir.NumberOfNames = len(exports_info)
 
         # Set the address of functions array
         num_funcs = dest_export_dir.NumberOfFunctions
-        funcs_offset = offset
-        names_offset = funcs_offset + (4 * num_funcs)
-        ord_offset = names_offset + (4 * num_funcs)
-        strings_offset = ord_offset + (2 * num_funcs)
+        funcs_rva = rva
+        names_rva = funcs_rva + (4 * num_funcs)
+        ord_rva = names_rva + (4 * num_funcs)
+        strings_rva = ord_rva + (2 * num_funcs)
 
-        dest_export_dir.Name = strings_offset
-
-        dest_export_dir.AddressOfFunctions = offset
-        dest_export_dir.AddressOfNames = names_offset
-        dest_export_dir.AddressOfNameOrdinals = ord_offset
+        dest_export_dir.Name = strings_rva
+        dest_export_dir.AddressOfFunctions = funcs_rva
+        dest_export_dir.AddressOfNames = names_rva
+        dest_export_dir.AddressOfNameOrdinals = ord_rva
+        self.update()
 
         # Set the export name
-        self.basepe.set_bytes_at_offset(strings_offset, name)
-        strings_offset += len(name) + 1
+        self.basepe.set_bytes_at_rva(strings_rva, name)
+        strings_rva += len(name) + 1
 
-        ep = self.basepe.OPTIONAL_HEADER.AddressOfEntryPoint
-
-        for i, exp in enumerate(exports):
-
+        for i, (rva, exp) in enumerate(exports_info):
             exp = exp.encode('utf-8')
 
             # Add fluff to pass forwarded export checks
-            self.append_data(b'\x00' * len(exports))
+            self.append_data(b'\x00' * len(exports_info))
 
             # Add the function addresses
-            self.basepe.set_dword_at_offset(funcs_offset, ep)
-            funcs_offset += 4
-            if funcs_offset > self.get_current_offset():
+            self.basepe.set_dword_at_rva(funcs_rva, rva)
+            funcs_rva += 4
+            if funcs_rva > sec_rva + exports_size:
                 raise Exception('Functions offset exceeds total PE size')
 
             # Add the ordinals
-            self.basepe.set_word_at_offset(ord_offset, (i + 1) - dest_export_dir.Base)
-            ord_offset += 2
-            if ord_offset > self.get_current_offset():
+            self.basepe.set_dword_at_rva(ord_rva, (i + 1) - dest_export_dir.Base)
+            ord_rva += 2
+            if ord_rva > sec_rva + exports_size:
                 raise Exception('Ordinals offset exceeds total PE size')
 
             # Add the function names in
-            if strings_offset > self.get_current_offset():
+            if strings_rva > sec_rva + exports_size:
                 raise Exception('Export string offset exceeds total PE size')
-            self.basepe.set_dword_at_offset(names_offset, strings_offset)
-            names_offset += 4
-            self.basepe.set_bytes_at_offset(strings_offset, exp)
-            strings_offset += len(exp) + 1
+            self.basepe.set_dword_at_rva(names_rva, strings_rva)
+            names_rva += 4
+            self.basepe.set_bytes_at_rva(strings_rva, exp)
+            strings_rva += len(exp) + 1
 
-            ep += self.pattern_size
-
-        if strings_offset:
+        if strings_rva:
+            strings_offset = self.basepe.get_offset_from_rva(strings_rva)
             self.basepe.__data__ = self.basepe.__data__[:strings_offset]
         self.update()
 
@@ -615,21 +718,26 @@ class JitPeFile(object):
         Initialize and add the text section to the PE
         '''
         pattern = b''
+        exports_info = list()
+
+        sect = self.get_section_by_name(self.basepe, '.text')
+        cur_offset = self.get_current_offset()
+        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment            
+        sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
+        
         # Add placeholder code in case emulated samples want to hook the function
-        if self.arch == _arch.ARCH_X86:
-            for i in range(len(names)):
-                pattern += (b'\x89\xff\x90\xB8' + i.to_bytes(4, 'little') + b'\xc3')
-        else:
-            for i in range(len(names)):
-                pattern += (b'\x48\x89\xFF\x90\x48\xC7\xC0' + i.to_bytes(4, 'little') + b'\xc3')
+        for (i, func_name) in enumerate(names):
+            exports_info.append((sec_rva + len(pattern), func_name))
+            # Using i + 1 to avoid using 0, since the Win32 convention is to return TRUE when the function succeeds
+            pattern += EXPORTED_FUNCTION[self.arch].replace(b'\x00\x00\x00\x00', (i+1).to_bytes(4, 'little'))
 
         if pattern:
-            sect = self.get_section_by_name(self.basepe, '.text')
-            sect.VirtualAddress = self.get_current_offset()
+            sect.VirtualAddress = sec_rva
             sect.Misc_VirtualSize = len(pattern)
             sect.Misc_PhysicalAddress = 0
             sect.SizeOfRawData = len(pattern)
-            sect.PointerToRawData = self.get_current_offset()
+            sect.PointerToRawData = cur_offset
             self.basepe.OPTIONAL_HEADER.AddressOfEntryPoint = sect.VirtualAddress
             self.append_data(pattern)
         self.update()
+        return exports_info

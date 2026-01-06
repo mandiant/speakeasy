@@ -1881,9 +1881,12 @@ class Kernel32(api.ApiHandler):
             mods = emu.get_user_modules()
             for mod in mods:
                 if mod.get_base() == hmod:
-                    bn = mod.get_base_name()
-                    mname, _ = os.path.splitext(bn)
-                    rv = emu.get_proc(mname, proc)
+                    entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
+                    if entry:
+                        bn = mod.get_base_name()
+                        mname, _ = os.path.splitext(bn)
+                        rv = emu.get_proc(mname, proc, proc_addr=entry.address)
+                    break
 
         return rv
 
