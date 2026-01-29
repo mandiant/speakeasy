@@ -6139,3 +6139,39 @@ class Kernel32(api.ApiHandler):
     def RtlLookupFunctionEntry(self, emu, argv, ctx={}):
         return 0
 
+    @apihook('MulDiv', argc=3)
+    def MulDiv(self, emu, argv, ctx={}):
+        """
+        int MulDiv(
+            int nNumber,
+            int nNumerator,
+            int nDenominator
+        );
+        """
+        nNumber, nNumerator, nDenominator = argv
+
+        try:
+            if nDenominator == 0:
+                return 0
+            # Perform the actual math safely
+            return int((nNumber * nNumerator) / nDenominator)
+        except:
+            # Safe fallback
+            return 0
+
+
+    @apihook('GlobalAddAtomA', argc=1)
+    def GlobalAddAtomA(self, emu, argv, ctx={}):
+        """
+        ATOM GlobalAddAtomA(
+            LPCSTR lpString
+        );
+        """
+        lpString = argv[0]
+
+        # Return a fake ATOM value. ATOMs are 16-bit identifiers.
+        # Returning a constant non-zero value is safe.
+        try:
+            return 0x1234
+        except:
+            return 0x1234
