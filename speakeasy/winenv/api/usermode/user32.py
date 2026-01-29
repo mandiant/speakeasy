@@ -1447,7 +1447,6 @@ class User32(api.ApiHandler):
         except:
             return 0xC000
 
-
     @apihook('SystemParametersInfoA', argc=4)
     def SystemParametersInfoA(self, emu, argv, ctx={}):
         """
@@ -1467,7 +1466,6 @@ class User32(api.ApiHandler):
         except:
             return 1
 
-
     @apihook('GetKeyboardLayout', argc=1)
     def GetKeyboardLayout(self, emu, argv, ctx={}):
         """
@@ -1483,7 +1481,6 @@ class User32(api.ApiHandler):
             return 0x04090409
         except:
             return 0x04090409
-
 
     @apihook('EnumDisplayMonitors', argc=4)
     def EnumDisplayMonitors(self, emu, argv, ctx={}):
@@ -1503,7 +1500,6 @@ class User32(api.ApiHandler):
             return 1  # non-zero = success
         except:
             return 1
-
 
     @apihook('OemToCharA', argc=2)
     def OemToCharA(self, emu, argv, ctx={}):
@@ -1532,7 +1528,6 @@ class User32(api.ApiHandler):
 
         # Return TRUE
         return 1
-
 
     @apihook('CharPrevW', argc=2)
     def CharPrevW(self, emu, argv, ctx={}):
