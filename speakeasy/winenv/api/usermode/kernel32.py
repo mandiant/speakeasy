@@ -6149,7 +6149,6 @@ class Kernel32(api.ApiHandler):
         );
         """
         nNumber, nNumerator, nDenominator = argv
-
         try:
             if nDenominator == 0:
                 return 0
@@ -6158,7 +6157,6 @@ class Kernel32(api.ApiHandler):
         except:
             # Safe fallback
             return 0
-
 
     @apihook('GlobalAddAtomA', argc=1)
     def GlobalAddAtomA(self, emu, argv, ctx={}):
