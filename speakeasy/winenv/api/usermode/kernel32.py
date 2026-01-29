@@ -6111,4 +6111,31 @@ class Kernel32(api.ApiHandler):
         '''
         return 1
 
+    @apihook('FlsGetValue2', argc=1)
+    def FlsGetValue2(self, emu, argv, ctx={}):
+        fls_index = argv[0]
+        try:
+            val = emu.get_fls_value(fls_index)
+            return val if val else 0x1000
+        except Exception:
+            return 0x1000
+
+    @apihook('RtlCaptureContext', argc=1)
+    def RtlCaptureContext(self, emu, argv, ctx={}):
+        ptr = self.emu.reg_read("rcx")
+        if ptr:
+            try:
+                ctx_buf = b"\x00" * 0x500
+                try:
+                    self.emu.mem_write(ptr, ctx_buf)
+                except:
+                    base_addr = ptr & ~0xfff
+                    self.emu.mem_map(base_addr, 0x1000)
+                    self.emu.mem_write(ptr, ctx_buf)
+            except: pass
+        return True
+
+    @apihook('RtlLookupFunctionEntry', argc=3)
+    def RtlLookupFunctionEntry(self, emu, argv, ctx={}):
+        return 0
 
