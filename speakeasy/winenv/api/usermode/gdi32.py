@@ -253,3 +253,61 @@ class GDI32(api.ApiHandler):
         );
         """
         return 0
+
+    @apihook('CreateFontIndirectA', argc=1)
+    def CreateFontIndirectA(self, emu, argv, ctx={}):
+        """
+        HFONT CreateFontIndirectA(
+            const LOGFONTA *lplf
+        );
+        """
+        lplf = argv[0]
+
+        # Return a fake HFONT handle.
+        # Any non-zero value is treated as success.
+        try:
+            return 0x6000
+        except:
+            return 0x6000
+
+    @apihook('GetObjectA', argc=3)
+    def GetObjectA(self, emu, argv, ctx={}):
+        """
+        int GetObjectA(
+            HANDLE h,
+            int    c,
+            LPVOID pv
+        );
+        """
+        h, c, pv = argv
+
+        # If caller provided a buffer, fill it with zeros.
+        if pv and c:
+            try:
+                data = b'\x00' * c
+                try:
+                    emu.mem_write(pv, data)
+                except:
+                    base_addr = pv & ~0xfff
+                    emu.mem_map(base_addr, 0x1000)
+                    emu.mem_write(pv, data)
+            except:
+                pass
+
+        # Return number of bytes "written"
+        return c
+
+    @apihook('WidenPath', argc=1)
+    def WidenPath(self, emu, argv, ctx={}):
+        """
+        BOOL WidenPath(
+            HDC hdc
+        );
+        """
+        hdc = argv[0]
+
+        # We don't emulate actual path widening; just report success.
+        try:
+            return 1  # TRUE
+        except:
+            return 1
