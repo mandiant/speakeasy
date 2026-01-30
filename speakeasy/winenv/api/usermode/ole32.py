@@ -167,3 +167,15 @@ class Ole32(api.ApiHandler):
             self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), 'little'))
 
         return rv
+
+    @apihook('CoCreateGuid', argc=1)
+    def CoCreateGuid(self, emu, argv, ctx={}):
+        pguid = argv[0]
+        guid_bytes = b'\xDE\xAD\xC0\xDE\xBE\xEF\xCA\xFE\xBA\xBE\x01\x23\x45\x67\x89\xAB'
+        if pguid:
+            try:
+                self.emu.mem_write(pguid, guid_bytes)
+            except:
+                self.emu.mem_map(pguid & ~0xfff, 0x1000)
+                self.emu.mem_write(pguid, guid_bytes)
+        return 0
