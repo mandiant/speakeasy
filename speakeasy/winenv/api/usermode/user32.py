@@ -1430,3 +1430,121 @@ class User32(api.ApiHandler):
         # >>> ctypes.windll.user32.GetDoubleClickTime()
         # 500
         return 500
+
+    @apihook('RegisterClipboardFormatA', argc=1)
+    def RegisterClipboardFormatA(self, emu, argv, ctx={}):
+        """
+        UINT RegisterClipboardFormatA(
+            LPCSTR lpszFormat
+        );
+        """
+        fmt = argv[0]
+
+        # Return a fake clipboard format ID.
+        # Clipboard format IDs start at 0xC000 for custom formats.
+        try:
+            return 0xC000
+        except:
+            return 0xC000
+
+    @apihook('SystemParametersInfoA', argc=4)
+    def SystemParametersInfoA(self, emu, argv, ctx={}):
+        """
+        BOOL SystemParametersInfoA(
+            UINT  uiAction,
+            UINT  uiParam,
+            PVOID pvParam,
+            UINT  fWinIni
+        );
+        """
+        uiAction, uiParam, pvParam, fWinIni = argv
+
+        # Many callers expect pvParam to be filled with something.
+        # We return success without writing anything unless needed.
+        try:
+            return 1  # non-zero = success
+        except:
+            return 1
+
+    @apihook('GetKeyboardLayout', argc=1)
+    def GetKeyboardLayout(self, emu, argv, ctx={}):
+        """
+        HKL GetKeyboardLayout(
+            DWORD idThread
+        );
+        """
+        idThread = argv[0]
+
+        # Return a fake HKL (keyboard layout handle).
+        # Real HKLs are typically like 0x04090409 (LANG + device id).
+        try:
+            return 0x04090409
+        except:
+            return 0x04090409
+
+    @apihook('EnumDisplayMonitors', argc=4)
+    def EnumDisplayMonitors(self, emu, argv, ctx={}):
+        """
+        BOOL EnumDisplayMonitors(
+            HDC             hdc,
+            LPCRECT         lprcClip,
+            MONITORENUMPROC lpfnEnum,
+            LPARAM          dwData
+        );
+        """
+        hdc, lprcClip, lpfnEnum, dwData = argv
+
+        # Most callers expect TRUE to indicate success.
+        # We do not invoke the callback — Speakeasy doesn't emulate monitor enumeration.
+        try:
+            return 1  # non-zero = success
+        except:
+            return 1
+
+    @apihook('OemToCharA', argc=2)
+    def OemToCharA(self, emu, argv, ctx={}):
+        """
+        BOOL OemToCharA(
+            LPCSTR lpszSrc,
+            LPSTR  lpszDst
+        );
+        """
+        src, dst = argv
+
+        # If destination buffer exists, copy source bytes into it.
+        if src and dst:
+            try:
+                # Read up to 256 bytes safely
+                data = emu.mem_read(src, 256)
+                # Write back to destination
+                try:
+                    emu.mem_write(dst, data)
+                except:
+                    base_addr = dst & ~0xfff
+                    emu.mem_map(base_addr, 0x1000)
+                    emu.mem_write(dst, data)
+            except:
+                pass
+
+        # Return TRUE
+        return 1
+
+    @apihook('CharPrevW', argc=2)
+    def CharPrevW(self, emu, argv, ctx={}):
+        """
+        LPWSTR CharPrevW(
+            LPCWSTR lpszStart,
+            LPCWSTR lpszCurrent
+        );
+        """
+        start, current = argv
+
+        # If current > start, return current - 2 (one WCHAR back)
+        try:
+            if current and start and current > start:
+                return current - 2
+        except:
+            pass
+
+        # Otherwise return start
+        return start
