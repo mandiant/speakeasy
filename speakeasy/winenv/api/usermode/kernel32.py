@@ -1535,7 +1535,7 @@ class Kernel32(api.ApiHandler):
 
         quad = (ft.dwHighDateTime << 32) | ft.dwLowDateTime
         try:
-            dt = datetime.datetime.utcfromtimestamp((quad - 116444736000000000) / 10000000)
+            dt = datetime.datetime.fromtimestamp((quad - 116444736000000000) / 10000000, tz=datetime.timezone.utc)
         except ValueError:
             dt = None
 
@@ -1561,7 +1561,7 @@ class Kernel32(api.ApiHandler):
         lpSystemTimeAsFileTime, = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.UTC).timestamp()) * 10000000
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
 
@@ -3365,7 +3365,7 @@ class Kernel32(api.ApiHandler):
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime,
         # using current date time
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.UTC).timestamp()) * 10000000
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
         file_data.ftCreationTime.dwLowDateTime = 0xFFFFFFFF & timestamp
         file_data.ftCreationTime.dwHighDateTime = timestamp >> 32
 
