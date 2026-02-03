@@ -200,14 +200,14 @@ class EmuEngine:
         """Modify register values"""
         ereg = self.regs.get(reg)
         if not ereg:
-            raise EmuEngineError('Unknown register: %d' % (reg))
+            raise EmuEngineError(f'Unknown register: {reg}')
         return self.emu.reg_write(ereg, val)
 
     def reg_read(self, reg):
         """Read register values"""
         ereg = self.regs.get(reg)
         if not ereg:
-            raise EmuEngineError('Unknown register: %d' % (reg))
+            raise EmuEngineError(f'Unknown register: {reg}')
         return self.emu.reg_read(ereg)
 
     def stop(self):

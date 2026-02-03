@@ -319,7 +319,7 @@ class Netio(api.ApiHandler):
         raddr = inet_ntoa(sock_addr.sin_addr.to_bytes(4, 'little'))
         rport = ntohs(sock_addr.sin_port)
 
-        argv[1] = '%s:%d' % (raddr, rport)
+        argv[1] = f'{raddr}:{rport}'
 
         return rv
 

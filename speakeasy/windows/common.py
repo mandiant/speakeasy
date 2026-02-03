@@ -277,7 +277,7 @@ class PeFile(pefile.PE):
             dll = os.path.splitext(dll)[0]
             for imp in entry.imports:
                 if imp.import_by_ordinal:
-                    func_name = 'ordinal_%d' % (imp.ordinal)
+                    func_name = f'ordinal_{imp.ordinal}'
                     imports.update({imp.address: (dll, func_name)})
                 else:
                     func_name = imp.name.decode('utf-8')

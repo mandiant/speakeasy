@@ -272,7 +272,7 @@ class EmuStruct(metaclass=CMeta):
         """
         Factory used to generate ctypes structures using the ctypes metaclass
         """
-        _type_name = 'ct' + name + '%d' % (self.__ptrsize__)
+        _type_name = f'ct{name}{self.__ptrsize__}'
         _type = EmuStruct.__types__.get(_type_name)
         if not _type:
             _type = type(_type_name, (self.__class__.FilteredStruct, ),

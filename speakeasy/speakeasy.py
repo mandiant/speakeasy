@@ -563,7 +563,7 @@ class Speakeasy:
         try:
             return self.emu.mem_read(addr, size)
         except Exception:
-            raise SpeakeasyError("Failed to read %d bytes at address: 0x%x" % (size, addr))
+            raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}")
 
     def mem_write(self, addr: int, data: bytes) -> None:
         """
@@ -578,7 +578,7 @@ class Speakeasy:
         try:
             return self.emu.mem_write(addr, data)
         except Exception:
-            raise SpeakeasyError("Failed to write %d bytes at address: 0x%x" % (len(data), addr))
+            raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}")
 
     def mem_cast(self, obj, addr: int):
         """
