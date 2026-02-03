@@ -486,7 +486,7 @@ class Ws2_32(api.ApiHandler):
         raddr = inet_ntoa(in_addr.to_bytes(4, 'little'))
         rv = self.addr_bufs.get(raddr)
         if not rv:
-            buf = self.mem_alloc(len(raddr), tag='api.ws2_32.inet_ntoa.%s' % (raddr))
+            buf = self.mem_alloc(len(raddr), tag='api.ws2_32.inet_ntoa.{}'.format(raddr))
             self.mem_write(buf, raddr.encode('utf-8'))
             self.addr_bufs.update({raddr: buf})
         return buf

@@ -60,7 +60,7 @@ class ApiHammer:
             # this is an api that we always want to allow, don't bother trying to
             # prevent api hammering
             return
-        hammer_key = imp_api + '%x' % self.emu.get_ret_address()
+        hammer_key = imp_api + '{:x}'.format(self.emu.get_ret_address())
         self.api_stats[hammer_key] += 1
         if self.api_stats[hammer_key] < self.api_threshold:
             return
@@ -70,7 +70,7 @@ class ApiHammer:
         if self.emu.get_arch() == e_arch.ARCH_X86:
             eip = self.emu.get_ret_address() - 6
             mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-            self.emu.log_info('api hammering at: %s 0x%x %r %r %r' % (imp_api, self.emu.get_pc(),
+            self.emu.log_info('api hammering at: {} 0x{:x} {!r} {!r} {!r}'.format(imp_api, self.emu.get_pc(),
                                                                       mnem, op, instr))
             if (mnem == 'call') and 'dword ptr' in instr:
                 if conv == e_arch.CALL_CONV_CDECL:
@@ -78,17 +78,17 @@ class ApiHammer:
                     # just xor eax,eax & 4 bytes of nop
                     patch = b'\x31\xc0\x90\x90\x90\x90\x90'
                     self.emu.mem_write(eip, patch)
-                    self.emu.log_info('API HAMMERING DETECTED - patching 1 cdecl at %x' % (eip, ))
+                    self.emu.log_info('API HAMMERING DETECTED - patching 1 cdecl at {:x}'.format(eip ))
                 elif conv == e_arch.CALL_CONV_STDCALL:
                     # If stdcall, we need to clean the stack
                     # patch is xor eax, eax; add esp, <count>
                     patch = b'\x31\xc0\x83\xc4' + (4*argc).to_bytes(1, 'little') + b'\x90'
                     self.emu.mem_write(eip, patch)
-                    self.emu.log_info('API HAMMERING DETECTED - patching 1 stdcall at %x' % (eip,))
+                    self.emu.log_info('API HAMMERING DETECTED - patching 1 stdcall at {:x}'.format(eip))
             else:
                 eip = self.emu.get_ret_address() - 2
                 mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-                self.emu.log_info('api hammering at: 0x%x %r %r %r' % (self.emu.get_pc(), mnem,
+                self.emu.log_info('api hammering at: 0x{:x} {!r} {!r} {!r}'.format(self.emu.get_pc(), mnem,
                                                                        op, instr))
                 if (mnem == 'call') and op in e_arch.REG_LOOKUP.keys():
                     # not enough space to clean up stack inline, so write stack cleanup code to a
@@ -116,7 +116,7 @@ class ApiHammer:
                             self.emu.reg_write(reg, loc)
                             self.emu.log_info('API HAMMERING DETECTED - patching 2 stdcall at %x' % (eip,)) # noqa
                 else:
-                    self.emu.log_info('API HAMMERING DETECTED - unable to patch %x' % (eip, ))
+                    self.emu.log_info('API HAMMERING DETECTED - unable to patch {:x}'.format(eip ))
 
         if self.emu.get_arch() == e_arch.ARCH_AMD64:
             # TODO

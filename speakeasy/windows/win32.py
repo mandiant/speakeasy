@@ -233,7 +233,7 @@ class Win32Emulator(WindowsEmulator):
                     pass
 
         self.mem_map(pe.image_size, base=base,
-                     tag='emu.module.%s' % (self.mod_name))
+                     tag='emu.module.{}'.format(self.mod_name))
 
         self.modules.append((pe, ranges, emu_path))
         self.mem_write(pe.base, pe.mapped_image)
@@ -250,7 +250,7 @@ class Win32Emulator(WindowsEmulator):
             mod, eh = self.api.get_data_export_handler(mn, fn)
             if eh:
                 data_ptr = self.handle_import_data(mn, fn)
-                sym = "%s.%s" % (mn, fn)
+                sym = "{}.{}".format(mn, fn)
                 self.global_data.update({addr: [sym, data_ptr]})
                 self.mem_write(addr, data_ptr.to_bytes(self.get_ptr_size(),
                                                        'little'))
@@ -312,7 +312,7 @@ class Win32Emulator(WindowsEmulator):
                     else:
                         fn = 'no_name'
 
-                    run.type = 'export.%s' % (fn)
+                    run.type = 'export.{}'.format(fn)
                     run.start_addr = exp.address
                     if exp.name == 'ServiceMain':
                         # ServiceMain accepts a (argc, argv) pair like main().
@@ -460,7 +460,7 @@ class Win32Emulator(WindowsEmulator):
         elif self.arch == _arch.ARCH_AMD64:
             disasm_mode = cs.CS_MODE_64
         else:
-            raise Win32EmuError('Unsupported architecture: %s' % self.arch)
+            raise Win32EmuError('Unsupported architecture: {}'.format(self.arch))
 
         self.emu_eng.init_engine(_arch.ARCH_X86, self.arch)
 
@@ -468,7 +468,7 @@ class Win32Emulator(WindowsEmulator):
         if not self.disasm_eng:
             self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
 
-        sc_tag = 'emu.shellcode.%s' % (sc_hash)
+        sc_tag = 'emu.shellcode.{}'.format(sc_hash)
 
         # Map the shellcode into memory
         sc_addr = self.mem_map(len(sc), tag=sc_tag)
@@ -748,6 +748,6 @@ class Win32Emulator(WindowsEmulator):
         """
         Allocate a memory chunk and add it to the "heap"
         """
-        addr = self.mem_map(size, base=None, tag='api.heap.%s' % (heap))
+        addr = self.mem_map(size, base=None, tag='api.heap.{}'.format(heap))
         self.heap_allocs.append((addr, size, heap))
         return addr

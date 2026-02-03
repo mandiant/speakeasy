@@ -101,7 +101,7 @@ class Speakeasy:
             # Get the machine type we only support x86/x64 atm
             mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split('_')[-1:][0].lower()
             if mach not in ('amd64', 'i386'):
-                raise SpeakeasyError('Unsupported architecture: %s' % mach)
+                raise SpeakeasyError('Unsupported architecture: {}'.format(mach))
 
             if pe.is_dotnet():
                 raise NotSupportedError('.NET assemblies are not currently supported')
@@ -170,7 +170,7 @@ class Speakeasy:
         try:
             return self.emu.get_disasm(addr, size, fast)
         except Exception:
-            raise SpeakeasyError("Failed to disassemble at address: 0x%x" % (addr))
+            raise SpeakeasyError("Failed to disassemble at address: 0x{:x}".format(addr))
 
     def is_pe(self, data: bytes) -> bool:
         """
@@ -201,7 +201,7 @@ class Speakeasy:
             raise SpeakeasyError('No emulation target supplied')
 
         if path and not os.path.exists(path):
-            raise SpeakeasyError('Target file not found: %s' % (path))
+            raise SpeakeasyError('Target file not found: {}'.format(path))
 
         if data:
             test = data
@@ -940,7 +940,7 @@ class Speakeasy:
                     h.update(data)
                     _hash = h.hexdigest()
 
-                    file_name = '%s.mem' % (tag)
+                    file_name = '{}.mem'.format(tag)
 
                     memory_blocks.append({'tag':  tag, 'base': hex(base), 'size': hex(size),
                                           'is_free': is_free, 'sha256': _hash,

@@ -21,7 +21,7 @@ class ApiHandler:
 
         def apitemp(f):
             if not callable(f):
-                raise ApiEmuError('Invalid function type supplied: %s' % (str(f)))
+                raise ApiEmuError('Invalid function type supplied: {}'.format(str(f)))
             f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)
             return f
 
@@ -32,7 +32,7 @@ class ApiHandler:
 
         def datatmp(f):
             if not callable(f):
-                raise ApiEmuError('Invalid function type supplied: %s' % (str(f)))
+                raise ApiEmuError('Invalid function type supplied: {}'.format(str(f)))
             f.__datahook__ = (impname, f)
             return f
 
@@ -340,7 +340,7 @@ class ApiHandler:
             return 1
         elif name.endswith('W'):
             return 2
-        raise ApiEmuError('Failed to get character width from function: %s' % (name))
+        raise ApiEmuError('Failed to get character width from function: {}'.format(name))
 
     def get_va_arg_count(self, fmt):
         """

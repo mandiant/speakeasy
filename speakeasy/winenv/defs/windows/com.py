@@ -152,4 +152,4 @@ def get_rcp_implevel(define):
 
 def convert_guid_bytes_to_str(guid_bytes):
     u = uuid.UUID(bytes_le=guid_bytes)
-    return ('{%s}' % u).upper()
+    return ('{{{}}}'.format(u)).upper()

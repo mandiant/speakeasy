@@ -141,7 +141,7 @@ class KernelObject:
             return self.object.__class__.__name__
 
     def get_mem_tag(self):
-        return 'emu.struct.%s' % (self.get_class_name())
+        return 'emu.struct.{}'.format(self.get_class_name())
 
     def get_handle(self):
         tmp = KernelObject.curr_handle
@@ -180,7 +180,7 @@ class Driver(KernelObject):
 
         us = self.nt_types.UNICODE_STRING(self.emu.get_ptr_size())
         size = self.sizeof(us) + len(buf)
-        addr = self.emu.mem_map(size, tag='emu.object.%s.reg_path' % self.name)
+        addr = self.emu.mem_map(size, tag='emu.object.{}.reg_path'.format(self.name))
         us.Length = len(buf) - 2
         us.MaximumLength = len(buf)
         us.Buffer = addr + self.sizeof(us)
@@ -201,7 +201,7 @@ class Driver(KernelObject):
         Create the driver section for the driver. This is a linked list that
         links together driver objects
         """
-        tag = 'emu.object.%s.DriverSection' % self.name
+        tag = 'emu.object.{}.DriverSection'.format(self.name)
         mod = self.pe
 
         if mod and mod.get_emu_path():
@@ -286,8 +286,8 @@ class Driver(KernelObject):
             if not name:
                 drvname = os.path.splitext(pe.path)[0]
                 drvname = os.path.basename(drvname)
-                self.name = r'\Driver\%s' % (drvname)
-                us = ('\\Driver\\%s\x00' % (drvname)).encode('utf-16le')
+                self.name = r'\Driver\{}'.format(drvname)
+                us = ('\\Driver\\{}\x00'.format(drvname)).encode('utf-16le')
                 name = self.name
 
         if name:
@@ -299,7 +299,7 @@ class Driver(KernelObject):
 
         # Allocate the driver object
         addr = self.emu.mem_map(drvobj.Size + len(us),
-                                tag='emu.object.%s' % name)
+                                tag='emu.object.{}'.format(name))
 
         drvobj.DriverName.Length = len(us)
         drvobj.DriverName.MaximumLength = len(us)
@@ -489,7 +489,7 @@ class Thread(KernelObject):
     def init_tls(self, tls_dir, modname):
         ptrsz = self.emu.get_ptr_size()
 
-        tls_dirp = self.emu.mem_map(ptrsz, tag='emu.tls.%s' % (modname))
+        tls_dirp = self.emu.mem_map(ptrsz, tag='emu.tls.{}'.format(modname))
 
         self.emu.mem_write(tls_dirp, tls_dir)
 
@@ -581,7 +581,7 @@ class Process(KernelObject):
         desk = sm.get_current_desktop()
         desk_name = desk.get_name()
 
-        name = '%s\\%s' % (stat_name, desk_name)
+        name = '{}\\{}'.format(stat_name, desk_name)
 
         return name
 

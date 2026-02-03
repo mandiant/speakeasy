@@ -44,7 +44,7 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='',
             elif arch in ('x64', 'amd64'):
                 arch = e_arch.ARCH_AMD64
             else:
-                raise Exception('Unsupported architecture: %s' % arch)
+                raise Exception('Unsupported architecture: {}'.format(arch))
 
             sc_addr = se.load_shellcode(fpath, arch)
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
@@ -61,14 +61,14 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='',
         # If a memory dump was requested, do it now
         if dump_path:
             data = se.create_memdump_archive()
-            logger.info('* Saving memory dump archive to %s' % (dump_path))
+            logger.info('* Saving memory dump archive to {}'.format(dump_path))
             with open(dump_path, 'wb') as f:
                 f.write(data)
 
         if drop_path:
             data = se.create_file_archive()
             if data:
-                logger.info('* Saving dropped files archive to %s' % (drop_path))
+                logger.info('* Saving dropped files archive to {}'.format(drop_path))
                 with open(drop_path, 'wb') as f:
                     f.write(data)
             else:
@@ -135,7 +135,7 @@ class Main:
 
         if self.target and not os.path.isfile(self.target):
             parser.print_help()
-            self.logger.error('[-] Target file not found: %s' % (self.target))
+            self.logger.error('[-] Target file not found: {}'.format(self.target))
             return
 
         if not self.target:
@@ -192,7 +192,7 @@ class Main:
 
         if report:
             if self.output:
-                self.logger.info('* Saving emulation report to %s' % (self.output))
+                self.logger.info('* Saving emulation report to {}'.format(self.output))
                 with open(self.output, 'w') as f:
                     f.write(report)
 
