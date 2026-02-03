@@ -56,7 +56,7 @@ class Wdfldr(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Wdfldr, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.curr_handle = 4
@@ -73,7 +73,7 @@ class Wdfldr(api.ApiHandler):
         self.func_table = self.types.WDFFUNCTIONS(emu.get_ptr_size())
         self.func_table_ptr = None
         self.component_globals = None
-        super(Wdfldr, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.curr_handle += 4

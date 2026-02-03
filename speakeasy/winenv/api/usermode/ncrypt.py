@@ -17,12 +17,12 @@ class Ncrypt(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Ncrypt, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Ncrypt, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('NCryptOpenStorageProvider', argc=3)
     def NCryptOpenStorageProvider(self, emu, argv, ctx={}):

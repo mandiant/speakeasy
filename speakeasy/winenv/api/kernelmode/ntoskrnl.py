@@ -28,7 +28,7 @@ class Ntoskrnl(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Ntoskrnl, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -36,7 +36,7 @@ class Ntoskrnl(api.ApiHandler):
 
         self.win = ntos
 
-        super(Ntoskrnl, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_current_irql(self):
         return self.emu.get_current_irql()

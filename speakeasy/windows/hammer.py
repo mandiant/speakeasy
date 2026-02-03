@@ -30,7 +30,7 @@ class ApiHammer:
     """
 
     def __init__(self, emu):
-        super(ApiHammer, self).__init__()
+        super().__init__()
         self.emu = emu
         self.api_stats = collections.defaultdict(int)
         self.hammer_memregion = None

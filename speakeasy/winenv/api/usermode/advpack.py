@@ -14,12 +14,12 @@ class Advpack(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Advpack, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Advpack, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('IsNTAdmin', argc=2)
     def IsNTAdmin(self, emu, argv, ctx={}):

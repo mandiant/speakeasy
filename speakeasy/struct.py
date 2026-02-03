@@ -300,7 +300,7 @@ class EmuStruct(metaclass=CMeta):
                         return
                     struct.__setattr__(fn, value)
                     return
-        super(EmuStruct, self).__setattr__(name, value)
+        super().__setattr__(name, value)
 
     def __getattribute__(self, name):
         """
@@ -308,7 +308,7 @@ class EmuStruct(metaclass=CMeta):
         can be handled correctly
         """
         try:
-            struct = super(EmuStruct, self).__getattribute__('__struct__')
+            struct = super().__getattribute__('__struct__')
             if struct:
                 fields = struct._fields_
                 for fn, val in fields:
@@ -316,8 +316,7 @@ class EmuStruct(metaclass=CMeta):
                         val = struct.__getattribute__(name)
                         tests = (EmuStruct.FilteredStruct, EmuUnion.FilteredStruct, ct.Array)
                         if any([isinstance(val, t) for t in tests]):
-                            fm = super(EmuStruct,
-                                       self).__getattribute__('__filtermap__')
+                            fm = super().__getattribute__('__filtermap__')
                             filt_obj = fm.get(name)
                             if filt_obj:
                                 return filt_obj
@@ -325,7 +324,7 @@ class EmuStruct(metaclass=CMeta):
                         return struct.__getattribute__(name)
         except AttributeError:
             pass
-        return super(EmuStruct, self).__getattribute__(name)
+        return super().__getattribute__(name)
 
 
 class EmuUnion(EmuStruct, metaclass=CMeta):

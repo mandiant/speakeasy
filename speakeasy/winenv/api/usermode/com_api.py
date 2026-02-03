@@ -15,12 +15,12 @@ class ComApi(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(ComApi, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(ComApi, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     # First argument (self) is not reflected in method definitions; note this increases argc by 1
     @apihook('IUnknown.QueryInterface', argc=3)

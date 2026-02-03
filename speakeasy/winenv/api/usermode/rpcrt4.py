@@ -17,7 +17,7 @@ class RPCRT4(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-        super(RPCRT4, self).__init__(emu)
+        super().__init__(emu)
 
     @apihook('UuidCreate', argc=1)
     def UuidCreate(self, emu, argv, ctx={}):

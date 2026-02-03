@@ -16,8 +16,8 @@ class Msimg32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Msimg32, self).__init__(emu)
-        super(Msimg32, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('TransparentBlt', argc=11)
     def TransparentBlt(self, emu, argv, ctx={}):

@@ -22,7 +22,7 @@ class Shlwapi(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Shlwapi, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -30,7 +30,7 @@ class Shlwapi(api.ApiHandler):
         self.handle = 0
         self.win = None
 
-        super(Shlwapi, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def join_windows_path(self, *args, **kwargs):
         args = list(map(lambda x: x.replace('\\', '/'), args))

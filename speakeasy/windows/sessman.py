@@ -20,7 +20,7 @@ class Session(GuiObject):
     Represents a windows Session
     """
     def __init__(self, sess_id):
-        super(Session, self).__init__()
+        super().__init__()
         self.id = sess_id
         self.stations = {}
 
@@ -35,7 +35,7 @@ class Station(GuiObject):
     Represents a window station
     """
     def __init__(self, name=''):
-        super(Station, self).__init__()
+        super().__init__()
         self.name = name
         self.desktops = {}
 
@@ -53,7 +53,7 @@ class Desktop(GuiObject):
     Represents a Desktop object
     """
     def __init__(self, name=''):
-        super(Desktop, self).__init__()
+        super().__init__()
         self.windows = {}
         self.desktop_window = self.new_window()
         self.name = name
@@ -76,7 +76,7 @@ class Window(GuiObject):
     Represents a GUI window
     """
     def __init__(self, name=None, class_name=None):
-        super(Window, self).__init__()
+        super().__init__()
         self.name = name
         self.class_name = class_name
 
@@ -86,7 +86,7 @@ class WindowClass(GuiObject):
     Represents a GUI window class
     """
     def __init__(self, wclass, name):
-        super(WindowClass, self).__init__()
+        super().__init__()
         self.wclass = wclass
         self.name = name
 
@@ -97,7 +97,7 @@ class SessionManager:
     windows, and session isolation
     """
     def __init__(self, config):
-        super(SessionManager, self).__init__()
+        super().__init__()
         self.sessions = {}
         self.window_classes = {}
         self.windows = {}

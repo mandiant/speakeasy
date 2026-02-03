@@ -29,7 +29,7 @@ class Win32Emulator(WindowsEmulator):
     User Mode Windows Emulator Class
     """
     def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        super(Win32Emulator, self).__init__(config, debug=debug, logger=logger,
+        super().__init__(config, debug=debug, logger=logger,
                                             exit_event=exit_event)
 
         self.last_error = 0
@@ -694,13 +694,13 @@ class Win32Emulator(WindowsEmulator):
                 user_mods = self.get_user_modules()
                 self.init_peb(user_mods)
                 return True
-        return super(Win32Emulator, self)._hook_mem_unmapped(emu, access, address, size,
+        return super()._hook_mem_unmapped(emu, access, address, size,
                                                              value, user_data)
 
     def set_hooks(self):
         """Set the emulator callbacks"""
 
-        super(Win32Emulator, self).set_hooks()
+        super().set_hooks()
 
         if not self.builtin_hooks_set:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
@@ -713,7 +713,7 @@ class Win32Emulator(WindowsEmulator):
         self.run_complete = True
         # self._unset_emu_hooks()
         # self.unset_hooks()
-        super(Win32Emulator, self).stop()
+        super().stop()
 
     def on_emu_complete(self):
         """

@@ -14,8 +14,8 @@ class Wkscli(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-        super(Wkscli, self).__init__(emu)
-        super(Wkscli, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('NetGetJoinInformation', argc=3)
     def NetGetJoinInformation(self, emu, argv, ctx={}):

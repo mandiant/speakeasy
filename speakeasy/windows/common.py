@@ -179,11 +179,11 @@ class PeFile(pefile.PE):
     def __init__(self, path=None, data=None, imp_id=IMPORT_HOOK_ADDR,
                  imp_step=4, emu_path='', fast_load=False):
 
-        super(PeFile, self).__init__(name=path, data=data, fast_load=fast_load)
+        super().__init__(name=path, data=data, fast_load=fast_load)
 
         if 0 == self.OPTIONAL_HEADER.ImageBase:
             self.relocate_image(DEFAULT_LOAD_ADDR)
-            super(PeFile, self).__init__(name=None, data=self.write())
+            super().__init__(name=None, data=self.write())
 
         self.imp_id = imp_id
         self.imp_step = imp_step
@@ -389,7 +389,7 @@ class PeFile(pefile.PE):
         return False
 
     def is_driver(self):
-        rv = super(PeFile, self).is_driver()
+        rv = super().is_driver()
         if rv:
             return rv
 
@@ -447,7 +447,7 @@ class DecoyModule(PeFile):
         self.is_jitted = is_jitted
         self.decoy_base = base
         if path or data:
-            super(DecoyModule, self).__init__(path=path, data=data, fast_load=fast_load)
+            super().__init__(path=path, data=data, fast_load=fast_load)
 
         if data:
             self.image_size = len(data)
@@ -458,7 +458,7 @@ class DecoyModule(PeFile):
         self.data = b''
 
     def get_memory_mapped_image(self, max_virtual_address=0x10000000, base=None):
-        mmi = super(DecoyModule, self).get_memory_mapped_image(max_virtual_address, base)
+        mmi = super().get_memory_mapped_image(max_virtual_address, base)
         if self.is_jitted and len(mmi) < len(self.__data__):
             return self.__data__
         return mmi

@@ -24,12 +24,12 @@ class Ntdll(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Ntdll, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Ntdll, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('RtlGetLastWin32Error', argc=0)
     def RtlGetLastWin32Error(self, emu, argv, ctx={}):

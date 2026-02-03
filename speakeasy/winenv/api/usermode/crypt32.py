@@ -21,12 +21,12 @@ class Crypt32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Crypt32, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Crypt32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('CryptStringToBinary', argc=7)
     def CryptStringToBinary(self, emu, argv, ctx={}):

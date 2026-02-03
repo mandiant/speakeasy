@@ -17,7 +17,7 @@ class Hal(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Hal, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -25,7 +25,7 @@ class Hal(api.ApiHandler):
 
         self.win = w
 
-        super(Hal, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('KeGetCurrentIrql', argc=0)
     def KeGetCurrentIrql(self, emu, argv, ctx={}):

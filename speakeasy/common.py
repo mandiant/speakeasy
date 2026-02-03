@@ -130,7 +130,7 @@ class ApiHook(Hook):
     This hook type is used when using a specific API (e.g. kernel32.CreateFile)
     """
     def __init__(self, se_obj, emu_eng, cb, module='', api_name='', argc=0, call_conv=None):
-        super(ApiHook, self).__init__(se_obj, emu_eng, cb)
+        super().__init__(se_obj, emu_eng, cb)
         self.module = module
         self.api_name = api_name
         self.argc = argc
@@ -143,7 +143,7 @@ class DynCodeHook(Hook):
     Currently, this will only fire once per dynamic code mapping. Could be useful for unpacking.
     """
     def __init__(self, se_obj, emu_eng, cb, ctx=[]):
-        super(DynCodeHook, self).__init__(se_obj, emu_eng, cb)
+        super().__init__(se_obj, emu_eng, cb)
 
 
 class CodeHook(Hook):
@@ -153,7 +153,7 @@ class CodeHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, ctx=[],
                  native_hook=True):
-        super(CodeHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+        super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
         self.begin = begin
         self.end = end
 
@@ -170,7 +170,7 @@ class ReadMemHook(Hook):
     This hook will fire each time a valid chunk of memory is read from
     """
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
-        super(ReadMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
+        super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
         self.begin = begin
         self.end = end
 
@@ -188,7 +188,7 @@ class WriteMemHook(Hook):
     This hook will fire each time a valid chunk of memory is written to
     """
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
-        super(WriteMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
+        super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
         self.begin = begin
         self.end = end
 
@@ -206,7 +206,7 @@ class MapMemHook(Hook):
     This hook will fire each time a chunk of memory is mapped
     """
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0):
-        super(MapMemHook, self).__init__(se_obj, emu_eng, cb)
+        super().__init__(se_obj, emu_eng, cb)
         self.begin = begin
         self.end = end
 
@@ -220,7 +220,7 @@ class InvalidMemHook(Hook):
     This hook will fire each time a invalid chunk of memory is accessed
     """
     def __init__(self, se_obj, emu_eng, cb, native_hook=False):
-        super(InvalidMemHook, self).__init__(se_obj, emu_eng, cb, native_hook=native_hook)
+        super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
 
     def add(self):
         if not self.added and self.native_hook:
@@ -235,7 +235,7 @@ class InterruptHook(Hook):
     This hook will fire each time a a software interrupt is triggered
     """
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
-        super(InterruptHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
+        super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
 
     def add(self):
         if not self.added and self.native_hook:
@@ -250,7 +250,7 @@ class InstructionHook(Hook):
     Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
     """
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True, insn=None):
-        super(InstructionHook, self).__init__(se_obj, emu_eng, cb, ctx=ctx,
+        super().__init__(se_obj, emu_eng, cb, ctx=ctx,
                                               native_hook=native_hook)
         self.insn = insn
 
@@ -267,7 +267,7 @@ class InvalidInstructionHook(Hook):
     to be executed
     """
     def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
-        super(InvalidInstructionHook, self).__init__(se_obj, emu_eng, cb,
+        super().__init__(se_obj, emu_eng, cb,
                 ctx=ctx, native_hook=native_hook)
 
     def add(self):

@@ -31,7 +31,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     Class used to emulate Windows drivers
     """
     def __init__(self, config, debug=False, logger=None, exit_event=None):
-        super(WinKernelEmulator, self).__init__(config, debug=debug, logger=logger,
+        super().__init__(config, debug=debug, logger=logger,
                                                 exit_event=exit_event)
 
         self.disasm_eng = None
@@ -205,7 +205,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Initialize kernel mode modules that may be accessed by emulated modules
         """
-        sysmods = super(WinKernelEmulator, self).init_sys_modules(modules_config)
+        sysmods = super().init_sys_modules(modules_config)
 
         # Initalize any DRIVER_OBJECTs needed by the module
         for mc in modules_config:
@@ -595,7 +595,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     def set_hooks(self):
         """Set the emulator callbacks"""
 
-        super(WinKernelEmulator, self).set_hooks()
+        super().set_hooks()
 
         if not self.builtin_hooks_set:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
@@ -638,11 +638,11 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     def get_report(self):
         """ Retrieve the execution profile for the emulator """
         self._set_entry_point_names()
-        return super(WinKernelEmulator, self).get_report()
+        return super().get_report()
 
     def get_json_report(self):
         self._set_entry_point_names()
-        return super(WinKernelEmulator, self).get_json_report()
+        return super().get_json_report()
 
     def get_ssdt_ptr(self):
         return self.ssdt_ptr

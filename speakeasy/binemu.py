@@ -29,7 +29,7 @@ class BinaryEmulator(MemoryManager):
     """
     def __init__(self, config, logger=None):
 
-        super(BinaryEmulator, self).__init__()
+        super().__init__()
 
         self.stack_base = 0
         self.page_size = None

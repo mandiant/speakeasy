@@ -9,7 +9,7 @@ class UpxUnpacker(speakeasy.Speakeasy):
     '''
 
     def __init__(self, output_path, debug=False):
-        super(UpxUnpacker, self).__init__(debug=debug)
+        super().__init__(debug=debug)
         self.output_path = output_path
         self.base_addr = 0
 

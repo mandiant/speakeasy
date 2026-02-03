@@ -157,7 +157,7 @@ class Driver(KernelObject):
     """    
 
     def __init__(self, emu):
-        super(Driver, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.pe = None
         self.devices = []
         self.ldr_entries = []
@@ -322,7 +322,7 @@ class Driver(KernelObject):
         self.emu.mem_write(addr, self.get_bytes() + us)
 
     def read_back(self):
-        super(Driver, self).read_back()
+        super().read_back()
 
         for i, func in enumerate(self.mj_funcs):
             self.mj_funcs[i] = self.object.MajorFunction[i]
@@ -336,7 +336,7 @@ class Device(KernelObject):
     """
 
     def __init__(self, emu):
-        super(Device, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         devobj = self.nt_types.DEVICE_OBJECT(emu.get_ptr_size())
 
         devobj.Type = 0x3
@@ -356,7 +356,7 @@ class FileObject(KernelObject):
     Represents a FILE_OBJECT created by the windows kernel
     """
     def __init__(self, emu):
-        super(FileObject, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         fileobj = self.nt_types.FILE_OBJECT(emu.get_ptr_size())
 
         fileobj.Type = 0x5
@@ -371,7 +371,7 @@ class IoStackLocation(KernelObject):
     an IRP.
     """
     def __init__(self, emu):
-        super(IoStackLocation, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
         self.object = self.nt_types.IO_STACK_LOCATION(emu.get_ptr_size())
         # Allocate two stack locations for now to handle IoGetNextIrpStackLocation calls
@@ -383,7 +383,7 @@ class Irp(KernelObject):
     I/O request packet used when performing device input/output
     """
     def __init__(self, emu):
-        super(Irp, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.object = self.nt_types.IRP(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
         self.stack_locations = []
@@ -409,7 +409,7 @@ class Thread(KernelObject):
     an OS level thread
     """
     def __init__(self, emu, stack_base=0, stack_commit=0):
-        super(Thread, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.emu = emu
         self.object = self.nt_types.ETHREAD(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
@@ -503,7 +503,7 @@ class Token(KernelObject):
     Represents a TOKEN object
     """
     def __init__(self, emu):
-        super(Token, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
 
 class Process(KernelObject):
@@ -515,7 +515,7 @@ class Process(KernelObject):
 
     def __init__(self, emu, pe=None, user_modules=[],
                  name='', path='', cmdline='', base=0, session=0):
-        super(Process, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xe0000000)
@@ -741,7 +741,7 @@ class Process(KernelObject):
 
 class RTL_USER_PROCESS_PARAMETERS(KernelObject):
     def __init__(self, emu, proc):
-        super(RTL_USER_PROCESS_PARAMETERS, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
         self.object = self.nt_types.RTL_USER_PROCESS_PARAMETERS(emu.get_ptr_size())
         proc_path = (proc.path + '\x00').encode('utf-16le')
@@ -771,7 +771,7 @@ class PEB(KernelObject):
     order to resolve exported functions.
     """
     def __init__(self, emu, address=None):
-        super(PEB, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
         self.object = self.nt_types.PEB(emu.get_ptr_size())
         if not address:
@@ -786,7 +786,7 @@ class TEB(KernelObject):
     fields that are used internally by Windows.
     """
     def __init__(self, emu, address=0):
-        super(TEB, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
         self.object = self.nt_types.TEB(emu.get_ptr_size())
         if address:
@@ -798,14 +798,14 @@ class TEB(KernelObject):
 class PebLdrData(KernelObject):
 
     def __init__(self, emu):
-        super(PebLdrData, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.object = self.nt_types.PEB_LDR_DATA(emu.get_ptr_size())
         self.address = 0
 
 
 class LdrDataTableEntry(KernelObject):
     def __init__(self, emu, dllname, tag=''):
-        super(LdrDataTableEntry, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.object = self.nt_types.LDR_DATA_TABLE_ENTRY(emu.get_ptr_size())
 
         size = self.sizeof()
@@ -823,7 +823,7 @@ class IDT(KernelObject):
     only exists to detect if samples read or write to it.
     """
     def __init__(self, emu):
-        super(IDT, self).__init__(emu=emu)
+        super().__init__(emu=emu)
 
         self.object = self.nt_types.IDT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
@@ -859,7 +859,7 @@ class Event(KernelObject):
     """
 
     def __init__(self, emu):
-        super(Event, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.object = self.nt_types.KEVENT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
 
@@ -870,7 +870,7 @@ class Mutant(KernelObject):
     """
 
     def __init__(self, emu):
-        super(Mutant, self).__init__(emu=emu)
+        super().__init__(emu=emu)
         self.object = self.nt_types.MUTANT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
 
@@ -880,7 +880,7 @@ class ObjectManager:
     Class that manages kernel objects during emulation
     """
     def __init__(self, emu):
-        super(ObjectManager, self).__init__()
+        super().__init__()
         self.emu = emu
         self.objects = {}
         self.symlinks = []
