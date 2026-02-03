@@ -4,6 +4,8 @@ import fnmatch
 import json
 import re
 import traceback
+from abc import ABC, abstractmethod
+from typing import Any
 
 import speakeasy.common as common
 import speakeasy.version as version
@@ -23,10 +25,35 @@ MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 
 
 # Generic emulator class for binary code
-class BinaryEmulator(MemoryManager):
+class BinaryEmulator(MemoryManager, ABC):
     """
     Base class for emulating binaries
+
+    Subclasses must define the following attributes:
+        arch: Architecture constant (e.g., ARCH_X86, ARCH_AMD64)
+        modules: List of loaded modules
+        input: Input metadata dictionary (or None)
     """
+
+    arch: int
+    modules: list[Any]
+    input: dict[str, Any] | None
+
+    @abstractmethod
+    def _set_emu_hooks(self) -> None:
+        """Set up emulator hooks. Subclasses must implement."""
+        ...
+
+    @abstractmethod
+    def on_emu_complete(self) -> None:
+        """Called when emulation completes. Subclasses must implement."""
+        ...
+
+    @abstractmethod
+    def get_current_run(self) -> Any:
+        """Get the current run context. Subclasses must implement."""
+        ...
+
     def __init__(self, config, logger=None):
 
         super().__init__()
@@ -35,12 +62,12 @@ class BinaryEmulator(MemoryManager):
         self.page_size = None
         self.inst_count = 0
         self.curr_instr_size = 0
-        self.disasm_eng = None
+        self.disasm_eng: Any = None
         self.builtin_hooks_set = False
-        self.emu_eng = None
+        self.emu_eng: unicorn_eng.EmuEngine | None = None
         self.maps = []
         self.config = config
-        self.hooks = {}
+        self.hooks: dict[int, Any] = {}
 
         self.profiler = Profiler()
 
@@ -188,6 +215,7 @@ class BinaryEmulator(MemoryManager):
         """
         Stop emulation completely
         """
+        assert self.emu_eng is not None
         self.emu_eng.stop()
         if self.profiler:
             self.profiler.stop_run_clock()
@@ -196,6 +224,7 @@ class BinaryEmulator(MemoryManager):
         """
         Begin emulation
         """
+        assert self.emu_eng is not None
         self.set_hooks()
         self._set_emu_hooks()
         if self.profiler:
@@ -235,6 +264,7 @@ class BinaryEmulator(MemoryManager):
         """
         Write a value to an emulated cpu register
         """
+        assert self.emu_eng is not None
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
@@ -247,6 +277,7 @@ class BinaryEmulator(MemoryManager):
         """
         Read a value from an emulated cpu register
         """
+        assert self.emu_eng is not None
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
@@ -269,6 +300,7 @@ class BinaryEmulator(MemoryManager):
         """
         Disassemble bytes using capstone
         """
+        assert self.disasm_eng is not None
         try:
             if fast:
                 tu = [i for i in self.disasm_eng.disasm_lite(bytes(mem), addr)]
@@ -826,10 +858,11 @@ class BinaryEmulator(MemoryManager):
         unicode_strings = []
         ret_ansi = []
         ret_unicode = []
+        input_mem_tag = self.input.get('mem_tag') if self.input else None
 
         for mmap in self.get_mem_maps():
             tag = mmap.get_tag()
-            if tag and tag.startswith(tgt_tag_prefixes) and tag != self.input.get('mem_tag'):
+            if tag and tag.startswith(tgt_tag_prefixes) and tag != input_mem_tag:
                 data = self.mem_read(mmap.get_base(), mmap.get_size()-1)
                 ansi_strings += self.get_ansi_strings(data)
                 unicode_strings += self.get_unicode_strings(data)
@@ -911,7 +944,7 @@ class BinaryEmulator(MemoryManager):
         if not emu:
             emu = self
         hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
-        _hooks: MODULE_LEVEL = self.hooks.get(common.HOOK_API)
+        _hooks: MODULE_LEVEL | None = self.hooks.get(common.HOOK_API)
 
         api_dictionary = (
             {
