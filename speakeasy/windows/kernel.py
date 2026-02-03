@@ -130,6 +130,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.om = objman.ObjectManager(emu=self)
 
         if not data:
+            assert path is not None
             file_name = os.path.basename(path)
             mod_name = os.path.splitext(file_name)[0]
         else:
@@ -554,7 +555,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             [self.add_run(r) for r in self.delayed_runs]
             self.delayed_runs = []
 
-        if not func_addr or not dev:
+        if not func_addr or not dev or func_handler is None:
             # We are done here, call the unload routine
             self.driver_unload(drv)
             return
