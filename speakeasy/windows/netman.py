@@ -81,8 +81,7 @@ class WSKSocket(Socket):
     Represents a WSK socket used in kernel mode applications
     """
     def __init__(self, fd, family, stype, protocol, flags):
-        super().__init__(self, fd, family, stype,
-                                        protocol, flags)
+        super().__init__(fd, family, stype, protocol, flags)
 
 
 class WininetComponent:
