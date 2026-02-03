@@ -120,8 +120,7 @@ class WindowsEmulator(BinaryEmulator):
             elif img['arch'].lower() in ('x64', 'amd64'):
                 img['arch'] = _arch.ARCH_AMD64
             else:
-                raise WindowsEmuError('Unsupported image arch: %s'
-                                      % (img['arch']))
+                raise WindowsEmuError('Unsupported image arch: {}'.format(img['arch']))
 
         super(WindowsEmulator, self)._parse_config(config)
         for umod in self.config_user_modules:
@@ -331,7 +330,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         self.reset_stack(self.stack_base)
         run = Run()
-        run.type = 'call_0x%x' % (addr)
+        run.type = 'call_0x{:x}'.format(addr)
         run.start_addr = addr
         run.args = params
 
@@ -345,7 +344,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Begin emulating the specified run
         """
-        self.log_info("* exec: %s" % run.type)
+        self.log_info("* exec: {}".format(run.type))
 
         self.curr_run = run
         if self.profiler:
@@ -678,7 +677,7 @@ class WindowsEmulator(BinaryEmulator):
         """
 
         if not data and not os.path.exists(path):
-            raise WindowsEmuError('File: %s not found' % (path))
+            raise WindowsEmuError('File: {} not found'.format(path))
 
         pe = winemu.PeFile(path=path, data=data, imp_id=imp_id, imp_step=4)
 
@@ -712,7 +711,7 @@ class WindowsEmulator(BinaryEmulator):
         base = pe.base
         ranges = self.get_valid_ranges(image_size, addr=base)
         base, size = ranges
-        addr = self.mem_map(size, base=base, tag='emu.module.%s' % (mod_name))
+        addr = self.mem_map(size, base=base, tag='emu.module.{}'.format(mod_name))
         self.modules.append((pe, ranges, emu_path))
 
         return addr
@@ -1040,7 +1039,7 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         pc = self.get_pc()
         error = {}
-        self.log_error('0x%x: %s: Caught error: %s' % (pc, run.type, desc))
+        self.log_error('0x{:x}: {}: Caught error: {}'.format(pc, run.type, desc))
         error['type'] = desc
         error['pc'] = hex(pc)
         error['address'] = hex(address)
@@ -1075,10 +1074,10 @@ class WindowsEmulator(BinaryEmulator):
         # Handle Zw*/Nt* function overlap
         if dll.lower().startswith('ntoskrnl'):
             if name.startswith('Zw'):
-                alt_imp_api = 'Nt%s' % (name[2:])
+                alt_imp_api = 'Nt{}'.format(name[2:])
             elif name.startswith('Nt'):
                 name = 'Zw' + name[2:]
-                alt_imp_api = 'Zw%s' % (name[2:])
+                alt_imp_api = 'Zw{}'.format(name[2:])
 
         alt_imp_dll = winemu.normalize_dll_name(dll)
 
@@ -1089,10 +1088,10 @@ class WindowsEmulator(BinaryEmulator):
                                                                name)
             if not func_attrs:
                 if name.startswith('Zw'):
-                    alt_imp_api = 'Nt%s' % (name[2:])
+                    alt_imp_api = 'Nt{}'.format(name[2:])
                 elif name.startswith('Nt'):
                     name = 'Zw' + name[2:]
-                    alt_imp_api = 'Zw%s' % (name[2:])
+                    alt_imp_api = 'Zw{}'.format(name[2:])
                 mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll,
                                                                    alt_imp_api)
             return mod, func_attrs
@@ -1116,14 +1115,14 @@ class WindowsEmulator(BinaryEmulator):
         return string
 
     def log_api(self, pc, imp_api, rv, argv):
-        call_str = '%s(' % (imp_api)
+        call_str = '{}('.format(imp_api)
         for arg in argv:
             if isinstance(arg, int):
-                call_str += '0x%x' % (arg)
+                call_str += '0x{:x}'.format(arg)
             elif isinstance(arg, str):
-                call_str += '\"%s\"' % (arg.replace("\n", "\\n"))
+                call_str += '\"{}\"'.format(arg.replace("\n", "\\n"))
             elif isinstance(arg, bytes):
-                call_str += '\"%s\"' % (arg)
+                call_str += '\"{}\"'.format(arg)
             call_str += ', '
         if call_str.endswith(', '):
             call_str = call_str[:-2]
@@ -1132,7 +1131,7 @@ class WindowsEmulator(BinaryEmulator):
         _rv = rv
         if _rv is not None:
             _rv = hex(rv)
-        self.log_info('%s: %s -> %s' % (hex(pc), repr(call_str), _rv))
+        self.log_info('{}: {} -> {}'.format(hex(pc), repr(call_str), _rv))
         if self.profiler:
             # Log the API args and return value
             self.profiler.log_api(self.curr_run, pc, imp_api, rv, argv)
@@ -1141,7 +1140,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Forward imported functions to the corresponding handler (if any).
         """
-        imp_api = '%s.%s' % (dll, name)
+        imp_api = '{}.{}'.format(dll, name)
         oret = self.get_ret_address()
         opc = self.get_pc()
         mod, func_attrs = self.api.get_export_func_handler(dll, name)
@@ -1155,7 +1154,7 @@ class WindowsEmulator(BinaryEmulator):
                 name = handler_name
 
             argv = self.get_func_argv(conv, argc)
-            imp_api = '%s.%s' % (dll, name)
+            imp_api = '{}.{}'.format(dll, name)
             default_ctx = {'func_name': imp_api}
 
             self.hammer.handle_import_func(imp_api, conv, argc)
@@ -1172,8 +1171,7 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
                 except Exception as e:
-                    self.log_exception('0x%x: Error while calling API handler for %s:' %
-                                       (oret, imp_api))
+                    self.log_exception('0x{:x}: Error while calling API handler for {}:'.format(oret, imp_api))
                     error = self.get_error_info(str(e), self.get_pc(),
                                                 traceback=traceback.format_exc())
                     self.curr_run.error = error
@@ -1200,7 +1198,7 @@ class WindowsEmulator(BinaryEmulator):
             if hooks:
                 # Since the function is unsupported, just call the most accurate defined hook
                 hook = hooks[0]
-                imp_api = '%s.%s' % (dll, name)
+                imp_api = '{}.{}'.format(dll, name)
 
                 if hook.call_conv is None:
                     hook.call_conv = _arch.CALL_CONV_STDCALL
@@ -1213,7 +1211,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
             elif self.functions_always_exist:
-                imp_api = '%s.%s' % (dll, name)
+                imp_api = '{}.{}'.format(dll, name)
                 conv = _arch.CALL_CONV_STDCALL
                 argc = 4
                 argv = self.get_func_argv(conv, argc)
@@ -1225,7 +1223,7 @@ class WindowsEmulator(BinaryEmulator):
 
             run = self.get_current_run()
             error = self.get_error_info('unsupported_api', self.get_pc())
-            self.log_error("Unsupported API: %s (ret: 0x%x)" % (imp_api, oret))
+            self.log_error("Unsupported API: {} (ret: 0x{:x})".format(imp_api, oret))
             error['api_name'] = imp_api
             self.curr_run.error = error
             self.on_run_complete()
@@ -1321,7 +1319,7 @@ class WindowsEmulator(BinaryEmulator):
         symbol = None
         sym = self.symbols.get(address)
         if sym:
-            symbol = '%s.%s' % sym
+            symbol = '{}.{}'.format(*sym)
         return symbol
 
     def _hook_mem_read(self, emu, access, address, size, value, ctx):
@@ -1774,7 +1772,7 @@ class WindowsEmulator(BinaryEmulator):
         headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
         headers_content = bytes(mod.get_data(length=headers_size))
         mem_base = self.mem_map(len(headers_content), base=mod.OPTIONAL_HEADER.ImageBase, 
-                                tag='emu.module.header.%s' % (mod.name), perms=common.PERM_MEM_READ)        
+                                tag='emu.module.header.{}'.format(mod.name), perms=common.PERM_MEM_READ)        
         self.mem_write(mem_base, headers_content)
 
         if hasattr(mod, "sections"):
@@ -1785,11 +1783,11 @@ class WindowsEmulator(BinaryEmulator):
                 perms = \
                     common.PERM_MEM_RWX if section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE \
                     else common.PERM_MEM_RW
-                mem_base = self.mem_map(vsize, base=va, tag='emu.module.%s.%s' % (mod.name, name), perms=perms)
+                mem_base = self.mem_map(vsize, base=va, tag='emu.module.{}.{}'.format(mod.name, name), perms=perms)
                 section_data = bytes(section.get_data())
                 self.mem_write(mem_base, section_data)
         else:
-            self.mem_reserve(size, base=res, tag='emu.module.%s' % (mod.name),
+            self.mem_reserve(size, base=res, tag='emu.module.{}'.format(mod.name),
                          perms=common.PERM_MEM_RW)
 
         if mod.decoy_path == '' and name != '':
@@ -1864,7 +1862,7 @@ class WindowsEmulator(BinaryEmulator):
             if mem is None:
                 base, size = self.get_valid_ranges(decoy.image_size,
                                                    addr=decoy.get_base())
-                mem = self.mem_map(size, base=base, tag='emu.module.%s' % (decoy.name),
+                mem = self.mem_map(size, base=base, tag='emu.module.{}'.format(decoy.name),
                                    perms=common.PERM_MEM_RW)
 
             decoy.is_mapped = True
@@ -2004,8 +2002,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.log_error(str(e))
                 instr = 'disasm_failed'
 
-            self.log_info('0x%x: Exception caught: code:0x%x, handler=0x%x, instr=\"%s\"'
-                          % (pc, except_code, entry.Handler, instr))
+            self.log_info('0x{:x}: Exception caught: code:0x{:x}, handler=0x{:x}, instr=\"{}\"'.format(pc, except_code, entry.Handler, instr))
 
             run.handled_exceptions.append({"pc": hex(pc),
                                            "instr": instr,
@@ -2191,7 +2188,7 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
         pc = self.get_pc()
-        self.log_error('0x%x: Unhandled interrupt: intnum=0x%x' % (pc, intnum))
+        self.log_error('0x{:x}: Unhandled interrupt: intnum=0x{:x}'.format(pc, intnum))
         error = self.get_error_info('unhandled_interrupt', pc)
         error.update({'interrupt_num': intnum})
         self.curr_run.error = error

@@ -89,7 +89,7 @@ class Shell32(api.ApiHandler):
             argv[4] = dn
 
         if dn and fn:
-            fn = '%s\\%s' % (dn, fn)
+            fn = '{}\\{}'.format(dn, fn)
 
         proc = emu.create_process(path=fn, cmdline=param)
         self.log_process_event(proc, PROC_CREATE)

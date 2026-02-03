@@ -46,7 +46,7 @@ class Ndis(api.ApiHandler):
             try:
                 ret = tag.to_bytes(4, 'little').decode('utf-8')
             except Exception:
-                ret = '0x%x' % tag
+                ret = '0x{:x}'.format(tag)
         return ret
 
     def new_id(self):
@@ -234,7 +234,7 @@ class Ndis(api.ApiHandler):
 
         total = size + self.sizeof(go)
         ptr = self.mem_alloc(size=total,
-                             tag='api.struct.NDIS_GENERIC_OBJECT.%s' % (stag))
+                             tag='api.struct.NDIS_GENERIC_OBJECT.{}'.format(stag))
         self.mem_write(ptr, self.get_bytes(go))
 
         return ptr
@@ -255,7 +255,7 @@ class Ndis(api.ApiHandler):
         stag = self.convert_pool_tag(tag)
         argv[2] = stag
 
-        ptr = self.mem_alloc(size=size, tag='api.ndis_pool.%s' % (stag))
+        ptr = self.mem_alloc(size=size, tag='api.ndis_pool.{}'.format(stag))
         self.mem_write(va,
                        ptr.to_bytes(emu.get_ptr_size(), 'little'))
 

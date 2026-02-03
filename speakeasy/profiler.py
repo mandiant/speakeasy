@@ -354,7 +354,7 @@ class Profiler:
         if secure:
             proto = 'https'
 
-        http_conn = {'server': server, 'proto': 'tcp.%s' % (proto), 'port': port,
+        http_conn = {'server': server, 'proto': 'tcp.{}'.format(proto), 'port': port,
                      'headers': headers}
         if body:
             data = self.handle_binary_data(body[:0x3000])

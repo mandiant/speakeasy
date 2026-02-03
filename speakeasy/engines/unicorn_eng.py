@@ -18,7 +18,6 @@ if uc.UC_VERSION_MAJOR >= 2:
         HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
         HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
         HOOK_MEM_ACCESS_CFUNC as UC_HOOK_MEM_ACCESS_CB,
-        HOOK_INTR_CFUNC as UC_HOOK_INTR_CB,
     )
     from unicorn.unicorn_py3.arch.types import uc_hook_h
     uc_engine = ct.c_void_p

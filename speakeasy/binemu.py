@@ -96,7 +96,7 @@ class BinaryEmulator(MemoryManager):
             if name.lower() == _eng.lower():
                 self.emu_eng = eng()
         if not self.emu_eng:
-            raise EmuException('Unsupported emulation engine: %s' % (_eng))
+            raise EmuException('Unsupported emulation engine: {}'.format(_eng))
 
         self.osversion = config.get('os_ver', {})
         self.env = config.get('env', {})
@@ -231,7 +231,7 @@ class BinaryEmulator(MemoryManager):
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
-                raise EmuException('Invalid register access %s' % (reg))
+                raise EmuException('Invalid register access {}'.format(reg))
             reg = _reg
 
         self.emu_eng.reg_write(reg, val)
@@ -243,7 +243,7 @@ class BinaryEmulator(MemoryManager):
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
-                raise EmuException('Invalid register access %s' % (reg))
+                raise EmuException('Invalid register access {}'.format(reg))
             reg = _reg
 
         return self.emu_eng.reg_read(reg)
@@ -269,9 +269,9 @@ class BinaryEmulator(MemoryManager):
             else:
                 return [i for i in self.disasm_eng.disasm(bytes(mem), addr)]
         except IndexError:
-            raise EmuException("Failed to disasm at address: 0x%x" % (addr))
+            raise EmuException("Failed to disasm at address: 0x{:x}".format(addr))
 
-        op = '%s %s' % (mnem, oper)
+        op = '{} {}'.format(mnem, oper)
         return ((mnem, oper, op))
 
     def disasm(self, mem, addr, fast=True):
@@ -548,9 +548,9 @@ class BinaryEmulator(MemoryManager):
         for p in ptrs:
             sp, ptr, tag = p
             if tag:
-                fmt = 'sp=0x%x:\t0x%x\t->\t%s' % (sp, ptr, tag)
+                fmt = 'sp=0x{:x}:\t0x{:x}\t->\t{}'.format(sp, ptr, tag)
             else:
-                fmt = 'sp=0x%x:\t0x%x\t' % (sp, ptr)
+                fmt = 'sp=0x{:x}:\t0x{:x}\t'.format(sp, ptr)
 
             print(fmt.expandtabs(5))
             sp += self.get_ptr_size()
@@ -569,9 +569,9 @@ class BinaryEmulator(MemoryManager):
                 fmt = "{0:#0{1}x}".format(ptr, 2 + (self.get_ptr_size() * 2))
                 sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
                 if not tag:
-                    entry = 'sp+%s: %s' % (sp_off, fmt)
+                    entry = 'sp+{}: {}'.format(sp_off, fmt)
                 else:
-                    entry = 'sp+%s: %s -> %s' % (sp_off, fmt, tag)
+                    entry = 'sp+{}: {} -> {}'.format(sp_off, fmt, tag)
                 trace.append(entry)
                 sp += self.get_ptr_size()
         finally:
