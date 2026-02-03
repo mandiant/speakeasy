@@ -64,7 +64,7 @@ class WskSocket(objman.KernelObject):
             self.emu.mem_write(self.dispatch_addr, self.get_bytes(self.dispatch))
 
         else:
-            raise ApiEmuError('Unsupported WSK socket type: 0x{:x}'.format(flags))
+            raise ApiEmuError(f'Unsupported WSK socket type: 0x{flags:x}')
 
     def get_dispatch_ptr(self):
         return self.dispatch_ptr

@@ -15,7 +15,7 @@ class MemMap:
         self.base = base
         self.size = size
 
-        base_addr_tag = '.0x{:x}'.format(base)
+        base_addr_tag = f'.0x{base:x}'
         if tag and base_addr_tag not in tag:
             tag += base_addr_tag
 

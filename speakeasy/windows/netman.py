@@ -154,8 +154,7 @@ class WininetRequest(WininetComponent):
 
     def format_http_request(self, headers=None):
         request_string = ''
-        action = '{} {} {}\n'.format(self.verb.upper(), self.objname.path,
-                                 self.ver.upper())
+        action = f'{self.verb.upper()} {self.objname.path} {self.ver.upper()}\n'
 
         request_string += action
         if headers:
@@ -165,11 +164,11 @@ class WininetRequest(WininetComponent):
         sess = self.get_session()
 
         host = sess.server
-        request_string += 'Host: {}\n'.format(host)
+        request_string += f'Host: {host}\n'
 
         ua = inst.get_user_agent()
         if ua:
-            request_string += 'User-Agent: {}\n'.format(ua)
+            request_string += f'User-Agent: {ua}\n'
 
         if 'INTERNET_FLAG_KEEP_CONNECTION' in self.flags:
             request_string += 'Connection: Keep-Alive\n'

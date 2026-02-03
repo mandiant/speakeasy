@@ -99,7 +99,7 @@ class SpeakeasyDebugger(cmd.Cmd):
 
     def log_disasm(self, addr, size):
         ds = self.se.disasm(addr, size, False)[0]
-        out = '0x{:x}: {} {}'.format(ds.address, ds.mnemonic, ds.op_str)
+        out = f'0x{ds.address:x}: {ds.mnemonic} {ds.op_str}'
         self.info(out)
 
     def format_hexdump(self, data, address=0):
@@ -241,7 +241,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         '''
         self.info('Base\t\t   Size\t      Tag')
         for mm in self.se.get_mem_maps():
-            line = '0x{:016x} 0x{:08x} {}'.format(mm.get_base(), mm.get_size(), mm.get_tag())
+            line = f'0x{mm.get_base():016x} 0x{mm.get_size():08x} {mm.get_tag()}'
             self.info(line)
 
     def do_bl(self, args):
@@ -336,18 +336,18 @@ class SpeakeasyDebugger(cmd.Cmd):
             self.error('Invalid arguments')
             return
         except SpeakeasyError:
-            self.error('Failed to disassemble at address: {}'.format(address))
+            self.error(f'Failed to disassemble at address: {address}')
             return
 
         for i in instrs:
-            self.info('0x{:x}: {} {}'.format(i.address, i.mnemonic, i.op_str))
+            self.info(f'0x{i.address:x}: {i.mnemonic} {i.op_str}')
 
     def load_module(self, module):
         '''
         Load a module into the emulation space
         '''
         if not os.path.exists(module):
-            self.error('Can\'t find module: {}'.format(module))
+            self.error(f'Can\'t find module: {module}')
         else:
             module = self.se.load_module(module)
             self.loaded_modules.append(module)
@@ -364,10 +364,10 @@ class SpeakeasyDebugger(cmd.Cmd):
             elif arch in ('x64', 'amd64'):
                 arch = e_arch.ARCH_AMD64
             else:
-                raise Exception('Unsupported architecture: {}'.format(arch))
+                raise Exception(f'Unsupported architecture: {arch}')
 
         if not os.path.exists(sc_path):
-            self.error('Can\'t find shellcode: {}'.format(sc_path))
+            self.error(f'Can\'t find shellcode: {sc_path}')
         else:
             sc = self.se.load_shellcode(sc_path, arch)
             self.loaded_shellcode.append(sc)
@@ -466,11 +466,11 @@ class SpeakeasyDebugger(cmd.Cmd):
 
         self.info('Start\t\t\tEnd\t\t\tName\t\tPath')
         for um in ums:
-            base = '0x{:016x}'.format(um.get_base())
+            base = f'0x{um.get_base():016x}'
             end = '0x%016x' % (um.get_base() + um.get_image_size())
             name = um.get_base_name().ljust(16)
             path = um.get_emu_path()
-            self.info('{}\t{}\t{}{}'.format(base, end, name, path))
+            self.info(f'{base}\t{end}\t{name}{path}')
 
     def do_lmk(self, args):
         '''
@@ -483,11 +483,11 @@ class SpeakeasyDebugger(cmd.Cmd):
 
         self.info('Start\t\t\tEnd\t\t\tName\t\tPath')
         for km in kms:
-            base = '0x{:016x}'.format(km.get_base())
+            base = f'0x{km.get_base():016x}'
             end = '0x%016x' % (km.get_base() + km.get_image_size())
             name = km.get_base_name().ljust(16)
             path = km.get_emu_path()
-            self.info('{}\t{}\t{}{}'.format(base, end, name, path))
+            self.info(f'{base}\t{end}\t{name}{path}')
 
     def do_reg(self, arg):
         '''
@@ -503,7 +503,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         if not arg:
             o = ''
             for i, (r, v) in enumerate(regs.items()):
-                o += '{}={} '.format(r, v)
+                o += f'{r}={v} '
                 if not ((i + 1) % 3):
                     o += '\n'
             self.info(o)
@@ -517,7 +517,7 @@ class SpeakeasyDebugger(cmd.Cmd):
                 return
             reg, val = reg_write
             if not regs.get(reg):
-                self.error('Invalid register: {}'.format(reg))
+                self.error(f'Invalid register: {reg}')
                 return
             try:
                 int_val = self.convert_bin_str(val)
@@ -530,9 +530,9 @@ class SpeakeasyDebugger(cmd.Cmd):
 
         val = regs.get(arg.lower())
         if not val:
-            self.error('Invalid register: {}'.format(arg))
+            self.error(f'Invalid register: {arg}')
         else:
-            self.info('{}={}'.format(arg, val))
+            self.info(f'{arg}={val}')
 
     def do_run(self, arg):
         '''Begin emulation of a loaded module'''
@@ -599,12 +599,12 @@ class SpeakeasyDebugger(cmd.Cmd):
                 ansi_strings = self.se.emu.get_ansi_strings(data)
                 for offset, astr in ansi_strings:
                     addr = base + offset
-                    self.info('0x{:x}: {}'.format(addr, astr))
+                    self.info(f'0x{addr:x}: {astr}')
 
                 uni_strings = self.se.emu.get_unicode_strings(data)
                 for offset, wstr in uni_strings:
                     addr = base + offset
-                    self.info('0x{:x}: {}'.format(addr, wstr))
+                    self.info(f'0x{addr:x}: {wstr}')
 
     def do_exit(self, arg):
         '''

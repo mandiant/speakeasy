@@ -118,7 +118,7 @@ class Ole32(api.ApiHandler):
                 argv[3] = iid_name
                 if ppv:
                     ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace('IID_', ''))
-                    pv = self.mem_alloc(emu.get_ptr_size(), tag='emu.COM.pv_{}'.format(iid_name))
+                    pv = self.mem_alloc(emu.get_ptr_size(), tag=f'emu.COM.pv_{iid_name}')
                     self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), 'little'))
                     self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), 'little'))
             else:

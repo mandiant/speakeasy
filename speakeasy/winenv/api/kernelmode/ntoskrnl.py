@@ -226,7 +226,7 @@ class Ntoskrnl(api.ApiHandler):
         if do_alloc:
             us.Length = size
             us.MaximumLength = size
-            ptr = self.mem_alloc(size, tag='api.struct.STRING.{}'.format(ansi_str))
+            ptr = self.mem_alloc(size, tag=f'api.struct.STRING.{ansi_str}')
             us.Buffer = ptr
         else:
             if us.MaximumLength < size:
@@ -662,7 +662,7 @@ class Ntoskrnl(api.ApiHandler):
                 nts = ddk.STATUS_SUCCESS
 
         else:
-            raise ApiEmuError('Unsupported information class: 0x{:x}'.format(sysclass))
+            raise ApiEmuError(f'Unsupported information class: 0x{sysclass:x}')
 
         if retlen:
             self.mem_write(retlen, size.to_bytes(4, 'little'))
@@ -1145,7 +1145,7 @@ class Ntoskrnl(api.ApiHandler):
         mdl.ByteCount = length
         mdl.ByteOffset = (va - mdl.StartVa)
 
-        ptr = self.mem_alloc(size, tag='api.MDL.0x{:x}'.format(va))
+        ptr = self.mem_alloc(size, tag=f'api.MDL.0x{va:x}')
         self.mem_write(ptr, self.get_bytes(mdl))
 
         return ptr
@@ -1436,7 +1436,7 @@ class Ntoskrnl(api.ApiHandler):
 
         base = self.mem_read(BaseAddress, emu.get_ptr_size())
         base = int.from_bytes(base, 'little')
-        base = self.mem_alloc(size, tag='api.virtalloc.{}'.format(obj.image), process=obj)
+        base = self.mem_alloc(size, tag=f'api.virtalloc.{obj.image}', process=obj)
 
         emu._set_dyn_code_hook(base, size)
 
@@ -1560,7 +1560,7 @@ class Ntoskrnl(api.ApiHandler):
         mdl = self.win.MDL(emu.get_ptr_size())
         mdl = self.mem_cast(mdl, p_mdl)
 
-        rv = self.mem_alloc(mdl.ByteCount, tag='api.mapped_pages.0x{:x}'.format(mdl.StartVa))
+        rv = self.mem_alloc(mdl.ByteCount, tag=f'api.mapped_pages.0x{mdl.StartVa:x}')
         return rv
 
     @apihook('KeInsertQueueApc', argc=4)
@@ -2704,7 +2704,7 @@ class Ntoskrnl(api.ApiHandler):
                     vi.DataLength = len(data)
                     output = self.get_bytes(vi) + val_name + data
                 else:
-                    raise ApiEmuError('Unsupported information class: 0x{:x}'.format(info_class))
+                    raise ApiEmuError(f'Unsupported information class: 0x{info_class:x}')
                 self.mem_write(ret_len, len(output).to_bytes(4, 'little'))
                 if len(output) > length:
                     rv = ddk.STATUS_BUFFER_TOO_SMALL
@@ -3126,7 +3126,7 @@ class Ntoskrnl(api.ApiHandler):
                 mm = emu.get_address_map(buf)
                 fname = ntpath.basename(f.get_path())
                 fname = fname.replace('.', '_')
-                mm.update_tag('{}.{}.0x{:x}'.format(tag_prefix, fname, buf))
+                mm.update_tag(f'{tag_prefix}.{fname}.0x{buf:x}')
                 self.mem_write(buf, data)
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), 'little'))
@@ -3139,7 +3139,7 @@ class Ntoskrnl(api.ApiHandler):
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True,
                                      process=proc_obj)
                 mm = emu.get_address_map(buf)
-                mm.update_tag('{}.0x{:x}'.format(tag_prefix, buf))
+                mm.update_tag(f'{tag_prefix}.0x{buf:x}')
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), 'little'))
                 argv[2] = buf

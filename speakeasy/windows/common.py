@@ -334,7 +334,7 @@ class PeFile(pefile.PE):
         elif magic & ddk.PE32_PLUS_BIT:
             return _arch.ARCH_AMD64
         else:
-            raise ValueError('Unsupported architecture: 0x{:x}'.format(magic))
+            raise ValueError(f'Unsupported architecture: 0x{magic:x}')
 
     def _patch_imports(self):
         """
