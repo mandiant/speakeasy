@@ -29,8 +29,8 @@ class DriverModule(km.KernelModule):
         super().__init__()
         self.name = 'volmgr'
 
-    def ioctl(self, ptr_size, code, inbuf):
-        vde = VOLUME_DISK_EXTENTS(ptr_size)
+    def ioctl(self, arch, code, inbuf):
+        vde = VOLUME_DISK_EXTENTS(arch)
         vde.NumberOfDiskExtents = 1
         vde.Extents[0].DiskNumber = 0
         vde.Extents[0].StartingOffset = 0
