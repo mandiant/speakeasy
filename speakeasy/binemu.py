@@ -22,8 +22,8 @@ EMU_ENGINES = (
               )
 
 WILDCARD_FLAG = bool
-API_LEVEL = Tuple[Dict[str, List[common.ApiHook]], WILDCARD_FLAG]
-MODULE_LEVEL = Tuple[Dict[str, API_LEVEL], WILDCARD_FLAG]
+API_LEVEL = tuple[dict[str, list[common.ApiHook]], WILDCARD_FLAG]
+MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 
 
 # Generic emulator class for binary code
@@ -857,7 +857,7 @@ class BinaryEmulator(MemoryManager):
                 return mod[0]
         return None
 
-    def get_api_hooks(self, mod_name, func_name) -> List[common.ApiHook]:
+    def get_api_hooks(self, mod_name, func_name) -> list[common.ApiHook]:
         """
         If an API hook has been set, return it here
         """
