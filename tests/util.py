@@ -22,7 +22,7 @@ def get_test_bin_data(bin_name):
 
 def get_config():
     fp = os.path.join(os.path.dirname(__file__), 'test.json')
-    with open(fp, 'r') as f:
+    with open(fp) as f:
         return json.load(f)
 
 

@@ -74,7 +74,7 @@ class Speakeasy(object):
         if not config:
             config_path = os.path.join(os.path.dirname(speakeasy.__file__),
                                        'configs', 'default.json')
-            with open(config_path, 'r') as f:
+            with open(config_path) as f:
                 self.config = json.load(f)
         else:
             self.config = config
@@ -964,7 +964,7 @@ def validate_config(config) -> None:
     On success, returns without exception.
     """
     schema_path = os.path.join(os.path.dirname(speakeasy.__file__), 'config_schema.json')
-    with open(schema_path, 'r') as ff:
+    with open(schema_path) as ff:
         schema = json.load(ff)
     validator = jsonschema.Draft7Validator(schema)
     validator.validate(config)

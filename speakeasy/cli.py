@@ -107,7 +107,7 @@ class Main(object):
                 self.logger.error('[-] No emulator config file supplied')
                 return
 
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path) as f:
             self.cfg = json.load(f)
             if args.timeout:
                 self.timeout = args.timeout

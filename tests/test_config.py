@@ -13,7 +13,7 @@ import speakeasy.speakeasy
 
 def get_default_config():
     fpath = os.path.join(os.path.dirname(speakeasy.__file__), 'configs', 'default.json')
-    with open(fpath, 'r') as ff:
+    with open(fpath) as ff:
         return json.load(ff)
 
 
@@ -29,7 +29,7 @@ class TestConfig(unittest.TestCase):
                 continue
             fpath = os.path.join(config_dir, fname)
             self.assertTrue(os.path.isfile(fpath))
-            with open(fpath, 'r') as ff:
+            with open(fpath) as ff:
                 config = json.load(ff)
             speakeasy.speakeasy.validate_config(config)
 
