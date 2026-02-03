@@ -16,7 +16,6 @@ import speakeasy.windows.common as winemu
 from speakeasy.const import FILE_WRITE, FILE_CREATE, FILE_READ, PROC_CREATE, MEM_ALLOC, MEM_WRITE, MEM_READ, \
     MEM_PROTECT, THREAD_INJECT, THREAD_CREATE
 from speakeasy.errors import ApiEmuError
-from speakeasy.profiler import Run
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 

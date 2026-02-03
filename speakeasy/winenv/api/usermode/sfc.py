@@ -1,6 +1,5 @@
 from .. import api
 
-import time
 
 class sfc(api.ApiHandler):
     """

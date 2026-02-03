@@ -1,7 +1,6 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
 import speakeasy.winenv.defs.windows.netapi32 as netapi32defs
-import speakeasy.winenv.arch as _arch
 
 from .. import api
 
