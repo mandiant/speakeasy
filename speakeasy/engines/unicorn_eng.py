@@ -6,19 +6,37 @@ import platform
 import ctypes as ct
 
 import unicorn as uc
-import unicorn.unicorn
 import unicorn.x86_const as u
 
 import speakeasy.winenv.arch as arch
 import speakeasy.common as common
 from speakeasy.errors import EmuEngineError
 
-_uc = unicorn.unicorn._uc
-_uc.uc_hook_add = _uc.uc_hook_add
-_uc.uc_hook_add.argtypes = [ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p,
-                            ct.c_void_p, ct.c_uint64, ct.c_uint64]
-_uc.uc_hook_add.restype = ct.c_uint32
-hook_id = ct.c_void_p()
+if uc.UC_VERSION_MAJOR >= 2:
+    from unicorn.unicorn_py3.unicorn import uclib as _uc
+    from unicorn.unicorn_py3.unicorn import (
+        HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
+        HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
+        HOOK_MEM_ACCESS_CFUNC as UC_HOOK_MEM_ACCESS_CB,
+        HOOK_INTR_CFUNC as UC_HOOK_INTR_CB,
+    )
+    from unicorn.unicorn_py3.arch.types import uc_hook_h
+    uc_engine = ct.c_void_p
+    UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
+    UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
+    hook_id = uc_hook_h()
+else:
+    import unicorn.unicorn
+    _uc = unicorn.unicorn._uc
+    _uc.uc_hook_add.argtypes = [ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_void_p,
+                                ct.c_void_p, ct.c_uint64, ct.c_uint64]
+    _uc.uc_hook_add.restype = ct.c_uint32
+    UC_HOOK_CODE_CB = unicorn.unicorn.UC_HOOK_CODE_CB
+    UC_HOOK_MEM_INVALID_CB = unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
+    UC_HOOK_MEM_ACCESS_CB = unicorn.unicorn.UC_HOOK_MEM_ACCESS_CB
+    UC_HOOK_INSN_IN_CB = unicorn.unicorn.UC_HOOK_INSN_IN_CB
+    UC_HOOK_INSN_SYSCALL_CB = unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB
+    hook_id = ct.c_void_p()
 
 
 def is_platform_intel():
@@ -217,20 +235,15 @@ class EmuEngine:
         # to the unicorn library here.
         if hook_type == uc.UC_HOOK_INSN:
             if arg1 == u.UC_X86_INS_IN:  # IN instruction
-                cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_IN_CB(cb),
-                             unicorn.unicorn.UC_HOOK_INSN_IN_CB)
+                cb = ct.cast(UC_HOOK_INSN_IN_CB(cb), UC_HOOK_INSN_IN_CB)
             elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):  # SYSCALL/SYSENTER
-                cb = ct.cast(unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB(cb),
-                             unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB)
+                cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
         elif hook_type == uc.UC_HOOK_CODE:
-            cb = ct.cast(unicorn.unicorn.UC_HOOK_CODE_CB(cb),
-                         unicorn.unicorn.UC_HOOK_CODE_CB)
+            cb = ct.cast(UC_HOOK_CODE_CB(cb), UC_HOOK_CODE_CB)
         elif hook_type in (uc.UC_HOOK_MEM_READ, uc.UC_HOOK_MEM_WRITE):
-            cb = ct.cast(unicorn.unicorn.UC_HOOK_MEM_ACCESS_CB(cb),
-                         unicorn.unicorn.UC_HOOK_MEM_ACCESS_CB)
+            cb = ct.cast(UC_HOOK_MEM_ACCESS_CB(cb), UC_HOOK_MEM_ACCESS_CB)
         elif hook_type == uc.UC_HOOK_MEM_INVALID:
-            cb = ct.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(cb),
-                         unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+            cb = ct.cast(UC_HOOK_MEM_INVALID_CB(cb), UC_HOOK_MEM_INVALID_CB)
         else:
             return self.emu.hook_add(htype=hook_type, callback=cb, user_data=ctx,
                                      begin=begin, end=end)
