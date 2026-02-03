@@ -2,7 +2,9 @@
 
 import ctypes as ct
 from collections import OrderedDict
+from collections.abc import MutableMapping
 from ctypes import *  # noqa
+from typing import Any
 
 
 class EmuStructException(Exception):
@@ -42,9 +44,9 @@ class CMeta(type):
     """
 
     @classmethod
-    def __prepare__(self, name, bases):
-        # This is default behavior for Python 3.6+ but lets do this anyway
-        # to make sure __dict__ is ordered on older versions
+    def __prepare__(
+        metacls, name: str, bases: tuple[type, ...], /, **kwds: Any
+    ) -> MutableMapping[str, object]:
         return OrderedDict()
 
     def __new__(self, name, bases, classdict):
