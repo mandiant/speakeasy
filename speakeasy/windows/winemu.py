@@ -4,6 +4,8 @@ import ntpath
 import os
 import shlex
 import traceback
+from abc import abstractmethod
+from typing import Any
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
@@ -33,7 +35,22 @@ class WindowsEmulator(BinaryEmulator):
     Base class providing emulation of all Windows modules and shellcode.
     This class is meant to provide overlapping functionality for both
     user mode and kernel mode samples.
+
+    Subclasses must define:
+        peb_addr: Address of the Process Environment Block
     """
+
+    peb_addr: int
+
+    @abstractmethod
+    def alloc_peb(self, proc: Any) -> None:
+        """Allocate memory for the Process Environment Block (PEB). Subclasses must implement."""
+        ...
+
+    @abstractmethod
+    def init_processes(self, processes: list[Any]) -> None:
+        """Initialize configured processes. Subclasses must implement."""
+        ...
 
     def __init__(self, config, logger=None, exit_event=None, debug=False):
         super().__init__(config, logger=logger)

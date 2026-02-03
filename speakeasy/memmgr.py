@@ -2,6 +2,7 @@
 
 from itertools import groupby
 from operator import itemgetter
+from typing import Any
 
 import speakeasy.common as common
 
@@ -112,10 +113,19 @@ class MemMap:
 
 
 class MemoryManager:
-
     """
     Primitive memory manager used to block OS sized allocation units into something more practical
+
+    Subclasses must define the following attributes:
+        hooks: Dictionary of hooks
+        keep_memory_on_free: Whether to keep memory on free
     """
+
+    hooks: dict[int, Any]
+    keep_memory_on_free: bool
+
+    def get_current_process(self) -> Any:
+        return None
 
     def __init__(self, *args, **kwargs):
         super().__init__()
