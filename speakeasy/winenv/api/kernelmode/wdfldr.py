@@ -575,7 +575,7 @@ class Wdfldr(api.ApiHandler):
 
         dev = self.usb_devices.get(UsbDevice)
         if dev:
-            dd = usbdefs.USB_DEVICE_DESCRIPTOR(emu.get_ptr_size())
+            dd = usbdefs.USB_DEVICE_DESCRIPTOR()
             self.mem_write(UsbDeviceDescriptor, dd.get_bytes())
         return
 
