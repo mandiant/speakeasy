@@ -18,6 +18,7 @@ classifiers = [
 ]
 keywords = ["emulator", "malware", "windows", "reverse-engineering", "security"]
 dependencies = [
+    "hexdump",
     "pefile",
     "capstone",
     "lznt1",
