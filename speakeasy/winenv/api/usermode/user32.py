@@ -797,8 +797,8 @@ class User32(api.ApiHandler):
         while(s<c):
             n  = s + cw
             if (n>=c): 
-                break;
-            s = n;
+                break
+            s = n
 
         return s
 
