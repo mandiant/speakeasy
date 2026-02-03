@@ -3,7 +3,6 @@
 import os
 import json
 import lzma
-import multiprocessing as mp
 
 from speakeasy import Speakeasy
 
@@ -26,17 +25,8 @@ def get_config():
         return json.load(f)
 
 
-def _run_module(q, cfg, target, logger, argv):
+def run_test(cfg, target, logger=None, argv=[]):
     se = Speakeasy(config=cfg, logger=logger, argv=argv)
     module = se.load_module(data=target)
     se.run_module(module, all_entrypoints=True)
-    report = se.get_report()
-    q.put(report)
-
-
-def run_test(cfg, target, logger=None, argv=[]):
-
-    q = mp.Queue()
-    p = mp.Process(target=_run_module, args=(q, cfg, target, logger, argv))
-    p.start()
-    return q.get()
+    return se.get_report()
