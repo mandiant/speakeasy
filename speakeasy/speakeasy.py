@@ -23,10 +23,9 @@ class Speakeasy:
     Wrapper class for invoking the speakeasy emulators
     """
 
+    @staticmethod
     def check_init(func):
-
         """Wrapper to make sure the emulator is initialized"""
-
         def wrap(self, *args, **kwargs):
             if not self.emu:
                 raise SpeakeasyError('Emulator not initialized')
@@ -675,7 +674,7 @@ class Speakeasy:
         """
         return self.emu.get_mem_maps()
 
-    def get_memory_dumps(self) -> tuple:
+    def get_memory_dumps(self):
         """
         Returns all memory contents along with context information
 
@@ -824,7 +823,7 @@ class Speakeasy:
         """
         return self.emu.get_arch()
 
-    def get_ptr_size(self) -> int:
+    def get_ptr_size(self):
         """
         Get the size of a pointer
 
