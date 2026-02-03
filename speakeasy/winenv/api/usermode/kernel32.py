@@ -1363,12 +1363,10 @@ class Kernel32(api.ApiHandler):
             if remainder:
                 size += 0x1000
 
-            try:
-                emu.mem_protect(addr, size, new)
-            finally:
-                mm.prot = new
-                self.mem_write(lpflOldProtect, old_prot.to_bytes(4, 'little'))
-                return 1
+            emu.mem_protect(addr, size, new)
+            mm.prot = new
+            self.mem_write(lpflOldProtect, old_prot.to_bytes(4, 'little'))
+            return 1
 
         return rv
 
