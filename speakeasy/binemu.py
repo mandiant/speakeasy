@@ -483,7 +483,7 @@ class BinaryEmulator(MemoryManager):
         """
         
         sp = self.get_stack_ptr()
-        ret = self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), 'little'))
+        self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), 'little'))
 
     def push_stack(self, val):
         """

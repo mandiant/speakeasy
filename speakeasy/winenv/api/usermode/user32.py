@@ -1438,14 +1438,9 @@ class User32(api.ApiHandler):
             LPCSTR lpszFormat
         );
         """
-        fmt = argv[0]
-
         # Return a fake clipboard format ID.
         # Clipboard format IDs start at 0xC000 for custom formats.
-        try:
-            return 0xC000
-        except:
-            return 0xC000
+        return 0xC000
 
     @apihook('SystemParametersInfoA', argc=4)
     def SystemParametersInfoA(self, emu, argv, ctx={}):
@@ -1461,10 +1456,7 @@ class User32(api.ApiHandler):
 
         # Many callers expect pvParam to be filled with something.
         # We return success without writing anything unless needed.
-        try:
-            return 1  # non-zero = success
-        except:
-            return 1
+        return 1
 
     @apihook('GetKeyboardLayout', argc=1)
     def GetKeyboardLayout(self, emu, argv, ctx={}):
@@ -1473,14 +1465,9 @@ class User32(api.ApiHandler):
             DWORD idThread
         );
         """
-        idThread = argv[0]
-
         # Return a fake HKL (keyboard layout handle).
         # Real HKLs are typically like 0x04090409 (LANG + device id).
-        try:
-            return 0x04090409
-        except:
-            return 0x04090409
+        return 0x04090409
 
     @apihook('EnumDisplayMonitors', argc=4)
     def EnumDisplayMonitors(self, emu, argv, ctx={}):
@@ -1496,10 +1483,7 @@ class User32(api.ApiHandler):
 
         # Most callers expect TRUE to indicate success.
         # We do not invoke the callback — Speakeasy doesn't emulate monitor enumeration.
-        try:
-            return 1  # non-zero = success
-        except:
-            return 1
+        return 1
 
     @apihook('OemToCharA', argc=2)
     def OemToCharA(self, emu, argv, ctx={}):
@@ -1514,16 +1498,14 @@ class User32(api.ApiHandler):
         # If destination buffer exists, copy source bytes into it.
         if src and dst:
             try:
-                # Read up to 256 bytes safely
                 data = emu.mem_read(src, 256)
-                # Write back to destination
                 try:
                     emu.mem_write(dst, data)
-                except:
+                except Exception:
                     base_addr = dst & ~0xfff
                     emu.mem_map(base_addr, 0x1000)
                     emu.mem_write(dst, data)
-            except:
+            except Exception:
                 pass
 
         # Return TRUE
@@ -1543,7 +1525,7 @@ class User32(api.ApiHandler):
         try:
             if current and start and current > start:
                 return current - 2
-        except:
+        except Exception:
             pass
 
         # Otherwise return start

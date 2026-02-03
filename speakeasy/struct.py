@@ -294,7 +294,7 @@ class EmuStruct(metaclass=CMeta):
             fields = struct._fields_
             for fn, val in fields:
                 if fn == name:
-                    if type(value) == bytes:
+                    if isinstance(value, bytes):
                         barray = getattr(struct, fn)
                         barray[:len(value)] = value
                         return

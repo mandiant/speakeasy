@@ -55,7 +55,7 @@ class Crypt32(api.ApiHandler):
             # self.logger.info("%s: currently unsupported flags (%08X)" % (api_name, dwFlags))
             return 1
 
-        if type(s) != str:
+        if not isinstance(s, str):
             s = s.decode('utf8')
 
         argv[0] = s

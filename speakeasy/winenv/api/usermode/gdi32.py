@@ -261,14 +261,9 @@ class GDI32(api.ApiHandler):
             const LOGFONTA *lplf
         );
         """
-        lplf = argv[0]
-
         # Return a fake HFONT handle.
         # Any non-zero value is treated as success.
-        try:
-            return 0x6000
-        except:
-            return 0x6000
+        return 0x6000
 
     @apihook('GetObjectA', argc=3)
     def GetObjectA(self, emu, argv, ctx={}):
@@ -287,11 +282,11 @@ class GDI32(api.ApiHandler):
                 data = b'\x00' * c
                 try:
                     emu.mem_write(pv, data)
-                except:
+                except Exception:
                     base_addr = pv & ~0xfff
                     emu.mem_map(base_addr, 0x1000)
                     emu.mem_write(pv, data)
-            except:
+            except Exception:
                 pass
 
         # Return number of bytes "written"
@@ -304,10 +299,5 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        hdc = argv[0]
-
         # We don't emulate actual path widening; just report success.
-        try:
-            return 1  # TRUE
-        except:
-            return 1
+        return 1
