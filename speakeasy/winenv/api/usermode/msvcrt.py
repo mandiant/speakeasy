@@ -305,6 +305,13 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(argc, len(_argv).to_bytes(4, 'little'))
         return argc
 
+    @apihook('__p___initenv', argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___initenv(self, emu, argv, ctx={}):
+        """char *** __p___initenv ()"""
+        ptr_size = self.get_ptr_size()
+        ptr = self.mem_alloc(size=ptr_size, tag='api.initenv')
+        return ptr
+
     @apihook('_get_initial_narrow_environment', argc=0,
              conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx={}):
