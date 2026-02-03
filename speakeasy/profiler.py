@@ -77,7 +77,7 @@ class Profiler:
     for all runs that occur within a binary emulation.
     """
     def __init__(self):
-        super(Profiler, self).__init__()
+        super().__init__()
 
         self.start_time = 0
         self.strings = {'ansi': [], 'unicode': []}

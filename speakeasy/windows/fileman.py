@@ -188,7 +188,7 @@ class Pipe(File):
     curr_handle = 0x400
 
     def __init__(self, name, mode, num_instances, out_size, in_size, config={}):
-        super(Pipe, self).__init__(path=name, config=config)
+        super().__init__(path=name, config=config)
         self.name = name
         self.mode = mode
         self.num_instances = num_instances
@@ -206,7 +206,7 @@ class FileManager:
     Manages file system activity during emulation
     """
     def __init__(self, config, emu):
-        super(FileManager, self).__init__()
+        super().__init__()
         self.file_handles = {}
         self.pipe_handles = {}
         self.file_maps = {}

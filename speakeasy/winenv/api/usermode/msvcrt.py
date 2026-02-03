@@ -44,7 +44,7 @@ class Msvcrt(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Msvcrt, self).__init__(emu)
+        super().__init__(emu)
 
         self.stdin = 0
         self.stdout = 1
@@ -59,7 +59,7 @@ class Msvcrt(api.ApiHandler):
         self.tick_counter = TICK_BASE
         self.errno_t = None
 
-        super(Msvcrt, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def hex_to_double(self, x):
         x = x.to_bytes(8, 'little')

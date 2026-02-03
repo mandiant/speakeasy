@@ -13,8 +13,8 @@ class OleAut32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(OleAut32, self).__init__(emu)
-        super(OleAut32, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('SysAllocString', argc=1, ordinal=2)
     def SysAllocString(self, emu, argv, ctx={}):

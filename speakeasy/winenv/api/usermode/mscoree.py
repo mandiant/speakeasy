@@ -15,12 +15,12 @@ class Mscoree(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Mscoree, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Mscoree, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('CorExitProcess', argc=1)
     def CorExitProcess(self, emu, argv, ctx={}):

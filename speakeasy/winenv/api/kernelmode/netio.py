@@ -22,7 +22,7 @@ class WskSocket(objman.KernelObject):
     def __init__(self, api, family, stype, protocol, flags):
 
         self.emu = api.emu
-        super(WskSocket, self).__init__(self.emu)
+        super().__init__(self.emu)
         self.family = family
         self.sock_type = stype
         self.protocol = protocol
@@ -79,7 +79,7 @@ class Netio(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Netio, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -94,7 +94,7 @@ class Netio(api.ApiHandler):
 
         self.netman = netman.NetworkManager(config=emu.get_network_config())
 
-        super(Netio, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
         self.prov_disp = self.win.WSK_PROVIDER_DISPATCH(emu.get_ptr_size())
         self.prov_disp.Version = 0x100

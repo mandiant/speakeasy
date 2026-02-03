@@ -14,8 +14,8 @@ class Winmm(api.ApiHandler):
 
     def __init__(self, emu):
         
-        super(Winmm, self).__init__(emu)
-        super(Winmm, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('timeGetTime', argc=0)
     def timeGetTime(self, emu, argv, ctx={}):        

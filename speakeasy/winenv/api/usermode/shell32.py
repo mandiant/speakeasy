@@ -20,7 +20,7 @@ class Shell32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Shell32, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -29,7 +29,7 @@ class Shell32(api.ApiHandler):
         self.win = None
         self.curr_handle = 0x2800
 
-        super(Shell32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.curr_handle += 4

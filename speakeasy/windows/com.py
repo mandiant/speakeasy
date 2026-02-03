@@ -12,7 +12,7 @@ class COM:
     The Component Object Model (COM) manager for the emulator. This will manage COM interfaces.
     """
     def __init__(self, config):
-        super(COM, self).__init__()
+        super().__init__()
         self.interfaces = {}
         self.config = config
 

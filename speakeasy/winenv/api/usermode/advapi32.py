@@ -27,7 +27,7 @@ class AdvApi32(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-        super(AdvApi32, self).__init__(emu)
+        super().__init__(emu)
         self.funcs = {}
         self.data = {}
         self.hash_objects = {}
@@ -40,7 +40,7 @@ class AdvApi32(api.ApiHandler):
 
         self.rc4 = None
 
-        super(AdvApi32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.curr_handle += 4

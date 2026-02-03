@@ -14,10 +14,10 @@ class Ole32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Ole32, self).__init__(emu)
+        super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        super(Ole32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
         self.netman = emu.get_network_manager()
         self.names = {}
 

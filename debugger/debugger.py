@@ -55,7 +55,7 @@ class SpeakeasyDebugger(cmd.Cmd):
     file = None
 
     def __init__(self, target=None, is_sc=False, arch=None, data=None, logger=None, se_inst=None):
-        super(SpeakeasyDebugger, self).__init__()
+        super().__init__()
 
         self.target = target
         self.is_sc = is_sc

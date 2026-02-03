@@ -17,12 +17,12 @@ class Bcrypt(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Bcrypt, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
 
-        super(Bcrypt, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('BCryptOpenAlgorithmProvider', argc=4)
     def BCryptOpenAlgorithmProvider(self, emu, argv, ctx={}):

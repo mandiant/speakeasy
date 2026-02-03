@@ -36,7 +36,7 @@ class WindowsEmulator(BinaryEmulator):
     """
 
     def __init__(self, config, logger=None, exit_event=None, debug=False):
-        super(WindowsEmulator, self).__init__(config, logger=logger)
+        super().__init__(config, logger=logger)
 
         self.debug = debug
         self.arch = 0
@@ -118,7 +118,7 @@ class WindowsEmulator(BinaryEmulator):
             else:
                 raise WindowsEmuError('Unsupported image arch: {}'.format(img['arch']))
 
-        super(WindowsEmulator, self)._parse_config(config)
+        super()._parse_config(config)
         for umod in self.config_user_modules:
             for img in umod.get('images', []):
                 _normalize_image(img)
@@ -486,7 +486,7 @@ class WindowsEmulator(BinaryEmulator):
         Reserves memory that will be used to handle events that occur
         during emulation
         """
-        super(WindowsEmulator, self).set_hooks()
+        super().set_hooks()
 
     def get_processes(self):
         """

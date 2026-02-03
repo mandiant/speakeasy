@@ -15,13 +15,13 @@ class GDI32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(GDI32, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
         self.handle = 0
         self.count = 0
-        super(GDI32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.handle += 4

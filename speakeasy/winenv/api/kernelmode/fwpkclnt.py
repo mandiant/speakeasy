@@ -30,7 +30,7 @@ class Fwpkclnt(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Fwpkclnt, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -45,7 +45,7 @@ class Fwpkclnt(api.ApiHandler):
 
         self.fwp = fwp
 
-        super(Fwpkclnt, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def new_id(self):
         tmp = self.handle

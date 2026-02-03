@@ -42,7 +42,7 @@ class ApiHandler:
         return func.__apihook__[0]
 
     def __init__(self, emu):
-        super(ApiHandler, self).__init__()
+        super().__init__()
         self.funcs = {}
         self.data = {}
         self.mod_name = ''

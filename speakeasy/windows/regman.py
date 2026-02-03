@@ -89,7 +89,7 @@ class RegistryManager:
     Manages the emulation of the windows registry. This includes creating keys, subkeys and values
     """
     def __init__(self, config=None):
-        super(RegistryManager, self).__init__()
+        super().__init__()
         self.reg_handles = {}
         self.keys = []
         self.config = config

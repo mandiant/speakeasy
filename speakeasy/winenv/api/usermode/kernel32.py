@@ -49,7 +49,7 @@ class Kernel32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Kernel32, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -69,7 +69,7 @@ class Kernel32(api.ApiHandler):
 
         self.k32types = k32types
 
-        super(Kernel32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def add_local_atom(self, s):
         atom, cnt = self.get_local_atom(s)

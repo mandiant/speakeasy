@@ -37,10 +37,10 @@ class DnsApi(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(DnsApi, self).__init__(emu)
+        super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        super(DnsApi, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
         self.netman = emu.get_network_manager()
         self.names = {}
 

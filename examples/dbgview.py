@@ -9,7 +9,7 @@ class DbgView(speakeasy.Speakeasy):
     '''
 
     def __init__(self, debug=False):
-        super(DbgView, self).__init__(debug=debug)
+        super().__init__(debug=debug)
 
     def debug_print_hook(self, emu, api_name, func, params):
         # Call the DbgPrint* function and print the formatted string to the console

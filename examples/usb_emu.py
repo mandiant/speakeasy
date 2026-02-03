@@ -16,7 +16,7 @@ class UsbEmu(speakeasy.Speakeasy):
     '''
 
     def __init__(self, debug=False):
-        super(UsbEmu, self).__init__(debug=debug)
+        super().__init__(debug=debug)
         self.device_add_func = None
         self.prepare_hardware_func = None
         self.dev_handle = None

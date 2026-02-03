@@ -48,7 +48,7 @@ class CryptoManager:
     Manages the emulation of crypto functions
     """
     def __init__(self, config=None):
-        super(CryptoManager, self).__init__()
+        super().__init__()
         self.ctx_handles = {}
         self.config = config
 

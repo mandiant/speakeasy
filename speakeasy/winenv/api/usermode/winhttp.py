@@ -29,13 +29,13 @@ class WinHttp(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(WinHttp, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
         self.win = None
         self.netman = netman.NetworkManager(config=emu.get_network_config())
-        super(WinHttp, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('WinHttpOpen', argc=5, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpOpen(self, emu, argv, ctx={}):

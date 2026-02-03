@@ -35,7 +35,7 @@ class User32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(User32, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -47,7 +47,7 @@ class User32(api.ApiHandler):
         self.timer_count = 0
         self.sessman = sessman.SessionManager(config=None)
 
-        super(User32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.handle += 4

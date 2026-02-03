@@ -13,8 +13,8 @@ class Msi32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Msi32, self).__init__(emu)
-        super(Msi32, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('MsiDatabaseMergeA', argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=29)
     def MsiDatabaseMergeA(self, emu, argv, ctx={}):

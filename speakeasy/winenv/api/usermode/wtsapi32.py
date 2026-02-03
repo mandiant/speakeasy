@@ -24,10 +24,10 @@ class WtsApi32(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(WtsApi32, self).__init__(emu)
+        super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        super(WtsApi32, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     @apihook('WTSEnumerateSessions', argc=5, conv=_arch.CALL_CONV_STDCALL)
     def WTSEnumerateSessions(self, emu, argv, ctx={}):

@@ -81,7 +81,7 @@ class WSKSocket(Socket):
     Represents a WSK socket used in kernel mode applications
     """
     def __init__(self, fd, family, stype, protocol, flags):
-        super(WSKSocket, self).__init__(self, fd, family, stype,
+        super().__init__(self, fd, family, stype,
                                         protocol, flags)
 
 
@@ -94,7 +94,7 @@ class WininetComponent:
     config = None
 
     def __init__(self):
-        super(WininetComponent, self).__init__()
+        super().__init__()
         self.handle = self.new_handle()
 
     def new_handle(self):
@@ -111,7 +111,7 @@ class WininetRequest(WininetComponent):
     WinInet request object
     """
     def __init__(self, session, verb, objname, ver, ref, accepts, flags, ctx):
-        super(WininetRequest, self).__init__()
+        super().__init__()
 
         # The WiniNet APIs default to a HTTP "GET" if no verb is specified
         if not verb:
@@ -245,7 +245,7 @@ class WininetRequest(WininetComponent):
 class WininetSession(WininetComponent):
     def __init__(self, instance, server, port, user,
                  password, service, flags, ctx):
-        super(WininetSession, self).__init__()
+        super().__init__()
         self.server = server
         self.port = port
         self.user = user
@@ -273,7 +273,7 @@ class WininetSession(WininetComponent):
 
 class WininetInstance(WininetComponent):
     def __init__(self, user_agent, access, proxy, bypass, flags):
-        super(WininetInstance, self).__init__()
+        super().__init__()
         self.user_agent = user_agent
         self.access = access
         self.proxy = proxy
@@ -303,7 +303,7 @@ class NetworkManager:
     Class that manages network connections during emulation
     """
     def __init__(self, config):
-        super(NetworkManager, self).__init__()
+        super().__init__()
         self.sockets = {}
         self.wininets = {}
         self.curr_fd = 4

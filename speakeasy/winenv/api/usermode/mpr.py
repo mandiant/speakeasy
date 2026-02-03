@@ -14,8 +14,8 @@ class Mpr(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Mpr, self).__init__(emu)
-        super(Mpr, self).__get_hook_attrs__(self)
+        super().__init__(emu)
+        super().__get_hook_attrs__(self)
 
     @apihook('WNetOpenEnum', argc=5, conv=_arch.CALL_CONV_STDCALL)
     def WNetOpenEnum(self, emu, argv, ctx={}):

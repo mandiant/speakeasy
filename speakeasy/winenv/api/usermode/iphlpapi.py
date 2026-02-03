@@ -18,7 +18,7 @@ class Iphlpapi(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Iphlpapi, self).__init__(emu)
+        super().__init__(emu)
 
         self.iphlpapi_types = iphlpapi_types
 

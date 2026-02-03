@@ -23,7 +23,7 @@ class Ndis(api.ApiHandler):
 
     def __init__(self, emu):
 
-        super(Ndis, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -36,7 +36,7 @@ class Ndis(api.ApiHandler):
 
         self.win = nt
         self.ndis = ndis
-        super(Ndis, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def convert_pool_tag(self, tag):
         ret = '0x00'

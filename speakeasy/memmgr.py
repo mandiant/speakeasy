@@ -118,7 +118,7 @@ class MemoryManager:
     """
 
     def __init__(self, *args, **kwargs):
-        super(MemoryManager, self).__init__()
+        super().__init__()
         self.maps = []
         self.emu_eng = None
         self.mem_reserves = []
