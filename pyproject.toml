@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speakeasy-emulator"
+dynamic = ["version"]
+description = "Speakeasy malware emulation framework"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Andrew Davis"}
+]
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pefile",
+    "capstone",
+    "lznt1",
+    "unicorn==1.0.2",
+    "jsonschema",
+    "pycryptodome",
+]
+
+[project.urls]
+Homepage = "https://github.com/fireeye/speakeasy"
+
+[project.scripts]
+speakeasy = "speakeasy.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "speakeasy.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+speakeasy = [
+    "configs/*.json",
+    "config_schema.json",
+    "resources/**/*",
+    "winenv/decoys/**/*",
+]
+
+[tool.ruff]
+line-length = 120
