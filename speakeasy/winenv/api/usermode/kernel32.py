@@ -5785,7 +5785,7 @@ class Kernel32(api.ApiHandler):
 
         proc = self.get_object_from_handle(hProcess)
 
-        if proc == None:
+        if proc is None:
             return
 
         filename = proc.get_process_path()
@@ -6136,11 +6136,12 @@ class Kernel32(api.ApiHandler):
                 ctx_buf = b"\x00" * 0x500
                 try:
                     self.emu.mem_write(ptr, ctx_buf)
-                except:
+                except Exception:
                     base_addr = ptr & ~0xfff
                     self.emu.mem_map(base_addr, 0x1000)
                     self.emu.mem_write(ptr, ctx_buf)
-            except: pass
+            except Exception:
+                pass
         return True
 
     @apihook('RtlLookupFunctionEntry', argc=3)
@@ -6160,10 +6161,8 @@ class Kernel32(api.ApiHandler):
         try:
             if nDenominator == 0:
                 return 0
-            # Perform the actual math safely
             return int((nNumber * nNumerator) / nDenominator)
-        except:
-            # Safe fallback
+        except Exception:
             return 0
 
     @apihook('GlobalAddAtomA', argc=1)
@@ -6173,11 +6172,5 @@ class Kernel32(api.ApiHandler):
             LPCSTR lpString
         );
         """
-        lpString = argv[0]
-
         # Return a fake ATOM value. ATOMs are 16-bit identifiers.
-        # Returning a constant non-zero value is safe.
-        try:
-            return 0x1234
-        except:
-            return 0x1234
+        return 0x1234
