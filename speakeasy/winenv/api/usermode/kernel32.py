@@ -5683,7 +5683,7 @@ class Kernel32(api.ApiHandler):
 
         hThread, lpExitCode = argv
         if lpExitCode:
-            self.mem_write(lpExitCode, int(0).to_bytes(4, 'little'))
+            self.mem_write(lpExitCode, (0).to_bytes(4, 'little'))
         return True
 
     @apihook('InitializeConditionVariable', argc=1)

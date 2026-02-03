@@ -6,7 +6,7 @@ import ntpath
 import hashlib
 import zipfile
 from io import BytesIO
-from typing import Callable
+from collections.abc import Callable
 
 
 from pefile import MACHINE_TYPE

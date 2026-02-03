@@ -23,7 +23,7 @@ def _lowercase_set(tt):
     return set([bb.lower() for bb in tt])
 
 
-class ApiHammer():
+class ApiHammer:
     """
     Detect and attempt to mitigate API hammering as part of anti-sandbox or
     anti-emulation in malware samples
