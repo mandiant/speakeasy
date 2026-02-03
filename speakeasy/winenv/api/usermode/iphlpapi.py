@@ -2,8 +2,8 @@
 
 import binascii
 
-import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.windows.iphlpapi as iphlpapi_types
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 

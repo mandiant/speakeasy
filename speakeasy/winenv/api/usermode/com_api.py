@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from .. import api
 import speakeasy.winenv.defs.windows.com as comdefs
+
+from .. import api
 
 
 class ComApi(api.ApiHandler):

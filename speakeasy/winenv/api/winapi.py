@@ -1,13 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import sys
 import inspect
+import sys
 
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
-from speakeasy.winenv.api.kernelmode import * # noqa
-from speakeasy.winenv.api.usermode import * # noqa
+from speakeasy.winenv.api.kernelmode import *  # noqa
+from speakeasy.winenv.api.usermode import *  # noqa
 
 
 def autoload_api_handlers():

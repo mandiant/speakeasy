@@ -3,14 +3,13 @@
 # Data format versioning
 __report_version__ = '1.1.0'
 
-import time
-import json
 import hashlib
-
-from collections import deque
+import json
+import time
 from base64 import b64encode
+from collections import deque
 
-from speakeasy.const import PROC_CREATE, MEM_ALLOC, MEM_WRITE, MEM_READ, MEM_PROTECT, THREAD_INJECT, THREAD_CREATE
+from speakeasy.const import MEM_ALLOC, MEM_PROTECT, MEM_READ, MEM_WRITE, PROC_CREATE, THREAD_CREATE, THREAD_INJECT
 
 
 class ProfileError(Exception):

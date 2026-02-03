@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import json
 import lzma
+import os
 
 import pytest
 

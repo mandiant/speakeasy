@@ -2,7 +2,6 @@
 
 import copy
 
-
 DISPATCH_SCRIPT = [
     'Hello emulator\n',
     'First access violation\r\n',

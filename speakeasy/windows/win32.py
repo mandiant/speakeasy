@@ -1,24 +1,22 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import hashlib
+import ntpath
 import os
 import shlex
 
-import ntpath
-import hashlib
 import capstone as cs
 
-import speakeasy.winenv.arch as _arch
-import speakeasy.windows.common as w32common
-from speakeasy.profiler import Run
-from speakeasy.windows.winemu import WindowsEmulator
-import speakeasy.windows.objman as objman
-from speakeasy.winenv.api.winapi import WindowsApi
 import speakeasy.common as common
+import speakeasy.windows.common as w32common
+import speakeasy.windows.objman as objman
+import speakeasy.winenv.arch as _arch
 from speakeasy.errors import Win32EmuError
-
-from speakeasy.windows.sessman import SessionManager
+from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
-
+from speakeasy.windows.sessman import SessionManager
+from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.winenv.api.winapi import WindowsApi
 
 DLL_PROCESS_DETACH = 0
 DLL_PROCESS_ATTACH = 1

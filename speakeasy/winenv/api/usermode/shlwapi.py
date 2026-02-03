@@ -1,10 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import ntpath
+import os
+
+import speakeasy.winenv.arch as e_arch
 
 from .. import api
-import speakeasy.winenv.arch as e_arch
 
 MAX_PATH = 260
 

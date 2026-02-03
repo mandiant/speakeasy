@@ -3,7 +3,7 @@
 from urllib.parse import urlparse
 
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import FILE_WRITE, FILE_CREATE
+from speakeasy.const import FILE_CREATE, FILE_WRITE
 
 from .. import api
 

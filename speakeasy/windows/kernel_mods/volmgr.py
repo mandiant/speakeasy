@@ -1,11 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from . import kernel_mod as km
-
-from speakeasy.struct import EmuStruct
 import ctypes as ct
 
 import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.struct import EmuStruct
+
+from . import kernel_mod as km
 
 
 class DISK_EXTENT(EmuStruct):

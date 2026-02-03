@@ -1,19 +1,17 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import re
-import json
 import fnmatch
+import json
+import re
 import traceback
 
-
 import speakeasy.common as common
+import speakeasy.version as version
 import speakeasy.winenv.arch as e_arch
 from speakeasy.engines import unicorn_eng
-from speakeasy.profiler import Profiler
-import speakeasy.version as version
-from speakeasy.memmgr import MemoryManager
-
 from speakeasy.errors import EmuException
+from speakeasy.memmgr import MemoryManager
+from speakeasy.profiler import Profiler
 
 EMU_ENGINES = (
               ('unicorn', unicorn_eng.EmuEngine),

@@ -1,16 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import json
-import time
-import logging
 import argparse
+import json
+import logging
 import multiprocessing as mp
+import os
+import time
 
 import speakeasy
-from speakeasy import Speakeasy
-
 import speakeasy.winenv.arch as e_arch
+from speakeasy import Speakeasy
 
 
 def get_logger():

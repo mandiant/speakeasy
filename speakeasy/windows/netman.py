@@ -2,8 +2,9 @@
 
 import io
 import os
-from urllib.parse import urlparse
 from io import BytesIO
+from urllib.parse import urlparse
+
 from speakeasy.errors import NetworkEmuError
 
 

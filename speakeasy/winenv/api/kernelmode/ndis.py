@@ -1,12 +1,10 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.nt.ddk as ddk
-
-import speakeasy.winenv.defs.nt.ntoskrnl as nt
 import speakeasy.winenv.defs.ndis.ndis as ndis
+import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as nt
 
 from .. import api
-
 
 NDIS_STATUS_FAILURE = 0xC0000001
 NDIS_STATUS_SUCCESS = 0x00000000

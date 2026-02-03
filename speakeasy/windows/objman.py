@@ -1,11 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import ntpath
+import os
 
-import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
 import speakeasy.winenv.defs.windows.windows as windef
 
 

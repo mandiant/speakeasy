@@ -1,9 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
-from speakeasy.const import PROC_CREATE
-from .. import api
 import shlex
-import speakeasy.winenv.defs.windows.windows as windefs
+
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
+import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.const import PROC_CREATE
+
+from .. import api
 
 
 class Shell32(api.ApiHandler):

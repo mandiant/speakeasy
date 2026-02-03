@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from speakeasy.struct import EmuStruct, Ptr
 
+from speakeasy.struct import EmuStruct, Ptr
 
 INTERNET_FLAG_ASYNC = 0x10000000
 INTERNET_FLAG_CACHE_ASYNC = 0x00000080

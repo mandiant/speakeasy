@@ -2,9 +2,9 @@
 
 import base64
 
-from .. import api
-
 import speakeasy.winenv.defs.nt.ddk as ntdefs
+
+from .. import api
 
 
 class Bcrypt(api.ApiHandler):

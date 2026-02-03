@@ -2,9 +2,9 @@
 
 from socket import inet_aton
 from urllib.parse import urlparse
-import speakeasy.winenv.arch as _arch
 
 import speakeasy.windows.netman as netman
+import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.wininet as windefs
 
 from .. import api

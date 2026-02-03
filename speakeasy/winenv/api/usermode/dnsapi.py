@@ -2,8 +2,8 @@
 
 import ctypes as ct
 
-from speakeasy.struct import EmuStruct, Ptr
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.struct import EmuStruct, Ptr
 
 from .. import api
 

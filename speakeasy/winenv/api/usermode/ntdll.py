@@ -1,13 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import binascii
+import os
 
-from .. import api
-
+import speakeasy.windows.common as winemu
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-import speakeasy.windows.common as winemu
+
+from .. import api
 
 
 class Ntdll(api.ApiHandler):

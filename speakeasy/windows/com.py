@@ -2,8 +2,8 @@
 
 import ctypes
 
-import speakeasy.winenv.defs.windows.com as comdefs
 import speakeasy.winenv.api.usermode.com_api as com_api
+import speakeasy.winenv.defs.windows.com as comdefs
 from speakeasy.errors import Win32EmuError
 
 
