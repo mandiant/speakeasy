@@ -91,14 +91,13 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 bn = ntpath.basename(name)
             else:
                 bn = 'none'
-            pe.decoy_path = ('{}drivers\\{}.sys'.format(self.get_system_root(), os.path.basename(bn)))
+            pe.decoy_path = (f'{self.get_system_root()}drivers\\{os.path.basename(bn)}.sys')
             pe.decoy_base = pe.get_base()
 
         else:
             if not name:
                 bn = pe.path
-                path = '{}drivers\\{}'.format(self.get_system_root(),
-                                          os.path.basename(bn))
+                path = f'{self.get_system_root()}drivers\\{os.path.basename(bn)}'
                 pe.decoy_path = path
                 pe.decoy_base = pe.base
 
@@ -143,8 +142,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             drv_hash.update(data)
             drv_hash = drv_hash.hexdigest()
             mod_name = drv_hash
-            file_name = '{}.sys'.format(mod_name)
-        emu_path = '{}drivers\\{}'.format(self.get_system_root(), file_name)
+            file_name = f'{mod_name}.sys'
+        emu_path = f'{self.get_system_root()}drivers\\{file_name}'
         pe.emu_path = emu_path
         self.map_pe(pe, mod_name=mod_name, emu_path=emu_path)
         self.mem_write(pe.base, pe.mapped_image)
@@ -179,7 +178,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             mod, eh = self.api.get_data_export_handler(mn, fn)
             if eh:
                 data_ptr = self.handle_import_data(mn, fn)
-                sym = "{}.{}".format(mn, fn)
+                sym = f"{mn}.{fn}"
                 self.global_data.update({addr: [sym, data_ptr]})
                 self.mem_write(addr,
                                data_ptr.to_bytes(self.get_ptr_size(),
@@ -203,7 +202,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         system_proc = self.get_system_process()
 
-        addr = self.mem_map(size, base=None, tag='api.pool.{}.{}'.format(pt, tag), process=system_proc)
+        addr = self.mem_map(size, base=None, tag=f'api.pool.{pt}.{tag}', process=system_proc)
         self.pool_allocs.append((addr, pooltype, size, tag))
         return addr
 
@@ -361,7 +360,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                         fn = exp.name
                     else:
                         fn = 'no_name'
-                    run.type = 'export.{}'.format(fn)
+                    run.type = f'export.{fn}'
                     run.start_addr = exp.address
                     # Here we set dummy args to pass into the export function
                     run.args = args
@@ -381,15 +380,15 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         alloc_size = ext_size + dev.sizeof()
 
         if not name:
-            devname = r'\Device\{:x}'.format(dev.get_id())
+            devname = rf'\Device\{dev.get_id():x}'
             if not tag:
                 tag = 'emu.device.autogen'
-            name = '{}.{}'.format(tag, devname)
+            name = f'{tag}.{devname}'
         else:
             devname = name
             if not tag:
                 tag = 'emu.object'
-            name = '{}.{}'.format(tag, devname)
+            name = f'{tag}.{devname}'
 
         dev.address = self.mem_map(alloc_size, tag=name)
         dev.name = devname

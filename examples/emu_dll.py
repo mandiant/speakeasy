@@ -32,7 +32,7 @@ def hook_messagebox(emu, api_name, func, params):
 
     hWnd, lpText, lpCaption, uType = params
 
-    msg = '{} text: {}'.format(api_name, lpText)
+    msg = f'{api_name} text: {lpText}'
     logger.log(logging.INFO, msg)
 
     # Lets read where the stack pointer is
@@ -62,7 +62,7 @@ def hook_mem_write(emu, access, address, size, value, ctx):
                 # Get the assembly instruction that did the write
                 mnem, op, instr = emu.disasm(emu.reg_read('eip'), 0x20)
 
-                msg = 'Stack written to: instr: {} addr:0x{:x}'.format(instr, address)
+                msg = f'Stack written to: instr: {instr} addr:0x{address:x}'
                 logger.log(logging.INFO, msg)
     return
 

@@ -444,7 +444,7 @@ class Kernel32(api.ApiHandler):
                                                                       proc.get_pid()]}})
 
         else:
-            raise ApiEmuError('Unsupported snapshot type: 0x{:x}'.format(dwFlags))
+            raise ApiEmuError(f'Unsupported snapshot type: 0x{dwFlags:x}')
 
         cap_def = k32types.get_flag_defines(dwFlags, 'TH32CS')
         if cap_def:
@@ -1137,7 +1137,7 @@ class Kernel32(api.ApiHandler):
         proc_path = proc_path.replace('.', '_')
 
         if is_remote:
-            run_type = 'injected_thread_{}_{:x}'.format(proc_path, proc_obj.get_id())
+            run_type = f'injected_thread_{proc_path}_{proc_obj.get_id():x}'
             evt_type = THREAD_INJECT
         else:
             run_type = 'thread'
@@ -2460,7 +2460,7 @@ class Kernel32(api.ApiHandler):
 
         cmd_ptr = self.command_lines[cw]
         if not cmd_ptr:
-            cmd_ptr = self.mem_alloc((len(cmdline) + 1) * cw, tag='api.command_line.{}'.format(fn))
+            cmd_ptr = self.mem_alloc((len(cmdline) + 1) * cw, tag=f'api.command_line.{fn}')
             self.command_lines[cw] = cmd_ptr
 
         if cw == 2:
@@ -2490,7 +2490,7 @@ class Kernel32(api.ApiHandler):
             dst = src
             argv[0] = src
             for k, v in emu.get_env().items():
-                ev = '%{}%'.format(k.lower())
+                ev = f'%{k.lower()}%'
                 if ev in dst.lower():
                     o = dst.lower().find(ev)
                     dst = dst[: o] + v + dst[o + len(ev):]
@@ -2513,11 +2513,11 @@ class Kernel32(api.ApiHandler):
         fn = ctx['func_name']
         cw = self.get_char_width(ctx)
         for k, v in emu.get_env().items():
-            out += '{} {} '.format(k, v)
+            out += f'{k} {v} '
 
         out = out.strip()
 
-        env_ptr = self.mem_alloc((len(out) + 1) * cw, tag='api.environment.{}'.format(fn))
+        env_ptr = self.mem_alloc((len(out) + 1) * cw, tag=f'api.environment.{fn}')
 
         if cw == 2:
             ev = out.encode('utf-16le')
@@ -2633,7 +2633,7 @@ class Kernel32(api.ApiHandler):
                 out = title_name.encode('utf-8')
                 sn = 'A'
             title_ptr = self.mem_alloc((len(out) + cw),
-                                       tag='api.struct.STARTUPINFO{}.lpTitle'.format(sn))
+                                       tag=f'api.struct.STARTUPINFO{sn}.lpTitle')
             si.lpTitle = title_ptr
             title.update({cw: title_ptr})
 
@@ -3240,7 +3240,7 @@ class Kernel32(api.ApiHandler):
                     while base and base & 0xFFF:
                         base, size = emu.get_valid_ranges(size)
 
-                    emu.mem_map(pe.image_size, base=base,tag='{}.{}.0x{:x}'.format(tag_prefix, fname, base))
+                    emu.mem_map(pe.image_size, base=base,tag=f'{tag_prefix}.{fname}.0x{base:x}')
                     mapping.add_view(base, full_offset, size, access)
                     self.mem_write(base, pe.mapped_image)
                     buf = base
@@ -3252,7 +3252,7 @@ class Kernel32(api.ApiHandler):
 
                     buf = self.mem_alloc(base=base, size=size, shared=True)
                     mm = emu.get_address_map(buf)
-                    mm.update_tag('{}.{}.0x{:x}'.format(tag_prefix, fname, buf))
+                    mm.update_tag(f'{tag_prefix}.{fname}.0x{buf:x}')
                     mapping.add_view(buf, full_offset, size, access)
                     self.mem_write(buf, data)
                     emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -3618,7 +3618,7 @@ class Kernel32(api.ApiHandler):
                 self.log_file_access(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
                 data = data.hex()
-                argv[1] = "{} ({})".format(hex(lpBuffer), data[:0x20])
+                argv[1] = f"{hex(lpBuffer)} ({data[:0x20]})"
 
                 rv = 1
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -5047,7 +5047,7 @@ class Kernel32(api.ApiHandler):
         );
         """
         pfnAPC, hThread, dwData = argv
-        run_type = 'apc_thread_{:x}'.format(hThread)
+        run_type = f'apc_thread_{hThread:x}'
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
 
     @apihook('DuplicateHandle', argc=7)

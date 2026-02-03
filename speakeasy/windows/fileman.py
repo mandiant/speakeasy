@@ -424,12 +424,12 @@ class FileManager:
             real_path = normalize_response_path(real_path)
             if not truncate:
                 if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError('File path not found: {}'.format(real_path))
+                    raise FileSystemEmuError(f'File path not found: {real_path}')
                 f = File(path, config=fconf)
                 self.files.append(f)
             else:
                 if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError('File path not found: {}'.format(real_path))
+                    raise FileSystemEmuError(f'File path not found: {real_path}')
                 f = File(path, config=fconf)
                 self.files.append(f)
             hnd = f.get_handle()

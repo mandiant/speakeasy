@@ -246,8 +246,8 @@ def main(args):
     print(profile)
 
     # TODO: call the EvtRead/Write
-    print('Found EvtIoRead at 0x{:x}'.format(usb.pEvtIoRead))
-    print('Found EvtIoWrite at 0x{:x}'.format(usb.pEvtIoWrite))
+    print(f'Found EvtIoRead at 0x{usb.pEvtIoRead:x}')
+    print(f'Found EvtIoWrite at 0x{usb.pEvtIoWrite:x}')
 
 
 if __name__ == '__main__':
