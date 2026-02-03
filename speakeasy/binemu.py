@@ -568,21 +568,19 @@ class BinaryEmulator(MemoryManager):
         """
         trace = []
         sp = self.get_stack_ptr()
-        try:
-            for i in range(num_ptrs):
-                ptr = self.mem_read(sp, self.get_ptr_size())
-                ptr = int.from_bytes(ptr, 'little')
-                tag = self.get_address_tag(ptr)
-                fmt = "{0:#0{1}x}".format(ptr, 2 + (self.get_ptr_size() * 2))
-                sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
-                if not tag:
-                    entry = f'sp+{sp_off}: {fmt}'
-                else:
-                    entry = f'sp+{sp_off}: {fmt} -> {tag}'
-                trace.append(entry)
-                sp += self.get_ptr_size()
-        finally:
-            return trace
+        for i in range(num_ptrs):
+            ptr = self.mem_read(sp, self.get_ptr_size())
+            ptr = int.from_bytes(ptr, 'little')
+            tag = self.get_address_tag(ptr)
+            fmt = "{0:#0{1}x}".format(ptr, 2 + (self.get_ptr_size() * 2))
+            sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
+            if not tag:
+                entry = f'sp+{sp_off}: {fmt}'
+            else:
+                entry = f'sp+{sp_off}: {fmt} -> {tag}'
+            trace.append(entry)
+            sp += self.get_ptr_size()
+        return trace
 
     def get_pc(self):
         """
