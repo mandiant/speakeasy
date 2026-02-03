@@ -1561,7 +1561,7 @@ class Kernel32(api.ApiHandler):
         lpSystemTimeAsFileTime, = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        timestamp = 116444736000000000 + int(datetime.datetime.utcnow().timestamp()) * 10000000
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.UTC).timestamp()) * 10000000
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
 
@@ -3365,7 +3365,7 @@ class Kernel32(api.ApiHandler):
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime,
         # using current date time
-        timestamp = 116444736000000000 + int(datetime.datetime.utcnow().timestamp()) * 10000000
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.UTC).timestamp()) * 10000000
         file_data.ftCreationTime.dwLowDateTime = 0xFFFFFFFF & timestamp
         file_data.ftCreationTime.dwHighDateTime = timestamp >> 32
 
