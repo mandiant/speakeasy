@@ -349,7 +349,7 @@ class Ws2_32(api.ApiHandler):
 
         self.log_network(raddr, rport, typ='connect', proto=proto, method='winsock.connect')
 
-        argv[1] = '%s:%d' % (raddr, rport)
+        argv[1] = f'{raddr}:{rport}'
 
         return rv
 
@@ -383,7 +383,7 @@ class Ws2_32(api.ApiHandler):
         socket.set_connection_info(raddr, rport)
         self.log_network(raddr, rport, typ='bind', proto=proto, method='winsock.bind')
 
-        argv[1] = '%s:%d' % (raddr, rport)
+        argv[1] = f'{raddr}:{rport}'
 
         return rv
 

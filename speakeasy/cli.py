@@ -172,8 +172,8 @@ class Main:
             while True:
                 if self.timeout and self.timeout < (time.time() - start_time):
                     evt.set()
-                    self.logger.error('* Child process timeout reached after %d seconds' %
-                                      (self.timeout))
+                    self.logger.error('* Child process timeout reached after %d seconds',
+                                      self.timeout)
                     report = q.get(5)
                 try:
                     report = q.get(timeout=1)

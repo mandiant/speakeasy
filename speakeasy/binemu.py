@@ -49,17 +49,26 @@ class BinaryEmulator(MemoryManager):
         self.emu_version = self.get_emu_version()
         self.logger = logger
 
-    def log_info(self, msg):
+    def log_info(self, msg, *args):
         if self.logger:
-            self.logger.info(msg)
+            if args:
+                self.logger.info(msg, *args)
+            else:
+                self.logger.info(msg)
 
-    def log_error(self, msg):
+    def log_error(self, msg, *args):
         if self.logger:
-            self.logger.error(msg)
+            if args:
+                self.logger.error(msg, *args)
+            else:
+                self.logger.error(msg)
 
-    def log_exception(self, msg):
+    def log_exception(self, msg, *args):
         if self.logger:
-            self.logger.exception(msg)
+            if args:
+                self.logger.exception(msg, *args)
+            else:
+                self.logger.exception(msg)
 
     def get_profiler(self):
         """
@@ -142,7 +151,7 @@ class BinaryEmulator(MemoryManager):
             major = osver.get('major')
             minor = osver.get('minor')
             if major is not None and minor is not None:
-                verstr = '%s.%d_%d' % (os_name, major, minor)
+                verstr = f'{os_name}.{major}_{minor}'
                 return verstr
 
     def get_domain(self):

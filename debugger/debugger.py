@@ -91,11 +91,17 @@ class SpeakeasyDebugger(cmd.Cmd):
         self.step_over = 0
         self.next_pc = 0
 
-    def error(self, msg):
-        self.logger.error('[-] ' + msg)
+    def error(self, msg, *args):
+        if args:
+            self.logger.error('[-] ' + msg, *args)
+        else:
+            self.logger.error('[-] ' + msg)
 
-    def info(self, msg):
-        self.logger.info(msg)
+    def info(self, msg, *args):
+        if args:
+            self.logger.info(msg, *args)
+        else:
+            self.logger.info(msg)
 
     def log_disasm(self, addr, size):
         ds = self.se.disasm(addr, size, False)[0]
@@ -138,7 +144,7 @@ class SpeakeasyDebugger(cmd.Cmd):
 
         bp = self.breakpoints.get(api_name.lower())
         if bp:
-            self.info('\nBreakpoint %d hit for %s' % (bp.id, api_name))
+            self.info('\nBreakpoint %d hit for %s', bp.id, api_name)
             self.step = True
             return rv
 
@@ -146,14 +152,14 @@ class SpeakeasyDebugger(cmd.Cmd):
             fn = api_name.split('.')[1]
             bp = self.breakpoints.get(fn.lower())
             if bp:
-                self.info('\nBreakpoint %d hit for %s' % (bp.id, api_name))
+                self.info('\nBreakpoint %d hit for %s', bp.id, api_name)
                 self.step = True
                 return rv
 
         for addr, bp in self.breakpoints.items():
             if not isinstance(addr, int):
                 if fnmatch.fnmatch(api_name.lower(), addr.lower()):
-                    self.info('\nBreakpoint %d hit for %s' % (bp.id, api_name))
+                    self.info('\nBreakpoint %d hit for %s', bp.id, api_name)
                     self.step = True
                     return rv
         return rv
@@ -172,7 +178,7 @@ class SpeakeasyDebugger(cmd.Cmd):
             bp = self.breakpoints.get(addr)
             if bp:
                 self.log_disasm(addr, size)
-                self.info('\nBreakpoint %d hit for 0x%x' % (bp.id, addr))
+                self.info('\nBreakpoint %d hit for 0x%x', bp.id, addr)
                 self._break(addr)
                 return True
 
@@ -217,7 +223,7 @@ class SpeakeasyDebugger(cmd.Cmd):
             for i in range(length):
                 data.append(self.se.mem_read(address + i, 1))
         except SpeakeasyError:
-            self.error("Failed memory read at address: 0x%x" % (address + i))
+            self.error("Failed memory read at address: 0x%x", address + i)
         return b''.join(data)
 
     def write_mem(self, address, data):
@@ -228,7 +234,7 @@ class SpeakeasyDebugger(cmd.Cmd):
             for i, b in enumerate(bytes(data)):
                 self.se.mem_write(address + i, data[i: i + 1])
         except Exception:
-            self.error("Failed memory write at address: 0x%x" % (address + i))
+            self.error("Failed memory write at address: 0x%x", address + i)
         finally:
             return
 
@@ -254,9 +260,9 @@ class SpeakeasyDebugger(cmd.Cmd):
         self.info('Breakpoints:')
         for addr, bp in self.breakpoints.items():
             if isinstance(addr, int):
-                line = '%d: 0x%016x' % (bp.id, addr)
+                line = f'{bp.id}: 0x{addr:016x}'
             else:
-                line = '%d: %s' % (bp.id, addr)
+                line = f'{bp.id}: {addr}'
             self.info(line)
 
     def do_bp(self, args):
@@ -272,13 +278,13 @@ class SpeakeasyDebugger(cmd.Cmd):
         try:
             address = self.convert_bin_str(address)
             bp = Breakpoint(address)
-            msg = '[*] Breakpoint %d set at address 0x%x' % (bp.id, address)
+            msg = f'[*] Breakpoint {bp.id} set at address 0x{address:x}'
             rv = address
         except Exception:
             orig = address
             address = address.lower()
             bp = Breakpoint(address)
-            msg = '[*] Breakpoint %d set at %s' % (bp.id, orig)
+            msg = f'[*] Breakpoint {bp.id} set at {orig}'
             rv = None
 
         self.breakpoints.update({address: bp})
@@ -302,7 +308,7 @@ class SpeakeasyDebugger(cmd.Cmd):
 
         for addr, bp in self.breakpoints.items():
             if _id == bp.id:
-                self.info('[*] Removing breakpoint %d' % (_id))
+                self.info('[*] Removing breakpoint %d', _id)
                 self.breakpoints.pop(addr)
                 return addr
 
@@ -467,7 +473,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         self.info('Start\t\t\tEnd\t\t\tName\t\tPath')
         for um in ums:
             base = f'0x{um.get_base():016x}'
-            end = '0x%016x' % (um.get_base() + um.get_image_size())
+            end = f'0x{um.get_base() + um.get_image_size():016x}'
             name = um.get_base_name().ljust(16)
             path = um.get_emu_path()
             self.info(f'{base}\t{end}\t{name}{path}')
@@ -484,7 +490,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         self.info('Start\t\t\tEnd\t\t\tName\t\tPath')
         for km in kms:
             base = f'0x{km.get_base():016x}'
-            end = '0x%016x' % (km.get_base() + km.get_image_size())
+            end = f'0x{km.get_base() + km.get_image_size():016x}'
             name = km.get_base_name().ljust(16)
             path = km.get_emu_path()
             self.info(f'{base}\t{end}\t{name}{path}')
@@ -573,16 +579,14 @@ class SpeakeasyDebugger(cmd.Cmd):
         '''
         stack = self.se.emu.format_stack(16)
         ptr_size = self.se.emu.get_ptr_size()
-        ptr_fmt = '0x%0' + str(ptr_size * 2) + 'x'
+        ptr_width = ptr_size * 2
         for loc in stack:
             sp, ptr, tag = loc
 
             if tag:
-                fmt = 'sp=0x%x:\t' + ptr_fmt + '\t->\t%s'
-                fmt = fmt % (sp, ptr, tag)
+                fmt = f'sp=0x{sp:x}:\t0x{ptr:0{ptr_width}x}\t->\t{tag}'
             else:
-                fmt = 'sp=0x%x:\t' + ptr_fmt + '\t'
-                fmt = fmt % (sp, ptr)
+                fmt = f'sp=0x{sp:x}:\t0x{ptr:0{ptr_width}x}\t'
             self.info(fmt.expandtabs(5))
 
     def do_strings(self, arg):

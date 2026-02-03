@@ -436,7 +436,7 @@ class WindowsEmulator(BinaryEmulator):
                                    count=self.max_instructions)
                 if self.profiler:
                     if self.profiler.get_run_time() > self.timeout:
-                        self.log_error('* Timeout of %d sec(s) reached.' % (self.timeout))
+                        self.log_error('* Timeout of %d sec(s) reached.', self.timeout)
             except KeyboardInterrupt:
                 self.log_error('* User exited.')
                 return
@@ -1710,7 +1710,7 @@ class WindowsEmulator(BinaryEmulator):
                 else:
                     num_exports = len(exports) + 1
 
-                exports = ['ordinal_%d' % (i) for i in range(num_exports)]
+                exports = [f'ordinal_{i}' for i in range(num_exports)]
 
                 for o, fn in funcs:
                     if o is not None:

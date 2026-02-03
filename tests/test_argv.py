@@ -9,7 +9,7 @@ import pytest
 ])
 def test_argv_exe(config, load_test_bin, run_test, bin_file):
     argv_len = 10
-    argv = ['argument_%d' % (i + 1) for i in range(argv_len)]
+    argv = [f'argument_{i + 1}' for i in range(argv_len)]
     data = load_test_bin(bin_file)
     report = run_test(config, data, argv=argv)
     ep = report['entry_points']
@@ -23,5 +23,5 @@ def test_argv_exe(config, load_test_bin, run_test, bin_file):
         i += 1
         args = p['args']
         fmt_str = args[2]
-        test_str = "argv[%d] = argument_%d\n" % (i, i)
+        test_str = f"argv[{i}] = argument_{i}\n"
         assert test_str == fmt_str

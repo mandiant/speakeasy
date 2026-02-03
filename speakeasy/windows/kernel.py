@@ -348,7 +348,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             exports = [k for k in module.get_exports()[: MAX_EXPORTS_TO_EMULATE]]
 
             if exports:
-                args = [self.mem_map(8, tag='emu.export_arg_%d' % (i)) for i in range(4)]
+                args = [self.mem_map(8, tag=f'emu.export_arg_{i}') for i in range(4)]
                 for exp in exports:
                     run = Run()
                     if exp.name:

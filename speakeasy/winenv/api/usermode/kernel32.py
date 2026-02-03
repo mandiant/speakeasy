@@ -999,7 +999,7 @@ class Kernel32(api.ApiHandler):
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace('.', '_')
 
-        tag_prefix = 'api.VirtualAllocEx.%s.%d' % (proc_path, obj.get_pid())
+        tag_prefix = f'api.VirtualAllocEx.{proc_path}.{obj.get_pid()}'
 
         prot_def = windefs.get_page_rights(flProtect)
         if prot_def:
@@ -1231,8 +1231,7 @@ class Kernel32(api.ApiHandler):
                 proc = obj.process
                 handle, obj = self.create_thread(context.Eip, 0,
                                                  proc,
-                                                 thread_type='thread.%s.%d' % (proc.name,
-                                                                               proc.get_id()))
+                                                 thread_type=f'thread.{proc.name}.{proc.get_id()}')
         return rv
 
     @apihook('SuspendThread', argc=1)
@@ -1884,7 +1883,7 @@ class Kernel32(api.ApiHandler):
             except Exception:
                 if isinstance(proc_name, int) and proc_name < 0xFFFF:
                     # Import is most likely an ordinal
-                    proc = 'ordinal_%d' % proc_name
+                    proc = f'ordinal_{proc_name}'
 
         if proc:
             mods = emu.get_user_modules()
@@ -5191,7 +5190,7 @@ class Kernel32(api.ApiHandler):
         nAtom, lpBuffer, nSize = argv
         cw = self.get_char_width(ctx)
         if nAtom < ATOM_RESERVED:
-            s = "#%d" % nAtom
+            s = f"#{nAtom}"
         elif nAtom not in self.local_atom_table:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0

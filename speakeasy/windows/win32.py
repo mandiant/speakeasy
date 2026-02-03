@@ -266,7 +266,7 @@ class Win32Emulator(WindowsEmulator):
             if base < cb_addr < base + module.get_image_size():
                 run = Run()
                 run.start_addr = cb_addr
-                run.type = 'tls_callback_%d' % (i)
+                run.type = f'tls_callback_{i}'
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
@@ -286,7 +286,7 @@ class Win32Emulator(WindowsEmulator):
         else:
             run.type = 'module_entry'
             main_exe = module
-            run.args = [self.mem_map(8, tag='emu.module_arg_%d' % (i)) for i in range(4)]
+            run.args = [self.mem_map(8, tag=f'emu.module_arg_{i}') for i in range(4)]
 
         if main_exe:
             self.user_modules = [main_exe] + self.user_modules
@@ -515,7 +515,7 @@ class Win32Emulator(WindowsEmulator):
         run.type = 'shellcode'
         run.start_addr = sc_addr + offset
         run.instr_cnt = 0
-        args = [self.mem_map(1024, tag='emu.shellcode_arg_%d' % (i), base=0x41420000 + i)
+        args = [self.mem_map(1024, tag=f'emu.shellcode_arg_{i}', base=0x41420000 + i)
                 for i in range(4)]
         run.args = (args)
 
