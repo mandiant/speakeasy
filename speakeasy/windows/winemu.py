@@ -216,11 +216,11 @@ class WindowsEmulator(BinaryEmulator):
                                  winemu.EMU_RESERVE_SIZE)
         self.emu_hooks_set = False
 
-    def file_open(self, path, create=False):
+    def file_open(self, path, create=False, truncate=False):
         """
         Open an emulated from using the file manager
         """
-        return self.fileman.file_open(path, create)
+        return self.fileman.file_open(path, create, truncate=truncate)
 
     def pipe_open(self, path, mode, num_instances, out_size, in_size):
         """
