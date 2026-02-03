@@ -626,8 +626,10 @@ class JitPeFile:
         dest_exp_sect = self.get_section_by_name(self.basepe, '.edata')
 
         cur_offset = self.get_current_offset()
-        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment 
-        sec_rva = (cur_offset + sa - 1) &~ (sa - 1)
+        sa = self.basepe.OPTIONAL_HEADER.SectionAlignment
+        text_sect = self.get_section_by_name(self.basepe, '.text')
+        text_aligned_size = (text_sect.Misc_VirtualSize + sa - 1) & ~(sa - 1)
+        sec_rva = text_sect.VirtualAddress + text_aligned_size
 
         dest_exp_sect.Misc_VirtualSize = exports_size
         dest_exp_sect.Misc_PhysicalAddress = 0
