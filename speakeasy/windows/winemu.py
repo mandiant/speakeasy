@@ -1352,7 +1352,7 @@ class WindowsEmulator(BinaryEmulator):
                         data_ptr = self.handle_import_data(mn, fn)
                         if data_ptr:
                             pc = self.get_pc()
-                            self.impdata_queue.append(((pc, address, symbol, data_ptr)))
+                            self.impdata_queue.append((pc, address, symbol, data_ptr))
                             self.set_pc(pc)
                         mac = self.curr_run.sym_access.get(address)
                         if not mac:
@@ -1381,7 +1381,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
         except Exception as e:
             self.log_exception('Exception during memory read')
-            error = self.get_error_info(str((type(e).__name__)), self.get_pc(),
+            error = self.get_error_info(str(type(e).__name__), self.get_pc(),
                                         traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1422,7 +1422,7 @@ class WindowsEmulator(BinaryEmulator):
 
         except Exception as e:
             self.log_exception('Exception during memory write')
-            error = self.get_error_info(str((type(e).__name__)), self.get_pc(),
+            error = self.get_error_info(str(type(e).__name__), self.get_pc(),
                                         traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
