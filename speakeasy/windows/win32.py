@@ -155,6 +155,7 @@ class Win32Emulator(WindowsEmulator):
         emu_path = cd + self.file_name
 
         if not data:
+            assert path is not None
             with open(path, 'rb') as f:
                 data = f.read()
         self.fileman.add_existing_file(emu_path, data)
@@ -682,8 +683,7 @@ class Win32Emulator(WindowsEmulator):
         self.enable_code_hook()
         self.run_complete = True
 
-    def _hook_mem_unmapped(self, emu, access, address, size, value, user_data):
-
+    def _hook_mem_unmapped(self, emu, access, address, size, value, ctx):
         _access = self.emu_eng.mem_access.get(access)
 
         if _access == common.INVALID_MEM_READ:
@@ -694,8 +694,7 @@ class Win32Emulator(WindowsEmulator):
                 user_mods = self.get_user_modules()
                 self.init_peb(user_mods)
                 return True
-        return super()._hook_mem_unmapped(emu, access, address, size,
-                                                             value, user_data)
+        return super()._hook_mem_unmapped(emu, access, address, size, value, ctx)
 
     def set_hooks(self):
         """Set the emulator callbacks"""
