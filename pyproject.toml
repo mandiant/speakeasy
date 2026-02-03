@@ -55,6 +55,10 @@ speakeasy = [
     "winenv/decoys/**/*",
 ]
 
+[tool.pytest.ini_options]
+# so that tests can `import utils` and import relative to ./tests/
+pythonpath = ["tests"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
