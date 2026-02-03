@@ -276,7 +276,7 @@ class EmuStruct(metaclass=CMeta):
         _type = EmuStruct.__types__.get(_type_name)
         if not _type:
             _type = type(_type_name, (self.__class__.FilteredStruct, ),
-                         {"_pack_": self.get_pack(), "_fields_": self.__fields__})
+                         {"_pack_": self.get_pack(), "_layout_": "ms", "_fields_": self.__fields__})
             EmuStruct.__types__[_type_name] = _type
         return _type
 
