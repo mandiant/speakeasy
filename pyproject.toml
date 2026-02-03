@@ -17,17 +17,27 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+keywords = ["emulator", "malware", "windows", "reverse-engineering", "security"]
 dependencies = [
     "pefile",
     "capstone",
     "lznt1",
-    "unicorn==1.0.2",
+    "unicorn>=1.0.2,<2",
     "jsonschema",
     "pycryptodome",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]
+
 [project.urls]
-Homepage = "https://github.com/fireeye/speakeasy"
+Homepage = "https://github.com/mandiant/speakeasy"
+Repository = "https://github.com/mandiant/speakeasy"
+Issues = "https://github.com/mandiant/speakeasy/issues"
 
 [project.scripts]
 speakeasy = "speakeasy.cli:main"
@@ -48,3 +58,12 @@ speakeasy = [
 
 [tool.ruff]
 line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
