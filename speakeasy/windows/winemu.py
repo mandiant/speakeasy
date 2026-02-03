@@ -430,7 +430,7 @@ class WindowsEmulator(BinaryEmulator):
         self.emu_eng.start(addr, timeout=self.timeout,
                            count=count)
 
-    def start(self):
+    def start(self, addr=None, size=None):
         """
         Begin emulation executing each run in the specified run queue
         """
