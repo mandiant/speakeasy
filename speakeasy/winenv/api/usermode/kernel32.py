@@ -1891,7 +1891,8 @@ class Kernel32(api.ApiHandler):
                     if entry:
                         bn = mod.get_base_name()
                         mname, _ = os.path.splitext(bn)
-                        rv = emu.get_proc(mname, proc, proc_addr=entry.address)
+                        proc_addr = None if mod.is_decoy() else entry.address
+                        rv = emu.get_proc(mname, proc, proc_addr=proc_addr)
                     break
 
         return rv
