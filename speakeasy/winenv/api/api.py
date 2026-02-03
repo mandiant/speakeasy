@@ -256,8 +256,8 @@ class ApiHandler:
     def mem_read(self, addr, size):
         return self.emu.mem_read(addr, size)
 
-    def file_open(self, path, create=False):
-        return self.emu.file_open(path, create)
+    def file_open(self, path, create=False, truncate=False):
+        return self.emu.file_open(path, create, truncate=truncate)
 
     def file_create_mapping(self, hfile, name, size, prot):
         return self.emu.file_create_mapping(hfile, name, size, prot)
