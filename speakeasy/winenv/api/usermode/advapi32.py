@@ -482,13 +482,13 @@ class AdvApi32(api.ApiHandler):
             # Get the service name
             if entry.lpServiceName != windefs.NULL:
                 name = self.read_mem_string(entry.lpServiceName, cw) # noqa
-                argv[0] += " {{ lpServiceName={}".format(name)
+                argv[0] += f" {{ lpServiceName={name}"
             else:
                 argv[0] += " { lpServiceName=NULL"
             # Get the ServiceMain function
             if entry.lpServiceProc != windefs.NULL:
                 service_main = entry.lpServiceProc
-                argv[0] += ", lpServiceProc={} }} ".format(hex(service_main))
+                argv[0] += f", lpServiceProc={hex(service_main)} }} "
                 handle, obj = self.create_thread(service_main, windefs.NULL,
                                                  emu.get_current_process())
             else:
