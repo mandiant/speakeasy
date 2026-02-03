@@ -1,13 +1,14 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
+import fnmatch
+import hashlib
 import io
 import ntpath
-import hashlib
-import fnmatch
+import os
 import shlex
-import speakeasy.winenv.defs.windows.windows as windefs
+
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 
 

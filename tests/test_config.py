@@ -1,10 +1,10 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import json
+import os
 
-import pytest
 import jsonschema
+import pytest
 
 import speakeasy
 import speakeasy.speakeasy

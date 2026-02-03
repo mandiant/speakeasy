@@ -1,13 +1,13 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
-import os
-import sys
+import argparse
+import binascii
 import cmd
-import shlex
 import fnmatch
 import logging
-import binascii
-import argparse
+import os
+import shlex
+import sys
 import traceback
 
 import hexdump

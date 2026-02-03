@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.struct import EmuStruct, Ptr
 

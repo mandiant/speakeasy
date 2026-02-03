@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import base64
+
 from .. import api
 
 ERROR_MORE_DATA = 234

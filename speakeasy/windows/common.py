@@ -1,17 +1,16 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import ntpath
 import hashlib
-from enum import IntFlag
+import ntpath
+import os
 from collections import namedtuple
+from enum import IntFlag
 
 import pefile
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.struct import Enum
-
 
 # GDT Constants needed to set our emulator into protected mode
 # Access bits

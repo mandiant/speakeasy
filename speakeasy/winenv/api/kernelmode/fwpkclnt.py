@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
-import speakeasy.winenv.defs.nt.ddk as ddk
 
+import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.wfp.fwpmtypes as fwp
 
 from .. import api

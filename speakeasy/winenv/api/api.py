@@ -1,12 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.struct import EmuStruct
-from speakeasy.errors import ApiEmuError
-import speakeasy.windows.common as winemu
-
-import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 
 
 class ApiHandler:

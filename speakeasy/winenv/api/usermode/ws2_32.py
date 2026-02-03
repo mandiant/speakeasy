@@ -1,11 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 import re
 import struct
-
-from socket import inet_ntoa, inet_aton, inet_pton, inet_ntop, ntohs, htons, ntohl, htonl
+from socket import htonl, htons, inet_aton, inet_ntoa, inet_ntop, inet_pton, ntohl, ntohs
 
 import speakeasy.winenv.arch as _arch
-
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.winsock as winsock
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes

@@ -1,17 +1,17 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import uuid
 import ntpath
+import uuid
 
 import lznt1
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
-import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-from speakeasy.const import FILE_OPEN, FILE_WRITE, FILE_READ, MEM_WRITE
+from speakeasy.const import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
 

@@ -2,6 +2,7 @@
 
 import base64
 import fnmatch
+
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
 

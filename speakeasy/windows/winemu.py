@@ -1,30 +1,26 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
 import ntpath
-import traceback
+import os
 import shlex
-
-import speakeasy.winenv.arch as _arch
-from speakeasy.binemu import BinaryEmulator
-from speakeasy.profiler import MemAccess
+import traceback
 
 import speakeasy.common as common
-from speakeasy.profiler import Run
 import speakeasy.windows.common as winemu
 import speakeasy.windows.objman as objman
-from speakeasy.windows.regman import RegistryManager
-from speakeasy.windows.fileman import FileManager
-from speakeasy.windows.cryptman import CryptoManager
-from speakeasy.windows.netman import NetworkManager
-from speakeasy.windows.hammer import ApiHammer
-from speakeasy.windows.driveman import DriveManager
-
+import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
-
-from speakeasy.struct import EmuStruct
+from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
+from speakeasy.profiler import MemAccess, Run
+from speakeasy.struct import EmuStruct
+from speakeasy.windows.cryptman import CryptoManager
+from speakeasy.windows.driveman import DriveManager
+from speakeasy.windows.fileman import FileManager
+from speakeasy.windows.hammer import ApiHammer
+from speakeasy.windows.netman import NetworkManager
+from speakeasy.windows.regman import RegistryManager
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover

@@ -1,13 +1,11 @@
 import argparse
 
 import speakeasy
-import speakeasy.winenv.defs.wdf as wdf
 import speakeasy.winenv.defs.nt.ddk as ddk
-import speakeasy.winenv.defs.usb as usbdefs
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-
 import speakeasy.winenv.defs.registry.reg as reg
-
+import speakeasy.winenv.defs.usb as usbdefs
+import speakeasy.winenv.defs.wdf as wdf
 
 IOCTL_IS_SUPER_SPEED_SUPPORTED = 0x49104b
 

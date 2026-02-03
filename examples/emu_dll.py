@@ -1,7 +1,7 @@
 import argparse
+import logging
 
 import speakeasy
-import logging
 
 
 def get_logger():

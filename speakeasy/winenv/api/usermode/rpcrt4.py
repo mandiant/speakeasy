@@ -7,6 +7,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 
+
 class RPCRT4(api.ApiHandler):
     """
     Implements exported functions from rpcrt4.dll

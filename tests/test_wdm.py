@@ -2,7 +2,6 @@
 
 import pytest
 
-
 DEV_NAME = '\\Device\\wdm_test'
 SYM_LINK = '\\DosDevices\\wdm_test'
 

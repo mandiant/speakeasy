@@ -1,9 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, EmuUnion, Ptr
 import ctypes as ct
 
-from speakeasy.winenv.defs import * # noqa
+from speakeasy.struct import EmuStruct, EmuUnion, Ptr
+from speakeasy.winenv.defs import *  # noqa
 
 
 class KSYSTEM_TIME(EmuStruct):

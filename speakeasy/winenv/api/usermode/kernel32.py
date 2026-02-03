@@ -1,23 +1,33 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import ntpath
-import string
-import fnmatch
-import datetime
-import time
 import ctypes as ct
+import datetime
+import fnmatch
+import ntpath
+import os
+import string
 import struct
+import time
 
-import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
-from speakeasy.const import FILE_WRITE, FILE_CREATE, FILE_READ, PROC_CREATE, MEM_ALLOC, MEM_WRITE, MEM_READ, \
-    MEM_PROTECT, THREAD_INJECT, THREAD_CREATE
-from speakeasy.errors import ApiEmuError
-import speakeasy.winenv.defs.windows.windows as windefs
+import speakeasy.winenv.arch as e_arch
+import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
+import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.const import (
+    FILE_CREATE,
+    FILE_READ,
+    FILE_WRITE,
+    MEM_ALLOC,
+    MEM_PROTECT,
+    MEM_READ,
+    MEM_WRITE,
+    PROC_CREATE,
+    THREAD_CREATE,
+    THREAD_INJECT,
+)
+from speakeasy.errors import ApiEmuError
 
 from .. import api
 

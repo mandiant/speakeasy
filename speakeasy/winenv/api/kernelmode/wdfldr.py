@@ -1,13 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+
 import speakeasy.winenv.arch as e_arch
-
 import speakeasy.winenv.defs.nt.ddk as ddk
-import speakeasy.winenv.defs.wdf as wdf
-import speakeasy.winenv.defs.usb as usbdefs
-
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.usb as usbdefs
+import speakeasy.winenv.defs.wdf as wdf
 
 from .. import api
 

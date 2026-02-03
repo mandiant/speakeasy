@@ -1,27 +1,22 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import ntpath
 import hashlib
-
-from speakeasy.profiler import Run
-from speakeasy.windows.winemu import WindowsEmulator
-from speakeasy.windows.ioman import IoManager
-
-import speakeasy.winenv.arch as _arch
-import speakeasy.windows.common as w32common
-import speakeasy.windows.objman as objman
-
-from speakeasy.winenv.api.winapi import WindowsApi
-
-import speakeasy.winenv.defs.nt.ddk as ddk
-import speakeasy.winenv.defs.registry.reg as regdefs
-
-from speakeasy.errors import KernelEmuError
-
-import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import ntpath
+import os
 
 import capstone as cs
+
+import speakeasy.windows.common as w32common
+import speakeasy.windows.objman as objman
+import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.registry.reg as regdefs
+from speakeasy.errors import KernelEmuError
+from speakeasy.profiler import Run
+from speakeasy.windows.ioman import IoManager
+from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.winenv.api.winapi import WindowsApi
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1

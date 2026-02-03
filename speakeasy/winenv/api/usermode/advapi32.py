@@ -1,17 +1,18 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import hashlib
+
+from Crypto.Cipher import ARC4
+
+import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.registry.reg as regdefs
-import speakeasy.winenv.defs.windows.windows as windefs
-
-import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.advapi32 as adv32
-import speakeasy.windows.objman as objman
-from speakeasy.const import PROC_CREATE, REG_OPEN, REG_READ, REG_LIST, REG_CREATE
+import speakeasy.winenv.defs.windows.kernel32 as k32
+import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.const import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ
 
 from .. import api
-from Crypto.Cipher import ARC4
-import hashlib
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 

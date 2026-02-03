@@ -4,7 +4,6 @@ import ctypes as ct
 
 from speakeasy.struct import EmuStruct, Ptr
 
-
 EXPECTED_32BIT_BYTES = (
     b'\x01\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x05\x05'
     b'\x06\x06\x06\x06\x07\x07\x07\x07AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'

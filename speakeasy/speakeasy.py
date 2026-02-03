@@ -1,25 +1,21 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
+import hashlib
 import json
 import ntpath
-import hashlib
+import os
 import zipfile
-from io import BytesIO
 from collections.abc import Callable
+from io import BytesIO
 
-
-from pefile import MACHINE_TYPE
 import jsonschema
 import jsonschema.exceptions
+from pefile import MACHINE_TYPE
 
 import speakeasy
 import speakeasy.winenv.arch as _arch
-from speakeasy import PeFile
-from speakeasy import Win32Emulator
-from speakeasy import WinKernelEmulator
-
-from speakeasy.errors import SpeakeasyError, ConfigError, NotSupportedError
+from speakeasy import PeFile, Win32Emulator, WinKernelEmulator
+from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 
 
 class Speakeasy:

@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from ctypes import *  # noqa
 from collections import OrderedDict
+from ctypes import *  # noqa
 
 
 class EmuStructException(Exception):

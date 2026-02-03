@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Enum
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Enum
 
 REG_NONE = 0
 REG_SZ = 1

@@ -1,6 +1,7 @@
+import time
+
 from .. import api
 
-import time
 
 class Winmm(api.ApiHandler):
     """

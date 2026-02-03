@@ -2,24 +2,28 @@
 
 # Unicorn specific wrappers and abstraction implemented here
 
-import platform
 import ctypes as ct
+import platform
 
 import unicorn as uc
 import unicorn.x86_const as u
 
-import speakeasy.winenv.arch as arch
 import speakeasy.common as common
+import speakeasy.winenv.arch as arch
 from speakeasy.errors import EmuEngineError
 
 if uc.UC_VERSION_MAJOR >= 2:
-    from unicorn.unicorn_py3.unicorn import uclib as _uc
+    from unicorn.unicorn_py3.arch.types import uc_hook_h
     from unicorn.unicorn_py3.unicorn import (
         HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
-        HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
+    )
+    from unicorn.unicorn_py3.unicorn import (
         HOOK_MEM_ACCESS_CFUNC as UC_HOOK_MEM_ACCESS_CB,
     )
-    from unicorn.unicorn_py3.arch.types import uc_hook_h
+    from unicorn.unicorn_py3.unicorn import (
+        HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
+    )
+    from unicorn.unicorn_py3.unicorn import uclib as _uc
     uc_engine = ct.c_void_p
     UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
     UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
