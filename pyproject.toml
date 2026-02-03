@@ -67,3 +67,6 @@ select = ["E", "F", "I", "UP"]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_ignores = true
+
+[tool.ty.environment]
+extra-paths = ["typings"]
