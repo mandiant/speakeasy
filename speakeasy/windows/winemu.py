@@ -1776,9 +1776,8 @@ class WindowsEmulator(BinaryEmulator):
                 name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
                 va = section.VirtualAddress + mod.OPTIONAL_HEADER.ImageBase
                 vsize = section.Misc_VirtualSize
-                perms = \
-                    common.PERM_MEM_RWX if section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE \
-                    else common.PERM_MEM_RW
+                is_exec = section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
+                perms = common.PERM_MEM_RWX if is_exec else common.PERM_MEM_RW
                 mem_base = self.mem_map(vsize, base=va, tag=f'emu.module.{mod.name}.{name}', perms=perms)
                 section_data = bytes(section.get_data())
                 self.mem_write(mem_base, section_data)
@@ -1998,7 +1997,10 @@ class WindowsEmulator(BinaryEmulator):
                 self.log_error(str(e))
                 instr = 'disasm_failed'
 
-            self.log_info(f'0x{pc:x}: Exception caught: code:0x{except_code:x}, handler=0x{entry.Handler:x}, instr=\"{instr}\"')
+            self.log_info(
+                f'0x{pc:x}: Exception caught: code:0x{except_code:x}, '
+                f'handler=0x{entry.Handler:x}, instr="{instr}"'
+            )
 
             run.handled_exceptions.append({"pc": hex(pc),
                                            "instr": instr,

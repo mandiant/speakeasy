@@ -175,7 +175,7 @@ class Ole32(api.ApiHandler):
         if pguid:
             try:
                 self.emu.mem_write(pguid, guid_bytes)
-            except:
+            except Exception:
                 self.emu.mem_map(pguid & ~0xfff, 0x1000)
                 self.emu.mem_write(pguid, guid_bytes)
         return 0

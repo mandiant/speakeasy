@@ -1246,8 +1246,6 @@ class AdvApi32(api.ApiHandler):
           HCRYPTHASH hHash
         );
         """
-        hHash = argv
-
         return 1
 
     @apihook('CryptDeriveKey', argc=5)
@@ -1338,7 +1336,7 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(pbData, dec)
         self.mem_write(pdwDataLen, int.to_bytes(declen, 4, "little"))
 
-        if Final == True:
+        if Final:
             self.rc4 = None
 
         return 1

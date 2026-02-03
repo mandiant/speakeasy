@@ -16,8 +16,7 @@ class DriveManager:
             self.drive_letters.append(drive.get('root_path')[0])
 
     def walk_drives(self):
-        for drive in self.drives:
-            yield drive
+        yield from self.drives
 
     def get_drive(self, root_path='', volume_guid_path=''):
         for drive in self.drives:
