@@ -7,10 +7,10 @@ class DriveManager:
     """
     Manages the emulation of Windows drives. Currently assumes one volume per drive.
     """
-    def __init__(self, config=None):
+    def __init__(self, config: list | None = None):
         super().__init__()
-        self.drives = config
-        self.drive_letters = []
+        self.drives: list = config or []
+        self.drive_letters: list[str] = []
 
         for drive in self.drives:
             self.drive_letters.append(drive.get('root_path')[0])
