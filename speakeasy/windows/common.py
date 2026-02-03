@@ -266,12 +266,10 @@ class PeFile(pefile.PE):
         pe = self
         imports = {}
 
-        try:
-            pe.DIRECTORY_ENTRY_IMPORT
-        except Exception:
+        if not hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
             return imports
 
-        for entry in pe.DIRECTORY_ENTRY_IMPORT:
+        for entry in pe.DIRECTORY_ENTRY_IMPORT:  # type: ignore[attr-defined]
             dll = entry.dll
             dll = dll.decode('utf-8')
             dll = os.path.splitext(dll)[0]
@@ -292,12 +290,10 @@ class PeFile(pefile.PE):
     def _get_pe_exports(self):
         pe = self
         exports = []
-        try:
-            pe.DIRECTORY_ENTRY_EXPORT
-        except Exception:
+        if not hasattr(pe, 'DIRECTORY_ENTRY_EXPORT'):
             return exports
 
-        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:  # type: ignore[attr-defined]
             entry = namedtuple('export', ['name', 'address', 'forwarder', 'ordinal'])
             entry.name = exp.name
             entry.address = exp.address + pe.get_base()
