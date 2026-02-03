@@ -37,7 +37,7 @@ def get_logger():
     return logger
 
 
-class Breakpoint(object):
+class Breakpoint:
     _id = 0
 
     def __init__(self, address):

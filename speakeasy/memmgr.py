@@ -6,7 +6,7 @@ from operator import itemgetter
 import speakeasy.common as common
 
 
-class MemMap(object):
+class MemMap:
     """
     Class that defines a memory mapping (e.g. heap/pool alloc, binary image, etc.)
     """
@@ -111,7 +111,7 @@ class MemMap(object):
         return not(self == other)
 
 
-class MemoryManager(object):
+class MemoryManager:
 
     """
     Primitive memory manager used to block OS sized allocation units into something more practical

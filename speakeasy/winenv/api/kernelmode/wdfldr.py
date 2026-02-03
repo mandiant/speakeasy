@@ -12,7 +12,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from .. import api
 
 
-class WdfDriver(object):
+class WdfDriver:
     def __init__(self):
         self.reg_path = None
         self.typed_context_worker = None
@@ -21,26 +21,26 @@ class WdfDriver(object):
         self.driver_object = None
 
 
-class WdfDevice(object):
+class WdfDevice:
     def __init__(self):
         self.device_object_addr = None
         self.device_object = None
 
 
-class WdfUsbDevice(object):
+class WdfUsbDevice:
     def __init__(self):
         self.num_interfaces = 0
         self.config_desc = None
 
 
-class WdfUsbInterface(object):
+class WdfUsbInterface:
     def __init__(self):
         self.config_desc = 0
         self.iface_index = 0
         self.setting_index = 0
 
 
-class WdfUsbPipe(object):
+class WdfUsbPipe:
     def __init__(self):
         self.interface = None
         self.index = 0

@@ -12,7 +12,7 @@ class EmuStructException(Exception):
     pass
 
 
-class Enum(object):
+class Enum:
     """
     For now, a basic python object will serve as a C style enum
     """
@@ -27,7 +27,7 @@ class PtrMeta(type):
         return tuple((self, mult))
 
 
-class Ptr(object, metaclass=PtrMeta):
+class Ptr(metaclass=PtrMeta):
     """
     Generic object to identify pointer variables that will be expanded
     according to the "ptr_size" parameter passed to our init
@@ -62,7 +62,7 @@ class CMeta(type):
         return tuple((self, mult))
 
 
-class EmuStruct(object, metaclass=CMeta):
+class EmuStruct(metaclass=CMeta):
     """
     Advanced Python class for interacting with C structures
     """

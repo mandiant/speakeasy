@@ -48,7 +48,7 @@ def normalize_package_path(path):
     return path
 
 
-class Hook(object):
+class Hook:
     """
     Base class for all emulator hooks
     """

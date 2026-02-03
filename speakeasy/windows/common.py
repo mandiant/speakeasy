@@ -483,7 +483,7 @@ class DecoyModule(PeFile):
         return True
 
 
-class JitPeFile(object):
+class JitPeFile:
     '''
     Class used to rapidly assemble a decoy PE that will only contain an export table
     so malware can parse it.

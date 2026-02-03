@@ -7,7 +7,7 @@ import speakeasy.winenv.api.usermode.com_api as com_api
 from speakeasy.errors import Win32EmuError
 
 
-class COM(object):
+class COM:
     """
     The Component Object Model (COM) manager for the emulator. This will manage COM interfaces.
     """

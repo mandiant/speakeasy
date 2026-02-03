@@ -17,7 +17,7 @@ class ProfileError(Exception):
     pass
 
 
-class MemAccess(object):
+class MemAccess:
     """
     Represents a symbolicated chunk of memory that can be tracked
     """
@@ -30,7 +30,7 @@ class MemAccess(object):
         self.execs = 0
 
 
-class Run(object):
+class Run:
     """
     This class represents the basic execution primative for the emulation engine
     A "run" can represent any form of execution: a thread, a callback, an exported function,
@@ -72,7 +72,7 @@ class Run(object):
         return self.num_apis
 
 
-class Profiler(object):
+class Profiler:
     """
     The profiler class exists to generate an execution report
     for all runs that occur within a binary emulation.

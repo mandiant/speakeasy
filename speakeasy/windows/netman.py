@@ -26,7 +26,7 @@ def normalize_response_path(path):
     return path
 
 
-class Socket(object):
+class Socket:
     """
     Represents a Windows network socket
     """
@@ -84,7 +84,7 @@ class WSKSocket(Socket):
                                         protocol, flags)
 
 
-class WininetComponent(object):
+class WininetComponent:
     """
     Base class used for WinInet connections
     """
@@ -298,7 +298,7 @@ class WininetInstance(WininetComponent):
         return self.user_agent
 
 
-class NetworkManager(object):
+class NetworkManager:
     """
     Class that manages network connections during emulation
     """

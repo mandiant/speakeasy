@@ -22,7 +22,7 @@ from speakeasy import WinKernelEmulator
 from speakeasy.errors import SpeakeasyError, ConfigError, NotSupportedError
 
 
-class Speakeasy(object):
+class Speakeasy:
     """
     Wrapper class for invoking the speakeasy emulators
     """

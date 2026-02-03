@@ -3,7 +3,7 @@
 import speakeasy.winenv.defs.windows.kernel32 as k32defs
 
 
-class DriveManager(object):
+class DriveManager:
     """
     Manages the emulation of Windows drives. Currently assumes one volume per drive.
     """

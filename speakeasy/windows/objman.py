@@ -9,7 +9,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 
 
-class Console(object):
+class Console:
     """
     Represents a console window object
     """
@@ -31,17 +31,17 @@ class Console(object):
         return self.window
 
 
-class SEH(object):
+class SEH:
     """
     Implements the structures needed to support SEH handling during emulation
     """
-    class ScopeRecord(object):
+    class ScopeRecord:
         def __init__(self, record):
             self.record = record
             self.filter_called = False
             self.handler_called = False
 
-    class Frame(object):
+    class Frame:
 
         def __init__(self, entry, scope_table, scope_records):
             self.entry = entry
@@ -89,7 +89,7 @@ class SEH(object):
         self.frames.append(frame)
 
 
-class KernelObject(object):
+class KernelObject:
     """
     Base class for Kernel objects managed by the object manager
     """
@@ -875,7 +875,7 @@ class Mutant(KernelObject):
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
 
 
-class ObjectManager(object):
+class ObjectManager:
     """
     Class that manages kernel objects during emulation
     """

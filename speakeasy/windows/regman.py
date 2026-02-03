@@ -11,7 +11,7 @@ HKEY_LOCAL_MACHINE = 0x80000002
 HKEY_USERS = 0x80000003
 
 
-class RegValue(object):
+class RegValue:
     """
     Represents a registry value
     """
@@ -49,7 +49,7 @@ class RegValue(object):
         return self.data
 
 
-class RegKey(object):
+class RegKey:
     """
     Represents a registry key
     """
@@ -83,7 +83,7 @@ class RegKey(object):
                 return v
 
 
-class RegistryManager(object):
+class RegistryManager:
     """
     Manages the emulation of the windows registry. This includes creating keys, subkeys and values
     """

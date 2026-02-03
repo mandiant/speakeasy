@@ -1,6 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class KernelModule(object):
+class KernelModule:
 
     def __init__(self):
         self.name = ''

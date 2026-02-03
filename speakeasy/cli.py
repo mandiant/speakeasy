@@ -75,7 +75,7 @@ def emulate_binary(q, exit_event, fpath, cfg, argv, do_raw, arch='',
                 logger.info('* No dropped files found')
 
 
-class Main(object):
+class Main:
     """
     Main class for emulation of Windows shellcode, user mode, and kernel mode binaries
     """

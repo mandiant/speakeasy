@@ -1,6 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class GuiObject(object):
+class GuiObject:
     """
     Base class for all GUI objects
     """
@@ -91,7 +91,7 @@ class WindowClass(GuiObject):
         self.name = name
 
 
-class SessionManager(object):
+class SessionManager:
     """
     The session manager for the emulator. This will manage things like desktops,
     windows, and session isolation

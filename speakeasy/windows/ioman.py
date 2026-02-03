@@ -4,7 +4,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.windows.kernel_mods as km
 
 
-class IoManager(object):
+class IoManager:
     """
     Directs IO requests to a module handler. For example, if a user mode application
     sends an ioctl to a device this can be handled here.

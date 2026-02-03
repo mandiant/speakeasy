@@ -1,6 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class CryptKey(object):
+class CryptKey:
     def __init__(self, blob_type, blob, blob_len, hnd_import_key, param_list, flags):
         self.blob_type = blob_type
         self.blob = blob
@@ -10,7 +10,7 @@ class CryptKey(object):
         self.flags = flags
 
 
-class CryptContext(object):
+class CryptContext:
     """
     Represents crypto context used by crypto functions
     """
@@ -43,7 +43,7 @@ class CryptContext(object):
         self.keys.pop(hnd)
 
 
-class CryptoManager(object):
+class CryptoManager:
     """
     Manages the emulation of crypto functions
     """

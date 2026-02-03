@@ -22,7 +22,7 @@ def normalize_response_path(path):
     return path
 
 
-class MapView(object):
+class MapView:
     """
     Represents a shared memory view
     """
@@ -34,7 +34,7 @@ class MapView(object):
         self.process = process
 
 
-class FileMap(object):
+class FileMap:
     """
     Represents a memory mapped file
     """
@@ -66,7 +66,7 @@ class FileMap(object):
         self.views.update({base: view})
 
 
-class File(object):
+class File:
     """
     Base class for an emulated file
     """
@@ -200,7 +200,7 @@ class Pipe(File):
         return hpipe
 
 
-class FileManager(object):
+class FileManager:
     """
     Manages file system activity during emulation
     """

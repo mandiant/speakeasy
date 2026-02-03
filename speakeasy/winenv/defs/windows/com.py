@@ -27,7 +27,7 @@ IID_IWbemLocator = '{DC12A687-737F-11CF-884D-00AA004B2E24}'
 IID_IWbemContext = '{44ACA674-E8FC-11D0-A07C-00C04FB68820}'
 
 
-class ComInterface(object):
+class ComInterface:
     def __init__(self, iface, name, ptr_size):
         self.iface = iface(ptr_size)
         self.address = 0

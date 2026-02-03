@@ -28,7 +28,7 @@ def is_platform_intel():
     return False
 
 
-class ToggleableHook(object):
+class ToggleableHook:
     """
     Hook than can be toggled on/off at arbitrary times.
     """
@@ -46,7 +46,7 @@ class ToggleableHook(object):
         self.enabled = False
 
 
-class EmuEngine(object):
+class EmuEngine:
     """Wrapper class for underlying cpu emulation engines"""
 
     def __init__(self):

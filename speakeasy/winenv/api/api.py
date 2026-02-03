@@ -9,7 +9,7 @@ import speakeasy.windows.common as winemu
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 
 
-class ApiHandler(object):
+class ApiHandler:
     """
     Base class for handling exported functions
     """
