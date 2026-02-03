@@ -1887,12 +1887,14 @@ class Kernel32(api.ApiHandler):
             mods = emu.get_user_modules()
             for mod in mods:
                 if mod.get_base() == hmod:
+                    bn = mod.get_base_name()
+                    mname, _ = os.path.splitext(bn)
                     entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
                     if entry:
-                        bn = mod.get_base_name()
-                        mname, _ = os.path.splitext(bn)
                         proc_addr = None if mod.is_decoy() else entry.address
                         rv = emu.get_proc(mname, proc, proc_addr=proc_addr)
+                    elif emu.functions_always_exist:
+                        rv = emu.get_proc(mname, proc)
                     break
 
         return rv
