@@ -62,6 +62,7 @@ from speakeasy.report import (
     MemoryAccesses,
     MemoryLayout,
     MemoryRegion,
+    ModuleSegment,
     Report,
     StringCollection,
     StringsReport,
@@ -695,16 +696,26 @@ class Profiler:
                             accesses=accesses,
                         )
                     )
-                modules = [
-                    LoadedModule(
-                        name=mod["name"],
-                        path=mod["path"],
-                        base=mod["base"],
-                        size=mod["size"],
-                        segments=[],
+                modules = []
+                for mod in r.loaded_modules:
+                    segs = [
+                        ModuleSegment(
+                            name=seg["name"],
+                            address=seg["address"],
+                            size=seg["size"],
+                            prot=seg["prot"],
+                        )
+                        for seg in mod.get("segments", [])
+                    ]
+                    modules.append(
+                        LoadedModule(
+                            name=mod["name"],
+                            path=mod["path"],
+                            base=mod["base"],
+                            size=mod["size"],
+                            segments=segs,
+                        )
                     )
-                    for mod in r.loaded_modules
-                ]
                 memory_layout = MemoryLayout(layout=regions, modules=modules)
 
             ep = EntryPoint(
