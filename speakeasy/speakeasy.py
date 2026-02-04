@@ -26,10 +26,12 @@ class Speakeasy:
     @staticmethod
     def check_init(func):
         """Wrapper to make sure the emulator is initialized"""
+
         def wrap(self, *args, **kwargs):
             if not self.emu:
-                raise SpeakeasyError('Emulator not initialized')
+                raise SpeakeasyError("Emulator not initialized")
             return func(self, *args, **kwargs)
+
         return wrap
 
     def __init__(self, config=None, logger=None, argv=[], debug=False, exit_event=None):
@@ -67,8 +69,7 @@ class Speakeasy:
             None
         """
         if not config:
-            config_path = os.path.join(os.path.dirname(speakeasy.__file__),
-                                       'configs', 'default.json')
+            config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
             with open(config_path) as f:
                 self.config = json.load(f)
         else:
@@ -78,12 +79,12 @@ class Speakeasy:
             validate_config(self.config)
         except jsonschema.exceptions.SchemaError as err:
             if self.logger:
-                self.logger.exception('Invalid config schema: %s', str(err))
-            raise ConfigError('Invalid config schema')
+                self.logger.exception("Invalid config schema: %s", str(err))
+            raise ConfigError("Invalid config schema")
         except jsonschema.exceptions.ValidationError as err:
             if self.logger:
-                self.logger.exception('Invalid config: %s', str(err))
-            raise ConfigError('Invalid config')
+                self.logger.exception("Invalid config: %s", str(err))
+            raise ConfigError("Invalid config")
 
     def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
         """
@@ -94,22 +95,25 @@ class Speakeasy:
         if not is_raw_code:
             pe = PeFile(path=path, data=data)
             # Get the machine type we only support x86/x64 atm
-            mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split('_')[-1:][0].lower()
-            if mach not in ('amd64', 'i386'):
-                raise SpeakeasyError(f'Unsupported architecture: {mach}')
+            mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
+            if mach not in ("amd64", "i386"):
+                raise SpeakeasyError(f"Unsupported architecture: {mach}")
 
             if pe.is_dotnet():
-                raise NotSupportedError('.NET assemblies are not currently supported')
+                raise NotSupportedError(".NET assemblies are not currently supported")
 
             if pe.is_driver():
-                self.emu = WinKernelEmulator(config=self.config, logger=self.logger,
-                                             debug=self.debug, exit_event=self.exit_event)
+                self.emu = WinKernelEmulator(
+                    config=self.config, logger=self.logger, debug=self.debug, exit_event=self.exit_event
+                )
             else:
-                self.emu = Win32Emulator(config=self.config, logger=self.logger, argv=self.argv,
-                                         debug=self.debug, exit_event=self.exit_event)
+                self.emu = Win32Emulator(
+                    config=self.config, logger=self.logger, argv=self.argv, debug=self.debug, exit_event=self.exit_event
+                )
         else:
-            self.emu = Win32Emulator(config=self.config, logger=self.logger, argv=self.argv,
-                                     debug=self.debug, exit_event=self.exit_event)
+            self.emu = Win32Emulator(
+                config=self.config, logger=self.logger, argv=self.argv, debug=self.debug, exit_event=self.exit_event
+            )
 
     def _init_hooks(self) -> None:
         """
@@ -142,7 +146,7 @@ class Speakeasy:
             self.add_mem_write_hook(cb, begin, end)
         while self.mem_invalid_hooks:
             h = self.mem_invalid_hooks.pop(0)
-            cb, = h
+            (cb,) = h
             self.add_mem_invalid_hook(cb)
         while self.interrupt_hooks:
             h = self.interrupt_hooks.pop(0)
@@ -177,7 +181,7 @@ class Speakeasy:
             True is data appears to be a PE
         """
         # Check for the PE header
-        if data[:2] == b'MZ':
+        if data[:2] == b"MZ":
             return True
         else:
             return False
@@ -193,21 +197,21 @@ class Speakeasy:
             A PeFile object representing the newly loaded module
         """
         if not path and not data:
-            raise SpeakeasyError('No emulation target supplied')
+            raise SpeakeasyError("No emulation target supplied")
 
         if path and not os.path.exists(path):
-            raise SpeakeasyError(f'Target file not found: {path}')
+            raise SpeakeasyError(f"Target file not found: {path}")
 
         if data:
             test = data
         else:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 test = f.read(4)
 
         self.loaded_bins.append(path)
 
         if not self.is_pe(test):
-            raise SpeakeasyError('Target file is not a PE')
+            raise SpeakeasyError("Target file is not a PE")
 
         self._init_emulator(path=path, data=data)
 
@@ -231,12 +235,11 @@ class Speakeasy:
         self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
-            return self.emu.run_module(module=module,
-                    all_entrypoints=all_entrypoints,
-                    emulate_children=emulate_children)
+            return self.emu.run_module(
+                module=module, all_entrypoints=all_entrypoints, emulate_children=emulate_children
+            )
         else:
-            return self.emu.run_module(module=module,
-                    all_entrypoints=all_entrypoints)
+            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)
 
     def load_shellcode(self, fpath, arch, data=None) -> int:
         """
@@ -287,7 +290,7 @@ class Speakeasy:
         """
         return self.emu.get_json_report()
 
-    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None):
+    def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
         """
         Set a callback to fire when a specified API is called during emulation
 
@@ -303,8 +306,7 @@ class Speakeasy:
         if not self.emu:
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
             return
-        return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc,
-                                     call_conv=call_conv, emu=self)
+        return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
 
     def resume(self, addr, count=-1):
         """
@@ -465,7 +467,7 @@ class Speakeasy:
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.mem_invalid_hooks.append((cb, ))
+            self.mem_invalid_hooks.append((cb,))
             return
         return self.emu.add_mem_invalid_hook(cb, emu=self)
 
@@ -480,11 +482,11 @@ class Speakeasy:
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.interrupt_hooks.append((cb, ))
+            self.interrupt_hooks.append((cb,))
             return
         return self.emu.add_interrupt_hook(cb, ctx=ctx, emu=self)
 
-    def get_registry_key(self, handle=0, path=''):
+    def get_registry_key(self, handle=0, path=""):
         """
         Get registry key by path or handle
 
@@ -525,7 +527,7 @@ class Speakeasy:
         """
         return self.emu.get_sys_modules()
 
-    def mem_alloc(self, size, base=None, tag='speakeasy.None') -> int:
+    def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
         """
         Allocate a block of memory in the emulation space
 
@@ -646,22 +648,17 @@ class Speakeasy:
         files = self.get_dropped_files()
 
         if not files:
-            return b''
+            return b""
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-
             for f in files:
-
                 path = f.get_path()
                 file_name = ntpath.basename(path)
-                manifest.append({'path': path,
-                                 'file_name': file_name,
-                                 'size': f.get_size(),
-                                 'sha256': f.get_hash()})
+                manifest.append({"path": path, "file_name": file_name, "size": f.get_size(), "sha256": f.get_hash()})
                 zf.writestr(file_name, f.get_data())
 
             manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr('speakeasy_manifest.json', manifest)
+            zf.writestr("speakeasy_manifest.json", manifest)
 
         return _zip.getvalue()
 
@@ -897,16 +894,15 @@ class Speakeasy:
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             procs = []
-            [procs.append(block[4]) for block in self.get_memory_dumps()
-             if block[4] not in procs]
+            [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]
 
             for process in procs:
                 memory_blocks = []
                 arch = self.emu.get_arch()
                 if arch == _arch.ARCH_X86:
-                    arch = 'x86'
+                    arch = "x86"
                 else:
-                    arch = 'amd64'
+                    arch = "amd64"
 
                 if process:
                     pid = process.get_pid()
@@ -914,10 +910,8 @@ class Speakeasy:
                 else:
                     continue
 
-                manifest.append({'pid': pid, 'process_name': path, 'arch': arch,
-                                 'memory_blocks': memory_blocks})
+                manifest.append({"pid": pid, "process_name": path, "arch": arch, "memory_blocks": memory_blocks})
                 for block in self.get_memory_dumps():
-
                     tag, base, size, is_free, _proc, data = block
 
                     if not tag:
@@ -926,7 +920,7 @@ class Speakeasy:
                         continue
                     # Ignore emulator noise such as structures created by the emulator, or
                     # modules that were loaded
-                    if tag and tag.startswith('emu') and not tag.startswith('emu.shellcode.'):
+                    if tag and tag.startswith("emu") and not tag.startswith("emu.shellcode."):
                         bns = [b for b in loaded_bins if b in tag]
                         if not len(bns):
                             continue
@@ -935,15 +929,22 @@ class Speakeasy:
                     h.update(data)
                     _hash = h.hexdigest()
 
-                    file_name = f'{tag}.mem'
+                    file_name = f"{tag}.mem"
 
-                    memory_blocks.append({'tag':  tag, 'base': hex(base), 'size': hex(size),
-                                          'is_free': is_free, 'sha256': _hash,
-                                          'file_name': file_name})
+                    memory_blocks.append(
+                        {
+                            "tag": tag,
+                            "base": hex(base),
+                            "size": hex(size),
+                            "is_free": is_free,
+                            "sha256": _hash,
+                            "file_name": file_name,
+                        }
+                    )
                     zf.writestr(file_name, data)
 
             manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr('speakeasy_manifest.json', manifest)
+            zf.writestr("speakeasy_manifest.json", manifest)
 
         return _zip.getvalue()
 
@@ -958,7 +959,7 @@ def validate_config(config) -> None:
 
     On success, returns without exception.
     """
-    schema_path = os.path.join(os.path.dirname(speakeasy.__file__), 'config_schema.json')
+    schema_path = os.path.join(os.path.dirname(speakeasy.__file__), "config_schema.json")
     with open(schema_path) as ff:
         schema = json.load(ff)
     validator = jsonschema.Draft7Validator(schema)

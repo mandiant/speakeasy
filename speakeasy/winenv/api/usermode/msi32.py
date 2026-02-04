@@ -6,8 +6,7 @@ from .. import api
 
 
 class Msi32(api.ApiHandler):
-
-    name = 'msi32'
+    name = "msi32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -16,7 +15,7 @@ class Msi32(api.ApiHandler):
         super().__init__(emu)
         super().__get_hook_attrs__(self)
 
-    @apihook('MsiDatabaseMergeA', argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=29)
+    @apihook("MsiDatabaseMergeA", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=29)
     def MsiDatabaseMergeA(self, emu, argv, ctx={}):
         """
         UINT MsiDatabaseMergeA(

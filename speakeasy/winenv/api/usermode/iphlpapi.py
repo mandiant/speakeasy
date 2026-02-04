@@ -12,7 +12,8 @@ class Iphlpapi(api.ApiHandler):
     """
     Implements exported functions from iphlpapi.dll
     """
-    name = 'iphlpapi'
+
+    name = "iphlpapi"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -22,7 +23,7 @@ class Iphlpapi(api.ApiHandler):
 
         self.iphlpapi_types = iphlpapi_types
 
-    @apihook('GetAdaptersInfo', argc=2)
+    @apihook("GetAdaptersInfo", argc=2)
     def GetAdaptersInfo(self, emu, argv, ctx={}):
         ptr_adapter_info, size_ptr = argv
         rv = 0
@@ -33,23 +34,23 @@ class Iphlpapi(api.ApiHandler):
         if not ptr_adapter_info:
             adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
             size = adapter_info.sizeof()
-            self.mem_write(size_ptr, size.to_bytes(4, 'little'))
+            self.mem_write(size_ptr, size.to_bytes(4, "little"))
             return windefs.ERROR_BUFFER_OVERFLOW
 
         for index, adapter in enumerate(adapters):
             adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
 
-            adapter_info.AdapterName = adapter.get('name').encode('utf-8')
-            adapter_info.Description = adapter.get('description').encode('utf-8')
+            adapter_info.AdapterName = adapter.get("name").encode("utf-8")
+            adapter_info.Description = adapter.get("description").encode("utf-8")
             adapter_info.AddressLength = 6
-            adapter_info.Address = binascii.unhexlify(adapter.get('mac_address').replace('-', ''))
-            adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.get('type'))
-            adapter_info.IpAddressList.IpAddress = adapter.get('ip_address').encode('utf-8')
-            adapter_info.IpAddressList.IpMask = adapter.get('subnet_mask').encode('utf-8')
-            adapter_info.DhcpEnabled = adapter.get('dhcp_enabled')
+            adapter_info.Address = binascii.unhexlify(adapter.get("mac_address").replace("-", ""))
+            adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.get("type"))
+            adapter_info.IpAddressList.IpAddress = adapter.get("ip_address").encode("utf-8")
+            adapter_info.IpAddressList.IpMask = adapter.get("subnet_mask").encode("utf-8")
+            adapter_info.DhcpEnabled = adapter.get("dhcp_enabled")
 
             if index < adapter_count - 1:
-                ptr_next = self.mem_alloc(adapter_info.sizeof(), tag='api.struct.IP_ADAPTER_INFO')
+                ptr_next = self.mem_alloc(adapter_info.sizeof(), tag="api.struct.IP_ADAPTER_INFO")
             else:
                 ptr_next = 0
 

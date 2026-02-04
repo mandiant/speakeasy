@@ -6,7 +6,7 @@ class sfc(api.ApiHandler):
     Emulates functions from sfc.dll
     """
 
-    name = 'sfc'
+    name = "sfc"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -14,6 +14,6 @@ class sfc(api.ApiHandler):
         super().__init__(emu)
         super().__get_hook_attrs__(self)
 
-    @apihook('SfcIsFileProtected', argc=2)
+    @apihook("SfcIsFileProtected", argc=2)
     def SfcIsFileProtected(self, emu, argv, ctx={}):
         return False

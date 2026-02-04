@@ -1,9 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class KernelModule:
 
+class KernelModule:
     def __init__(self):
-        self.name = ''
+        self.name = ""
 
     def get_mod_name(self):
         return self.name.lower()

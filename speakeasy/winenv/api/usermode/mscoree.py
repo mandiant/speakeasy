@@ -4,12 +4,11 @@ from .. import api
 
 
 class Mscoree(api.ApiHandler):
-
     """
     Implements exported functions from mscoree.dll.
     """
 
-    name = 'mscoree'
+    name = "mscoree"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -22,12 +21,12 @@ class Mscoree(api.ApiHandler):
 
         super().__get_hook_attrs__(self)
 
-    @apihook('CorExitProcess', argc=1)
+    @apihook("CorExitProcess", argc=1)
     def CorExitProcess(self, emu, argv, ctx={}):
-        '''
+        """
         void STDMETHODCALLTYPE CorExitProcess (
             int  exitCode
         );
-        '''
+        """
 
         return 0
