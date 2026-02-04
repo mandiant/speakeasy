@@ -60,8 +60,8 @@ class Ndis(api.ApiHandler):
 
         ndis_major = 5
         ndis_minor = 0
-        osver = self.get_os_version()
-        major, minor = osver["major"], osver["minor"]
+        osver = self.emu.config.os_ver
+        major, minor = osver.major, osver.minor
 
         if major >= 6:
             ndis_major = 6

@@ -330,9 +330,6 @@ class ApiHandler:
     def get_object_from_name(self, name):
         return self.emu.get_object_from_name(name)
 
-    def get_os_version(self):
-        return self.emu.osversion
-
     def exit_process(self):
         self.emu.exit_process()
 

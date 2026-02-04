@@ -4,7 +4,6 @@
 __report_version__ = "2.0.0"
 
 import hashlib
-import json
 import time
 from base64 import b64encode
 from collections import deque
@@ -48,6 +47,17 @@ from speakeasy.profiler_events import (
     RegReadValueEvent,
     ThreadCreateEvent,
     ThreadInjectEvent,
+)
+from speakeasy.report import (
+    DroppedFile,
+    DynamicCodeSegment,
+    EntryPoint,
+    ErrorInfo,
+    MemAccessReport,
+    Report,
+    StringCollection,
+    StringsReport,
+    SymAccessReport,
 )
 
 
@@ -571,32 +581,20 @@ class Profiler:
         )
         run.events.append(event)
 
-    def get_json_report(self):
+    def get_json_report(self) -> str:
         """
         Retrieve the execution profile for the emulator as a json string
         """
-        profile = self.get_report()
-        return json.dumps(profile, indent=4, sort_keys=False)
+        report = self.get_report()
+        return report.model_dump_json(indent=4, exclude_none=True)
 
-    def get_report(self):
+    def get_report(self) -> Report:
         """
         Retrieve the execution profile for the emulator
         """
-        profile = {}
-
-        meta = self.meta
-        meta.update({"report_version": __report_version__})
-        meta.update({"emulation_total_runtime": round(self.runtime, 3)})
-        meta.update({"timestamp": int(self.start_time)})
-
-        exec_paths = []
+        entry_points = []
 
         for r in self.runs:
-            if r.ret_val is not None:
-                ret = hex(r.ret_val)
-            else:
-                ret = None
-
             args = []
             for a in r.args:
                 if isinstance(a, int):
@@ -604,72 +602,121 @@ class Profiler:
                 else:
                     args.append(a)
 
-            ep = {
-                "ep_type": r.type,
-                "start_addr": hex(r.start_addr),
-                "ep_args": args,
-            }
+            error_info = None
+            if r.error:
+                pc_str = r.error.get("pc")
+                pc_int = int(pc_str, 16) if pc_str else None
+                error_info = ErrorInfo(
+                    type=r.error.get("type", ""),
+                    pc=pc_int,
+                    instr=r.error.get("instr"),
+                )
 
-            if r.instr_cnt:
-                ep.update({"instr_count": r.instr_cnt})
-
-            ep.update({"apihash": r.api_hash.hexdigest(), "ret_val": ret, "error": r.error})
-
+            events = None
             if r.events:
-                serialized_events = []
+                events = []
                 for evt in r.events:
-                    evt_dict = evt.model_dump(exclude_none=True, mode="json")
                     if isinstance(evt, (MemWriteEvent, MemReadEvent)):
-                        evt_dict["data"] = self.handle_binary_data(evt.data[:1024])
-                    serialized_events.append(evt_dict)
-                ep.update({"events": serialized_events})
+                        evt.data = evt.data[:1024]
+                    events.append(evt)
 
+            mem_accesses = None
+            sym_accesses = None
             if r.mem_access:
                 mem_accesses = []
                 for mmap, maccess in r.mem_access.items():
                     mem_accesses.append(
-                        {
-                            "tag": mmap.get_tag(),
-                            "base": hex(mmap.get_base()),
-                            "reads": maccess.reads,
-                            "writes": maccess.writes,
-                            "execs": maccess.execs,
-                        }
+                        MemAccessReport(
+                            tag=mmap.get_tag(),
+                            base=mmap.get_base(),
+                            reads=maccess.reads,
+                            writes=maccess.writes,
+                            execs=maccess.execs,
+                        )
                     )
-
-                ep.update({"mem_access": mem_accesses})
 
                 sym_accesses = []
                 for address, maccess in r.sym_access.items():
                     sym_accesses.append(
-                        {
-                            "symbol": maccess.sym,
-                            "reads": maccess.reads,
-                            "writes": maccess.writes,
-                            "execs": maccess.execs,
-                        }
+                        SymAccessReport(
+                            symbol=maccess.sym,
+                            reads=maccess.reads,
+                            writes=maccess.writes,
+                            execs=maccess.execs,
+                        )
                     )
-                if sym_accesses:
-                    ep.update({"sym_accesses": sym_accesses})
+                if not sym_accesses:
+                    sym_accesses = None
 
-            if r.dyn_code:
-                ep.update({"dynamic_code_segments": r.dyn_code["mmap"]})
+            dyn_code_segments = None
+            if r.dyn_code and r.dyn_code.get("mmap"):
+                dyn_code_segments = [
+                    DynamicCodeSegment(tag=seg["tag"], base=seg["base"], size=seg["size"]) for seg in r.dyn_code["mmap"]
+                ]
 
-            if r.coverage:
-                ep.update({"coverage": r.coverage})
-
-            exec_paths.append(ep)
-
+            dropped_files = None
             if r.dropped_files:
-                ep.update({"dropped_files": r.dropped_files})
+                dropped_files = [
+                    DroppedFile(path=f["path"], data=f.get("data"), sha256=f["sha256"]) for f in r.dropped_files
+                ]
 
+            ep = EntryPoint(
+                ep_type=r.type,
+                start_addr=r.start_addr,
+                ep_args=args,
+                instr_count=r.instr_cnt if r.instr_cnt else None,
+                apihash=r.api_hash.hexdigest(),
+                ret_val=r.ret_val,
+                error=error_info,
+                events=events,
+                mem_access=mem_accesses,
+                sym_accesses=sym_accesses,
+                dynamic_code_segments=dyn_code_segments,
+                coverage=r.coverage if r.coverage else None,
+                dropped_files=dropped_files,
+            )
+            entry_points.append(ep)
+
+        strings_report = None
         if (
             self.strings["ansi"]
             or self.strings["unicode"]
             or self.decoded_strings["ansi"]
             or self.decoded_strings["unicode"]
         ):
-            meta.update({"strings": {"static": self.strings, "in_memory": self.decoded_strings}})  # noqa
-        profile = {**profile, **meta}
-        profile.update({"entry_points": exec_paths})
-        return profile
+            strings_report = StringsReport(
+                static=StringCollection(
+                    ansi=self.strings["ansi"],
+                    unicode=self.strings["unicode"],
+                ),
+                in_memory=StringCollection(
+                    ansi=self.decoded_strings["ansi"],
+                    unicode=self.decoded_strings["unicode"],
+                ),
+            )
+
+        errors = None
+        meta_errors = self.meta.get("errors", [])
+        if meta_errors:
+
+            def parse_error(e):
+                pc_str = e.get("pc")
+                pc_int = int(pc_str, 16) if pc_str else None
+                return ErrorInfo(type=e.get("type", ""), pc=pc_int, instr=e.get("instr"))
+
+            errors = [parse_error(e) for e in meta_errors]
+
+        report = Report(
+            report_version=__report_version__,
+            emulation_total_runtime=round(self.runtime, 3),
+            timestamp=int(self.start_time),
+            arch=self.meta.get("arch"),
+            filepath=self.meta.get("filepath"),
+            sha256=self.meta.get("sha256"),
+            size=self.meta.get("size"),
+            filetype=self.meta.get("filetype"),
+            errors=errors,
+            strings=strings_report,
+            entry_points=entry_points,
+        )
+        return report

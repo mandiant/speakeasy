@@ -95,7 +95,7 @@ class Win32Emulator(WindowsEmulator):
 
     def get_processes(self):
         if len(self.processes) <= 1:
-            self.init_processes(self.config_processes)
+            self.init_processes(self.config.processes)
         return self.processes
 
     def init_processes(self, processes):
@@ -106,18 +106,16 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self)
             self.add_object(p)
 
-            p.name = proc.get("name", "")
-            new_pid = proc.get("pid")
-            if new_pid:
-                p.pid = new_pid
+            p.name = proc.name
+            if proc.pid is not None:
+                p.pid = proc.pid
 
-            base = proc.get("base_addr")
-
+            base = proc.base_addr
             if isinstance(base, str):
                 base = int(base, 16)
             p.base = base
-            p.path = proc.get("path")
-            p.session = proc.get("session", 0)
+            p.path = proc.path
+            p.session = proc.session or 0
             p.image = ntpath.basename(p.path)
 
             self.processes.append(p)
@@ -161,7 +159,7 @@ class Win32Emulator(WindowsEmulator):
         self.fileman.add_existing_file(emu_path, data)
 
         # Strings the initial buffer so that we can detect decoded strings later on
-        if self.profiler and self.do_strings:
+        if self.profiler and self.config.analysis.strings:
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(data)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(data)]
 
@@ -486,7 +484,7 @@ class Win32Emulator(WindowsEmulator):
             }
             self.profiler.add_input_metadata(self.input)
             # Strings the initial buffer so that we can detect decoded strings later on
-            if self.do_strings:
+            if self.config.analysis.strings:
                 self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(sc)]
                 self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(sc)]
         self.setup()
@@ -563,9 +561,9 @@ class Win32Emulator(WindowsEmulator):
         peb = proc.get_peb()
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
-        peb.object.OSMajorVersion = self.osversion["major"]
-        peb.object.OSMinorVersion = self.osversion["minor"]
-        peb.object.OSBuildNumber = self.osversion["build"]
+        peb.object.OSMajorVersion = self.config.os_ver.major or 0
+        peb.object.OSMinorVersion = self.config.os_ver.minor or 0
+        peb.object.OSBuildNumber = self.config.os_ver.build or 0
         peb.write_back()
         return peb
 
@@ -593,10 +591,10 @@ class Win32Emulator(WindowsEmulator):
         self.api = WindowsApi(self)
 
         # Init symlinks
-        for sl in self.symlinks:
-            self.om.add_symlink(sl["name"], sl["target"])
+        for sl in self.config.symlinks:
+            self.om.add_symlink(sl.name, sl.target)
 
-        self.init_sys_modules(self.config_system_modules)
+        self.init_sys_modules(self.config.modules.system_modules)
 
     def init_sys_modules(self, modules_config):
         """
@@ -606,19 +604,19 @@ class Win32Emulator(WindowsEmulator):
 
         for modconf in modules_config:
             mod = w32common.DecoyModule()
-            mod.name = modconf["name"]
-            base = modconf.get("base_addr")
+            mod.name = modconf.name
+            base = modconf.base_addr
             if isinstance(base, str):
                 base = int(base, 16)
 
             mod.decoy_base = base
-            mod.decoy_path = modconf["path"]
+            mod.decoy_path = modconf.path
 
-            drv = modconf.get("driver")
+            drv = modconf.driver
             if drv:
-                devs = drv.get("devices")
+                devs = drv.devices
                 for dev in devs:
-                    name = dev.get("name", "")
+                    name = dev.name or ""
                     do = self.new_object(objman.Device)
                     do.name = name
 
@@ -629,14 +627,14 @@ class Win32Emulator(WindowsEmulator):
         """
         Create a process to be used to host shellcode or DLLs
         """
-        for p in self.config_processes:
-            if p.get("is_main_exe"):
-                name = p.get("name", "")
-                emu_path = p.get("path", "")
-                base = p.get("base_addr", 0)
+        for p in self.config.processes:
+            if p.is_main_exe:
+                name = p.name or ""
+                emu_path = p.path or ""
+                base = p.base_addr or 0
                 if isinstance(base, str):
                     base = int(base, 0)
-                cmd_line = p.get("command_line", "")
+                cmd_line = p.command_line or ""
 
                 proc = objman.Process(self, name=name, path=emu_path, base=base, cmdline=cmd_line)
                 return proc
@@ -650,16 +648,16 @@ class Win32Emulator(WindowsEmulator):
         if len(self.user_modules) < 2:
             # Check if we have a host process configured
             proc_mod = None
-            for p in self.config_processes:
-                if not self.user_modules and p.get("is_main_exe"):
+            for p in self.config.processes:
+                if not self.user_modules and p.is_main_exe:
                     proc_mod = p
                     break
 
             if proc_mod:
-                all_user_mods = [proc_mod] + self.config_user_modules
+                all_user_mods = [proc_mod] + list(self.config.modules.user_modules)
                 user_modules = self.init_user_modules(all_user_mods)
             else:
-                user_modules = self.init_user_modules(self.config_user_modules)
+                user_modules = self.init_user_modules(self.config.modules.user_modules)
 
             self.user_modules += user_modules
             # add sample to user modules list if it is a dll
@@ -714,7 +712,7 @@ class Win32Emulator(WindowsEmulator):
         """
         if not self.emu_complete:
             self.emu_complete = True
-            if self.do_strings and self.profiler:
+            if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
                 dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]]
                 dec_unicode = [u[1] for u in dec_unicode if u not in self.profiler.strings["unicode"]]

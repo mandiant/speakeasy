@@ -288,9 +288,9 @@ class Kernel32(api.ApiHandler):
         );
         """
 
-        ver = self.get_os_version()
-        major = ver["major"]
-        minor = ver["minor"]
+        ver = self.emu.config.os_ver
+        major = ver.major
+        minor = ver.minor
 
         rv = 0xFFFFFFFF & (major << 16 | minor)
 
@@ -1443,10 +1443,10 @@ class Kernel32(api.ApiHandler):
     def GetVersion(self, emu, argv, ctx={}):
         """NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();"""
 
-        ver = self.get_os_version()
-        build = ver["build"]
-        major = ver["major"]
-        minor = ver["minor"]
+        ver = self.emu.config.os_ver
+        build = ver.build
+        major = ver.major
+        minor = ver.minor
 
         rv = 0xFFFFFFFF & ((build << 16) | minor << 8 | major)
 
@@ -1898,7 +1898,7 @@ class Kernel32(api.ApiHandler):
                     if entry:
                         proc_addr = None if mod.is_decoy() else entry.address
                         rv = emu.get_proc(mname, proc, proc_addr=proc_addr)
-                    elif emu.functions_always_exist:
+                    elif emu.config.modules.functions_always_exist:
                         rv = emu.get_proc(mname, proc)
                     break
 
@@ -4284,7 +4284,7 @@ class Kernel32(api.ApiHandler):
         rv = False
         cw = self.get_char_width(ctx)
 
-        host = emu.get_hostname()
+        host = emu.config.hostname
         argv[0] = host
         argv[1] = len(host)
 
@@ -4316,10 +4316,10 @@ class Kernel32(api.ApiHandler):
         if osver.dwOSVersionInfoSize == osver.sizeof():
             pass
 
-        ver = emu.get_os_version()
-        osver.dwMajorVersion = ver["major"]
-        osver.dwMinorVersion = ver["minor"]
-        osver.dwBuildNumber = ver["build"]
+        ver = emu.config.os_ver
+        osver.dwMajorVersion = ver.major
+        osver.dwMinorVersion = ver.minor
+        osver.dwBuildNumber = ver.build
         osver.dwPlatformId = 2
 
         rv = 1
@@ -5543,7 +5543,7 @@ class Kernel32(api.ApiHandler):
         if name_type:
             argv[0] = name_type
 
-        hostname = emu.get_hostname()
+        hostname = emu.config.hostname
         argv[1] = hostname
 
         hostname_len = len(hostname)

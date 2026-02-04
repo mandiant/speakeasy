@@ -3,11 +3,12 @@
 import json
 import os
 
-import jsonschema
 import pytest
+from pydantic import ValidationError
 
 import speakeasy
 import speakeasy.speakeasy
+from speakeasy.config import SpeakeasyConfig
 
 
 def get_default_config():
@@ -35,19 +36,28 @@ def test_validation_non_enum():
     speakeasy.speakeasy.validate_config(conf)
 
     conf["emu_engine"] = "alternate_engine"
-    with pytest.raises(jsonschema.exceptions.ValidationError):
+    with pytest.raises(ValidationError):
         speakeasy.speakeasy.validate_config(conf)
 
 
 def test_validation_missing_required_field():
     conf = get_default_config()
     conf.pop("emu_engine", None)
-    with pytest.raises(jsonschema.exceptions.ValidationError):
+    with pytest.raises(ValidationError):
         speakeasy.speakeasy.validate_config(conf)
 
 
 def test_validation_incorrect_type():
     conf = get_default_config()
     conf["emu_engine"] = 1.0
-    with pytest.raises(jsonschema.exceptions.ValidationError):
+    with pytest.raises(ValidationError):
         speakeasy.speakeasy.validate_config(conf)
+
+
+def test_config_model_direct():
+    conf = get_default_config()
+    model = SpeakeasyConfig.model_validate(conf)
+    assert model.emu_engine == "unicorn"
+    assert model.config_version == 0.2
+    assert model.timeout == 60
+    assert model.user.name == "speakeasy_user"

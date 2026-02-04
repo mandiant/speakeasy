@@ -199,7 +199,7 @@ class MemoryManager:
             mm.set_free()
 
             # If we want to freeze memory, just return
-            if self.keep_memory_on_free:
+            if self.config.keep_memory_on_free:
                 return
 
             ml = [m for m in self.get_mem_maps() if m.block_base == mm.block_base]

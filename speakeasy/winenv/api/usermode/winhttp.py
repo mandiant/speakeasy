@@ -34,7 +34,7 @@ class WinHttp(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.win = None
-        self.netman = netman.NetworkManager(config=emu.get_network_config())
+        self.netman = netman.NetworkManager(config=emu.config.network)
         super().__get_hook_attrs__(self)
 
     @apihook("WinHttpOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)

@@ -161,7 +161,7 @@ class EmuEngine:
         """
         Unicorn expects timeouts to be supplied in microsecond granularity
         """
-        return sec * 1000000
+        return int(sec * 1000000)
 
     def init_engine(self, eng_arch, mode):
         """Initialize cpu engine"""

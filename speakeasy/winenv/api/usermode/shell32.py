@@ -120,7 +120,7 @@ class Shell32(api.ApiHandler):
         """
         BOOL IsUserAnAdmin();
         """
-        return emu.get_user().get("is_admin", False)
+        return emu.config.user.is_admin
 
     @apihook("SHGetMalloc", argc=1)
     def SHGetMalloc(self, emu, argv, ctx={}):
@@ -206,77 +206,63 @@ class Shell32(api.ApiHandler):
             argv[1] = shell32_defs.CSIDL[csidl]
         if csidl == 0x1A:
             # CSIDL_APPDATA
-            path = "C:\\Users\\{}\\AppData\\Roaming".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming"
         elif csidl == 0x28:
             # csidl_profile
-            path = "C:\\Users\\{}".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}"
         elif csidl == 0 or csidl == 0x10:
             # CSIDL_DESKTOP or CSIDL_DESKTOPDIRECTORY
-            path = "C:\\Users\\{}\\Desktop".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}\\Desktop"
         elif csidl == 2:
             # CSIDL_PROGRAMS
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"  # noqa
         elif csidl == 6 or csidl == 0x1F:
             # CSIDL_FAVORITES or CSIDL_COMMON_FAVORITES
-            path = "C:\\Users\\{}\\Favorites".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}\\Favorites"
         elif csidl == 7:
             # CSIDL_STARTUP
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"  # noqa
         elif csidl == 8:
             # CSIDL_RECENT
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.get_user()["name"])  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.config.user.name)  # noqa
         elif csidl == 9:
             # csidl_sendto
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.get_user()["name"])  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.config.user.name)  # noqa
         elif csidl == 0xB:
             # CSIDL_STARTMENU
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu".format(emu.get_user()["name"])  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu".format(emu.config.user.name)  # noqa
         elif csidl == 0x13:
             # CSIDL_NETHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts".format(emu.config.user.name)  # noqa
         elif csidl == 0x15:
             # CSIDL_TEMPLATES
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Templates".format(emu.get_user()["name"])  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Templates".format(emu.config.user.name)  # noqa
         elif csidl == 0x1B:
             # CSIDL_PRINTHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts".format(emu.config.user.name)  # noqa
         elif csidl == 0x1C:
             # CSIDL_LOCAL_APPDATA
-            path = "C:\\Users\\{}\\AppData\\Local".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Local"
         elif csidl == 0x20:
             # CSIDL_INTERNET_CACHE
-            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\Temporary Internet File".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Local\\Microsoft\\Windows\\Temporary Internet File"  # noqa
         elif csidl == 0x21:
             # CSIDL_COOKIES
-            path = "C:\\Users\\{}\\AppData\\AppData\\Roaming\\Microsoft\\Windows\\Cookies".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = "C:\\Users\\{}\\AppData\\AppData\\Roaming\\Microsoft\\Windows\\Cookies".format(emu.config.user.name)  # noqa
         elif csidl == 0x22:
             # CSIDL_HISTORY
-            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\History".format(emu.get_user()["name"])  # noqa
+            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\History".format(emu.config.user.name)  # noqa
         elif csidl == 0x27:
             # CSIDL_MYPICTURES
-            path = "C:\\Users\\{}\\Pictures".format(emu.get_user()["name"])
+            path = f"C:\\Users\\{emu.config.user.name}\\Pictures"
         elif csidl == 0x2F or csidl == 0x30:
-            user = emu.get_user()["name"]
+            user = emu.config.user.name
             path = (
                 f"C:\\Users\\{user}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Administrative Tools"
             )
         elif csidl == 0x1D:
             # CSIDL_ALTSTARTUP
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup".format(
-                emu.get_user()["name"]
-            )  # noqa
+            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"  # noqa
         elif csidl == 0x1E:
             path = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
         elif csidl == 0x2A or csidl == 0x26:

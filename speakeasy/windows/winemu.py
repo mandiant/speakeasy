@@ -90,8 +90,6 @@ class WindowsEmulator(BinaryEmulator):
         self.kernel_mode = False
         self.virtual_mem_base = 0x50000
 
-        self.mem_tracing_enabled = False
-        self.coverage_enabled = False
         self.tmp_code_hook = None
         self.veh_handlers = []
 
@@ -117,10 +115,10 @@ class WindowsEmulator(BinaryEmulator):
 
         self.wintypes = windef
         # OS resource managers
-        self.regman = RegistryManager(self.get_registry_config())
+        self.regman = RegistryManager(self.config.registry)
         self.fileman = FileManager(config, self)
-        self.netman = NetworkManager(config=self.get_network_config())
-        self.driveman = DriveManager(config=self.get_drive_config())
+        self.netman = NetworkManager(config=self.config.network)
+        self.driveman = DriveManager(config=self.config.drives)
         self.cryptman = CryptoManager()
         self.hammer = ApiHammer(self)
 
@@ -128,40 +126,9 @@ class WindowsEmulator(BinaryEmulator):
         """
         Parse the emulation config file
         """
-
-        def _normalize_image(img):
-            # Normalize the architecture
-            if img["arch"].lower() in ("x86", "i386"):
-                img["arch"] = _arch.ARCH_X86
-            elif img["arch"].lower() in ("x64", "amd64"):
-                img["arch"] = _arch.ARCH_AMD64
-            else:
-                raise WindowsEmuError("Unsupported image arch: {}".format(img["arch"]))
-
         super()._parse_config(config)
-        for umod in self.config_user_modules:
-            for img in umod.get("images", []):
-                _normalize_image(img)
-
-        for proc in self.config_processes:
-            for img in proc.get("images", []):
-                _normalize_image(img)
-
-        self.cd = self.config.get("current_dir", "")
-
-        self.dispatch_handlers = self.exceptions.get("dispatch_handlers", True)
-        self.mem_tracing_enabled = self.config_analysis.get("memory_tracing", False)
-        self.coverage_enabled = self.config_analysis.get("coverage", False)
-        self.do_strings = self.config_analysis.get("strings", False)
-        self.registry_config = self.config.get("registry", {})
-        self.modules_always_exist = self.config_modules.get("modules_always_exist", False)
-        self.functions_always_exist = self.config_modules.get("functions_always_exist", False)
-
-    def get_registry_config(self):
-        """
-        Get the registry settings specified in the registry section of the config file
-        """
-        return self.registry_config
+        self.cd = self.config.current_dir
+        self.command_line = self.config.command_line
 
     def on_run_complete(self):
         """
@@ -173,7 +140,7 @@ class WindowsEmulator(BinaryEmulator):
         raise NotImplementedError()
 
     def enable_code_hook(self):
-        if not self.tmp_code_hook and not self.mem_tracing_enabled and not self.coverage_enabled:
+        if not self.tmp_code_hook and not self.config.analysis.memory_tracing and not self.config.analysis.coverage:
             self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
 
         if self.tmp_code_hook:
@@ -191,7 +158,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
     def set_mem_tracing_hooks(self):
-        if not self.mem_tracing_enabled:
+        if not self.config.analysis.memory_tracing:
             return
 
         if len(self.mem_trace_hooks) > 0:
@@ -204,7 +171,7 @@ class WindowsEmulator(BinaryEmulator):
         )
 
     def set_coverage_hooks(self):
-        if not self.coverage_enabled:
+        if not self.config.analysis.coverage:
             return
 
         if self.coverage_hook:
@@ -436,7 +403,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Resume emulation at the specified address.
         """
-        self.emu_eng.start(addr, timeout=self.timeout, count=count)
+        self.emu_eng.start(addr, timeout=self.config.timeout, count=count)
 
     def start(self, addr=None, size=None):
         """
@@ -457,10 +424,12 @@ class WindowsEmulator(BinaryEmulator):
         while True:
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout, count=self.max_instructions)
+                self.emu_eng.start(
+                    self.curr_run.start_addr, timeout=self.config.timeout, count=self.config.max_instructions
+                )
                 if self.profiler:
-                    if self.profiler.get_run_time() > self.timeout:
-                        self.log_error("* Timeout of %d sec(s) reached.", self.timeout)
+                    if self.profiler.get_run_time() > self.config.timeout:
+                        self.log_error("* Timeout of %d sec(s) reached.", self.config.timeout)
             except KeyboardInterrupt:
                 self.log_error("* User exited.")
                 return
@@ -516,7 +485,7 @@ class WindowsEmulator(BinaryEmulator):
         Get the current processes that exist in the emulation space
         """
         if not self.processes:
-            self.init_processes(self.config_processes)
+            self.init_processes(self.config.processes)
         return self.processes
 
     def kill_process(self, proc):
@@ -738,7 +707,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         # Generate the decoy module list
         if not self.sys_modules:
-            self.sys_modules = self.init_sys_modules(self.config_system_modules)
+            self.sys_modules = self.init_sys_modules(self.config.modules.system_modules)
         return self.sys_modules
 
     def get_user_modules(self):
@@ -747,7 +716,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         # Generate the decoy user module list
         if not self.user_modules:
-            self.user_modules = self.init_user_modules(self.config_user_modules)
+            self.user_modules = self.init_user_modules(self.config.modules.user_modules)
         return self.user_modules
 
     def get_mod_from_addr(self, addr):
@@ -809,9 +778,6 @@ class WindowsEmulator(BinaryEmulator):
 
     def set_env(self, var, val):
         return self.env.update({var.lower(): val})
-
-    def get_os_version(self):
-        return self.osversion
 
     def get_object_from_addr(self, addr):
         return self.om.get_object_from_addr(addr)
@@ -1032,7 +998,7 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
         # Are there any SEH handlers registered?
-        if self.dispatch_handlers:
+        if self.config.exceptions.dispatch_handlers:
             rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
@@ -1221,7 +1187,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.log_api(ret, imp_api, rv, argv)
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
-            elif self.functions_always_exist:
+            elif self.config.modules.functions_always_exist:
                 imp_api = f"{dll}.{name}"
                 conv = _arch.CALL_CONV_STDCALL
                 argc = 4
@@ -1240,10 +1206,10 @@ class WindowsEmulator(BinaryEmulator):
             self.on_run_complete()
 
         run = self.get_current_run()
-        if run and run.get_api_count() > self.max_api_count:
+        if run and run.get_api_count() > self.config.max_api_count:
             self.log_info("* Maximum number of API calls reached. Stopping current run.")
             run.error["type"] = "max_api_count"
-            run.error["count"] = self.max_api_count
+            run.error["count"] = self.config.max_api_count
             run.error["pc"] = hex(self.get_pc())
             run.error["last_api"] = imp_api
             self.on_run_complete()
@@ -1257,7 +1223,7 @@ class WindowsEmulator(BinaryEmulator):
             access = self.emu_eng.mem_access.get(access)
             self.prev_pc = self.get_pc()
 
-            if not self.tmp_code_hook and not self.mem_tracing_enabled:
+            if not self.tmp_code_hook and not self.config.analysis.memory_tracing:
                 self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
 
             self.enable_code_hook()
@@ -1439,7 +1405,7 @@ class WindowsEmulator(BinaryEmulator):
             self._unset_emu_hooks()
             return True
 
-        if self.dispatch_handlers:
+        if self.config.exceptions.dispatch_handlers:
             rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
@@ -1483,7 +1449,7 @@ class WindowsEmulator(BinaryEmulator):
         if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
             return True
 
-        if self.dispatch_handlers:
+        if self.config.exceptions.dispatch_handlers:
             rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
             if rv:
                 return True
@@ -1543,14 +1509,14 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_write(read_addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
                 return True
 
-            if self.coverage_enabled:
+            if self.config.analysis.coverage:
                 self.curr_run.coverage.append(addr)
 
-            if not self.mem_tracing_enabled and not self.coverage_enabled:
+            if not self.config.analysis.memory_tracing and not self.config.analysis.coverage:
                 if not self.debug:
                     self.disable_code_hook()
 
-            if self.max_instructions != -1 and self.curr_run.instr_cnt >= self.max_instructions:
+            if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:
                 self.on_run_complete()
                 return False
 
@@ -1559,7 +1525,7 @@ class WindowsEmulator(BinaryEmulator):
             # Get the symbol that the sample was trying to execute
 
             symbol = self.get_symbol_from_address(addr)
-            if self.mem_tracing_enabled and symbol:
+            if self.config.analysis.memory_tracing and symbol:
                 mod_name, fn = symbol.split(".")
 
                 mac = self.curr_run.sym_access.get(addr)
@@ -1573,7 +1539,7 @@ class WindowsEmulator(BinaryEmulator):
 
             self._set_emu_hooks()
 
-            if not self.mem_tracing_enabled:
+            if not self.config.analysis.memory_tracing:
                 return
 
             # Increment the instruction counter
@@ -1626,7 +1592,7 @@ class WindowsEmulator(BinaryEmulator):
         dirs = decoy_arch_dir[self.get_arch()]
         mod_dir = dirs[0]
 
-        path = self.config_modules.get(mod_dir, "")
+        path = getattr(self.config.modules, mod_dir, "") or ""
 
         fp = get_fp(path, mod_name)
         if not fp:
@@ -1652,7 +1618,7 @@ class WindowsEmulator(BinaryEmulator):
 
         # If we get here, the library is not found, if configured to do so,
         # we can return a fake module in every instance
-        if not self.modules_always_exist:
+        if not self.config.modules.modules_always_exist:
             return 0
 
         mod = self.init_module(name=lib, default_base=0x6F000000)
@@ -1730,29 +1696,28 @@ class WindowsEmulator(BinaryEmulator):
             return mod
         return None
 
-    def init_module(self, modconf={}, name="none", emu_path="", default_base=None):
+    def init_module(self, modconf=None, name="none", emu_path="", default_base=None):
         """
         Initialize a module from a config entry
         """
-        modname = modconf.get("name", name)
-        base = modconf.get("base_addr", default_base)
-        if isinstance(base, str):
-            base = int(base, 16)
+        modname = getattr(modconf, "name", None) or name
+        base_addr = getattr(modconf, "base_addr", None) or default_base
+        if isinstance(base_addr, str):
+            base_addr = int(base_addr, 16)
 
         mod = None
 
-        images = modconf.get("images", [])
+        images = getattr(modconf, "images", []) or []
         default_file_path = self.get_native_module_path(mod_name=modname)
         if not images:
             if not default_file_path:
-                mod = self.generate_decoy_module(modname, base)
+                mod = self.generate_decoy_module(modname, base_addr)
                 default_file_path = self.get_native_module_path(mod_name="default_exe")
 
         path = None
         for img in images:
-            arch = img["arch"]
-            if arch == self.get_arch():
-                path = self.get_native_module_path(mod_name=img["name"])
+            if img.arch == self.get_arch():
+                path = self.get_native_module_path(mod_name=img.name)
 
         if not path:
             path = default_file_path
@@ -1760,11 +1725,11 @@ class WindowsEmulator(BinaryEmulator):
         if not mod:
             mod = winemu.DecoyModule(path=path)
 
-        mod.decoy_path = modconf.get("path", emu_path) or (name + ".dll")
+        mod.decoy_path = getattr(modconf, "path", None) or emu_path or (name + ".dll")
         # Reserve memory for the module
-        res, size = self.get_valid_ranges(mod.image_size, base)
+        res, size = self.get_valid_ranges(mod.image_size, base_addr)
         mod.decoy_base = res
-        mod.name = modconf.get("name", name)
+        mod.name = getattr(modconf, "name", None) or name
 
         # map PE headers
         headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
@@ -1791,7 +1756,7 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_reserve(size, base=res, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
 
         if mod.decoy_path == "" and name != "":
-            mod.decoy_path = self.config.get("current_dir", "C:\\Windows\\system32") + "\\" + name
+            mod.decoy_path = (self.config.current_dir or "C:\\Windows\\system32") + "\\" + name
 
         mod.base_name = ntpath.basename(mod.decoy_path)
 
@@ -1853,7 +1818,7 @@ class WindowsEmulator(BinaryEmulator):
                     addr = exp.address
                     self.symbols.update({addr: (mod_name, sym)})
                     m, hndlr = self.api.get_data_export_handler(mod_name, sym)
-                    if hndlr and not self.mem_tracing_enabled:
+                    if hndlr and not self.config.analysis.memory_tracing:
                         self.add_mem_read_hook(cb=self._hook_mem_read, begin=addr, end=addr)
                         self.add_mem_write_hook(cb=self._hook_mem_write, begin=addr, end=addr)
 
@@ -1866,7 +1831,7 @@ class WindowsEmulator(BinaryEmulator):
             decoy.is_mapped = True
             img = decoy.get_memory_mapped_image(base=mem)
             self.mem_write(mem, bytes(img))
-            if not self.mem_tracing_enabled:
+            if not self.config.analysis.memory_tracing:
                 self.add_code_hook(cb=self._module_access_hook, begin=mem, end=mem + len(img))
             decoy.base = mem
             return True
@@ -2159,7 +2124,7 @@ class WindowsEmulator(BinaryEmulator):
             hook_obj.disable()
 
         exception_list = self._get_exception_list()
-        if exception_list and self.dispatch_handlers:
+        if exception_list and self.config.exceptions.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2D:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT

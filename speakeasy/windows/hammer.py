@@ -36,10 +36,15 @@ class ApiHammer:
         self.hammer_memregion = None
         self.hammer_offset = 0
 
-        self.config = self.emu.config.get("api_hammering", {})
-        self.api_threshold = self.config.get("threshold", 1000)
-        self.enabled = self.config.get("enabled", False)
-        self.allow_list = _lowercase_set(self.config.get("allow_list", _default_api_hammer_allowlist))
+        self.config = self.emu.config.api_hammering
+        if self.config:
+            self.api_threshold = self.config.threshold
+            self.enabled = self.config.enabled
+            self.allow_list = _lowercase_set(self.config.allow_list or _default_api_hammer_allowlist)
+        else:
+            self.api_threshold = 1000
+            self.enabled = False
+            self.allow_list = _lowercase_set(_default_api_hammer_allowlist)
 
     def is_allowed_api(self, apiname):
         """
