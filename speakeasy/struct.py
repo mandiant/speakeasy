@@ -11,6 +11,7 @@ class EmuStructException(Exception):
     """
     Container class for struct exceptions
     """
+
     pass
 
 
@@ -18,6 +19,7 @@ class Enum:
     """
     For now, a basic python object will serve as a C style enum
     """
+
     pass
 
 
@@ -25,6 +27,7 @@ class PtrMeta(type):
     """
     Metaclass for pointer types
     """
+
     def __mul__(self, mult):
         return tuple((self, mult))
 
@@ -34,6 +37,7 @@ class Ptr(metaclass=PtrMeta):
     Generic object to identify pointer variables that will be expanded
     according to the "ptr_size" parameter passed to our init
     """
+
     _points_to_ = None
 
 
@@ -44,14 +48,11 @@ class CMeta(type):
     """
 
     @classmethod
-    def __prepare__(
-        metacls, name: str, bases: tuple[type, ...], /, **kwds: Any
-    ) -> MutableMapping[str, object]:
+    def __prepare__(metacls, name: str, bases: tuple[type, ...], /, **kwds: Any) -> MutableMapping[str, object]:
         return OrderedDict()
 
     def __new__(self, name, bases, classdict):
-        classdict['__ordered__'] = [k for k in classdict.keys()
-                                    if k not in ('__module__', '__qualname__')]
+        classdict["__ordered__"] = [k for k in classdict.keys() if k not in ("__module__", "__qualname__")]
         return type.__new__(self, name, bases, classdict)
 
     def __call__(cls, *args, **kwargs):
@@ -83,11 +84,11 @@ class EmuStruct(metaclass=CMeta):
     def __init__(self, ptr_size=0, pack=0):
 
         # Set __dict__ directly here to avoid __getattribute__ loops
-        self.__dict__['__pack__'] = pack
-        self.__dict__['__struct__'] = None
-        self.__dict__['__fields__'] = []
-        self.__dict__['__ptrsize__'] = ptr_size
-        self.__dict__['__filtermap__'] = {}
+        self.__dict__["__pack__"] = pack
+        self.__dict__["__struct__"] = None
+        self.__dict__["__fields__"] = []
+        self.__dict__["__ptrsize__"] = ptr_size
+        self.__dict__["__filtermap__"] = {}
 
     def _is_ctype(self, obj):
         """
@@ -134,7 +135,6 @@ class EmuStruct(metaclass=CMeta):
             except TypeError:
                 continue
             try:
-
                 if self._is_ctype(obj):
                     # Simply append ctypes since they will be handled
                     # automatically
@@ -192,7 +192,6 @@ class EmuStruct(metaclass=CMeta):
         This will allow the buffer API to convert it to bytes easily
         """
         for fname, subobj in obj.__filtermap__.items():
-
             if isinstance(subobj, list):
                 x = getattr(obj.__struct__, fname)
 
@@ -205,7 +204,6 @@ class EmuStruct(metaclass=CMeta):
                 setattr(obj.__struct__, fname, subobj.__struct__)
 
     def get_bytes(self):
-
         """
         Convert the structure to bytes and respecting endianness
         """
@@ -225,7 +223,7 @@ class EmuStruct(metaclass=CMeta):
 
     def _deep_cast(self, obj, bytez, offset):
 
-        obj.__struct__ = type(obj.__struct__).from_buffer(bytearray(bytez[offset[0]:]))
+        obj.__struct__ = type(obj.__struct__).from_buffer(bytearray(bytez[offset[0] :]))
         for fn, c in obj.__fields__:
             subobj = obj.__filtermap__.get(fn)
             if subobj:
@@ -249,36 +247,39 @@ class EmuStruct(metaclass=CMeta):
         return self.__struct__.__class__
 
     def get_sub_field_name(self, cstruc, offset):
-        for (name,t) in cstruc._fields_:
+        for name, t in cstruc._fields_:
             noff = cstruc.__dict__[name].offset
             nsize = cstruc.__dict__[name].size
             if offset == noff:
                 return name
             elif noff < offset < noff + nsize:
                 # access into the sub-structure recursively
-                return name + '.' + self.get_sub_field_name(t, offset - noff)
+                return name + "." + self.get_sub_field_name(t, offset - noff)
 
     def get_field_name(self, offset):
         cstruc = self.get_cstruct()
-        for (name,t) in self.__fields__:
+        for name, t in self.__fields__:
             noff = cstruc.__dict__[name].offset
             nsize = cstruc.__dict__[name].size
             if offset == noff:
                 return name
             elif noff < offset < noff + nsize:
                 # access into the sub-structure
-                return name + '.' + self.get_sub_field_name(t, offset - noff)
+                return name + "." + self.get_sub_field_name(t, offset - noff)
         return None
 
     def __struct_factory(self, name):
         """
         Factory used to generate ctypes structures using the ctypes metaclass
         """
-        _type_name = f'ct{name}{self.__ptrsize__}'
+        _type_name = f"ct{name}{self.__ptrsize__}"
         _type = EmuStruct.__types__.get(_type_name)
         if not _type:
-            _type = type(_type_name, (self.__class__.FilteredStruct, ),
-                         {"_pack_": self.get_pack(), "_layout_": "ms", "_fields_": self.__fields__})
+            _type = type(
+                _type_name,
+                (self.__class__.FilteredStruct,),
+                {"_pack_": self.get_pack(), "_layout_": "ms", "_fields_": self.__fields__},
+            )
             EmuStruct.__types__[_type_name] = _type
         return _type
 
@@ -298,7 +299,7 @@ class EmuStruct(metaclass=CMeta):
                 if fn == name:
                     if isinstance(value, bytes):
                         barray = getattr(struct, fn)
-                        barray[:len(value)] = value
+                        barray[: len(value)] = value
                         return
                     struct.__setattr__(fn, value)
                     return
@@ -310,7 +311,7 @@ class EmuStruct(metaclass=CMeta):
         can be handled correctly
         """
         try:
-            struct = super().__getattribute__('__struct__')
+            struct = super().__getattribute__("__struct__")
             if struct:
                 fields = struct._fields_
                 for fn, val in fields:
@@ -318,7 +319,7 @@ class EmuStruct(metaclass=CMeta):
                         val = struct.__getattribute__(name)
                         tests = (EmuStruct.FilteredStruct, EmuUnion.FilteredStruct, ct.Array)
                         if any([isinstance(val, t) for t in tests]):
-                            fm = super().__getattribute__('__filtermap__')
+                            fm = super().__getattribute__("__filtermap__")
                             filt_obj = fm.get(name)
                             if filt_obj:
                                 return filt_obj
@@ -330,7 +331,6 @@ class EmuStruct(metaclass=CMeta):
 
 
 class EmuUnion(EmuStruct, metaclass=CMeta):
-
     class FilteredStruct(ct.Union):
         def __hash__(self):
             return hash(repr(self))

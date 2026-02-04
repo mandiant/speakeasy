@@ -130,7 +130,6 @@ class UNICODE_STRING(EmuStruct):
 
 
 class EXCEPTION_POINTERS(EmuStruct):
-
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.ExceptionRecord = Ptr
@@ -285,8 +284,7 @@ class CONTEXT64(EmuStruct):
 
 def get_create_disposition(flags):
     disp = None
-    dispostions = ('CREATE_ALWAYS', 'CREATE_NEW', 'OPEN_ALWAYS',
-                   'OPEN_EXISTING', 'TRUNCATE_EXISTING')
+    dispostions = ("CREATE_ALWAYS", "CREATE_NEW", "OPEN_ALWAYS", "OPEN_EXISTING", "TRUNCATE_EXISTING")
 
     for k, v in [(k, v) for k, v in globals().items() if k in dispostions]:
         if isinstance(v, int):
@@ -297,7 +295,7 @@ def get_create_disposition(flags):
     return disp
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -308,7 +306,7 @@ def get_define(define, prefix=''):
             return k
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -320,24 +318,24 @@ def get_flag_defines(flags, prefix=''):
 
 
 def get_page_rights(define):
-    return get_flag_defines(define, prefix='PAGE_')
+    return get_flag_defines(define, prefix="PAGE_")
 
 
 def get_creation_flags(flags):
-    return get_flag_defines(flags, prefix='CREATE_')
+    return get_flag_defines(flags, prefix="CREATE_")
 
 
 def convert_sid_str_to_struct(ptr_size, sid_str):
-    sid_elements = sid_str.split('-')
-    sid_elements.remove('S')
+    sid_elements = sid_str.split("-")
+    sid_elements.remove("S")
     sub_authority_count = len(sid_elements) - 2
 
     sid_struct = SID(ptr_size, sub_authority_count)
     sid_struct.Revision = int(sid_elements[0])
     sid_struct.SubAuthorityCount = sub_authority_count
-    sid_struct.IdentifierAuthority = int(sid_elements[1]).to_bytes(6, 'big')
+    sid_struct.IdentifierAuthority = int(sid_elements[1]).to_bytes(6, "big")
     sub_authorities = sid_elements[2:]
     for i in range(len(sub_authorities)):
         sid_struct.SubAuthority[i] = int(sub_authorities[i])
- 
+
     return sid_struct

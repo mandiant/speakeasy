@@ -7,13 +7,13 @@ import speakeasy.winenv.defs.registry.reg as reg
 import speakeasy.winenv.defs.usb as usbdefs
 import speakeasy.winenv.defs.wdf as wdf
 
-IOCTL_IS_SUPER_SPEED_SUPPORTED = 0x49104b
+IOCTL_IS_SUPER_SPEED_SUPPORTED = 0x49104B
 
 
 class UsbEmu(speakeasy.Speakeasy):
-    '''
+    """
     WDF USB Emulator
-    '''
+    """
 
     def __init__(self, debug=False):
         super().__init__(debug=debug)
@@ -105,16 +105,16 @@ class UsbEmu(speakeasy.Speakeasy):
 
         rv = ddk.STATUS_BUFFER_TOO_SMALL
         buf_len = self.mem_read(ConfigDescriptorLength, 2)
-        buf_len = int.from_bytes(buf_len, 'little')
+        buf_len = int.from_bytes(buf_len, "little")
 
         cfg = self.emit_config_descriptor()
         if buf_len < len(cfg):
-            self.mem_write(ConfigDescriptorLength, (len(cfg)).to_bytes(2, 'little'))
+            self.mem_write(ConfigDescriptorLength, (len(cfg)).to_bytes(2, "little"))
             return rv
 
         if ConfigDescriptor:
             self.mem_write(ConfigDescriptor, cfg)
-            self.mem_write(ConfigDescriptorLength, (len(cfg)).to_bytes(2, 'little'))
+            self.mem_write(ConfigDescriptorLength, (len(cfg)).to_bytes(2, "little"))
 
         rv = func(params)
 
@@ -187,40 +187,19 @@ def main(args):
     module = usb.load_module(args.file)
 
     # Set the API hooks so we initialize everything
-    usb.add_api_hook(usb.wdf_driver_create_hook,
-                     'wdfldr',
-                     'WdfDriverCreate'
-                     )
+    usb.add_api_hook(usb.wdf_driver_create_hook, "wdfldr", "WdfDriverCreate")
 
-    usb.add_api_hook(usb.wdf_queue_create_hook,
-                     'wdfldr',
-                     'WdfIoQueueCreate'
-                     )
+    usb.add_api_hook(usb.wdf_queue_create_hook, "wdfldr", "WdfIoQueueCreate")
 
-    usb.add_api_hook(usb.wdf_device_set_pnp_hooks,
-                     'wdfldr',
-                     'WdfDeviceInitSetPnpPowerEventCallbacks'
-                     )
+    usb.add_api_hook(usb.wdf_device_set_pnp_hooks, "wdfldr", "WdfDeviceInitSetPnpPowerEventCallbacks")
 
-    usb.add_api_hook(usb.wdf_get_usb_device_descriptor,
-                     'wdfldr',
-                     'WdfUsbTargetDeviceGetDeviceDescriptor'
-                     )
+    usb.add_api_hook(usb.wdf_get_usb_device_descriptor, "wdfldr", "WdfUsbTargetDeviceGetDeviceDescriptor")
 
-    usb.add_api_hook(usb.wdf_get_usb_config_descriptor,
-                     'wdfldr',
-                     'WdfUsbTargetDeviceRetrieveConfigDescriptor'
-                     )
+    usb.add_api_hook(usb.wdf_get_usb_config_descriptor, "wdfldr", "WdfUsbTargetDeviceRetrieveConfigDescriptor")
 
-    usb.add_api_hook(usb.wdf_get_usb_info,
-                     'wdfldr',
-                     'WdfUsbTargetDeviceRetrieveInformation'
-                     )
+    usb.add_api_hook(usb.wdf_get_usb_info, "wdfldr", "WdfUsbTargetDeviceRetrieveInformation")
 
-    usb.add_api_hook(usb.iof_call_driver,
-                     'ntoskrnl',
-                     'IofCallDriver'
-                     )
+    usb.add_api_hook(usb.iof_call_driver, "ntoskrnl", "IofCallDriver")
 
     # Setup out USB descriptors
     usb.init_usb_descriptors()
@@ -228,8 +207,8 @@ def main(args):
     # Emulate the module
     usb.run_module(module)
 
-    param_key = usb.get_registry_key(path='HKLM\\System\\CurrentControlSet\\Services\\*\\Parameters') # noqa
-    param_key.create_value('MaximumTransferSize', reg.REG_DWORD, 65536)
+    param_key = usb.get_registry_key(path="HKLM\\System\\CurrentControlSet\\Services\\*\\Parameters")  # noqa
+    param_key.create_value("MaximumTransferSize", reg.REG_DWORD, 65536)
 
     # Call the AddDevice function to get us setup
 
@@ -244,14 +223,14 @@ def main(args):
     print(profile)
 
     # TODO: call the EvtRead/Write
-    print(f'Found EvtIoRead at 0x{usb.pEvtIoRead:x}')
-    print(f'Found EvtIoWrite at 0x{usb.pEvtIoWrite:x}')
+    print(f"Found EvtIoRead at 0x{usb.pEvtIoRead:x}")
+    print(f"Found EvtIoWrite at 0x{usb.pEvtIoWrite:x}")
 
 
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description='USB driver emulator')
-    parser.add_argument('-f', '--file', action='store', dest='file',
-                        required=True, help='Path of USB driver to emulate')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="USB driver emulator")
+    parser.add_argument(
+        "-f", "--file", action="store", dest="file", required=True, help="Path of USB driver to emulate"
+    )
     args = parser.parse_args()
     main(args)

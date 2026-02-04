@@ -1,6 +1,6 @@
 # Reporting
 ---
-When samples have finished emulating, an emulation report can be obtained, containing all the events that were captured while executing. This report is currently formatted as a JSON object. The fields in the JSON report contain event types such as memory and object access, API calls with arguments, network activity, file system access, and other meta data. 
+When samples have finished emulating, an emulation report can be obtained, containing all the events that were captured while executing. This report is currently formatted as a JSON object. The fields in the JSON report contain event types such as memory and object access, API calls with arguments, network activity, file system access, and other meta data.
 
 ## Report Format
 ---
@@ -17,7 +17,7 @@ When samples have finished emulating, an emulation report can be obtained, conta
 * os_run
     * The operating system version that was presented during emulation
 * report_version
-    * Version of the format of the generated report
+    * Version of the format of the generated report (2.0.0)
 * emulation_total_runtime
     * Total time spent emulating the sample in seconds
 * timestamp
@@ -35,30 +35,96 @@ When samples have finished emulating, an emulation report can be obtained, conta
         * The virtual address where emulation began
     * apihash
         * As API functions are emulated their names are hashed. This can potentially be used to find similar entry points across samples regardless of architecture.
-    * apis
-        * List of API calls made by the emulated sample
-        * pc
-            * The return address where emulation will resume after the API call returns
-        * api_name
-            * Name of the module name and API name that was emulated
-        * args
-            * List of arguments passed to the emulated API call
-        * ret_val
-            * Value returned to the caller
     * ret_val
         * Value returned by the entry point
     * error
         * Any errors during emulation are logged here included a Python stack trace if applicable. Additionally, if the emulated sample encounters a memory access error, the CPU register and stack state are logged here.
-    * network_events
-        * DNS name queries and network traffic are logged here
-    * process_events
-        * When samples attempt to interact with other processes (e.g. reading/writing their virtual memory, injecting threads) these events are logged here.
-    * file_access
-        * When samples access the emulated file system, these events are tracked here.
-    * registry_access
-        * When samples access the emulated registry, these events are tracked here.
-    * handled_exceptions
-        * Exceptions that are handled by the emulated sample are logged here (e.g. SEH handlers that are dispatched)
+    * events
+        * Unified chronological list of all events captured during emulation. Events are ordered by `tick` (instruction count). All events have:
+            * tick - instruction count at time of event
+            * tid - thread ID
+            * event - event type
+        * Event types:
+            * api - API call
+                * pc - return address
+                * api_name - module.function name
+                * args - list of arguments
+                * ret_val - return value
+            * process_create - child process creation
+                * pid - process ID
+                * path - process path
+                * cmdline - command line
+            * mem_alloc - remote memory allocation
+                * pid, path - target process
+                * base, size - allocated region
+                * protect - protection flags
+            * mem_write - remote memory write
+                * pid, path - target process
+                * base, size - written region
+                * data - base64 encoded data
+            * mem_read - remote memory read
+                * pid, path - target process
+                * base, size - read region
+                * data - base64 encoded data
+            * mem_protect - remote memory protection change
+                * pid, path - target process
+                * base, size - protected region
+                * protect - new protection flags
+            * thread_create - thread creation in remote process
+                * pid, path - target process
+                * start_addr - thread entry point
+                * param - thread parameter
+            * thread_inject - thread injection
+                * pid, path - target process
+                * start_addr - thread entry point
+                * param - thread parameter
+            * file_create - file creation
+                * path - file path
+                * handle - file handle
+                * open_flags, access_flags - creation flags
+            * file_open - file open
+                * path - file path
+                * handle - file handle
+                * open_flags, access_flags - open flags
+            * file_read - file read
+                * path - file path
+                * handle, size, data, buffer
+            * file_write - file write
+                * path - file path
+                * handle, size, data, buffer
+            * reg_open_key - registry key open
+                * path - registry path
+                * handle - key handle
+                * open_flags, access_flags
+            * reg_create_key - registry key creation
+                * path - registry path
+                * handle - key handle
+                * open_flags, access_flags
+            * reg_read_value - registry value read
+                * path - registry path
+                * handle, value_name, size, data, buffer
+            * reg_list_subkeys - registry subkey enumeration
+                * path - registry path
+                * handle
+            * net_dns - DNS query
+                * query - domain name
+                * response - resolved IP
+            * net_traffic - network connection
+                * server - remote server
+                * port - remote port
+                * proto - protocol
+                * type - connection type
+                * data - base64 encoded data
+                * method - connection method
+            * net_http - HTTP request
+                * server, port, proto
+                * headers, body
+            * exception - handled exception
+                * pc - exception address
+                * instr - faulting instruction
+                * exception_code - exception code
+                * handler_address - SEH handler address
+                * registers - CPU register state
     * mem_access
         * When memory tracing is enabled, log all access to each memory block
         * tag
@@ -72,7 +138,7 @@ When samples have finished emulating, an emulation report can be obtained, conta
         * execs
             * Number of times the memory block was executed from
     * sym_accesses
-        * When memory tacing is enabled, log all access to symbols within the emulation enviroment. For example, when shellcode is manually parsing an export table to call an API function, the function that was accessed will be logged.
+        * When memory tracing is enabled, log all access to symbols within the emulation environment. For example, when shellcode is manually parsing an export table to call an API function, the function that was accessed will be logged.
     * dropped_files
         * Files that are written to disk are logged here.
     * dynamic_code_segments
@@ -89,7 +155,7 @@ Below is an example output JSON report of a shellcode payload that executes a re
     "mem_tag": "emu.shellcode.01a1b13281b7fb50740f945b4f205bbdf32399844c2264bbe027dd6447f29e40",
     "emu_version": "1.4.4",
     "os_run": "windows.6_1",
-    "report_version": "1.1.0",
+    "report_version": "2.0.0",
     "emulation_total_runtime": 1.084,
     "timestamp": 1596556067,
     "strings": {
@@ -126,8 +192,13 @@ Below is an example output JSON report of a shellcode payload that executes a re
             ],
             "instr_count": 345329,
             "apihash": "3b818f37253eb7d32c030b29fea97caf76c3199f9263fbca93268c096794605f",
-            "apis": [
+            "ret_val": "0x770002ac",
+            "error": {},
+            "events": [
                 {
+                    "tick": 100,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x109b",
                     "api_name": "kernel32.LoadLibraryA",
                     "args": [
@@ -136,6 +207,9 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x78c00000"
                 },
                 {
+                    "tick": 200,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x10ab",
                     "api_name": "ws2_32.WSAStartup",
                     "args": [
@@ -145,6 +219,9 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x0"
                 },
                 {
+                    "tick": 300,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x10ba",
                     "api_name": "ws2_32.WSASocketA",
                     "args": [
@@ -158,6 +235,9 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x4"
                 },
                 {
+                    "tick": 400,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x10d4",
                     "api_name": "ws2_32.connect",
                     "args": [
@@ -168,6 +248,19 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x0"
                 },
                 {
+                    "tick": 410,
+                    "tid": 1000,
+                    "event": "net_traffic",
+                    "server": "127.0.0.1",
+                    "port": 4444,
+                    "proto": "tcp",
+                    "method": "winsock.connect",
+                    "type": "connect"
+                },
+                {
+                    "tick": 500,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x1117",
                     "api_name": "kernel32.CreateProcessA",
                     "args": [
@@ -185,6 +278,17 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x1"
                 },
                 {
+                    "tick": 510,
+                    "tid": 1000,
+                    "event": "process_create",
+                    "pid": 1208,
+                    "path": "C:\\Windows\\system32\\cmd",
+                    "cmdline": "cmd"
+                },
+                {
+                    "tick": 600,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x1125",
                     "api_name": "kernel32.WaitForSingleObject",
                     "args": [
@@ -194,40 +298,24 @@ Below is an example output JSON report of a shellcode payload that executes a re
                     "ret_val": "0x0"
                 },
                 {
+                    "tick": 700,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x1131",
                     "api_name": "kernel32.GetVersion",
                     "args": [],
                     "ret_val": "0x1db10106"
                 },
                 {
+                    "tick": 800,
+                    "tid": 1000,
+                    "event": "api",
                     "pc": "0x1144",
                     "api_name": "kernel32.ExitProcess",
                     "args": [
                         "0x0"
                     ],
                     "ret_val": "0x0"
-                }
-            ],
-            "ret_val": "0x770002ac",
-            "error": {},
-            "network_events": {
-                "dns": [],
-                "traffic": [
-                    {
-                        "server": "127.0.0.1",
-                        "proto": "tcp",
-                        "port": 4444,
-                        "method": "winsock.connect",
-                        "type": "connect"
-                    }
-                ]
-            },
-            "process_events": [
-                {
-                    "event": "create",
-                    "pid": 1208,
-                    "path": "C:\\Windows\\system32\\cmd",
-                    "cmdline": "cmd"
                 }
             ],
             "mem_access": [
@@ -327,4 +415,5 @@ Below is an example output JSON report of a shellcode payload that executes a re
         }
     ]
 
+}
 ```

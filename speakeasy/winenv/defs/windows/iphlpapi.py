@@ -51,5 +51,5 @@ class IP_ADDR_STRING(EmuStruct):
 
 
 def get_adapter_type(type_str):
-    if type_str == 'ethernet':
+    if type_str == "ethernet":
         return MIB_IF_TYPE_ETHERNET
