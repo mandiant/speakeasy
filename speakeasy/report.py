@@ -45,16 +45,6 @@ class ErrorInfo(BaseModel):
     instr: str | None = None
 
 
-class MemAccessReport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    tag: str
-    base: HexInt
-    reads: int
-    writes: int
-    execs: int
-
-
 class SymAccessReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -136,7 +126,6 @@ class EntryPoint(BaseModel):
     ret_val: HexIntOptional = None
     error: ErrorInfo | None = None
     events: list[AnyEvent] | None = None
-    mem_access: list[MemAccessReport] | None = None
     sym_accesses: list[SymAccessReport] | None = None
     dynamic_code_segments: list[DynamicCodeSegment] | None = None
     coverage: list[int] | None = None
