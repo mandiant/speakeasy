@@ -130,6 +130,10 @@
                 "strings": {
                     "type": "boolean",
                     "description": "Return static and in-memory strings"
+                },
+                "coverage": {
+                    "type": "boolean",
+                    "description": "Enable coverage tracing of executed instruction addresses"
                 }
             },
             "additionalProperties": false,

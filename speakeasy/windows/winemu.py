@@ -86,10 +86,12 @@ class WindowsEmulator(BinaryEmulator):
         self.dyn_imps = []
         self.callbacks = []
         self.mem_trace_hooks = []
+        self.coverage_hook = None
         self.kernel_mode = False
         self.virtual_mem_base = 0x50000
 
         self.mem_tracing_enabled = False
+        self.coverage_enabled = False
         self.tmp_code_hook = None
         self.veh_handlers = []
 
@@ -148,6 +150,7 @@ class WindowsEmulator(BinaryEmulator):
 
         self.dispatch_handlers = self.exceptions.get('dispatch_handlers', True)
         self.mem_tracing_enabled = self.config_analysis.get('memory_tracing', False)
+        self.coverage_enabled = self.config_analysis.get('coverage', False)
         self.do_strings = self.config_analysis.get('strings', False)
         self.registry_config = self.config.get('registry', {})
         self.modules_always_exist = self.config_modules.get('modules_always_exist', False)
@@ -169,7 +172,7 @@ class WindowsEmulator(BinaryEmulator):
         raise NotImplementedError()
 
     def enable_code_hook(self):
-        if not self.tmp_code_hook and not self.mem_tracing_enabled:
+        if not self.tmp_code_hook and not self.mem_tracing_enabled and not self.coverage_enabled:
             self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
 
         if self.tmp_code_hook:
@@ -198,6 +201,15 @@ class WindowsEmulator(BinaryEmulator):
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write)
         )
+
+    def set_coverage_hooks(self):
+        if not self.coverage_enabled:
+            return
+
+        if self.coverage_hook:
+            return
+
+        self.coverage_hook = self.add_code_hook(cb=self._hook_code)
 
     def cast(self, obj, bytez):
         """
@@ -1560,8 +1572,10 @@ class WindowsEmulator(BinaryEmulator):
                                                  'little'))
                 return True
 
-            if not self.mem_tracing_enabled:
-                # Disabling the code hook here grants a significant speed bump
+            if self.coverage_enabled:
+                self.curr_run.coverage.append(addr)
+
+            if not self.mem_tracing_enabled and not self.coverage_enabled:
                 if not self.debug:
                     self.disable_code_hook()
 

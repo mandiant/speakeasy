@@ -8,7 +8,8 @@
 
     "analysis": {
         "memory_tracing": false,
-        "strings": true
+        "strings": true,
+        "coverage": false
     },
 
     "keep_memory_on_free": false,

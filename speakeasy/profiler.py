@@ -63,6 +63,7 @@ class Run:
         self.type = None
         self.error = {}
         self.num_apis = 0
+        self.coverage = []
 
     def get_api_count(self):
         """
@@ -485,6 +486,9 @@ class Profiler:
 
             if r.dyn_code:
                 ep.update({'dynamic_code_segments': r.dyn_code['mmap']})
+
+            if r.coverage:
+                ep.update({'coverage': r.coverage})
 
             exec_paths.append(ep)
 
