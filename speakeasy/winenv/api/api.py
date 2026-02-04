@@ -5,6 +5,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
+from speakeasy.profiler_events import TracePosition
 from speakeasy.struct import EmuStruct
 
 
@@ -204,26 +205,28 @@ class ApiHandler:
         run.args = run_args
         self.emu.add_run(run)
 
-    def _get_tick_and_tid(self):
+    def _get_current_trace_position(self) -> TracePosition:
         run = self.emu.get_current_run()
         thread = self.emu.get_current_thread()
+        proc = self.emu.get_current_process()
         tick = run.instr_cnt if run else 0
         tid = thread.tid if thread else 0
-        return tick, tid
+        pid = proc.get_id() if proc else 0
+        return TracePosition(tick=tick, tid=tid, pid=pid)
 
     def log_file_access(self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
-            profiler.log_file_access(run, tick, tid, path, event_type, data, handle, disposition, access, buffer, size)
+            pos = self._get_current_trace_position()
+            profiler.log_file_access(run, pos, path, event_type, data, handle, disposition, access, buffer, size)
 
     def log_process_event(self, proc, event_type, **kwargs):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
-            profiler.log_process_event(run, tick, tid, proc, event_type, kwargs)
+            pos = self._get_current_trace_position()
+            profiler.log_process_event(run, pos, proc, event_type, kwargs)
 
     def log_registry_access(
         self, path, event_type, value_name=None, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
@@ -231,31 +234,31 @@ class ApiHandler:
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
+            pos = self._get_current_trace_position()
             profiler.log_registry_access(
-                run, tick, tid, path, event_type, value_name, data, handle, disposition, access, buffer, size
+                run, pos, path, event_type, value_name, data, handle, disposition, access, buffer, size
             )
 
     def log_dns(self, domain, ip=""):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
-            profiler.log_dns(run, tick, tid, domain, ip)
+            pos = self._get_current_trace_position()
+            profiler.log_dns(run, pos, domain, ip)
 
     def log_network(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
-            profiler.log_network(run, tick, tid, server, port, typ=typ, proto=proto, data=data, method=method)
+            pos = self._get_current_trace_position()
+            profiler.log_network(run, pos, server, port, typ=typ, proto=proto, data=data, method=method)
 
     def log_http(self, server, port, headers="", body=b"", secure=False):
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            tick, tid = self._get_tick_and_tid()
-            profiler.log_http(run, tick, tid, server, port, headers=headers, body=body, secure=secure)
+            pos = self._get_current_trace_position()
+            profiler.log_http(run, pos, server, port, headers=headers, body=body, secure=secure)
 
     def get_max_int(self):
         # Byte order is irrelevant here

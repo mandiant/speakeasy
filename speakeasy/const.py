@@ -4,6 +4,8 @@ MEM_ALLOC = "mem_alloc"
 MEM_WRITE = "mem_write"
 MEM_READ = "mem_read"
 MEM_PROTECT = "mem_protect"
+MEM_FREE = "mem_free"
+MODULE_LOAD = "module_load"
 THREAD_INJECT = "thread_inject"
 THREAD_CREATE = "thread_create"
 
