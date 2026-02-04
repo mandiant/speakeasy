@@ -604,6 +604,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             self.builtin_hooks_set = True
 
         self.set_mem_tracing_hooks()
+        self.set_coverage_hooks()
 
     def get_kernel_base(self):
         """

@@ -90,6 +90,7 @@ class Main:
         self.do_raw = args.do_raw
         self.raw_offset = args.raw_offset
         self.do_memtrace = args.do_memtrace
+        self.do_coverage = args.do_coverage
         self.module_dir = args.module_dir
         self.arch = args.arch
         self.timeout = 0
@@ -117,11 +118,17 @@ class Main:
 
             if self.do_memtrace:
                 analysis = self.cfg.get('analysis', {})
-                # Override and enable memory tracing
                 if analysis:
                     analysis['memory_tracing'] = True
                 else:
                     self.cfg.update({'analysis': {'memory_tracing': True}})
+
+            if self.do_coverage:
+                analysis = self.cfg.get('analysis', {})
+                if analysis:
+                    analysis['coverage'] = True
+                else:
+                    self.cfg.update({'analysis': {'coverage': True}})
 
             if self.module_dir:
                 modules = self.cfg.get('modules', {})
@@ -214,6 +221,10 @@ def main():
                         required=False, help='Enables memory tracing.\n'
                                              'This will log all memory access by the '
                                              'sample but will impact speed')
+    parser.add_argument('--coverage', action='store_true', dest='do_coverage',
+                        required=False, help='Enables coverage tracing.\n'
+                                             'This will log all executed instruction '
+                                             'addresses but will impact speed')
     parser.add_argument('-r', '--raw', action='store_true', dest='do_raw',
                         required=False, help='Attempt to emulate file as-is '
                                              'with no parsing (e.g. shellcode)')
