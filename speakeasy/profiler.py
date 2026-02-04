@@ -58,7 +58,6 @@ from speakeasy.report import (
     EntryPoint,
     ErrorInfo,
     LoadedModule,
-    MemAccessReport,
     MemoryAccesses,
     MemoryLayout,
     MemoryRegion,
@@ -635,21 +634,8 @@ class Profiler:
                         evt.data = evt.data[:1024]
                     events.append(evt)
 
-            mem_accesses = None
             sym_accesses = None
-            if r.mem_access:
-                mem_accesses = []
-                for mmap, maccess in r.mem_access.items():
-                    mem_accesses.append(
-                        MemAccessReport(
-                            tag=mmap.get_tag(),
-                            base=mmap.get_base(),
-                            reads=maccess.reads,
-                            writes=maccess.writes,
-                            execs=maccess.execs,
-                        )
-                    )
-
+            if r.sym_access:
                 sym_accesses = []
                 for address, maccess in r.sym_access.items():
                     sym_accesses.append(
@@ -727,7 +713,6 @@ class Profiler:
                 ret_val=r.ret_val,
                 error=error_info,
                 events=events,
-                mem_access=mem_accesses,
                 sym_accesses=sym_accesses,
                 dynamic_code_segments=dyn_code_segments,
                 coverage=r.coverage if r.coverage else None,
