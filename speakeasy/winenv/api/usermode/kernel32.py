@@ -974,6 +974,12 @@ class Kernel32(api.ApiHandler):
                 emu_perms = self.win_perms_to_emu_perms(flProtect)
                 buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
 
+                proc = emu.get_current_process()
+                if proc:
+                    self.log_process_event(
+                        proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[3]
+                    )
+
                 emu._set_dyn_code_hook(buf, size)
 
                 # In the wild, I noticed some x64 malware samples that

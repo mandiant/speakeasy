@@ -729,8 +729,53 @@ class Win32Emulator(WindowsEmulator):
         self.curr_run.ret_val = self.get_return_val()
         if self.profiler:
             self.profiler.log_dropped_files(self.curr_run, self.get_dropped_files())
+            self._capture_memory_layout()
 
         return self._exec_next_run()
+
+    def _capture_memory_layout(self):
+        """
+        Capture current memory layout and loaded modules for the run report.
+        """
+        prot_map = {
+            common.PERM_MEM_NONE: "---",
+            common.PERM_MEM_READ: "r--",
+            common.PERM_MEM_WRITE: "-w-",
+            common.PERM_MEM_EXEC: "--x",
+            common.PERM_MEM_READ | common.PERM_MEM_WRITE: "rw-",
+            common.PERM_MEM_READ | common.PERM_MEM_EXEC: "r-x",
+            common.PERM_MEM_WRITE | common.PERM_MEM_EXEC: "-wx",
+            common.PERM_MEM_RWX: "rwx",
+        }
+
+        for mm in self.get_mem_maps():
+            prot = prot_map.get(mm.get_prot(), "???")
+            access_stats = None
+            if mm in self.curr_run.mem_access:
+                ma = self.curr_run.mem_access[mm]
+                access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
+            self.curr_run.memory_regions.append(
+                {
+                    "tag": mm.get_tag() or "",
+                    "address": mm.get_base(),
+                    "size": mm.get_size(),
+                    "prot": prot,
+                    "is_free": mm.is_free(),
+                    "accesses": access_stats,
+                }
+            )
+
+        for pe, ranges, emu_path in self.modules:
+            mod_name = ntpath.basename(emu_path) if emu_path else (pe.path or "unknown")
+            self.curr_run.loaded_modules.append(
+                {
+                    "name": mod_name,
+                    "path": emu_path or pe.path or "",
+                    "base": pe.base,
+                    "size": pe.image_size,
+                    "segments": [],
+                }
+            )
 
     def heap_alloc(self, size, heap="None"):
         """

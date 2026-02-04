@@ -16,6 +16,7 @@ import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
 from speakeasy.profiler import MemAccess, Run
+from speakeasy.profiler_events import TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
@@ -1111,7 +1112,9 @@ class WindowsEmulator(BinaryEmulator):
         if self.profiler:
             tick = self.curr_run.instr_cnt if self.curr_run else 0
             tid = self.curr_thread.tid if self.curr_thread else 0
-            self.profiler.log_api(self.curr_run, tick, tid, pc, imp_api, rv, argv)
+            pid = self.curr_process.get_id() if self.curr_process else 0
+            pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
+            self.profiler.log_api(self.curr_run, pos, imp_api, rv, argv)
 
     def handle_import_func(self, dll, name):
         """
@@ -1970,7 +1973,9 @@ class WindowsEmulator(BinaryEmulator):
             if self.profiler:
                 tick = run.instr_cnt if run else 0
                 tid = self.curr_thread.tid if self.curr_thread else 0
-                self.profiler.log_exception(run, tick, tid, pc, instr, except_code, entry.Handler, regs)
+                pid = self.curr_process.get_id() if self.curr_process else 0
+                pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
+                self.profiler.log_exception(run, pos, instr, except_code, entry.Handler, regs)
 
             # EBX clobber, -1 is what I observed inside a VM
             self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
