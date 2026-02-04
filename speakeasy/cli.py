@@ -97,9 +97,12 @@ class Main:
         self.argv = args.params
         self.logger = get_logger()
 
-        if not self.config_path:
-            self.config_path = "./speakeasy/configs/default.json"
-        if not os.path.isfile(self.config_path):
+        if self.config_path:
+            if not os.path.isfile(self.config_path):
+                parser.print_help()
+                self.logger.error(f"[-] Config file not found: {self.config_path}")
+                return
+        else:
             self.config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
             if not os.path.isfile(self.config_path):
                 parser.print_help()
