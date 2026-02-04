@@ -34,7 +34,7 @@ class Wkscli(api.ApiHandler):
             argv[0] = server
 
         # Assumes the server being queried is the local computer
-        domain = emu.get_domain()
+        domain = emu.config.domain
         argv[1] = domain
         namebuf = self.mem_alloc(emu.get_ptr_size())
         self.write_wide_string(domain, namebuf)

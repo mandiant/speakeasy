@@ -23,8 +23,8 @@ dependencies = [
     "capstone",
     "lznt1",
     "unicorn>=2.1.4",
-    "jsonschema",
     "pycryptodome",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -51,7 +51,6 @@ where = ["."]
 [tool.setuptools.package-data]
 speakeasy = [
     "configs/*.json",
-    "config_schema.json",
     "resources/**/*",
     "winenv/decoys/**/*",
 ]

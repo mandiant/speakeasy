@@ -1461,7 +1461,7 @@ class Ntoskrnl(api.ApiHandler):
 
         rv = ddk.STATUS_SUCCESS
 
-        osver = emu.get_os_version()
+        osver = emu.config.os_ver
         size = int.from_bytes(self.mem_read(lpVersionInformation, 4), "little")
 
         if size == self.sizeof(self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())):
@@ -1470,9 +1470,9 @@ class Ntoskrnl(api.ApiHandler):
             verinfo = self.win.RTL_OSVERSIONINFOEXW(emu.get_ptr_size())
 
         vi = self.mem_cast(verinfo, lpVersionInformation)
-        vi.dwMajorVersion = osver["major"]
-        vi.dwMinorVersion = osver["minor"]
-        vi.dwBuildNumber = osver["build"]
+        vi.dwMajorVersion = osver.major
+        vi.dwMinorVersion = osver.minor
+        vi.dwBuildNumber = osver.build
 
         self.mem_write(lpVersionInformation, self.get_bytes(vi))
 
@@ -2498,8 +2498,8 @@ class Ntoskrnl(api.ApiHandler):
         """
         pmaj, pmin, bn, csdv = argv
 
-        ver = self.get_os_version()
-        major, minor, build = ver["major"], ver["minor"], ver["build"]
+        ver = self.emu.config.os_ver
+        major, minor, build = ver.major, ver.minor, ver.build
 
         if pmaj:
             self.mem_write(pmaj, major.to_bytes(4, "little"))

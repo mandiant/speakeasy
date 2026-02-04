@@ -157,15 +157,17 @@ class RegistryManager:
         """
         See if the emulator config file contains a handler for the requested registry path
         """
-        for key in self.config.get("keys", []):
-            if key["path"].lower() == path.lower():
+        if not self.config:
+            return None
+        for key in self.config.keys:
+            if key.path.lower() == path.lower():
                 new_key = RegKey(path)
-                for value in key.get("values", []):
-                    val_type = value.get("type")
+                for value in key.values:
+                    val_type = value.type
                     vts = regdefs.get_flag_value(val_type)  # noqa
 
-                    val_name = value.get("name", "")
-                    data = value.get("data")
+                    val_name = value.name or ""
+                    data = value.data
                     new_key.create_value(val_name, val_type, data)
                 return new_key
         return None

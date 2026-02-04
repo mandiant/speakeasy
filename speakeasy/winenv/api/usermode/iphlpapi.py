@@ -28,7 +28,7 @@ class Iphlpapi(api.ApiHandler):
         ptr_adapter_info, size_ptr = argv
         rv = 0
 
-        adapters = emu.get_network_adapters()
+        adapters = emu.config.network.adapters
         adapter_count = len(adapters)
 
         if not ptr_adapter_info:

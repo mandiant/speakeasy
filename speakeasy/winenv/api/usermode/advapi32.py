@@ -872,8 +872,7 @@ class AdvApi32(api.ApiHandler):
         rv = False
         cw = self.get_char_width(ctx)
 
-        user = emu.get_user()
-        user_name = user.get("name")
+        user_name = emu.config.user.name
         argv[0] = user_name
 
         if lpBuffer:
@@ -945,7 +944,7 @@ class AdvApi32(api.ApiHandler):
             rv = False
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
 
-        if info_class == 20 and info and emu.get_user().get("is_admin", True):
+        if info_class == 20 and info and emu.config.user.is_admin:
             self.mem_write(info, (1).to_bytes(4, "little"))
         if ret_len:
             self.mem_write(ret_len, (4).to_bytes(4, "little"))
@@ -1040,12 +1039,12 @@ class AdvApi32(api.ApiHandler):
         acctname = self.read_mem_string(ptr_acctname, cw)
         argv[1] = acctname
 
-        user = emu.get_user().get("name")
+        user = emu.config.user.name
         # Currently only supporting user SIDs specified in the config
         if user != acctname:
             return rv
 
-        str_sid = emu.get_user().get("sid")
+        str_sid = emu.config.user.sid
         if not str_sid:
             return rv
 
@@ -1063,7 +1062,7 @@ class AdvApi32(api.ApiHandler):
         if cbsid < side_struct_size:
             return rv
 
-        domain = emu.get_domain()
+        domain = emu.config.domain
         cchdomname = self.mem_read(ptr_cchdomname, 4)
         cbcchdomname = int.from_bytes(cchdomname, "little")
         argv[5] = cbcchdomname

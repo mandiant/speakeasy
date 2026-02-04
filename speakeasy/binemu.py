@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import fnmatch
-import json
 import re
 import traceback
 from abc import ABC, abstractmethod
@@ -10,10 +9,12 @@ from typing import Any
 import speakeasy.common as common
 import speakeasy.version as version
 import speakeasy.winenv.arch as e_arch
+from speakeasy.config import SpeakeasyConfig
 from speakeasy.engines import unicorn_eng
 from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
+from speakeasy.report import Report
 
 EMU_ENGINES = (("unicorn", unicorn_eng.EmuEngine),)
 
@@ -101,58 +102,36 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return self.profiler
 
-    def get_report(self):
+    def get_report(self) -> Report | None:
         """
         Get the emulation report for all runs that were executed
         """
         if self.profiler:
             return self.profiler.get_report()
+        return None
 
-    def get_json_report(self):
+    def get_json_report(self) -> str | None:
         """
         Get the emulation report for all runs that were executed formatted as a JSON string
         """
         if self.profiler:
             return self.profiler.get_json_report()
+        return None
 
-    def _parse_config(self, config):
+    def _parse_config(self, config: SpeakeasyConfig):
         """
         Parse the config to be used for emulation
         """
-        if isinstance(config, str):
-            config = json.loads(config)
         self.config = config
 
-        _eng = config.get("emu_engine", "")
+        _eng = config.emu_engine
         for name, eng in EMU_ENGINES:
             if name.lower() == _eng.lower():
                 self.emu_eng = eng()
         if not self.emu_eng:
             raise EmuException(f"Unsupported emulation engine: {_eng}")
 
-        self.osversion = config.get("os_ver", {})
-        self.env = config.get("env", {})
-        self.user_config = config.get("user", {})
-        self.domain = config.get("domain")
-        self.hostname = config.get("hostname")
-        self.symlinks = config.get("symlinks", [])
-        self.config_modules = config.get("modules", {})
-        self.config_system_modules = self.config_modules.get("system_modules", [])
-        self.config_processes = config.get("processes", [])
-        self.config_user_modules = self.config_modules.get("user_modules", [])
-
-        self.config_analysis = config.get("analysis", {})
-        self.max_instructions = config.get("max_instructions", -1)
-        self.timeout = config.get("timeout", 0)
-        self.max_api_count = config.get("max_api_count", 5000)
-        self.exceptions = config.get("exceptions", {})
-        self.drive_config = config.get("drives", [])
-        self.filesystem_config = config.get("filesystem", {})
-        self.keep_memory_on_free = config.get("keep_memory_on_free", False)
-
-        self.network_config = config.get("network", {})
-        self.network_adapters = self.network_config.get("adapters", [])
-        self.command_line = config.get("command_line", "")
+        self.env = dict(config.env)
 
     def get_emu_version(self):
         """
@@ -160,42 +139,19 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return version.__version__
 
-    def get_os_version(self):
-        """
-        Get version of the OS being emulated
-        """
-        return self.osversion
-
     def get_osver_string(self):
         """
         Get the human readable OS version string
         """
-        osver = self.get_os_version()
+        osver = self.config.os_ver
         if osver:
-            os_name = osver.get("name", "")
-            major = osver.get("major")
-            minor = osver.get("minor")
+            os_name = osver.name or ""
+            major = osver.major
+            minor = osver.minor
             if major is not None and minor is not None:
                 verstr = f"{os_name}.{major}_{minor}"
                 return verstr
-
-    def get_domain(self):
-        """
-        Get domain of the machine being emulated
-        """
-        return self.domain
-
-    def get_hostname(self):
-        """
-        Get hostname of the machine being emulated
-        """
-        return self.hostname
-
-    def get_user(self):
-        """
-        Get the current emulated user properties
-        """
-        return self.user_config
+        return None
 
     def sizeof(self, obj):
         """
@@ -228,35 +184,11 @@ class BinaryEmulator(MemoryManager, ABC):
         if self.profiler:
             self.profiler.set_start_time()
         try:
-            self.emu_eng.start(addr, timeout=self.timeout, count=self.max_instructions)
+            self.emu_eng.start(addr, timeout=self.config.timeout, count=self.config.max_instructions)
         except Exception:
             if self.profiler:
                 self.profiler.log_error(traceback.format_exc())
             self.on_emu_complete()
-
-    def get_network_config(self):
-        """
-        Get the network settings specified in the network section of the config file
-        """
-        return self.network_config
-
-    def get_network_adapters(self):
-        """
-        Get the network adapters specified in the network section of the config file
-        """
-        return self.network_adapters
-
-    def get_filesystem_config(self):
-        """
-        Get the filesystem settings specified in the filesystem section of the config file
-        """
-        return self.filesystem_config
-
-    def get_drive_config(self):
-        """
-        Get the drive settings specified in the drives section of the config file
-        """
-        return self.drive_config
 
     def reg_write(self, reg, val):
         """

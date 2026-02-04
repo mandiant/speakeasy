@@ -26,4 +26,4 @@ class Advpack(api.ApiHandler):
         """
         bool IsNTAdmin();
         """
-        return emu.get_user().get("is_admin", False)
+        return emu.config.user.is_admin

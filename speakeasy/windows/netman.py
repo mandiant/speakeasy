@@ -59,9 +59,9 @@ class Socket:
     def fill_recv_queue(self, responses):
 
         for resp in responses:
-            mode = resp.get("mode", "")
+            mode = getattr(resp, "mode", "") or ""
             if mode.lower() == "default":
-                default_resp_path = resp.get("path")
+                default_resp_path = getattr(resp, "path", None)
                 if default_resp_path:
                     default_resp_path = normalize_response_path(default_resp_path)
                     with open(default_resp_path, "rb") as f:
@@ -201,37 +201,38 @@ class WininetRequest(WininetComponent):
         if self.response:
             return self.response
 
-        http = cfg.get("http")
+        http = cfg.http if cfg else None
         if not http:
             raise NetworkEmuError("No HTTP configuration supplied")
-        resps = http.get("responses")
+        resps = http.responses
         if not resps:
             raise NetworkEmuError("No HTTP responses supplied")
 
         self.response = None
+        default_resp_path = None
         for res in resps:
-            verb = res.get("verb", "")
+            verb = res.verb or ""
             if verb.lower() == self.verb:
-                resp_files = res.get("files", [])
+                resp_files = res.files
                 if resp_files:
                     for file in resp_files:
-                        mode = file.get("mode", "")
+                        mode = file.mode or ""
                         if mode.lower() == "by_ext":
-                            ext = file.get("ext", "")
+                            ext = getattr(file, "ext", "") or ""
                             fn, obj_ext = os.path.splitext(self.objname.path)
 
                             if ext.lower().strip(".") == obj_ext.lower().strip("."):
-                                path = file.get("path")
-                                path = normalize_response_path(path)
-
-                                with open(path, "rb") as f:
-                                    self.response = BytesIO(f.read())
+                                path = getattr(file, "path", None)
+                                if path:
+                                    path = normalize_response_path(path)
+                                    with open(path, "rb") as f:
+                                        self.response = BytesIO(f.read())
                         elif mode.lower() == "default":
-                            default_resp_path = file.get("path")
-                            default_resp_path = normalize_response_path(default_resp_path)
+                            default_resp_path = getattr(file, "path", None)
+                            if default_resp_path:
+                                default_resp_path = normalize_response_path(default_resp_path)
 
                     if not self.response and default_resp_path:
-                        default_resp_path = normalize_response_path(default_resp_path)
                         with open(default_resp_path, "rb") as f:
                             self.response = BytesIO(f.read())
 
@@ -306,10 +307,11 @@ class NetworkManager:
         self.curr_fd = 4
         self.curr_handle = 0x20
         self.config = config
-        self.dns = {}
+        self.dns = None
 
         WininetComponent.config = config
-        self.dns = self.config.get("dns")
+        if config:
+            self.dns = config.dns
 
     def new_socket(self, family, stype, protocol, flags):
 
@@ -318,12 +320,10 @@ class NetworkManager:
         sock = Socket(fd, family, stype, protocol, flags)
         self.curr_fd += 4
 
-        if self.config:
-            winsock = self.config.get("winsock")
-            if winsock:
-                responses = winsock.get("responses")
-                if responses:
-                    sock.fill_recv_queue(responses)
+        if self.config and self.config.winsock:
+            responses = self.config.winsock.responses
+            if responses:
+                sock.fill_recv_queue(responses)
 
         self.sockets.update({fd: sock})
         return sock
@@ -333,7 +333,7 @@ class NetworkManager:
         if not self.dns:
             return None
 
-        names = self.dns.get("names")
+        names = self.dns.names
 
         # Do we have an IP for this name?
         if domain.lower() not in names.keys():
@@ -348,7 +348,7 @@ class NetworkManager:
         """
 
         def _read_txt_data(txt):
-            path = txt.get("path")
+            path = txt.path
             if path:
                 path = normalize_response_path(path)
                 with open(path, "rb") as f:
@@ -357,11 +357,11 @@ class NetworkManager:
         if not self.dns:
             return None
 
-        txts = self.dns.get("txt", [])
-        txt = [t for t in txts if t.get("name", "") == domain]
+        txts = self.dns.txt or []
+        txt = [t for t in txts if (t.name or "") == domain]
         if txt:
             return _read_txt_data(txt[0])
-        txt = [t for t in txts if t.get("name", "") == "default"]
+        txt = [t for t in txts if (t.name or "") == "default"]
         if txt:
             return _read_txt_data(txt[0])
 
