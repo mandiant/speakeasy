@@ -165,20 +165,22 @@ class File:
         Based on the emulation config, determine what data
         to return from the read request
         """
+        if not self.config:
+            return io.BytesIO(b"")
 
-        path = self.config.get("path")
+        path = getattr(self.config, "path", None)
         if path:
             path = normalize_response_path(path)
             with open(path, "rb") as f:
                 return io.BytesIO(f.read())
-        bf = self.config.get("byte_fill")
+        bf = getattr(self.config, "byte_fill", None)
         if bf:
-            byte = bf.get("byte")
+            byte = bf.byte
             if byte.startswith("0x"):
                 byte = 0xFF & int(byte, 0)
             else:
                 byte = 0xFF & int(byte, 16)
-            size = bf.get("size")
+            size = bf.size
             b = (byte).to_bytes(1, "little")
             return b * size
         return io.BytesIO(b"")
@@ -220,15 +222,12 @@ class FileManager:
         self.config = config
 
         # "files" key of config
-        self.file_config = self.config.get("filesystem", {})
+        self.file_config = self.config.filesystem
         self.emu = emu
 
-        cmdline = self.config.get("command_line")
+        cmdline = self.config.command_line or ""
 
-        if cmdline is None:
-            cmdline = ""
-
-        self.emulated_binname = shlex.split(cmdline)[0]
+        self.emulated_binname = shlex.split(cmdline)[0] if cmdline else ""
 
         # First file in this list seems to always be the module itself
         self.files = []
@@ -247,8 +246,8 @@ class FileManager:
             return hnd
 
     def walk_files(self):
-        for f in self.file_config.get("files", []):
-            path = f.get("emu_path")
+        for f in self.file_config.files:
+            path = getattr(f, "emu_path", None)
             if not path:
                 continue
             yield path
@@ -286,20 +285,19 @@ class FileManager:
         return self.files
 
     def handle_file_data(self, fconf):
-
-        path = fconf.get("path")
+        path = getattr(fconf, "path", None)
         if path:
             path = normalize_response_path(path)
             with open(path, "rb") as f:
                 return f.read()
-        bf = fconf.get("byte_fill")
+        bf = getattr(fconf, "byte_fill", None)
         if bf:
-            byte = bf.get("byte")
+            byte = bf.byte if hasattr(bf, "byte") else bf.get("byte")
             if byte.startswith("0x"):
                 byte = 0xFF & int(byte, 0)
             else:
                 byte = 0xFF & int(byte, 16)
-            size = bf.get("size")
+            size = bf.size if hasattr(bf, "size") else bf.get("size")
             b = (byte).to_bytes(1, "little")
             return b * size
 
@@ -330,47 +328,44 @@ class FileManager:
     def get_emu_file(self, path):
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
-        for f in self.file_config.get("files", []):
-            mode = f.get("mode")
-            if mode == "full_path":
-                if fnmatch.fnmatch(path.lower(), f.get("emu_path").lower()):
+        for f in self.file_config.files:
+            if f.mode == "full_path":
+                if fnmatch.fnmatch(path.lower(), f.emu_path.lower()):
                     return f
 
-        all_modules = self.config.get("modules")
+        all_modules = self.config.modules
 
         if self.emu.arch == _arch.ARCH_X86:
-            decoy_dir = all_modules.get("module_directory_x86", [])
+            decoy_dir = all_modules.module_directory_x86 or ""
         else:
-            decoy_dir = all_modules.get("module_directory_x64", [])
+            decoy_dir = all_modules.module_directory_x64 or ""
 
         ext = os.path.splitext(path)[1]
 
         # Check if we can load the contents of a decoy DLL
-        for f in all_modules.get("user_modules", []):
-            if f.get("path") == path:
+        for f in all_modules.user_modules:
+            if f.path == path:
                 newconf = dict()
-                newconf["path"] = os.path.join(decoy_dir, f.get("name") + ext)
+                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
                 return newconf
 
-        for f in all_modules.get("system_modules", []):
-            if f.get("path") == path:
+        for f in all_modules.system_modules:
+            if f.path == path:
                 newconf = dict()
-                newconf["path"] = os.path.join(decoy_dir, f.get("name") + ext)
+                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
                 return newconf
 
         # If no full path handler exists, do we have an extension handler?
-        for f in self.file_config.get("files", []):
+        for f in self.file_config.files:
             path_ext = ntpath.splitext(path)[-1:][0].strip(".")
             if path_ext:
-                mode = f.get("mode")
-                if mode == "by_ext":
-                    if path_ext.lower() == f.get("ext"):
+                if f.mode == "by_ext":
+                    if path_ext.lower() == f.ext:
                         return f
 
         # Finally, do we have a catch-all default handler?
-        for f in self.file_config.get("files", []):
-            mode = f.get("mode")
-            if mode == "default":
+        for f in self.file_config.files:
+            if f.mode == "default":
                 return f
         return None
 
@@ -425,7 +420,7 @@ class FileManager:
             if not fconf:
                 return hnd
 
-            real_path = fconf.get("path", "")
+            real_path = getattr(fconf, "path", None) or ""
             real_path = normalize_response_path(real_path)
             if not truncate:
                 if real_path and not os.path.exists(real_path):

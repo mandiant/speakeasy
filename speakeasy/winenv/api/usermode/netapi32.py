@@ -35,7 +35,7 @@ class NetApi32(api.ApiHandler):
             argv[0] = server
 
         # Assumes the server being queried is the local computer
-        domain = emu.get_domain()
+        domain = emu.config.domain
         argv[1] = domain
         namebuf = self.mem_alloc(emu.get_ptr_size())
         self.write_wide_string(domain, namebuf)
@@ -85,21 +85,21 @@ class NetApi32(api.ApiHandler):
         platform_id = 500  # PLATFORM_ID_NT
         wki.wki_platform_id = platform_id
 
-        hostname = emu.get_hostname()
+        hostname = emu.config.hostname
         computername_ptr = self.mem_alloc(2 + (len(hostname) * 2))
         # Assuming Unicode; "This string is Unicode if _WIN32_WINNT or
         # FORCE_UNICODE are defined."
         self.write_mem_string(hostname, computername_ptr, width=2)
         wki.wki_computername = computername_ptr
 
-        domain = emu.get_domain()
+        domain = emu.config.domain
         langroup_ptr = self.mem_alloc(2 + (len(domain) * 2))
         self.write_mem_string(domain, langroup_ptr, width=2)
         wki.wki_langroup = langroup_ptr
 
-        osver = emu.get_os_version()
-        wki.wki_ver_major = osver["major"]
-        wki.wki_ver_minor = osver["minor"]
+        osver = emu.config.os_ver
+        wki.wki_ver_major = osver.major
+        wki.wki_ver_minor = osver.minor
 
         self.mem_write(wki_addr, wki.get_bytes())
         self.mem_write(bufptr, wki_addr.to_bytes(emu.get_ptr_size(), "little"))

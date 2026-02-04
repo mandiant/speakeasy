@@ -145,7 +145,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.mem_write(pe.base, pe.mapped_image)
 
         # Strings the initial buffer so that we can detect decoded strings later on
-        if self.profiler and self.do_strings:
+        if self.profiler and self.config.analysis.strings:
             astrs = [a[1] for a in self.get_ansi_strings(pe.mapped_image)]
             wstrs = [u[1] for u in self.get_unicode_strings(pe.mapped_image)]
 
@@ -207,22 +207,17 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         # Initalize any DRIVER_OBJECTs needed by the module
         for mc in modules_config:
-            drv = mc.get("driver")
+            drv = mc.driver
             if drv:
-                mod = [m for m in sysmods if m.name == mc.get("name")]
+                mod = [m for m in sysmods if m.name == mc.name]
                 if not mod:
                     continue
 
                 mod = mod[0]
 
-                driver = self.create_driver_object(name=drv.get("name"), pe=mod)
-                devs = drv.get("devices")
-                for dev in devs:
-                    name = dev.get("name", "")
-                    ext_size = dev.get("ext_size", 0)
-                    devtype = dev.get("devtype", 0)
-                    chars = dev.get("chars", 0)
-                    self.create_device_object(name, driver, ext_size, devtype, chars)
+                driver = self.create_driver_object(name=drv.name, pe=mod)
+                for dev in drv.devices:
+                    self.create_device_object(dev.name, driver, 0, 0, 0)
 
         for m in self.modules:
             mod = m[0]
@@ -235,15 +230,15 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         Get processes that exist in the emulation space
         """
         if not self.processes:
-            self.init_processes(self.config_processes)
+            self.init_processes(self.config.processes)
         return self.processes
 
     def init_processes(self, processes):
         for proc in processes:
             p = objman.Process(self)
             self.add_object(p)
-            p.name = proc.get("name", "")
-            p.pid = proc.get("pid")
+            p.name = proc.name
+            p.pid = proc.pid
 
             if p.name.lower() == "system":
                 p.pid = 4
@@ -251,13 +246,13 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
             if not p.pid:
                 p.pid = self.om.new_id()
-            base = proc.get("base_addr")
+            base = proc.base_addr
 
             if isinstance(base, str):
                 base = int(base, 16)
             p.base = base
             if not p.path:
-                p.path = proc.get("path")
+                p.path = proc.path
             p.image = ntpath.basename(p.path)
 
             # Create an initial thread for each process
@@ -577,7 +572,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         if not self.emu_complete:
             self.emu_complete = True
 
-            if self.do_strings and self.profiler:
+            if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
                 dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]]
                 dec_unicode = [u[1] for u in dec_unicode if u not in self.profiler.strings["unicode"]]
@@ -664,8 +659,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         self.setup_msrs()
 
-        for sl in self.symlinks:
-            self.om.add_symlink(sl["name"], sl["target"])
+        for sl in self.config.symlinks:
+            self.om.add_symlink(sl.name, sl.target)
 
     def setup_msrs(self):
         """

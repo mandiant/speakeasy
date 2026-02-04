@@ -33,8 +33,7 @@ class Secur32(api.ApiHandler):
         if name_format:
             argv[0] = name_format
 
-        user = emu.get_user()
-        user_name = user.get("name")
+        user_name = emu.config.user.name
         user_name_len = len(user_name)
 
         argv[1] = user_name

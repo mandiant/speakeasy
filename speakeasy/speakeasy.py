@@ -8,14 +8,15 @@ import zipfile
 from collections.abc import Callable
 from io import BytesIO
 
-import jsonschema
-import jsonschema.exceptions
 from pefile import MACHINE_TYPE
+from pydantic import ValidationError
 
 import speakeasy
 import speakeasy.winenv.arch as _arch
 from speakeasy import PeFile, Win32Emulator, WinKernelEmulator
+from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
+from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
 
 
 class Speakeasy:
@@ -59,7 +60,7 @@ class Speakeasy:
     def __exit__(self, exc_type, exc_value, traceback):
         del self
 
-    def _init_config(self, config: dict) -> None:
+    def _init_config(self, config: dict | SpeakeasyConfig | None) -> None:
         """
         Init the emulator config
         args:
@@ -68,23 +69,20 @@ class Speakeasy:
         return:
             None
         """
-        if not config:
+        if config is None:
             config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
             with open(config_path) as f:
-                self.config = json.load(f)
-        else:
-            self.config = config
+                config = json.load(f)
 
-        try:
-            validate_config(self.config)
-        except jsonschema.exceptions.SchemaError as err:
-            if self.logger:
-                self.logger.exception("Invalid config schema: %s", str(err))
-            raise ConfigError("Invalid config schema")
-        except jsonschema.exceptions.ValidationError as err:
-            if self.logger:
-                self.logger.exception("Invalid config: %s", str(err))
-            raise ConfigError("Invalid config")
+        if isinstance(config, SpeakeasyConfig):
+            self.config = config
+        else:
+            try:
+                self.config = SpeakeasyConfig.model_validate(config)
+            except ValidationError as err:
+                if self.logger:
+                    self.logger.exception("Invalid config: %s", str(err))
+                raise ConfigError("Invalid config") from err
 
     def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
         """
@@ -272,12 +270,12 @@ class Speakeasy:
         return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
 
     @check_init
-    def get_report(self) -> dict:
+    def get_report(self) -> Report:
         """
         Get the emulation report from the emulator
 
         return:
-            Get the raw emulation report as a python dictionary
+            Get the emulation report as a Pydantic Report model
         """
         return self.emu.get_report()
 
@@ -643,7 +641,7 @@ class Speakeasy:
         return:
             A Bytes object containing a zip archive of dropped files
         """
-        manifest = []
+        manifest: list[FileManifestEntry] = []
         _zip = BytesIO()
         files = self.get_dropped_files()
 
@@ -654,11 +652,17 @@ class Speakeasy:
             for f in files:
                 path = f.get_path()
                 file_name = ntpath.basename(path)
-                manifest.append({"path": path, "file_name": file_name, "size": f.get_size(), "sha256": f.get_hash()})
+                entry = FileManifestEntry(
+                    path=path,
+                    file_name=file_name,
+                    size=f.get_size(),
+                    sha256=f.get_hash(),
+                )
+                manifest.append(entry)
                 zf.writestr(file_name, f.get_data())
 
-            manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr("speakeasy_manifest.json", manifest)
+            manifest_json = "[" + ",".join(e.model_dump_json(indent=4) for e in manifest) + "]"
+            zf.writestr("speakeasy_manifest.json", manifest_json)
 
         return _zip.getvalue()
 
@@ -887,7 +891,7 @@ class Speakeasy:
         return:
             Bytes object containing a zip of all memory
         """
-        manifest = []
+        manifest: list[ProcessMemoryManifest] = []
         _zip = BytesIO()
 
         loaded_bins = [os.path.splitext(os.path.basename(b))[0] for b in self.loaded_bins]
@@ -897,12 +901,12 @@ class Speakeasy:
             [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]
 
             for process in procs:
-                memory_blocks = []
+                memory_blocks: list[MemoryBlock] = []
                 arch = self.emu.get_arch()
                 if arch == _arch.ARCH_X86:
-                    arch = "x86"
+                    arch_str = "x86"
                 else:
-                    arch = "amd64"
+                    arch_str = "amd64"
 
                 if process:
                     pid = process.get_pid()
@@ -910,7 +914,14 @@ class Speakeasy:
                 else:
                     continue
 
-                manifest.append({"pid": pid, "process_name": path, "arch": arch, "memory_blocks": memory_blocks})
+                proc_manifest = ProcessMemoryManifest(
+                    pid=pid,
+                    process_name=path,
+                    arch=arch_str,
+                    memory_blocks=memory_blocks,
+                )
+                manifest.append(proc_manifest)
+
                 for block in self.get_memory_dumps():
                     tag, base, size, is_free, _proc, data = block
 
@@ -931,36 +942,29 @@ class Speakeasy:
 
                     file_name = f"{tag}.mem"
 
-                    memory_blocks.append(
-                        {
-                            "tag": tag,
-                            "base": hex(base),
-                            "size": hex(size),
-                            "is_free": is_free,
-                            "sha256": _hash,
-                            "file_name": file_name,
-                        }
+                    mem_block = MemoryBlock(
+                        tag=tag,
+                        base=base,
+                        size=size,
+                        is_free=is_free,
+                        sha256=_hash,
+                        file_name=file_name,
                     )
+                    memory_blocks.append(mem_block)
                     zf.writestr(file_name, data)
 
-            manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr("speakeasy_manifest.json", manifest)
+            manifest_json = "[" + ",".join(m.model_dump_json(indent=4) for m in manifest) + "]"
+            zf.writestr("speakeasy_manifest.json", manifest_json)
 
         return _zip.getvalue()
 
 
-def validate_config(config) -> None:
+def validate_config(config: dict) -> SpeakeasyConfig:
     """
-    Validates the given configuration objects against the built-in schemas.
+    Validates the given configuration dict against the Pydantic schema.
 
-    Raises jsonschema.exceptions.ValidationError on invalid configuration.
-    Expose the underlying jsonschema exception due to it having lots of information
-    about failures.
+    Raises pydantic.ValidationError on invalid configuration.
 
-    On success, returns without exception.
+    Returns the validated SpeakeasyConfig model on success.
     """
-    schema_path = os.path.join(os.path.dirname(speakeasy.__file__), "config_schema.json")
-    with open(schema_path) as ff:
-        schema = json.load(ff)
-    validator = jsonschema.Draft7Validator(schema)
-    validator.validate(config)
+    return SpeakeasyConfig.model_validate(config)
