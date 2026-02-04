@@ -7,8 +7,7 @@ from .. import api
 
 
 class Ole32(api.ApiHandler):
-
-    name = 'ole32'
+    name = "ole32"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -21,7 +20,7 @@ class Ole32(api.ApiHandler):
         self.netman = emu.get_network_manager()
         self.names = {}
 
-    @apihook('OleInitialize', argc=1)
+    @apihook("OleInitialize", argc=1)
     def OleInitialize(self, emu, argv, ctx={}):
         """
         HRESULT OleInitialize(
@@ -33,7 +32,7 @@ class Ole32(api.ApiHandler):
 
         return rv
 
-    @apihook('CoInitialize', argc=1)
+    @apihook("CoInitialize", argc=1)
     def CoInitialize(self, emu, argv, ctx={}):
         """
         HRESULT CoInitialize(
@@ -45,7 +44,7 @@ class Ole32(api.ApiHandler):
 
         return rv
 
-    @apihook('CoInitializeEx', argc=2)
+    @apihook("CoInitializeEx", argc=2)
     def CoInitializeEx(self, emu, argv, ctx={}):
         """
         HRESULT CoInitializeEx(
@@ -58,13 +57,13 @@ class Ole32(api.ApiHandler):
 
         return rv
 
-    @apihook('CoUninitialize', argc=0)
+    @apihook("CoUninitialize", argc=0)
     def CoUninitialize(self, emu, argv, ctx={}):
         """
         void CoUninitialize();
         """
 
-    @apihook('CoInitializeSecurity', argc=9)
+    @apihook("CoInitializeSecurity", argc=9)
     def CoInitializeSecurity(self, emu, argv, ctx={}):
         """
         HRESULT CoInitializeSecurity(
@@ -92,7 +91,7 @@ class Ole32(api.ApiHandler):
 
         return rv
 
-    @apihook('CoCreateInstance', argc=5)
+    @apihook("CoCreateInstance", argc=5)
     def CoCreateInstance(self, emu, argv, ctx={}):
         """
         HRESULT CoCreateInstance(
@@ -117,18 +116,18 @@ class Ole32(api.ApiHandler):
             if iid_name:
                 argv[3] = iid_name
                 if ppv:
-                    ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace('IID_', ''))
-                    pv = self.mem_alloc(emu.get_ptr_size(), tag=f'emu.COM.pv_{iid_name}')
-                    self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), 'little'))
-                    self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), 'little'))
+                    ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace("IID_", ""))
+                    pv = self.mem_alloc(emu.get_ptr_size(), tag=f"emu.COM.pv_{iid_name}")
+                    self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
+                    self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), "little"))
             else:
-                self.emu.logger.info('Unsupported COM IID %s', riid)
+                self.emu.logger.info("Unsupported COM IID %s", riid)
         else:
-            self.emu.logger.info('Unsupported COM CLSID %s', clsid_str)
+            self.emu.logger.info("Unsupported COM CLSID %s", clsid_str)
 
         return rv
 
-    @apihook('CoSetProxyBlanket', argc=8)
+    @apihook("CoSetProxyBlanket", argc=8)
     def CoSetProxyBlanket(self, emu, argv, ctx={}):
         """
         HRESULT CoSetProxyBlanket(
@@ -144,7 +143,7 @@ class Ole32(api.ApiHandler):
         """
         return 1
 
-    @apihook('StringFromCLSID', argc=2)
+    @apihook("StringFromCLSID", argc=2)
     def StringFromCLSID(self, emu, argv, ctx={}):
         """
         HRESULT StringFromCLSID(
@@ -159,23 +158,23 @@ class Ole32(api.ApiHandler):
         guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
         u = com.convert_guid_bytes_to_str(guid)
         argv[1] = u
-        u = (u + '\x00').encode('utf-16le')
+        u = (u + "\x00").encode("utf-16le")
 
-        ptr = self.mem_alloc(len(u), tag='api.StringFromCLSID')
+        ptr = self.mem_alloc(len(u), tag="api.StringFromCLSID")
 
         if lplpsz:
-            self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), 'little'))
+            self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), "little"))
 
         return rv
 
-    @apihook('CoCreateGuid', argc=1)
+    @apihook("CoCreateGuid", argc=1)
     def CoCreateGuid(self, emu, argv, ctx={}):
         pguid = argv[0]
-        guid_bytes = b'\xDE\xAD\xC0\xDE\xBE\xEF\xCA\xFE\xBA\xBE\x01\x23\x45\x67\x89\xAB'
+        guid_bytes = b"\xde\xad\xc0\xde\xbe\xef\xca\xfe\xba\xbe\x01\x23\x45\x67\x89\xab"
         if pguid:
             try:
                 self.emu.mem_write(pguid, guid_bytes)
             except Exception:
-                self.emu.mem_map(pguid & ~0xfff, 0x1000)
+                self.emu.mem_map(pguid & ~0xFFF, 0x1000)
                 self.emu.mem_write(pguid, guid_bytes)
         return 0

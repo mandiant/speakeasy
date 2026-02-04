@@ -13,6 +13,7 @@ class Console:
     """
     Represents a console window object
     """
+
     curr_handle = 0x340
 
     def __init__(self):
@@ -35,6 +36,7 @@ class SEH:
     """
     Implements the structures needed to support SEH handling during emulation
     """
+
     class ScopeRecord:
         def __init__(self, record):
             self.record = record
@@ -42,7 +44,6 @@ class SEH:
             self.handler_called = False
 
     class Frame:
-
         def __init__(self, entry, scope_table, scope_records):
             self.entry = entry
             self.scope_table = scope_table
@@ -93,13 +94,14 @@ class KernelObject:
     """
     Base class for Kernel objects managed by the object manager
     """
+
     curr_handle = 0x220
     curr_id = 0x400
 
     def __init__(self, emu):
         self.emu = emu
         self.address = None
-        self.name = ''
+        self.name = ""
         self.object = 0
         self.ref_cnt = 0
         self.handles = []
@@ -141,7 +143,7 @@ class KernelObject:
             return self.object.__class__.__name__
 
     def get_mem_tag(self):
-        return f'emu.struct.{self.get_class_name()}'
+        return f"emu.struct.{self.get_class_name()}"
 
     def get_handle(self):
         tmp = KernelObject.curr_handle
@@ -151,10 +153,9 @@ class KernelObject:
 
 
 class Driver(KernelObject):
-
     """
     Class that represents DRIVER_OBJECTs created by the Windows kernel
-    """    
+    """
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -165,22 +166,22 @@ class Driver(KernelObject):
         self.on_unload = None
         self.unload_called = False
         self.reg_path_ptr = 0
-        self.reg_path = ''
-        self.name = ''
-        self.basename = ''
+        self.reg_path = ""
+        self.name = ""
+        self.basename = ""
         self.object = self.nt_types.DRIVER_OBJECT(emu.get_ptr_size())
 
     def create_reg_path(self, name):
         """
         Create the service path in the registry for the created driver
         """
-        self.reg_path = '\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s\x00' % (name) # noqa
-        buf = self.reg_path.encode('utf-16le')
-        self.reg_path = self.reg_path.strip('\x00')
+        self.reg_path = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s\x00" % (name)  # noqa
+        buf = self.reg_path.encode("utf-16le")
+        self.reg_path = self.reg_path.strip("\x00")
 
         us = self.nt_types.UNICODE_STRING(self.emu.get_ptr_size())
         size = self.sizeof(us) + len(buf)
-        addr = self.emu.mem_map(size, tag=f'emu.object.{self.name}.reg_path')
+        addr = self.emu.mem_map(size, tag=f"emu.object.{self.name}.reg_path")
         us.Length = len(buf) - 2
         us.MaximumLength = len(buf)
         us.Buffer = addr + self.sizeof(us)
@@ -201,13 +202,13 @@ class Driver(KernelObject):
         Create the driver section for the driver. This is a linked list that
         links together driver objects
         """
-        tag = f'emu.object.{self.name}.DriverSection'
+        tag = f"emu.object.{self.name}.DriverSection"
         mod = self.pe
 
         if mod and mod.get_emu_path():
             mod_name = mod.get_emu_path()
         else:
-            mod_name = 'None'
+            mod_name = "None"
 
         ldte = LdrDataTableEntry(self.emu, mod_name, tag=tag)
         first = None
@@ -219,7 +220,7 @@ class Driver(KernelObject):
 
         ldte.object.DllBase = mod.get_base()
 
-        dllname = mod.get_emu_path().encode('utf-16le')
+        dllname = mod.get_emu_path().encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
@@ -229,11 +230,10 @@ class Driver(KernelObject):
         ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = ntpath.basename(mod.get_emu_path()).encode('utf-16le')
+        dllname = ntpath.basename(mod.get_emu_path()).encode("utf-16le")
         ldte.object.BaseDllName.Length = len(dllname)
         ldte.object.BaseDllName.MaximumLength = len(dllname)
-        ldte.object.BaseDllName.Buffer = name_addr + \
-            (ldte.object.FullDllName.Length - len(dllname))
+        ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.Length - len(dllname))
 
         if not last:
             ldte.object.InLoadOrderLinks.Flink = ldte.address
@@ -241,10 +241,8 @@ class Driver(KernelObject):
             ldte.object.InLoadOrderLinks.Blink = ldte.address
             ldte.object.InMemoryOrderLinks.Blink = ldte.address
         else:
-            ldte.object.InLoadOrderLinks.Flink = \
-                last.object.InLoadOrderLinks.Flink
-            ldte.object.InMemoryOrderLinks.Flink = \
-                last.object.InMemoryOrderLinks.Flink
+            ldte.object.InLoadOrderLinks.Flink = last.object.InLoadOrderLinks.Flink
+            ldte.object.InMemoryOrderLinks.Flink = last.object.InMemoryOrderLinks.Flink
             ldte.object.InLoadOrderLinks.Blink = last.address
             ldte.object.InMemoryOrderLinks.Blink = last.address
 
@@ -268,7 +266,7 @@ class Driver(KernelObject):
         drvobj.Size = self.sizeof()
         drvobj.DeviceObject = 0
         drvobj.Flags = 2
-        us = ''
+        us = ""
         if pe:
             drvobj.DriverStart = pe.get_base()
             drvobj.DriverSize = pe.image_size
@@ -281,36 +279,35 @@ class Driver(KernelObject):
                 drvobj.MajorFunction[ddk.IRP_MJ_WRITE] = ep + 3
                 drvobj.MajorFunction[ddk.IRP_MJ_DEVICE_CONTROL] = ep + 4
                 drvobj.MajorFunction[ddk.IRP_MJ_PNP] = ep + 5
-                drvobj.MajorFunction[ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL] = ep+6
+                drvobj.MajorFunction[ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL] = ep + 6
 
             if not name:
                 drvname = os.path.splitext(pe.path)[0]
                 drvname = os.path.basename(drvname)
-                self.name = rf'\Driver\{drvname}'
-                us = (f'\\Driver\\{drvname}\x00').encode('utf-16le')
+                self.name = rf"\Driver\{drvname}"
+                us = (f"\\Driver\\{drvname}\x00").encode("utf-16le")
                 name = self.name
 
         if name:
-            us = name.encode('utf-16le')
+            us = name.encode("utf-16le")
             self.name = name
 
         if not pe and not self.name:
-            name = 'none'
+            name = "none"
 
         # Allocate the driver object
-        addr = self.emu.mem_map(drvobj.Size + len(us),
-                                tag=f'emu.object.{name}')
+        addr = self.emu.mem_map(drvobj.Size + len(us), tag=f"emu.object.{name}")
 
         drvobj.DriverName.Length = len(us)
         drvobj.DriverName.MaximumLength = len(us)
         drvobj.DriverName.Buffer = addr + drvobj.Size
 
         name = self.name
-        idx = name.rfind('\\')
+        idx = name.rfind("\\")
         if idx >= 0 and idx != len(name) - 1:
-            name = self.name[idx+1:]
+            name = self.name[idx + 1 :]
         else:
-            name = 'None'
+            name = "None"
 
         self.basename = name
         self.create_reg_path(name)
@@ -355,6 +352,7 @@ class FileObject(KernelObject):
     """
     Represents a FILE_OBJECT created by the windows kernel
     """
+
     def __init__(self, emu):
         super().__init__(emu=emu)
         fileobj = self.nt_types.FILE_OBJECT(emu.get_ptr_size())
@@ -370,6 +368,7 @@ class IoStackLocation(KernelObject):
     Represents a IO_STACK_LOCATION struct that is part of
     an IRP.
     """
+
     def __init__(self, emu):
         super().__init__(emu=emu)
 
@@ -382,6 +381,7 @@ class Irp(KernelObject):
     """
     I/O request packet used when performing device input/output
     """
+
     def __init__(self, emu):
         super().__init__(emu=emu)
         self.object = self.nt_types.IRP(emu.get_ptr_size())
@@ -408,12 +408,13 @@ class Thread(KernelObject):
     Represents a Windows ETHREAD object that describes a
     an OS level thread
     """
+
     def __init__(self, emu, stack_base=0, stack_commit=0):
         super().__init__(emu=emu)
         self.emu = emu
         self.object = self.nt_types.ETHREAD(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
-        self.object.Data = b'\xFF' * self.sizeof()
+        self.object.Data = b"\xff" * self.sizeof()
         self.tid = self.get_id()
         self.modified_pc = False
         self.teb = None
@@ -489,7 +490,7 @@ class Thread(KernelObject):
     def init_tls(self, tls_dir, modname):
         ptrsz = self.emu.get_ptr_size()
 
-        tls_dirp = self.emu.mem_map(ptrsz, tag=f'emu.tls.{modname}')
+        tls_dirp = self.emu.mem_map(ptrsz, tag=f"emu.tls.{modname}")
 
         self.emu.mem_write(tls_dirp, tls_dir)
 
@@ -498,27 +499,28 @@ class Thread(KernelObject):
 
         return
 
+
 class Token(KernelObject):
     """
     Represents a TOKEN object
     """
+
     def __init__(self, emu):
         super().__init__(emu=emu)
 
 
 class Process(KernelObject):
-
     """
     An EPROCESS object used by the Windows kernel to represent a process
     """
+
     ldr_entries = []
 
-    def __init__(self, emu, pe=None, user_modules=[],
-                 name='', path='', cmdline='', base=0, session=0):
+    def __init__(self, emu, pe=None, user_modules=[], name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
-        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xe0000000)
+        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
         self.name = name
         self.base = base
         self.pid = self.get_id()
@@ -533,9 +535,9 @@ class Process(KernelObject):
         self.pe = pe
         self.pe_data = None
 
-        self.stdin = (0xf000) + 1
-        self.stdout = (0xf000) + 2
-        self.stderr = (0xf000) + 3
+        self.stdin = (0xF000) + 1
+        self.stdout = (0xF000) + 2
+        self.stderr = (0xF000) + 3
 
         # Initialize the process PEB
         self.peb = PEB(emu=emu)
@@ -543,8 +545,8 @@ class Process(KernelObject):
         self.is_peb_active = False
         self.path = path
         self.set_process_parameters(emu)
-        self.image = ''
-        self.title = ''
+        self.image = ""
+        self.title = ""
 
         if pe and pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
             self.alloc_console()
@@ -581,7 +583,7 @@ class Process(KernelObject):
         desk = sm.get_current_desktop()
         desk_name = desk.get_name()
 
-        name = f'{stat_name}\\{desk_name}'
+        name = f"{stat_name}\\{desk_name}"
 
         return name
 
@@ -592,15 +594,15 @@ class Process(KernelObject):
         return self.token
 
     def get_std_handle(self, dev):
-        STD_INPUT_HANDLE = 0xfffffff6
-        STD_OUTPUT_HANDLE = 0xfffffff5
-        STD_ERROR_HANDLE = 0xfffffff4
+        STD_INPUT_HANDLE = 0xFFFFFFF6
+        STD_OUTPUT_HANDLE = 0xFFFFFFF5
+        STD_ERROR_HANDLE = 0xFFFFFFF4
 
-        for k, v in ((STD_INPUT_HANDLE, self.stdin),
-                     (STD_OUTPUT_HANDLE, self.stdout),
-                     (STD_ERROR_HANDLE, self.stderr),
-                     ):
-
+        for k, v in (
+            (STD_INPUT_HANDLE, self.stdin),
+            (STD_OUTPUT_HANDLE, self.stdout),
+            (STD_ERROR_HANDLE, self.stderr),
+        ):
             if k == dev:
                 return v
         return 0
@@ -656,7 +658,7 @@ class Process(KernelObject):
         ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
 
         ldte.object.DllBase = module.get_base()
-        dllname = (module.get_emu_path() + '\x00').encode('utf-16le')
+        dllname = (module.get_emu_path() + "\x00").encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
@@ -666,36 +668,30 @@ class Process(KernelObject):
         ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = (ntpath.basename(module.get_emu_path()) +
-                   '\x00').encode('utf-16le')
+        dllname = (ntpath.basename(module.get_emu_path()) + "\x00").encode("utf-16le")
 
         ldte.object.BaseDllName.Length = len(dllname) - 2
         ldte.object.BaseDllName.MaximumLength = len(dllname)
-        ldte.object.BaseDllName.Buffer = name_addr + \
-            (ldte.object.FullDllName.MaximumLength - len(dllname))
+        ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.MaximumLength - len(dllname))
         ldte.write_back()
 
         prev.object.InLoadOrderLinks.Flink = ldte.address
-        prev.object.InMemoryOrderLinks.Flink = ldte.address + \
-            self.sizeof(list_type)
+        prev.object.InMemoryOrderLinks.Flink = ldte.address + self.sizeof(list_type)
 
         if first is ldte:
             prev.object.InInitializationOrderLinks.Flink = 0
         else:
             imol = prev.object.InMemoryOrderLinks.Flink
-            prev.object.InInitializationOrderLinks.Flink = imol + \
-                self.sizeof(list_type)
+            prev.object.InInitializationOrderLinks.Flink = imol + self.sizeof(list_type)
 
         ldte.object.InLoadOrderLinks.Blink = prev.address
-        ldte.object.InMemoryOrderLinks.Blink = prev.address + \
-            self.sizeof(list_type)
+        ldte.object.InMemoryOrderLinks.Blink = prev.address + self.sizeof(list_type)
 
         if first is ldte:
             ldte.object.InInitializationOrderLinks.Blink = 0
         else:
             imol = ldte.object.InMemoryOrderLinks.Blink
-            ldte.object.InInitializationOrderLinks.Blink = imol + \
-                self.sizeof(list_type)
+            ldte.object.InInitializationOrderLinks.Blink = imol + self.sizeof(list_type)
 
         prev.write_back()
         ldte.write_back()
@@ -708,25 +704,20 @@ class Process(KernelObject):
         first.write_back()
 
         pld.object.InLoadOrderModuleList.Flink = first.address
-        pld.object.InMemoryOrderModuleList.Flink = \
-            pld.object.InLoadOrderModuleList.Flink + \
-            self.sizeof(list_type)
+        pld.object.InMemoryOrderModuleList.Flink = pld.object.InLoadOrderModuleList.Flink + self.sizeof(list_type)
 
         # Lets just copy InMemoryOrderModuleList but skip the main EXE module
         head = pld.object.InMemoryOrderModuleList.Flink
-        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()),
-                               head)
+        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()), head)
 
         pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
 
         pld.object.InLoadOrderModuleList.Blink = prev.address
-        pld.object.InMemoryOrderModuleList.Blink = \
-            pld.object.InLoadOrderModuleList.Blink + \
-            self.sizeof(list_type)
+        pld.object.InMemoryOrderModuleList.Blink = pld.object.InLoadOrderModuleList.Blink + self.sizeof(list_type)
 
-        pld.object.InInitializationOrderModuleList.Blink = \
-            pld.object.InMemoryOrderModuleList.Blink + \
-            self.sizeof(list_type)
+        pld.object.InInitializationOrderModuleList.Blink = pld.object.InMemoryOrderModuleList.Blink + self.sizeof(
+            list_type
+        )
 
         pld.write_back()
 
@@ -744,13 +735,12 @@ class RTL_USER_PROCESS_PARAMETERS(KernelObject):
         super().__init__(emu=emu)
 
         self.object = self.nt_types.RTL_USER_PROCESS_PARAMETERS(emu.get_ptr_size())
-        proc_path = (proc.path + '\x00').encode('utf-16le')
-        proc_cmdline = (proc.cmdline + '\x00').encode('utf-16le')
+        proc_path = (proc.path + "\x00").encode("utf-16le")
+        proc_cmdline = (proc.cmdline + "\x00").encode("utf-16le")
         size = self.sizeof()
         size += len(proc_path)
         size += len(proc_cmdline)
-        self.address = emu.mem_map(size,
-                                   tag=proc.get_mem_tag() + '.ProcessParameters')
+        self.address = emu.mem_map(size, tag=proc.get_mem_tag() + ".ProcessParameters")
         emu.mem_write(self.address + self.sizeof(), proc_path)
         emu.mem_write(self.address + self.sizeof() + len(proc_path), proc_cmdline)
 
@@ -770,6 +760,7 @@ class PEB(KernelObject):
     fields that are used internally by Windows. Shellcode may parse this structure in
     order to resolve exported functions.
     """
+
     def __init__(self, emu, address=None):
         super().__init__(emu=emu)
 
@@ -785,6 +776,7 @@ class TEB(KernelObject):
     Represents the thread environment block. This structure contains a large amount of
     fields that are used internally by Windows.
     """
+
     def __init__(self, emu, address=0):
         super().__init__(emu=emu)
 
@@ -796,7 +788,6 @@ class TEB(KernelObject):
 
 
 class PebLdrData(KernelObject):
-
     def __init__(self, emu):
         super().__init__(emu=emu)
         self.object = self.nt_types.PEB_LDR_DATA(emu.get_ptr_size())
@@ -804,12 +795,12 @@ class PebLdrData(KernelObject):
 
 
 class LdrDataTableEntry(KernelObject):
-    def __init__(self, emu, dllname, tag=''):
+    def __init__(self, emu, dllname, tag=""):
         super().__init__(emu=emu)
         self.object = self.nt_types.LDR_DATA_TABLE_ENTRY(emu.get_ptr_size())
 
         size = self.sizeof()
-        size += len((dllname + '\x00').encode('utf-16le'))
+        size += len((dllname + "\x00").encode("utf-16le"))
 
         if not tag:
             tag = self.get_mem_tag()
@@ -822,6 +813,7 @@ class IDT(KernelObject):
     Represents the Interrupt descriptor table. This is currently a dummy structure and
     only exists to detect if samples read or write to it.
     """
+
     def __init__(self, emu):
         super().__init__(emu=emu)
 
@@ -833,8 +825,7 @@ class IDT(KernelObject):
 
         kbase = self.emu.get_kernel_base()
 
-        descs = self.emu.mem_map(self.sizeof(tbl),
-                                 tag=self.get_mem_tag() + '.idt_entries')
+        descs = self.emu.mem_map(self.sizeof(tbl), tag=self.get_mem_tag() + ".idt_entries")
         self.object.Limit = 0xFFF
         self.object.Descriptors = descs
 
@@ -879,6 +870,7 @@ class ObjectManager:
     """
     Class that manages kernel objects during emulation
     """
+
     def __init__(self, emu):
         super().__init__()
         self.emu = emu
@@ -918,7 +910,7 @@ class ObjectManager:
         """
         Dereferece an object and remove it from the object manager when its reference count is 0
         """
-        if hasattr(obj, 'ref_cnt'):
+        if hasattr(obj, "ref_cnt"):
             obj.ref_cnt -= 1
             if obj.ref_cnt <= 0:
                 self.remove_object(obj)
@@ -947,15 +939,14 @@ class ObjectManager:
 
         if not name:
             return None
-        name = name.rstrip('\\')
+        name = name.rstrip("\\")
         for a, o in self.objects.items():
             if not o.name:
                 continue
             if o.name.lower() == name.lower():
                 return o
         if check_symlinks:
-            m = [sl[1] for sl in self.symlinks
-                 if name.lower() == sl[0].lower()]
+            m = [sl[1] for sl in self.symlinks if name.lower() == sl[0].lower()]
             if m:
                 name = m[0]
             return self.get_object_from_name(name, False)

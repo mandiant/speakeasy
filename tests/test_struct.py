@@ -5,15 +5,15 @@ import ctypes as ct
 from speakeasy.struct import EmuStruct, Ptr
 
 EXPECTED_32BIT_BYTES = (
-    b'\x01\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x05\x05'
-    b'\x06\x06\x06\x06\x07\x07\x07\x07AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-    b'\x08\x08\t\t\t\t\n\n\n\nBBBBBBBBBBBBBBBBBBBBBBBB'
+    b"\x01\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x05\x05"
+    b"\x06\x06\x06\x06\x07\x07\x07\x07AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"\x08\x08\t\t\t\t\n\n\n\nBBBBBBBBBBBBBBBBBBBBBBBB"
 )
 
 EXPECTED_64BIT_BYTES = (
-    b'\x01\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04\x05\x05'
-    b'\x06\x06\x06\x06\x07\x07\x07\x07AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-    b'\x08\x08\t\t\t\t\t\t\t\t\n\n\n\nBBBBBBBBBBBBBBBBBBBBBBBB'
+    b"\x01\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04\x05\x05"
+    b"\x06\x06\x06\x06\x07\x07\x07\x07AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"\x08\x08\t\t\t\t\t\t\t\t\n\n\n\nBBBBBBBBBBBBBBBBBBBBBBBB"
 )
 
 
@@ -57,11 +57,11 @@ def test_32bit_emit():
     top.NestedStruct.Field1 = 0x0505
     top.NestedStruct.DeepStruct.Field1 = 0x06060606
     top.NestedStruct.DeepStruct.Field2 = 0x07070707
-    top.NestedStruct.DeepStruct.DeepData = b'A' * 32
+    top.NestedStruct.DeepStruct.DeepData = b"A" * 32
     top.NestedStruct.Field2 = 0x0808
     top.Field5 = 0x09090909
-    top.Field6 = 0x0a0a0a0a
-    top.Field7 = b'B' * 24
+    top.Field6 = 0x0A0A0A0A
+    top.Field7 = b"B" * 24
 
     bytez = top.get_bytes()
     assert bytez == EXPECTED_32BIT_BYTES
@@ -79,11 +79,11 @@ def test_32bit_cast():
     assert top.NestedStruct.Field1 == 0x0505
     assert top.NestedStruct.DeepStruct.Field1 == 0x06060606
     assert top.NestedStruct.DeepStruct.Field2 == 0x07070707
-    assert bytes(top.NestedStruct.DeepStruct.DeepData[:]) == b'A' * 32
+    assert bytes(top.NestedStruct.DeepStruct.DeepData[:]) == b"A" * 32
     assert top.NestedStruct.Field2 == 0x0808
     assert top.Field5 == 0x09090909
-    assert top.Field6 == 0x0a0a0a0a
-    assert bytes(top.Field7[:]) == b'B' * 24
+    assert top.Field6 == 0x0A0A0A0A
+    assert bytes(top.Field7[:]) == b"B" * 24
 
 
 def test_64bit_emit():
@@ -97,11 +97,11 @@ def test_64bit_emit():
     top.NestedStruct.Field1 = 0x0505
     top.NestedStruct.DeepStruct.Field1 = 0x06060606
     top.NestedStruct.DeepStruct.Field2 = 0x07070707
-    top.NestedStruct.DeepStruct.DeepData = b'A' * 32
+    top.NestedStruct.DeepStruct.DeepData = b"A" * 32
     top.NestedStruct.Field2 = 0x0808
     top.Field5 = 0x0909090909090909
-    top.Field6 = 0x0a0a0a0a
-    top.Field7 = b'B' * 24
+    top.Field6 = 0x0A0A0A0A
+    top.Field7 = b"B" * 24
 
     bytez = top.get_bytes()
     assert bytez == EXPECTED_64BIT_BYTES
@@ -119,8 +119,8 @@ def test_64bit_cast():
     assert top.NestedStruct.Field1 == 0x0505
     assert top.NestedStruct.DeepStruct.Field1 == 0x06060606
     assert top.NestedStruct.DeepStruct.Field2 == 0x07070707
-    assert bytes(top.NestedStruct.DeepStruct.DeepData[:]) == b'A' * 32
+    assert bytes(top.NestedStruct.DeepStruct.DeepData[:]) == b"A" * 32
     assert top.NestedStruct.Field2 == 0x0808
     assert top.Field5 == 0x0909090909090909
-    assert top.Field6 == 0x0a0a0a0a
-    assert bytes(top.Field7[:]) == b'B' * 24
+    assert top.Field6 == 0x0A0A0A0A
+    assert bytes(top.Field7[:]) == b"B" * 24

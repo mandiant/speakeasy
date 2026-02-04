@@ -529,14 +529,14 @@ class PEB(EmuStruct):
         self.TlsBitmap = Ptr
         self.TlsBitmapBits = ct.c_uint32 * 2
         self.ReadOnlySharedMemoryBase = Ptr
-        self.SharedData = Ptr # HotpatchInformation
+        self.SharedData = Ptr  # HotpatchInformation
         self.ReadOnlyStaticServerData = Ptr
         self.AnsiCodePageData = Ptr
         self.OemCodePageData = Ptr
         self.UnicodeCaseTableData = Ptr
         self.NumberOfProcessors = ct.c_uint32
         self.NtGlobalFlag = ct.c_uint32
-        self.CriticalSectionTimeout = ct.c_longlong # LARGE_INTEGER
+        self.CriticalSectionTimeout = ct.c_longlong  # LARGE_INTEGER
         self.HeapSegmentReserve = Ptr
         self.HeapSegmentCommit = Ptr
         self.HeapDeCommitTotalFreeThreshold = Ptr
@@ -565,8 +565,8 @@ class PEB(EmuStruct):
         self.TlsExpansionBitmap = Ptr
         self.TlsExpansionBitmapBits = ct.c_uint32 * 32
         self.SessionId = Ptr
-        self.AppCompatFlags = ct.c_ulonglong # ULARGE_INTEGER
-        self.AppCompatFlagsUser = ct.c_ulonglong # ULARGE_INTEGER
+        self.AppCompatFlags = ct.c_ulonglong  # ULARGE_INTEGER
+        self.AppCompatFlagsUser = ct.c_ulonglong  # ULARGE_INTEGER
         self.pShimData = Ptr
         self.AppCompatInfo = Ptr
         self.CSDVersion = UNICODE_STRING
@@ -582,7 +582,7 @@ class PEB(EmuStruct):
         self.FlsHighIndex = Ptr
         self.WerRegistrationData = Ptr
         self.WerShipAssertPtr = Ptr
-        self.pUnused = Ptr # pContextData
+        self.pUnused = Ptr  # pContextData
         self.pImageHeaderHash = Ptr
         self.TracingFlags = ct.c_uint64
         self.CsrServerReadOnlySharedMemoryBase = ct.c_uint64

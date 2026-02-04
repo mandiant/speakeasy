@@ -78,7 +78,7 @@ class WindowsEmulator(BinaryEmulator):
         self.impdata_queue = []
         self.run_queue = []
         self.suspended_runs = []
-        self.cd = ''
+        self.cd = ""
         self.emu_hooks_set = True
         self.api = None
         self.curr_process = None
@@ -128,33 +128,34 @@ class WindowsEmulator(BinaryEmulator):
         """
         Parse the emulation config file
         """
+
         def _normalize_image(img):
             # Normalize the architecture
-            if img['arch'].lower() in ('x86', 'i386'):
-                img['arch'] = _arch.ARCH_X86
-            elif img['arch'].lower() in ('x64', 'amd64'):
-                img['arch'] = _arch.ARCH_AMD64
+            if img["arch"].lower() in ("x86", "i386"):
+                img["arch"] = _arch.ARCH_X86
+            elif img["arch"].lower() in ("x64", "amd64"):
+                img["arch"] = _arch.ARCH_AMD64
             else:
-                raise WindowsEmuError('Unsupported image arch: {}'.format(img['arch']))
+                raise WindowsEmuError("Unsupported image arch: {}".format(img["arch"]))
 
         super()._parse_config(config)
         for umod in self.config_user_modules:
-            for img in umod.get('images', []):
+            for img in umod.get("images", []):
                 _normalize_image(img)
 
         for proc in self.config_processes:
-            for img in proc.get('images', []):
+            for img in proc.get("images", []):
                 _normalize_image(img)
 
-        self.cd = self.config.get('current_dir', '')
+        self.cd = self.config.get("current_dir", "")
 
-        self.dispatch_handlers = self.exceptions.get('dispatch_handlers', True)
-        self.mem_tracing_enabled = self.config_analysis.get('memory_tracing', False)
-        self.coverage_enabled = self.config_analysis.get('coverage', False)
-        self.do_strings = self.config_analysis.get('strings', False)
-        self.registry_config = self.config.get('registry', {})
-        self.modules_always_exist = self.config_modules.get('modules_always_exist', False)
-        self.functions_always_exist = self.config_modules.get('functions_always_exist', False)
+        self.dispatch_handlers = self.exceptions.get("dispatch_handlers", True)
+        self.mem_tracing_enabled = self.config_analysis.get("memory_tracing", False)
+        self.coverage_enabled = self.config_analysis.get("coverage", False)
+        self.do_strings = self.config_analysis.get("strings", False)
+        self.registry_config = self.config.get("registry", {})
+        self.modules_always_exist = self.config_modules.get("modules_always_exist", False)
+        self.functions_always_exist = self.config_modules.get("functions_always_exist", False)
 
     def get_registry_config(self):
         """
@@ -185,7 +186,7 @@ class WindowsEmulator(BinaryEmulator):
     def _module_access_hook(self, emu, addr, size, ctx):
         symbol = self.get_symbol_from_address(addr)
         if symbol:
-            mod_name, fn = symbol.split('.')
+            mod_name, fn = symbol.split(".")
             self.handle_import_func(mod_name, fn)
             return True
 
@@ -199,7 +200,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_trace_hooks = (
             self.add_code_hook(cb=self._hook_code),
             self.add_mem_read_hook(cb=self._hook_mem_read),
-            self.add_mem_write_hook(cb=self._hook_mem_write)
+            self.add_mem_write_hook(cb=self._hook_mem_write),
         )
 
     def set_coverage_hooks(self):
@@ -216,7 +217,7 @@ class WindowsEmulator(BinaryEmulator):
         Create a formatted structure from bytes
         """
         if not isinstance(obj, EmuStruct):
-            raise WindowsEmuError('Invalid object for cast')
+            raise WindowsEmuError("Invalid object for cast")
         return obj.cast(bytez)
 
     def _unset_emu_hooks(self):
@@ -224,8 +225,7 @@ class WindowsEmulator(BinaryEmulator):
         Create a formatted structure from bytes
         """
         if self.emu_hooks_set:
-            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR,
-                                 winemu.EMU_RESERVE_SIZE)
+            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
         self.emu_hooks_set = False
 
     def file_open(self, path, create=False, truncate=False):
@@ -306,7 +306,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.regman.get_subkeys(hkey)
 
-    def reg_get_key(self, handle=0, path=''):
+    def reg_get_key(self, handle=0, path=""):
         """
         Get registry key by path or handle
         """
@@ -355,7 +355,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         self.reset_stack(self.stack_base)
         run = Run()
-        run.type = f'call_0x{addr:x}'
+        run.type = f"call_0x{addr:x}"
         run.start_addr = addr
         run.args = params
 
@@ -424,23 +424,19 @@ class WindowsEmulator(BinaryEmulator):
         between user mode and kernel mode
         """
         if self.get_arch() == _arch.ARCH_X86:
-            self.mem_map(self.page_size, base=0xFFDF0000,
-                         tag='emu.struct.KUSER_SHARED_DATA')
+            self.mem_map(self.page_size, base=0xFFDF0000, tag="emu.struct.KUSER_SHARED_DATA")
         elif self.get_arch() == _arch.ARCH_AMD64:
-            self.mem_map(self.page_size, base=0xFFFFF78000000000,
-                         tag='emu.struct.KUSER_SHARED_DATA')
+            self.mem_map(self.page_size, base=0xFFFFF78000000000, tag="emu.struct.KUSER_SHARED_DATA")
 
         # This is a read-only address for KUSER_SHARED_DATA,
         # and this is the same address for 32-bit and 64-bit.
-        self.mem_map(self.page_size, base=0x7FFE0000,
-            tag='emu.struct.KUSER_SHARED_DATA')
+        self.mem_map(self.page_size, base=0x7FFE0000, tag="emu.struct.KUSER_SHARED_DATA")
 
     def resume(self, addr, count=-1):
         """
         Resume emulation at the specified address.
         """
-        self.emu_eng.start(addr, timeout=self.timeout,
-                           count=count)
+        self.emu_eng.start(addr, timeout=self.timeout, count=count)
 
     def start(self, addr=None, size=None):
         """
@@ -461,13 +457,12 @@ class WindowsEmulator(BinaryEmulator):
         while True:
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout,
-                                   count=self.max_instructions)
+                self.emu_eng.start(self.curr_run.start_addr, timeout=self.timeout, count=self.max_instructions)
                 if self.profiler:
                     if self.profiler.get_run_time() > self.timeout:
-                        self.log_error('* Timeout of %d sec(s) reached.', self.timeout)
+                        self.log_error("* Timeout of %d sec(s) reached.", self.timeout)
             except KeyboardInterrupt:
-                self.log_error('* User exited.')
+                self.log_error("* User exited.")
                 return
             except Exception as e:
                 if self.exit_event and self.exit_event.is_set():
@@ -479,8 +474,7 @@ class WindowsEmulator(BinaryEmulator):
                 except Exception as dis_err:
                     self.log_error(str(dis_err))
 
-                error = self.get_error_info(str(e), self.get_pc(),
-                                            traceback=stack_trace)
+                error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
                 self.curr_run.error = error
 
                 run = self.on_run_complete()
@@ -578,15 +572,14 @@ class WindowsEmulator(BinaryEmulator):
         # segment registers which is needed for TEB access in user mode
 
         def _make_entry(index, base, access, limit=0xFFFFF000):
-            access = access | (winemu.GDT_ACCESS_BITS.PresentBit |
-                               winemu.GDT_ACCESS_BITS.DirectionConformingBit)
+            access = access | (winemu.GDT_ACCESS_BITS.PresentBit | winemu.GDT_ACCESS_BITS.DirectionConformingBit)
             entry = 0xFFFF & limit
             entry |= (0xFFFFFF & base) << 16
             entry |= (0xFF & access) << 40
             entry |= (0xFF & (limit >> 16)) << 48
             entry |= (0xFF & winemu.GDT_ACCESS_BITS.ProtMode32) << 52
             entry |= (0xFF & (base >> 24)) << 56
-            entry = entry.to_bytes(8, 'little')
+            entry = entry.to_bytes(8, "little")
 
             offset = index * ENTRY_SIZE
             self.mem_write(gdt_addr + offset, entry)
@@ -595,24 +588,20 @@ class WindowsEmulator(BinaryEmulator):
             return flags | (index << 3)
 
         gdt_addr, gdt_size = self.get_valid_ranges(GDT_SIZE)
-        self.mem_map(gdt_size, base=gdt_addr, tag='emu.gdt')
+        self.mem_map(gdt_size, base=gdt_addr, tag="emu.gdt")
         seg_addr, seg_size = self.get_valid_ranges(SEG_SIZE)
-        self.mem_map(seg_size, base=seg_addr, tag='emu.segment.gdt')
+        self.mem_map(seg_size, base=seg_addr, tag="emu.segment.gdt")
 
-        access = (winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable |
-                  winemu.GDT_ACCESS_BITS.Ring3)
+        access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
         _make_entry(16, 0, access)
 
-        access = (winemu.GDT_ACCESS_BITS.Code | winemu.GDT_ACCESS_BITS.CodeReadable |
-                  winemu.GDT_ACCESS_BITS.Ring3)
+        access = winemu.GDT_ACCESS_BITS.Code | winemu.GDT_ACCESS_BITS.CodeReadable | winemu.GDT_ACCESS_BITS.Ring3
         _make_entry(17, 0, access)
 
-        access = (winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable |
-                  winemu.GDT_ACCESS_BITS.Ring0)
+        access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring0
         _make_entry(18, 0, access)
 
-        self.reg_write(_arch.X86_REG_GDTR, (0, gdt_addr,
-                                            num_gdt_entries * ENTRY_SIZE-1, 0x0))
+        self.reg_write(_arch.X86_REG_GDTR, (0, gdt_addr, num_gdt_entries * ENTRY_SIZE - 1, 0x0))
         selector = _create_selector(16, winemu.GDT_FLAGS.Ring3)
         self.reg_write(_arch.X86_REG_DS, selector)
         selector = _create_selector(17, winemu.GDT_FLAGS.Ring3)
@@ -623,25 +612,23 @@ class WindowsEmulator(BinaryEmulator):
         if _arch.ARCH_X86 == arch:
             # FS segment needed for PEB access at fs:[0x30]
             fs_addr, fs_size = self.get_valid_ranges(SEG_SIZE)
-            self.mem_map(fs_size, base=fs_addr, tag='emu.segment.fs')
+            self.mem_map(fs_size, base=fs_addr, tag="emu.segment.fs")
 
-            access = (winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable |
-                      winemu.GDT_ACCESS_BITS.Ring3)
+            access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
             _make_entry(19, fs_addr, access)
 
-            selector = _create_selector(19,  winemu.GDT_FLAGS.Ring3)
+            selector = _create_selector(19, winemu.GDT_FLAGS.Ring3)
             self.reg_write(_arch.X86_REG_FS, selector)
 
         elif _arch.ARCH_AMD64 == arch:
             # GS Segment needed for PEB access at gs:[0x60]
             gs_addr, gs_size = self.get_valid_ranges(SEG_SIZE)
-            self.mem_map(gs_size, base=gs_addr, tag='emu.segment.gs')
+            self.mem_map(gs_size, base=gs_addr, tag="emu.segment.gs")
 
-            access = (winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable |
-                      winemu.GDT_ACCESS_BITS.Ring3)
+            access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
             _make_entry(15, gs_addr, access, limit=SEG_SIZE)
 
-            selector = _create_selector(15,  winemu.GDT_FLAGS.Ring3)
+            selector = _create_selector(15, winemu.GDT_FLAGS.Ring3)
             self.reg_write(_arch.X86_REG_GS, selector)
 
         self.fs_addr = fs_addr
@@ -657,8 +644,7 @@ class WindowsEmulator(BinaryEmulator):
         if not p:
             p = self.curr_process
         p.init_peb(user_mods)
-        self.mem_write(self.peb_addr,
-                       p.peb.address.to_bytes(self.get_ptr_size(), 'little'))
+        self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), "little"))
         return p.peb
 
     def init_teb(self, thread, peb):
@@ -702,33 +688,38 @@ class WindowsEmulator(BinaryEmulator):
         """
 
         if not data and not os.path.exists(path):
-            raise WindowsEmuError(f'File: {path} not found')
+            raise WindowsEmuError(f"File: {path} not found")
 
         pe = winemu.PeFile(path=path, data=data, imp_id=imp_id, imp_step=4)
 
-        pe_type = 'unknown'
+        pe_type = "unknown"
         if pe.is_driver():
-            pe_type = 'driver'
+            pe_type = "driver"
         elif pe.is_dll():
-            pe_type = 'dll'
+            pe_type = "dll"
         elif pe.is_exe():
-            pe_type = 'exe'
+            pe_type = "exe"
 
-        arch = 'unknown'
+        arch = "unknown"
         if pe.arch == _arch.ARCH_AMD64:
-            arch = 'x64'
+            arch = "x64"
         elif pe.arch == _arch.ARCH_X86:
-            arch = 'x86'
+            arch = "x86"
 
-        self.input = {'path': pe.path, 'sha256': pe.hash,
-                      'size': pe.file_size, 'arch': arch,
-                      'filetype': pe_type, 'emu_version': self.get_emu_version(),
-                      'os_run': self.get_osver_string()}
+        self.input = {
+            "path": pe.path,
+            "sha256": pe.hash,
+            "size": pe.file_size,
+            "arch": arch,
+            "filetype": pe_type,
+            "emu_version": self.get_emu_version(),
+            "os_run": self.get_osver_string(),
+        }
         if self.profiler:
             self.profiler.add_input_metadata(self.input)
         return pe
 
-    def map_pe(self, pe, mod_name='none', emu_path=''):
+    def map_pe(self, pe, mod_name="none", emu_path=""):
         """
         Map the specified PE into the emulation space
         """
@@ -736,7 +727,7 @@ class WindowsEmulator(BinaryEmulator):
         base = pe.base
         ranges = self.get_valid_ranges(image_size, addr=base)
         base, size = ranges
-        addr = self.mem_map(size, base=base, tag=f'emu.module.{mod_name}')
+        addr = self.mem_map(size, base=base, tag=f"emu.module.{mod_name}")
         self.modules.append((pe, ranges, emu_path))
 
         return addr
@@ -747,8 +738,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         # Generate the decoy module list
         if not self.sys_modules:
-            self.sys_modules = \
-                self.init_sys_modules(self.config_system_modules)
+            self.sys_modules = self.init_sys_modules(self.config_system_modules)
         return self.sys_modules
 
     def get_user_modules(self):
@@ -757,8 +747,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         # Generate the decoy user module list
         if not self.user_modules:
-            self.user_modules = \
-                self.init_user_modules(self.config_user_modules)
+            self.user_modules = self.init_user_modules(self.config_user_modules)
         return self.user_modules
 
     def get_mod_from_addr(self, addr):
@@ -785,18 +774,18 @@ class WindowsEmulator(BinaryEmulator):
         """
         Get the path of the "SYSTEMROOT" environment variable
         """
-        sysroot = self.env.get('systemroot', 'C:\\WINDOWS\\system32')
-        if not sysroot.endswith('\\'):
-            sysroot += '\\'
+        sysroot = self.env.get("systemroot", "C:\\WINDOWS\\system32")
+        if not sysroot.endswith("\\"):
+            sysroot += "\\"
         return sysroot
 
     def get_windows_dir(self):
         """
         Get the path of the "WINDIR" environment variable
         """
-        sysroot = self.env.get('windir', 'C:\\WINDOWS')
-        if not sysroot.endswith('\\'):
-            sysroot += '\\'
+        sysroot = self.env.get("windir", "C:\\WINDOWS")
+        if not sysroot.endswith("\\"):
+            sysroot += "\\"
         return sysroot
 
     def get_cd(self):
@@ -804,9 +793,9 @@ class WindowsEmulator(BinaryEmulator):
         Get the path of the current directory
         """
         if not self.cd:
-            self.cd = self.env.get('cd', 'C:\\WINDOWS\\system32')
-            if not self.cd.endswith('\\'):
-                self.cd += '\\'
+            self.cd = self.env.get("cd", "C:\\WINDOWS\\system32")
+            if not self.cd.endswith("\\"):
+                self.cd += "\\"
         return self.cd
 
     def set_cd(self, cd):
@@ -851,11 +840,11 @@ class WindowsEmulator(BinaryEmulator):
 
     def search_path(self, file_name):
         # For now, return the current directory, add emulated path walking later
-        if '\\' in file_name:
+        if "\\" in file_name:
             return file_name
         fp = self.get_cd()
-        if not fp.endswith('\\'):
-            fp += '\\'
+        if not fp.endswith("\\"):
+            fp += "\\"
         return fp + file_name
 
     def new_object(self, otype):
@@ -875,7 +864,7 @@ class WindowsEmulator(BinaryEmulator):
         # quotes, those are kept, so we have to delete them
         file_path = shlex.split(path, posix=False)[0]
 
-        if file_path[0] == '\"' and file_path[len(file_path) - 1] == '\"':
+        if file_path[0] == '"' and file_path[len(file_path) - 1] == '"':
             file_path = file_path[1:-1]
 
         p = self.om.new_object(objman.Process)
@@ -907,7 +896,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return p
 
-    def create_thread(self, addr, ctx, proc_obj, thread_type='thread', is_suspended=False):
+    def create_thread(self, addr, ctx, proc_obj, thread_type="thread", is_suspended=False):
         """
         Create a thread object that will exist in the emulator
         """
@@ -1051,7 +1040,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info('invalid_fetch', address)
+        error = self.get_error_info("invalid_fetch", address)
         self.curr_run.error = error
         self.tmp_maps.append((fakeout, self.page_size))
         self.on_run_complete()
@@ -1064,21 +1053,21 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         pc = self.get_pc()
         error = {}
-        self.log_error(f'0x{pc:x}: {run.type}: Caught error: {desc}')
-        error['type'] = desc
-        error['pc'] = hex(pc)
-        error['address'] = hex(address)
+        self.log_error(f"0x{pc:x}: {run.type}: Caught error: {desc}")
+        error["type"] = desc
+        error["pc"] = hex(pc)
+        error["address"] = hex(address)
         try:
             mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
         except Exception as e:
             self.log_error(str(e))
-            instr = 'disasm_failed'
-        error['instr'] = instr
-        error['regs'] = self.get_register_state()
-        error['stack'] = self.get_stack_trace()
+            instr = "disasm_failed"
+        error["instr"] = instr
+        error["regs"] = self.get_register_state()
+        error["stack"] = self.get_stack_trace()
 
         if traceback:
-            error['traceback'] = traceback
+            error["traceback"] = traceback
 
         return error
 
@@ -1088,45 +1077,41 @@ class WindowsEmulator(BinaryEmulator):
         For example, ntdll functions will be handled by the ntoskrnl handlers, multiple versions
         of the C runtime are folded together, and Zw/Nt functions use the same handler.
         """
-        alt_imp_api = ''
-        alt_imp_dll = ''
+        alt_imp_api = ""
+        alt_imp_dll = ""
         mod, func_attrs = None, None
 
         # Handle ANSI vs UNICODE functions
-        if name.endswith('A') or name.endswith('W'):
+        if name.endswith("A") or name.endswith("W"):
             alt_imp_api = name[:-1]
 
         # Handle Zw*/Nt* function overlap
-        if dll.lower().startswith('ntoskrnl'):
-            if name.startswith('Zw'):
-                alt_imp_api = f'Nt{name[2:]}'
-            elif name.startswith('Nt'):
-                name = 'Zw' + name[2:]
-                alt_imp_api = f'Zw{name[2:]}'
+        if dll.lower().startswith("ntoskrnl"):
+            if name.startswith("Zw"):
+                alt_imp_api = f"Nt{name[2:]}"
+            elif name.startswith("Nt"):
+                name = "Zw" + name[2:]
+                alt_imp_api = f"Zw{name[2:]}"
 
         alt_imp_dll = winemu.normalize_dll_name(dll)
 
         # Bridge ntdll funcs to ntoskrnl if supported
-        if dll.lower().startswith('ntdll'):
-            alt_imp_dll = 'ntoskrnl'
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll,
-                                                               name)
+        if dll.lower().startswith("ntdll"):
+            alt_imp_dll = "ntoskrnl"
+            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)
             if not func_attrs:
-                if name.startswith('Zw'):
-                    alt_imp_api = f'Nt{name[2:]}'
-                elif name.startswith('Nt'):
-                    name = 'Zw' + name[2:]
-                    alt_imp_api = f'Zw{name[2:]}'
-                mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll,
-                                                                   alt_imp_api)
+                if name.startswith("Zw"):
+                    alt_imp_api = f"Nt{name[2:]}"
+                elif name.startswith("Nt"):
+                    name = "Zw" + name[2:]
+                    alt_imp_api = f"Zw{name[2:]}"
+                mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)
             return mod, func_attrs
 
         if alt_imp_api:
-            mod, func_attrs = self.api.get_export_func_handler(dll,
-                                                               alt_imp_api)
+            mod, func_attrs = self.api.get_export_func_handler(dll, alt_imp_api)
         elif alt_imp_dll:
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll,
-                                                               name)
+            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)
         return mod, func_attrs
 
     def read_unicode_string(self, addr):
@@ -1140,32 +1125,33 @@ class WindowsEmulator(BinaryEmulator):
         return string
 
     def log_api(self, pc, imp_api, rv, argv):
-        call_str = f'{imp_api}('
+        call_str = f"{imp_api}("
         for arg in argv:
             if isinstance(arg, int):
-                call_str += f'0x{arg:x}'
+                call_str += f"0x{arg:x}"
             elif isinstance(arg, str):
-                call_str += '\"{}\"'.format(arg.replace("\n", "\\n"))
+                call_str += '"{}"'.format(arg.replace("\n", "\\n"))
             elif isinstance(arg, bytes):
-                call_str += f'\"{arg}\"'
-            call_str += ', '
-        if call_str.endswith(', '):
+                call_str += f'"{arg}"'
+            call_str += ", "
+        if call_str.endswith(", "):
             call_str = call_str[:-2]
-        call_str += ')'
+        call_str += ")"
 
         _rv = rv
         if _rv is not None:
             _rv = hex(rv)
-        self.log_info(f'{hex(pc)}: {repr(call_str)} -> {_rv}')
+        self.log_info(f"{hex(pc)}: {repr(call_str)} -> {_rv}")
         if self.profiler:
-            # Log the API args and return value
-            self.profiler.log_api(self.curr_run, pc, imp_api, rv, argv)
+            tick = self.curr_run.instr_cnt if self.curr_run else 0
+            tid = self.curr_thread.tid if self.curr_thread else 0
+            self.profiler.log_api(self.curr_run, tick, tid, pc, imp_api, rv, argv)
 
     def handle_import_func(self, dll, name):
         """
         Forward imported functions to the corresponding handler (if any).
         """
-        imp_api = f'{dll}.{name}'
+        imp_api = f"{dll}.{name}"
         oret = self.get_ret_address()
         opc = self.get_pc()
         mod, func_attrs = self.api.get_export_func_handler(dll, name)
@@ -1175,19 +1161,20 @@ class WindowsEmulator(BinaryEmulator):
         if func_attrs:
             handler_name, func, argc, conv, ordinal = func_attrs
 
-            if name.startswith('ordinal_'):
+            if name.startswith("ordinal_"):
                 name = handler_name
 
             argv = self.get_func_argv(conv, argc)
-            imp_api = f'{dll}.{name}'
-            default_ctx = {'func_name': imp_api}
+            imp_api = f"{dll}.{name}"
+            default_ctx = {"func_name": imp_api}
 
             self.hammer.handle_import_func(imp_api, conv, argc)
             hooks = self.get_api_hooks(dll, name)
             if hooks:
                 from types import MethodType
+
                 hooked_func = MethodType(func, mod)
-                orig = lambda args: hooked_func(self, args, default_ctx) # noqa
+                orig = lambda args: hooked_func(self, args, default_ctx)  # noqa
                 for hook in hooks:
                     # each hook is called with the arguments, and only the last return value is
                     # considered
@@ -1196,9 +1183,8 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
                 except Exception as e:
-                    self.log_exception(f'0x{oret:x}: Error while calling API handler for {imp_api}:')
-                    error = self.get_error_info(str(e), self.get_pc(),
-                                                traceback=traceback.format_exc())
+                    self.log_exception(f"0x{oret:x}: Error while calling API handler for {imp_api}:")
+                    error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
                     self.curr_run.error = error
                     self.on_run_complete()
                     return
@@ -1208,7 +1194,7 @@ class WindowsEmulator(BinaryEmulator):
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
-            if mm and 'virtualalloc' in mm.get_tag().lower():
+            if mm and "virtualalloc" in mm.get_tag().lower():
                 self._dynamic_code_cb(self, ret, 0, {})
 
             # Log the API args and return value
@@ -1223,7 +1209,7 @@ class WindowsEmulator(BinaryEmulator):
             if hooks:
                 # Since the function is unsupported, just call the most accurate defined hook
                 hook = hooks[0]
-                imp_api = f'{dll}.{name}'
+                imp_api = f"{dll}.{name}"
 
                 if hook.call_conv is None:
                     hook.call_conv = _arch.CALL_CONV_STDCALL
@@ -1236,7 +1222,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
             elif self.functions_always_exist:
-                imp_api = f'{dll}.{name}'
+                imp_api = f"{dll}.{name}"
                 conv = _arch.CALL_CONV_STDCALL
                 argc = 4
                 argv = self.get_func_argv(conv, argc)
@@ -1247,19 +1233,19 @@ class WindowsEmulator(BinaryEmulator):
                 return
 
             run = self.get_current_run()
-            error = self.get_error_info('unsupported_api', self.get_pc())
+            error = self.get_error_info("unsupported_api", self.get_pc())
             self.log_error(f"Unsupported API: {imp_api} (ret: 0x{oret:x})")
-            error['api_name'] = imp_api
+            error["api_name"] = imp_api
             self.curr_run.error = error
             self.on_run_complete()
 
         run = self.get_current_run()
         if run and run.get_api_count() > self.max_api_count:
             self.log_info("* Maximum number of API calls reached. Stopping current run.")
-            run.error['type'] = 'max_api_count'
-            run.error['count'] = self.max_api_count
-            run.error['pc'] = hex(self.get_pc())
-            run.error['last_api'] = imp_api
+            run.error["type"] = "max_api_count"
+            run.error["count"] = self.max_api_count
+            run.error["pc"] = hex(self.get_pc())
+            run.error["last_api"] = imp_api
             self.on_run_complete()
 
     def _hook_mem_unmapped(self, emu, access, address, size, value, ctx):
@@ -1277,7 +1263,6 @@ class WindowsEmulator(BinaryEmulator):
             self.enable_code_hook()
 
             if access == common.INVALID_MEM_EXEC:
-
                 if address == winemu.SEH_RETURN_ADDR:
                     self.continue_seh()
                     self._unset_emu_hooks()
@@ -1289,31 +1274,24 @@ class WindowsEmulator(BinaryEmulator):
                         self.do_call_return(len(args), pc)
                         self._unset_emu_hooks()
                     return True
-                return self._handle_invalid_fetch(emu, address, size,
-                                                  value, ctx)
+                return self._handle_invalid_fetch(emu, address, size, value, ctx)
 
             elif access == common.INVALID_MEM_READ:
-                return self._handle_invalid_read(emu, address, size,
-                                                 value, ctx)
+                return self._handle_invalid_read(emu, address, size, value, ctx)
 
             elif access == common.INVAL_PERM_MEM_EXEC:
-                return self._handle_prot_fetch(emu, address, size,
-                                               value, ctx)
+                return self._handle_prot_fetch(emu, address, size, value, ctx)
             elif access == common.INVALID_MEM_WRITE:
-
                 fakeout = address & 0xFFFFFFFFFFFFF000
                 self.mem_map(self.page_size, base=fakeout)
                 self.tmp_maps.append((fakeout, self.page_size))
 
-                return self._handle_invalid_write(emu, address, size,
-                                                  value, ctx)
+                return self._handle_invalid_write(emu, address, size, value, ctx)
             elif access == common.INVAL_PERM_MEM_WRITE:
-                return self._handle_prot_write(emu, address, size,
-                                               value, ctx)
+                return self._handle_prot_write(emu, address, size, value, ctx)
         except Exception as e:
-            self.log_exception('Invalid memory exception')
-            error = self.get_error_info(str(e), self.get_pc(),
-                                        traceback=traceback.format_exc())
+            self.log_exception("Invalid memory exception")
+            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
             return False
@@ -1323,7 +1301,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info('invalid_protect_write', address)
+        error = self.get_error_info("invalid_protect_write", address)
         self.curr_run.error = error
 
         self.tmp_maps.append((fakeout, self.page_size))
@@ -1344,7 +1322,7 @@ class WindowsEmulator(BinaryEmulator):
         symbol = None
         sym = self.symbols.get(address)
         if sym:
-            symbol = '{}.{}'.format(*sym)
+            symbol = "{}.{}".format(*sym)
         return symbol
 
     def _hook_mem_read(self, emu, access, address, size, value, ctx):
@@ -1371,7 +1349,7 @@ class WindowsEmulator(BinaryEmulator):
                         symbol, ptr = gdata
 
                     if not ptr:
-                        mn, fn = symbol.split('.')[:2]
+                        mn, fn = symbol.split(".")[:2]
                         data_ptr = self.handle_import_data(mn, fn)
                         if data_ptr:
                             pc = self.get_pc()
@@ -1403,9 +1381,8 @@ class WindowsEmulator(BinaryEmulator):
 
             return True
         except Exception as e:
-            self.log_exception('Exception during memory read')
-            error = self.get_error_info(str(type(e).__name__), self.get_pc(),
-                                        traceback=traceback.format_exc())
+            self.log_exception("Exception during memory read")
+            error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
             return False
@@ -1416,7 +1393,6 @@ class WindowsEmulator(BinaryEmulator):
         to interesting memory locations.
         """
         try:
-
             symbol = self.get_symbol_from_address(address)
             if symbol:
                 mac = self.curr_run.sym_access.get(address)
@@ -1444,9 +1420,8 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception('Exception during memory write')
-            error = self.get_error_info(str(type(e).__name__), self.get_pc(),
-                                        traceback=traceback.format_exc())
+            self.log_exception("Exception during memory write")
+            error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
             return False
@@ -1460,8 +1435,7 @@ class WindowsEmulator(BinaryEmulator):
         if decoy:
             return self.map_decoy(decoy)
 
-        if address >= winemu.EMU_RESERVED and \
-           address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
+        if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
             self._unset_emu_hooks()
             return True
 
@@ -1472,7 +1446,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info('invalid_read', address)
+        error = self.get_error_info("invalid_read", address)
         self.curr_run.error = error
 
         # Let the next run know to remove this map since its
@@ -1496,7 +1470,7 @@ class WindowsEmulator(BinaryEmulator):
         mac.execs += 1
         self.curr_run.sym_access.update({address: mac})
 
-        mod_name, fn = symbol.split('.')
+        mod_name, fn = symbol.split(".")
 
         self.handle_import_func(mod_name, fn)
         return True
@@ -1506,8 +1480,7 @@ class WindowsEmulator(BinaryEmulator):
         Called when non-writable address is written to
         """
         # ignore patches to APIs
-        if address >= winemu.EMU_RESERVED and \
-                address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
+        if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
             return True
 
         if self.dispatch_handlers:
@@ -1518,7 +1491,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info('invalid_write', address)
+        error = self.get_error_info("invalid_write", address)
         self.curr_run.error = error
 
         self.tmp_maps.append((fakeout, self.page_size))
@@ -1533,7 +1506,8 @@ class WindowsEmulator(BinaryEmulator):
 
         if self.debug:
             x = self.get_disasm(addr, size)[2]
-            print('0x%x: %s, edi=0x%x : esi=0x%x : ebp=0x%x : eax=0x%x' % (addr, x, self.reg_read('edi'), self.reg_read('esi'), self.reg_read('ebp'), self.reg_read('eax'))) # noqa
+            edi, esi, ebp, eax = (self.reg_read(r) for r in ("edi", "esi", "ebp", "eax"))
+            print(f"0x{addr:x}: {x}, edi=0x{edi:x} : esi=0x{esi:x} : ebp=0x{ebp:x} : eax=0x{eax:x}")
         try:
             if self.curr_exception_code != 0:
                 self.dispatch_seh(self.curr_exception_code)
@@ -1560,16 +1534,13 @@ class WindowsEmulator(BinaryEmulator):
                 self.tmp_maps = []
 
             if len(self.impdata_queue):
-
                 imp = self.impdata_queue.pop(0)
                 pc, read_addr, sym, data_ptr = imp
                 if data_ptr is None:
                     return True
 
                 self.global_data.update({read_addr: [sym, data_ptr]})
-                self.mem_write(read_addr,
-                               data_ptr.to_bytes(self.get_ptr_size(),
-                                                 'little'))
+                self.mem_write(read_addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
                 return True
 
             if self.coverage_enabled:
@@ -1585,11 +1556,11 @@ class WindowsEmulator(BinaryEmulator):
 
             self.curr_instr_size = size
 
-        # Get the symbol that the sample was trying to execute
+            # Get the symbol that the sample was trying to execute
 
             symbol = self.get_symbol_from_address(addr)
             if self.mem_tracing_enabled and symbol:
-                mod_name, fn = symbol.split('.')
+                mod_name, fn = symbol.split(".")
 
                 mac = self.curr_run.sym_access.get(addr)
                 if not mac:
@@ -1626,14 +1597,13 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception('Exception during code hook')
-            error = self.get_error_info(str(e), self.get_pc(),
-                                        traceback=traceback.format_exc())
+            self.log_exception("Exception during code hook")
+            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
             return False
 
-    def get_native_module_path(self, mod_name=''):
+    def get_native_module_path(self, mod_name=""):
         """
         Get the full filesystem path of a default decoy that is supplied by
         speakeasy
@@ -1649,16 +1619,18 @@ class WindowsEmulator(BinaryEmulator):
                     return fp
 
         mod_name = mod_name.lower()
-        decoy_arch_dir = {_arch.ARCH_X86: ('module_directory_x86', 'x86'),
-                          _arch.ARCH_AMD64: ('module_directory_x64', 'amd64')}
+        decoy_arch_dir = {
+            _arch.ARCH_X86: ("module_directory_x86", "x86"),
+            _arch.ARCH_AMD64: ("module_directory_x64", "amd64"),
+        }
         dirs = decoy_arch_dir[self.get_arch()]
         mod_dir = dirs[0]
 
-        path = self.config_modules.get(mod_dir, '')
+        path = self.config_modules.get(mod_dir, "")
 
         fp = get_fp(path, mod_name)
         if not fp:
-            path = os.path.join(os.path.dirname(__file__), os.pardir, 'winenv', 'decoys', dirs[1])
+            path = os.path.join(os.path.dirname(__file__), os.pardir, "winenv", "decoys", dirs[1])
             fp = get_fp(path, mod_name)
 
         return fp
@@ -1683,7 +1655,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.modules_always_exist:
             return 0
 
-        mod = self.init_module(name=lib, default_base=0x6f000000)
+        mod = self.init_module(name=lib, default_base=0x6F000000)
 
         ums.append(mod)
 
@@ -1695,39 +1667,38 @@ class WindowsEmulator(BinaryEmulator):
         return mod.get_base()
 
     def generate_decoy_module(self, modname, base):
-        '''
-        Create a decoy module that emulates a DLL. The decoy module will contain basic 
+        """
+        Create a decoy module that emulates a DLL. The decoy module will contain basic
         structures such as a .text section and an .edata section containing a list of exported functions.
-        '''
+        """
 
         if not modname:
             return
         modname = modname.lower()
         mod_handler = self.api.load_api_handler(modname)
         if mod_handler:
-
             jit = winemu.JitPeFile(self.get_arch(), base=base)
 
             funcs = [(f[4], f[0]) for k, f in mod_handler.funcs.items() if isinstance(k, str)]
             data_exports = [k for k, d in mod_handler.data.items() if isinstance(k, str)]
             new = funcs.copy()
 
-            if modname == 'ntdll':
-                nt_handler = self.api.load_api_handler('ntoskrnl')
+            if modname == "ntdll":
+                nt_handler = self.api.load_api_handler("ntoskrnl")
                 funcs = [(f[4], f[0]) for k, f in nt_handler.funcs.items() if isinstance(k, str)]
                 funcs = new + funcs
                 new = funcs.copy()
 
-            if modname in ('ntdll', 'ntoskrnl'):
+            if modname in ("ntdll", "ntoskrnl"):
                 for o, fn in funcs:
-                    if fn.startswith('Nt'):
-                        new.append((None, 'Zw' + fn[2:]))
-                    elif fn.startswith('Zw'):
-                        new.append((None, 'Nt' + fn[2:]))
+                    if fn.startswith("Nt"):
+                        new.append((None, "Zw" + fn[2:]))
+                    elif fn.startswith("Zw"):
+                        new.append((None, "Nt" + fn[2:]))
             else:
                 for o, fn in funcs:
-                    new.append((None, fn + 'A'))
-                    new.append((None, fn + 'W'))
+                    new.append((None, fn + "A"))
+                    new.append((None, fn + "W"))
             func_names = new
 
             func_names = [fn for o, fn in func_names]
@@ -1741,11 +1712,11 @@ class WindowsEmulator(BinaryEmulator):
                 else:
                     num_exports = len(exports) + 1
 
-                exports = [f'ordinal_{i}' for i in range(num_exports)]
+                exports = [f"ordinal_{i}" for i in range(num_exports)]
 
                 for o, fn in funcs:
                     if o is not None:
-                        exports[o-1] = fn
+                        exports[o - 1] = fn
 
                 [exports.append(fn) for fn in func_names if fn not in exports]
 
@@ -1759,47 +1730,51 @@ class WindowsEmulator(BinaryEmulator):
             return mod
         return None
 
-    def init_module(self, modconf={}, name='none', emu_path='', default_base=None):
+    def init_module(self, modconf={}, name="none", emu_path="", default_base=None):
         """
         Initialize a module from a config entry
         """
-        modname = modconf.get('name', name)    
-        base = modconf.get('base_addr', default_base)
+        modname = modconf.get("name", name)
+        base = modconf.get("base_addr", default_base)
         if isinstance(base, str):
             base = int(base, 16)
 
         mod = None
 
-        images = modconf.get('images', [])
+        images = modconf.get("images", [])
         default_file_path = self.get_native_module_path(mod_name=modname)
         if not images:
             if not default_file_path:
                 mod = self.generate_decoy_module(modname, base)
-                default_file_path = self.get_native_module_path(mod_name='default_exe')
+                default_file_path = self.get_native_module_path(mod_name="default_exe")
 
         path = None
         for img in images:
-            arch = img['arch']
+            arch = img["arch"]
             if arch == self.get_arch():
-                path = self.get_native_module_path(mod_name=img['name'])
+                path = self.get_native_module_path(mod_name=img["name"])
 
         if not path:
             path = default_file_path
 
         if not mod:
             mod = winemu.DecoyModule(path=path)
-        
-        mod.decoy_path = modconf.get('path', emu_path) or (name + '.dll')
+
+        mod.decoy_path = modconf.get("path", emu_path) or (name + ".dll")
         # Reserve memory for the module
         res, size = self.get_valid_ranges(mod.image_size, base)
         mod.decoy_base = res
-        mod.name = modconf.get('name', name)
+        mod.name = modconf.get("name", name)
 
         # map PE headers
         headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
         headers_content = bytes(mod.get_data(length=headers_size))
-        mem_base = self.mem_map(len(headers_content), base=mod.OPTIONAL_HEADER.ImageBase, 
-                                tag=f'emu.module.header.{mod.name}', perms=common.PERM_MEM_READ)        
+        mem_base = self.mem_map(
+            len(headers_content),
+            base=mod.OPTIONAL_HEADER.ImageBase,
+            tag=f"emu.module.header.{mod.name}",
+            perms=common.PERM_MEM_READ,
+        )
         self.mem_write(mem_base, headers_content)
 
         if hasattr(mod, "sections"):
@@ -1809,15 +1784,14 @@ class WindowsEmulator(BinaryEmulator):
                 vsize = section.Misc_VirtualSize
                 is_exec = section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
                 perms = common.PERM_MEM_RWX if is_exec else common.PERM_MEM_RW
-                mem_base = self.mem_map(vsize, base=va, tag=f'emu.module.{mod.name}.{name}', perms=perms)
+                mem_base = self.mem_map(vsize, base=va, tag=f"emu.module.{mod.name}.{name}", perms=perms)
                 section_data = bytes(section.get_data())
                 self.mem_write(mem_base, section_data)
         else:
-            self.mem_reserve(size, base=res, tag=f'emu.module.{mod.name}',
-                         perms=common.PERM_MEM_RW)
+            self.mem_reserve(size, base=res, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
 
-        if mod.decoy_path == '' and name != '':
-            mod.decoy_path = self.config.get('current_dir', 'C:\\Windows\\system32') + '\\' + name
+        if mod.decoy_path == "" and name != "":
+            mod.decoy_path = self.config.get("current_dir", "C:\\Windows\\system32") + "\\" + name
 
         mod.base_name = ntpath.basename(mod.decoy_path)
 
@@ -1859,7 +1833,7 @@ class WindowsEmulator(BinaryEmulator):
         user_mods = []
 
         for modconf in modules_config:
-            mod = self.init_module(modconf, default_base=0x6f000000)
+            mod = self.init_module(modconf, default_base=0x6F000000)
             user_mods.append(mod)
 
         return user_mods
@@ -1886,16 +1860,14 @@ class WindowsEmulator(BinaryEmulator):
             # Map the module into the emulation address space
             mem = self.mem_map_reserve(decoy.get_base())
             if mem is None:
-                base, size = self.get_valid_ranges(decoy.image_size,
-                                                   addr=decoy.get_base())
-                mem = self.mem_map(size, base=base, tag=f'emu.module.{decoy.name}',
-                                   perms=common.PERM_MEM_RW)
+                base, size = self.get_valid_ranges(decoy.image_size, addr=decoy.get_base())
+                mem = self.mem_map(size, base=base, tag=f"emu.module.{decoy.name}", perms=common.PERM_MEM_RW)
 
             decoy.is_mapped = True
             img = decoy.get_memory_mapped_image(base=mem)
             self.mem_write(mem, bytes(img))
             if not self.mem_tracing_enabled:
-                self.add_code_hook(cb=self._module_access_hook, begin=mem, end=mem+len(img))
+                self.add_code_hook(cb=self._module_access_hook, begin=mem, end=mem + len(img))
             decoy.base = mem
             return True
 
@@ -1989,15 +1961,14 @@ class WindowsEmulator(BinaryEmulator):
 
         ereg = self.wintypes.EXCEPTION_REGISTRATION(self.get_ptr_size())
         if exception_list:
-
             entry = self.mem_cast(ereg, exception_list)
             sp = self.get_stack_ptr()
 
             exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
 
-            p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag='emu.struct.EXCEPTION_POINTERS')
-            prec = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_RECORD')
-            pctx = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_CONTEXT')
+            p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
+            prec = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_RECORD")
+            pctx = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
 
             exp_ptrs.ExceptionRecord = prec
             exp_ptrs.ContextRecord = pctx
@@ -2006,14 +1977,13 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(pctx, _ctx.get_bytes())
             seh.set_context(_ctx, address=pctx)
 
-            p_exp_ptrs_bytes = (p_exp_ptrs).to_bytes(ptr_size, 'little')
+            p_exp_ptrs_bytes = (p_exp_ptrs).to_bytes(ptr_size, "little")
 
             self.mem_write(p_exp_ptrs, exp_ptrs.get_bytes())
             self.mem_write(prec, record.get_bytes())
 
             # Write the record to the ms_exc.exc_ptr offset
-            self.mem_write(exception_list - ptr_size,
-                           p_exp_ptrs_bytes)
+            self.mem_write(exception_list - ptr_size, p_exp_ptrs_bytes)
 
             args = [prec, exception_list, pctx, 0]
             self.set_func_args(sp, winemu.SEH_RETURN_ADDR, *args)
@@ -2026,22 +1996,19 @@ class WindowsEmulator(BinaryEmulator):
                 mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
             except Exception as e:
                 self.log_error(str(e))
-                instr = 'disasm_failed'
+                instr = "disasm_failed"
 
             self.log_info(
-                f'0x{pc:x}: Exception caught: code:0x{except_code:x}, '
-                f'handler=0x{entry.Handler:x}, instr="{instr}"'
+                f'0x{pc:x}: Exception caught: code:0x{except_code:x}, handler=0x{entry.Handler:x}, instr="{instr}"'
             )
 
-            run.handled_exceptions.append({"pc": hex(pc),
-                                           "instr": instr,
-                                           "exception_code": hex(except_code),
-                                           "handler_address": hex(entry.Handler),
-                                           "registers": regs,
-                                           })
+            if self.profiler:
+                tick = run.instr_cnt if run else 0
+                tid = self.curr_thread.tid if self.curr_thread else 0
+                self.profiler.log_exception(run, tick, tid, pc, instr, except_code, entry.Handler, regs)
 
             # EBX clobber, -1 is what I observed inside a VM
-            self.reg_write(_arch.X86_REG_EBX, 0xffffffff)
+            self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
             self.set_pc(entry.Handler)
             return True
         return False
@@ -2077,17 +2044,18 @@ class WindowsEmulator(BinaryEmulator):
             if not frame.searched:
                 seh.set_current_frame(frame)
                 scope_record = frame.scope_records[0]
-                if (not scope_record.filter_called and
-                   scope_record.record.FilterFunc):
+                if not scope_record.filter_called and scope_record.record.FilterFunc:
                     self.set_func_args(sp, winemu.SEH_RETURN_ADDR)
                     self.set_pc(scope_record.record.FilterFunc)
                     seh.set_last_func(scope_record.record.FilterFunc)
                     scope_record.filter_called = True
                     return
 
-                if (windef.EXCEPTION_EXECUTE_HANDLER == ret_val or
-                   scope_record.record.FilterFunc == 0 or
-                   scope_record.record.FilterFunc == 0xFFFFFFFF):
+                if (
+                    windef.EXCEPTION_EXECUTE_HANDLER == ret_val
+                    or scope_record.record.FilterFunc == 0
+                    or scope_record.record.FilterFunc == 0xFFFFFFFF
+                ):
                     if not scope_record.handler_called:
                         # If no filter was provided, this is a finally block
                         self.set_pc(scope_record.record.HandlerAddress)
@@ -2127,9 +2095,9 @@ class WindowsEmulator(BinaryEmulator):
             record.NumberParameters = 0
 
             exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
-            p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag='emu.struct.EXCEPTION_POINTERS')
-            prec = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_RECORD')
-            pctx = self.mem_map(record.sizeof(), tag='emu.struct.EXCEPTION_CONTEXT')
+            p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
+            prec = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_RECORD")
+            pctx = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
 
             exp_ptrs.ExceptionRecord = prec
             exp_ptrs.ContextRecord = pctx
@@ -2153,7 +2121,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.get_arch() == _arch.ARCH_X86:
             self._continue_seh_x86()
 
-    def create_event(self, name=''):
+    def create_event(self, name=""):
         """
         Create a kernel event object
         """
@@ -2168,12 +2136,12 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.om.dec_ref(obj)
 
-    def create_mutant(self, name=''):
+    def create_mutant(self, name=""):
         """
         Create a kernel mutant object
         """
         if name == 0:
-            name = ''
+            name = ""
         mtx = self.new_object(objman.Mutant)
         mtx.name = name
         hnd = self.om.get_handle(mtx)
@@ -2183,6 +2151,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when software interrupts occur
         """
+
         def _tmp_hook(emu, addr, size, ctx):
             ret = self.pop_stack()
             self.set_pc(ret)
@@ -2192,7 +2161,7 @@ class WindowsEmulator(BinaryEmulator):
         exception_list = self._get_exception_list()
         if exception_list and self.dispatch_handlers:
             # Catch software breakpoint interrupts
-            if intnum == 3 or intnum == 0x2d:
+            if intnum == 3 or intnum == 0x2D:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT
                 self.prev_pc = self.get_pc()
                 self.enable_code_hook()
@@ -2217,9 +2186,9 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
         pc = self.get_pc()
-        self.log_error(f'0x{pc:x}: Unhandled interrupt: intnum=0x{intnum:x}')
-        error = self.get_error_info('unhandled_interrupt', pc)
-        error.update({'interrupt_num': intnum})
+        self.log_error(f"0x{pc:x}: Unhandled interrupt: intnum=0x{intnum:x}")
+        error = self.get_error_info("unhandled_interrupt", pc)
+        error.update({"interrupt_num": intnum})
         self.curr_run.error = error
 
         self.restart_curr_run = True

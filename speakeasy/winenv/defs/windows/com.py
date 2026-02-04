@@ -20,11 +20,11 @@ RPC_C_IMP_LEVEL_IDENTIFY = 2
 RPC_C_IMP_LEVEL_IMPERSONATE = 3
 RPC_C_IMP_LEVEL_DELEGATE = 4
 
-CLSID_WbemLocator = '{4590F811-1D3A-11D0-891F-00AA004B2E24}'
-CLSID_IWbemContext = '{674B6698-EE92-11D0-AD71-00C04FD8FDFF}'
+CLSID_WbemLocator = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
+CLSID_IWbemContext = "{674B6698-EE92-11D0-AD71-00C04FD8FDFF}"
 
-IID_IWbemLocator = '{DC12A687-737F-11CF-884D-00AA004B2E24}'
-IID_IWbemContext = '{44ACA674-E8FC-11D0-A07C-00C04FB68820}'
+IID_IWbemLocator = "{DC12A687-737F-11CF-884D-00AA004B2E24}"
+IID_IWbemContext = "{44ACA674-E8FC-11D0-A07C-00C04FB68820}"
 
 
 class ComInterface:
@@ -105,14 +105,16 @@ class IWbemContext(EmuStruct):
         self.DeleteAll = Ptr
 
 
-IFACE_TYPES = {'IUnknown': IUnknown,
-               'IMalloc':  IMalloc,
-               'IWbemLocator': IWbemLocator,
-               'IWbemServices': IWbemServices,
-               'IWbemContext': IWbemContext}
+IFACE_TYPES = {
+    "IUnknown": IUnknown,
+    "IMalloc": IMalloc,
+    "IWbemLocator": IWbemLocator,
+    "IWbemServices": IWbemServices,
+    "IWbemContext": IWbemContext,
+}
 
 
-def get_define_int(define, prefix=''):
+def get_define_int(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -123,7 +125,7 @@ def get_define_int(define, prefix=''):
             return k
 
 
-def get_define_str(define, prefix=''):
+def get_define_str(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, str) or v != define:
             continue
@@ -135,21 +137,21 @@ def get_define_str(define, prefix=''):
 
 
 def get_clsid(define):
-    return get_define_str(define, prefix='CLSID_')
+    return get_define_str(define, prefix="CLSID_")
 
 
 def get_iid(define):
-    return get_define_str(define, prefix='IID_')
+    return get_define_str(define, prefix="IID_")
 
 
 def get_rpc_authlevel(define):
-    return get_define_int(define, prefix='RPC_C_AUTHN_LEVEL_')
+    return get_define_int(define, prefix="RPC_C_AUTHN_LEVEL_")
 
 
 def get_rcp_implevel(define):
-    return get_define_int(define, prefix='RPC_C_IMP_LEVEL_')
+    return get_define_int(define, prefix="RPC_C_IMP_LEVEL_")
 
 
 def convert_guid_bytes_to_str(guid_bytes):
     u = uuid.UUID(bytes_le=guid_bytes)
-    return (f'{{{u}}}').upper()
+    return (f"{{{u}}}").upper()

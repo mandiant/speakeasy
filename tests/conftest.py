@@ -11,7 +11,7 @@ from speakeasy import Speakeasy
 
 @pytest.fixture(scope="session")
 def config():
-    fp = os.path.join(os.path.dirname(__file__), 'test.json')
+    fp = os.path.join(os.path.dirname(__file__), "test.json")
     with open(fp) as f:
         return json.load(f)
 
@@ -19,9 +19,10 @@ def config():
 @pytest.fixture(scope="session")
 def load_test_bin():
     def _load(bin_name):
-        fp = os.path.join(os.path.dirname(__file__), 'bins', bin_name)
+        fp = os.path.join(os.path.dirname(__file__), "bins", bin_name)
         with lzma.open(fp) as f:
             return f.read()
+
     return _load
 
 
@@ -34,4 +35,5 @@ def run_test():
         module = se.load_module(data=target)
         se.run_module(module, all_entrypoints=True)
         return se.get_report()
+
     return _run
