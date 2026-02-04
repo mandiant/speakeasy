@@ -3,15 +3,20 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Discriminator
 
 
-class Event(BaseModel):
+class TracePosition(BaseModel):
     tick: int
     tid: int
+    pid: int
+    pc: int | None = None
+
+
+class Event(BaseModel):
+    pos: TracePosition
     event: str
 
 
 class ApiEvent(Event):
     event: Literal["api"] = "api"
-    pc: str
     api_name: str
     args: list[str]
     ret_val: str | None = None
@@ -19,14 +24,12 @@ class ApiEvent(Event):
 
 class ProcessCreateEvent(Event):
     event: Literal["process_create"] = "process_create"
-    pid: int
     path: str
     cmdline: str
 
 
 class MemAllocEvent(Event):
     event: Literal["mem_alloc"] = "mem_alloc"
-    pid: int
     path: str
     base: str
     size: str
@@ -35,7 +38,6 @@ class MemAllocEvent(Event):
 
 class MemWriteEvent(Event):
     event: Literal["mem_write"] = "mem_write"
-    pid: int
     path: str
     base: str
     size: int
@@ -44,7 +46,6 @@ class MemWriteEvent(Event):
 
 class MemReadEvent(Event):
     event: Literal["mem_read"] = "mem_read"
-    pid: int
     path: str
     base: str
     size: int
@@ -53,16 +54,29 @@ class MemReadEvent(Event):
 
 class MemProtectEvent(Event):
     event: Literal["mem_protect"] = "mem_protect"
-    pid: int
     path: str
     base: str
     size: str
     protect: str | None = None
 
 
+class MemFreeEvent(Event):
+    event: Literal["mem_free"] = "mem_free"
+    path: str
+    base: str
+    size: str
+
+
+class ModuleLoadEvent(Event):
+    event: Literal["module_load"] = "module_load"
+    name: str
+    path: str
+    base: str
+    size: str
+
+
 class ThreadCreateEvent(Event):
     event: Literal["thread_create"] = "thread_create"
-    pid: int
     path: str
     start_addr: str
     param: str
@@ -70,7 +84,6 @@ class ThreadCreateEvent(Event):
 
 class ThreadInjectEvent(Event):
     event: Literal["thread_inject"] = "thread_inject"
-    pid: int
     path: str
     start_addr: str
     param: str
@@ -169,7 +182,6 @@ class NetHttpEvent(Event):
 
 class ExceptionEvent(Event):
     event: Literal["exception"] = "exception"
-    pc: str
     instr: str
     exception_code: str
     handler_address: str
@@ -183,6 +195,8 @@ AnyEvent = Annotated[
     | MemWriteEvent
     | MemReadEvent
     | MemProtectEvent
+    | MemFreeEvent
+    | ModuleLoadEvent
     | ThreadCreateEvent
     | ThreadInjectEvent
     | FileCreateEvent

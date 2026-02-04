@@ -80,6 +80,51 @@ class DroppedFile(BaseModel):
     sha256: str
 
 
+class MemoryAccesses(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reads: int
+    writes: int
+    execs: int
+
+
+class MemoryRegion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tag: str
+    address: HexInt
+    size: HexInt
+    prot: str
+    is_free: bool = False
+    accesses: MemoryAccesses | None = None
+
+
+class ModuleSegment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    address: HexInt
+    size: HexInt
+    prot: str
+
+
+class LoadedModule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    path: str
+    base: HexInt
+    size: HexInt
+    segments: list[ModuleSegment] = []
+
+
+class MemoryLayout(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    layout: list[MemoryRegion] = []
+    modules: list[LoadedModule] = []
+
+
 class EntryPoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -96,6 +141,7 @@ class EntryPoint(BaseModel):
     dynamic_code_segments: list[DynamicCodeSegment] | None = None
     coverage: list[int] | None = None
     dropped_files: list[DroppedFile] | None = None
+    memory: MemoryLayout | None = None
 
 
 class Report(BaseModel):

@@ -14,6 +14,7 @@ from speakeasy.const import (
     FILE_READ,
     FILE_WRITE,
     MEM_ALLOC,
+    MEM_FREE,
     MEM_PROTECT,
     MEM_READ,
     MEM_WRITE,
@@ -34,9 +35,11 @@ from speakeasy.profiler_events import (
     FileReadEvent,
     FileWriteEvent,
     MemAllocEvent,
+    MemFreeEvent,
     MemProtectEvent,
     MemReadEvent,
     MemWriteEvent,
+    ModuleLoadEvent,
     NetDnsEvent,
     NetHttpEvent,
     NetTrafficEvent,
@@ -47,13 +50,18 @@ from speakeasy.profiler_events import (
     RegReadValueEvent,
     ThreadCreateEvent,
     ThreadInjectEvent,
+    TracePosition,
 )
 from speakeasy.report import (
     DroppedFile,
     DynamicCodeSegment,
     EntryPoint,
     ErrorInfo,
+    LoadedModule,
     MemAccessReport,
+    MemoryAccesses,
+    MemoryLayout,
+    MemoryRegion,
     Report,
     StringCollection,
     StringsReport,
@@ -110,6 +118,8 @@ class Run:
         self.error = {}
         self.num_apis = 0
         self.coverage = []
+        self.memory_regions: list[dict] = []
+        self.loaded_modules: list[dict] = []
 
     def get_api_count(self):
         """
@@ -198,7 +208,7 @@ class Profiler:
             entry = {"path": f.get_path(), "size": len(data), "sha256": _hash}
             run.dropped_files.append(entry)
 
-    def log_api(self, run, tick, tid, pc, name, ret, argv, ctx=[]):
+    def log_api(self, run, pos: TracePosition, name, ret, argv, ctx=[]):
         """
         Log a call to an OS API. This includes arguments, return address, and return value
         """
@@ -208,7 +218,6 @@ class Profiler:
             run.api_hash.update(name.lower().encode("utf-8"))
             run.unique_apis.append(name)
 
-        pc_str = hex(pc)
         ret_str = hex(ret) if ret is not None else None
 
         args = argv.copy()
@@ -217,9 +226,7 @@ class Profiler:
                 args[i] = hex(arg)
 
         event = ApiEvent(
-            tick=tick,
-            tid=tid,
-            pc=pc_str,
+            pos=pos,
             api_name=name,
             args=args,
             ret_val=ret_str,
@@ -227,13 +234,26 @@ class Profiler:
 
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
         if not any(
-            e.pc == event.pc and e.api_name == event.api_name and e.args == event.args and e.ret_val == event.ret_val
+            e.pos.pc == event.pos.pc
+            and e.api_name == event.api_name
+            and e.args == event.args
+            and e.ret_val == event.ret_val
             for e in recent_events
         ):
             run.events.append(event)
 
     def log_file_access(
-        self, run, tick, tid, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+        self,
+        run,
+        pos: TracePosition,
+        path,
+        event_type,
+        data=None,
+        handle=0,
+        disposition=[],
+        access=[],
+        buffer=0,
+        size=None,
     ):
         """
         Log file access events. This will include things like handles being opened,
@@ -265,8 +285,7 @@ class Profiler:
 
         if event_type == FILE_CREATE:
             event = FileCreateEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 open_flags=open_flags,
@@ -274,8 +293,7 @@ class Profiler:
             )
         elif event_type == FILE_OPEN:
             event = FileOpenEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 open_flags=open_flags,
@@ -283,8 +301,7 @@ class Profiler:
             )
         elif event_type == FILE_READ:
             event = FileReadEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 size=size,
@@ -293,8 +310,7 @@ class Profiler:
             )
         elif event_type == FILE_WRITE:
             event = FileWriteEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 size=size,
@@ -309,8 +325,7 @@ class Profiler:
     def log_registry_access(
         self,
         run,
-        tick,
-        tid,
+        pos: TracePosition,
         path,
         event_type,
         value_name=None,
@@ -341,8 +356,7 @@ class Profiler:
 
         if event_type == REG_OPEN:
             event = RegOpenKeyEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 open_flags=open_flags,
@@ -350,8 +364,7 @@ class Profiler:
             )
         elif event_type == REG_CREATE:
             event = RegCreateKeyEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 open_flags=open_flags,
@@ -359,8 +372,7 @@ class Profiler:
             )
         elif event_type == REG_READ:
             event = RegReadValueEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
                 value_name=value_name,
@@ -370,8 +382,7 @@ class Profiler:
             )
         elif event_type == REG_LIST:
             event = RegListSubkeysEvent(
-                tick=tick,
-                tid=tid,
+                pos=pos,
                 path=path,
                 handle=handle_str,
             )
@@ -380,7 +391,7 @@ class Profiler:
 
         run.events.append(event)
 
-    def log_process_event(self, run, tick, tid, proc, event_type, kwargs):
+    def log_process_event(self, run, pos: TracePosition, proc, event_type, kwargs):
         """
         Log events related to a process accessing another process. This includes:
         creating a child process, reading/writing to a process, or creating a thread
@@ -388,21 +399,18 @@ class Profiler:
         """
         pid = proc.get_id()
         path = proc.get_process_path()
+        proc_pos = TracePosition(tick=pos.tick, tid=pos.tid, pid=pid, pc=pos.pc)
 
         if event_type == PROC_CREATE:
             event = ProcessCreateEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 cmdline=proc.get_command_line(),
             )
 
         elif event_type == MEM_ALLOC:
             event = MemAllocEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 base=hex(kwargs.get("base", 0)),
                 size=hex(kwargs.get("size", 0)),
@@ -411,13 +419,19 @@ class Profiler:
 
         elif event_type == MEM_PROTECT:
             event = MemProtectEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 base=hex(kwargs.get("base", 0)),
                 size=hex(kwargs.get("size", 0)),
                 protect=kwargs.get("protect"),
+            )
+
+        elif event_type == MEM_FREE:
+            event = MemFreeEvent(
+                pos=proc_pos,
+                path=path,
+                base=hex(kwargs.get("base", 0)),
+                size=hex(kwargs.get("size", 0)),
             )
 
         elif event_type == MEM_WRITE:
@@ -432,9 +446,7 @@ class Profiler:
                 self.last_data = [base, size]
                 return
             event = MemWriteEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 base=hex(base),
                 size=size,
@@ -454,9 +466,7 @@ class Profiler:
                 self.last_data = [base, size]
                 return
             event = MemReadEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 base=hex(base),
                 size=size,
@@ -466,9 +476,7 @@ class Profiler:
 
         elif event_type == THREAD_INJECT:
             event = ThreadInjectEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 start_addr=hex(kwargs["start_addr"]),
                 param=hex(kwargs["param"]),
@@ -476,9 +484,7 @@ class Profiler:
 
         elif event_type == THREAD_CREATE:
             event = ThreadCreateEvent(
-                tick=tick,
-                tid=tid,
-                pid=pid,
+                pos=proc_pos,
                 path=path,
                 start_addr=hex(kwargs["start_addr"]),
                 param=hex(kwargs["param"]),
@@ -490,7 +496,7 @@ class Profiler:
         run.events.append(event)
         self.last_event = event
 
-    def log_dns(self, run, tick, tid, domain, ip=""):
+    def log_dns(self, run, pos: TracePosition, domain, ip=""):
         """
         Log DNS name lookups for the emulation report
         """
@@ -499,14 +505,13 @@ class Profiler:
                 return
 
         event = NetDnsEvent(
-            tick=tick,
-            tid=tid,
+            pos=pos,
             query=domain,
             response=ip if ip else None,
         )
         run.events.append(event)
 
-    def log_http(self, run, tick, tid, server, port, proto="http", headers="", body=b"", secure=False):
+    def log_http(self, run, pos: TracePosition, server, port, proto="http", headers="", body=b"", secure=False):
         """
         Log HTTP traffic that occur during emulation
         """
@@ -516,8 +521,7 @@ class Profiler:
             body_enc = self.handle_binary_data(body[:0x3000])
 
         event = NetHttpEvent(
-            tick=tick,
-            tid=tid,
+            pos=pos,
             server=server,
             port=port,
             proto=f"tcp.{proto_str}",
@@ -546,7 +550,7 @@ class Profiler:
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 
-    def log_network(self, run, tick, tid, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+    def log_network(self, run, pos: TracePosition, server, port, typ="unknown", proto="unknown", data=b"", method=""):
         """
         Log network activity for an emulation run
         """
@@ -555,8 +559,7 @@ class Profiler:
             data_enc = self.handle_binary_data(data[:0x3000])
 
         event = NetTrafficEvent(
-            tick=tick,
-            tid=tid,
+            pos=pos,
             server=server,
             port=port,
             proto=proto,
@@ -566,18 +569,29 @@ class Profiler:
         )
         run.events.append(event)
 
-    def log_exception(self, run, tick, tid, pc, instr, exception_code, handler_address, registers):
+    def log_exception(self, run, pos: TracePosition, instr, exception_code, handler_address, registers):
         """
         Log a handled exception event
         """
         event = ExceptionEvent(
-            tick=tick,
-            tid=tid,
-            pc=hex(pc),
+            pos=pos,
             instr=instr,
             exception_code=hex(exception_code),
             handler_address=hex(handler_address),
             registers=registers,
+        )
+        run.events.append(event)
+
+    def log_module_load(self, run, pos: TracePosition, name, path, base, size):
+        """
+        Log module (PE/DLL) load events
+        """
+        event = ModuleLoadEvent(
+            pos=pos,
+            name=name,
+            path=path,
+            base=hex(base),
+            size=hex(size),
         )
         run.events.append(event)
 
@@ -660,6 +674,39 @@ class Profiler:
                     DroppedFile(path=f["path"], data=f.get("data"), sha256=f["sha256"]) for f in r.dropped_files
                 ]
 
+            memory_layout = None
+            if r.memory_regions or r.loaded_modules:
+                regions = []
+                for reg in r.memory_regions:
+                    accesses = None
+                    if reg.get("accesses"):
+                        accesses = MemoryAccesses(
+                            reads=reg["accesses"]["reads"],
+                            writes=reg["accesses"]["writes"],
+                            execs=reg["accesses"]["execs"],
+                        )
+                    regions.append(
+                        MemoryRegion(
+                            tag=reg["tag"],
+                            address=reg["address"],
+                            size=reg["size"],
+                            prot=reg["prot"],
+                            is_free=reg.get("is_free", False),
+                            accesses=accesses,
+                        )
+                    )
+                modules = [
+                    LoadedModule(
+                        name=mod["name"],
+                        path=mod["path"],
+                        base=mod["base"],
+                        size=mod["size"],
+                        segments=[],
+                    )
+                    for mod in r.loaded_modules
+                ]
+                memory_layout = MemoryLayout(layout=regions, modules=modules)
+
             ep = EntryPoint(
                 ep_type=r.type,
                 start_addr=r.start_addr,
@@ -674,6 +721,7 @@ class Profiler:
                 dynamic_code_segments=dyn_code_segments,
                 coverage=r.coverage if r.coverage else None,
                 dropped_files=dropped_files,
+                memory=memory_layout,
             )
             entry_points.append(ep)
 
