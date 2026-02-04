@@ -767,13 +767,28 @@ class Win32Emulator(WindowsEmulator):
 
         for pe, ranges, emu_path in self.modules:
             mod_name = ntpath.basename(emu_path) if emu_path else (pe.path or "unknown")
+            segments = []
+            if hasattr(pe, "sections"):
+                for section in pe.sections:
+                    name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+                    addr = section.VirtualAddress + pe.base
+                    size = section.Misc_VirtualSize
+                    chars = section.Characteristics
+                    r = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
+                    w = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
+                    x = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
+                    prot = ""
+                    prot += "r" if r else "-"
+                    prot += "w" if w else "-"
+                    prot += "x" if x else "-"
+                    segments.append({"name": name, "address": addr, "size": size, "prot": prot})
             self.curr_run.loaded_modules.append(
                 {
                     "name": mod_name,
                     "path": emu_path or pe.path or "",
                     "base": pe.base,
                     "size": pe.image_size,
-                    "segments": [],
+                    "segments": segments,
                 }
             )
 
