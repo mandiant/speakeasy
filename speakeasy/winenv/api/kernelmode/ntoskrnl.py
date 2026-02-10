@@ -11,6 +11,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.windows.objman as objman
 from speakeasy.const import FILE_OPEN, FILE_WRITE, FILE_READ, MEM_WRITE
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
@@ -2657,7 +2658,7 @@ class Ntoskrnl(api.ApiHandler):
 
         hnd = self.reg_open_key(name, create=False)
         if not hnd:
-            rv = ddk.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
 
         if phnd:
             self.mem_write(phnd, hnd.to_bytes(self.get_ptr_size(), 'little'))
@@ -3230,4 +3231,82 @@ class Ntoskrnl(api.ApiHandler):
         hHeap, dwFlags, lpMem = argv
 
         self.mem_free(lpMem)
+        return rv
+
+    @apihook('ZwTerminateProcess', argc=2)
+    def ZwTerminateProcess(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwTerminateProcess(
+  			[in, optional] HANDLE   ProcessHandle,
+  			[in]           NTSTATUS ExitStatus
+		);
+        '''
+		#Copied from TerminateProcess
+        hProcess, uExitCode = argv
+        rv = 0
+
+        proc = emu.get_object_from_handle(hProcess)
+        if not proc:
+            return rv
+
+        emu.kill_process(proc)
+        rv = ddk.STATUS_SUCCESS
+
+    @apihook('ZwOpenProcess', argc=4)
+    def ZwOpenProcess(self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwOpenProcess(
+          [out]          PHANDLE            ProcessHandle,
+          [in]           ACCESS_MASK        DesiredAccess,
+          [in]           POBJECT_ATTRIBUTES ObjectAttributes,
+          [in, optional] PCLIENT_ID         ClientId
+
+        );
+        '''
+        (hnd, desAccess, pObject, cid) = argv
+        if not cid:
+            return ddk.STATUS_INVALID_PARAMETER
+        cid_obj = self.win.CLIENT_ID(emu.get_ptr_size())
+        cid_obj = emu.mem_cast(cid_obj, cid)
+        oProc = emu.get_object_from_id(cid_obj.UniqueProcess)
+        hProc = emu.get_object_handle(oProc)
+        if hProc:
+            emu.mem_write(hnd,(hProc).to_bytes(4, "little"))
+            rv = ddk.STATUS_SUCCESS                                 
+        else:
+            emu.mem_write(hnd,(0).to_bytes(4, "little"))
+            rv = ddk.STATUS_INVALID_PARAMETER
+        return rv
+        
+    @apihook('ZwDuplicateObject', argc=7)    
+    def ZwDuplicateObject (self, emu, argv, ctx={}):
+        '''
+        NTSYSAPI NTSTATUS ZwDuplicateObject(
+          [in]            HANDLE      SourceProcessHandle,
+          [in]            HANDLE      SourceHandle,
+          [in, optional]  HANDLE      TargetProcessHandle,
+          [out, optional] PHANDLE     TargetHandle,
+          [in]            ACCESS_MASK DesiredAccess,
+          [in]            ULONG       HandleAttributes,
+          [in]            ULONG       Options
+        );
+        '''
+        #Based on DublicateTokenEx
+        (hsProccessHandle, hsHandle, htProcessHandle,htHandle, mask, attr, opt) = argv
+        rv = 0
+
+        obj = self.get_object_from_handle(hsHandle)
+
+        if obj:
+
+            new_token = emu.new_object(objman.Token)
+            hnd_new_token = new_token.get_handle()
+
+            if hnd_new_token:
+                hnd = (htHandle).to_bytes(self.get_ptr_size(), 'little')
+                self.mem_write(htHandle, hnd)
+                rv = ddk.STATUS_SUCCESS        
+            else:
+                rv = ddk.STATUS_INVALID_PARAMETER
+
         return rv
