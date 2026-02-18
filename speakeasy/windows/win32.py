@@ -699,6 +699,7 @@ class Win32Emulator(WindowsEmulator):
 
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()
+        self.set_debug_hooks()
 
     def stop(self):
         self.run_complete = True

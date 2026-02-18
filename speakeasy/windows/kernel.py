@@ -592,6 +592,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()
+        self.set_debug_hooks()
 
     def get_kernel_base(self):
         """
