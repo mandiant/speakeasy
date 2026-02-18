@@ -210,12 +210,12 @@ class WinHttp(api.ApiHandler):
         port = req.get_port()
 
         if not is_ip_address(srv):
-            self.log_dns(srv)
+            self.record_dns_event(srv)
 
         rv = 1
         req_str = req.format_http_request(headers=headers)
 
-        self.log_http(srv, port, headers=req_str, body=body, secure=req.is_secure())
+        self.record_http_event(srv, port, headers=req_str, body=body, secure=req.is_secure())
         return rv
 
     @apihook("WinHttpReceiveResponse", argc=2, conv=_arch.CALL_CONV_STDCALL)

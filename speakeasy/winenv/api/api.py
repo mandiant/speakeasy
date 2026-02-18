@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import logging
+
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
@@ -7,6 +9,8 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import TracePosition
 from speakeasy.struct import EmuStruct
+
+logger = logging.getLogger(__name__)
 
 
 class ApiHandler:
@@ -214,51 +218,61 @@ class ApiHandler:
         pid = proc.get_id() if proc else 0
         return TracePosition(tick=tick, tid=tid, pid=pid)
 
-    def log_file_access(self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None):
+    def record_file_access_event(
+        self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+    ):
+        logger.debug("file_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_file_access(run, pos, path, event_type, data, handle, disposition, access, buffer, size)
+            profiler.record_file_access_event(
+                run, pos, path, event_type, data, handle, disposition, access, buffer, size
+            )
 
-    def log_process_event(self, proc, event_type, **kwargs):
+    def record_process_event(self, proc, event_type, **kwargs):
+        logger.debug("process_%s: pid=%d", event_type, proc.get_id())
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_process_event(run, pos, proc, event_type, kwargs)
+            profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
-    def log_registry_access(
+    def record_registry_access_event(
         self, path, event_type, value_name=None, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
     ):
+        logger.debug("reg_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_registry_access(
+            profiler.record_registry_access_event(
                 run, pos, path, event_type, value_name, data, handle, disposition, access, buffer, size
             )
 
-    def log_dns(self, domain, ip=""):
+    def record_dns_event(self, domain, ip=""):
+        logger.debug("dns: %s -> %s", domain, ip)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_dns(run, pos, domain, ip)
+            profiler.record_dns_event(run, pos, domain, ip)
 
-    def log_network(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+    def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+        logger.debug("net: %s:%d %s", server, port, proto)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_network(run, pos, server, port, typ=typ, proto=proto, data=data, method=method)
+            profiler.record_network_event(run, pos, server, port, typ=typ, proto=proto, data=data, method=method)
 
-    def log_http(self, server, port, headers="", body=b"", secure=False):
+    def record_http_event(self, server, port, headers="", body=b"", secure=False):
+        logger.debug("http: %s:%d", server, port)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
             pos = self._get_current_trace_position()
-            profiler.log_http(run, pos, server, port, headers=headers, body=body, secure=secure)
+            profiler.record_http_event(run, pos, server, port, headers=headers, body=body, secure=secure)
 
     def get_max_int(self):
         # Byte order is irrelevant here

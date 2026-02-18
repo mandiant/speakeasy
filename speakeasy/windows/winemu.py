@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import logging
 import ntpath
 import os
 import shlex
@@ -30,6 +31,8 @@ from speakeasy.windows.regman import RegistryManager
 # the size of the current disasm target
 DISASM_SIZE = 0x20
 
+logger = logging.getLogger(__name__)
+
 
 class WindowsEmulator(BinaryEmulator):
     """
@@ -53,8 +56,8 @@ class WindowsEmulator(BinaryEmulator):
         """Initialize configured processes. Subclasses must implement."""
         ...
 
-    def __init__(self, config, logger=None, exit_event=None, debug=False):
-        super().__init__(config, logger=logger)
+    def __init__(self, config, exit_event=None, debug=False):
+        super().__init__(config)
 
         self.debug = debug
         self.arch = 0
@@ -155,6 +158,7 @@ class WindowsEmulator(BinaryEmulator):
     def _module_access_hook(self, emu, addr, size, ctx):
         symbol = self.get_symbol_from_address(addr)
         if symbol:
+            logger.debug("module_access: %s", symbol)
             mod_name, fn = symbol.split(".")
             self.handle_import_func(mod_name, fn)
             return True
@@ -166,6 +170,7 @@ class WindowsEmulator(BinaryEmulator):
         if len(self.mem_trace_hooks) > 0:
             return
 
+        logger.debug("installing memory tracing hooks")
         self.mem_trace_hooks = (
             self.add_code_hook(cb=self._hook_code_tracing),
             self.add_mem_read_hook(cb=self._hook_mem_read),
@@ -179,6 +184,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.coverage_hook:
             return
 
+        logger.debug("installing coverage hooks")
         self.coverage_hook = self.add_code_hook(cb=self._hook_code_coverage)
 
     def set_debug_hooks(self):
@@ -347,7 +353,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Begin emulating the specified run
         """
-        self.log_info(f"* exec: {run.type}")
+        logger.info("* exec: %s", run.type)
 
         self.curr_run = run
         if self.profiler:
@@ -440,9 +446,9 @@ class WindowsEmulator(BinaryEmulator):
                 )
                 if self.profiler:
                     if self.profiler.get_run_time() > self.config.timeout:
-                        self.log_error("* Timeout of %d sec(s) reached.", self.config.timeout)
+                        logger.error("* Timeout of %d sec(s) reached.", self.config.timeout)
             except KeyboardInterrupt:
-                self.log_error("* User exited.")
+                logger.error("* User exited.")
                 return
             except Exception as e:
                 if self.exit_event and self.exit_event.is_set():
@@ -452,7 +458,7 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     mnem, op, instr = self.get_disasm(self.get_pc(), DISASM_SIZE)
                 except Exception as dis_err:
-                    self.log_error(str(dis_err))
+                    logger.error(str(dis_err))
 
                 error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
                 self.curr_run.error = error
@@ -1030,14 +1036,14 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         pc = self.get_pc()
         error = {}
-        self.log_error(f"0x{pc:x}: {run.type}: Caught error: {desc}")
+        logger.error("0x%x: %s: Caught error: %s", pc, run.type, desc)
         error["type"] = desc
         error["pc"] = hex(pc)
         error["address"] = hex(address)
         try:
             mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
         except Exception as e:
-            self.log_error(str(e))
+            logger.error(str(e))
             instr = "disasm_failed"
         error["instr"] = instr
         error["regs"] = self.get_register_state()
@@ -1118,13 +1124,13 @@ class WindowsEmulator(BinaryEmulator):
         _rv = rv
         if _rv is not None:
             _rv = hex(rv)
-        self.log_info(f"{hex(pc)}: {repr(call_str)} -> {_rv}")
+        logger.info("%s: %s -> %s", hex(pc), repr(call_str), _rv)
         if self.profiler:
             tick = self.curr_run.instr_cnt if self.curr_run else 0
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.get_id() if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.log_api(self.curr_run, pos, imp_api, rv, argv)
+            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv)
 
     def handle_import_func(self, dll, name):
         """
@@ -1162,7 +1168,7 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
                 except Exception as e:
-                    self.log_exception(f"0x{oret:x}: Error while calling API handler for {imp_api}:")
+                    logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
                     self.curr_run.error = error
                     self.on_run_complete()
@@ -1213,14 +1219,14 @@ class WindowsEmulator(BinaryEmulator):
 
             run = self.get_current_run()
             error = self.get_error_info("unsupported_api", self.get_pc())
-            self.log_error(f"Unsupported API: {imp_api} (ret: 0x{oret:x})")
+            logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
             error["api_name"] = imp_api
             self.curr_run.error = error
             self.on_run_complete()
 
         run = self.get_current_run()
         if run and run.get_api_count() > self.config.max_api_count:
-            self.log_info("* Maximum number of API calls reached. Stopping current run.")
+            logger.info("* Maximum number of API calls reached. Stopping current run.")
             run.error["type"] = "max_api_count"
             run.error["count"] = self.config.max_api_count
             run.error["pc"] = hex(self.get_pc())
@@ -1234,6 +1240,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         try:
             access = self.emu_eng.mem_access.get(access)
+            logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
             self.prev_pc = self.get_pc()
 
             if not self.tmp_code_hook:
@@ -1269,7 +1276,7 @@ class WindowsEmulator(BinaryEmulator):
             elif access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value, ctx)
         except Exception as e:
-            self.log_exception("Invalid memory exception")
+            logger.exception("Invalid memory exception")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1314,6 +1321,7 @@ class WindowsEmulator(BinaryEmulator):
             symbol = self.get_symbol_from_address(address)
 
             if symbol:
+                logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
                 mod = self.get_mod_from_addr(address)
                 if not mod.is_decoy():
                     mac = self.curr_run.sym_access.get(address)
@@ -1360,7 +1368,7 @@ class WindowsEmulator(BinaryEmulator):
 
             return True
         except Exception as e:
-            self.log_exception("Exception during memory read")
+            logger.exception("Exception during memory read")
             error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1374,6 +1382,7 @@ class WindowsEmulator(BinaryEmulator):
         try:
             symbol = self.get_symbol_from_address(address)
             if symbol:
+                logger.debug("mem_write: addr=0x%x size=0x%x sym=%s", address, size, symbol)
                 mac = self.curr_run.sym_access.get(address)
                 if not mac:
                     mac = MemAccess(sym=symbol)
@@ -1399,7 +1408,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception("Exception during memory write")
+            logger.exception("Exception during memory write")
             error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1523,7 +1532,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception("Exception during code hook (core)")
+            logger.exception("Exception during code hook (core)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1537,7 +1546,7 @@ class WindowsEmulator(BinaryEmulator):
             self.curr_run.coverage.append(addr)
             return True
         except Exception as e:
-            self.log_exception("Exception during code hook (coverage)")
+            logger.exception("Exception during code hook (coverage)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1552,6 +1561,10 @@ class WindowsEmulator(BinaryEmulator):
             if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:
                 self.on_run_complete()
                 return False
+
+            if logger.isEnabledFor(logging.DEBUG):
+                disasm = self.get_disasm(addr, size)[2]
+                logger.debug("exec: 0x%x %s", addr, disasm)
 
             self.curr_instr_size = size
 
@@ -1588,7 +1601,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception("Exception during code hook (tracing)")
+            logger.exception("Exception during code hook (tracing)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
@@ -1995,11 +2008,15 @@ class WindowsEmulator(BinaryEmulator):
             try:
                 mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
             except Exception as e:
-                self.log_error(str(e))
+                logger.error(str(e))
                 instr = "disasm_failed"
 
-            self.log_info(
-                f'0x{pc:x}: Exception caught: code:0x{except_code:x}, handler=0x{entry.Handler:x}, instr="{instr}"'
+            logger.info(
+                '0x%x: Exception caught: code=0x%x handler=0x%x instr="%s"',
+                pc,
+                except_code,
+                entry.Handler,
+                instr,
             )
 
             if self.profiler:
@@ -2007,7 +2024,7 @@ class WindowsEmulator(BinaryEmulator):
                 tid = self.curr_thread.tid if self.curr_thread else 0
                 pid = self.curr_process.get_id() if self.curr_process else 0
                 pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-                self.profiler.log_exception(run, pos, instr, except_code, entry.Handler, regs)
+                self.profiler.record_exception_event(run, pos, instr, except_code, entry.Handler, regs)
 
             # EBX clobber, -1 is what I observed inside a VM
             self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
@@ -2188,7 +2205,8 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
         pc = self.get_pc()
-        self.log_error(f"0x{pc:x}: Unhandled interrupt: intnum=0x{intnum:x}")
+        logger.debug("interrupt: intnum=0x%x", intnum)
+        logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
         error = self.get_error_info("unhandled_interrupt", pc)
         error.update({"interrupt_num": intnum})
         self.curr_run.error = error

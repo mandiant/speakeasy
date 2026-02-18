@@ -7,36 +7,46 @@ import multiprocessing as mp
 import os
 import time
 
+from rich.console import Console
+from rich.logging import RichHandler
+
 import speakeasy
 import speakeasy.winenv.arch as e_arch
 from speakeasy import Speakeasy
 
+logger = logging.getLogger(__name__)
 
-def get_logger():
-    """
-    Get the default logger for speakeasy
-    """
-    logger = logging.getLogger("speakeasy")
-    if not logger.handlers:
-        sh = logging.StreamHandler()
-        logger.addHandler(sh)
-        logger.setLevel(logging.INFO)
 
-    return logger
+def setup_logging(verbose: bool) -> None:
+    root = logging.getLogger("speakeasy")
+    root.handlers.clear()
+    root.addHandler(RichHandler(console=Console(stderr=True), show_path=False))
+    root.setLevel(logging.DEBUG if verbose else logging.INFO)
 
 
 def emulate_binary(
-    q, exit_event, fpath, cfg, argv, do_raw, arch="", drop_path="", dump_path="", raw_offset=0x0, emulate_children=False
+    q,
+    exit_event,
+    fpath,
+    cfg,
+    argv,
+    do_raw,
+    arch="",
+    drop_path="",
+    dump_path="",
+    raw_offset=0x0,
+    emulate_children=False,
+    verbose=False,
 ):
     """
     Setup the binary for emulation
     """
 
-    logger = get_logger()
+    setup_logging(verbose)
 
     try:
         report = None
-        se = Speakeasy(config=cfg, logger=logger, argv=argv, exit_event=exit_event)
+        se = Speakeasy(config=cfg, argv=argv, exit_event=exit_event)
         if do_raw:
             arch = arch.lower()
             if arch == "x86":
@@ -59,14 +69,14 @@ def emulate_binary(
         # If a memory dump was requested, do it now
         if dump_path:
             data = se.create_memdump_archive()
-            logger.info(f"* Saving memory dump archive to {dump_path}")
+            logger.info("* Saving memory dump archive to %s", dump_path)
             with open(dump_path, "wb") as f:
                 f.write(data)
 
         if drop_path:
             data = se.create_file_archive()
             if data:
-                logger.info(f"* Saving dropped files archive to {drop_path}")
+                logger.info("* Saving dropped files archive to %s", drop_path)
                 with open(drop_path, "wb") as f:
                     f.write(data)
             else:
@@ -95,18 +105,20 @@ class Main:
         self.arch = args.arch
         self.timeout = 0
         self.argv = args.params
-        self.logger = get_logger()
+        self.verbose = args.verbose
+
+        setup_logging(self.verbose)
 
         if self.config_path:
             if not os.path.isfile(self.config_path):
                 parser.print_help()
-                self.logger.error(f"[-] Config file not found: {self.config_path}")
+                logger.error("[-] Config file not found: %s", self.config_path)
                 return
         else:
             self.config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
             if not os.path.isfile(self.config_path):
                 parser.print_help()
-                self.logger.error("[-] No emulator config file supplied")
+                logger.error("[-] No emulator config file supplied")
                 return
 
         with open(self.config_path) as f:
@@ -144,12 +156,12 @@ class Main:
 
         if self.target and not os.path.isfile(self.target):
             parser.print_help()
-            self.logger.error(f"[-] Target file not found: {self.target}")
+            logger.error("[-] Target file not found: %s", self.target)
             return
 
         if not self.target:
             parser.print_help()
-            self.logger.error("[-] No target file supplied")
+            logger.error("[-] No target file supplied")
             return
 
         q = mp.Queue()
@@ -170,6 +182,7 @@ class Main:
                 self.dump_path,
                 raw_offset=self.raw_offset,
                 emulate_children=self.emulate_children,
+                verbose=self.verbose,
             )
             report = q.get()
         else:
@@ -191,6 +204,7 @@ class Main:
                 kwargs={
                     "raw_offset": self.raw_offset,
                     "emulate_children": self.emulate_children,
+                    "verbose": self.verbose,
                 },
             )
             p.start()
@@ -200,7 +214,7 @@ class Main:
             while True:
                 if self.timeout and self.timeout < (time.time() - start_time):
                     evt.set()
-                    self.logger.error("* Child process timeout reached after %d seconds", self.timeout)
+                    logger.error("* Child process timeout reached after %d seconds", self.timeout)
                     report = q.get(5)
                 try:
                     report = q.get(timeout=1)
@@ -210,15 +224,15 @@ class Main:
                         break
                 except KeyboardInterrupt:
                     evt.set()
-                    self.logger.error("\n* User exited")
+                    logger.error("\n* User exited")
                     report = q.get(5)
                     break
 
-        self.logger.info("* Finished emulating")
+        logger.info("* Finished emulating")
 
         if report:
             if self.output:
-                self.logger.info(f"* Saving emulation report to {self.output}")
+                logger.info("* Saving emulation report to %s", self.output)
                 with open(self.output, "w") as f:
                     f.write(report)
 
@@ -338,6 +352,14 @@ def main():
         help="Run emulation in the current process to assist\n"
         "instead of a child process. Useful when debugging "
         "speakeasy itself (using pdb.set_trace()).\n",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        dest="verbose",
+        required=False,
+        help="Enable verbose (DEBUG) logging",
     )
 
     Main(parser)

@@ -2,8 +2,11 @@
 
 
 import collections
+import logging
 
 import speakeasy.winenv.arch as e_arch
+
+logger = logging.getLogger(__name__)
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -74,24 +77,24 @@ class ApiHammer:
         if self.emu.get_arch() == e_arch.ARCH_X86:
             eip = self.emu.get_ret_address() - 6
             mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-            self.emu.log_info(f"api hammering at: {imp_api} 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
+            logger.info(f"api hammering at: {imp_api} 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
             if (mnem == "call") and "dword ptr" in instr:
                 if conv == e_arch.CALL_CONV_CDECL:
                     # If cdecl, the emu engine will clean the stack
                     # just xor eax,eax & 4 bytes of nop
                     patch = b"\x31\xc0\x90\x90\x90\x90\x90"
                     self.emu.mem_write(eip, patch)
-                    self.emu.log_info(f"API HAMMERING DETECTED - patching 1 cdecl at {eip:x}")
+                    logger.info(f"API HAMMERING DETECTED - patching 1 cdecl at {eip:x}")
                 elif conv == e_arch.CALL_CONV_STDCALL:
                     # If stdcall, we need to clean the stack
                     # patch is xor eax, eax; add esp, <count>
                     patch = b"\x31\xc0\x83\xc4" + (4 * argc).to_bytes(1, "little") + b"\x90"
                     self.emu.mem_write(eip, patch)
-                    self.emu.log_info(f"API HAMMERING DETECTED - patching 1 stdcall at {eip:x}")
+                    logger.info(f"API HAMMERING DETECTED - patching 1 stdcall at {eip:x}")
             else:
                 eip = self.emu.get_ret_address() - 2
                 mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
-                self.emu.log_info(f"api hammering at: 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
+                logger.info(f"api hammering at: 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
                 if (mnem == "call") and op in e_arch.REG_LOOKUP.keys():
                     # not enough space to clean up stack inline, so write stack cleanup code to a
                     # hammerpatch region & change the register to point to this cleanup code
@@ -104,7 +107,7 @@ class ApiHammer:
                         # just xor eax,eax; retn
                         patch = b"\x31\xc0\xc3"
                         self.emu.mem_write(eip, patch)
-                        self.emu.log_info("API HAMMERING DETECTED - patching 2 cdecl at %x" % (eip,))  # noqa
+                        logger.info("API HAMMERING DETECTED - patching 2 cdecl at %x" % (eip,))  # noqa
                     elif conv == e_arch.CALL_CONV_STDCALL:
                         # patch is xor eax, eax; retn <count>
                         patch = b"\x31\xc0\xc2" + (4 * argc).to_bytes(2, "little") + b"\x90"
@@ -115,9 +118,9 @@ class ApiHammer:
                             # now change the the register
                             reg = e_arch.REG_LOOKUP[op]
                             self.emu.reg_write(reg, loc)
-                            self.emu.log_info("API HAMMERING DETECTED - patching 2 stdcall at %x" % (eip,))  # noqa
+                            logger.info("API HAMMERING DETECTED - patching 2 stdcall at %x" % (eip,))  # noqa
                 else:
-                    self.emu.log_info(f"API HAMMERING DETECTED - unable to patch {eip:x}")
+                    logger.info(f"API HAMMERING DETECTED - unable to patch {eip:x}")
 
         if self.emu.get_arch() == e_arch.ARCH_AMD64:
             # TODO

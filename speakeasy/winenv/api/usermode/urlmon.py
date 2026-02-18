@@ -44,12 +44,12 @@ class Urlmon(api.ApiHandler):
             argv[1] = url
             url = urlparse(url)
             if url.netloc:
-                self.log_dns(url.netloc)
+                self.record_dns_event(url.netloc)
 
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
             argv[2] = name
-            self.log_file_access(name, FILE_CREATE)
-            self.log_file_access(name, FILE_WRITE)
+            self.record_file_access_event(name, FILE_CREATE)
+            self.record_file_access_event(name, FILE_WRITE)
 
         return rv

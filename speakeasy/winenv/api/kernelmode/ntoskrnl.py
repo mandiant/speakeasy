@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import logging
 import ntpath
 import uuid
 
@@ -14,6 +15,8 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.const import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE
 from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
+
+logger = logging.getLogger(__name__)
 
 
 class Ntoskrnl(api.ApiHandler):
@@ -320,7 +323,7 @@ class Ntoskrnl(api.ApiHandler):
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
             except Exception as e:
-                emu.log_exception(str(e))
+                logger.exception(str(e))
             argv[2] = Tag
 
         chunk = self.pool_alloc(PoolType, NumberOfBytes, Tag)
@@ -340,7 +343,7 @@ class Ntoskrnl(api.ApiHandler):
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
             except Exception as e:
-                emu.log_exception(str(e))
+                logger.exception(str(e))
             argv[1] = Tag
         self.mem_free(P)
 
@@ -1392,7 +1395,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = ddk.STATUS_INVALID_PARAMETER
 
-        self.log_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
 
         return rv
 
@@ -2732,7 +2735,7 @@ class Ntoskrnl(api.ApiHandler):
         if obj:
             hnd = self.get_object_handle(obj)
             self.mem_write(pHndl, hnd.to_bytes(self.ptr_size, "little"))
-            self.log_file_access(name, FILE_OPEN, disposition=cd, access=ad)
+            self.record_file_access_event(name, FILE_OPEN, disposition=cd, access=ad)
 
         else:
             hfile = 0
@@ -2765,7 +2768,7 @@ class Ntoskrnl(api.ApiHandler):
                     hfile = self.file_open(npath, create=True)
 
             self.mem_write(pHndl, hfile.to_bytes(self.ptr_size, "little"))
-            self.log_file_access(npath, FILE_OPEN, disposition=cd, access=ad)
+            self.record_file_access_event(npath, FILE_OPEN, disposition=cd, access=ad)
 
         return nts
 
@@ -2809,7 +2812,7 @@ class Ntoskrnl(api.ApiHandler):
             if hfile:
                 nts = ddk.STATUS_SUCCESS
 
-        self.log_file_access(path, FILE_OPEN, disposition=None, access=ad)
+        self.record_file_access_event(path, FILE_OPEN, disposition=None, access=ad)
 
         if hfile:
             self.mem_write(pHndl, hfile.to_bytes(self.ptr_size, "little"))
@@ -2926,7 +2929,7 @@ class Ntoskrnl(api.ApiHandler):
             if data:
                 _file.add_data(data)
                 # Log the file event
-                self.log_file_access(path, FILE_WRITE, data=data, size=length)
+                self.record_file_access_event(path, FILE_WRITE, data=data, size=length)
 
                 # Is it ascii?
                 try:
@@ -2968,7 +2971,7 @@ class Ntoskrnl(api.ApiHandler):
                 self.mem_write(buf, data[:length])
 
             # Log the file event
-            self.log_file_access(path, FILE_READ, buffer=buf, size=length)
+            self.record_file_access_event(path, FILE_READ, buffer=buf, size=length)
 
             nts = ddk.STATUS_SUCCESS
 
