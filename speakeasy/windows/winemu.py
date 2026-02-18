@@ -421,7 +421,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Resume emulation at the specified address.
         """
-        self.emu_eng.start(addr, timeout=self.config.timeout, count=count)
+        timeout = 0 if self.gdb_port is not None else self.config.timeout
+        self.emu_eng.start(addr, timeout=timeout, count=count)
 
     def start(self, addr=None, size=None):
         """
@@ -442,6 +443,8 @@ class WindowsEmulator(BinaryEmulator):
             logger.info("GDB server listening on port %d, waiting for connection...", self.gdb_port)
             udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)
 
+        timeout = 0 if self.gdb_port is not None else self.config.timeout
+
         if self.profiler:
             self.profiler.set_start_time()
         self._exec_run(run)
@@ -450,11 +453,11 @@ class WindowsEmulator(BinaryEmulator):
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
                 self.emu_eng.start(
-                    self.curr_run.start_addr, timeout=self.config.timeout, count=self.config.max_instructions
+                    self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions
                 )
-                if self.profiler:
-                    if self.profiler.get_run_time() > self.config.timeout:
-                        logger.error("* Timeout of %d sec(s) reached.", self.config.timeout)
+                if self.profiler and timeout > 0:
+                    if self.profiler.get_run_time() > timeout:
+                        logger.error("* Timeout of %d sec(s) reached.", timeout)
             except KeyboardInterrupt:
                 logger.error("* User exited.")
                 return
