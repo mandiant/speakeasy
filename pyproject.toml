@@ -34,6 +34,7 @@ dev = [
     "ruff",
     "mypy",
 ]
+gdb = ["udbserver>=0.2.1"]
 
 [project.urls]
 Homepage = "https://github.com/mandiant/speakeasy"

@@ -28,10 +28,10 @@ def load_test_bin():
 
 @pytest.fixture(scope="session")
 def run_test():
-    def _run(cfg, target, logger=None, argv=None):
+    def _run(cfg, target, argv=None):
         if argv is None:
             argv = []
-        se = Speakeasy(config=cfg, logger=logger, argv=argv)
+        se = Speakeasy(config=cfg, argv=argv)
         module = se.load_module(data=target)
         se.run_module(module, all_entrypoints=True)
         return se.get_report()

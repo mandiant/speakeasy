@@ -56,10 +56,11 @@ class WindowsEmulator(BinaryEmulator):
         """Initialize configured processes. Subclasses must implement."""
         ...
 
-    def __init__(self, config, exit_event=None, debug=False):
+    def __init__(self, config, exit_event=None, debug=False, gdb_port=None):
         super().__init__(config)
 
         self.debug = debug
+        self.gdb_port = gdb_port
         self.arch = 0
         self.modules = []
         self.pic_buffers = []
@@ -434,6 +435,13 @@ class WindowsEmulator(BinaryEmulator):
         self.run_complete = False
         self.set_hooks()
         self._set_emu_hooks()
+
+        if self.gdb_port is not None:
+            from udbserver import udbserver
+
+            logger.info("GDB server listening on port %d, waiting for connection...", self.gdb_port)
+            udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)
+
         if self.profiler:
             self.profiler.set_start_time()
         self._exec_run(run)

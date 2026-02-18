@@ -37,6 +37,7 @@ def emulate_binary(
     raw_offset=0x0,
     emulate_children=False,
     verbose=False,
+    gdb_port=None,
 ):
     """
     Setup the binary for emulation
@@ -46,7 +47,7 @@ def emulate_binary(
 
     try:
         report = None
-        se = Speakeasy(config=cfg, argv=argv, exit_event=exit_event)
+        se = Speakeasy(config=cfg, argv=argv, exit_event=exit_event, gdb_port=gdb_port)
         if do_raw:
             arch = arch.lower()
             if arch == "x86":
@@ -106,8 +107,13 @@ class Main:
         self.timeout = 0
         self.argv = args.params
         self.verbose = args.verbose
+        self.gdb_port = args.gdb_port if args.gdb else None
 
         setup_logging(self.verbose)
+
+        if args.gdb and not args.no_mp:
+            args.no_mp = True
+            logger.info("--gdb requires --no-mp mode; enabling automatically")
 
         if self.config_path:
             if not os.path.isfile(self.config_path):
@@ -183,6 +189,7 @@ class Main:
                 raw_offset=self.raw_offset,
                 emulate_children=self.emulate_children,
                 verbose=self.verbose,
+                gdb_port=self.gdb_port,
             )
             report = q.get()
         else:
@@ -205,6 +212,7 @@ class Main:
                     "raw_offset": self.raw_offset,
                     "emulate_children": self.emulate_children,
                     "verbose": self.verbose,
+                    "gdb_port": self.gdb_port,
                 },
             )
             p.start()
@@ -360,6 +368,22 @@ def main():
         dest="verbose",
         required=False,
         help="Enable verbose (DEBUG) logging",
+    )
+    parser.add_argument(
+        "--gdb",
+        action="store_true",
+        dest="gdb",
+        required=False,
+        help="Enable GDB server stub (pauses before first instruction)",
+    )
+    parser.add_argument(
+        "--gdb-port",
+        action="store",
+        dest="gdb_port",
+        type=int,
+        default=1234,
+        required=False,
+        help="GDB server port (default: 1234)",
     )
 
     Main(parser)

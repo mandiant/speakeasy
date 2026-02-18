@@ -38,7 +38,7 @@ class Speakeasy:
 
         return wrap
 
-    def __init__(self, config=None, argv=[], debug=False, exit_event=None):
+    def __init__(self, config=None, argv=[], debug=False, exit_event=None, gdb_port=None):
 
         self._init_config(config)
         self.emu = None
@@ -50,6 +50,7 @@ class Speakeasy:
         self.argv = argv
         self.exit_event = exit_event
         self.debug = debug
+        self.gdb_port = gdb_port
         self.loaded_bins = []
         self.mem_write_hooks = []
         self.mem_invalid_hooks = []
@@ -102,13 +103,25 @@ class Speakeasy:
                 raise NotSupportedError(".NET assemblies are not currently supported")
 
             if pe.is_driver():
-                self.emu = WinKernelEmulator(config=self.config, debug=self.debug, exit_event=self.exit_event)
+                self.emu = WinKernelEmulator(
+                    config=self.config, debug=self.debug, exit_event=self.exit_event, gdb_port=self.gdb_port
+                )
             else:
                 self.emu = Win32Emulator(
-                    config=self.config, argv=self.argv, debug=self.debug, exit_event=self.exit_event
+                    config=self.config,
+                    argv=self.argv,
+                    debug=self.debug,
+                    exit_event=self.exit_event,
+                    gdb_port=self.gdb_port,
                 )
         else:
-            self.emu = Win32Emulator(config=self.config, argv=self.argv, debug=self.debug, exit_event=self.exit_event)
+            self.emu = Win32Emulator(
+                config=self.config,
+                argv=self.argv,
+                debug=self.debug,
+                exit_event=self.exit_event,
+                gdb_port=self.gdb_port,
+            )
 
     def _init_hooks(self) -> None:
         """

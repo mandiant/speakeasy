@@ -24,17 +24,7 @@ class DebuggerException(Exception):
     pass
 
 
-def get_logger():
-    """
-    Get the default logger for speakeasy
-    """
-    logger = logging.getLogger("sedbg")
-    if not logger.handlers:
-        sh = logging.StreamHandler()
-        logger.addHandler(sh)
-        logger.setLevel(logging.INFO)
-
-    return logger
+logger = logging.getLogger(__name__)
 
 
 class Breakpoint:
@@ -54,15 +44,14 @@ class SpeakeasyDebugger(cmd.Cmd):
 
     file = None
 
-    def __init__(self, target=None, is_sc=False, arch=None, data=None, logger=None, se_inst=None):
+    def __init__(self, target=None, is_sc=False, arch=None, data=None, se_inst=None):
         super().__init__()
 
         self.target = target
         self.is_sc = is_sc
         self.arch = arch
-        self.logger = logger
         if not se_inst:
-            self.se = speakeasy.Speakeasy(logger=self.logger)
+            self.se = speakeasy.Speakeasy()
         else:
             self.se = se_inst
         self.loaded_modules = []
@@ -93,15 +82,15 @@ class SpeakeasyDebugger(cmd.Cmd):
 
     def error(self, msg, *args):
         if args:
-            self.logger.error("[-] " + msg, *args)
+            logger.error("[-] " + msg, *args)
         else:
-            self.logger.error("[-] " + msg)
+            logger.error("[-] " + msg)
 
     def info(self, msg, *args):
         if args:
-            self.logger.info(msg, *args)
+            logger.info(msg, *args)
         else:
-            self.logger.info(msg)
+            logger.info(msg)
 
     def log_disasm(self, addr, size):
         ds = self.se.disasm(addr, size, False)[0]
@@ -383,7 +372,7 @@ class SpeakeasyDebugger(cmd.Cmd):
         """
         Restart emulation from the entry point
         """
-        self.se = speakeasy.Speakeasy(logger=self.logger)
+        self.se = speakeasy.Speakeasy()
         if self.target:
             if not self.is_sc:
                 # Load the initial target module
@@ -641,7 +630,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    dbg = SpeakeasyDebugger(args.target, args.raw, args.arch, logger=get_logger())
+    logging.basicConfig(level=logging.INFO)
+    dbg = SpeakeasyDebugger(args.target, args.raw, args.arch)
     dbg.info("Welcome to the speakeasy debugger")
     while True:
         try:

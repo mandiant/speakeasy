@@ -3,18 +3,7 @@ import logging
 
 import speakeasy
 
-
-def get_logger():
-    """
-    Get the default logger for speakeasy
-    """
-    logger = logging.getLogger("emu_exe")
-    if not logger.handlers:
-        sh = logging.StreamHandler()
-        logger.addHandler(sh)
-        logger.setLevel(logging.INFO)
-
-    return logger
+logger = logging.getLogger(__name__)
 
 
 def hook_ntreadfile(emu, api_name, func, params):
@@ -28,13 +17,12 @@ def hook_ntreadfile(emu, api_name, func, params):
     """
     # Call the NtReadFile function
     rv = func(params)
-    logger = get_logger()
 
     hnd, evt, apcf, apcc, ios, buf, size, offset, key = params
 
     # Read the buffer containing the file data
     data = emu.mem_read(buf, size)
-    logger.log(logging.INFO, data)
+    logger.info(data)
 
     # Write something to the buffer instead
     emu.mem_write(buf, b"A" * size)
@@ -44,8 +32,8 @@ def hook_ntreadfile(emu, api_name, func, params):
 
 def main(args):
 
-    # Init the speakeasy object, an optional logger can be supplied
-    se = speakeasy.Speakeasy(logger=get_logger())
+    # Init the speakeasy object
+    se = speakeasy.Speakeasy()
 
     # Hook ntdll!NtReadFile so we can modify the returned buffer
     se.add_api_hook(hook_ntreadfile, "ntdll", "NtReadFile")

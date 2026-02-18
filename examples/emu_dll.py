@@ -3,18 +3,7 @@ import logging
 
 import speakeasy
 
-
-def get_logger():
-    """
-    Get the default logger for speakeasy
-    """
-    logger = logging.getLogger("emu_dll")
-    if not logger.handlers:
-        sh = logging.StreamHandler()
-        logger.addHandler(sh)
-        logger.setLevel(logging.INFO)
-
-    return logger
+logger = logging.getLogger(__name__)
 
 
 def hook_messagebox(emu, api_name, func, params):
@@ -28,15 +17,14 @@ def hook_messagebox(emu, api_name, func, params):
     """
     # Call the MessageBox function and print its text string data
     rv = func(params)
-    logger = get_logger()
 
     hWnd, lpText, lpCaption, uType = params
 
     msg = f"{api_name} text: {lpText}"
-    logger.log(logging.INFO, msg)
+    logger.info(msg)
 
     # Lets read where the stack pointer is
-    logger.log(logging.INFO, "Stack pointer is at: 0x{:x}".format(emu.reg_read("esp")))
+    logger.info("Stack pointer is at: 0x{:x}".format(emu.reg_read("esp")))
 
     return rv
 
@@ -57,20 +45,18 @@ def hook_mem_write(emu, access, address, size, value, ctx):
             start = mm.get_base()
             end = start + mm.get_size()
             if start < address < end:
-                logger = get_logger()
-
                 # Get the assembly instruction that did the write
                 mnem, op, instr = emu.disasm(emu.reg_read("eip"), 0x20)
 
                 msg = f"Stack written to: instr: {instr} addr:0x{address:x}"
-                logger.log(logging.INFO, msg)
+                logger.info(msg)
     return
 
 
 def main(args):
 
-    # Init the speakeasy object, an optional logger can be supplied
-    se = speakeasy.Speakeasy(logger=get_logger())
+    # Init the speakeasy object
+    se = speakeasy.Speakeasy()
     module = se.load_module(args.file)
 
     # Begin emulating the DLL at its defined entry point.
