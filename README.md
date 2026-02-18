@@ -147,6 +147,20 @@ Emulating 64-bit Windows shellcode and create a full memory dump:
 user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x64 -d memdump.zip
 ```
 
+Debugging a binary interactively with GDB (requires `pip install speakeasy-emulator[gdb]`):
+```console
+user@mybox:~/speakeasy$ speakeasy -t ~/malware.exe --gdb --gdb-port 1234
+```
+Then in another terminal:
+```console
+user@mybox:~$ gdb-multiarch
+(gdb) set architecture i386
+(gdb) target remote localhost:1234
+(gdb) break *0x401000
+(gdb) continue
+```
+See [doc/gdb](doc/gdb.md) for full details.
+
 ---
 
 ## Configuration
@@ -213,3 +227,4 @@ Many malware samples such as shellcode will attempt to manually parse the export
 - [doc/memory](doc/memory.md)
 - [doc/reporting](doc/reporting.md)
 - [doc/limitations](doc/limitations.md)
+- [doc/gdb](doc/gdb.md)
