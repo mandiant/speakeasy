@@ -64,7 +64,7 @@ class DnsApi(api.ApiHandler):
         if pszName:
             name = self.read_mem_string(pszName, cw)
             ip = self.netman.name_lookup(name)
-            self.log_dns(name, ip)
+            self.record_dns_event(name, ip)
 
             rec = _DnsRecord(emu.get_ptr_size())
             rec.pName = pszName

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import ntpath
 import os
 import zipfile
@@ -17,6 +18,8 @@ from speakeasy import PeFile, Win32Emulator, WinKernelEmulator
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
+
+logger = logging.getLogger(__name__)
 
 
 class Speakeasy:
@@ -35,9 +38,8 @@ class Speakeasy:
 
         return wrap
 
-    def __init__(self, config=None, logger=None, argv=[], debug=False, exit_event=None):
+    def __init__(self, config=None, argv=[], debug=False, exit_event=None):
 
-        self.logger = logger
         self._init_config(config)
         self.emu = None
         self.api_hooks = []
@@ -80,8 +82,7 @@ class Speakeasy:
             try:
                 self.config = SpeakeasyConfig.model_validate(config)
             except ValidationError as err:
-                if self.logger:
-                    self.logger.exception("Invalid config: %s", str(err))
+                logger.exception("Invalid config: %s", str(err))
                 raise ConfigError("Invalid config") from err
 
     def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
@@ -101,17 +102,13 @@ class Speakeasy:
                 raise NotSupportedError(".NET assemblies are not currently supported")
 
             if pe.is_driver():
-                self.emu = WinKernelEmulator(
-                    config=self.config, logger=self.logger, debug=self.debug, exit_event=self.exit_event
-                )
+                self.emu = WinKernelEmulator(config=self.config, debug=self.debug, exit_event=self.exit_event)
             else:
                 self.emu = Win32Emulator(
-                    config=self.config, logger=self.logger, argv=self.argv, debug=self.debug, exit_event=self.exit_event
+                    config=self.config, argv=self.argv, debug=self.debug, exit_event=self.exit_event
                 )
         else:
-            self.emu = Win32Emulator(
-                config=self.config, logger=self.logger, argv=self.argv, debug=self.debug, exit_event=self.exit_event
-            )
+            self.emu = Win32Emulator(config=self.config, argv=self.argv, debug=self.debug, exit_event=self.exit_event)
 
     def _init_hooks(self) -> None:
         """

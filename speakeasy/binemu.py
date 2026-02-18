@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import fnmatch
+import logging
 import re
 import traceback
 from abc import ABC, abstractmethod
@@ -15,6 +16,8 @@ from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
 from speakeasy.report import Report
+
+logger = logging.getLogger(__name__)
 
 EMU_ENGINES = (("unicorn", unicorn_eng.EmuEngine),)
 
@@ -53,7 +56,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """Get the current run context. Subclasses must implement."""
         ...
 
-    def __init__(self, config, logger=None):
+    def __init__(self, config):
 
         super().__init__()
 
@@ -73,28 +76,6 @@ class BinaryEmulator(MemoryManager, ABC):
         self.runtime = 0
 
         self.emu_version = self.get_emu_version()
-        self.logger = logger
-
-    def log_info(self, msg, *args):
-        if self.logger:
-            if args:
-                self.logger.info(msg, *args)
-            else:
-                self.logger.info(msg)
-
-    def log_error(self, msg, *args):
-        if self.logger:
-            if args:
-                self.logger.error(msg, *args)
-            else:
-                self.logger.error(msg)
-
-    def log_exception(self, msg, *args):
-        if self.logger:
-            if args:
-                self.logger.exception(msg, *args)
-            else:
-                self.logger.exception(msg)
 
     def get_profiler(self):
         """
@@ -187,7 +168,7 @@ class BinaryEmulator(MemoryManager, ABC):
             self.emu_eng.start(addr, timeout=self.config.timeout, count=self.config.max_instructions)
         except Exception:
             if self.profiler:
-                self.profiler.log_error(traceback.format_exc())
+                self.profiler.record_error_event(traceback.format_exc())
             self.on_emu_complete()
 
     def reg_write(self, reg, val):
@@ -935,7 +916,7 @@ class BinaryEmulator(MemoryManager, ABC):
         mm = self.get_address_map(addr)
         if profiler:
             run = self.get_current_run()
-            profiler.log_dyn_code(run, mm.get_tag(), mm.get_base(), mm.get_size())
+            profiler.record_dyn_code_event(run, mm.get_tag(), mm.get_base(), mm.get_size())
 
         for h in self.hooks.get(common.HOOK_DYN_CODE, []):
             h.cb(mm)

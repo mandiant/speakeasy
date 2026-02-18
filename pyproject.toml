@@ -25,6 +25,7 @@ dependencies = [
     "unicorn>=2.1.4",
     "pycryptodome",
     "pydantic>=2.0",
+    "rich",
 ]
 
 [project.optional-dependencies]

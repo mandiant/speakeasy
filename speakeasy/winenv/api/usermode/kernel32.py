@@ -809,7 +809,7 @@ class Kernel32(api.ApiHandler):
             argv[0] = cmd
             app = cmd.split()[0]
             proc = emu.create_process(path=app, cmdline=cmd)
-            self.log_process_event(proc, PROC_CREATE)
+            self.record_process_event(proc, PROC_CREATE)
             rv = 32
 
         return rv
@@ -932,7 +932,7 @@ class Kernel32(api.ApiHandler):
 
         rv = 1
 
-        self.log_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, PROC_CREATE)
         return rv
 
     @apihook("VirtualAlloc", argc=4)
@@ -976,7 +976,7 @@ class Kernel32(api.ApiHandler):
 
                 proc = emu.get_current_process()
                 if proc:
-                    self.log_process_event(
+                    self.record_process_event(
                         proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[3]
                     )
 
@@ -1050,7 +1050,7 @@ class Kernel32(api.ApiHandler):
                 )
                 mm = emu.get_address_map(buf)
 
-                self.log_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[4])
+                self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[4])
 
                 emu._set_dyn_code_hook(buf, size)
 
@@ -1090,7 +1090,7 @@ class Kernel32(api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.log_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
 
         return rv
 
@@ -1132,7 +1132,7 @@ class Kernel32(api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.log_process_event(obj, MEM_READ, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, MEM_READ, base=lpBaseAddress, size=nSize, data=data)
 
         return rv
 
@@ -1178,7 +1178,7 @@ class Kernel32(api.ApiHandler):
         if lpThreadId:
             self.mem_write(lpThreadId, obj.get_id().to_bytes(4, "little"))
 
-        self.log_process_event(proc_obj, evt_type, start_addr=lpStartAddress, param=lpParameter)
+        self.record_process_event(proc_obj, evt_type, start_addr=lpStartAddress, param=lpParameter)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -1408,7 +1408,7 @@ class Kernel32(api.ApiHandler):
             prot_def = " | ".join(prot_def)
             argv[3] = prot_def
 
-        self.log_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def)
+        self.record_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def)
 
         return rv
 
@@ -3460,8 +3460,8 @@ class Kernel32(api.ApiHandler):
             _dst = self.read_mem_string(dst, cw)
             argv[1] = _dst
             dHandle = self.file_open(_dst, create=True)
-            self.log_file_access(_dst, FILE_CREATE)
-            self.log_file_access(_dst, FILE_WRITE)
+            self.record_file_access_event(_dst, FILE_CREATE)
+            self.record_file_access_event(_dst, FILE_WRITE)
             sHandle = self.file_open(_src)
             sf = self.file_get(sHandle)
             df = self.file_get(dHandle)
@@ -3546,7 +3546,7 @@ class Kernel32(api.ApiHandler):
                 elif disp == windefs.TRUNCATE_EXISTING:
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
-            self.log_file_access(target, op, disposition=[cd], access=ad)
+            self.record_file_access_event(target, op, disposition=[cd], access=ad)
         return hnd
 
     @apihook("DeleteFile", argc=1)
@@ -3603,7 +3603,7 @@ class Kernel32(api.ApiHandler):
             if lpBuffer:
                 _write_output(emu, data, lpBuffer, bytes_read)
 
-                self.log_file_access(path, FILE_READ, buffer=lpBuffer, size=len(data))
+                self.record_file_access_event(path, FILE_READ, buffer=lpBuffer, size=len(data))
 
                 rv = True
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -3641,7 +3641,7 @@ class Kernel32(api.ApiHandler):
             if data:
                 f.add_data(data)
                 # Log the file event
-                self.log_file_access(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
+                self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
                 data = data.hex()
                 argv[1] = f"{hex(lpBuffer)} ({data[:0x20]})"

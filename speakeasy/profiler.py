@@ -190,7 +190,7 @@ class Profiler:
         """
         return b64encode(data).decode("utf-8")
 
-    def log_error(self, error):
+    def record_error_event(self, error):
         """
         Log a top level emulator error for the emulation report
         """
@@ -198,7 +198,7 @@ class Profiler:
             self.meta["errors"] = []
         self.meta["errors"].append(error)
 
-    def log_dropped_files(self, run, files):
+    def record_dropped_files_event(self, run, files):
         for f in files:
             data = f.get_data()
             if data is None:
@@ -208,7 +208,7 @@ class Profiler:
             entry = {"path": f.get_path(), "size": len(data), "sha256": _hash}
             run.dropped_files.append(entry)
 
-    def log_api(self, run, pos: TracePosition, name, ret, argv, ctx=[]):
+    def record_api_event(self, run, pos: TracePosition, name, ret, argv, ctx=[]):
         """
         Log a call to an OS API. This includes arguments, return address, and return value
         """
@@ -242,7 +242,7 @@ class Profiler:
         ):
             run.events.append(event)
 
-    def log_file_access(
+    def record_file_access_event(
         self,
         run,
         pos: TracePosition,
@@ -322,7 +322,7 @@ class Profiler:
 
         run.events.append(event)
 
-    def log_registry_access(
+    def record_registry_access_event(
         self,
         run,
         pos: TracePosition,
@@ -391,7 +391,7 @@ class Profiler:
 
         run.events.append(event)
 
-    def log_process_event(self, run, pos: TracePosition, proc, event_type, kwargs):
+    def record_process_event(self, run, pos: TracePosition, proc, event_type, kwargs):
         """
         Log events related to a process accessing another process. This includes:
         creating a child process, reading/writing to a process, or creating a thread
@@ -496,7 +496,7 @@ class Profiler:
         run.events.append(event)
         self.last_event = event
 
-    def log_dns(self, run, pos: TracePosition, domain, ip=""):
+    def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
         """
         Log DNS name lookups for the emulation report
         """
@@ -511,7 +511,9 @@ class Profiler:
         )
         run.events.append(event)
 
-    def log_http(self, run, pos: TracePosition, server, port, proto="http", headers="", body=b"", secure=False):
+    def record_http_event(
+        self, run, pos: TracePosition, server, port, proto="http", headers="", body=b"", secure=False
+    ):
         """
         Log HTTP traffic that occur during emulation
         """
@@ -541,7 +543,7 @@ class Profiler:
 
         run.events.append(event)
 
-    def log_dyn_code(self, run, tag, base, size):
+    def record_dyn_code_event(self, run, tag, base, size):
         """
         Log code that is generated at runtime and then executed
         """
@@ -550,7 +552,9 @@ class Profiler:
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 
-    def log_network(self, run, pos: TracePosition, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+    def record_network_event(
+        self, run, pos: TracePosition, server, port, typ="unknown", proto="unknown", data=b"", method=""
+    ):
         """
         Log network activity for an emulation run
         """
@@ -569,7 +573,7 @@ class Profiler:
         )
         run.events.append(event)
 
-    def log_exception(self, run, pos: TracePosition, instr, exception_code, handler_address, registers):
+    def record_exception_event(self, run, pos: TracePosition, instr, exception_code, handler_address, registers):
         """
         Log a handled exception event
         """
@@ -582,7 +586,7 @@ class Profiler:
         )
         run.events.append(event)
 
-    def log_module_load(self, run, pos: TracePosition, name, path, base, size):
+    def record_module_load_event(self, run, pos: TracePosition, name, path, base, size):
         """
         Log module (PE/DLL) load events
         """
