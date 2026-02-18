@@ -1,0 +1,3 @@
+[submodule "deps/udbserver"]
+	path = deps/udbserver
+	url = git@github.com:bet4it/udbserver.git
