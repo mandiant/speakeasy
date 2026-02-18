@@ -88,6 +88,7 @@ class WindowsEmulator(BinaryEmulator):
         self.callbacks = []
         self.mem_trace_hooks = []
         self.coverage_hook = None
+        self.debug_hook = None
         self.kernel_mode = False
         self.virtual_mem_base = 0x50000
 
@@ -141,8 +142,8 @@ class WindowsEmulator(BinaryEmulator):
         raise NotImplementedError()
 
     def enable_code_hook(self):
-        if not self.tmp_code_hook and not self.config.analysis.memory_tracing and not self.config.analysis.coverage:
-            self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
+        if not self.tmp_code_hook:
+            self.tmp_code_hook = self.add_code_hook(cb=self._hook_code_core)
 
         if self.tmp_code_hook:
             self.tmp_code_hook.enable()
@@ -166,7 +167,7 @@ class WindowsEmulator(BinaryEmulator):
             return
 
         self.mem_trace_hooks = (
-            self.add_code_hook(cb=self._hook_code),
+            self.add_code_hook(cb=self._hook_code_tracing),
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write),
         )
@@ -178,7 +179,16 @@ class WindowsEmulator(BinaryEmulator):
         if self.coverage_hook:
             return
 
-        self.coverage_hook = self.add_code_hook(cb=self._hook_code)
+        self.coverage_hook = self.add_code_hook(cb=self._hook_code_coverage)
+
+    def set_debug_hooks(self):
+        if not self.debug:
+            return
+
+        if self.debug_hook:
+            return
+
+        self.debug_hook = self.add_code_hook(cb=self._hook_code_debug)
 
     def cast(self, obj, bytez):
         """
@@ -1226,8 +1236,8 @@ class WindowsEmulator(BinaryEmulator):
             access = self.emu_eng.mem_access.get(access)
             self.prev_pc = self.get_pc()
 
-            if not self.tmp_code_hook and not self.config.analysis.memory_tracing:
-                self.tmp_code_hook = self.add_code_hook(cb=self._hook_code)
+            if not self.tmp_code_hook:
+                self.tmp_code_hook = self.add_code_hook(cb=self._hook_code_core)
 
             self.enable_code_hook()
 
@@ -1467,16 +1477,12 @@ class WindowsEmulator(BinaryEmulator):
         self.on_run_complete()
         return True
 
-    def _hook_code(self, emu, addr, size, ctx):
+    def _hook_code_core(self, emu, addr, size, ctx):
         """
-        Hook called before every emulated instruction. Ideally we want to
-        stay out of this hook as much as possible for speed considerations.
+        Transient code hook for deferred work: SEH dispatch, run lifecycle,
+        temp map cleanup, and import data queue processing. Enabled on demand
+        and disables itself once the pending work is drained.
         """
-
-        if self.debug:
-            x = self.get_disasm(addr, size)[2]
-            edi, esi, ebp, eax = (self.reg_read(r) for r in ("edi", "esi", "ebp", "eax"))
-            print(f"0x{addr:x}: {x}, edi=0x{edi:x} : esi=0x{esi:x} : ebp=0x{ebp:x} : eax=0x{eax:x}")
         try:
             if self.curr_exception_code != 0:
                 self.dispatch_seh(self.curr_exception_code)
@@ -1512,23 +1518,45 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_write(read_addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
                 return True
 
-            if self.config.analysis.coverage:
-                self.curr_run.coverage.append(addr)
+            self._set_emu_hooks()
+            self.disable_code_hook()
+            return True
 
-            if not self.config.analysis.memory_tracing and not self.config.analysis.coverage:
-                if not self.debug:
-                    self.disable_code_hook()
+        except Exception as e:
+            self.log_exception("Exception during code hook (core)")
+            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
+            self.curr_run.error = error
+            self.on_emu_complete()
+            return False
 
+    def _hook_code_coverage(self, emu, addr, size, ctx):
+        """
+        Persistent code hook that records every executed address for coverage.
+        """
+        try:
+            self.curr_run.coverage.append(addr)
+            return True
+        except Exception as e:
+            self.log_exception("Exception during code hook (coverage)")
+            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
+            self.curr_run.error = error
+            self.on_emu_complete()
+            return False
+
+    def _hook_code_tracing(self, emu, addr, size, ctx):
+        """
+        Persistent code hook for memory tracing: instruction counting,
+        symbol execution tracking, and per-region execution tracking.
+        """
+        try:
             if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:
                 self.on_run_complete()
                 return False
 
             self.curr_instr_size = size
 
-            # Get the symbol that the sample was trying to execute
-
             symbol = self.get_symbol_from_address(addr)
-            if self.config.analysis.memory_tracing and symbol:
+            if symbol:
                 mod_name, fn = symbol.split(".")
 
                 mac = self.curr_run.sym_access.get(addr)
@@ -1540,12 +1568,6 @@ class WindowsEmulator(BinaryEmulator):
                 self.handle_import_func(mod_name, fn)
                 return True
 
-            self._set_emu_hooks()
-
-            if not self.config.analysis.memory_tracing:
-                return
-
-            # Increment the instruction counter
             self.curr_run.instr_cnt += 1
 
             for exec_access in self.curr_run.exec_cache:
@@ -1566,11 +1588,21 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         except Exception as e:
-            self.log_exception("Exception during code hook")
+            self.log_exception("Exception during code hook (tracing)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
             self.curr_run.error = error
             self.on_emu_complete()
             return False
+
+    def _hook_code_debug(self, emu, addr, size, ctx):
+        """
+        Persistent code hook that prints disassembly and register state
+        for every instruction when debug mode is enabled.
+        """
+        x = self.get_disasm(addr, size)[2]
+        edi, esi, ebp, eax = (self.reg_read(r) for r in ("edi", "esi", "ebp", "eax"))
+        print(f"0x{addr:x}: {x}, edi=0x{edi:x} : esi=0x{esi:x} : ebp=0x{ebp:x} : eax=0x{eax:x}")
+        return True
 
     def get_native_module_path(self, mod_name=""):
         """
