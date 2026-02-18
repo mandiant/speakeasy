@@ -52,7 +52,7 @@ class Shell32(api.ApiHandler):
             dn = self.read_mem_string(pszPath, cw)
             argv[1] = dn
 
-            self.log_file_access(dn, "directory_create")
+            self.record_file_access_event(dn, "directory_create")
 
         return 0
 
@@ -93,7 +93,7 @@ class Shell32(api.ApiHandler):
             fn = f"{dn}\\{fn}"
 
         proc = emu.create_process(path=fn, cmdline=param)
-        self.log_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, PROC_CREATE)
 
         return 33
 

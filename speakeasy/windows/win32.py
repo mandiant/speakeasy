@@ -29,8 +29,8 @@ class Win32Emulator(WindowsEmulator):
     User Mode Windows Emulator Class
     """
 
-    def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        super().__init__(config, debug=debug, logger=logger, exit_event=exit_event)
+    def __init__(self, config, argv=[], debug=False, exit_event=None):
+        super().__init__(config, debug=debug, exit_event=exit_event)
 
         self.last_error = 0
         self.peb_addr = 0
@@ -729,7 +729,7 @@ class Win32Emulator(WindowsEmulator):
         self.run_complete = True
         self.curr_run.ret_val = self.get_return_val()
         if self.profiler:
-            self.profiler.log_dropped_files(self.curr_run, self.get_dropped_files())
+            self.profiler.record_dropped_files_event(self.curr_run, self.get_dropped_files())
             self._capture_memory_layout()
 
         return self._exec_next_run()

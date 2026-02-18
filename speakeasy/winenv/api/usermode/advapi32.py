@@ -85,7 +85,7 @@ class AdvApi32(api.ApiHandler):
             if not hnd:
                 rv = windefs.ERROR_PATH_NOT_FOUND
 
-            self.log_registry_access(lpSubKey, REG_OPEN, handle=hnd)
+            self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
 
         if phkResult and hnd:
             self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
@@ -129,7 +129,7 @@ class AdvApi32(api.ApiHandler):
             if not hnd:
                 rv = windefs.ERROR_PATH_NOT_FOUND
 
-            self.log_registry_access(lpSubKey, REG_OPEN, handle=hnd)
+            self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
 
         if phkResult and hnd:
             self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
@@ -199,7 +199,7 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_SUCCESS
 
             kp = key.get_path()
-            self.log_registry_access(kp, REG_READ, value_name=lpValueName, size=length, buffer=lpData)
+            self.record_registry_access_event(kp, REG_READ, value_name=lpValueName, size=length, buffer=lpData)
 
         return rv
 
@@ -277,7 +277,7 @@ class AdvApi32(api.ApiHandler):
                             name = name.encode("utf-8")
                         self.mem_write(lpName, name)
                         rv = windefs.ERROR_SUCCESS
-            self.log_registry_access(key.get_path(), REG_LIST)
+            self.record_registry_access_event(key.get_path(), REG_LIST)
         return rv
 
     @apihook("RegCreateKey", argc=3)
@@ -303,7 +303,7 @@ class AdvApi32(api.ApiHandler):
                     argv[1] = lpSubKey
                     sub_key_path = key.get_path() + "\\" + lpSubKey
                     self.emu.reg_create_key(sub_key_path)
-                    self.log_registry_access(sub_key_path, REG_CREATE)
+                    self.record_registry_access_event(sub_key_path, REG_CREATE)
                 else:
                     hkey = (hkey).to_bytes(self.get_ptr_size(), "little")
                     self.mem_write(phkResult, hkey)
@@ -1169,7 +1169,7 @@ class AdvApi32(api.ApiHandler):
 
         rv = 1
 
-        self.log_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, PROC_CREATE)
         return rv
 
     @apihook("CryptCreateHash", argc=5)
@@ -1409,7 +1409,7 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_SUCCESS
 
             kp = key.get_path()
-            self.log_registry_access(kp, REG_READ, value_name=lpValue, size=length, buffer=lpData)
+            self.record_registry_access_event(kp, REG_READ, value_name=lpValue, size=length, buffer=lpData)
 
         return rv
 

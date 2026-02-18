@@ -226,12 +226,12 @@ class Wininet(api.ApiHandler):
         port = req.get_port()
 
         if not is_ip_address(srv):
-            self.log_dns(srv)
+            self.record_dns_event(srv)
 
         rv = 1
         req_str = req.format_http_request(headers=headers)
 
-        self.log_http(srv, port, headers=req_str, body=body, secure=req.is_secure())
+        self.record_http_event(srv, port, headers=req_str, body=body, secure=req.is_secure())
         return rv
 
     @apihook("InternetErrorDlg", argc=5, conv=_arch.CALL_CONV_STDCALL)
@@ -403,7 +403,7 @@ class Wininet(api.ApiHandler):
             port = 80
         else:
             port = 443
-        self.log_http(crack.netloc, port, headers=lpszHeaders)
+        self.record_http_event(crack.netloc, port, headers=lpszHeaders)
         sess = wini.new_session(crack.netloc, port, "", "", "", defs, dwContext)
         if not sess:
             return 0
