@@ -1790,29 +1790,35 @@ class WindowsEmulator(BinaryEmulator):
         mod.decoy_base = res
         mod.name = getattr(modconf, "name", None) or name
 
-        # map PE headers
+        img_base = mod.OPTIONAL_HEADER.ImageBase
+        img_size = mod.OPTIONAL_HEADER.SizeOfImage
+        mem_base = self.mem_map(img_size, base=img_base, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
+
         headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
         headers_content = bytes(mod.get_data(length=headers_size))
-        mem_base = self.mem_map(
-            len(headers_content),
-            base=mod.OPTIONAL_HEADER.ImageBase,
-            tag=f"emu.module.header.{mod.name}",
-            perms=common.PERM_MEM_READ,
-        )
         self.mem_write(mem_base, headers_content)
+        aligned_headers = (headers_size + self.page_size - 1) & ~(self.page_size - 1)
+        self.mem_protect(mem_base, aligned_headers, common.PERM_MEM_READ)
 
         if hasattr(mod, "sections"):
             for section in mod.sections:
-                name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-                va = section.VirtualAddress + mod.OPTIONAL_HEADER.ImageBase
-                vsize = section.Misc_VirtualSize
-                is_exec = section.Characteristics & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
-                perms = common.PERM_MEM_RWX if is_exec else common.PERM_MEM_RW
-                mem_base = self.mem_map(vsize, base=va, tag=f"emu.module.{mod.name}.{name}", perms=perms)
+                va = section.VirtualAddress
                 section_data = bytes(section.get_data())
-                self.mem_write(mem_base, section_data)
-        else:
-            self.mem_reserve(size, base=res, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
+                self.mem_write(mem_base + va, section_data)
+                chars = section.Characteristics
+                r = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
+                w = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
+                x = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
+                perms = common.PERM_MEM_NONE
+                if r:
+                    perms |= common.PERM_MEM_READ
+                if w:
+                    perms |= common.PERM_MEM_WRITE
+                if x:
+                    perms |= common.PERM_MEM_EXEC
+                vsize = section.Misc_VirtualSize
+                aligned_size = (vsize + self.page_size - 1) & ~(self.page_size - 1)
+                self.mem_protect(mem_base + va, aligned_size, perms)
 
         if mod.decoy_path == "" and name != "":
             mod.decoy_path = (self.config.current_dir or "C:\\Windows\\system32") + "\\" + name
