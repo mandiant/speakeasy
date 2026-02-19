@@ -332,7 +332,7 @@ class WindowsEmulator(BinaryEmulator):
 
         self.run_complete = False
         self.reset_stack(self.stack_base)
-        return self._exec_run(run)
+        return self._prepare_run_context(run)
 
     def call(self, addr, params=[]):
         """
@@ -350,9 +350,9 @@ class WindowsEmulator(BinaryEmulator):
         else:
             self.add_run(run)
 
-    def _exec_run(self, run):
+    def _prepare_run_context(self, run):
         """
-        Begin emulating the specified run
+        Prepare CPU and memory state for the given run without starting emulation.
         """
         logger.info("* exec: %s", run.type)
 
@@ -437,24 +437,29 @@ class WindowsEmulator(BinaryEmulator):
         self.set_hooks()
         self._set_emu_hooks()
 
+        # Initialize run context/register state before exposing the target to GDB,
+        # so the first stop reports a meaningful PC/SP/etc.
+        self._prepare_run_context(run)
+
         if self.gdb_port is not None:
             from udbserver import udbserver
 
-            logger.info("GDB server listening on port %d, waiting for connection...", self.gdb_port)
+            logger.info(
+                "GDB server listening on port %d, waiting for connection (initial PC: 0x%x)...",
+                self.gdb_port,
+                self.curr_run.start_addr,
+            )
             udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)
 
         timeout = 0 if self.gdb_port is not None else self.config.timeout
 
         if self.profiler:
             self.profiler.set_start_time()
-        self._exec_run(run)
 
         while True:
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                self.emu_eng.start(
-                    self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions
-                )
+                self.emu_eng.start(self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions)
                 if self.profiler and timeout > 0:
                     if self.profiler.get_run_time() > timeout:
                         logger.error("* Timeout of %d sec(s) reached.", timeout)
