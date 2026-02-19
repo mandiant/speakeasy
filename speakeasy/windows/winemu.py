@@ -1819,6 +1819,21 @@ class WindowsEmulator(BinaryEmulator):
 
         mod.base_name = ntpath.basename(mod.decoy_path)
 
+        if hasattr(mod, "is_jitted") and mod.is_jitted:
+            mod_base_name = mod.get_base_name()
+            for exp in mod.get_exports():
+                if exp.name:
+                    self.symbols[exp.address] = (mod_base_name, exp.name)
+                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)
+                    if hndlr and not self.config.analysis.memory_tracing:
+                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
+                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
+
+            if not self.config.analysis.memory_tracing:
+                mod_start = mod.OPTIONAL_HEADER.ImageBase
+                mod_end = mod_start + mod.OPTIONAL_HEADER.SizeOfImage
+                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
+
         return mod
 
     # This will create a module from a file inside Speakeasy's
