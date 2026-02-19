@@ -115,6 +115,10 @@ def test_gdb_connect_and_read_registers(gdb_emulator):
         assert len(regs) > 0, "Expected register data"
         assert all(c in "0123456789abcdefxx" for c in regs.lower()), "Expected hex register data"
 
+        # x86 register order in udbserver is: eax, ecx, edx, ebx, esp, ebp, esi, edi, eip, ...
+        eip_hex = regs[32:40].lower()
+        assert eip_hex not in ("00000000", "xxxxxxxx"), "Expected initial PC to be initialized"
+
         client.continue_()
     finally:
         client.close()

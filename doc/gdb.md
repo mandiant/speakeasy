@@ -160,11 +160,12 @@ se.run_module(module)
 The GDB integration uses `udbserver`, which installs Unicorn hooks for breakpoints, watchpoints, and single-stepping. When `gdb_port` is set:
 
 1. Speakeasy loads the binary and sets up all its emulation hooks normally
-2. Before the first `emu_start()` call, `udbserver()` is called with `start_addr=0`
-3. This blocks on a TCP accept, waiting for a GDB client
-4. The GDB client connects, sets breakpoints, and issues `continue`
-5. `udbserver()` returns and emulation proceeds under GDB control
-6. The udbserver hooks persist across all emulation runs (DllMain, exports, etc.)
+2. Speakeasy initializes the first run context (stack/arguments/registers), including setting PC to the run entry point
+3. Before the first `emu_start()` call, `udbserver()` is called with `start_addr=0`
+4. This blocks on a TCP accept, waiting for a GDB client
+5. The GDB client connects, sets breakpoints, and issues `continue`
+6. `udbserver()` returns and emulation proceeds under GDB control
+7. The udbserver hooks persist across all emulation runs (DllMain, exports, etc.)
 
 ---
 
