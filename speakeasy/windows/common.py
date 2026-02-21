@@ -177,7 +177,7 @@ class PeParseException(Exception):
     pass
 
 
-class PeFile(pefile.PE):
+class _PeParser(pefile.PE):
     """
     Represents PE files loaded into the emulator
     """
@@ -268,12 +268,12 @@ class PeFile(pefile.PE):
 
     def _get_pe_imports(self):
         pe = self
-        imports = {}
+        imports: dict[int, tuple[str, str]] = {}
 
         if not hasattr(pe, "DIRECTORY_ENTRY_IMPORT"):
             return imports
 
-        for entry in pe.DIRECTORY_ENTRY_IMPORT:  # type: ignore[attr-defined]
+        for entry in pe.DIRECTORY_ENTRY_IMPORT:
             dll = entry.dll
             dll = dll.decode("utf-8")
             dll = os.path.splitext(dll)[0]
@@ -293,12 +293,12 @@ class PeFile(pefile.PE):
 
     def _get_pe_exports(self):
         pe = self
-        exports = []
+        exports: list = []
         if not hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
             return exports
 
-        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:  # type: ignore[attr-defined]
-            entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])
+        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+            entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])  # type: ignore[name-match]  # legacy: namedtuple name differs from var
             entry.name = exp.name
             entry.address = exp.address + pe.get_base()
             entry.forwarder = exp.forwarder
@@ -430,7 +430,7 @@ class PeFile(pefile.PE):
         return
 
 
-class DecoyModule(PeFile):
+class DecoyModule(_PeParser):
     """
     Class that represents "decoy" modules that are loaded into emulated memory.
     We use decoy modules so that shellcode
@@ -446,7 +446,10 @@ class DecoyModule(PeFile):
             super().__init__(path=path, data=data, fast_load=fast_load)
 
         if data:
-            self.image_size = len(data)
+            if hasattr(self, "OPTIONAL_HEADER"):
+                self.image_size = max(len(data), self.OPTIONAL_HEADER.SizeOfImage)
+            else:
+                self.image_size = len(data)
 
         self.decoy_path = emu_path
         self.base_name = ""
@@ -615,6 +618,7 @@ class JitPeFile:
         self.basepe.OPTIONAL_HEADER.SizeOfHeaders = text_sect.PointerToRawData
 
         self.init_export_section(mod_name.encode("utf-8"), exports_info)
+        self.update_image_size()
         return self.get_raw_pe()
 
     def init_export_section(self, name, exports_info):

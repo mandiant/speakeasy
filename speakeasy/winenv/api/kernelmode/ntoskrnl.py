@@ -279,12 +279,18 @@ class Ntoskrnl(api.ApiHandler):
         """
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
         dest, src = argv
-        uni_str = self.read_wide_string(src)
 
-        size = len(uni_str) * 2
-        us.Length = size
-        us.MaximumLength = size
-        us.Buffer = src
+        if src:
+            uni_str = self.read_wide_string(src)
+            size = len(uni_str) * 2
+            us.Length = size
+            us.MaximumLength = size
+            us.Buffer = src
+        else:
+            uni_str = ""
+            us.Length = 0
+            us.MaximumLength = 0
+            us.Buffer = 0
 
         data = self.get_bytes(us)
         self.mem_write(dest, data)
@@ -549,7 +555,7 @@ class Ntoskrnl(api.ApiHandler):
         buf_ptr = 0
 
         if sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemModuleInformation:
-            mods = emu.get_sys_modules()
+            mods = emu.get_peb_modules()
             mod_count = len(mods)
             size = mod_count * self.sizeof(self.win.SYSTEM_MODULE(emu.get_ptr_size()))
             size += self.ptr_size

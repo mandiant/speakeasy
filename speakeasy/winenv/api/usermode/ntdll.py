@@ -155,7 +155,7 @@ class Ntdll(api.ApiHandler):
         elif ordinal:
             proc = f"ordinal_{proc_name}"
 
-        mods = emu.get_user_modules()
+        mods = emu.get_peb_modules()
         for mod in mods:
             if mod.get_base() == hmod:
                 bn = mod.get_base_name()

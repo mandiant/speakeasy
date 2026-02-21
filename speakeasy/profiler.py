@@ -101,16 +101,16 @@ class Run:
         self.sym_access = {}
         self.dropped_files = []
         self.mem_access = {}
-        self.dyn_code = {"mmap": [], "base_addrs": set()}
+        self.dyn_code: dict[str, list | set] = {"mmap": [], "base_addrs": set()}
         self.process_context = None
         self.thread = None
         self.unique_apis = []
         self.api_hash = hashlib.sha256()
         self.stack = None
         self.api_callbacks = []
-        self.exec_cache = deque(maxlen=4)
-        self.read_cache = deque(maxlen=4)
-        self.write_cache = deque(maxlen=4)
+        self.exec_cache: deque = deque(maxlen=4)
+        self.read_cache: deque = deque(maxlen=4)
+        self.write_cache: deque = deque(maxlen=4)
 
         self.args = None
         self.start_addr = None
@@ -137,11 +137,11 @@ class Profiler:
     def __init__(self):
         super().__init__()
 
-        self.start_time = 0
-        self.strings = {"ansi": [], "unicode": []}
-        self.decoded_strings = {"ansi": [], "unicode": []}
+        self.start_time: float = 0
+        self.strings: dict[str, list] = {"ansi": [], "unicode": []}
+        self.decoded_strings: dict[str, list] = {"ansi": [], "unicode": []}
         self.last_data = [0, 0]
-        self.last_event = {}
+        self.last_event: AnyEvent | dict = {}
         self.set_start_time()
         self.runtime = 0
         self.meta = {}
@@ -283,6 +283,7 @@ class Profiler:
         if access:
             access_flags = access if isinstance(access, list) else [access]
 
+        event: AnyEvent
         if event_type == FILE_CREATE:
             event = FileCreateEvent(
                 pos=pos,
@@ -354,6 +355,7 @@ class Profiler:
         if access:
             access_flags_list = access if isinstance(access, list) else [access]
 
+        event: AnyEvent
         if event_type == REG_OPEN:
             event = RegOpenKeyEvent(
                 pos=pos,
@@ -401,6 +403,7 @@ class Profiler:
         path = proc.get_process_path()
         proc_pos = TracePosition(tick=pos.tick, tid=pos.tid, pid=pid, pc=pos.pc)
 
+        event: AnyEvent
         if event_type == PROC_CREATE:
             event = ProcessCreateEvent(
                 pos=proc_pos,
@@ -638,7 +641,7 @@ class Profiler:
                         evt.data = evt.data[:1024]
                     events.append(evt)
 
-            sym_accesses = None
+            sym_accesses: list[SymAccessReport] | None = None
             if r.sym_access:
                 sym_accesses = []
                 for address, maccess in r.sym_access.items():

@@ -1,10 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 from itertools import groupby
 from operator import itemgetter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.common as common
+
+if TYPE_CHECKING:
+    from speakeasy.engines.unicorn_eng import EmuEngine
 
 
 class MemMap:
@@ -130,7 +135,7 @@ class MemoryManager:
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.maps = []
-        self.emu_eng = None
+        self.emu_eng: EmuEngine | None = None
         self.mem_reserves = []
         self.block_base = 0
         self.block_size = 0
@@ -139,7 +144,7 @@ class MemoryManager:
 
     def _hook_mem_map_dispatch(self, mm):
         hl = self.hooks.get(common.HOOK_MEM_MAP, [])
-        ctx = {}
+        ctx: dict[str, object] = {}
         for mem_map_hook in hl:
             if mem_map_hook.enabled:
                 # the mapped memory region's base address falls within the hook's bounds
@@ -165,7 +170,7 @@ class MemoryManager:
                     block = self.get_valid_ranges(self.page_size)
                     self.block_base, self.block_size = block
 
-                    self.emu_eng.mem_map(self.block_base, self.block_size)
+                    self.emu_eng.mem_map(self.block_base, self.block_size)  # type: ignore[union-attr]
                     self.block_offset = 0
                     addr = self.block_base + self.block_offset
 
@@ -185,7 +190,7 @@ class MemoryManager:
         if size > self.block_size:
             block_size = size
         mm = MemMap(base, size, tag, perms, flags, base, block_size, shared, process)
-        self.emu_eng.mem_map(base, size, perms=perms)
+        self.emu_eng.mem_map(base, size, perms=perms)  # type: ignore[union-attr]
         self.maps.append(mm)
         self._hook_mem_map_dispatch(mm)
         return base
@@ -199,7 +204,7 @@ class MemoryManager:
             mm.set_free()
 
             # If we want to freeze memory, just return
-            if self.config.keep_memory_on_free:
+            if self.config.keep_memory_on_free:  # type: ignore[attr-defined]  # config is defined on subclasses
                 return
 
             ml = [m for m in self.get_mem_maps() if m.block_base == mm.block_base]
@@ -207,7 +212,7 @@ class MemoryManager:
             if all([m.free for m in ml]):
                 self.block_base = 0
                 self.mem_unmap(mm.block_base, mm.block_size)
-                [self.maps.remove(mm) for mm in ml]
+                [self.maps.remove(mm) for mm in ml]  # type: ignore[func-returns-value]  # list comp used for side effect
 
     def mem_remap(self, frm, to):
         """
@@ -244,31 +249,31 @@ class MemoryManager:
         """
         Free a block of emulated memory
         """
-        self.emu_eng.mem_unmap(base, size)
+        self.emu_eng.mem_unmap(base, size)  # type: ignore[union-attr]
 
     def mem_write(self, addr, data):
         """
         Write bytes into the emulated address space
         """
-        self.emu_eng.mem_write(addr, data)
+        self.emu_eng.mem_write(addr, data)  # type: ignore[union-attr]
 
     def mem_read(self, addr, size):
         """
         Read bytes from the emulated address space
         """
-        return bytes(self.emu_eng.mem_read(addr, size))
+        return bytes(self.emu_eng.mem_read(addr, size))  # type: ignore[union-attr]
 
     def mem_protect(self, addr, size, perms):
         """
         Change memory protections
         """
-        self.emu_eng.mem_protect(addr, size, perms)
+        self.emu_eng.mem_protect(addr, size, perms)  # type: ignore[union-attr]
 
     def _mem_unmap_region(self, base, size):
         """
         Remove an entire memory region that may not have blocks allocated within it
         """
-        self.emu_eng.mem_unmap(base, size)
+        self.emu_eng.mem_unmap(base, size)  # type: ignore[union-attr]
 
     def get_address_map(self, address):
         """
@@ -346,7 +351,7 @@ class MemoryManager:
         """
         Get the current regions of mapped memory
         """
-        return self.emu_eng.mem_regions()
+        return self.emu_eng.mem_regions()  # type: ignore[union-attr]
 
     def get_valid_ranges(self, size, addr=None):
         """
@@ -373,7 +378,7 @@ class MemoryManager:
         elif total % page_size:
             total += page_size - (total % page_size)
 
-        curr = []
+        curr: list[int] = []
         for m in self.get_mem_regions():
             curr += range(m[0], m[1], page_size)
 

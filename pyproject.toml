@@ -60,6 +60,7 @@ speakeasy = [
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+exclude = ["deps/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -68,6 +69,42 @@ select = ["E", "F", "I", "UP"]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_ignores = true
+ignore_missing_imports = true
+check_untyped_defs = true
+
+# Windows struct definitions using ctypes - extremely dynamic, not worth typing
+[[tool.mypy.overrides]]
+module = "speakeasy.winenv.defs.*"
+disable_error_code = ["attr-defined", "assignment", "var-annotated"]
+
+# Object manager - heavily dynamic attribute access on ctypes structs
+[[tool.mypy.overrides]]
+module = "speakeasy.windows.objman"
+disable_error_code = ["attr-defined", "union-attr", "var-annotated"]
+
+# WDF driver framework - very dynamic dispatch and attribute access
+[[tool.mypy.overrides]]
+module = "speakeasy.winenv.api.kernelmode.wdfldr"
+disable_error_code = ["attr-defined", "union-attr"]
+
+# API handler modules - dynamic dispatch, Windows struct access
+[[tool.mypy.overrides]]
+module = [
+    "speakeasy.winenv.api.kernelmode.ntoskrnl",
+    "speakeasy.winenv.api.kernelmode.netio",
+    "speakeasy.winenv.api.usermode.kernel32",
+    "speakeasy.winenv.api.usermode.user32",
+    "speakeasy.winenv.api.usermode.ws2_32",
+    "speakeasy.winenv.api.usermode.rpcrt4",
+    "speakeasy.winenv.api.usermode.msvcrt",
+    "speakeasy.winenv.api.usermode.netapi32",
+    "speakeasy.winenv.api.usermode.wtsapi32",
+    "speakeasy.winenv.api.usermode.shlwapi",
+    "speakeasy.winenv.api.usermode.iphlpapi",
+    "speakeasy.winenv.api.usermode.dnsapi",
+    "speakeasy.windows.kernel_mods.volmgr",
+]
+disable_error_code = ["attr-defined", "assignment", "union-attr"]
 
 [tool.ty.environment]
 extra-paths = ["typings"]

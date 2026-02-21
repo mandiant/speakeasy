@@ -366,7 +366,7 @@ class NetworkManager:
             return _read_txt_data(txt[0])
 
     def ip_lookup(self, ip):
-        for item in self.dns:
+        for item in self.dns:  # type: ignore[union-attr]  # dns may be None but callers check
             if item["response"] == ip:
                 return item["query"]
         return None

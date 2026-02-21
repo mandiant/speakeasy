@@ -256,7 +256,7 @@ class ModulesConfig(BaseModel):
 class SpeakeasyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    config_version: Literal[0.2]
+    config_version: Literal[0.2]  # type: ignore[valid-type]  # Pydantic supports float literals, mypy does not
     description: str | None = None
     emu_engine: Literal["unicorn"]
     timeout: float

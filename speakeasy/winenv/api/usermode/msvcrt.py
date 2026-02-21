@@ -1540,7 +1540,7 @@ class Msvcrt(api.ApiHandler):
     def terminate(self, emu, argv, ctx={}):
         self.exit_process()
 
-    @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
     def _crt_atexit(self, emu, argv, ctx={}):
         return
 
@@ -1633,7 +1633,7 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
     def _wcsicmp(self, emu, argv, ctx={}):
         """
         int wcsicmp(

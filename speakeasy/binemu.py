@@ -61,7 +61,7 @@ class BinaryEmulator(MemoryManager, ABC):
         super().__init__()
 
         self.stack_base = 0
-        self.page_size = None
+        self.page_size = None  # type: ignore[assignment]  # set to real value in subclass init
         self.inst_count = 0
         self.curr_instr_size = 0
         self.disasm_eng: Any = None
@@ -375,7 +375,7 @@ class BinaryEmulator(MemoryManager, ABC):
         sp += ptr_size
         for i in range(nargs):
             ptr = self.mem_read(sp, ptr_size)
-            argv.append(int.from_bytes(ptr, endian))
+            argv.append(int.from_bytes(ptr, endian))  # type: ignore[arg-type]  # endian is always "little"
             sp += ptr_size
 
         return argv
@@ -426,7 +426,7 @@ class BinaryEmulator(MemoryManager, ABC):
 
         sp = self.get_stack_ptr()
         ret = self.mem_read(sp, self.ptr_size)
-        ret = int.from_bytes(ret, endian)
+        ret = int.from_bytes(ret, endian)  # type: ignore[arg-type]  # endian is always "little"
         return ret
 
     def set_ret_address(self, addr):
@@ -456,7 +456,7 @@ class BinaryEmulator(MemoryManager, ABC):
         endian = "little"
         sp = self.get_stack_ptr()
         val = self.mem_read(sp, self.ptr_size)
-        val = int.from_bytes(val, endian)
+        val = int.from_bytes(val, endian)  # type: ignore[arg-type]  # endian is always "little"
         sp += self.ptr_size
         self.set_stack_ptr(sp)
         return val
@@ -484,7 +484,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Get the stack and format it for display
         """
-        out = []
+        out: list[tuple] = []
         sp = self.get_stack_ptr()
         for i in range(num_ptrs):
             try:
@@ -676,7 +676,7 @@ class BinaryEmulator(MemoryManager, ABC):
         try:
             dec = string.decode(decode, "ignore").replace("\x00", "")
         except Exception:
-            dec = string.replace(b"\x00", b"")
+            dec = string.replace(b"\x00", b"")  # type: ignore[assignment]  # fallback returns bytes if decode fails
         return dec
 
     def mem_string_len(self, address, width=1):
@@ -787,8 +787,8 @@ class BinaryEmulator(MemoryManager, ABC):
                 ansi_strings += self.get_ansi_strings(data)
                 unicode_strings += self.get_unicode_strings(data)
 
-        [ret_ansi.append(a) for a in ansi_strings if a not in ret_ansi]
-        [ret_unicode.append(a) for a in unicode_strings if a not in ret_unicode]
+        [ret_ansi.append(a) for a in ansi_strings if a not in ret_ansi]  # type: ignore[func-returns-value]  # list comp for side effect
+        [ret_unicode.append(a) for a in unicode_strings if a not in ret_unicode]  # type: ignore[func-returns-value]  # list comp for side effect
 
         return (ret_ansi, ret_unicode)
 
@@ -808,9 +808,10 @@ class BinaryEmulator(MemoryManager, ABC):
         If the supplied address belongs to a module, return it
         """
         for mod in self.modules:
-            base, size = mod[1]
+            base = mod.get_base()
+            size = mod.get_image_size()
             if addr >= base and addr <= base + size:
-                return mod[0]
+                return mod
         return None
 
     def get_api_hooks(self, mod_name, func_name) -> list[common.ApiHook]:
