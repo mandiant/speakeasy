@@ -266,7 +266,7 @@ class Driver(KernelObject):
         drvobj.Size = self.sizeof()
         drvobj.DeviceObject = 0
         drvobj.Flags = 2
-        us = ""
+        us = b""
         if pe:
             drvobj.DriverStart = pe.get_base()
             drvobj.DriverSize = pe.image_size

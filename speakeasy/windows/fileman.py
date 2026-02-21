@@ -87,7 +87,7 @@ class File:
         self.config = config
 
     def duplicate(self):
-        new = File(self.path, config=self.config, data=self.data.getvalue())
+        new = File(self.path, config=self.config, data=self.data.getvalue())  # type: ignore[union-attr]  # data is always set when duplicate() is called
         new.is_dir = self.is_dir
         return new
 

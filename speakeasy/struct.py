@@ -17,10 +17,15 @@ class EmuStructException(Exception):
 
 class Enum:
     """
-    For now, a basic python object will serve as a C style enum
+    For now, a basic python object will serve as a C style enum.
+    Supports arbitrary attribute access for dynamic enum-style constants.
     """
 
-    pass
+    def __setattr__(self, name: str, value: Any) -> None:
+        object.__setattr__(self, name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        raise AttributeError(name)
 
 
 class PtrMeta(type):
@@ -75,7 +80,7 @@ class EmuStruct(metaclass=CMeta):
     # to assign structures even if the types are identical on the surface.
     # ctypes will test the id (address) of the type to make sure they match
     # upon assignment. Otherwise we will hit spurious TypeErrors.
-    __types__ = {}
+    __types__: dict[str, type] = {}
 
     class FilteredStruct(ct.Structure):
         def __hash__(self):

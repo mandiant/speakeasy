@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 import speakeasy
 import speakeasy.winenv.arch as _arch
-from speakeasy import PeFile, Win32Emulator, WinKernelEmulator
+from speakeasy import Win32Emulator, WinKernelEmulator
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
@@ -93,7 +93,9 @@ class Speakeasy:
 
         """
         if not is_raw_code:
-            pe = PeFile(path=path, data=data)
+            from speakeasy.windows.common import _PeParser
+
+            pe = _PeParser(path=path, data=data)
             # Get the machine type we only support x86/x64 atm
             mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
             if mach not in ("amd64", "i386"):
@@ -175,7 +177,7 @@ class Speakeasy:
             A tuple of: (mnemonic, operands, and the full instruction)
         """
         try:
-            return self.emu.get_disasm(addr, size, fast)
+            return self.emu.get_disasm(addr, size, fast)  # type: ignore[union-attr]
         except Exception:
             raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}")
 
@@ -194,15 +196,9 @@ class Speakeasy:
         else:
             return False
 
-    def load_module(self, path=None, data=None) -> PeFile:
+    def load_module(self, path=None, data=None):
         """
-        Load a module into the speakeasy emulator
-
-        args:
-            path: Path to file to load into the emulation space
-            data: Raw data to load as a module into the emulation space
-        return:
-            A PeFile object representing the newly loaded module
+        Load a module into the speakeasy emulator.
         """
         if not path and not data:
             raise SpeakeasyError("No emulation target supplied")
@@ -223,7 +219,16 @@ class Speakeasy:
 
         self._init_emulator(path=path, data=data)
 
-        return self.emu.load_module(path=path, data=data)
+        return self.emu.load_module(path=path, data=data)  # type: ignore[union-attr]
+
+    def load_image(self, image):
+        """
+        Load a LoadedImage into the emulator.
+        """
+        if not self.emu:
+            self._init_emulator(is_raw_code=True)
+        self._init_hooks()
+        return self.emu.load_image(image)  # type: ignore[union-attr]
 
     @check_init
     def run_module(self, module, all_entrypoints=False, emulate_children=False) -> None:
@@ -243,13 +248,13 @@ class Speakeasy:
         self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
-            return self.emu.run_module(
+            return self.emu.run_module(  # type: ignore[no-any-return]
                 module=module, all_entrypoints=all_entrypoints, emulate_children=emulate_children
             )
         else:
-            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)
+            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)  # type: ignore[no-any-return, union-attr]
 
-    def load_shellcode(self, fpath, arch, data=None) -> int:
+    def load_shellcode(self, fpath=None, arch=None, data=None) -> int:
         """
         Load a shellcode blob into emulation space
 
@@ -263,7 +268,7 @@ class Speakeasy:
         self._init_emulator(is_raw_code=True)
         self.loaded_bins.append(fpath)
 
-        return self.emu.load_shellcode(fpath, arch, data=data)
+        return self.emu.load_shellcode(fpath, arch, data=data)  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
@@ -277,7 +282,7 @@ class Speakeasy:
             None
         """
         self._init_hooks()
-        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
+        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def get_report(self) -> Report:
@@ -287,7 +292,7 @@ class Speakeasy:
         return:
             Get the emulation report as a Pydantic Report model
         """
-        return self.emu.get_report()
+        return self.emu.get_report()  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def get_json_report(self) -> str:
@@ -296,7 +301,7 @@ class Speakeasy:
         return:
             Get the emulation report as a JSON object
         """
-        return self.emu.get_json_report()
+        return self.emu.get_json_report()  # type: ignore[no-any-return, union-attr]
 
     def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
         """
@@ -326,14 +331,14 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.run_complete = False
-        self.emu.resume(addr, count=count)
+        self.emu.run_complete = False  # type: ignore[union-attr]
+        self.emu.resume(addr, count=count)  # type: ignore[union-attr]
 
     def stop(self) -> None:
         """
         Stops emulation
         """
-        return self.emu.stop()
+        return self.emu.stop()  # type: ignore[no-any-return, union-attr]
 
     def shutdown(self) -> None:
         """
@@ -352,7 +357,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.call(addr, params=params)
+        return self.emu.call(addr, params=params)  # type: ignore[no-any-return, union-attr]
 
     def add_code_hook(self, cb: Callable, begin=1, end=0, ctx={}):
         """
@@ -504,7 +509,7 @@ class Speakeasy:
         return:
             If valid, a registry key object
         """
-        return self.emu.reg_get_key(handle=handle, path=path)
+        return self.emu.reg_get_key(handle=handle, path=path)  # type: ignore[union-attr]
 
     def get_address_map(self, addr: int):
         """
@@ -515,25 +520,7 @@ class Speakeasy:
         return:
             A memory map object that holds the specified address
         """
-        return self.emu.get_address_map(addr)
-
-    def get_user_modules(self) -> list:
-        """
-        Get the address ranges of loaded user modules
-
-        return:
-            List of all currently loaded user modules
-        """
-        return self.emu.get_user_modules()
-
-    def get_sys_modules(self) -> list:
-        """
-        Get the address ranges of loaded system modules
-
-        return:
-            List of all currently loaded system modules
-        """
-        return self.emu.get_sys_modules()
+        return self.emu.get_address_map(addr)  # type: ignore[union-attr]
 
     def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
         """
@@ -547,7 +534,7 @@ class Speakeasy:
         return:
             Address of the newly allocated memory block
         """
-        return self.emu.mem_map(size, base=base, tag=tag)
+        return self.emu.mem_map(size, base=base, tag=tag)  # type: ignore[no-any-return, union-attr]
 
     def mem_free(self, base: int) -> None:
         """
@@ -557,7 +544,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.mem_free(base)
+        return self.emu.mem_free(base)  # type: ignore[no-any-return, union-attr]
 
     def mem_read(self, addr: int, size: int) -> bytes:
         """
@@ -570,7 +557,7 @@ class Speakeasy:
             Python bytes object contained the data read
         """
         try:
-            return self.emu.mem_read(addr, size)
+            return self.emu.mem_read(addr, size)  # type: ignore[no-any-return, union-attr]
         except Exception:
             raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}")
 
@@ -585,7 +572,7 @@ class Speakeasy:
             None
         """
         try:
-            return self.emu.mem_write(addr, data)
+            return self.emu.mem_write(addr, data)  # type: ignore[no-any-return, union-attr]
         except Exception:
             raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}")
 
@@ -599,7 +586,7 @@ class Speakeasy:
         return:
             Python object based on the data located at addr
         """
-        return self.emu.mem_cast(obj, addr)
+        return self.emu.mem_cast(obj, addr)  # type: ignore[union-attr]
 
     def reg_read(self, reg: str) -> int:
         """
@@ -610,17 +597,7 @@ class Speakeasy:
         return:
             value contained in the requested register
         """
-        return self.emu.reg_read(reg)
-
-    def get_dyn_imports(self) -> list:
-        """
-        Returns the imports dynamically resolved at runtime
-
-        return:
-            List of functions that were resolved at runtime (e.g. GetProcAddress,
-                                                                  MmGetSystemRoutineAddress)
-        """
-        return self.emu.get_dyn_imports()
+        return self.emu.reg_read(reg)  # type: ignore[no-any-return, union-attr]
 
     def reg_write(self, reg: str, val: int) -> None:
         """
@@ -631,7 +608,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.reg_write(reg, val)
+        return self.emu.reg_write(reg, val)  # type: ignore[no-any-return, union-attr]
 
     def get_dropped_files(self) -> list:
         """
@@ -640,7 +617,7 @@ class Speakeasy:
         return:
             Returns a list of files that were written by the sample
         """
-        return self.emu.get_dropped_files()
+        return self.emu.get_dropped_files()  # type: ignore[no-any-return, union-attr]
 
     def create_file_archive(self) -> bytes:
         """
@@ -683,7 +660,7 @@ class Speakeasy:
         return:
             A list of all valid memory maps from the emulator
         """
-        return self.emu.get_mem_maps()
+        return self.emu.get_mem_maps()  # type: ignore[no-any-return, union-attr]
 
     def get_memory_dumps(self):
         """
@@ -692,14 +669,14 @@ class Speakeasy:
         return:
             A generator of tuples of all valid memory with context
         """
-        for mm in self.emu.get_mem_maps():
+        for mm in self.emu.get_mem_maps():  # type: ignore[union-attr]
             base = mm.get_base()
             size = mm.get_size()
             tag = mm.get_tag()
             proc = mm.get_process()
             is_free = mm.is_free()
             try:
-                data = self.emu.mem_read(base, size)
+                data = self.emu.mem_read(base, size)  # type: ignore[union-attr]
             except Exception:
                 continue
             yield (tag, base, size, is_free, proc, data)
@@ -716,7 +693,7 @@ class Speakeasy:
         return:
             decoded string
         """
-        return self.emu.read_mem_string(address, width, max_chars)
+        return self.emu.read_mem_string(address, width, max_chars)  # type: ignore[no-any-return, union-attr]
 
     def get_symbols(self) -> dict:
         """
@@ -725,7 +702,7 @@ class Speakeasy:
         return:
             a dictionary of symbol information
         """
-        return self.emu.symbols
+        return self.emu.symbols  # type: ignore[no-any-return, union-attr]
 
     def get_ret_address(self) -> int:
         """
@@ -734,7 +711,7 @@ class Speakeasy:
         return:
             value stored at the top of the stack
         """
-        return self.emu.get_ret_address()
+        return self.emu.get_ret_address()  # type: ignore[no-any-return, union-attr]
 
     def set_ret_address(self, addr) -> int:
         """
@@ -743,7 +720,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.set_ret_address(addr)
+        return self.emu.set_ret_address(addr)  # type: ignore[no-any-return, union-attr]
 
     def push_stack(self, val: int) -> None:
         """
@@ -754,7 +731,7 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.push_stack(val)
+        self.emu.push_stack(val)  # type: ignore[union-attr]
 
     def pop_stack(self) -> int:
         """
@@ -763,7 +740,7 @@ class Speakeasy:
         return:
             value stored at the top of the stack
         """
-        return self.emu.pop_stack()
+        return self.emu.pop_stack()  # type: ignore[no-any-return, union-attr]
 
     def get_stack_ptr(self) -> int:
         """
@@ -772,7 +749,7 @@ class Speakeasy:
         return:
             address of stack pointer
         """
-        return self.emu.get_stack_ptr()
+        return self.emu.get_stack_ptr()  # type: ignore[no-any-return, union-attr]
 
     def set_stack_ptr(self, addr: int) -> None:
         """
@@ -783,7 +760,7 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.set_stack_ptr(addr)
+        self.emu.set_stack_ptr(addr)  # type: ignore[union-attr]
 
     def get_pc(self) -> int:
         """
@@ -792,7 +769,7 @@ class Speakeasy:
         return:
             value of the program counter
         """
-        return self.emu.get_pc()
+        return self.emu.get_pc()  # type: ignore[no-any-return, union-attr]
 
     def set_pc(self, addr: int) -> None:
         """
@@ -803,7 +780,7 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.set_pc(addr)
+        self.emu.set_pc(addr)  # type: ignore[union-attr]
 
     def reset_stack(self, base: int) -> tuple:
         """
@@ -814,7 +791,7 @@ class Speakeasy:
         return:
             base, ptr
         """
-        return self.emu.reset_stack(base)
+        return self.emu.reset_stack(base)  # type: ignore[no-any-return, union-attr]
 
     def get_stack_base(self) -> int:
         """
@@ -823,7 +800,7 @@ class Speakeasy:
         return:
             base address of stack
         """
-        return self.emu.stack_base
+        return self.emu.stack_base  # type: ignore[no-any-return, union-attr]
 
     def get_arch(self) -> int:
         """
@@ -832,7 +809,7 @@ class Speakeasy:
         return:
             emulator architecture constant value
         """
-        return self.emu.get_arch()
+        return self.emu.get_arch()  # type: ignore[no-any-return, union-attr]
 
     def get_ptr_size(self):
         """
@@ -841,7 +818,7 @@ class Speakeasy:
         return:
             pointer size
         """
-        return self.emu.ptr_size
+        return self.emu.ptr_size  # type: ignore[union-attr]
 
     def get_all_registers(self) -> dict:
         """
@@ -850,7 +827,7 @@ class Speakeasy:
         return:
             Dict containing emulation register states
         """
-        return self.emu.get_register_state()
+        return self.emu.get_register_state()  # type: ignore[no-any-return, union-attr]
 
     def get_symbol_from_address(self, address: int) -> str:
         """
@@ -862,7 +839,7 @@ class Speakeasy:
         return:
             symbol name
         """
-        return self.emu.get_symbol_from_address(address)
+        return self.emu.get_symbol_from_address(address)  # type: ignore[no-any-return, union-attr]
 
     def is_address_valid(self, address: int) -> bool:
         """
@@ -874,7 +851,7 @@ class Speakeasy:
         return:
             True if address is valid, false otherwise
         """
-        return self.emu.is_address_valid(address)
+        return self.emu.is_address_valid(address)  # type: ignore[no-any-return, union-attr]
 
     def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
         """
@@ -908,11 +885,11 @@ class Speakeasy:
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             procs = []
-            [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]
+            [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]  # type: ignore[func-returns-value]
 
             for process in procs:
                 memory_blocks: list[MemoryBlock] = []
-                arch = self.emu.get_arch()
+                arch = self.emu.get_arch()  # type: ignore[union-attr]
                 if arch == _arch.ARCH_X86:
                     arch_str = "x86"
                 else:

@@ -32,7 +32,7 @@ if uc.UC_VERSION_MAJOR >= 2:
 else:
     import unicorn.unicorn
 
-    _uc = unicorn.unicorn._uc
+    _uc = unicorn.unicorn._uc  # type: ignore[attr-defined]  # internal unicorn API
     _uc.uc_hook_add.argtypes = [
         ct.c_void_p,
         ct.c_void_p,
@@ -48,7 +48,7 @@ else:
     UC_HOOK_MEM_ACCESS_CB = unicorn.unicorn.UC_HOOK_MEM_ACCESS_CB
     UC_HOOK_INSN_IN_CB = unicorn.unicorn.UC_HOOK_INSN_IN_CB
     UC_HOOK_INSN_SYSCALL_CB = unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB
-    hook_id = ct.c_void_p()
+    hook_id = ct.c_void_p()  # type: ignore[assignment]  # different type for unicorn v1 vs v2
 
 
 def is_platform_intel():
@@ -182,46 +182,46 @@ class EmuEngine:
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
         """Allocate memory in the cpu engine"""
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
-        return self.emu.mem_map(base, size, perm)
+        return self.emu.mem_map(base, size, perm)  # type: ignore[union-attr]
 
     def mem_unmap(self, addr, size):
         """Free memory in the cpu engine"""
-        return self.emu.mem_unmap(addr, size)
+        return self.emu.mem_unmap(addr, size)  # type: ignore[union-attr]
 
     def mem_regions(self):
         """Get current memory allocations from the engine"""
-        return self.emu.mem_regions()
+        return self.emu.mem_regions()  # type: ignore[union-attr]
 
     def mem_write(self, addr, data):
         """Write data into the address space of the engine"""
-        return self.emu.mem_write(addr, data)
+        return self.emu.mem_write(addr, data)  # type: ignore[union-attr]
 
     def mem_read(self, addr, size):
         """Read data from the address space of the engine"""
-        return self.emu.mem_read(addr, size)
+        return self.emu.mem_read(addr, size)  # type: ignore[union-attr]
 
     def mem_protect(self, addr, size, perms):
         """Change the memory protections for pages in the emu engine"""
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
-        return self.emu.mem_protect(addr, size, perm)
+        return self.emu.mem_protect(addr, size, perm)  # type: ignore[union-attr]
 
     def reg_write(self, reg, val):
         """Modify register values"""
         ereg = self.regs.get(reg)
         if not ereg:
             raise EmuEngineError(f"Unknown register: {reg}")
-        return self.emu.reg_write(ereg, val)
+        return self.emu.reg_write(ereg, val)  # type: ignore[union-attr]
 
     def reg_read(self, reg):
         """Read register values"""
         ereg = self.regs.get(reg)
         if not ereg:
             raise EmuEngineError(f"Unknown register: {reg}")
-        return self.emu.reg_read(ereg)
+        return self.emu.reg_read(ereg)  # type: ignore[union-attr]
 
     def stop(self):
         """Stop the emulation engine"""
-        return self.emu.emu_stop()
+        return self.emu.emu_stop()  # type: ignore[union-attr]
 
     def start(self, addr, timeout=0, count=0):
         """Start the emulation engine"""
@@ -230,7 +230,7 @@ class EmuEngine:
 
         # Unicorn expects the timeout to be in microseconds, convert it here
         timeout = self._sec_to_usec(timeout)
-        return self.emu.emu_start(addr, 0xFFFFFFFF, timeout=timeout, count=count)
+        return self.emu.emu_start(addr, 0xFFFFFFFF, timeout=timeout, count=count)  # type: ignore[union-attr]
 
     def hook_add(self, addr=None, cb=None, htype=None, ctx=None, begin=1, end=0, arg1=0):
         """
@@ -240,7 +240,7 @@ class EmuEngine:
         if not hook_type:
             raise EmuEngineError("Invalid hook type")
 
-        handle = self.emu._uch
+        handle = self.emu._uch  # type: ignore[union-attr]
 
         # The unicorn bindings have a default python wrapper. We want to use
         # our own wrapper and don't need the extra overhead. Add callbacks directly
@@ -257,7 +257,7 @@ class EmuEngine:
         elif hook_type == uc.UC_HOOK_MEM_INVALID:
             cb = ct.cast(UC_HOOK_MEM_INVALID_CB(cb), UC_HOOK_MEM_INVALID_CB)
         else:
-            return self.emu.hook_add(htype=hook_type, callback=cb, user_data=ctx, begin=begin, end=end)
+            return self.emu.hook_add(htype=hook_type, callback=cb, user_data=ctx, begin=begin, end=end)  # type: ignore[union-attr]
         ptr = ct.cast(cb, ct.c_void_p)
         # uc_hook_add requires an additional paramter for the hook type UC_HOOK_INSN
         if hook_type == uc.UC_HOOK_INSN:
@@ -290,4 +290,4 @@ class EmuEngine:
             return hook.disable()
 
     def hook_remove(self, hid):
-        return self.emu.hook_del(hid)
+        return self.emu.hook_del(hid)  # type: ignore[union-attr]

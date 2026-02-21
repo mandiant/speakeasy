@@ -429,7 +429,7 @@ class Kernel32(api.ApiHandler):
                 else:
                     raise ApiEmuError("The specified PID not found")
 
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.get_pid()]}})
 
         elif (
             k32types.TH32CS_SNAPHEAPLIST
@@ -452,7 +452,7 @@ class Kernel32(api.ApiHandler):
 
             self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
             self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_user_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.get_pid()]}})
 
         else:
             raise ApiEmuError(f"Unsupported snapshot type: 0x{dwFlags:x}")
@@ -1864,7 +1864,7 @@ class Kernel32(api.ApiHandler):
             argv[0] = lib
             sname, _ = os.path.splitext(lib)
             sname = winemu.normalize_dll_name(sname)
-            mods = emu.get_user_modules()
+            mods = emu.get_peb_modules()
             for mod in mods:
                 img = ntpath.basename(mod.get_emu_path())
                 fname, _ = os.path.splitext(img)
@@ -1895,7 +1895,7 @@ class Kernel32(api.ApiHandler):
                     proc = f"ordinal_{proc_name}"
 
         if proc:
-            mods = emu.get_user_modules()
+            mods = emu.get_peb_modules()
             for mod in mods:
                 if mod.get_base() == hmod:
                     bn = mod.get_base_name()
@@ -3023,7 +3023,7 @@ class Kernel32(api.ApiHandler):
             proc = emu.get_current_process()
             filename = proc.get_process_path()
         else:
-            mods = emu.get_user_modules()
+            mods = emu.get_peb_modules()
             cm = emu.get_current_module()
             if cm.get_base() == hModule:
                 filename = cm.get_emu_path()
@@ -3396,7 +3396,7 @@ class Kernel32(api.ApiHandler):
             low = 0xFFFFFFFF & full_size
             high = high.to_bytes(4, "little")
 
-            if file_data.nFileSizeHigh:
+            if file_data.nFileSizeHigh:  # type: ignore[truthy-function]  # struct field accessor
                 file_data.ftCreationTime.nFileSizeHigh = high
             emu.set_last_error(windefs.ERROR_SUCCESS)
 

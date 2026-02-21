@@ -475,8 +475,8 @@ class ApiHandler:
             if not args:
                 break
 
-        new = "".join(new)
-        new = new.replace("\xff", "")
+        new = "".join(new)  # type: ignore[assignment]  # intentional list-to-str reuse
+        new = new.replace("\xff", "")  # type: ignore[attr-defined]  # new is str after join above
         new = new % tuple(new_fmts)
 
         return new

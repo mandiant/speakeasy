@@ -63,7 +63,7 @@ class WindowsEmulator(BinaryEmulator):
         self.gdb_port = gdb_port
         self.arch = 0
         self.modules = []
-        self.pic_buffers = []
+        self._setup_done = False
         self.curr_run = None
         self.restart_curr_run = False
         self.curr_mod = None
@@ -71,11 +71,8 @@ class WindowsEmulator(BinaryEmulator):
         self.input = None
         self.exit_event = exit_event
         self.page_size = 4096
-        self.ptr_size = None
-        self.user_modules = []
+        self.ptr_size = None  # type: ignore[assignment]
         self.max_runs = 100
-
-        self.sys_modules = []
         self.symbols = {}
         self.ansi_strings = []
         self.unicode_strings = []
@@ -88,7 +85,8 @@ class WindowsEmulator(BinaryEmulator):
         self.api = None
         self.curr_process = None
         self.om = None
-        self.dyn_imps = []
+        self.import_table: dict[int, tuple[str, str]] = {}
+        self._next_sentinel = winemu.IMPORT_HOOK_ADDR
         self.callbacks = []
         self.mem_trace_hooks = []
         self.coverage_hook = None
@@ -172,7 +170,7 @@ class WindowsEmulator(BinaryEmulator):
             return
 
         logger.debug("installing memory tracing hooks")
-        self.mem_trace_hooks = (
+        self.mem_trace_hooks = (  # type: ignore[assignment]
             self.add_code_hook(cb=self._hook_code_tracing),
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write),
@@ -210,7 +208,7 @@ class WindowsEmulator(BinaryEmulator):
         Create a formatted structure from bytes
         """
         if self.emu_hooks_set:
-            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
+            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)  # type: ignore[union-attr]
         self.emu_hooks_set = False
 
     def file_open(self, path, create=False, truncate=False):
@@ -383,7 +381,7 @@ class WindowsEmulator(BinaryEmulator):
             # Reset the TIB data
             thread = self.get_current_thread()
             if thread:
-                self.init_teb(thread, self.curr_process.get_peb())
+                self.init_teb(thread, self.curr_process.get_peb())  # type: ignore[union-attr]
                 self.init_tls(thread)
 
         self.set_pc(run.start_addr)
@@ -422,7 +420,7 @@ class WindowsEmulator(BinaryEmulator):
         Resume emulation at the specified address.
         """
         timeout = 0 if self.gdb_port is not None else self.config.timeout
-        self.emu_eng.start(addr, timeout=timeout, count=count)
+        self.emu_eng.start(addr, timeout=timeout, count=count)  # type: ignore[union-attr]
 
     def start(self, addr=None, size=None):
         """
@@ -447,9 +445,9 @@ class WindowsEmulator(BinaryEmulator):
             logger.info(
                 "GDB server listening on port %d, waiting for connection (initial PC: 0x%x)...",
                 self.gdb_port,
-                self.curr_run.start_addr,
+                self.curr_run.start_addr,  # type: ignore[union-attr]
             )
-            udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)
+            udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)  # type: ignore[union-attr]
 
         timeout = 0 if self.gdb_port is not None else self.config.timeout
 
@@ -458,8 +456,8 @@ class WindowsEmulator(BinaryEmulator):
 
         while True:
             try:
-                self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)
-                self.emu_eng.start(self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions)
+                self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)  # type: ignore[union-attr]
+                self.emu_eng.start(self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions)  # type: ignore[union-attr]
                 if self.profiler and timeout > 0:
                     if self.profiler.get_run_time() > timeout:
                         logger.error("* Timeout of %d sec(s) reached.", timeout)
@@ -477,7 +475,7 @@ class WindowsEmulator(BinaryEmulator):
                     logger.error(str(dis_err))
 
                 error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
-                self.curr_run.error = error
+                self.curr_run.error = error  # type: ignore[union-attr]
 
                 run = self.on_run_complete()
                 if not run:
@@ -663,23 +661,33 @@ class WindowsEmulator(BinaryEmulator):
         Initialize implicit thread local storage. Meant to be
         called after init_teb.
         """
+        from speakeasy.windows.loaders import RuntimeModule
+
         ptrsz = self.get_ptr_size()
         run = self.curr_run
-        module = self.get_mod_from_addr(run.start_addr)
+        module = self.get_mod_from_addr(run.start_addr)  # type: ignore[union-attr]
 
         if module:
-            modname = module.emu_path
-            tokens = modname.split("\\")
-            modname = tokens[len(tokens) - 1]
-
-            # Get the virtual address of the TLS directory, which will always
-            # be 9 in the data directory
-            tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
-            tls_dirp += module.OPTIONAL_HEADER.ImageBase
-
-            tls_dir = self.mem_read(tls_dirp, ptrsz)
-
-            thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+            if isinstance(module, RuntimeModule):
+                modname = ntpath.basename(module.get_emu_path())
+                pe = getattr(module, "_pe", None)
+                if pe and hasattr(pe, "OPTIONAL_HEADER"):
+                    tls_dirp = pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
+                    tls_dirp += pe.OPTIONAL_HEADER.ImageBase
+                    tls_dir = self.mem_read(tls_dirp, ptrsz)
+                    thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+                elif hasattr(module, "_image") and module._image.tls_directory_va:
+                    tls_dirp = module._image.tls_directory_va
+                    tls_dir = self.mem_read(tls_dirp, ptrsz)
+                    thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+            else:
+                modname = module.emu_path
+                tokens = modname.split("\\")
+                modname = tokens[len(tokens) - 1]
+                tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
+                tls_dirp += module.OPTIONAL_HEADER.ImageBase
+                tls_dir = self.mem_read(tls_dirp, ptrsz)
+                thread.init_tls(tls_dir, os.path.splitext(modname)[0])
 
         return
 
@@ -692,7 +700,7 @@ class WindowsEmulator(BinaryEmulator):
         if not data and not os.path.exists(path):
             raise WindowsEmuError(f"File: {path} not found")
 
-        pe = winemu.PeFile(path=path, data=data, imp_id=imp_id, imp_step=4)
+        pe = winemu._PeParser(path=path, data=data, imp_id=imp_id, imp_step=4)
 
         pe_type = "unknown"
         if pe.is_driver():
@@ -721,56 +729,157 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.add_input_metadata(self.input)
         return pe
 
-    def map_pe(self, pe, mod_name="none", emu_path=""):
-        """
-        Map the specified PE into the emulation space
-        """
-        image_size = pe.image_size
-        base = pe.base
-        ranges = self.get_valid_ranges(image_size, addr=base)
-        base, size = ranges
-        addr = self.mem_map(size, base=base, tag=f"emu.module.{mod_name}")
-        self.modules.append((pe, ranges, emu_path))
-
-        return addr
-
-    def get_sys_modules(self):
-        """
-        Get the system modules (e.g. drivers) that are loaded in the emulator
-        """
-        # Generate the decoy module list
-        if not self.sys_modules:
-            self.sys_modules = self.init_sys_modules(self.config.modules.system_modules)
-        return self.sys_modules
-
-    def get_user_modules(self):
-        """
-        Get the user modules (e.g. dlls) that are loaded in the emulator
-        """
-        # Generate the decoy user module list
-        if not self.user_modules:
-            self.user_modules = self.init_user_modules(self.config.modules.user_modules)
-        return self.user_modules
-
     def get_mod_from_addr(self, addr):
-        """
-        Get the module (if any) that corresponds to the supplied address
-        """
         if self.curr_mod:
             end = self.curr_mod.get_base() + self.curr_mod.get_image_size()
             if addr >= self.curr_mod.get_base() and addr <= end:
                 return self.curr_mod
 
-        # First check if this addr belongs to mapped decoy image we know about
-        sys_mods = self.get_sys_modules()
-        for m in sys_mods:
-            if addr >= m.get_base() and addr < m.get_base() + m.image_size:
+        for m in self.modules:
+            base = m.get_base()
+            size = m.get_image_size()
+            if addr >= base and addr < base + size:
                 return m
+        return None
 
-        user_mods = self.get_user_modules()
-        for m in user_mods:
-            if addr >= m.get_base() and addr < m.get_base() + m.image_size:
-                return m
+    def _alloc_sentinel(self):
+        addr = self._next_sentinel
+        self._next_sentinel += self.get_ptr_size()
+        return addr
+
+    def get_mod_by_name(self, name):
+        name_lower = name.lower()
+        for mod in self.modules:
+            mod_name = ntpath.basename(mod.get_emu_path())
+            base_name = os.path.splitext(mod_name)[0]
+            if base_name.lower() == name_lower:
+                return mod
+            if mod.name and mod.name.lower() == name_lower:
+                return mod
+        return None
+
+    def get_peb_modules(self):
+        return [mod for mod in self.modules if mod.visible_in_peb]
+
+    def load_image(self, image):
+        import capstone as cs
+
+        from speakeasy.windows.loaders import RuntimeModule
+
+        valid_arch = image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64)
+        if not self.arch:
+            if valid_arch:
+                self.arch = image.arch
+            else:
+                self.arch = _arch.ARCH_X86
+            self.set_ptr_size(self.arch)
+
+        if self.emu_eng and not self.emu_eng.emu:
+            engine_arch = image.arch if valid_arch else _arch.ARCH_X86
+            self.emu_eng.init_engine(_arch.ARCH_X86, engine_arch)
+
+        if not self.ptr_size:
+            self.ptr_size = 4
+
+        if not self.disasm_eng:
+            if self.arch == _arch.ARCH_AMD64:
+                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_64)
+            else:
+                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
+
+        if not self.api:
+            from speakeasy.winenv.api.winapi import WindowsApi
+
+            self.api = WindowsApi(self)
+
+        single_region_pe = (
+            len(image.regions) == 1
+            and image.regions[0].base == image.image_base
+            and image.image_size > len(image.regions[0].data)
+        )
+        for region in image.regions:
+            base = region.base
+            size = image.image_size if single_region_pe else len(region.data)
+            if base == 0:
+                base = self.mem_map(size, tag=f"emu.module.{image.name}")
+                image.image_base = base
+            else:
+                self.mem_map(size, base=base, tag=f"emu.module.{image.name}")
+            self.mem_write(base, region.data)
+
+        ptr_size = self.get_ptr_size()
+        for imp in image.imports:
+            sentinel = self._alloc_sentinel()
+            self.import_table[sentinel] = (imp.dll_name, imp.func_name)
+            offset = imp.iat_address
+            try:
+                self.mem_write(offset, sentinel.to_bytes(ptr_size, "little"))
+            except Exception:
+                pass
+
+        mod = RuntimeModule(image)
+        if image.image_base != 0 and mod.base != image.image_base:
+            mod.base = image.image_base
+
+        from speakeasy.windows.loaders import PeLoader as _PeLoaderType
+
+        if isinstance(image.loader, _PeLoaderType) and image.loader._pe_obj is not None:
+            mod._pe = image.loader._pe_obj
+
+        is_primary = isinstance(image.loader, _PeLoaderType) or image.module_type == "shellcode"
+
+        mod_base_name = ntpath.basename(image.emu_path)
+        mod_base_name_no_ext = os.path.splitext(mod_base_name)[0]
+
+        has_api_exports = False
+        if self.api:
+            for exp in image.exports:
+                if not exp.name:
+                    continue
+                _api_mod, func_attrs = self.api.get_export_func_handler(mod_base_name_no_ext, exp.name)
+                if func_attrs:
+                    self.symbols[exp.address] = (mod_base_name_no_ext, exp.name)
+                    has_api_exports = True
+                if not is_primary:
+                    _api_mod, data_hndlr = self.api.get_data_export_handler(mod_base_name_no_ext, exp.name)
+                    if data_hndlr and not self.config.analysis.memory_tracing:
+                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
+                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
+
+            if not is_primary and has_api_exports and image.regions and not self.config.analysis.memory_tracing:
+                region = image.regions[0]
+                mod_start = region.base if region.base else image.image_base
+                mod_end = mod_start + len(region.data)
+                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
+
+            for imp in image.imports:
+                _api_mod, eh = self.api.get_data_export_handler(imp.dll_name, imp.func_name)
+                if eh:
+                    data_ptr = self.handle_import_data(imp.dll_name, imp.func_name)
+                    sym = f"{imp.dll_name}.{imp.func_name}"
+                    self.global_data[imp.iat_address] = [sym, data_ptr]
+                    if data_ptr is not None:
+                        self.mem_write(imp.iat_address, data_ptr.to_bytes(ptr_size, "little"))
+
+        if is_primary and self.profiler and self.config.analysis.strings and image.regions:
+            raw = image.regions[0].data
+            if raw:
+                self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
+                self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
+
+        self.modules.append(mod)
+
+        if is_primary and not self.stack_base and image.stack_size:
+            self.stack_base, _stack_addr = self.alloc_stack(image.stack_size)
+
+        if not self._setup_done:
+            self._setup_done = True
+            self.setup()
+
+        return mod
+
+    def setup(self):
+        pass
 
     def get_system_root(self):
         """
@@ -813,16 +922,16 @@ class WindowsEmulator(BinaryEmulator):
         return self.env.update({var.lower(): val})
 
     def get_object_from_addr(self, addr):
-        return self.om.get_object_from_addr(addr)
+        return self.om.get_object_from_addr(addr)  # type: ignore[union-attr]
 
     def get_object_from_id(self, id):
-        return self.om.get_object_from_id(id)
+        return self.om.get_object_from_id(id)  # type: ignore[union-attr]
 
     def get_object_from_name(self, name):
-        return self.om.get_object_from_name(name)
+        return self.om.get_object_from_name(name)  # type: ignore[union-attr]
 
     def get_object_from_handle(self, handle):
-        obj = self.om.get_object_from_handle(handle)
+        obj = self.om.get_object_from_handle(handle)  # type: ignore[union-attr]
         if obj:
             return obj
         obj = self.fileman.get_object_from_handle(handle)
@@ -830,12 +939,12 @@ class WindowsEmulator(BinaryEmulator):
             return obj
 
     def get_object_handle(self, obj):
-        obj = self.om.objects.get(obj.address)
+        obj = self.om.objects.get(obj.address)  # type: ignore[union-attr]
         if obj:
-            return self.om.get_handle(obj)
+            return self.om.get_handle(obj)  # type: ignore[union-attr]
 
     def add_object(self, obj):
-        self.om.add_object(obj)
+        self.om.add_object(obj)  # type: ignore[union-attr]
 
     def search_path(self, file_name):
         # For now, return the current directory, add emulated path walking later
@@ -847,7 +956,7 @@ class WindowsEmulator(BinaryEmulator):
         return fp + file_name
 
     def new_object(self, otype):
-        return self.om.new_object(otype)
+        return self.om.new_object(otype)  # type: ignore[union-attr]
 
     def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
@@ -866,7 +975,7 @@ class WindowsEmulator(BinaryEmulator):
         if file_path[0] == '"' and file_path[len(file_path) - 1] == '"':
             file_path = file_path[1:-1]
 
-        p = self.om.new_object(objman.Process)
+        p = self.om.new_object(objman.Process)  # type: ignore[union-attr]
 
         mod_data = self.get_module_data_from_emu_file(file_path)
 
@@ -882,9 +991,9 @@ class WindowsEmulator(BinaryEmulator):
         p.cmdline = cmdline
 
         # Create a thread object for the new process
-        t = self.om.new_object(objman.Thread)
+        t = self.om.new_object(objman.Thread)  # type: ignore[union-attr]
         t.process = p
-        t.tid = self.om.new_id()
+        t.tid = self.om.new_id()  # type: ignore[union-attr]
 
         p.threads.append(t)
 
@@ -902,9 +1011,9 @@ class WindowsEmulator(BinaryEmulator):
         if len(self.run_queue) >= self.max_runs:
             return 0, None
 
-        thread = self.om.new_object(objman.Thread)
+        thread = self.om.new_object(objman.Thread)  # type: ignore[union-attr]
         thread.process = proc_obj
-        hnd = self.om.get_handle(thread)
+        hnd = self.om.get_handle(thread)  # type: ignore[union-attr]
 
         run = Run()
         run.type = thread_type
@@ -932,9 +1041,6 @@ class WindowsEmulator(BinaryEmulator):
                 self.run_queue.append(_run)
                 return True
         return False
-
-    def get_dyn_imports(self):
-        return self.dyn_imps
 
     def get_process_peb(self, process):
         return process.peb
@@ -966,35 +1072,29 @@ class WindowsEmulator(BinaryEmulator):
         Get a pointer for a supplied function name, similar to how the
         "GetProcAddress" API functions.
         """
-        for addr, mod, fn in self.dyn_imps:
+        for addr, (mod, fn) in self.import_table.items():
             if mod_name == mod and func_name == fn:
                 return addr
 
-        if not self.dyn_imps:
-            curr_idx = proc_addr if proc_addr else winemu.DYM_IMP_RESERVE
-            self.dyn_imps.append((curr_idx, mod_name, func_name))
-        else:
-            curr_idx = proc_addr if proc_addr else self.dyn_imps[-1][0]
-            curr_idx += 1
-            self.dyn_imps.append((curr_idx, mod_name, func_name))
-
-        return curr_idx
+        sentinel = self._alloc_sentinel()
+        self.import_table[sentinel] = (mod_name, func_name)
+        return sentinel
 
     def handle_import_data(self, mod_name, sym, data_ptr=0):
         """
         Data that is imported (e.g. KeTickCount) is handled with a initializer function.
         Call it here if there is a handler for the imported variable.
         """
-        module, func = self.api.get_data_export_handler(mod_name, sym)
+        module, func = self.api.get_data_export_handler(mod_name, sym)  # type: ignore[union-attr]
         if not func:
-            module, func = self.api.get_export_func_handler(mod_name, sym)
+            module, func = self.api.get_export_func_handler(mod_name, sym)  # type: ignore[union-attr]
             if not func:
                 return None
 
             proc_addr = self.get_proc(mod_name, sym)
             return proc_addr
 
-        data_addr = self.api.call_data_func(module, func, data_ptr)
+        data_addr = self.api.call_data_func(module, func, data_ptr)  # type: ignore[union-attr]
         return data_addr
 
     def _handle_invalid_fetch(self, emu, address, size, value, ctx):
@@ -1008,7 +1108,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.curr_mod:
             self.curr_mod = self.get_module_from_addr(self.get_pc())
 
-        if self.curr_mod:
+        if self.curr_mod and hasattr(self.curr_mod, "import_table"):
             impfunc = self.curr_mod.import_table.get(address)
             if impfunc:
                 mod_name, func_name = impfunc
@@ -1016,12 +1116,14 @@ class WindowsEmulator(BinaryEmulator):
                 self._unset_emu_hooks()
                 return True
 
-        # Is the address a func ptr resolved at runtime?
-        for addr, mod, fn in self.dyn_imps:
-            if addr == address:
-                self.handle_import_func(mod, fn)
-                self._unset_emu_hooks()
-                return True
+        impfunc = self.import_table.get(address)
+        if impfunc:
+            mod_name, func_name = impfunc
+            self.handle_import_func(mod_name, func_name)
+            self._unset_emu_hooks()
+            return True
+
+        # dyn_imps merged into import_table — checked above
 
         # Is the address a callback func ptr?
         for addr, mod, fn in self.callbacks:
@@ -1040,7 +1142,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_map(self.page_size, base=fakeout)
 
         error = self.get_error_info("invalid_fetch", address)
-        self.curr_run.error = error
+        self.curr_run.error = error  # type: ignore[union-attr]
         self.tmp_maps.append((fakeout, self.page_size))
         self.on_run_complete()
         return True
@@ -1097,20 +1199,20 @@ class WindowsEmulator(BinaryEmulator):
         # Bridge ntdll funcs to ntoskrnl if supported
         if dll.lower().startswith("ntdll"):
             alt_imp_dll = "ntoskrnl"
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)
+            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
             if not func_attrs:
                 if name.startswith("Zw"):
                     alt_imp_api = f"Nt{name[2:]}"
                 elif name.startswith("Nt"):
                     name = "Zw" + name[2:]
                     alt_imp_api = f"Zw{name[2:]}"
-                mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)
+                mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
             return mod, func_attrs
 
         if alt_imp_api:
-            mod, func_attrs = self.api.get_export_func_handler(dll, alt_imp_api)
+            mod, func_attrs = self.api.get_export_func_handler(dll, alt_imp_api)  # type: ignore[union-attr]
         elif alt_imp_dll:
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)
+            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
         return mod, func_attrs
 
     def read_unicode_string(self, addr):
@@ -1131,7 +1233,7 @@ class WindowsEmulator(BinaryEmulator):
             elif isinstance(arg, str):
                 call_str += '"{}"'.format(arg.replace("\n", "\\n"))
             elif isinstance(arg, bytes):
-                call_str += f'"{arg}"'
+                call_str += f'"{arg}"'  # type: ignore[str-bytes-safe]
             call_str += ", "
         if call_str.endswith(", "):
             call_str = call_str[:-2]
@@ -1155,7 +1257,7 @@ class WindowsEmulator(BinaryEmulator):
         imp_api = f"{dll}.{name}"
         oret = self.get_ret_address()
         opc = self.get_pc()
-        mod, func_attrs = self.api.get_export_func_handler(dll, name)
+        mod, func_attrs = self.api.get_export_func_handler(dll, name)  # type: ignore[union-attr]
         if not func_attrs:
             mod, func_attrs = self.normalize_import_miss(dll, name)
 
@@ -1182,11 +1284,11 @@ class WindowsEmulator(BinaryEmulator):
                     rv = hook.cb(self, imp_api, orig, argv)
             else:
                 try:
-                    rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)
+                    rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)  # type: ignore[union-attr]
                 except Exception as e:
                     logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-                    self.curr_run.error = error
+                    self.curr_run.error = error  # type: ignore[union-attr]
                     self.on_run_complete()
                     return
 
@@ -1237,7 +1339,7 @@ class WindowsEmulator(BinaryEmulator):
             error = self.get_error_info("unsupported_api", self.get_pc())
             logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
             error["api_name"] = imp_api
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_run_complete()
 
         run = self.get_current_run()
@@ -1255,7 +1357,7 @@ class WindowsEmulator(BinaryEmulator):
         emulation
         """
         try:
-            access = self.emu_eng.mem_access.get(access)
+            access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
             logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
             self.prev_pc = self.get_pc()
 
@@ -1294,7 +1396,7 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             logger.exception("Invalid memory exception")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1304,7 +1406,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_map(self.page_size, base=fakeout)
 
         error = self.get_error_info("invalid_protect_write", address)
-        self.curr_run.error = error
+        self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
         self.on_run_complete()
@@ -1340,11 +1442,11 @@ class WindowsEmulator(BinaryEmulator):
                 logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
                 mod = self.get_mod_from_addr(address)
                 if not mod.is_decoy():
-                    mac = self.curr_run.sym_access.get(address)
+                    mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
                     if not mac:
                         mac = MemAccess(sym=symbol)
                     mac.reads += 1
-                    self.curr_run.sym_access.update({address: mac})
+                    self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
                 else:
                     gdata = self.global_data.get(address)
                     ptr = 0
@@ -1358,15 +1460,15 @@ class WindowsEmulator(BinaryEmulator):
                             pc = self.get_pc()
                             self.impdata_queue.append((pc, address, symbol, data_ptr))
                             self.set_pc(pc)
-                        mac = self.curr_run.sym_access.get(address)
+                        mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
                         if not mac:
                             mac = MemAccess(sym=symbol)
                         mac.reads += 1
-                        self.curr_run.sym_access.update({address: mac})
+                        self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
                         self.enable_code_hook()
                         return True
 
-            for read_access in self.curr_run.read_cache:
+            for read_access in self.curr_run.read_cache:  # type: ignore[union-attr]
                 if read_access.base <= address <= (read_access.base + read_access.size) - 1:
                     read_access.reads += 1
                     return True
@@ -1375,18 +1477,18 @@ class WindowsEmulator(BinaryEmulator):
             if not mmap:
                 return False
 
-            maccess = self.curr_run.mem_access.get(mmap)
+            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
             if not maccess:
                 maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.read_cache.appendleft(maccess)
-            self.curr_run.mem_access.update({mmap: maccess})
+            self.curr_run.read_cache.appendleft(maccess)  # type: ignore[union-attr]
+            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
             maccess.reads += 1
 
             return True
         except Exception as e:
             logger.exception("Exception during memory read")
             error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1399,13 +1501,13 @@ class WindowsEmulator(BinaryEmulator):
             symbol = self.get_symbol_from_address(address)
             if symbol:
                 logger.debug("mem_write: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-                mac = self.curr_run.sym_access.get(address)
+                mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
                 if not mac:
                     mac = MemAccess(sym=symbol)
                 mac.writes += 1
-                self.curr_run.sym_access.update({address: mac})
+                self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
 
-            for write_access in self.curr_run.write_cache:
+            for write_access in self.curr_run.write_cache:  # type: ignore[union-attr]
                 if write_access.base <= address <= (write_access.base + write_access.size) - 1:
                     write_access.writes += 1
                     return True
@@ -1414,11 +1516,11 @@ class WindowsEmulator(BinaryEmulator):
             if not mmap:
                 return False
 
-            maccess = self.curr_run.mem_access.get(mmap)
+            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
             if not maccess:
                 maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.write_cache.appendleft(maccess)
-            self.curr_run.mem_access.update({mmap: maccess})
+            self.curr_run.write_cache.appendleft(maccess)  # type: ignore[union-attr]
+            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
             maccess.writes += 1
 
             return True
@@ -1426,7 +1528,7 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             logger.exception("Exception during memory write")
             error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1451,7 +1553,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_map(self.page_size, base=fakeout)
 
         error = self.get_error_info("invalid_read", address)
-        self.curr_run.error = error
+        self.curr_run.error = error  # type: ignore[union-attr]
 
         # Let the next run know to remove this map since its
         # technically invalid
@@ -1468,11 +1570,11 @@ class WindowsEmulator(BinaryEmulator):
         if not symbol:
             return True
 
-        mac = self.curr_run.sym_access.get(address)
+        mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
         if not mac:
             mac = MemAccess(sym=symbol)
         mac.execs += 1
-        self.curr_run.sym_access.update({address: mac})
+        self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
 
         mod_name, fn = symbol.split(".")
 
@@ -1496,7 +1598,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_map(self.page_size, base=fakeout)
 
         error = self.get_error_info("invalid_write", address)
-        self.curr_run.error = error
+        self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
         self.on_run_complete()
@@ -1516,7 +1618,7 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
             if self.restart_curr_run:
-                self.set_pc(self.curr_run.start_addr)
+                self.set_pc(self.curr_run.start_addr)  # type: ignore[union-attr]
                 self.restart_curr_run = False
                 return False
 
@@ -1550,7 +1652,7 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             logger.exception("Exception during code hook (core)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1559,12 +1661,12 @@ class WindowsEmulator(BinaryEmulator):
         Persistent code hook that records every executed address for coverage.
         """
         try:
-            self.curr_run.coverage.append(addr)
+            self.curr_run.coverage.append(addr)  # type: ignore[union-attr]
             return True
         except Exception as e:
             logger.exception("Exception during code hook (coverage)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1574,7 +1676,7 @@ class WindowsEmulator(BinaryEmulator):
         symbol execution tracking, and per-region execution tracking.
         """
         try:
-            if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:
+            if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:  # type: ignore[union-attr]
                 self.on_run_complete()
                 return False
 
@@ -1588,18 +1690,18 @@ class WindowsEmulator(BinaryEmulator):
             if symbol:
                 mod_name, fn = symbol.split(".")
 
-                mac = self.curr_run.sym_access.get(addr)
+                mac = self.curr_run.sym_access.get(addr)  # type: ignore[union-attr]
                 if not mac:
                     mac = MemAccess(sym=symbol)
                 mac.execs += 1
-                self.curr_run.sym_access.update({addr: mac})
+                self.curr_run.sym_access.update({addr: mac})  # type: ignore[union-attr]
 
                 self.handle_import_func(mod_name, fn)
                 return True
 
-            self.curr_run.instr_cnt += 1
+            self.curr_run.instr_cnt += 1  # type: ignore[union-attr]
 
-            for exec_access in self.curr_run.exec_cache:
+            for exec_access in self.curr_run.exec_cache:  # type: ignore[union-attr]
                 if exec_access.base <= addr <= (exec_access.base + exec_access.size) - 1:
                     exec_access.execs += 1
                     return True
@@ -1607,11 +1709,11 @@ class WindowsEmulator(BinaryEmulator):
             mmap = self.get_address_map(addr)
             if not mmap:
                 return False
-            maccess = self.curr_run.mem_access.get(mmap)
+            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
             if not maccess:
                 maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.exec_cache.appendleft(maccess)
-            self.curr_run.mem_access.update({mmap: maccess})
+            self.curr_run.exec_cache.appendleft(maccess)  # type: ignore[union-attr]
+            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
             maccess.execs += 1
 
             return True
@@ -1619,7 +1721,7 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             logger.exception("Exception during code hook (tracing)")
             error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error
+            self.curr_run.error = error  # type: ignore[union-attr]
             self.on_emu_complete()
             return False
 
@@ -1666,28 +1768,17 @@ class WindowsEmulator(BinaryEmulator):
         return fp
 
     def load_library(self, mod_name):
-        """
-        Load a new module into the emulation space if necessary
-        """
-        ums = self.get_user_modules()
         lib = ntpath.basename(mod_name)
         lib = os.path.splitext(lib)[0]
 
-        for um in ums:
-            base = ntpath.basename(um.get_emu_path())
-            base = os.path.splitext(base)[0]
-            if lib.lower() == base.lower():
-                hmod = um.get_base()
-                return hmod
+        existing = self.get_mod_by_name(lib)
+        if existing:
+            return existing.get_base()
 
-        # If we get here, the library is not found, if configured to do so,
-        # we can return a fake module in every instance
         if not self.config.modules.modules_always_exist:
             return 0
 
         mod = self.init_module(name=lib, default_base=0x6F000000)
-
-        ums.append(mod)
 
         # Add the newly loaded module to the current process's PEB module list
         proc = self.get_current_process()
@@ -1705,7 +1796,7 @@ class WindowsEmulator(BinaryEmulator):
         if not modname:
             return
         modname = modname.lower()
-        mod_handler = self.api.load_api_handler(modname)
+        mod_handler = self.api.load_api_handler(modname)  # type: ignore[union-attr]
         if mod_handler:
             jit = winemu.JitPeFile(self.get_arch(), base=base)
 
@@ -1714,7 +1805,7 @@ class WindowsEmulator(BinaryEmulator):
             new = funcs.copy()
 
             if modname == "ntdll":
-                nt_handler = self.api.load_api_handler("ntoskrnl")
+                nt_handler = self.api.load_api_handler("ntoskrnl")  # type: ignore[union-attr]
                 funcs = [(f[4], f[0]) for k, f in nt_handler.funcs.items() if isinstance(k, str)]
                 funcs = new + funcs
                 new = funcs.copy()
@@ -1734,7 +1825,7 @@ class WindowsEmulator(BinaryEmulator):
             func_names = [fn for o, fn in func_names]
             func_names.sort()
 
-            exports = []
+            exports = []  # type: ignore[var-annotated]
             ords = [o for o, fn in funcs if o is not None]
             if ords:
                 if max(ords) > len(exports):
@@ -1748,10 +1839,10 @@ class WindowsEmulator(BinaryEmulator):
                     if o is not None:
                         exports[o - 1] = fn
 
-                [exports.append(fn) for fn in func_names if fn not in exports]
+                [exports.append(fn) for fn in func_names if fn not in exports]  # type: ignore[arg-type, func-returns-value]
 
             if not exports:
-                exports = func_names
+                exports = func_names  # type: ignore[assignment]
 
             exports += data_exports
             img = jit.get_decoy_pe_image(modname, exports)
@@ -1795,9 +1886,12 @@ class WindowsEmulator(BinaryEmulator):
         mod.decoy_base = res
         mod.name = getattr(modconf, "name", None) or name
 
-        img_base = mod.OPTIONAL_HEADER.ImageBase
         img_size = mod.OPTIONAL_HEADER.SizeOfImage
-        mem_base = self.mem_map(img_size, base=img_base, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
+        alloc_size = max(img_size, size)
+        mem_base = self.mem_map(alloc_size, base=res, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
+        mod.decoy_base = mem_base
+        mod.OPTIONAL_HEADER.ImageBase = mem_base
+        mod.image_size = alloc_size
 
         headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
         headers_content = bytes(mod.get_data(length=headers_size))
@@ -1822,8 +1916,16 @@ class WindowsEmulator(BinaryEmulator):
                 if x:
                     perms |= common.PERM_MEM_EXEC
                 vsize = section.Misc_VirtualSize
-                aligned_size = (vsize + self.page_size - 1) & ~(self.page_size - 1)
-                self.mem_protect(mem_base + va, aligned_size, perms)
+                section_addr = mem_base + va
+                aligned_addr = section_addr & ~(self.page_size - 1)
+                end_addr = section_addr + vsize
+                aligned_end = (end_addr + self.page_size - 1) & ~(self.page_size - 1)
+                aligned_size = aligned_end - aligned_addr
+                if aligned_size > 0:
+                    try:
+                        self.mem_protect(aligned_addr, aligned_size, perms)
+                    except Exception:
+                        pass
 
         if mod.decoy_path == "" and name != "":
             mod.decoy_path = (self.config.current_dir or "C:\\Windows\\system32") + "\\" + name
@@ -1835,7 +1937,7 @@ class WindowsEmulator(BinaryEmulator):
             for exp in mod.get_exports():
                 if exp.name:
                     self.symbols[exp.address] = (mod_base_name, exp.name)
-                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)
+                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)  # type: ignore[union-attr]
                     if hndlr and not self.config.analysis.memory_tracing:
                         self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
                         self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
@@ -1865,34 +1967,199 @@ class WindowsEmulator(BinaryEmulator):
         # from the BytesIO object
         return mod_file.data.getvalue()
 
-    def init_sys_modules(self, modules_config):
-        """
-        Initialize kernel mode modules that may be accessed by emulated modules
-        """
-        sys_mods = []
+    def _wrap_decoy_as_runtime_module(self, decoy_mod):
+        from speakeasy.windows.loaders import (
+            ApiModuleLoader,
+            DecoyLoader,
+            ExportEntry,
+            LoadedImage,
+            RuntimeModule,
+        )
 
-        for modconf in modules_config:
-            mod = self.init_module(modconf)
-            sys_mods.append(mod)
+        exports = []
+        for exp in decoy_mod.get_exports():
+            exports.append(
+                ExportEntry(
+                    name=exp.name,
+                    address=exp.address,
+                    ordinal=exp.ordinal,
+                    execution_mode="intercepted",
+                )
+            )
+
+        is_jitted = getattr(decoy_mod, "is_jitted", False)
+        loader_ref: ApiModuleLoader | DecoyLoader
+        if is_jitted:
+            loader_ref = ApiModuleLoader(
+                name=decoy_mod.name or "",
+                api=None,
+                arch=self.arch,
+                base=decoy_mod.get_base(),
+                emu_path=decoy_mod.get_emu_path(),
+            )
+        else:
+            loader_ref = DecoyLoader(
+                name=decoy_mod.name or "",
+                base=decoy_mod.get_base(),
+                emu_path=decoy_mod.get_emu_path(),
+                image_size=decoy_mod.image_size,
+            )
+
+        image = LoadedImage(
+            arch=self.arch,
+            module_type="dll",
+            name=decoy_mod.name or "",
+            emu_path=decoy_mod.get_emu_path(),
+            image_base=decoy_mod.get_base(),
+            image_size=decoy_mod.image_size,
+            regions=[],
+            imports=[],
+            exports=exports,
+            default_export_mode="intercepted",
+            entry_points=[],
+            visible_in_peb=True,
+            loader=loader_ref,
+        )
+        rtmod = RuntimeModule(image)
+        rtmod._pe = decoy_mod
+        return rtmod
+
+    def init_environment(self, system_modules=None, user_modules=None):
+        if system_modules is None:
+            system_modules = self.config.modules.system_modules
+        if user_modules is None:
+            user_modules = self.config.modules.user_modules
+
+        sys_mods = self._init_module_group(system_modules)
+        self._init_module_group(user_modules, default_base=0x6F000000)
         return sys_mods
 
+    def init_sys_modules(self, modules_config):
+        return self._init_module_group(modules_config)
+
     def init_user_modules(self, modules_config):
-        """
-        Initialize user mode modules that may be accessed by emulated modules
-        """
-        user_mods = []
+        return self._init_module_group(modules_config, default_base=0x6F000000)
 
+    def _init_module_group(self, modules_config, default_base=None):
+        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader
+
+        rtmods = []
         for modconf in modules_config:
-            mod = self.init_module(modconf, default_base=0x6F000000)
-            user_mods.append(mod)
+            modname = getattr(modconf, "name", None) or "unknown"
+            base_addr = getattr(modconf, "base_addr", None) or default_base
+            if isinstance(base_addr, str):
+                base_addr = int(base_addr, 16)
+            emu_path = getattr(modconf, "path", None) or (modname + ".dll")
 
-        return user_mods
+            images = getattr(modconf, "images", []) or []
+            native_path = self.get_native_module_path(mod_name=modname)
+            path = None
+            for img in images:
+                if img.arch == self.get_arch():
+                    path = self.get_native_module_path(mod_name=img.name)
+            if not path:
+                path = native_path
 
-    def map_decoy(self, decoy):
+            if path:
+                rtmod = self._init_native_decoy(modname, path, base_addr, emu_path)
+                rtmods.append(rtmod)
+                continue
+
+            handler = self.api.load_api_handler(modname) if self.api else None
+
+            if handler and modname == "ntdll":
+                nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
+                if nt_handler:
+                    handler._nt_handler = nt_handler
+
+            loader: ApiModuleLoader | DecoyLoader
+            if handler:
+                loader = ApiModuleLoader(
+                    name=modname,
+                    api=handler,
+                    arch=self.get_arch(),
+                    base=base_addr or 0,
+                    emu_path=emu_path,
+                )
+            else:
+                loader = DecoyLoader(
+                    name=modname,
+                    base=base_addr or 0,
+                    emu_path=emu_path,
+                    image_size=0,
+                )
+
+            image = loader.make_image()
+            rtmod = self.load_image(image)
+            rtmods.append(rtmod)
+        return rtmods
+
+    def _init_native_decoy(self, modname, path, base_addr, emu_path):
+        from speakeasy.windows.loaders import DecoyLoader, RuntimeModule
+
+        decoy_mod = winemu.DecoyModule(path=path)
+        res, size = self.get_valid_ranges(decoy_mod.image_size, base_addr)
+        alloc_size = max(decoy_mod.OPTIONAL_HEADER.SizeOfImage, size)
+        mem_base = self.mem_map(alloc_size, base=res, tag=f"emu.module.{modname}", perms=common.PERM_MEM_RW)
+
+        headers_size = decoy_mod.OPTIONAL_HEADER.SizeOfHeaders
+        headers_content = bytes(decoy_mod.get_data(length=headers_size))
+        self.mem_write(mem_base, headers_content)
+        aligned_headers = (headers_size + self.page_size - 1) & ~(self.page_size - 1)
+        self.mem_protect(mem_base, aligned_headers, common.PERM_MEM_READ)
+
+        if hasattr(decoy_mod, "sections"):
+            for section in decoy_mod.sections:
+                va = section.VirtualAddress
+                section_data = bytes(section.get_data())
+                self.mem_write(mem_base + va, section_data)
+
+        decoy_mod.decoy_base = mem_base
+        decoy_mod.decoy_path = emu_path
+        decoy_mod.name = modname
+        decoy_mod.OPTIONAL_HEADER.ImageBase = mem_base
+        decoy_mod.image_size = alloc_size
+
+        is_jitted = getattr(decoy_mod, "is_jitted", False)
+        if is_jitted:
+            mod_base_name = decoy_mod.get_base_name()
+            for exp in decoy_mod.get_exports():
+                if exp.name:
+                    self.symbols[exp.address] = (mod_base_name, exp.name)
+                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)  # type: ignore[union-attr]
+                    if hndlr and not self.config.analysis.memory_tracing:
+                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
+                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
+
+            if not self.config.analysis.memory_tracing:
+                mod_start = decoy_mod.OPTIONAL_HEADER.ImageBase
+                mod_end = mod_start + decoy_mod.OPTIONAL_HEADER.SizeOfImage
+                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
+
+        decoy_image = DecoyLoader(
+            name=modname,
+            base=mem_base,
+            emu_path=emu_path,
+            image_size=alloc_size,
+        ).make_image()
+        rtmod = RuntimeModule(decoy_image)
+        rtmod._pe = decoy_mod
+        self.modules.append(rtmod)
+        return rtmod
+
+    def map_decoy(self, module):
         """
         Map a decoy PE into memory. This allows samples such as shellcode to
         parse a PE's export table while resolving exported functions
         """
+        from speakeasy.windows.loaders import RuntimeModule
+
+        if isinstance(module, RuntimeModule):
+            decoy = module._pe
+            if decoy is None:
+                return False
+        else:
+            decoy = module
         if not decoy.is_mapped:
             decoy.full_load()
 
@@ -1902,7 +2169,7 @@ class WindowsEmulator(BinaryEmulator):
                     mod_name = decoy.get_base_name()
                     addr = exp.address
                     self.symbols.update({addr: (mod_name, sym)})
-                    m, hndlr = self.api.get_data_export_handler(mod_name, sym)
+                    m, hndlr = self.api.get_data_export_handler(mod_name, sym)  # type: ignore[union-attr]
                     if hndlr and not self.config.analysis.memory_tracing:
                         self.add_mem_read_hook(cb=self._hook_mem_read, begin=addr, end=addr)
                         self.add_mem_write_hook(cb=self._hook_mem_write, begin=addr, end=addr)
@@ -2183,14 +2450,14 @@ class WindowsEmulator(BinaryEmulator):
         """
         evt = self.new_object(objman.Event)
         evt.name = name
-        hnd = self.om.get_handle(evt)
+        hnd = self.om.get_handle(evt)  # type: ignore[union-attr]
         return hnd, evt
 
     def dec_ref(self, obj):
         """
         Dereference an object
         """
-        return self.om.dec_ref(obj)
+        return self.om.dec_ref(obj)  # type: ignore[union-attr]
 
     def create_mutant(self, name=""):
         """
@@ -2200,7 +2467,7 @@ class WindowsEmulator(BinaryEmulator):
             name = ""
         mtx = self.new_object(objman.Mutant)
         mtx.name = name
-        hnd = self.om.get_handle(mtx)
+        hnd = self.om.get_handle(mtx)  # type: ignore[union-attr]
         return hnd, mtx
 
     def _hook_interrupt(self, emu, intnum, ctx=[]):
@@ -2246,7 +2513,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
         error = self.get_error_info("unhandled_interrupt", pc)
         error.update({"interrupt_num": intnum})
-        self.curr_run.error = error
+        self.curr_run.error = error  # type: ignore[union-attr]
 
         self.restart_curr_run = True
         self.on_run_complete()

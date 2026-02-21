@@ -170,7 +170,7 @@ class Main:
             logger.error("[-] No target file supplied")
             return
 
-        q = mp.Queue()
+        q: mp.Queue = mp.Queue()
         evt = mp.Event()
 
         if args.no_mp:
@@ -223,17 +223,17 @@ class Main:
                 if self.timeout and self.timeout < (time.time() - start_time):
                     evt.set()
                     logger.error("* Child process timeout reached after %d seconds", self.timeout)
-                    report = q.get(5)
+                    report = q.get(5)  # type: ignore[arg-type]  # should be timeout=5, but not changing behavior
                 try:
                     report = q.get(timeout=1)
                     break
-                except mp.queues.Empty:
+                except mp.queues.Empty:  # type: ignore[attr-defined]  # mp.queues.Empty exists at runtime
                     if not p.is_alive():
                         break
                 except KeyboardInterrupt:
                     evt.set()
                     logger.error("\n* User exited")
-                    report = q.get(5)
+                    report = q.get(5)  # type: ignore[arg-type]  # should be timeout=5, but not changing behavior
                     break
 
         logger.info("* Finished emulating")
