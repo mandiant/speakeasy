@@ -207,7 +207,7 @@ class PeLoader:
             default_export_mode="intercepted",
             entry_points=entry_points,
             visible_in_peb=True,
-            stack_size=pe.OPTIONAL_HEADER.SizeOfStackCommit or 0x12000,
+            stack_size=pe.OPTIONAL_HEADER.SizeOfStackReserve or 0x12000,
             tls_callbacks=tls_callbacks,
             tls_directory_va=tls_directory_va,
             loader=self,
