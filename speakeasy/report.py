@@ -130,6 +130,8 @@ class EntryPoint(BaseModel):
     ep_type: str
     start_addr: HexInt
     ep_args: list[Any] = []
+    pid: int | None = None
+    tid: int | None = None
     instr_count: int | None = None
     apihash: str = ""
     ret_val: HexIntOptional = None

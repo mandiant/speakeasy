@@ -294,6 +294,9 @@ class Win32Emulator(WindowsEmulator):
         self.curr_process.threads.append(t)  # type: ignore[union-attr]
         self.curr_thread = t
 
+        if self.run_queue:
+            self.run_queue[0].thread = t
+
         peb = self.alloc_peb(self.curr_process)
 
         # Set the TEB
@@ -690,11 +693,7 @@ class Win32Emulator(WindowsEmulator):
                 "accesses": access_stats,
             }
 
-            if (
-                capture_dumps
-                and has_writes
-                and not tag.startswith(EXCLUDED_TAG_PREFIXES)
-            ):
+            if capture_dumps and has_writes and not tag.startswith(EXCLUDED_TAG_PREFIXES):
                 try:
                     data = self.mem_read(mm.get_base(), mm.get_size())
                     compressed = zlib.compress(data)
