@@ -459,7 +459,18 @@ class Win32Emulator(WindowsEmulator):
         peb.object.OSMinorVersion = self.config.os_ver.minor or 0
         peb.object.OSBuildNumber = self.config.os_ver.build or 0
         peb.write_back()
+
+        self._ensure_core_dlls_loaded()
+        self.mem_map_reserve(proc.get_peb_ldr().address)
+        self.init_peb(self.get_peb_modules())
+
         return peb
+
+    def _ensure_core_dlls_loaded(self):
+        CORE_DLLS = ["ntdll", "kernel32", "kernelbase"]
+        for dll in CORE_DLLS:
+            if not self.get_mod_by_name(dll):
+                self.init_module(name=dll, default_base=0x6F000000)
 
     def set_unhandled_exception_handler(self, handler_addr):
         """
