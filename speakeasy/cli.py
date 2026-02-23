@@ -13,6 +13,7 @@ from rich.logging import RichHandler
 import speakeasy
 import speakeasy.winenv.arch as e_arch
 from speakeasy import Speakeasy
+from speakeasy.volumes import apply_volumes
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,9 @@ class Main:
                     self.cfg.update(
                         {"modules": {"module_directory_x86": self.module_dir, "module_directory_x64": self.module_dir}}
                     )
+
+            if args.volumes:
+                apply_volumes(self.cfg, args.volumes)
 
         if self.target and not os.path.isfile(self.target):
             parser.print_help()
@@ -391,6 +395,14 @@ def main():
         default=1234,
         required=False,
         help="GDB server port (default: 1234)",
+    )
+    parser.add_argument(
+        "-V",
+        "--volume",
+        action="append",
+        dest="volumes",
+        default=[],
+        help="Mount a host path into the emulated filesystem (host_path:guest_path). May be repeated.",
     )
 
     Main(parser)
