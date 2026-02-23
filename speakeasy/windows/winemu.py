@@ -1006,6 +1006,19 @@ class WindowsEmulator(BinaryEmulator):
         t.process = p
         t.tid = self.om.new_id()  # type: ignore[union-attr]
 
+        peb_addr = p.peb.address
+        mod_base = 0
+        if p.pe:
+            mod_base = getattr(p.pe, 'base', 0) or 0
+        if mod_base:
+            p.peb.object.ImageBaseAddress = mod_base
+            p.peb.write_back()
+
+        if t.ctx and self.get_arch() == _arch.ARCH_AMD64:
+            t.ctx.Rdx = peb_addr
+        elif t.ctx and self.get_arch() == _arch.ARCH_X86:
+            t.ctx.Ebx = peb_addr
+
         p.threads.append(t)
 
         if child:
