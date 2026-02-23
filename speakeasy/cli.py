@@ -223,7 +223,11 @@ class Main:
                 if self.timeout and self.timeout < (time.time() - start_time):
                     evt.set()
                     logger.error("* Child process timeout reached after %d seconds", self.timeout)
-                    report = q.get(5)  # type: ignore[arg-type]  # should be timeout=5, but not changing behavior
+                    try:
+                        report = q.get(timeout=5)
+                    except mp.queues.Empty:  # type: ignore[attr-defined]
+                        pass
+                    break
                 try:
                     report = q.get(timeout=1)
                     break
@@ -233,7 +237,10 @@ class Main:
                 except KeyboardInterrupt:
                     evt.set()
                     logger.error("\n* User exited")
-                    report = q.get(5)  # type: ignore[arg-type]  # should be timeout=5, but not changing behavior
+                    try:
+                        report = q.get(timeout=5)
+                    except mp.queues.Empty:  # type: ignore[attr-defined]
+                        pass
                     break
 
         logger.info("* Finished emulating")
