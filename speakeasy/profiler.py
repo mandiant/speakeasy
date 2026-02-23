@@ -5,7 +5,7 @@ __report_version__ = "2.0.0"
 
 import hashlib
 import time
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from collections import deque
 
 from speakeasy.const import (
@@ -444,7 +444,7 @@ class Profiler:
             last_base, last_size = self.last_data
             last_evt = self.last_event
             if isinstance(last_evt, MemWriteEvent) and (last_base + last_size) == base:
-                last_evt.data += data
+                last_evt.data = self.handle_binary_data(b64decode(last_evt.data) + data)
                 last_evt.size += len(data)
                 self.last_data = [base, size]
                 return
@@ -453,7 +453,7 @@ class Profiler:
                 path=path,
                 base=hex(base),
                 size=size,
-                data=data,
+                data=self.handle_binary_data(data),
             )
             self.last_data = [base, size]
 
@@ -464,7 +464,7 @@ class Profiler:
             last_base, last_size = self.last_data
             last_evt = self.last_event
             if isinstance(last_evt, MemReadEvent) and (last_base + last_size) == base:
-                last_evt.data += data
+                last_evt.data = self.handle_binary_data(b64decode(last_evt.data) + data)
                 last_evt.size += len(data)
                 self.last_data = [base, size]
                 return
@@ -473,7 +473,7 @@ class Profiler:
                 path=path,
                 base=hex(base),
                 size=size,
-                data=data,
+                data=self.handle_binary_data(data),
             )
             self.last_data = [base, size]
 

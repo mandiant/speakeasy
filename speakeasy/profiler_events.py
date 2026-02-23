@@ -41,7 +41,7 @@ class MemWriteEvent(Event):
     path: str
     base: str
     size: int
-    data: bytes
+    data: str
 
 
 class MemReadEvent(Event):
@@ -49,7 +49,7 @@ class MemReadEvent(Event):
     path: str
     base: str
     size: int
-    data: bytes
+    data: str
 
 
 class MemProtectEvent(Event):
