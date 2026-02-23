@@ -17,6 +17,7 @@ APIs are emulated in Python code in order to handle their expected inputs and ou
 ## Installation
 
 Speakeasy can be executed in a docker container, as a stand-alone script, or in cloud services. The easiest method of installation is by first installing the required package dependencies, and then running the included setup.py script (replace "python3" with your current Python3 interpreter):
+
 ```console
 cd <repo_base_dir>
 python3 -m pip install -r requirements.txt
@@ -36,12 +37,14 @@ The included Dockerfile can be used to generate a docker image.
 #### Building the docker image
 
 1. Build the Docker image; the following commands  will create a container with the tag named "my_tag":
+
 ```console
 cd <repo_base_dir>
 docker build -t "my_tag" .
 ```
 
 2. Run the Docker image and create a local volume in `/sandbox`:
+
 ```console
 docker run -v <path_containing_malware>:/sandbox -it "my_tag"
 ```
@@ -133,25 +136,31 @@ optional arguments:
 ### Examples
 
 Emulating a Windows driver:
+
 ```console
 user@mybox:~/speakeasy$ speakeasy -t ~/drivers/MyDriver.sys
 ```
 
 Emulating 32-bit Windows shellcode:
+
 ```console
 user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x86
 ```
 
 Emulating 64-bit Windows shellcode and create a full memory dump:
+
 ```console
 user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x64 -d memdump.zip
 ```
 
 Debugging a binary interactively with GDB (requires `pip install speakeasy-emulator[gdb]`):
+
 ```console
 user@mybox:~/speakeasy$ speakeasy -t ~/malware.exe --gdb --gdb-port 1234
 ```
+
 Then in another terminal:
+
 ```console
 user@mybox:~$ gdb-multiarch
 (gdb) set architecture i386
@@ -159,6 +168,7 @@ user@mybox:~$ gdb-multiarch
 (gdb) break *0x401000
 (gdb) continue
 ```
+
 See [doc/gdb](doc/gdb.md) for full details.
 
 ---
@@ -217,6 +227,87 @@ Many malware samples such as shellcode will attempt to manually parse the export
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return chunk
+```
+
+---
+
+## Mounting Host Files with `--volume`
+
+The `-V`/`--volume` flag mounts host files or directories into the emulated Windows filesystem, similar to Docker's `-v` flag. The format is `host_path:guest_path`. Multiple volumes can be specified.
+
+### Mount a single file
+
+```python
+from speakeasy.volumes import parse_volume_spec
+
+# Unix host path -> Windows guest path
+host, guest = parse_volume_spec("/data/payload.dll:c:\\windows\\system32\\payload.dll")
+print(f"Host:  {host}")
+print(f"Guest: {guest}")
+
+# Windows drive letters on both sides
+host, guest = parse_volume_spec("C:\\samples\\mal.exe:D:\\staging\\mal.exe")
+print(f"Host:  {host}")
+print(f"Guest: {guest}")
+```
+
+```output
+Host:  /data/payload.dll
+Guest: c:\windows\system32\payload.dll
+Host:  C:\samples\mal.exe
+Guest: D:\staging\mal.exe
+```
+
+### Mount a directory of files
+
+```python
+from speakeasy.volumes import expand_volume_to_entries
+from pathlib import Path, PureWindowsPath
+
+entries = expand_volume_to_entries(Path("/tmp/vol_demo"), PureWindowsPath("c:\\appdata"))
+for e in entries:
+    print(f"{e['emu_path']}  <-  {e['path']}")
+```
+
+```output
+c:\appdata\configs\settings.ini  <-  /tmp/vol_demo/configs/settings.ini
+c:\appdata\sample.bin  <-  /tmp/vol_demo/sample.bin
+```
+
+### CLI usage
+
+Mount a single file into the emulated filesystem:
+
+```console
+speakeasy -t malware.exe -V /data/config.dat:c:\appdata\config.dat
+```
+
+Mount an entire directory (files are added recursively):
+
+```console
+speakeasy -t malware.exe -V /data/samples:c:\windows\temp
+```
+
+Multiple volumes can be combined:
+
+```console
+speakeasy -t malware.exe \\
+  -V /data/configs:c:\programdata \\
+  -V /data/payload.dll:c:\windows\system32\payload.dll
+```
+
+### Programmatic usage
+
+Volumes can also be passed directly to the `Speakeasy` constructor:
+```python
+import speakeasy
+
+se = speakeasy.Speakeasy(volumes=[
+    "/data/config.dat:c:\\appdata\\config.dat",
+    "/data/samples:c:\\windows\\temp",
+])
+module = se.load_module("malware.exe")
+se.run_module(module)
 ```
 
 ---
