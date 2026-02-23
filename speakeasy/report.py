@@ -95,7 +95,7 @@ class MemoryRegion(BaseModel):
     prot: str
     is_free: bool = False
     accesses: MemoryAccesses | None = None
-    data: str | None = None
+    data: str | None = None  # zlib-compressed, base64-encoded memory contents
 
 
 class ModuleSegment(BaseModel):
