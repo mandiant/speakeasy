@@ -376,6 +376,14 @@ class WindowsEmulator(BinaryEmulator):
             self.set_current_process(run.process_context)
         if run.thread:
             self.set_current_thread(run.thread)
+        elif not self.kernel_mode:
+            thread = objman.Thread(self, stack_base=self.stack_base)
+            self.om.objects.update({thread.address: thread})
+            if self.curr_process:
+                thread.process = self.curr_process
+                self.curr_process.threads.append(thread)
+            run.thread = thread
+            self.set_current_thread(thread)
 
         if not self.kernel_mode:
             # Reset the TIB data

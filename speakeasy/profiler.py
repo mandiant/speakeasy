@@ -712,10 +712,19 @@ class Profiler:
                     )
                 memory_layout = MemoryLayout(layout=regions, modules=modules)
 
+            ep_tid = r.thread.tid if r.thread else None
+            ep_pid = None
+            if r.process_context:
+                ep_pid = r.process_context.get_id()
+            elif r.thread and r.thread.process:
+                ep_pid = r.thread.process.get_id()
+
             ep = EntryPoint(
                 ep_type=r.type,
                 start_addr=r.start_addr,
                 ep_args=args,
+                pid=ep_pid,
+                tid=ep_tid,
                 instr_count=r.instr_cnt if r.instr_cnt else None,
                 apihash=r.api_hash.hexdigest(),
                 ret_val=r.ret_val,
