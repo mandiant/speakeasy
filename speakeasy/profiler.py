@@ -687,6 +687,7 @@ class Profiler:
                             prot=reg["prot"],
                             is_free=reg.get("is_free", False),
                             accesses=accesses,
+                            data=reg.get("data"),
                         )
                     )
                 modules = []
