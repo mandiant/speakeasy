@@ -1268,6 +1268,7 @@ class WindowsEmulator(BinaryEmulator):
         imp_api = f"{dll}.{name}"
         oret = self.get_ret_address()
         opc = self.get_pc()
+        call_pc = self.prev_pc if self.prev_pc != 0 else oret
         mod, func_attrs = self.api.get_export_func_handler(dll, name)  # type: ignore[union-attr]
         if not func_attrs:
             mod, func_attrs = self.normalize_import_miss(dll, name)
@@ -1312,7 +1313,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._dynamic_code_cb(self, ret, 0, {})
 
             # Log the API args and return value
-            self.log_api(opc, imp_api, rv, argv)
+            self.log_api(call_pc, imp_api, rv, argv)
 
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)
@@ -1332,7 +1333,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
                 ret = self.get_ret_address()
-                self.log_api(opc, imp_api, rv, argv)
+                self.log_api(call_pc, imp_api, rv, argv)
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
             elif self.config.modules.functions_always_exist:
@@ -1342,7 +1343,7 @@ class WindowsEmulator(BinaryEmulator):
                 argv = self.get_func_argv(conv, argc)
                 rv = 1
                 ret = self.get_ret_address()
-                self.log_api(opc, imp_api, rv, argv)
+                self.log_api(call_pc, imp_api, rv, argv)
                 self.do_call_return(argc, ret, rv, conv=conv)
                 return
 
@@ -1710,6 +1711,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.handle_import_func(mod_name, fn)
                 return True
 
+            self.prev_pc = addr
             self.curr_run.instr_cnt += 1  # type: ignore[union-attr]
 
             for exec_access in self.curr_run.exec_cache:  # type: ignore[union-attr]
