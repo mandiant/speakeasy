@@ -467,9 +467,32 @@ class Win32Emulator(WindowsEmulator):
 
         self._ensure_core_dlls_loaded()
         self.mem_map_reserve(proc.get_peb_ldr().address)
-        self.init_peb(self.get_peb_modules())
+        self.init_peb(self._ordered_peb_modules())
 
         return peb
+
+    def _ordered_peb_modules(self):
+        import os as _os
+
+        CORE_ORDER = {"ntdll": 0, "kernel32": 1, "kernelbase": 2}
+        mods = self.get_peb_modules()
+        exe_mods = []
+        core_mods = []
+        other_mods = []
+        for m in mods:
+            if m.is_exe():
+                exe_mods.append(m)
+                continue
+            name = (m.name or "").lower()
+            if not name:
+                bn = m.get_base_name()
+                name = _os.path.splitext(bn)[0].lower() if bn else ""
+            if name in CORE_ORDER:
+                core_mods.append((CORE_ORDER[name], m))
+            else:
+                other_mods.append(m)
+        core_mods.sort(key=lambda x: x[0])
+        return exe_mods + [m for _, m in core_mods] + other_mods
 
     def _ensure_core_dlls_loaded(self):
         CORE_DLLS = ["ntdll", "kernel32", "kernelbase"]
@@ -604,7 +627,7 @@ class Win32Emulator(WindowsEmulator):
             pld = p.get_peb_ldr()
             if address > pld.address and address < (pld.address + pld.sizeof()):
                 self.mem_map_reserve(pld.address)
-                self.init_peb(self.get_peb_modules())
+                self.init_peb(self._ordered_peb_modules())
                 return True
         return super()._hook_mem_unmapped(emu, access, address, size, value, ctx)
 
