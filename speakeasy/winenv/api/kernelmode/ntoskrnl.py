@@ -2146,9 +2146,13 @@ class Ntoskrnl(api.ApiHandler):
 
         fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, final_size = argv
 
-        if fmt not in (ddk.COMPRESSION_FORMAT_LZNT1, ddk.COMPRESSION_FORMAT_XPRESS):  # noqa
+        algorithm = fmt & 0xFF
+        if algorithm not in (ddk.COMPRESSION_FORMAT_LZNT1, ddk.COMPRESSION_FORMAT_XPRESS):
             nts = ddk.STATUS_UNSUPPORTED_COMPRESSION
             return nts
+
+        comp_buf_size &= 0xFFFFFFFF
+        uncomp_buf_size &= 0xFFFFFFFF
 
         data = self.mem_read(comp_buf, comp_buf_size)
 
