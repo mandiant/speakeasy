@@ -1661,7 +1661,7 @@ class WindowsEmulator(BinaryEmulator):
         Persistent code hook that records every executed address for coverage.
         """
         try:
-            self.curr_run.coverage.append(addr)  # type: ignore[union-attr]
+            self.curr_run.coverage.add(addr)  # type: ignore[union-attr]
             return True
         except Exception as e:
             logger.exception("Exception during code hook (coverage)")
