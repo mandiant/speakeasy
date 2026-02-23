@@ -480,6 +480,9 @@ class WindowsEmulator(BinaryEmulator):
                 run = self.on_run_complete()
                 if not run:
                     break
+                if self.profiler and timeout > 0 and self.profiler.get_run_time() > timeout:
+                    logger.error("* Timeout of %d sec(s) reached.", timeout)
+                    break
                 continue
             break
 
