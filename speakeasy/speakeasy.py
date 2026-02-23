@@ -18,6 +18,7 @@ from speakeasy import Win32Emulator, WinKernelEmulator
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
+from speakeasy.volumes import apply_volumes
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,18 @@ class Speakeasy:
 
         return wrap
 
-    def __init__(self, config=None, argv=[], debug=False, exit_event=None, gdb_port=None):
+    def __init__(self, config=None, argv=[], debug=False, exit_event=None, gdb_port=None, volumes=None):
+
+        if volumes:
+            if isinstance(config, SpeakeasyConfig):
+                raise ConfigError(
+                    "Cannot apply --volume to an already-validated SpeakeasyConfig; pass a raw dict or None instead"
+                )
+            if config is None:
+                config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
+                with open(config_path) as f:
+                    config = json.load(f)
+            apply_volumes(config, volumes)
 
         self._init_config(config)
         self.emu = None

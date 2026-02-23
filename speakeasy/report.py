@@ -25,7 +25,9 @@ def _parse_hex_int(v: Any) -> Any:
 
 
 HexInt = Annotated[int, BeforeValidator(_parse_hex_int), PlainSerializer(hex_serializer, return_type=str)]
-HexIntOptional = Annotated[int | None, BeforeValidator(_parse_hex_int), PlainSerializer(hex_serializer, return_type=str | None)]
+HexIntOptional = Annotated[
+    int | None, BeforeValidator(_parse_hex_int), PlainSerializer(hex_serializer, return_type=str | None)
+]
 Base64Bytes = Annotated[bytes | None, PlainSerializer(bytes_serializer, return_type=str | None)]
 
 
