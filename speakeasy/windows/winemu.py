@@ -1793,7 +1793,6 @@ class WindowsEmulator(BinaryEmulator):
 
         mod = self.init_module(name=lib, default_base=0x6F000000)
 
-        # Add the newly loaded module to the current process's PEB module list
         proc = self.get_current_process()
         if self.get_address_map(proc.get_peb_ldr().address):
             proc.add_module_to_peb(mod)
@@ -1940,8 +1939,10 @@ class WindowsEmulator(BinaryEmulator):
                     except Exception:
                         pass
 
-        if mod.decoy_path == "" and name != "":
-            mod.decoy_path = (self.config.current_dir or "C:\\Windows\\system32") + "\\" + name
+        if "\\" not in mod.decoy_path and name != "":
+            sysdir = self.config.current_dir or "C:\\Windows\\system32"
+            basename = mod.decoy_path if mod.decoy_path else name + ".dll"
+            mod.decoy_path = sysdir + "\\" + basename
 
         mod.base_name = ntpath.basename(mod.decoy_path)
 
@@ -1960,7 +1961,19 @@ class WindowsEmulator(BinaryEmulator):
                 mod_end = mod_start + mod.OPTIONAL_HEADER.SizeOfImage
                 self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
 
-        return mod
+        from speakeasy.windows.loaders import DecoyLoader, RuntimeModule
+
+        decoy_image = DecoyLoader(
+            name=modname,
+            base=mem_base,
+            emu_path=mod.decoy_path,
+            image_size=alloc_size,
+        ).make_image()
+        rtmod = RuntimeModule(decoy_image)
+        rtmod._pe = mod
+        self.modules.append(rtmod)
+
+        return rtmod
 
     # This will create a module from a file inside Speakeasy's
     # object manager. file_path is expected to point to a valid PE
