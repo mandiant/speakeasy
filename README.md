@@ -153,23 +153,151 @@ Emulating 64-bit Windows shellcode and create a full memory dump:
 user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x64 -d memdump.zip
 ```
 
-Debugging a binary interactively with GDB (requires `pip install speakeasy-emulator[gdb]`):
+---
 
-```console
-user@mybox:~/speakeasy$ speakeasy -t ~/malware.exe --gdb --gdb-port 1234
+## Debugging with GDB
+
+Speakeasy supports interactive debugging via the GDB Remote Serial Protocol. When you pass `--gdb`, the emulator pauses before the first instruction and waits for a GDB client to connect. Install the optional dependency first:
+
+```
+pip install speakeasy-emulator[gdb]
 ```
 
-Then in another terminal:
+### Debugging a 32-bit DLL
+
+Start speakeasy with `--gdb` in one terminal. It will pause before the first instruction and wait for a GDB connection:
 
 ```console
-user@mybox:~$ gdb-multiarch
+speakeasy -t sample.dll --gdb --gdb-port 1234
+```
+
+In a second terminal, connect with `gdb` (or `gdb-multiarch`) and set the architecture to `i386`. From there you can inspect registers, disassemble, single-step, set breakpoints, and continue:
+
+```
+$ gdb-multiarch
 (gdb) set architecture i386
+The target architecture is set to "i386".
 (gdb) target remote localhost:1234
-(gdb) break *0x401000
+0x10001383 in ?? ()
+(gdb) info registers
+eax            0x0                 0
+ecx            0x0                 0
+edx            0x0                 0
+ebx            0x0                 0
+esp            0x12fffec           0x12fffec
+ebp            0x1300000           0x1300000
+esi            0x0                 0
+edi            0x0                 0
+eip            0x10001383          0x10001383
+eflags         0x2                 [ ]
+cs             0x8b                139
+ss             0x90                144
+ds             0x83                131
+es             0x0                 0
+fs             0x9b                155
+gs             0x0                 0
+(gdb) x/5i $pc
+=> 0x10001383:	push   %ebp
+   0x10001384:	mov    %esp,%ebp
+   0x10001386:	cmpl   $0x1,0xc(%ebp)
+   0x1000138a:	jne    0x10001391
+   0x1000138c:	call   0x100017f9
+(gdb) stepi
+0x10001384 in ?? ()
+(gdb) stepi
+0x10001386 in ?? ()
+(gdb) info registers eip esp ebp
+eip            0x10001386          0x10001386
+esp            0x12fffe8           0x12fffe8
+ebp            0x12fffe8           0x12fffe8
+(gdb) x/10i $pc
+=> 0x10001386:	cmpl   $0x1,0xc(%ebp)
+   0x1000138a:	jne    0x10001391
+   0x1000138c:	call   0x100017f9
+   0x10001391:	push   0x10(%ebp)
+   0x10001394:	push   0xc(%ebp)
+   0x10001397:	push   0x8(%ebp)
+   0x1000139a:	call   0x1000125d
+   0x1000139f:	add    $0xc,%esp
+   0x100013a2:	pop    %ebp
+   0x100013a3:	ret    $0xc
 (gdb) continue
 ```
 
-See [doc/gdb](doc/gdb.md) for full details.
+### Debugging a 64-bit DLL
+
+For 64-bit binaries, set the GDB architecture to `i386:x86-64`:
+
+```
+$ gdb-multiarch
+(gdb) set architecture i386:x86-64
+The target architecture is set to "i386:x86-64".
+(gdb) target remote localhost:1234
+0x0000000180001410 in ?? ()
+(gdb) info registers rip rsp rbp rdi rsi rcx rdx
+rip            0x180001410         0x180001410
+rsp            0x12fffb0           0x12fffb0
+rbp            0x12fffd8           0x12fffd8
+rdi            0x0                 0
+rsi            0x0                 0
+rcx            0x180000000         6442450944
+rdx            0x1                 1
+(gdb) x/5i $pc
+=> 0x180001410:	mov    %rbx,0x8(%rsp)
+   0x180001415:	mov    %rsi,0x10(%rsp)
+   0x18000141a:	push   %rdi
+   0x18000141b:	sub    $0x20,%rsp
+   0x18000141f:	mov    %r8,%rdi
+(gdb) stepi
+0x0000000180001415 in ?? ()
+(gdb) stepi
+0x000000018000141a in ?? ()
+(gdb) x/4xg $rsp
+0x12fffb0:	0x00000000feedf000	0x0000000000000000
+0x12fffc0:	0x0000000000000000	0x0000000000000000
+(gdb) continue
+```
+
+### Setting breakpoints and inspecting memory
+
+Set a breakpoint at an address, continue to it, then examine the stack:
+
+```
+(gdb) break *0x1000139a
+Breakpoint 1 at 0x1000139a
+(gdb) continue
+
+Breakpoint 1, 0x1000139a in ?? ()
+(gdb) x/5i $pc
+=> 0x1000139a:	call   0x1000125d
+   0x1000139f:	add    $0xc,%esp
+   0x100013a2:	pop    %ebp
+   0x100013a3:	ret    $0xc
+   0x100013a6:	push   %ebp
+(gdb) x/8xw $esp
+0x12fffdc:	0x10000000	0x00000001	0x00000000	0x01300000
+0x12fffec:	0xfeedf000	0x10000000	0x00000001	0x00000000
+(gdb) info registers eip esp eax
+eip            0x1000139a          0x1000139a
+esp            0x12fffdc           0x12fffdc
+eax            0x12fffdc           19922908
+(gdb) continue
+```
+
+### Programmatic usage
+
+The GDB server can also be enabled when using speakeasy as a Python library:
+
+```python
+import speakeasy
+
+se = speakeasy.Speakeasy(gdb_port=1234)
+module = se.load_module("sample.dll")
+# Blocks here waiting for GDB to connect, then emulates under GDB control
+se.run_module(module)
+```
+
+See [doc/gdb](doc/gdb.md) for the full reference, including IDA Pro integration and limitations.
 
 ---
 
