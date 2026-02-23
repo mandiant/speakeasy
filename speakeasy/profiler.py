@@ -117,7 +117,7 @@ class Run:
         self.type = None
         self.error = {}
         self.num_apis = 0
-        self.coverage = []
+        self.coverage = set()
         self.memory_regions: list[dict] = []
         self.loaded_modules: list[dict] = []
 
@@ -722,7 +722,7 @@ class Profiler:
                 events=events,
                 sym_accesses=sym_accesses,
                 dynamic_code_segments=dyn_code_segments,
-                coverage=r.coverage if r.coverage else None,
+                coverage=sorted(r.coverage) if r.coverage else None,
                 dropped_files=dropped_files,
                 memory=memory_layout,
             )
