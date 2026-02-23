@@ -1,9 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import base64
 import hashlib
 import ntpath
 import os
 import shlex
+import zlib
 
 import speakeasy.common as common
 import speakeasy.windows.common as w32common
@@ -654,6 +656,8 @@ class Win32Emulator(WindowsEmulator):
         """
         Capture current memory layout and loaded modules for the run report.
         """
+        EXCLUDED_TAG_PREFIXES = ("emu.stack", "api.heap", "emu.process_heap")
+
         prot_map = {
             common.PERM_MEM_NONE: "---",
             common.PERM_MEM_READ: "r--",
@@ -665,22 +669,40 @@ class Win32Emulator(WindowsEmulator):
             common.PERM_MEM_RWX: "rwx",
         }
 
+        capture_dumps = getattr(self.config, "capture_memory_dumps", False)
+
         for mm in self.get_mem_maps():
             prot = prot_map.get(mm.get_prot(), "???")
             access_stats = None
+            has_writes = False
             if mm in self.curr_run.mem_access:  # type: ignore[union-attr]
                 ma = self.curr_run.mem_access[mm]  # type: ignore[union-attr]
                 access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
-            self.curr_run.memory_regions.append(  # type: ignore[union-attr]
-                {
-                    "tag": mm.get_tag() or "",
-                    "address": mm.get_base(),
-                    "size": mm.get_size(),
-                    "prot": prot,
-                    "is_free": mm.is_free(),
-                    "accesses": access_stats,
-                }
-            )
+                has_writes = ma.writes > 0
+
+            tag = mm.get_tag() or ""
+            region_dict: dict = {
+                "tag": tag,
+                "address": mm.get_base(),
+                "size": mm.get_size(),
+                "prot": prot,
+                "is_free": mm.is_free(),
+                "accesses": access_stats,
+            }
+
+            if (
+                capture_dumps
+                and has_writes
+                and not tag.startswith(EXCLUDED_TAG_PREFIXES)
+            ):
+                try:
+                    data = self.mem_read(mm.get_base(), mm.get_size())
+                    compressed = zlib.compress(data)
+                    region_dict["data"] = base64.b64encode(compressed).decode()
+                except Exception:
+                    pass  # Skip if mem_read fails (e.g., freed memory)
+
+            self.curr_run.memory_regions.append(region_dict)  # type: ignore[union-attr]
 
         for m in self.modules:
             if m.image_size == 0:
