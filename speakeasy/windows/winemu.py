@@ -1312,7 +1312,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._dynamic_code_cb(self, ret, 0, {})
 
             # Log the API args and return value
-            self.log_api(oret, imp_api, rv, argv)
+            self.log_api(opc, imp_api, rv, argv)
 
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)
@@ -1332,7 +1332,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
                 ret = self.get_ret_address()
-                self.log_api(ret, imp_api, rv, argv)
+                self.log_api(opc, imp_api, rv, argv)
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 return
             elif self.config.modules.functions_always_exist:
@@ -1342,7 +1342,7 @@ class WindowsEmulator(BinaryEmulator):
                 argv = self.get_func_argv(conv, argc)
                 rv = 1
                 ret = self.get_ret_address()
-                self.log_api(ret, imp_api, rv, argv)
+                self.log_api(opc, imp_api, rv, argv)
                 self.do_call_return(argc, ret, rv, conv=conv)
                 return
 
