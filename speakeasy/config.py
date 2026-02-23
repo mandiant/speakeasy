@@ -265,6 +265,7 @@ class SpeakeasyConfig(BaseModel):
     system: Literal["windows"]
     analysis: AnalysisConfig
     keep_memory_on_free: bool = False
+    capture_memory_dumps: bool = False
     exceptions: ExceptionsConfig
     os_ver: OsVersionConfig
     current_dir: str
