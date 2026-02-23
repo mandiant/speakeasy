@@ -227,7 +227,7 @@ class CONTEXT64(EmuStruct):
         self.SegFs = ct.c_uint16
         self.SegGs = ct.c_uint16
         self.SegSs = ct.c_uint16
-        self.EFlags = ct.c_uint64
+        self.EFlags = ct.c_uint32
 
         self.Dr0 = ct.c_uint64
         self.Dr1 = ct.c_uint64
