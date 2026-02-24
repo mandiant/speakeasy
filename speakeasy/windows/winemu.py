@@ -1009,7 +1009,7 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr = p.peb.address
         mod_base = 0
         if p.pe:
-            mod_base = getattr(p.pe, 'base', 0) or 0
+            mod_base = getattr(p.pe, "base", 0) or 0
         if mod_base:
             p.peb.object.ImageBaseAddress = mod_base
             p.peb.write_back()
@@ -1384,7 +1384,8 @@ class WindowsEmulator(BinaryEmulator):
         try:
             access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
             logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
-            self.prev_pc = self.get_pc()
+            if access != common.INVALID_MEM_EXEC:
+                self.prev_pc = self.get_pc()
 
             if not self.tmp_code_hook:
                 self.tmp_code_hook = self.add_code_hook(cb=self._hook_code_core)
