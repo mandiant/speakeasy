@@ -273,7 +273,7 @@ class Msvcrt(api.ApiHandler):
 
         argv = [(a + "\x00\x00\x00\x00").encode("utf-8") for a in _argv]
 
-        array_size = ptr_size * (len(argv) + 1)
+        array_size = ptr_size * (len(argv) + 2)
         total = sum([len(a) for a in argv])
         total += array_size
 
