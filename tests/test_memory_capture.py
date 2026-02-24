@@ -57,9 +57,14 @@ def test_heap_regions_excluded(report_with_dumps):
                     assert region.data is None, f"Heap region {region.tag} should not have data"
 
 
-def test_unwritten_regions_excluded(report_with_dumps):
+def test_unwritten_regions_included(report_with_dumps):
+    found_unwritten_with_data = False
     for ep in report_with_dumps.entry_points:
         if ep.memory:
             for region in ep.memory.layout:
                 if region.accesses and region.accesses.writes == 0:
-                    assert region.data is None, f"Unwritten region {region.tag} should not have data"
+                    if region.tag.startswith(("emu.stack", "api.heap", "emu.process_heap")):
+                        continue
+                    if region.data is not None:
+                        found_unwritten_with_data = True
+    assert found_unwritten_with_data, "Expected at least one unwritten non-excluded region with data"

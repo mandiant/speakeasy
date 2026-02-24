@@ -697,34 +697,98 @@ class Win32Emulator(WindowsEmulator):
 
         capture_dumps = getattr(self.config, "capture_memory_dumps", False)
 
+        modules_by_base: dict[int, object] = {}
+        for m in self.modules:
+            if m.image_size > 0:
+                modules_by_base[m.base] = m
+
         for mm in self.get_mem_maps():
             prot = prot_map.get(mm.get_prot(), "???")
             access_stats = None
-            has_writes = False
             if mm in self.curr_run.mem_access:  # type: ignore[union-attr]
                 ma = self.curr_run.mem_access[mm]  # type: ignore[union-attr]
                 access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
-                has_writes = ma.writes > 0
 
             tag = mm.get_tag() or ""
-            region_dict: dict = {
-                "tag": tag,
-                "address": mm.get_base(),
-                "size": mm.get_size(),
-                "prot": prot,
-                "is_free": mm.is_free(),
-                "accesses": access_stats,
-            }
+            mm_base = mm.get_base()
+            mm_size = mm.get_size()
 
-            if capture_dumps and has_writes and not tag.startswith(EXCLUDED_TAG_PREFIXES):
+            mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
+            pe = getattr(mod, "_pe", None) if mod else None
+            sections = getattr(pe, "sections", None) if pe else None
+
+            if sections:
+                mod_name = ntpath.basename(mod.get_emu_path()) or "unknown"  # type: ignore[union-attr]
                 try:
-                    data = self.mem_read(mm.get_base(), mm.get_size())
-                    compressed = zlib.compress(data)
-                    region_dict["data"] = base64.b64encode(compressed).decode()
+                    full_data = self.mem_read(mm_base, mm_size) if capture_dumps else None
                 except Exception:
-                    pass  # Skip if mem_read fails (e.g., freed memory)
+                    full_data = None
 
-            self.curr_run.memory_regions.append(region_dict)  # type: ignore[union-attr]
+                first_section_rva = sections[0].VirtualAddress if sections else mm_size
+                hdr_size = first_section_rva
+                hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
+                hdr_dict: dict = {
+                    "tag": hdr_tag,
+                    "address": mm_base,
+                    "size": hdr_size,
+                    "prot": "r--",
+                    "is_free": mm.is_free(),
+                    "accesses": access_stats,
+                }
+                if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                    try:
+                        compressed = zlib.compress(full_data[:hdr_size])
+                        hdr_dict["data"] = base64.b64encode(compressed).decode()
+                    except Exception:
+                        pass
+                self.curr_run.memory_regions.append(hdr_dict)  # type: ignore[union-attr]
+
+                for section in sections:
+                    sec_name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+                    sec_addr = section.VirtualAddress + mm_base
+                    sec_size = section.Misc_VirtualSize
+                    chars = section.Characteristics
+                    r = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
+                    w = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
+                    x = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
+                    sec_prot = ("r" if r else "-") + ("w" if w else "-") + ("x" if x else "-")
+
+                    sec_tag = f"emu.module.{mod_name}.{sec_name}.0x{sec_addr:x}"
+                    sec_dict: dict = {
+                        "tag": sec_tag,
+                        "address": sec_addr,
+                        "size": sec_size,
+                        "prot": sec_prot,
+                        "is_free": mm.is_free(),
+                        "accesses": access_stats,
+                    }
+                    if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                        try:
+                            offset = section.VirtualAddress
+                            compressed = zlib.compress(full_data[offset : offset + sec_size])
+                            sec_dict["data"] = base64.b64encode(compressed).decode()
+                        except Exception:
+                            pass
+                    self.curr_run.memory_regions.append(sec_dict)  # type: ignore[union-attr]
+            else:
+                region_dict: dict = {
+                    "tag": tag,
+                    "address": mm_base,
+                    "size": mm_size,
+                    "prot": prot,
+                    "is_free": mm.is_free(),
+                    "accesses": access_stats,
+                }
+
+                if capture_dumps and not tag.startswith(EXCLUDED_TAG_PREFIXES):
+                    try:
+                        data = self.mem_read(mm_base, mm_size)
+                        compressed = zlib.compress(data)
+                        region_dict["data"] = base64.b64encode(compressed).decode()
+                    except Exception:
+                        pass
+
+                self.curr_run.memory_regions.append(region_dict)  # type: ignore[union-attr]
 
         for m in self.modules:
             if m.image_size == 0:
