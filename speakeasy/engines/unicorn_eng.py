@@ -138,10 +138,13 @@ class EmuEngine:
         }
 
         self.perms = {
-            common.PERM_MEM_RWX: uc.UC_PROT_ALL,
-            common.PERM_MEM_WRITE: uc.UC_PROT_WRITE,
+            common.PERM_MEM_NONE: uc.UC_PROT_NONE,
+            common.PERM_MEM_EXEC: uc.UC_PROT_EXEC,
             common.PERM_MEM_READ: uc.UC_PROT_READ,
+            common.PERM_MEM_WRITE: uc.UC_PROT_WRITE,
             common.PERM_MEM_RW: uc.UC_PROT_READ | uc.UC_PROT_WRITE,
+            common.PERM_MEM_RX: uc.UC_PROT_READ | uc.UC_PROT_EXEC,
+            common.PERM_MEM_RWX: uc.UC_PROT_ALL,
         }
 
         self.hook_types = {

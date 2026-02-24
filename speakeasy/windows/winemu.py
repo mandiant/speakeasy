@@ -828,11 +828,30 @@ class WindowsEmulator(BinaryEmulator):
             except Exception:
                 pass
 
+        from speakeasy.windows.loaders import PeLoader as _PeLoaderType
+
+        if isinstance(image.loader, _PeLoaderType) and image.sections:
+            base = image.image_base
+            first_section_rva = image.sections[0].virtual_address
+            if first_section_rva > 0:
+                aligned_headers = (first_section_rva + self.page_size - 1) & ~(self.page_size - 1)
+                self.mem_protect(base, aligned_headers, common.PERM_MEM_READ)
+
+            for sect in image.sections:
+                section_addr = base + sect.virtual_address
+                aligned_addr = section_addr & ~(self.page_size - 1)
+                end_addr = section_addr + sect.virtual_size
+                aligned_end = (end_addr + self.page_size - 1) & ~(self.page_size - 1)
+                aligned_size = aligned_end - aligned_addr
+                if aligned_size > 0:
+                    try:
+                        self.mem_protect(aligned_addr, aligned_size, sect.perms)
+                    except Exception:
+                        pass
+
         mod = RuntimeModule(image)
         if image.image_base != 0 and mod.base != image.image_base:
             mod.base = image.image_base
-
-        from speakeasy.windows.loaders import PeLoader as _PeLoaderType
 
         if isinstance(image.loader, _PeLoaderType) and image.loader._pe_obj is not None:
             mod._pe = image.loader._pe_obj

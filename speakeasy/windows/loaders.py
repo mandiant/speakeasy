@@ -18,6 +18,34 @@ class MemoryRegion:
 
 
 @dataclass
+class SectionEntry:
+    name: str
+    virtual_address: int
+    virtual_size: int
+    perms: int
+
+
+def perms_from_section_chars(chars: int) -> int:
+    from speakeasy.windows.common import ImageSectionCharacteristics
+
+    perms = common.PERM_MEM_NONE
+    if chars & ImageSectionCharacteristics.IMAGE_SCN_MEM_READ:
+        perms |= common.PERM_MEM_READ
+    if chars & ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE:
+        perms |= common.PERM_MEM_WRITE
+    if chars & ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE:
+        perms |= common.PERM_MEM_EXEC
+    return perms
+
+
+def get_prot_string(perms: int) -> str:
+    r = "r" if perms & common.PERM_MEM_READ else "-"
+    w = "w" if perms & common.PERM_MEM_WRITE else "-"
+    x = "x" if perms & common.PERM_MEM_EXEC else "-"
+    return r + w + x
+
+
+@dataclass
 class ImportEntry:
     iat_address: int
     dll_name: str
@@ -50,6 +78,7 @@ class LoadedImage:
     tls_callbacks: list[int] = field(default_factory=list)
     tls_directory_va: int | None = None
     loader: Loader | None = None
+    sections: list[SectionEntry] = field(default_factory=list)
 
 
 class Loader(Protocol):
@@ -71,6 +100,7 @@ class RuntimeModule:
         self.visible_in_peb = image.visible_in_peb
         self.loader = image.loader
         self.name = image.name
+        self.sections = image.sections
 
     def __repr__(self) -> str:
         loader_type = type(self.loader).__name__ if self.loader is not None else "None"
@@ -178,6 +208,18 @@ class PeLoader:
                     break
                 tls_callbacks.append(ptr)
 
+        sections = []
+        for sect in pe.sections:
+            sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            sections.append(
+                SectionEntry(
+                    name=sect_name,
+                    virtual_address=sect.VirtualAddress,
+                    virtual_size=sect.Misc_VirtualSize,
+                    perms=perms_from_section_chars(sect.Characteristics),
+                )
+            )
+
         region = MemoryRegion(
             base=base,
             data=bytes(mapped_image),
@@ -211,6 +253,7 @@ class PeLoader:
             tls_callbacks=tls_callbacks,
             tls_directory_va=tls_directory_va,
             loader=self,
+            sections=sections,
         )
 
 
@@ -241,6 +284,14 @@ class ShellcodeLoader:
             entry_points=[],
             visible_in_peb=False,
             loader=self,
+            sections=[
+                SectionEntry(
+                    name="shellcode",
+                    virtual_address=0,
+                    virtual_size=len(self._data),
+                    perms=common.PERM_MEM_RWX,
+                )
+            ],
         )
 
 
@@ -326,6 +377,19 @@ class ApiModuleLoader:
                 )
             )
 
+        sections = []
+        for sect in jit.basepe.sections:
+            sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            vs = min(sect.Misc_VirtualSize, max(0, image_size - sect.VirtualAddress))
+            sections.append(
+                SectionEntry(
+                    name=sect_name,
+                    virtual_address=sect.VirtualAddress,
+                    virtual_size=vs,
+                    perms=perms_from_section_chars(sect.Characteristics),
+                )
+            )
+
         region = MemoryRegion(
             base=self._base,
             data=bytes(img_data),
@@ -347,6 +411,7 @@ class ApiModuleLoader:
             entry_points=[],
             visible_in_peb=True,
             loader=self,
+            sections=sections,
         )
 
 

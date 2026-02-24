@@ -17,6 +17,7 @@ from speakeasy.windows.com import COM
 from speakeasy.windows.loaders import (
     PeLoader,
     RuntimeModule,
+    get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import WindowsEmulator
@@ -714,8 +715,7 @@ class Win32Emulator(WindowsEmulator):
             mm_size = mm.get_size()
 
             mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
-            pe = getattr(mod, "_pe", None) if mod else None
-            sections = getattr(pe, "sections", None) if pe else None
+            sections = getattr(mod, "sections", None) if mod else None
 
             if sections:
                 mod_name = ntpath.basename(mod.get_emu_path()) or "unknown"  # type: ignore[union-attr]
@@ -724,7 +724,7 @@ class Win32Emulator(WindowsEmulator):
                 except Exception:
                     full_data = None
 
-                first_section_rva = sections[0].VirtualAddress if sections else mm_size
+                first_section_rva = sections[0].virtual_address if sections else mm_size
                 hdr_size = first_section_rva
                 hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
                 hdr_dict: dict = {
@@ -743,29 +743,24 @@ class Win32Emulator(WindowsEmulator):
                         pass
                 self.curr_run.memory_regions.append(hdr_dict)  # type: ignore[union-attr]
 
-                for section in sections:
-                    sec_name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-                    sec_addr = section.VirtualAddress + mm_base
-                    sec_size = section.Misc_VirtualSize
-                    chars = section.Characteristics
-                    r = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
-                    w = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
-                    x = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
-                    sec_prot = ("r" if r else "-") + ("w" if w else "-") + ("x" if x else "-")
+                for sect in sections:
+                    sec_addr = sect.virtual_address + mm_base
+                    sec_prot = get_prot_string(sect.perms)
 
-                    sec_tag = f"emu.module.{mod_name}.{sec_name}.0x{sec_addr:x}"
+                    sec_tag = f"emu.module.{mod_name}.{sect.name}.0x{sec_addr:x}"
                     sec_dict: dict = {
                         "tag": sec_tag,
                         "address": sec_addr,
-                        "size": sec_size,
+                        "size": sect.virtual_size,
                         "prot": sec_prot,
                         "is_free": mm.is_free(),
                         "accesses": access_stats,
                     }
                     if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES):
                         try:
-                            offset = section.VirtualAddress
-                            compressed = zlib.compress(full_data[offset : offset + sec_size])
+                            compressed = zlib.compress(
+                                full_data[sect.virtual_address : sect.virtual_address + sect.virtual_size]
+                            )
                             sec_dict["data"] = base64.b64encode(compressed).decode()
                         except Exception:
                             pass
@@ -795,21 +790,15 @@ class Win32Emulator(WindowsEmulator):
                 continue
             mod_name = ntpath.basename(m.get_emu_path()) or "unknown"
             segments = []
-            pe = getattr(m, "_pe", None)
-            if pe and hasattr(pe, "sections"):
-                for section in pe.sections:
-                    name = section.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-                    addr = section.VirtualAddress + m.base
-                    size = section.Misc_VirtualSize
-                    chars = section.Characteristics
-                    r = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
-                    w = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
-                    x = chars & w32common.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
-                    prot = ""
-                    prot += "r" if r else "-"
-                    prot += "w" if w else "-"
-                    prot += "x" if x else "-"
-                    segments.append({"name": name, "address": addr, "size": size, "prot": prot})
+            for sect in m.sections:
+                segments.append(
+                    {
+                        "name": sect.name,
+                        "address": sect.virtual_address + m.base,
+                        "size": sect.virtual_size,
+                        "prot": get_prot_string(sect.perms),
+                    }
+                )
             self.curr_run.loaded_modules.append(  # type: ignore[union-attr]
                 {
                     "name": mod_name,
