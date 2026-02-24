@@ -139,6 +139,13 @@ class RuntimeModule:
                 return exp
         return None
 
+    def get_section_for_addr(self, addr: int) -> SectionEntry | None:
+        offset = addr - self.base
+        for sect in self.sections:
+            if sect.virtual_address <= offset < sect.virtual_address + sect.virtual_size:
+                return sect
+        return None
+
     def get_tls_callbacks(self) -> list[int]:
         return self._image.tls_callbacks
 

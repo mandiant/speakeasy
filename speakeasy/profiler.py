@@ -101,6 +101,7 @@ class Run:
         self.sym_access = {}
         self.dropped_files = []
         self.mem_access = {}
+        self.section_access: dict[tuple[int, int], MemAccess] = {}
         self.dyn_code: dict[str, list | set] = {"mmap": [], "base_addrs": set()}
         self.process_context = None
         self.thread = None
