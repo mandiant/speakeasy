@@ -387,7 +387,7 @@ class ApiModuleLoader:
         sections = []
         for sect in jit.basepe.sections:
             sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-            vs = min(sect.Misc_VirtualSize, max(0, image_size - sect.VirtualAddress))
+            vs = sect.Misc_VirtualSize
             sections.append(
                 SectionEntry(
                     name=sect_name,
