@@ -401,3 +401,94 @@ def test_api_module_loader_make_image():
     assert len(image.regions) == 1
     export_names = [e.name for e in image.exports if e.name]
     assert "CreateFileW" in export_names or "CreateFileWA" in export_names
+
+
+# ---------------------------------------------------------------------------
+# JitPeFile section consistency tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(params=[_arch.ARCH_X86, _arch.ARCH_AMD64], ids=["x86", "x64"])
+def jit_arch(request):
+    return request.param
+
+
+class TestJitPeSectionConsistency:
+    """All JIT PE sections must satisfy VirtualAddress + VirtualSize <= SizeOfImage."""
+
+    @staticmethod
+    def _assert_sections_within_image(jit):
+        from speakeasy.windows.common import JitPeFile
+
+        soi = jit.basepe.OPTIONAL_HEADER.SizeOfImage
+        for sect in jit.basepe.sections:
+            name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            end = sect.VirtualAddress + sect.Misc_VirtualSize
+            assert end <= soi, (
+                f"section {name}: VirtualAddress(0x{sect.VirtualAddress:x}) + "
+                f"Misc_VirtualSize(0x{sect.Misc_VirtualSize:x}) = 0x{end:x} > "
+                f"SizeOfImage(0x{soi:x})"
+            )
+
+    @staticmethod
+    def _assert_raw_data_within_file(jit):
+        data_len = len(jit.basepe.__data__)
+        for sect in jit.basepe.sections:
+            name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            end = sect.PointerToRawData + sect.SizeOfRawData
+            assert end <= data_len, (
+                f"section {name}: PointerToRawData(0x{sect.PointerToRawData:x}) + "
+                f"SizeOfRawData(0x{sect.SizeOfRawData:x}) = 0x{end:x} > "
+                f"len(__data__)(0x{data_len:x})"
+            )
+
+    def test_small_export_count(self, jit_arch):
+        from speakeasy.windows.common import JitPeFile
+
+        jit = JitPeFile(jit_arch, base=0x70000000)
+        jit.get_decoy_pe_image("test_small", [f"Func{i}" for i in range(5)])
+        self._assert_sections_within_image(jit)
+        self._assert_raw_data_within_file(jit)
+
+    def test_large_export_count(self, jit_arch):
+        from speakeasy.windows.common import JitPeFile
+
+        jit = JitPeFile(jit_arch, base=0x70000000)
+        jit.get_decoy_pe_image("kernel32", [f"Function{i}" for i in range(500)])
+        self._assert_sections_within_image(jit)
+        self._assert_raw_data_within_file(jit)
+
+    def test_long_export_names(self, jit_arch):
+        from speakeasy.windows.common import JitPeFile
+
+        names = [f"VeryLongExportedFunctionName_{i:04d}_Suffix" for i in range(100)]
+        jit = JitPeFile(jit_arch, base=0x70000000)
+        jit.get_decoy_pe_image("longnames", names)
+        self._assert_sections_within_image(jit)
+        self._assert_raw_data_within_file(jit)
+
+
+def test_api_module_loader_sections_within_image():
+    class FakeApiHandler:
+        def __init__(self, count):
+            self.funcs = {
+                f"Func{i}": (f"Func{i}", None, 1, "stdcall", i)
+                for i in range(count)
+            }
+            self.data = {}
+
+    loader = ApiModuleLoader(
+        name="kernel32",
+        api=FakeApiHandler(200),
+        arch=_arch.ARCH_X86,
+        base=0x76000000,
+        emu_path="C:\\Windows\\System32\\kernel32.dll",
+    )
+    image = loader.make_image()
+    for sect in image.sections:
+        end = sect.virtual_address + sect.virtual_size
+        assert end <= image.image_size, (
+            f"section {sect.name}: virtual_address(0x{sect.virtual_address:x}) + "
+            f"virtual_size(0x{sect.virtual_size:x}) = 0x{end:x} > "
+            f"image_size(0x{image.image_size:x})"
+        )
