@@ -294,3 +294,13 @@ class EmuEngine:
 
     def hook_remove(self, hid):
         return self.emu.hook_del(hid)  # type: ignore[union-attr]
+
+    def close(self):
+        if self.emu is None:
+            return
+        for hid in list(self._callbacks):
+            try:
+                self.emu.hook_del(hid)
+            except Exception:
+                pass
+        self._callbacks.clear()

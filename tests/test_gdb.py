@@ -89,6 +89,7 @@ def gdb_emulator(config, load_test_bin):
             se = Speakeasy(config=cfg, gdb_port=port)
             module = se.load_module(data=data)
             se.run_module(module, all_entrypoints=True)
+            se.shutdown()
         except Exception as e:
             error = e
 
