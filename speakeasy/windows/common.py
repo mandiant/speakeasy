@@ -714,6 +714,10 @@ class JitPeFile:
         if strings_rva:
             strings_offset = self.basepe.get_offset_from_rva(strings_rva)
             self.basepe.__data__ = self.basepe.__data__[:strings_offset]
+            edata = self.get_section_by_name(self.basepe, ".edata")
+            actual_size = strings_offset - edata.PointerToRawData
+            edata.Misc_VirtualSize = actual_size
+            edata.SizeOfRawData = actual_size
         self.update()
 
     def init_text_section(self, names):
