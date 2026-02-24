@@ -52,6 +52,7 @@ where = ["."]
 
 [tool.setuptools.package-data]
 speakeasy = [
+    "py.typed",
     "configs/*.json",
     "resources/**/*",
     "winenv/decoys/**/*",
