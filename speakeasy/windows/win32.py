@@ -727,13 +727,18 @@ class Win32Emulator(WindowsEmulator):
                 first_section_rva = sections[0].virtual_address if sections else mm_size
                 hdr_size = first_section_rva
                 hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
+                hdr_access = access_stats
+                hdr_key = (mm_base, 0)
+                hdr_ma = self.curr_run.section_access.get(hdr_key)  # type: ignore[union-attr]
+                if hdr_ma:
+                    hdr_access = {"reads": hdr_ma.reads, "writes": hdr_ma.writes, "execs": hdr_ma.execs}
                 hdr_dict: dict = {
                     "tag": hdr_tag,
                     "address": mm_base,
                     "size": hdr_size,
                     "prot": "r--",
                     "is_free": mm.is_free(),
-                    "accesses": access_stats,
+                    "accesses": hdr_access,
                 }
                 if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES):
                     try:
@@ -747,6 +752,12 @@ class Win32Emulator(WindowsEmulator):
                     sec_addr = sect.virtual_address + mm_base
                     sec_prot = get_prot_string(sect.perms)
 
+                    sec_access = access_stats
+                    sec_key = (mm_base, sect.virtual_address)
+                    sec_ma = self.curr_run.section_access.get(sec_key)  # type: ignore[union-attr]
+                    if sec_ma:
+                        sec_access = {"reads": sec_ma.reads, "writes": sec_ma.writes, "execs": sec_ma.execs}
+
                     sec_tag = f"emu.module.{mod_name}.{sect.name}.0x{sec_addr:x}"
                     sec_dict: dict = {
                         "tag": sec_tag,
@@ -754,7 +765,7 @@ class Win32Emulator(WindowsEmulator):
                         "size": sect.virtual_size,
                         "prot": sec_prot,
                         "is_free": mm.is_free(),
-                        "accesses": access_stats,
+                        "accesses": sec_access,
                     }
                     if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES):
                         try:

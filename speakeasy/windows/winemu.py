@@ -1518,6 +1518,19 @@ class WindowsEmulator(BinaryEmulator):
                     read_access.reads += 1
                     return True
 
+            mod = self.get_mod_from_addr(address)
+            if mod and mod.sections:
+                sect = mod.get_section_for_addr(address)
+                if sect:
+                    key = (mod.base, sect.virtual_address)
+                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
+                    if not maccess:
+                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
+                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
+                    self.curr_run.read_cache.appendleft(maccess)  # type: ignore[union-attr]
+                    maccess.reads += 1
+                    return True
+
             mmap = self.get_address_map(address)
             if not mmap:
                 return False
@@ -1555,6 +1568,19 @@ class WindowsEmulator(BinaryEmulator):
             for write_access in self.curr_run.write_cache:  # type: ignore[union-attr]
                 if write_access.base <= address <= (write_access.base + write_access.size) - 1:
                     write_access.writes += 1
+                    return True
+
+            mod = self.get_mod_from_addr(address)
+            if mod and mod.sections:
+                sect = mod.get_section_for_addr(address)
+                if sect:
+                    key = (mod.base, sect.virtual_address)
+                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
+                    if not maccess:
+                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
+                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
+                    self.curr_run.write_cache.appendleft(maccess)  # type: ignore[union-attr]
+                    maccess.writes += 1
                     return True
 
             mmap = self.get_address_map(address)
@@ -1750,6 +1776,19 @@ class WindowsEmulator(BinaryEmulator):
             for exec_access in self.curr_run.exec_cache:  # type: ignore[union-attr]
                 if exec_access.base <= addr <= (exec_access.base + exec_access.size) - 1:
                     exec_access.execs += 1
+                    return True
+
+            mod = self.get_mod_from_addr(addr)
+            if mod and mod.sections:
+                sect = mod.get_section_for_addr(addr)
+                if sect:
+                    key = (mod.base, sect.virtual_address)
+                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
+                    if not maccess:
+                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
+                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
+                    self.curr_run.exec_cache.appendleft(maccess)  # type: ignore[union-attr]
+                    maccess.execs += 1
                     return True
 
             mmap = self.get_address_map(addr)
