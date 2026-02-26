@@ -1244,8 +1244,12 @@ class Kernel32(api.ApiHandler):
             proc = obj.process
             if emu.get_arch() == e_arch.ARCH_AMD64:
                 start_addr = context.Rip
+                if not start_addr and context.Rcx:
+                    start_addr = context.Rcx
             else:
                 start_addr = context.Eip
+                if not start_addr and context.Eax:
+                    start_addr = context.Eax
             handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.get_id()}")
             if proc in emu.child_processes:
                 emu.child_processes.remove(proc)
