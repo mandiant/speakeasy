@@ -1033,9 +1033,17 @@ class WindowsEmulator(BinaryEmulator):
             p.peb.object.ImageBaseAddress = mod_base
             p.peb.write_back()
 
+        ep_addr = 0
+        if p.pe:
+            ep_addr = (getattr(p.pe, "base", 0) or 0) + (getattr(p.pe, "ep", 0) or 0)
+
         if t.ctx and self.get_arch() == _arch.ARCH_AMD64:
+            t.ctx.Rip = 0
+            t.ctx.Rcx = ep_addr
             t.ctx.Rdx = peb_addr
         elif t.ctx and self.get_arch() == _arch.ARCH_X86:
+            t.ctx.Eip = 0
+            t.ctx.Eax = ep_addr
             t.ctx.Ebx = peb_addr
 
         p.threads.append(t)
