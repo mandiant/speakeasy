@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 import io
+import logging
 import ntpath
 import os
 import shlex
@@ -10,6 +11,8 @@ import shlex
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_response_path(path):
@@ -232,6 +235,12 @@ class FileManager:
         # First file in this list seems to always be the module itself
         self.files = []
 
+        full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
+        if full_path_entries:
+            logger.info("Emulated filesystem: %d full_path entries", len(full_path_entries))
+            for f in full_path_entries:
+                logger.debug("  emu_path=%s  host_path=%s", f.emu_path, getattr(f, "path", None))
+
     def file_create_mapping(self, hfile, name, size, prot):
         if hfile not in (windefs.INVALID_HANDLE_VALUE, 0):
             f = self.get_file_from_handle(hfile)
@@ -418,6 +427,7 @@ class FileManager:
 
             fconf = self.get_emu_file(path)
             if not fconf:
+                logger.debug("file_open: no handler for path %r", path)
                 return hnd
 
             real_path = getattr(fconf, "path", None) or ""
