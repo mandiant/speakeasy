@@ -1250,6 +1250,12 @@ class Kernel32(api.ApiHandler):
                 start_addr = context.Eip
                 if not start_addr and context.Eax:
                     start_addr = context.Eax
+
+            if start_addr and proc in emu.child_processes:
+                mm = emu.get_address_map(start_addr)
+                if mm:
+                    emu.ensure_pe_import_hooks(mm.base)
+
             handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.get_id()}")
             if proc in emu.child_processes:
                 emu.child_processes.remove(proc)
