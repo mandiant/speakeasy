@@ -8,6 +8,7 @@ import os
 import zipfile
 from collections.abc import Callable
 from io import BytesIO
+from pathlib import Path, PureWindowsPath
 
 from pefile import MACHINE_TYPE
 from pydantic import ValidationError
@@ -208,6 +209,41 @@ class Speakeasy:
         else:
             return False
 
+    def _auto_mount_target_directory(self, path: str) -> None:
+        """Mount direct-child files in the target's host directory into the emulated current directory.
+
+        This makes sibling files (e.g. data files the sample expects to find
+        in its working directory) available to the emulated program.  Only
+        immediate children are mounted (no recursion into subdirectories).
+        """
+        target_dir = Path(path).resolve().parent
+        if not target_dir.is_dir():
+            return
+
+        guest_cd = PureWindowsPath(self.config.current_dir)
+        entries: list[dict] = []
+        for child in sorted(target_dir.iterdir()):
+            if not child.is_file():
+                continue
+            emu_path = guest_cd / child.name
+            entries.append(
+                {
+                    "mode": "full_path",
+                    "emu_path": str(emu_path),
+                    "path": str(child),
+                }
+            )
+        if not entries:
+            return
+
+        config_dict = self.config.model_dump()
+        config_dict["filesystem"]["files"] = entries + config_dict["filesystem"]["files"]
+        self.config = SpeakeasyConfig.model_validate(config_dict)
+
+        logger.info("Auto-mounted %d file(s) from target directory %s into %s", len(entries), target_dir, guest_cd)
+        for e in entries:
+            logger.debug("  %s -> %s", e["emu_path"], e["path"])
+
     def load_module(self, path=None, data=None):
         """
         Load a module into the speakeasy emulator.
@@ -228,6 +264,9 @@ class Speakeasy:
 
         if not self.is_pe(test):
             raise SpeakeasyError("Target file is not a PE")
+
+        if path:
+            self._auto_mount_target_directory(path)
 
         self._init_emulator(path=path, data=data)
 
