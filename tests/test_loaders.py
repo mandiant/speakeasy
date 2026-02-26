@@ -418,7 +418,6 @@ class TestJitPeSectionConsistency:
 
     @staticmethod
     def _assert_sections_within_image(jit):
-        from speakeasy.windows.common import JitPeFile
 
         soi = jit.basepe.OPTIONAL_HEADER.SizeOfImage
         for sect in jit.basepe.sections:
@@ -471,10 +470,7 @@ class TestJitPeSectionConsistency:
 def test_api_module_loader_sections_within_image():
     class FakeApiHandler:
         def __init__(self, count):
-            self.funcs = {
-                f"Func{i}": (f"Func{i}", None, 1, "stdcall", i)
-                for i in range(count)
-            }
+            self.funcs = {f"Func{i}": (f"Func{i}", None, 1, "stdcall", i) for i in range(count)}
             self.data = {}
 
     loader = ApiModuleLoader(
