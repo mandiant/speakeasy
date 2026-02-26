@@ -1239,13 +1239,16 @@ class Kernel32(api.ApiHandler):
         if rv > 0:
             obj.suspend_count -= 1
 
-        if emu.get_arch() == e_arch.ARCH_X86:
-            if not emu.resume_thread(obj):
-                context = obj.get_context()
-                proc = obj.process
-                handle, obj = self.create_thread(
-                    context.Eip, 0, proc, thread_type=f"thread.{proc.name}.{proc.get_id()}"
-                )
+        if not emu.resume_thread(obj):
+            context = obj.get_context()
+            proc = obj.process
+            if emu.get_arch() == e_arch.ARCH_AMD64:
+                start_addr = context.Rip
+            else:
+                start_addr = context.Eip
+            handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.get_id()}")
+            if proc in emu.child_processes:
+                emu.child_processes.remove(proc)
         return rv
 
     @apihook("SuspendThread", argc=1)
