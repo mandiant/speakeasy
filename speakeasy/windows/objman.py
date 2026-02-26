@@ -448,7 +448,10 @@ class Thread(KernelObject):
 
     def set_context(self, ctx):
         if self.ctx:
-            if self.emu.get_arch() == _arch.ARCH_X86:
+            if self.emu.get_arch() == _arch.ARCH_AMD64:
+                if ctx.Rip != self.ctx.Rip:
+                    self.modified_pc = True
+            elif self.emu.get_arch() == _arch.ARCH_X86:
                 if ctx.Eip != self.ctx.Eip:
                     self.modified_pc = True
         self.ctx = ctx
