@@ -79,9 +79,7 @@ def test_section_stats_not_identical(tracing_report):
             stats[name] = (region.accesses.reads, region.accesses.writes, region.accesses.execs)
 
     unique_stats = set(stats.values())
-    assert len(unique_stats) > 1, (
-        f"All sections have identical access stats — tracking is still module-level: {stats}"
-    )
+    assert len(unique_stats) > 1, f"All sections have identical access stats — tracking is still module-level: {stats}"
 
 
 def test_non_module_regions_still_tracked(tracing_report):
