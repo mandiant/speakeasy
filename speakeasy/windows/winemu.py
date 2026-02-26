@@ -758,6 +758,121 @@ class WindowsEmulator(BinaryEmulator):
         self._next_sentinel += self.get_ptr_size()
         return addr
 
+    def ensure_pe_import_hooks(self, base_addr):
+        """
+        Ensure a PE image in emulated memory has its IAT patched with sentinel
+        values so that API calls are intercepted by speakeasy. Idempotent: IAT
+        entries that already point to a known sentinel are left untouched.
+
+        Intended for PEs injected via WriteProcessMemory (process hollowing)
+        that bypass the normal module loader.
+        """
+        import struct as _struct
+
+        ptr_size = self.get_ptr_size()
+        is_64 = self.get_arch() == _arch.ARCH_AMD64
+
+        try:
+            dos_hdr = self.mem_read(base_addr, 0x40)
+        except Exception:
+            return
+        if dos_hdr[:2] != b"MZ":
+            return
+
+        e_lfanew = _struct.unpack_from("<I", dos_hdr, 0x3C)[0]
+        pe_sig_off = base_addr + e_lfanew
+
+        try:
+            pe_hdr = self.mem_read(pe_sig_off, 0x18)
+        except Exception:
+            return
+        if pe_hdr[:4] != b"PE\x00\x00":
+            return
+
+        opt_off = pe_sig_off + 0x18
+        if is_64:
+            opt_hdr = self.mem_read(opt_off, 0x70 + 16 * 8)
+            import_dir_rva = _struct.unpack_from("<I", opt_hdr, 0x78)[0]
+            import_dir_size = _struct.unpack_from("<I", opt_hdr, 0x7C)[0]
+        else:
+            opt_hdr = self.mem_read(opt_off, 0x60 + 16 * 8)
+            import_dir_rva = _struct.unpack_from("<I", opt_hdr, 0x68)[0]
+            import_dir_size = _struct.unpack_from("<I", opt_hdr, 0x6C)[0]
+
+        if not import_dir_rva or not import_dir_size:
+            return
+
+        import_dir_va = base_addr + import_dir_rva
+        desc_size = 20
+        n_descriptors = 0
+        n_fixups = 0
+
+        while True:
+            desc_off = import_dir_va + n_descriptors * desc_size
+            try:
+                desc = self.mem_read(desc_off, desc_size)
+            except Exception:
+                break
+
+            ilt_rva, _, _, name_rva, iat_rva = _struct.unpack_from("<5I", desc, 0)
+            if not name_rva and not iat_rva:
+                break
+            n_descriptors += 1
+
+            try:
+                dll_bytes = self.mem_read(base_addr + name_rva, 256)
+            except Exception:
+                continue
+            dll_name = dll_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+            dll_name_no_ext = dll_name.rsplit(".", 1)[0] if "." in dll_name else dll_name
+
+            thunk_rva = ilt_rva if ilt_rva else iat_rva
+            idx = 0
+            while True:
+                thunk_va = base_addr + thunk_rva + idx * ptr_size
+                iat_va = base_addr + iat_rva + idx * ptr_size
+                idx += 1
+
+                try:
+                    thunk_data = self.mem_read(thunk_va, ptr_size)
+                except Exception:
+                    break
+                thunk_val = int.from_bytes(thunk_data, "little")
+                if thunk_val == 0:
+                    break
+
+                iat_data = self.mem_read(iat_va, ptr_size)
+                iat_val = int.from_bytes(iat_data, "little")
+                if iat_val in self.import_table:
+                    continue
+
+                if is_64:
+                    is_ordinal = (thunk_val >> 63) & 1
+                else:
+                    is_ordinal = (thunk_val >> 31) & 1
+
+                if is_ordinal:
+                    ordinal = thunk_val & 0xFFFF
+                    func_name = f"ordinal_{ordinal}"
+                else:
+                    hint_name_rva = thunk_val & 0x7FFFFFFF
+                    try:
+                        hint_data = self.mem_read(base_addr + hint_name_rva, 256)
+                    except Exception:
+                        continue
+                    name_bytes = hint_data[2:]
+                    func_name = name_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+
+                sentinel = self._alloc_sentinel()
+                self.import_table[sentinel] = (dll_name_no_ext, func_name)
+                try:
+                    self.mem_write(iat_va, sentinel.to_bytes(ptr_size, "little"))
+                    n_fixups += 1
+                except Exception:
+                    pass
+
+        logger.info("PE import fixups at 0x%x: %d descriptor(s), %d new fixup(s)", base_addr, n_descriptors, n_fixups)
+
     def get_mod_by_name(self, name):
         name_lower = name.lower()
         for mod in self.modules:
