@@ -4570,7 +4570,10 @@ class Kernel32(api.ApiHandler):
         if not obj:
             return False
 
-        context = windefs.CONTEXT(emu.get_ptr_size())
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            context = windefs.CONTEXT64(emu.get_ptr_size())
+        else:
+            context = windefs.CONTEXT(emu.get_ptr_size())
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
