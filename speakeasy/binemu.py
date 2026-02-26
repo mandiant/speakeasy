@@ -521,7 +521,12 @@ class BinaryEmulator(MemoryManager, ABC):
         trace = []
         sp = self.get_stack_ptr()
         for i in range(num_ptrs):
-            ptr = self.mem_read(sp, self.get_ptr_size())
+            try:
+                ptr = self.mem_read(sp, self.get_ptr_size())
+            except Exception:
+                sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
+                trace.append(f"sp+{sp_off}: <unmapped @ 0x{sp:x}>")
+                break
             ptr = int.from_bytes(ptr, "little")
             tag = self.get_address_tag(ptr)
             fmt = "{0:#0{1}x}".format(ptr, 2 + (self.get_ptr_size() * 2))
