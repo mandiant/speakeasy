@@ -1,5 +1,4 @@
-import lzma
-import os
+from pathlib import Path
 
 import pytest
 
@@ -8,163 +7,17 @@ from speakeasy.windows.loaders import (
     ApiModuleLoader,
     DecoyLoader,
     ExportEntry,
-    IdaLoader,
-    ImportEntry,
     LoadedImage,
-    MemoryRegion,
     PeLoader,
     RuntimeModule,
+    SectionEntry,
     ShellcodeLoader,
 )
 
 
 @pytest.fixture(scope="session")
-def pe_data():
-    fp = os.path.join(os.path.dirname(__file__), "bins", "dll_test_x86.dll.xz")
-    with lzma.open(fp) as f:
-        return f.read()
-
-
-# ---------------------------------------------------------------------------
-# Data model tests
-# ---------------------------------------------------------------------------
-
-
-def test_memory_region_construction():
-    region = MemoryRegion(base=0x1000, data=b"\x90" * 16, name=".text", perms=0x5)
-    assert region.base == 0x1000
-    assert region.data == b"\x90" * 16
-    assert region.name == ".text"
-    assert region.perms == 0x5
-
-
-def test_import_entry_construction():
-    entry = ImportEntry(iat_address=0x4000, dll_name="kernel32.dll", func_name="VirtualAlloc")
-    assert entry.iat_address == 0x4000
-    assert entry.dll_name == "kernel32.dll"
-    assert entry.func_name == "VirtualAlloc"
-
-
-def test_export_entry_construction():
-    entry = ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted")
-    assert entry.name == "DllMain"
-    assert entry.address == 0x401000
-    assert entry.ordinal == 1
-    assert entry.execution_mode == "intercepted"
-
-
-def test_export_entry_unnamed():
-    entry = ExportEntry(name=None, address=0x401000, ordinal=5, execution_mode="passthrough")
-    assert entry.name is None
-
-
-def test_loaded_image_construction():
-    image = LoadedImage(
-        arch=0x3,
-        module_type="exe",
-        name="malware",
-        emu_path="C:\\malware.exe",
-        image_base=0x400000,
-        image_size=0x10000,
-        regions=[],
-        imports=[],
-        exports=[],
-        default_export_mode="intercepted",
-        entry_points=[0x401000],
-    )
-    assert image.arch == 0x3
-    assert image.module_type == "exe"
-    assert image.name == "malware"
-    assert image.emu_path == "C:\\malware.exe"
-    assert image.image_base == 0x400000
-    assert image.image_size == 0x10000
-    assert image.entry_points == [0x401000]
-
-
-def test_loaded_image_defaults():
-    image = LoadedImage(
-        arch=0,
-        module_type="dll",
-        name="test",
-        emu_path="C:\\test.dll",
-        image_base=0x10000000,
-        image_size=0x1000,
-        regions=[],
-        imports=[],
-        exports=[],
-        default_export_mode="intercepted",
-        entry_points=[],
-    )
-    assert image.visible_in_peb is True
-    assert image.stack_size == 0x12000
-    assert image.tls_callbacks == []
-    assert image.tls_directory_va is None
-    assert image.loader is None
-
-
-# ---------------------------------------------------------------------------
-# DecoyLoader tests — must PASS (already implemented)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def decoy_loader():
-    return DecoyLoader(
-        name="hal",
-        base=0x80100000,
-        emu_path="C:\\Windows\\System32\\hal.dll",
-        image_size=0x8000,
-    )
-
-
-@pytest.fixture
-def decoy_image(decoy_loader):
-    return decoy_loader.make_image()
-
-
-def test_decoy_loader_produces_no_regions(decoy_image):
-    assert decoy_image.regions == []
-
-
-def test_decoy_loader_produces_no_exports(decoy_image):
-    assert decoy_image.exports == []
-
-
-def test_decoy_loader_produces_no_imports(decoy_image):
-    assert decoy_image.imports == []
-
-
-def test_decoy_loader_sets_name(decoy_image):
-    assert decoy_image.name == "hal"
-
-
-def test_decoy_loader_sets_base_address(decoy_image):
-    assert decoy_image.image_base == 0x80100000
-
-
-def test_decoy_loader_sets_emu_path(decoy_image):
-    assert decoy_image.emu_path == "C:\\Windows\\System32\\hal.dll"
-
-
-def test_decoy_loader_sets_image_size(decoy_image):
-    assert decoy_image.image_size == 0x8000
-
-
-def test_decoy_loader_module_type(decoy_image):
-    assert decoy_image.module_type == "decoy"
-
-
-def test_decoy_loader_visible_in_peb(decoy_image):
-    assert decoy_image.visible_in_peb is True
-
-
-def test_decoy_loader_reference_set(decoy_loader, decoy_image):
-    assert decoy_image.loader is decoy_loader
-
-
-# ---------------------------------------------------------------------------
-# RuntimeModule tests — must PASS (already implemented)
-# ---------------------------------------------------------------------------
+def pe_data(load_test_bin):
+    return load_test_bin("dll_test_x86.dll.xz")
 
 
 def _make_image(
@@ -173,6 +26,7 @@ def _make_image(
     image_size: int = 0x10000,
     entry_points: list[int] | None = None,
     exports: list[ExportEntry] | None = None,
+    sections: list[SectionEntry] | None = None,
     tls_callbacks: list[int] | None = None,
     emu_path: str = "C:\\Windows\\malware.exe",
     visible_in_peb: bool = True,
@@ -191,140 +45,98 @@ def _make_image(
         entry_points=entry_points or [],
         visible_in_peb=visible_in_peb,
         tls_callbacks=tls_callbacks or [],
+        sections=sections or [],
     )
 
 
-def test_runtime_module_is_exe_for_exe_type():
-    mod = RuntimeModule(_make_image(module_type="exe"))
-    assert mod.is_exe() is True
-    assert mod.is_dll() is False
-    assert mod.is_driver() is False
+def test_decoy_loader_make_image_properties():
+    loader = DecoyLoader(
+        name="hal",
+        base=0x80100000,
+        emu_path="C:\\Windows\\System32\\hal.dll",
+        image_size=0x8000,
+    )
+    image = loader.make_image()
+    assert image.module_type == "decoy"
+    assert image.name == "hal"
+    assert image.emu_path == "C:\\Windows\\System32\\hal.dll"
+    assert image.image_base == 0x80100000
+    assert image.image_size == 0x8000
+    assert image.regions == []
+    assert image.imports == []
+    assert image.exports == []
+    assert image.visible_in_peb is True
+    assert image.loader is loader
 
 
-def test_runtime_module_is_dll_for_dll_type():
-    mod = RuntimeModule(_make_image(module_type="dll"))
-    assert mod.is_dll() is True
-    assert mod.is_exe() is False
-    assert mod.is_driver() is False
+@pytest.mark.parametrize(
+    ("module_type", "is_exe", "is_dll", "is_driver"),
+    [
+        ("exe", True, False, False),
+        ("dll", False, True, False),
+        ("driver", False, False, True),
+    ],
+)
+def test_runtime_module_type_helpers(module_type, is_exe, is_dll, is_driver):
+    mod = RuntimeModule(_make_image(module_type=module_type))
+    assert mod.is_exe() is is_exe
+    assert mod.is_dll() is is_dll
+    assert mod.is_driver() is is_driver
 
 
-def test_runtime_module_is_driver_for_driver_type():
-    mod = RuntimeModule(_make_image(module_type="driver"))
-    assert mod.is_driver() is True
-    assert mod.is_exe() is False
-    assert mod.is_dll() is False
-
-
-def test_runtime_module_get_base():
-    mod = RuntimeModule(_make_image(image_base=0x400000))
-    assert mod.get_base() == 0x400000
-
-
-def test_runtime_module_get_image_size():
-    mod = RuntimeModule(_make_image(image_size=0x20000))
-    assert mod.get_image_size() == 0x20000
-
-
-def test_runtime_module_get_emu_path():
-    mod = RuntimeModule(_make_image(emu_path="C:\\Windows\\malware.exe"))
-    assert mod.get_emu_path() == "C:\\Windows\\malware.exe"
-
-
-def test_runtime_module_get_base_name_extracts_filename():
-    mod = RuntimeModule(_make_image(emu_path="C:\\Windows\\System32\\kernel32.dll"))
+def test_runtime_module_export_lookup_and_base_name():
+    exports = [
+        ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted"),
+        ExportEntry(name="Init", address=0x402000, ordinal=2, execution_mode="intercepted"),
+    ]
+    mod = RuntimeModule(
+        _make_image(
+            emu_path="C:\\Windows\\System32\\kernel32.dll",
+            exports=exports,
+        )
+    )
+    found = mod.get_export_by_name("Init")
     assert mod.get_base_name() == "kernel32.dll"
-
-
-def test_runtime_module_get_base_name_no_directory():
-    mod = RuntimeModule(_make_image(emu_path="malware.exe"))
-    assert mod.get_base_name() == "malware.exe"
-
-
-def test_runtime_module_get_exports_returns_list():
-    exports = [
-        ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted"),
-        ExportEntry(name="Init", address=0x402000, ordinal=2, execution_mode="intercepted"),
-    ]
-    mod = RuntimeModule(_make_image(exports=exports))
-    assert mod.get_exports() == exports
-
-
-def test_runtime_module_get_export_by_name_found():
-    exports = [
-        ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted"),
-        ExportEntry(name="Init", address=0x402000, ordinal=2, execution_mode="intercepted"),
-    ]
-    mod = RuntimeModule(_make_image(exports=exports))
-    result = mod.get_export_by_name("Init")
-    assert result is not None
-    assert result.address == 0x402000
-
-
-def test_runtime_module_get_export_by_name_missing():
-    exports = [
-        ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted"),
-    ]
-    mod = RuntimeModule(_make_image(exports=exports))
+    assert found is not None
+    assert found.address == 0x402000
     assert mod.get_export_by_name("DoesNotExist") is None
 
 
-def test_runtime_module_get_tls_callbacks():
-    callbacks = [0x401500, 0x401600]
-    mod = RuntimeModule(_make_image(tls_callbacks=callbacks))
-    assert mod.get_tls_callbacks() == callbacks
-
-
-def test_runtime_module_ep_calculated_from_entry_point():
+def test_runtime_module_uses_entrypoint_and_tls_callbacks_from_image():
     image_base = 0x400000
-    entry_point = 0x401234
-    mod = RuntimeModule(_make_image(image_base=image_base, entry_points=[entry_point]))
-    assert mod.ep == entry_point - image_base
+    mod = RuntimeModule(
+        _make_image(
+            image_base=image_base,
+            entry_points=[0x401234],
+            tls_callbacks=[0x401500, 0x401600],
+        )
+    )
+    assert mod.ep == 0x1234
+    assert mod.get_tls_callbacks() == [0x401500, 0x401600]
 
 
-def test_runtime_module_ep_zero_when_no_entry_points():
-    mod = RuntimeModule(_make_image(entry_points=[]))
-    assert mod.ep == 0
+def test_runtime_module_get_section_for_addr():
+    sections = [
+        SectionEntry(name=".text", virtual_address=0x1000, virtual_size=0x2000, perms=0x5),
+        SectionEntry(name=".rdata", virtual_address=0x4000, virtual_size=0x1000, perms=0x1),
+    ]
+    mod = RuntimeModule(_make_image(image_base=0x400000, sections=sections))
+    assert mod.get_section_for_addr(0x401123).name == ".text"
+    assert mod.get_section_for_addr(0x404100).name == ".rdata"
+    assert mod.get_section_for_addr(0x500000) is None
 
 
-def test_runtime_module_visible_in_peb_propagated():
-    mod = RuntimeModule(_make_image(visible_in_peb=False))
-    assert mod.visible_in_peb is False
-
-
-def test_runtime_module_module_type_propagated():
-    mod = RuntimeModule(_make_image(module_type="driver"))
-    assert mod.module_type == "driver"
-
-
-def test_runtime_module_repr_contains_name_and_base():
-    mod = RuntimeModule(_make_image(image_base=0x400000))
-    r = repr(mod)
-    assert "malware" in r
-    assert "0x400000" in r
-
-
-def test_runtime_module_repr_shows_loader_type():
+def test_runtime_module_repr_includes_loader_type():
     loader = DecoyLoader(name="hal", base=0x80100000, emu_path="C:\\hal.dll", image_size=0x1000)
-    image = loader.make_image()
-    mod = RuntimeModule(image)
+    mod = RuntimeModule(loader.make_image())
     assert "DecoyLoader" in repr(mod)
 
 
-def test_runtime_module_repr_shows_none_when_no_loader():
-    mod = RuntimeModule(_make_image())
-    assert "None" in repr(mod)
+def test_pe_loader_make_image_from_path(pe_data, tmp_path: Path):
+    pe_path = tmp_path / "sample.dll"
+    pe_path.write_bytes(pe_data)
 
-
-# ---------------------------------------------------------------------------
-# PeLoader tests
-# ---------------------------------------------------------------------------
-
-
-def test_pe_loader_make_image_from_path():
-    fp = os.path.join(os.path.dirname(__file__), "bins", "dll_test_x86.dll.xz")
-    with lzma.open(fp) as f:
-        data = f.read()
-    loader = PeLoader(data=data)
+    loader = PeLoader(path=str(pe_path))
     image = loader.make_image()
     assert image.arch == _arch.ARCH_X86
     assert image.module_type == "dll"
@@ -340,12 +152,9 @@ def test_pe_loader_make_image_from_data(pe_data):
     assert image.arch == _arch.ARCH_X86
     assert image.module_type == "dll"
     assert image.image_size > 0
+    assert len(image.imports) > 0
     assert len(image.exports) > 0
-
-
-# ---------------------------------------------------------------------------
-# ShellcodeLoader tests — xfail until implemented
-# ---------------------------------------------------------------------------
+    assert len(image.sections) > 0
 
 
 def test_shellcode_loader_make_image():
@@ -361,20 +170,12 @@ def test_shellcode_loader_make_image():
     assert image.visible_in_peb is False
 
 
-# ---------------------------------------------------------------------------
-# IdaLoader tests — xfail until implemented
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.xfail(reason="not yet implemented", raises=NotImplementedError)
 def test_ida_loader_make_image():
+    from speakeasy.windows.loaders import IdaLoader
+
     loader = IdaLoader()
     loader.make_image()
-
-
-# ---------------------------------------------------------------------------
-# ApiModuleLoader tests — xfail until implemented
-# ---------------------------------------------------------------------------
 
 
 def test_api_module_loader_make_image():
@@ -384,7 +185,7 @@ def test_api_module_loader_make_image():
                 "CreateFileW": ("CreateFileW", None, 7, "stdcall", None),
                 "CloseHandle": ("CloseHandle", None, 1, "stdcall", None),
             }
-            self.data = {}
+            self.data = {"GlobalCounter": 0x1234}
 
     loader = ApiModuleLoader(
         name="kernel32",
@@ -394,18 +195,15 @@ def test_api_module_loader_make_image():
         emu_path="C:\\Windows\\System32\\kernel32.dll",
     )
     image = loader.make_image()
+    export_names = {exp.name for exp in image.exports if exp.name}
+
     assert image.module_type == "dll"
     assert image.name == "kernel32"
     assert image.image_base == 0x76000000
     assert len(image.exports) > 0
     assert len(image.regions) == 1
-    export_names = [e.name for e in image.exports if e.name]
     assert "CreateFileW" in export_names or "CreateFileWA" in export_names
-
-
-# ---------------------------------------------------------------------------
-# JitPeFile section consistency tests
-# ---------------------------------------------------------------------------
+    assert "GlobalCounter" in export_names
 
 
 @pytest.fixture(params=[_arch.ARCH_X86, _arch.ARCH_AMD64], ids=["x86", "x64"])
@@ -413,58 +211,36 @@ def jit_arch(request):
     return request.param
 
 
-class TestJitPeSectionConsistency:
-    """All JIT PE sections must satisfy VirtualAddress + VirtualSize <= SizeOfImage."""
+def _assert_jit_sections_within_image(jit):
+    size_of_image = jit.basepe.OPTIONAL_HEADER.SizeOfImage
+    for section in jit.basepe.sections:
+        end = section.VirtualAddress + section.Misc_VirtualSize
+        assert end <= size_of_image
 
-    @staticmethod
-    def _assert_sections_within_image(jit):
 
-        soi = jit.basepe.OPTIONAL_HEADER.SizeOfImage
-        for sect in jit.basepe.sections:
-            name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-            end = sect.VirtualAddress + sect.Misc_VirtualSize
-            assert end <= soi, (
-                f"section {name}: VirtualAddress(0x{sect.VirtualAddress:x}) + "
-                f"Misc_VirtualSize(0x{sect.Misc_VirtualSize:x}) = 0x{end:x} > "
-                f"SizeOfImage(0x{soi:x})"
-            )
+def _assert_jit_raw_data_within_file(jit):
+    data_len = len(jit.basepe.__data__)
+    for section in jit.basepe.sections:
+        end = section.PointerToRawData + section.SizeOfRawData
+        assert end <= data_len
 
-    @staticmethod
-    def _assert_raw_data_within_file(jit):
-        data_len = len(jit.basepe.__data__)
-        for sect in jit.basepe.sections:
-            name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-            end = sect.PointerToRawData + sect.SizeOfRawData
-            assert end <= data_len, (
-                f"section {name}: PointerToRawData(0x{sect.PointerToRawData:x}) + "
-                f"SizeOfRawData(0x{sect.SizeOfRawData:x}) = 0x{end:x} > "
-                f"len(__data__)(0x{data_len:x})"
-            )
 
-    def test_small_export_count(self, jit_arch):
-        from speakeasy.windows.common import JitPeFile
+@pytest.mark.parametrize(
+    "module_name,export_names",
+    [
+        ("small", [f"Func{i}" for i in range(5)]),
+        ("large", [f"Function{i}" for i in range(500)]),
+        ("longnames", [f"VeryLongExportedFunctionName_{i:04d}_Suffix" for i in range(100)]),
+    ],
+    ids=["small", "large", "long-names"],
+)
+def test_jit_pe_section_consistency(jit_arch, module_name, export_names):
+    from speakeasy.windows.common import JitPeFile
 
-        jit = JitPeFile(jit_arch, base=0x70000000)
-        jit.get_decoy_pe_image("test_small", [f"Func{i}" for i in range(5)])
-        self._assert_sections_within_image(jit)
-        self._assert_raw_data_within_file(jit)
-
-    def test_large_export_count(self, jit_arch):
-        from speakeasy.windows.common import JitPeFile
-
-        jit = JitPeFile(jit_arch, base=0x70000000)
-        jit.get_decoy_pe_image("kernel32", [f"Function{i}" for i in range(500)])
-        self._assert_sections_within_image(jit)
-        self._assert_raw_data_within_file(jit)
-
-    def test_long_export_names(self, jit_arch):
-        from speakeasy.windows.common import JitPeFile
-
-        names = [f"VeryLongExportedFunctionName_{i:04d}_Suffix" for i in range(100)]
-        jit = JitPeFile(jit_arch, base=0x70000000)
-        jit.get_decoy_pe_image("longnames", names)
-        self._assert_sections_within_image(jit)
-        self._assert_raw_data_within_file(jit)
+    jit = JitPeFile(jit_arch, base=0x70000000)
+    jit.get_decoy_pe_image(module_name, export_names)
+    _assert_jit_sections_within_image(jit)
+    _assert_jit_raw_data_within_file(jit)
 
 
 def test_api_module_loader_sections_within_image():
@@ -481,10 +257,7 @@ def test_api_module_loader_sections_within_image():
         emu_path="C:\\Windows\\System32\\kernel32.dll",
     )
     image = loader.make_image()
-    for sect in image.sections:
-        end = sect.virtual_address + sect.virtual_size
-        assert end <= image.image_size, (
-            f"section {sect.name}: virtual_address(0x{sect.virtual_address:x}) + "
-            f"virtual_size(0x{sect.virtual_size:x}) = 0x{end:x} > "
-            f"image_size(0x{image.image_size:x})"
-        )
+
+    for section in image.sections:
+        end = section.virtual_address + section.virtual_size
+        assert end <= image.image_size

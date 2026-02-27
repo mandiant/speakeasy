@@ -1,41 +1,47 @@
-# Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
-
+import copy
 import json
 import lzma
-import os
+from functools import cache
+from pathlib import Path
 
 import pytest
 
 from speakeasy import Speakeasy
 
+TESTS_DIR = Path(__file__).resolve().parent
+BINS_DIR = TESTS_DIR / "bins"
+
 
 @pytest.fixture(scope="session")
-def config():
-    fp = os.path.join(os.path.dirname(__file__), "test.json")
-    with open(fp) as f:
+def base_config():
+    with (TESTS_DIR / "test.json").open() as f:
         return json.load(f)
+
+
+@pytest.fixture
+def config(base_config):
+    return copy.deepcopy(base_config)
 
 
 @pytest.fixture(scope="session")
 def load_test_bin():
-    def _load(bin_name):
-        fp = os.path.join(os.path.dirname(__file__), "bins", bin_name)
-        with lzma.open(fp) as f:
+    @cache
+    def _load(bin_name: str) -> bytes:
+        with lzma.open(BINS_DIR / bin_name) as f:
             return f.read()
 
     return _load
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def run_test():
     def _run(cfg, target, argv=None):
-        if argv is None:
-            argv = []
-        se = Speakeasy(config=cfg, argv=argv)
-        module = se.load_module(data=target)
-        se.run_module(module, all_entrypoints=True)
-        report = se.get_report()
-        se.shutdown()
-        return report
+        se = Speakeasy(config=cfg, argv=argv or [])
+        try:
+            module = se.load_module(data=target)
+            se.run_module(module, all_entrypoints=True)
+            return se.get_report()
+        finally:
+            se.shutdown()
 
     return _run
