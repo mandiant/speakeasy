@@ -281,8 +281,7 @@ class Win32Emulator(WindowsEmulator):
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
         if len(self.processes) == 0:
-            pe_obj = getattr(module, "_pe", module)
-            p = objman.Process(self, path=module.get_emu_path(), base=module.base, pe=pe_obj, cmdline=self.command_line)
+            p = objman.Process(self, path=module.get_emu_path(), base=module.base, pe=module, cmdline=self.command_line)
             self.curr_process = p
             self.om.objects.update({p.address: p})  # type: ignore[union-attr]
             mm = self.get_address_map(module.base)
