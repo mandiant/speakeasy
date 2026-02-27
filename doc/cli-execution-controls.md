@@ -75,6 +75,22 @@ speakeasy -t sample.exe \
 
 Use this when you want step control and richer telemetry during one run.
 
+## Performance and telemetry tuning
+
+Speakeasy is Python-based, so runtime is sensitive to telemetry scope and stop conditions.
+
+Practical tuning:
+
+- disable heavy collectors unless needed:
+  - `--no-analysis-memory-tracing`
+  - `--no-analysis-coverage`
+  - `--no-capture-memory-dumps`
+- set hard stop limits for unstable or looping samples:
+  - `--timeout`
+  - `--max-api-count`
+  - `--max-instructions`
+- run fast triage and deep telemetry as separate profiles
+
 ## Related docs
 
 - [Project README](../README.md)
@@ -82,5 +98,4 @@ Use this when you want step control and richer telemetry during one run.
 - [CLI reference](cli-reference.md)
 - [CLI analysis recipes](cli-analysis-recipes.md)
 - [GDB debugging reference](gdb.md)
-- [Performance notes](performance.md)
 - [Help and troubleshooting](help.md)

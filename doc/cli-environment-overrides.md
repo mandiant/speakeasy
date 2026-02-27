@@ -80,6 +80,8 @@ jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}'
 
 ## Module load policy and decoy module directories
 
+Some samples (especially shellcode) parse PE export tables directly to resolve API pointers. When expected modules or exports are missing, these controls let you choose strict or permissive behavior.
+
 Primary flags:
 - `--modules-modules-always-exist` / `--no-modules-modules-always-exist`
 - `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
@@ -125,5 +127,4 @@ This is useful when balancing anti-loop containment with legitimate hot API usag
 - [Documentation index](index.md)
 - [CLI reference](cli-reference.md)
 - [Configuration walkthrough](configuration.md)
-- [Module resolution and decoy exports](module-resolution.md)
 - [Help and troubleshooting](help.md)

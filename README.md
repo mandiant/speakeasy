@@ -34,7 +34,6 @@ Executable proof for this snippet: [doc/readme-quickstart-showboat.md](doc/readm
 
 ### Start here
 
-- [Project overview](doc/overview.md)
 - [Installation and Docker usage](doc/install.md)
 - [Python library usage](doc/library.md)
 - [Help and troubleshooting](doc/help.md)
@@ -53,8 +52,6 @@ Executable proof for this snippet: [doc/readme-quickstart-showboat.md](doc/readm
 - [Configuration walkthrough](doc/configuration.md)
 - [Report walkthrough](doc/reporting.md)
 - [Memory management](doc/memory.md)
-- [Performance notes](doc/performance.md)
-- [Module resolution and decoy exports](doc/module-resolution.md)
 - [Limitations](doc/limitations.md)
 
 ### Debugging and extension

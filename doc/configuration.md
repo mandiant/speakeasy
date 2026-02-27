@@ -408,5 +408,4 @@ Field behavior for report population is implemented primarily in `speakeasy/prof
 - [CLI environment overrides](cli-environment-overrides.md)
 - [CLI execution controls](cli-execution-controls.md)
 - [Report walkthrough](reporting.md)
-- [Module resolution and decoy exports](module-resolution.md)
 - [Help and troubleshooting](help.md)

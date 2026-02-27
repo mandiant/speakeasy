@@ -28,14 +28,13 @@ Read:
 Check:
 - [configuration.md](configuration.md)
 - [cli-environment-overrides.md](cli-environment-overrides.md)
-- [module-resolution.md](module-resolution.md)
 
 ### Run is too slow or produces very large artifacts
 
 Check:
-- [performance.md](performance.md)
 - [cli-analysis-recipes.md](cli-analysis-recipes.md)
 - [cli-execution-controls.md](cli-execution-controls.md)
+- [cli-execution-controls.md#performance-and-telemetry-tuning](cli-execution-controls.md#performance-and-telemetry-tuning)
 
 ### Need to step through execution interactively
 

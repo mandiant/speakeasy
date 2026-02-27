@@ -28,6 +28,6 @@ Use config and CLI overrides to model the expected environment before concluding
 - [Project README](../README.md)
 - [Documentation index](index.md)
 - [Configuration walkthrough](configuration.md)
-- [Module resolution and decoy exports](module-resolution.md)
+- [CLI environment overrides](cli-environment-overrides.md)
 - [Adding API handlers](api-handlers.md)
 - [Help and troubleshooting](help.md)
