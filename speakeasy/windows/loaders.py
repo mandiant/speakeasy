@@ -15,7 +15,7 @@ class ResourceEntry:
     data_rva: int
     size: int
     type_id: int | str
-    entry_rva: int # RVA of the IMAGE_RESOURCE_DATA_ENTRY structure
+    entry_rva: int  # RVA of the IMAGE_RESOURCE_DATA_ENTRY structure
     lang_id: int = 0
 
 
@@ -26,7 +26,7 @@ class PeMetadata:
     machine: int
     magic: int
     resources: list[ResourceEntry] = field(default_factory=list)
-    string_table: dict[int, str] = field(default_factory=dict) # For LoadString
+    string_table: dict[int, str] = field(default_factory=dict)  # For LoadString
 
 
 @dataclass
@@ -274,7 +274,7 @@ class PeLoader:
             subsystem=pe.OPTIONAL_HEADER.Subsystem,
             timestamp=pe.FILE_HEADER.TimeDateStamp,
             machine=pe.FILE_HEADER.Machine,
-            magic=pe.OPTIONAL_HEADER.Magic
+            magic=pe.OPTIONAL_HEADER.Magic,
         )
 
         if hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
@@ -294,8 +294,8 @@ class PeLoader:
                         res_id = resource_id.struct.Id
 
                     # Handle string table specifically for LoadString
-                    if type_id == 6: # RT_STRING
-                         if hasattr(resource_id, "directory"):
+                    if type_id == 6:  # RT_STRING
+                        if hasattr(resource_id, "directory"):
                             for str_entry in resource_id.directory.entries:
                                 # pefile handles strings as a dict {id: string}
                                 if hasattr(str_entry.directory, "strings"):
@@ -314,15 +314,17 @@ class PeLoader:
                                 # Calculate RVA of the entry structure for HRSRC compatibility
                                 entry_offset = resource_lang.data.struct.get_file_offset()
                                 entry_rva = pe.get_rva_from_offset(entry_offset)
-                                
-                                pe_metadata.resources.append(ResourceEntry(
-                                    id=res_id,
-                                    type_id=type_id,
-                                    data_rva=data_rva,
-                                    size=size,
-                                    lang_id=lang_id,
-                                    entry_rva=entry_rva
-                                ))
+
+                                pe_metadata.resources.append(
+                                    ResourceEntry(
+                                        id=res_id,
+                                        type_id=type_id,
+                                        data_rva=data_rva,
+                                        size=size,
+                                        lang_id=lang_id,
+                                        entry_rva=entry_rva,
+                                    )
+                                )
 
         return LoadedImage(
             arch=pe.arch,
@@ -490,9 +492,9 @@ class ApiModuleLoader:
             subsystem=jit.basepe.OPTIONAL_HEADER.Subsystem,
             timestamp=jit.basepe.FILE_HEADER.TimeDateStamp,
             machine=jit.basepe.FILE_HEADER.Machine,
-            magic=jit.basepe.OPTIONAL_HEADER.Magic
+            magic=jit.basepe.OPTIONAL_HEADER.Magic,
         )
-        
+
         return LoadedImage(
             arch=self._arch,
             module_type="dll",
@@ -521,10 +523,10 @@ class DecoyLoader:
 
     def make_image(self) -> LoadedImage:
         pe_metadata = PeMetadata(
-            subsystem=2, # IMAGE_SUBSYSTEM_WINDOWS_GUI
+            subsystem=2,  # IMAGE_SUBSYSTEM_WINDOWS_GUI
             timestamp=0,
             machine=0,
-            magic=0
+            magic=0,
         )
         return LoadedImage(
             arch=0,

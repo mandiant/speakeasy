@@ -556,11 +556,11 @@ class Process(KernelObject):
         if pe:
             if hasattr(pe, "get_pe_metadata"):
                 pe_meta = pe.get_pe_metadata()
-                if pe_meta and pe_meta.subsystem == 3: # IMAGE_SUBSYSTEM_WINDOWS_CUI
+                if pe_meta and pe_meta.subsystem == 3:  # IMAGE_SUBSYSTEM_WINDOWS_CUI
                     is_console = True
             elif hasattr(pe, "OPTIONAL_HEADER"):
-                 if pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
-                     is_console = True
+                if pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
+                    is_console = True
 
         if is_console:
             self.alloc_console()

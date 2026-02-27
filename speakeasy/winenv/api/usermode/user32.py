@@ -57,7 +57,7 @@ class User32(api.ApiHandler):
     def find_string_resource_by_id(self, pe, uID):
         pe_metadata = pe.get_pe_metadata()
         if not pe_metadata:
-             return None
+            return None
         return pe_metadata.string_table.get(uID)
 
     @apihook("GetDesktopWindow", argc=0)
@@ -390,8 +390,8 @@ class User32(api.ApiHandler):
             return 0
 
         if ccBufferMax == 0:
-             # Returning a pointer to the resource string is not supported without raw access
-             return 0
+            # Returning a pointer to the resource string is not supported without raw access
+            return 0
 
         if len(encoded) > ccBufferMax:
             encoded = encoded[: ccBufferMax * cw]
