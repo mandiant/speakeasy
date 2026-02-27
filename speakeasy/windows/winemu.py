@@ -681,13 +681,7 @@ class WindowsEmulator(BinaryEmulator):
         if module:
             if isinstance(module, RuntimeModule):
                 modname = ntpath.basename(module.get_emu_path())
-                pe = getattr(module, "_pe", None)
-                if pe and hasattr(pe, "OPTIONAL_HEADER"):
-                    tls_dirp = pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
-                    tls_dirp += pe.OPTIONAL_HEADER.ImageBase
-                    tls_dir = self.mem_read(tls_dirp, ptrsz)
-                    thread.init_tls(tls_dir, os.path.splitext(modname)[0])
-                elif hasattr(module, "_image") and module._image.tls_directory_va:
+                if module._image and module._image.tls_directory_va:
                     tls_dirp = module._image.tls_directory_va
                     tls_dir = self.mem_read(tls_dirp, ptrsz)
                     thread.init_tls(tls_dir, os.path.splitext(modname)[0])
@@ -968,8 +962,10 @@ class WindowsEmulator(BinaryEmulator):
         if image.image_base != 0 and mod.base != image.image_base:
             mod.base = image.image_base
 
-        if isinstance(image.loader, _PeLoaderType) and image.loader._pe_obj is not None:
-            mod._pe = image.loader._pe_obj
+        # Legacy decoupling: We no longer attach the raw pefile object to the runtime module
+        # for standard PE loads. Metadata should be accessed via mod.get_pe_metadata().
+        # if isinstance(image.loader, _PeLoaderType) and image.loader._pe_obj is not None:
+        #    mod._pe = image.loader._pe_obj
 
         is_primary = isinstance(image.loader, _PeLoaderType) or image.module_type == "shellcode"
 
