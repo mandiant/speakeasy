@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import copy
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from speakeasy.default_config_data import DEFAULT_CONFIG_DATA
+
+
+def _copy_default_value(key: str) -> Any:
+    return copy.deepcopy(DEFAULT_CONFIG_DATA[key])
 
 
 class AnalysisConfig(BaseModel):
@@ -269,38 +276,101 @@ class SpeakeasyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     config_version: Literal[0.2] = Field(  # type: ignore[valid-type]
-        description="Configuration schema version."
+        default=DEFAULT_CONFIG_DATA["config_version"],
+        description="Configuration schema version.",
     )
-    description: str | None = Field(default=None, description="Human-readable profile description.")
-    emu_engine: Literal["unicorn"] = Field(description="Emulation backend identifier.")
-    timeout: float = Field(description="Emulation timeout in seconds.")
-    max_api_count: int = Field(default=5000, description="Maximum API calls allowed per run.")
+    description: str | None = Field(
+        default=DEFAULT_CONFIG_DATA["description"], description="Human-readable profile description."
+    )
+    emu_engine: Literal["unicorn"] = Field(
+        default=DEFAULT_CONFIG_DATA["emu_engine"], description="Emulation backend identifier."
+    )
+    timeout: float = Field(default=DEFAULT_CONFIG_DATA["timeout"], description="Emulation timeout in seconds.")
+    max_api_count: int = Field(
+        default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."
+    )
     max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
-    system: Literal["windows"] = Field(description="Emulated operating system family.")
-    analysis: AnalysisConfig = Field(description="Analysis and telemetry collection settings.")
-    keep_memory_on_free: bool = Field(default=False, description="Retain freed memory maps for post-free inspection.")
+    system: Literal["windows"] = Field(
+        default=DEFAULT_CONFIG_DATA["system"], description="Emulated operating system family."
+    )
+    analysis: AnalysisConfig = Field(
+        default_factory=lambda: AnalysisConfig.model_validate(_copy_default_value("analysis")),
+        description="Analysis and telemetry collection settings.",
+    )
+    keep_memory_on_free: bool = Field(
+        default=DEFAULT_CONFIG_DATA["keep_memory_on_free"],
+        description="Retain freed memory maps for post-free inspection.",
+    )
     capture_memory_dumps: bool = Field(default=False, description="Include compressed raw memory in report regions.")
-    exceptions: ExceptionsConfig = Field(description="Exception dispatch behavior.")
-    os_ver: OsVersionConfig = Field(description="OS version values exposed to emulated code.")
-    current_dir: str = Field(description="Current working directory for emulated process APIs.")
-    command_line: str = Field(default="", description="Command line exposed to emulated process APIs.")
+    exceptions: ExceptionsConfig = Field(
+        default_factory=lambda: ExceptionsConfig.model_validate(_copy_default_value("exceptions")),
+        description="Exception dispatch behavior.",
+    )
+    os_ver: OsVersionConfig = Field(
+        default_factory=lambda: OsVersionConfig.model_validate(_copy_default_value("os_ver")),
+        description="OS version values exposed to emulated code.",
+    )
+    current_dir: str = Field(
+        default=DEFAULT_CONFIG_DATA["current_dir"],
+        description="Current working directory for emulated process APIs.",
+    )
+    command_line: str = Field(
+        default=DEFAULT_CONFIG_DATA["command_line"],
+        description="Command line exposed to emulated process APIs.",
+    )
     env: dict[str, str] = Field(
-        default_factory=dict, description="Environment variables visible to the emulated process."
+        default_factory=lambda: _copy_default_value("env"),
+        description="Environment variables visible to the emulated process.",
     )
-    domain: str | None = Field(default=None, description="Domain or workgroup identity.")
-    hostname: str = Field(description="Hostname exposed to emulated system APIs.")
-    user: UserConfig = Field(description="Primary emulated user account.")
-    api_hammering: ApiHammeringConfig | None = Field(default=None, description="API hammering mitigation settings.")
-    symlinks: list[SymlinkConfig] = Field(default_factory=list, description="Object manager symbolic links.")
-    drives: list[DriveConfig] = Field(default_factory=list, description="Virtual drive metadata.")
-    filesystem: FilesystemConfig = Field(description="Filesystem mapping rules.")
-    registry: RegistryConfig | None = Field(default=None, description="Registry key and value seed data.")
-    network: NetworkConfig = Field(description="Network emulation settings.")
+    domain: str | None = Field(default=DEFAULT_CONFIG_DATA["domain"], description="Domain or workgroup identity.")
+    hostname: str = Field(
+        default=DEFAULT_CONFIG_DATA["hostname"], description="Hostname exposed to emulated system APIs."
+    )
+    user: UserConfig = Field(
+        default_factory=lambda: UserConfig.model_validate(_copy_default_value("user")),
+        description="Primary emulated user account.",
+    )
+    api_hammering: ApiHammeringConfig | None = Field(
+        default_factory=lambda: ApiHammeringConfig.model_validate(_copy_default_value("api_hammering")),
+        description="API hammering mitigation settings.",
+    )
+    symlinks: list[SymlinkConfig] = Field(
+        default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _copy_default_value("symlinks")],
+        description="Object manager symbolic links.",
+    )
+    drives: list[DriveConfig] = Field(
+        default_factory=lambda: [DriveConfig.model_validate(item) for item in _copy_default_value("drives")],
+        description="Virtual drive metadata.",
+    )
+    filesystem: FilesystemConfig = Field(
+        default_factory=lambda: FilesystemConfig.model_validate(_copy_default_value("filesystem")),
+        description="Filesystem mapping rules.",
+    )
+    registry: RegistryConfig | None = Field(
+        default_factory=lambda: RegistryConfig.model_validate(_copy_default_value("registry")),
+        description="Registry key and value seed data.",
+    )
+    network: NetworkConfig = Field(
+        default_factory=lambda: NetworkConfig.model_validate(_copy_default_value("network")),
+        description="Network emulation settings.",
+    )
     processes: list[ProcessConfig] = Field(
-        default_factory=list, description="Process inventory visible to enumeration APIs."
+        default_factory=lambda: [ProcessConfig.model_validate(item) for item in _copy_default_value("processes")],
+        description="Process inventory visible to enumeration APIs.",
     )
-    modules: ModulesConfig = Field(description="Module loading and inventory settings.")
+    modules: ModulesConfig = Field(
+        default_factory=lambda: ModulesConfig.model_validate(_copy_default_value("modules")),
+        description="Module loading and inventory settings.",
+    )
 
 
 def model_to_dict(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="python")
+
+
+def get_default_config() -> SpeakeasyConfig:
+    return SpeakeasyConfig()
+
+
+def get_default_config_dict() -> dict[str, Any]:
+    return model_to_dict(get_default_config())

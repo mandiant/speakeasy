@@ -8,13 +8,11 @@ from pydantic import ValidationError
 
 import speakeasy
 import speakeasy.speakeasy
-from speakeasy.config import SpeakeasyConfig
+from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 
 
 def get_default_config():
-    fpath = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
-    with open(fpath) as ff:
-        return json.load(ff)
+    return get_default_config_dict()
 
 
 def test_speakeasy_configs():
@@ -40,11 +38,11 @@ def test_validation_non_enum():
         speakeasy.speakeasy.validate_config(conf)
 
 
-def test_validation_missing_required_field():
+def test_validation_missing_field_uses_model_default():
     conf = get_default_config()
     conf.pop("emu_engine", None)
-    with pytest.raises(ValidationError):
-        speakeasy.speakeasy.validate_config(conf)
+    model = speakeasy.speakeasy.validate_config(conf)
+    assert model.emu_engine == "unicorn"
 
 
 def test_validation_incorrect_type():

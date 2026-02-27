@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path, PureWindowsPath
 
 import pytest
 
-import speakeasy
-from speakeasy.config import SpeakeasyConfig
+from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 from speakeasy.volumes import apply_volumes, expand_volume_to_entries, parse_volume_spec
 
 
 @pytest.fixture(scope="session")
 def default_config_data():
-    config_path = Path(speakeasy.__file__).resolve().parent / "configs" / "default.json"
-    return json.loads(config_path.read_text())
+    return get_default_config_dict()
 
 
 def test_parse_volume_spec_unix_paths():
