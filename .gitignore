@@ -109,3 +109,4 @@ ENV/
 .idea
 report.json
 /uv.lock
+.claude/

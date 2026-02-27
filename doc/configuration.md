@@ -370,5 +370,5 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 ```
 
 Operational notes:
-- CLI config overrides are generated from `SpeakeasyConfig` field definitions. Runtime config precedence is: built-in `configs/default.json`, then optional `--config` overlay, then explicit CLI flags. `--volume` remains a dedicated shortcut for filesystem mappings.
+- CLI config overrides are generated from `SpeakeasyConfig` field definitions. Runtime config precedence is: built-in model defaults, then optional `--config` overlay, then explicit CLI flags. `--volume` remains a dedicated shortcut for filesystem mappings. Use `--dump-default-config` to emit the built-in default profile.
 - Field behavior for report population is implemented primarily in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`.
