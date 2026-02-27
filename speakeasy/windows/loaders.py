@@ -10,6 +10,26 @@ import speakeasy.winenv.arch as _arch
 
 
 @dataclass
+class ResourceEntry:
+    id: int | str
+    data_rva: int
+    size: int
+    type_id: int | str
+    entry_rva: int # RVA of the IMAGE_RESOURCE_DATA_ENTRY structure
+    lang_id: int = 0
+
+
+@dataclass
+class PeMetadata:
+    subsystem: int
+    timestamp: int
+    machine: int
+    magic: int
+    resources: list[ResourceEntry] = field(default_factory=list)
+    string_table: dict[int, str] = field(default_factory=dict) # For LoadString
+
+
+@dataclass
 class MemoryRegion:
     base: int
     data: bytes
@@ -79,6 +99,7 @@ class LoadedImage:
     tls_directory_va: int | None = None
     loader: Loader | None = None
     sections: list[SectionEntry] = field(default_factory=list)
+    pe_metadata: PeMetadata | None = None
 
 
 class Loader(Protocol):
@@ -130,6 +151,9 @@ class RuntimeModule:
     def get_base_name(self) -> str:
         return ntpath.basename(self.emu_path)
 
+    def get_ep(self) -> int:
+        return self.base + self.ep
+
     def get_exports(self) -> list[ExportEntry]:
         return self._image.exports
 
@@ -148,6 +172,9 @@ class RuntimeModule:
 
     def get_tls_callbacks(self) -> list[int]:
         return self._image.tls_callbacks
+
+    def get_pe_metadata(self) -> PeMetadata | None:
+        return self._image.pe_metadata
 
 
 class PeLoader:
@@ -243,6 +270,60 @@ class PeLoader:
         if self._path:
             name = os.path.splitext(os.path.basename(self._path))[0]
 
+        pe_metadata = PeMetadata(
+            subsystem=pe.OPTIONAL_HEADER.Subsystem,
+            timestamp=pe.FILE_HEADER.TimeDateStamp,
+            machine=pe.FILE_HEADER.Machine,
+            magic=pe.OPTIONAL_HEADER.Magic
+        )
+
+        if hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
+            for resource_type in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+                if resource_type.name is not None:
+                    type_id = str(resource_type.name)
+                else:
+                    type_id = resource_type.struct.Id
+
+                if not hasattr(resource_type, "directory"):
+                    continue
+
+                for resource_id in resource_type.directory.entries:
+                    if resource_id.name is not None:
+                        res_id = str(resource_id.name)
+                    else:
+                        res_id = resource_id.struct.Id
+
+                    # Handle string table specifically for LoadString
+                    if type_id == 6: # RT_STRING
+                         if hasattr(resource_id, "directory"):
+                            for str_entry in resource_id.directory.entries:
+                                # pefile handles strings as a dict {id: string}
+                                if hasattr(str_entry.directory, "strings"):
+                                    for s_id, s_val in str_entry.directory.strings.items():
+                                        pe_metadata.string_table[s_id] = s_val
+
+                    # Regular resource entry
+                    if hasattr(resource_id, "directory"):
+                        for resource_lang in resource_id.directory.entries:
+                            if hasattr(resource_lang, "data"):
+                                data_rva = resource_lang.data.struct.OffsetToData
+                                size = resource_lang.data.struct.Size
+                                lang_id = 0
+                                if hasattr(resource_lang.data.struct, "Id"):
+                                    lang_id = resource_lang.data.struct.Id
+                                # Calculate RVA of the entry structure for HRSRC compatibility
+                                entry_offset = resource_lang.data.struct.get_file_offset()
+                                entry_rva = pe.get_rva_from_offset(entry_offset)
+                                
+                                pe_metadata.resources.append(ResourceEntry(
+                                    id=res_id,
+                                    type_id=type_id,
+                                    data_rva=data_rva,
+                                    size=size,
+                                    lang_id=lang_id,
+                                    entry_rva=entry_rva
+                                ))
+
         return LoadedImage(
             arch=pe.arch,
             module_type=module_type,
@@ -261,6 +342,7 @@ class PeLoader:
             tls_directory_va=tls_directory_va,
             loader=self,
             sections=sections,
+            pe_metadata=pe_metadata,
         )
 
 
@@ -404,6 +486,13 @@ class ApiModuleLoader:
             perms=common.PERM_MEM_RWX,
         )
 
+        pe_metadata = PeMetadata(
+            subsystem=jit.basepe.OPTIONAL_HEADER.Subsystem,
+            timestamp=jit.basepe.FILE_HEADER.TimeDateStamp,
+            machine=jit.basepe.FILE_HEADER.Machine,
+            magic=jit.basepe.OPTIONAL_HEADER.Magic
+        )
+        
         return LoadedImage(
             arch=self._arch,
             module_type="dll",
@@ -419,6 +508,7 @@ class ApiModuleLoader:
             visible_in_peb=True,
             loader=self,
             sections=sections,
+            pe_metadata=pe_metadata,
         )
 
 
@@ -430,6 +520,12 @@ class DecoyLoader:
         self._image_size = image_size
 
     def make_image(self) -> LoadedImage:
+        pe_metadata = PeMetadata(
+            subsystem=2, # IMAGE_SUBSYSTEM_WINDOWS_GUI
+            timestamp=0,
+            machine=0,
+            magic=0
+        )
         return LoadedImage(
             arch=0,
             module_type="decoy",
@@ -444,4 +540,5 @@ class DecoyLoader:
             entry_points=[],
             visible_in_peb=True,
             loader=self,
+            pe_metadata=pe_metadata,
         )
