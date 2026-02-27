@@ -42,5 +42,5 @@ This adds overhead, especially on memory-heavy samples.
 - [CLI analysis recipes](cli-analysis-recipes.md)
 - [Configuration walkthrough](configuration.md)
 - [Report walkthrough](reporting.md)
-- [Performance notes](performance.md)
+- [CLI execution controls](cli-execution-controls.md#performance-and-telemetry-tuning)
 - [Help and troubleshooting](help.md)
