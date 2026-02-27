@@ -118,3 +118,12 @@ speakeasy -t sample.exe \
 ```
 
 This is useful when balancing anti-loop containment with legitimate hot API usage.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [Configuration walkthrough](configuration.md)
+- [Module resolution and decoy exports](module-resolution.md)
+- [Help and troubleshooting](help.md)

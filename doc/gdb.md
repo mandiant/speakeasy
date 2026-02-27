@@ -171,6 +171,14 @@ The GDB integration uses `udbserver`, which installs Unicorn hooks for breakpoin
 
 ## Limitations
 
-- **One session per process**: udbserver uses global state internally, so only one GDB server can be active per process.
-- **Breakpoints persist across runs**: Speakeasy executes multiple "runs" (e.g., DllMain followed by each exported function). Breakpoints set in GDB remain active across all runs, but execution may appear to "restart" at new entry points.
-- **Platform support**: udbserver ships prebuilt binaries for Linux, macOS, and Windows. If your platform is not supported, `--gdb` will fail with an import error.
+- one session per process: udbserver uses global state internally, so only one GDB server can be active per process
+- breakpoints persist across runs: Speakeasy executes multiple runs (for example DllMain and exports), and breakpoints remain active across run boundaries
+- platform support: if your platform is unsupported by udbserver binaries, `--gdb` fails with an import error
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [GDB sessions (showboat)](gdb-examples.md)
+- [CLI execution controls](cli-execution-controls.md)
+- [Help and troubleshooting](help.md)

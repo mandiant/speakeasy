@@ -144,10 +144,13 @@ Memory and dropped-files archives:
 speakeasy --target sample.exe --memory-dump-path memdump.zip --dropped-files-path dropped.zip
 ```
 
-For analyst-focused artifact recipes and environment/control profiles, see:
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
 - [CLI analysis recipes](cli-analysis-recipes.md)
 - [CLI environment overrides](cli-environment-overrides.md)
 - [CLI execution controls](cli-execution-controls.md)
-
-For a full captured `-h` output snapshot from this tree, see:
 - [CLI help snapshot (showboat)](cli-help-showboat.md)
+- [Configuration walkthrough](configuration.md)
+- [Help and troubleshooting](help.md)

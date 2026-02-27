@@ -212,3 +212,11 @@ se.run_module(module)
 ```
 
 See [doc/gdb.md](gdb.md) for the full reference, including IDA Pro integration and limitations.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [GDB debugging reference](gdb.md)
+- [CLI execution controls](cli-execution-controls.md)
+- [Help and troubleshooting](help.md)
