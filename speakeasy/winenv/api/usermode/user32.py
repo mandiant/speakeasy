@@ -55,14 +55,10 @@ class User32(api.ApiHandler):
         return hnd
 
     def find_string_resource_by_id(self, pe, uID):
-        if hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
-            for entry in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-                if entry.id == 6:  # "String Table"
-                    for str_entry in entry.directory.entries:
-                        s = str_entry.directory.strings.get(uID, None)
-                        if s is not None:
-                            return s
-        return None
+        pe_metadata = pe.get_pe_metadata()
+        if not pe_metadata:
+             return None
+        return pe_metadata.string_table.get(uID)
 
     @apihook("GetDesktopWindow", argc=0)
     def GetDesktopWindow(self, emu, argv, ctx={}):
@@ -368,11 +364,14 @@ class User32(api.ApiHandler):
         size = 0
 
         if hInstance == 0:
-            pe = emu.modules[0][0]
+            pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hInstance)
             if pe and hInstance != pe.get_base():
                 return 0
+
+        if not pe:
+            return 0
 
         s = self.find_string_resource_by_id(pe, uID)
         if s is None:
@@ -391,10 +390,8 @@ class User32(api.ApiHandler):
             return 0
 
         if ccBufferMax == 0:
-            # TODO this should be done properly, but requires more research
-            offset = pe.get_memory_mapped_image().find(encoded)
-            emu.mem_write(lpBuffer, (pe.get_base() + offset).to_bytes(emu.get_ptr_size(), "little"))
-            return size
+             # Returning a pointer to the resource string is not supported without raw access
+             return 0
 
         if len(encoded) > ccBufferMax:
             encoded = encoded[: ccBufferMax * cw]

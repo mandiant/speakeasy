@@ -178,36 +178,43 @@ class Kernel32(api.ApiHandler):
         return name
 
     def find_resource(self, pe, name, type_):
-        # find type
-        resource_type = None
+        pe_metadata = pe.get_pe_metadata()
+        if not pe_metadata:
+             return None
 
-        if not hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
+        # The logic here changes to use pe_metadata.resources list
+        # We need to filter by type, then name/id.
+        
+        candidates = []
+        
+        # Normalize type_
+        target_type = str(type_) if isinstance(type_, int) else type_
+        
+        # Find resources matching type
+        for res in pe_metadata.resources:
+            # Check type
+            # pefile types can be int or string. PeMetadata stores them as stored in PE.
+            # Compare normalized as string if possible or int.
+            
+            # Simple matching for now:
+            is_match = False
+            if str(res.type_id) == str(target_type):
+                is_match = True
+            
+            if is_match:
+                candidates.append(res)
+                
+        if not candidates:
             return None
+            
+        # Find resource matching name
+        target_name = str(name) if isinstance(name, int) else name.lower() if isinstance(name, str) else str(name)
 
-        for restype in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-            if type(type_) is str and restype.name is not None:
-                if type_ == restype.name.decode("utf8"):
-                    resource_type = restype
-                    break
-            elif type(type_) is int and hasattr(restype.struct, "Id"):
-                if type_ == restype.struct.Id:
-                    resource_type = restype
-                    break
-
-        if not resource_type:
-            return None
-
-        if not hasattr(resource_type, "directory"):
-            return None
-
-        for resource_id in resource_type.directory.entries:
-            if type(name) is str and resource_id.name is not None:
-                if name.lower() == resource_id.name.decode("utf8").lower():
-                    return resource_id.directory.entries[0]
-            elif type(name) is int and hasattr(resource_id.struct, "Id"):
-                if name == resource_id.struct.Id:
-                    return resource_id.directory.entries[0]
-
+        for res in candidates:
+             res_name = str(res.id).lower() if isinstance(res.id, str) else str(res.id)
+             if res_name == target_name:
+                 return res # Returns ResourceEntry
+                 
         return None
 
     @apihook("GetThreadLocale", argc=0)
@@ -4635,11 +4642,14 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         hModule, lpName, lpType = argv
         if hModule == 0:
-            pe = emu.modules[0][0]
+            pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
             if pe and hModule != pe.get_base():
                 return 0
+
+        if not pe:
+            return 0
 
         name = self.normalize_res_identifier(emu, cw, lpName)
         argv[1] = name
@@ -4649,11 +4659,9 @@ class Kernel32(api.ApiHandler):
         if res is None:
             return 0
 
-        res_dir_rva = pe.get_resource_dir_rva()
-        if res_dir_rva:
-            return pe.get_base() + res_dir_rva + res.struct.OffsetToData
-        else:
-            return 0
+        # Return RVA of IMAGE_RESOURCE_DATA_ENTRY structure + base
+        # This acts as the HRSRC handle which points to the resource entry in mapped memory
+        return pe.get_base() + res.entry_rva
 
     @apihook("FindResourceEx", argc=4)
     def FindResourceEx(self, emu, argv, ctx={}):
@@ -4670,11 +4678,14 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         hModule, lpType, lpName, wLanguage = argv
         if hModule == 0:
-            pe = emu.modules[0][0]
+            pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
             if pe and hModule != pe.get_base():
                 return 0
+
+        if not pe:
+            return 0
 
         name = self.normalize_res_identifier(emu, cw, lpName)
         argv[1] = name
@@ -4684,11 +4695,7 @@ class Kernel32(api.ApiHandler):
         if res is None:
             return 0
 
-        res_dir_rva = pe.get_resource_dir_rva()
-        if res_dir_rva:
-            return pe.get_base() + res_dir_rva + res.struct.OffsetToData
-        else:
-            return 0
+        return pe.get_base() + res.entry_rva
 
     @apihook("LoadResource", argc=2)
     def LoadResource(self, emu, argv, ctx={}):
@@ -4702,11 +4709,14 @@ class Kernel32(api.ApiHandler):
         hModule, hResInfo = argv
 
         if hModule == 0:
-            pe = emu.modules[0][0]
+            pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
             if pe and hModule != pe.get_base():
                 return 0
+
+        if not pe:
+            return 0
 
         res_rva = self.mem_read(hResInfo, 4)
         if res_rva:
@@ -4737,6 +4747,9 @@ class Kernel32(api.ApiHandler):
 
         hModule, hResInfo = argv
 
+        # We don't strictly need pe here for SizeofResource if we trust hResInfo,
+        # but the API takes hModule.
+        # Just use hResInfo which points to IMAGE_RESOURCE_DATA_ENTRY
         if hResInfo:
             res_size = self.mem_read(hResInfo + 4, 4)
             if res_size:

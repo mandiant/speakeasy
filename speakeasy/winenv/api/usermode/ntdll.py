@@ -298,24 +298,31 @@ class Ntdll(api.ApiHandler):
 
         cw = 1  # Always ASCII for this function
         if DllHandle == 0:
-            pe = emu.modules[0][0]
+            pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(DllHandle)
             if pe and DllHandle != pe.get_base():
                 return 0
 
+        if not pe:
+            return 0
+
         type_ptr = emu.read_ptr(ResourceInfo)
         name_ptr = emu.read_ptr(ResourceInfo + emu.get_ptr_size())
 
-        name = k32.normalize_res_identifier(emu, cw, name_ptr)
-        _type = k32.normalize_res_identifier(emu, cw, type_ptr)
+        try:
+            name = k32.normalize_res_identifier(emu, cw, name_ptr)
+            _type = k32.normalize_res_identifier(emu, cw, type_ptr)
+        except Exception:
+            return 0
 
         res = k32.find_resource(pe, name, _type)
         if res is None:
             return 0
 
         hnd = k32.get_handle()
-        resource = {"ptr": pe.get_base() + res.data.struct.OffsetToData, "size": res.data.struct.Size}
+        # res is ResourceEntry now, use data_rva and size directly
+        resource = {"ptr": pe.get_base() + res.data_rva, "size": res.size}
 
         k32.find_resources.update({hnd: resource})
 
