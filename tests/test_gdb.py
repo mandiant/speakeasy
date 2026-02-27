@@ -35,12 +35,16 @@ class GdbRspClient:
 
     @staticmethod
     def _decode_rle(data: str) -> str:
-        """Decode GDB RSP run-length encoding: x*Y repeats x (ord(Y)-29) times."""
+        """Decode GDB RSP run-length encoding.
+
+        x*N means: one explicit x, then (ord(N)-29) additional copies.
+        """
         result = []
         i = 0
         while i < len(data):
             if i + 2 < len(data) and data[i + 1] == "*":
-                result.append(data[i] * (ord(data[i + 2]) - 29))
+                repeat = ord(data[i + 2]) - 29
+                result.append(data[i] * (repeat + 1))
                 i += 3
             else:
                 result.append(data[i])
@@ -184,7 +188,6 @@ def test_gdb_connect_and_read_registers(gdb_emulator):
         client.close()
 
 
-@pytest.mark.xfail(reason="udbserver memory read returns E01 for all addresses")
 def test_gdb_read_memory(gdb_emulator):
     port = gdb_emulator
     client = GdbRspClient(port)
@@ -204,7 +207,6 @@ def test_gdb_read_memory(gdb_emulator):
         client.close()
 
 
-@pytest.mark.xfail(reason="udbserver single-step does not advance EIP")
 def test_gdb_single_step(gdb_emulator):
     port = gdb_emulator
     client = GdbRspClient(port)
