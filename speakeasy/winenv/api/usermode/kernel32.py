@@ -180,41 +180,41 @@ class Kernel32(api.ApiHandler):
     def find_resource(self, pe, name, type_):
         pe_metadata = pe.get_pe_metadata()
         if not pe_metadata:
-             return None
+            return None
 
         # The logic here changes to use pe_metadata.resources list
         # We need to filter by type, then name/id.
-        
+
         candidates = []
-        
+
         # Normalize type_
         target_type = str(type_) if isinstance(type_, int) else type_
-        
+
         # Find resources matching type
         for res in pe_metadata.resources:
             # Check type
             # pefile types can be int or string. PeMetadata stores them as stored in PE.
             # Compare normalized as string if possible or int.
-            
+
             # Simple matching for now:
             is_match = False
             if str(res.type_id) == str(target_type):
                 is_match = True
-            
+
             if is_match:
                 candidates.append(res)
-                
+
         if not candidates:
             return None
-            
+
         # Find resource matching name
         target_name = str(name) if isinstance(name, int) else name.lower() if isinstance(name, str) else str(name)
 
         for res in candidates:
-             res_name = str(res.id).lower() if isinstance(res.id, str) else str(res.id)
-             if res_name == target_name:
-                 return res # Returns ResourceEntry
-                 
+            res_name = str(res.id).lower() if isinstance(res.id, str) else str(res.id)
+            if res_name == target_name:
+                return res  # Returns ResourceEntry
+
         return None
 
     @apihook("GetThreadLocale", argc=0)
