@@ -1,58 +1,77 @@
 # CLI reference
 
-## Overview
+## Invocation and required input
 
-`speakeasy` combines runtime execution flags with configuration-model overrides.
+Basic emulation invocation:
 
-Runtime config precedence:
-1. built-in model defaults (`SpeakeasyConfig`)
-2. optional `--config` JSON overlay
-3. explicit CLI overrides
+```bash
+speakeasy --target <path-to-sample> [flags]
+```
 
-At execution start, Speakeasy logs the active config values at INFO level.
+Rules:
+- `--target` is required for emulation runs.
+- `--dump-default-config` is the only mode that does not require `--target`.
+
+Default config dump:
+
+```bash
+speakeasy --dump-default-config > default-config.json
+```
 
 ## Runtime-only flags
 
-- `-t, --target`: input file path to emulate
-- `-o, --output`: write emulation report JSON
-- `-p, --params`: argv values for emulated process
-- `-c, --config`: optional config overlay JSON file
-- `--dump-default-config`: print built-in default config JSON and exit
-- `-r, --raw`: emulate input as raw shellcode/blob
-- `--raw_offset`: raw mode start offset (hex)
-- `-a, --arch`: `x86` or `amd64` (primarily for raw mode)
-- `-d, --dump`: write memory dump archive zip
-- `-z, --dropped-files`: write dropped-files archive zip
-- `-k, --emulate-children`: emulate child processes
-- `--no-mp`: run in-process instead of child process
+These flags are not generated from the config schema.
+
+- `-t, --target`: input file to emulate
+- `-o, --output`: output report JSON path
+- `--argv`: argv values for the emulated process
+- `-c, --config`: JSON config overlay file
+- `--dump-default-config`: print built-in default config and exit
+- `--raw`: treat input as raw bytes/shellcode
+- `--raw-offset`: raw execution start offset (hex)
+- `--arch`: architecture override (`x86`, `amd64`; `x64` accepted in raw mode)
+- `--memory-dump-path`: memory dump archive output path
+- `--dropped-files-path`: dropped-files archive output path
+- `-k, --emulate-children`: emulate child processes spawned by the sample
+- `--no-mp`: run in current process instead of worker process
 - `-v, --verbose`: DEBUG logging
-- `--gdb`: enable GDB remote stub
-- `--gdb-port`: GDB server port
+- `--gdb`: enable GDB stub and pause before first instruction
+- `--gdb-port`: GDB stub port (default `1234`)
 - `-V, --volume`: host_path:guest_path mapping (repeatable)
+
+Notes:
+- `--gdb` implies `--no-mp`; Speakeasy enables this automatically.
+- `--raw-offset` is parsed as base-16.
+- option abbreviations are disabled; pass full flag names.
 
 ## Schema-derived config flags
 
-Flag names are generated from config paths:
-- dots become dashes
-- underscores become dashes
-- booleans get dual form: `--flag` and `--no-flag`
+Most scalar/toggle/list/mapping fields in `SpeakeasyConfig` are exposed as CLI flags.
 
-Examples:
-- `analysis.memory_tracing` -> `--analysis-memory-tracing`
-- `modules.module_directory_x86` -> `--modules-module-directory-x86`
-- `user.is_admin` -> `--user-is-admin` / `--no-user-is-admin`
+Naming rules:
+- config path `a.b_c` maps to `--a-b-c`
+- booleans use dual form: `--flag` and `--no-flag`
+- dict mappings use repeatable `KEY=VALUE`
+- list values use repeatable `VALUE`
 
-### Scalar and boolean flags
+### Current schema-derived flags (complete list)
 
+Boolean toggles:
+- `--analysis-memory-tracing` / `--no-analysis-memory-tracing`
+- `--analysis-strings` / `--no-analysis-strings`
+- `--analysis-coverage` / `--no-analysis-coverage`
+- `--keep-memory-on-free` / `--no-keep-memory-on-free`
+- `--capture-memory-dumps` / `--no-capture-memory-dumps`
+- `--exceptions-dispatch-handlers` / `--no-exceptions-dispatch-handlers`
+- `--user-is-admin` / `--no-user-is-admin`
+- `--api-hammering-enabled` / `--no-api-hammering-enabled`
+- `--modules-modules-always-exist` / `--no-modules-modules-always-exist`
+- `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
+
+Scalars:
 - `--timeout`
 - `--max-api-count`
 - `--max-instructions`
-- `--analysis-memory-tracing`
-- `--analysis-strings`
-- `--analysis-coverage`
-- `--keep-memory-on-free`
-- `--capture-memory-dumps`
-- `--exceptions-dispatch-handlers`
 - `--os-ver-major`
 - `--os-ver-minor`
 - `--os-ver-release`
@@ -62,61 +81,73 @@ Examples:
 - `--domain`
 - `--hostname`
 - `--user-name`
-- `--user-is-admin`
 - `--user-sid`
-- `--api-hammering-enabled`
 - `--api-hammering-threshold`
-- `--modules-modules-always-exist`
-- `--modules-functions-always-exist`
 - `--modules-module-directory-x86`
 - `--modules-module-directory-x64`
 
-### Mapping/list flags
-
-- `--env KEY=VALUE` (repeatable; updates specified keys only)
-- `--network-dns-names KEY=VALUE` (repeatable; updates specified keys only)
+Mappings/lists:
+- `--env KEY=VALUE` (repeatable)
+- `--network-dns-names KEY=VALUE` (repeatable)
 - `--api-hammering-allow-list VALUE` (repeatable)
 
-## Unsupported complex config fields on CLI
+## Config precedence
 
-These remain config-file-only due to complexity and poor command-line ergonomics:
-- filesystem file handlers (`filesystem.files`)
-- registry trees (`registry.keys`)
-- structured network response lists (`network.http.responses`, `network.winsock.responses`, `network.dns.txt`)
-- process/module inventories (`processes`, `modules.user_modules`, `modules.system_modules`)
-- symlink and drive object lists (`symlinks`, `drives`)
+Active runtime config is built in this order:
+1. built-in defaults (`SpeakeasyConfig`)
+2. optional `--config` JSON overlay
+3. explicit CLI overrides
 
-Use `--config` for those structures, with targeted CLI overrides for simple fields.
+Conflict example:
+
+```bash
+speakeasy --target sample.exe \
+  --config profile.json \
+  --timeout 20 \
+  --no-analysis-strings \
+  --output report.json
+```
+
+If `profile.json` sets `timeout=120` and `analysis.strings=true`, effective runtime values are `timeout=20` and `analysis.strings=false`.
+
+## Unsupported complex fields on CLI
+
+The following fields are config-file-only:
+- schema/meta: `config_version`, `description`, `emu_engine`, `system`, `os_ver.name`
+- object lists and nested structures:
+  - `symlinks`, `drives`
+  - `filesystem.files`
+  - `registry.keys`
+  - `network.adapters`, `network.dns.txt`, `network.http.responses`, `network.winsock.responses`
+  - `processes`
+  - `modules.user_modules`, `modules.system_modules`
+
+Rationale: these are nested or large structures and are not ergonomic as CLI arguments.
 
 ## Concrete examples
 
-Default config dump:
+Simple PE run:
 
 ```bash
-speakeasy --dump-default-config
+speakeasy --target sample.exe --output report.json
 ```
 
-Overlay + CLI override precedence:
+Raw shellcode run:
 
 ```bash
-speakeasy -t sample.exe \
-  --config profile.json \
-  --timeout 20 \
-  --analysis-coverage \
-  --no-analysis-strings
+speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output report.json
 ```
 
-Raw shellcode with explicit architecture:
+Memory and dropped-files archives:
 
 ```bash
-speakeasy -t shellcode.bin -r -a x86 --raw_offset 0x20
+speakeasy --target sample.exe --memory-dump-path memdump.zip --dropped-files-path dropped.zip
 ```
 
-Map host artifacts and override DNS/env keys:
+For analyst-focused artifact recipes and environment/control profiles, see:
+- [CLI analysis recipes](cli-analysis-recipes.md)
+- [CLI environment overrides](cli-environment-overrides.md)
+- [CLI execution controls](cli-execution-controls.md)
 
-```bash
-speakeasy -t sample.exe \
-  -V /tmp/stage:c:\\windows\\temp \
-  --env TEMP=c:\\windows\\temp \
-  --network-dns-names c2.example=203.0.113.50
-```
+For a full captured `-h` output snapshot from this tree, see:
+- [CLI help snapshot (showboat)](cli-help-showboat.md)

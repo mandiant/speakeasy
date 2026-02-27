@@ -95,10 +95,11 @@ For more examples, see the [examples](examples/) directory.
 For users who don't wish to programatically interact with the speakeasy framework as a library, a standalone script is provided to automatically emulate Windows binaries. Speakeasy can be invoked by running the command `speakeasy`. This command will parse a specified PE and invoke the appropriate emulator (kernel mode or user mode). The script's parameters are shown below.
 
 ```
-usage: speakeasy [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-r]
-                 [--raw_offset RAW_OFFSET] [-a ARCH] [-d DUMP_PATH]
-                 [-z DROP_FILES_PATH] [-k] [--no-mp] [-v] [--gdb]
-                 [--gdb-port GDB_PORT] [-V HOST:GUEST]
+usage: speakeasy [-h] [-t TARGET] [-o OUTPUT] [--argv [ARGV ...]] [-c CONFIG]
+                 [--dump-default-config] [--raw] [--raw-offset RAW_OFFSET]
+                 [--arch ARCH] [--memory-dump-path MEMORY_DUMP_PATH]
+                 [--dropped-files-path DROPPED_FILES_PATH] [-k] [--no-mp] [-v]
+                 [--gdb] [--gdb-port GDB_PORT] [-V HOST:GUEST]
                  [config-derived flags...]
 ```
 
@@ -127,6 +128,9 @@ At execution start, speakeasy logs the active configuration values at INFO level
 CLI deep references:
 - [CLI reference](doc/cli-reference.md)
 - [CLI analysis recipes](doc/cli-analysis-recipes.md)
+- [CLI environment overrides](doc/cli-environment-overrides.md)
+- [CLI execution controls](doc/cli-execution-controls.md)
+- [CLI help snapshot (showboat)](doc/cli-help-showboat.md)
 
 ---
 
@@ -141,13 +145,13 @@ user@mybox:~/speakeasy$ speakeasy -t ~/drivers/MyDriver.sys
 Emulating 32-bit Windows shellcode:
 
 ```console
-user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x86
+user@mybox:~/speakeasy$ speakeasy --target ~/sc.bin --raw --arch x86
 ```
 
 Emulating 64-bit Windows shellcode and create a full memory dump:
 
 ```console
-user@mybox:~/speakeasy$ speakeasy -t ~/sc.bin  -r -a x64 -d memdump.zip
+user@mybox:~/speakeasy$ speakeasy --target ~/sc.bin --raw --arch x64 --memory-dump-path memdump.zip
 ```
 
 ---
@@ -472,6 +476,11 @@ se.run_module(module)
 
 ## Further information
 
+- [doc/cli-reference](doc/cli-reference.md)
+- [doc/cli-analysis-recipes](doc/cli-analysis-recipes.md)
+- [doc/cli-environment-overrides](doc/cli-environment-overrides.md)
+- [doc/cli-execution-controls](doc/cli-execution-controls.md)
+- [doc/cli-help-showboat](doc/cli-help-showboat.md)
 - [doc/configuration](doc/configuration.md)
 - [doc/memory](doc/memory.md)
 - [doc/reporting](doc/reporting.md)

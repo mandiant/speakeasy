@@ -369,6 +369,33 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 }
 ```
 
-Operational notes:
-- CLI config overrides are generated from `SpeakeasyConfig` field definitions. Runtime config precedence is: built-in model defaults, then optional `--config` overlay, then explicit CLI flags. `--volume` remains a dedicated shortcut for filesystem mappings. Use `--dump-default-config` to emit the built-in default profile.
-- Field behavior for report population is implemented primarily in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`.
+## CLI mapping and precedence
+
+CLI config overrides are generated from `SpeakeasyConfig` field definitions.
+
+Mapping rules:
+- config path `a.b_c` maps to `--a-b-c`
+- booleans map to dual flags (`--flag` / `--no-flag`)
+- `dict[str, str]` maps to repeatable `--flag KEY=VALUE`
+- `list[str]` maps to repeatable `--flag VALUE`
+
+Examples:
+- `analysis.coverage` -> `--analysis-coverage`
+- `analysis.strings` -> `--analysis-strings` / `--no-analysis-strings`
+- `network.dns.names` -> `--network-dns-names c2.example=203.0.113.10`
+- `api_hammering.allow_list` -> `--api-hammering-allow-list kernel32.WriteFile`
+
+Runtime precedence:
+1. built-in model defaults
+2. optional `--config` overlay
+3. explicit CLI flags
+
+`--volume` is a dedicated shortcut for filesystem mappings and is applied before schema-derived CLI overrides.
+
+Use `--dump-default-config` to emit the built-in default profile.
+
+Complex nested structures remain config-file-only (for example `filesystem.files`, `registry.keys`, `processes`, `modules.user_modules`, `modules.system_modules`, and structured network response lists).
+
+## Operational notes
+
+Field behavior for report population is implemented primarily in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`.

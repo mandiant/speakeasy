@@ -40,8 +40,8 @@ def emulate_binary(
     argv,
     do_raw,
     arch="",
-    drop_path="",
-    dump_path="",
+    dropped_files_path="",
+    memory_dump_path="",
     raw_offset=0x0,
     emulate_children=False,
     verbose=False,
@@ -72,17 +72,17 @@ def emulate_binary(
             report = se.get_json_report()
         q.put(report)
 
-        if dump_path and se is not None:
+        if memory_dump_path and se is not None:
             data = se.create_memdump_archive()
-            logger.info("* Saving memory dump archive to %s", dump_path)
-            with open(dump_path, "wb") as f:
+            logger.info("* Saving memory dump archive to %s", memory_dump_path)
+            with open(memory_dump_path, "wb") as f:
                 f.write(data)
 
-        if drop_path and se is not None:
+        if dropped_files_path and se is not None:
             data = se.create_file_archive()
             if data:
-                logger.info("* Saving dropped files archive to %s", drop_path)
-                with open(drop_path, "wb") as f:
+                logger.info("* Saving dropped files archive to %s", dropped_files_path)
+                with open(dropped_files_path, "wb") as f:
                     f.write(data)
             else:
                 logger.info("* No dropped files found")
@@ -92,8 +92,8 @@ class Main:
     def __init__(self, parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> None:
         self.target = args.target
         self.output = args.output
-        self.dump_path = args.dump_path
-        self.drop_files_path = args.drop_files_path
+        self.memory_dump_path = args.memory_dump_path
+        self.dropped_files_path = args.dropped_files_path
         self.config_path = args.config
         self.emulate_children = args.emulate_children
         self.cfg: dict = {}
@@ -101,7 +101,7 @@ class Main:
         self.raw_offset = args.raw_offset
         self.arch = args.arch
         self.timeout = 0.0
-        self.argv = args.params
+        self.argv = args.argv
         self.verbose = args.verbose
         self.gdb_port = args.gdb_port if args.gdb else None
 
@@ -151,8 +151,8 @@ class Main:
                 self.argv,
                 self.do_raw,
                 self.arch,
-                self.drop_files_path,
-                self.dump_path,
+                self.dropped_files_path,
+                self.memory_dump_path,
                 raw_offset=self.raw_offset,
                 emulate_children=self.emulate_children,
                 verbose=self.verbose,
@@ -170,8 +170,8 @@ class Main:
                     self.argv,
                     self.do_raw,
                     self.arch,
-                    self.drop_files_path,
-                    self.dump_path,
+                    self.dropped_files_path,
+                    self.memory_dump_path,
                 ),
                 kwargs={
                     "raw_offset": self.raw_offset,
@@ -217,7 +217,7 @@ class Main:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Emulate a Windows binary with speakeasy")
+    parser = argparse.ArgumentParser(description="Emulate a Windows binary with speakeasy", allow_abbrev=False)
     parser.add_argument(
         "-t", "--target", action="store", dest="target", required=False, help="Path to input file to emulate"
     )
@@ -225,12 +225,11 @@ def main():
         "-o", "--output", action="store", dest="output", required=False, help="Path to output file to save report"
     )
     parser.add_argument(
-        "-p",
-        "--params",
+        "--argv",
         action="store",
         default=[],
         nargs="*",
-        dest="params",
+        dest="argv",
         required=False,
         help="Commandline parameters to supply to emulated process (e.g. main(argv))",
     )
@@ -245,7 +244,6 @@ def main():
         help="Print built-in default config JSON and exit",
     )
     parser.add_argument(
-        "-r",
         "--raw",
         action="store_true",
         dest="do_raw",
@@ -253,7 +251,7 @@ def main():
         help="Attempt to emulate file as-is with no parsing (e.g. shellcode)",
     )
     parser.add_argument(
-        "--raw_offset",
+        "--raw-offset",
         type=lambda s: int(s, 0x10),
         default=0,
         required=False,
@@ -261,7 +259,6 @@ def main():
         help="When in raw mode, offset (hex) to start emulating",
     )
     parser.add_argument(
-        "-a",
         "--arch",
         action="store",
         dest="arch",
@@ -270,18 +267,16 @@ def main():
         "Supported archs: [ x86 | amd64 ]",
     )
     parser.add_argument(
-        "-d",
-        "--dump",
+        "--memory-dump-path",
         action="store",
-        dest="dump_path",
+        dest="memory_dump_path",
         required=False,
         help="Path to store compressed memory dump package",
     )
     parser.add_argument(
-        "-z",
-        "--dropped-files",
+        "--dropped-files-path",
         action="store",
-        dest="drop_files_path",
+        dest="dropped_files_path",
         required=False,
         help="Path to store files created during emulation",
     )

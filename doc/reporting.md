@@ -26,6 +26,15 @@ Entry-point highlights:
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional compressed region data when `capture_memory_dumps=true`.
 
+## Report fields to recipe flags
+
+- top-level `strings` is controlled by `--analysis-strings` / `--no-analysis-strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
+- `entry_points[*].coverage` is populated by `--analysis-coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
+- `entry_points[*].sym_accesses` and `entry_points[*].memory.layout[*].accesses` are populated by `--analysis-memory-tracing` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
+- `entry_points[*].memory.layout[*].data` is populated by `--capture-memory-dumps` ([recipe](cli-analysis-recipes.md#recipe-capture-memory-dumps)).
+- `entry_points[*].dropped_files` is report-native file artifact capture; archive export is controlled separately by `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
+- memory archive export is controlled by `--memory-dump-path` ([recipe](cli-analysis-recipes.md#recipe-memory-dump)).
+
 ## Annotated report schema example
 
 ```jsonc
