@@ -103,7 +103,7 @@ Breakpoint 1, 0x10001000 in ?? ()
 ### Debugging shellcode
 
 ```console
-speakeasy -t shellcode.bin -r -a x86 --gdb
+speakeasy --target shellcode.bin --raw --arch x86 --gdb
 ```
 
 ```console

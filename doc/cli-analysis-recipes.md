@@ -2,27 +2,29 @@
 
 This page focuses on practical flag combinations for common analysis outputs.
 
-## 1. Memory dump archive (`--dump`)
+<a id="recipe-memory-dump"></a>
+## Memory dump archive (`--memory-dump-path`)
 
 Command:
 
 ```bash
-speakeasy -t sample.exe --dump memdump.zip
+speakeasy -t sample.exe --memory-dump-path memdump.zip
 ```
 
-What you get:
-- zip archive containing dumped memory blocks and manifest
+Expected artifact:
+- `memdump.zip` with dumped memory blocks and a manifest
 
-Quick check:
+Quick verification:
 
 ```bash
 unzip -l memdump.zip
 ```
 
-Notes:
-- archive size can be large for long runs or multi-process behavior
+Tradeoff:
+- archive size can grow quickly for long or multi-process runs
 
-## 2. In-report memory bytes (`--capture-memory-dumps`)
+<a id="recipe-capture-memory-dumps"></a>
+## In-report memory bytes (`--capture-memory-dumps`)
 
 Command:
 
@@ -30,20 +32,20 @@ Command:
 speakeasy -t sample.exe --capture-memory-dumps -o report.json
 ```
 
-What you get:
-- `entry_points[*].memory.layout[*].data` populated with base64(zlib(raw bytes))
+Expected artifact:
+- `entry_points[*].memory.layout[*].data` populated with `base64(zlib(raw_bytes))`
 
-Quick check:
+Quick verification:
 
 ```bash
 jq '.entry_points[].memory.layout[] | select(.data != null) | .tag' report.json
 ```
 
-Notes:
-- this can dramatically increase report size
-- prefer archive dumps (`--dump`) when raw bytes are needed outside the report
+Tradeoff:
+- report size increases significantly
 
-## 3. Coverage collection (`--analysis-coverage`)
+<a id="recipe-analysis-coverage"></a>
+## Coverage collection (`--analysis-coverage`)
 
 Command:
 
@@ -51,19 +53,20 @@ Command:
 speakeasy -t sample.exe --analysis-coverage -o report.json
 ```
 
-What you get:
-- `entry_points[*].coverage` lists executed instruction addresses
+Expected artifact:
+- `entry_points[*].coverage` contains executed instruction addresses
 
-Quick check:
+Quick verification:
 
 ```bash
 jq '.entry_points[] | {start_addr, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
-Notes:
-- adds runtime overhead due to additional tracing hooks
+Tradeoff:
+- extra tracing overhead increases runtime
 
-## 4. Memory tracing (`--analysis-memory-tracing`)
+<a id="recipe-memory-tracing"></a>
+## Memory tracing (`--analysis-memory-tracing`)
 
 Command:
 
@@ -71,22 +74,23 @@ Command:
 speakeasy -t sample.exe --analysis-memory-tracing -o report.json
 ```
 
-What you get:
-- memory access counters per region
-- symbol access summaries when available
+Expected artifact:
+- per-region access counters in `memory.layout[*].accesses`
+- symbol access summaries in `sym_accesses`
 
-Quick check:
+Quick verification:
 
 ```bash
 jq '.entry_points[] | {start_addr, sym_accesses: (.sym_accesses // [] | length)}' report.json
 ```
 
-Notes:
-- can significantly reduce execution speed on memory-heavy samples
+Tradeoff:
+- substantial runtime impact on memory-heavy samples
 
-## 5. String extraction controls (`--analysis-strings`)
+<a id="recipe-analysis-strings"></a>
+## String extraction controls (`--analysis-strings` / `--no-analysis-strings`)
 
-Enable (default behavior):
+Enable:
 
 ```bash
 speakeasy -t sample.exe --analysis-strings -o report.json
@@ -98,36 +102,38 @@ Disable:
 speakeasy -t sample.exe --no-analysis-strings -o report.json
 ```
 
-Quick check:
+Quick verification:
 
 ```bash
 jq '.strings' report.json
 ```
 
-Notes:
-- disabling strings can reduce report size and post-processing time
+Tradeoff:
+- disabling strings reduces report size and post-processing time
 
-## 6. Dropped files archive (`--dropped-files`)
+<a id="recipe-dropped-files"></a>
+## Dropped files archive (`--dropped-files-path`)
 
 Command:
 
 ```bash
-speakeasy -t sample.exe --dropped-files dropped.zip
+speakeasy -t sample.exe --dropped-files-path dropped.zip
 ```
 
-What you get:
-- zip archive containing file artifacts written during emulation and manifest
+Expected artifact:
+- `dropped.zip` with files written during emulation and a manifest
 
-Quick check:
+Quick verification:
 
 ```bash
 unzip -l dropped.zip
 ```
 
-Notes:
-- useful for staging second-stage payload extraction workflows
+Tradeoff:
+- captures useful payload artifacts but adds archive creation overhead
 
-## 7. Combined triage profile
+<a id="recipe-combined-triage"></a>
+## Combined triage profile
 
 Command:
 
@@ -137,9 +143,9 @@ speakeasy -t sample.exe \
   --analysis-coverage \
   --analysis-memory-tracing \
   --capture-memory-dumps \
-  --dropped-files dropped.zip \
-  --dump memdump.zip \
+  --dropped-files-path dropped.zip \
+  --memory-dump-path memdump.zip \
   -o report.json
 ```
 
-Use this when you want one run with broad telemetry and artifact capture.
+Use this profile when you want broad telemetry and artifact capture in one run.

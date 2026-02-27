@@ -16,7 +16,7 @@ Generally, memory will be freed when the sample calls APIs that free blocks of m
 ---
 
 ## Acquiring memory
-Full memory dumps can be acquired by calling the top level `get_memory_dumps()` api or using the standalone script with the `-d` option.
+Full memory dumps can be acquired by calling the top level `get_memory_dumps()` api or using the standalone script with the `--memory-dump-path` option.
 
 ---
 
