@@ -141,3 +141,10 @@ options:
                         Search path for x64 decoy modules. (default:
                         '$ROOT$/winenv/decoys/amd64')
 ```
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [Help and troubleshooting](help.md)

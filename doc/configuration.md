@@ -399,3 +399,14 @@ Complex nested structures remain config-file-only (for example `filesystem.files
 ## Operational notes
 
 Field behavior for report population is implemented primarily in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [CLI environment overrides](cli-environment-overrides.md)
+- [CLI execution controls](cli-execution-controls.md)
+- [Report walkthrough](reporting.md)
+- [Module resolution and decoy exports](module-resolution.md)
+- [Help and troubleshooting](help.md)

@@ -415,3 +415,13 @@ Entry-point highlights:
   ]
 }
 ```
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [Configuration walkthrough](configuration.md)
+- [CLI analysis recipes](cli-analysis-recipes.md)
+- [CLI execution controls](cli-execution-controls.md)
+- [Memory management](memory.md)
+- [Help and troubleshooting](help.md)

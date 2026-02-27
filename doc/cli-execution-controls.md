@@ -74,3 +74,13 @@ speakeasy -t sample.exe \
 ```
 
 Use this when you want step control and richer telemetry during one run.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [CLI analysis recipes](cli-analysis-recipes.md)
+- [GDB debugging reference](gdb.md)
+- [Performance notes](performance.md)
+- [Help and troubleshooting](help.md)

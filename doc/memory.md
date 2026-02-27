@@ -1,25 +1,46 @@
-# Memory Management
----
-Speakeasy implements a lightweight memory manager on top of the emulator engine’s memory management. Each chunk of memory allocated by malware is tracked and tagged so that meaningful memory dumps can be acquired. Being able to attribute activity to specific chunks of memory can prove to be extremely useful for analysts. Logging memory reads and writes to sensitive data structures can reveal the true intent of malware not revealed by API call logging which is particularly useful for samples such as rootkits.
+# Memory management
 
-## Memory Tagging
-Each memory allocation has a tag associated with it so its origin can be determined with the following namespacing:
+Speakeasy layers a memory manager on top of the emulator engine and tracks each mapped region with tags and metadata that can be exported in reports.
+
+## Memory tagging
+
+Each allocation is tagged with this namespace format:
+
 `<origin>.<object_type>.<object_name>.<base_address>`
 
-Typically, the "origin" is set to either `emu` or `api`. The `emu` origin means the emulator engine itself allocated the memory block. Examples of memory allocated by emulator are memory mapped images, stacks, or core data structures (e.g. TEB and PEB). When a memory mapping has the origin of `api` it means it was allocated by an API handler invoked by the emulated sample. For example, if a malware sample allocates memory with the VirtualAlloc API, the resulting memory mapping will begin with the following tag: `api.VirtualAlloc`.
+Typical origins:
 
----
+- `emu`: memory mapped by emulator internals (images, stacks, core runtime structures)
+- `api`: memory allocated via API handlers (for example `VirtualAlloc` paths)
 
-## Memory Freezing
-Generally, memory will be freed when the sample calls APIs that free blocks of memory. There is a configuration option named `keep_memory_on_free` that will instruct the emulator to not free memory blocks when requested. This can be useful when memory contents are important for analysis and a sample attempts to obfucate or remove memory.
+## Memory freezing
 
----
+Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep mappings after free operations. This is useful when samples allocate, populate, and free buffers quickly but you still need to inspect resulting artifacts.
 
-## Acquiring memory
-Full memory dumps can be acquired by calling the top level `get_memory_dumps()` api or using the standalone script with the `--memory-dump-path` option.
+## Memory acquisition modes
 
----
+Archive export:
 
-## Memory Tracing
-A configuration option named `memory_tracing` exists that when enabled will track each read, write and execution to each memory block. Note: this can greatly decrease performance since hooks are setup to track these events. 
+- `--memory-dump-path <zip>` writes a dump archive
 
+In-report bytes:
+
+- `--capture-memory-dumps` embeds `base64(zlib(raw_bytes))` in report memory regions
+
+You can use either mode or both together.
+
+## Memory tracing
+
+Set `analysis.memory_tracing` (or `--analysis-memory-tracing`) to track per-region read/write/execute counters and symbol access summaries.
+
+This adds overhead, especially on memory-heavy samples.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI analysis recipes](cli-analysis-recipes.md)
+- [Configuration walkthrough](configuration.md)
+- [Report walkthrough](reporting.md)
+- [Performance notes](performance.md)
+- [Help and troubleshooting](help.md)

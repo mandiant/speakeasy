@@ -149,3 +149,13 @@ speakeasy -t sample.exe \
 ```
 
 Use this profile when you want broad telemetry and artifact capture in one run.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [CLI execution controls](cli-execution-controls.md)
+- [Configuration walkthrough](configuration.md)
+- [Report walkthrough](reporting.md)
+- [Help and troubleshooting](help.md)

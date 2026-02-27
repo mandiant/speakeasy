@@ -241,8 +241,18 @@ Speakeasy now provides a built-in GDB remote stub via udbserver and can pause be
 
 Quick way to use it: in terminal 1 run `speakeasy -t sample.dll --gdb --gdb-port 1234` and wait for the listener message; Speakeasy will force `--no-mp` automatically so the stub stays attached to the same Unicorn instance. In terminal 2 run `gdb-multiarch`, then `set architecture i386` (or `i386:x86-64` for 64-bit), and `target remote localhost:1234`; from there standard commands like `info registers`, `x/10i $pc`, `break *0x...`, `stepi`, and `continue` work as expected.
 
-For the full reference and caveats, use [doc/gdb.md](gdb.md), and for copy/paste real sessions use [doc/gdb-examples.md](gdb-examples.md) plus the README section [Debugging with GDB](../README.md#debugging-with-gdb). Those docs cover the practical details this summary skips, including IDA Remote GDB setup, one-session-per-process limits, and how breakpoints behave across multi-run flows like DllMain plus exports.
+For the full reference and caveats, use [doc/gdb.md](gdb.md) and [doc/gdb-examples.md](gdb-examples.md). Those docs cover the practical details this summary skips, including IDA Remote GDB setup, one-session-per-process limits, and how breakpoints behave across multi-run flows like DllMain plus exports.
 
 ## Timeout enforcement across multi-run and parent supervision
 
 Timeout handling was tightened so configured limits apply consistently across chained entry-point runs and parent-process control logic. This closes cases where retry loops or queue waits could effectively outlive the requested timeout. Users should now see more predictable stop behavior on long or stalled analyses.
+
+## Related docs
+
+- [Project README](../README.md)
+- [Documentation index](index.md)
+- [CLI reference](cli-reference.md)
+- [Configuration walkthrough](configuration.md)
+- [Report walkthrough](reporting.md)
+- [GDB debugging reference](gdb.md)
+- [Help and troubleshooting](help.md)
