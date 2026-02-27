@@ -116,11 +116,17 @@ Mapping fields are repeatable with `KEY=VALUE` syntax:
 
 Runtime config precedence is:
 
-1. built-in `speakeasy/configs/default.json`
+1. built-in `SpeakeasyConfig` defaults
 2. optional `--config` overlay
 3. explicit CLI overrides
 
+Use `--dump-default-config` to print the full built-in default profile as JSON.
+
 At execution start, speakeasy logs the active configuration values at INFO level.
+
+CLI deep references:
+- [CLI reference](doc/cli-reference.md)
+- [CLI analysis recipes](doc/cli-analysis-recipes.md)
 
 ---
 
@@ -304,7 +310,7 @@ Common high-impact fields:
 - `processes[*].is_main_exe`, `modules.user_modules/system_modules`: process and loader context presented to the sample.
 - `capture_memory_dumps`, `keep_memory_on_free`: memory artifact retention and report size.
 
-Start from `speakeasy/configs/default.json` and then tune only the fields needed for the target sample family.
+Start from `speakeasy --dump-default-config` output and then tune only the fields needed for the target sample family.
 
 Deep reference:
 - [Configuration walkthrough](doc/configuration.md)
