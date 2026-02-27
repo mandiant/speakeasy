@@ -1,83 +1,374 @@
-# Configuration
----
-Speakeasy uses configuration files that describe the environment that is presented to emulated binaries. This includes OS specific fields such as OS version, environment variables, loaded user and system modules, and running processes. In addition, more complex OS components such as networking, file systems, object management and the registry are emulated in an attempt to simulate a full Windows operating system as much as possible. The fields in the config file can be customized to create easily interchangable simulated environments. For example, if a sample expects a specific process to be running at execution time, this can easily be added to a config file. 
-The specifics to how this simulation is presented to emulated binaries are described in JSON configuration files.
+# Configuration walkthrough
 
-The fields supported by these configuration files are documented below:
+Source of truth:
+- `speakeasy/config.py`
+- behavior references in `speakeasy/windows/*.py`, `speakeasy/binemu.py`, and `speakeasy/winenv/api/*`
 
-* config_version
-    * The current version of the config file (currently: 1.1.0).
-* emu_engine
-    * Backend CPU emulator to use. Currently, only the unicorn engine is supported.
-* timeout
-    * Indicates the maximum number seconds to run the emulator.
-* max_api_count
-    * Maximum number of API calls per execution run before continuing to the next run.
-* analysis
-    * Identifies different analysis options (note: these may affect emulation speed).
-    * memory_tracing
-        * When true, memory access to each memory block is logged. This can identify activity such as hooking or PEB walking.
-    * strings
-        * Acquires strings from memory after emulation completion.
-* keep_memory_on_free
-    * Denies free'ing of memory blocks so that all memory allocated by the sample can be analyzed.
-* exceptions
-    * Identifies different exception handling options; specifically CPU exceptions
-        * dispatch_handlers
-            * If set to “true”, the emulator will attempt to dispatch exception handlers registered by the application (e.g. SEH handlers). Otherwise, emulation will stop when a CPU exception occurs.
-* os_ver
-    * Defines the version of the operating system to present to emulated binaries
-    * This field allows the user to set version specific information such as major, minor, and build number
-* current_dir
-    * Sets the currently working directory presented to the emulated sample
-* command_line
-    * Sets the command line returned to the sample when queried
-* env
-    * Sets environment variables presented to emulated binaries
-* hostname
-    * Sets the Hostname returned when queried
-* user
-    * Sets user specific options that are returned to samples
-        * name
-            * Sets the current user name
-        * is_admin
-            * Specifies whether the current user is identified as an administrator
-* symlinks
-    * Allows the user to set symbolic links to devices (e.g. having “C:\” point to “\Device\HarddiskVolume1”
-* filesystem
-    * An attempt is made to create a mock file system by allowing users to supply handlers when samples try to access files during emulation. This field allows users to specify what data will be returned when specific files are accessed, or what data is returned for certain extensions (e.g. .exe, .dll, .txt).
-    * Each handler entry describes how to handle specific file access scenarios and are described below:
-        * mode - Describes how to match on file accesses
-            * full_path
-                * Matches on access of a full file path: (e.g. C:\Temp\myfile.bin)
-            * by_ext
-                * Matches on any file with the specified file extension
-            * default
-                * If no other filter matches, this handler is used
-* registry
-    * An attempt is made to create a mock registry by allowing users to supply handlers when samples try to access registry keys and values during emulation
-    * Each handler entry describes how to handle specific keys and value paths
-* network
-    * Creates a mock network manager that allows emulated samples to think they are connected to a real network. This includes allowing the user to configure DNS responses, HTTP responses (including reply data), and socket connections  
-        * dns
-            * names
-                * Specifies specific IP addresses returned during domain name queries
-            * txt
-                * Specifies data returned during DNS TXT queries
-        * http
-            * Describes how to respond to specific HTTP requests.
-        * winsock
-            * Describes how to respond to binary TCP/UDP traffic.
-* processes
-    * Defines the processes that will be presented to the emulated sample when queried. The full path of the main process image along with command line arguments and base load address can be specified. This can be useful when emulated samples expect a specific process environment. When "is_main_exe" is set, this will be used as the main container process for shellcode or DLLs that do not normally have a process object created by default. Additionally, the session the process is being executed in can specified.
-* modules
-    * modules_always_exist
-        * When "true" module loads will always succeed in order to satisfy dynamic library loads. Otherwise if unavailable, a "module not found" error will be returned. This can be used to set the emulation evironment to be similar to what samples expect.
-    * module_directory_x86
-        * Sets the directory that will be searched for when modules are dynamically loaded at runtime (for 32-bit binaries). This is often necessary for shellcode that will manually parse module export tables to find API functions. Arbitrary files can be placed in this directory that will be loaded when "LoadLibrary" style functions are called and the files will be mapped into the emulated address space.
-    * module_directory_x64
-        * This is the same as the "module_directory_x86" field except it applies to 64-bit binaries.
-    * system_modules
-        * Defines the system modules (e.g. drivers) that will be presented to the emulated sample when queried. The base load address for each module can be specified along with the full module path. In addition, a supplied module can be loaded into the emulated address space in order to support samples that manually parse PE headers for export resolution. Driver and device objects can also be attributed to system modules using their corresponding fields (see the default configuration for an example).
-    * user_modules
-        * Defines the user modules (e.g. DLLs) that will be presented to the emulated sample when queried. The base load address for each module can be specified along with the full module path. In addition, a supplied module can be loaded into the emulated address space in order to support samples that manually parse PE headers for export resolution. Note: the order is maintained when loaded into the PEB load order module list for older malware samples that expected the module list to be in a certain order (e.g. kernel32 to be located second in the linked list).
+The example below is JSONC (JSON with comments). Remove comment lines for machine parsing.
+
+```jsonc
+{
+  // Schema version expected by speakeasy.config.SpeakeasyConfig.
+  // Keep at 0.2 unless the schema version changes in source.
+  "config_version": 0.2,
+
+  // Human note for analysts. Safe to change any time.
+  "description": "Example profile for walkthrough documentation",
+
+  // Emulation backend. Only "unicorn" is currently supported.
+  "emu_engine": "unicorn",
+
+  // Wall-clock timeout in seconds for each emulation session.
+  // Raise for slow/staged samples. Lower for quick triage.
+  "timeout": 60,
+
+  // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
+  // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
+  "max_api_count": 10000,
+
+  // Instruction cap forwarded to the emulator.
+  // -1 means effectively unbounded from Speakeasy policy.
+  "max_instructions": -1,
+
+  // OS family model. Only "windows" is supported.
+  "system": "windows",
+
+  "analysis": {
+    // Enables per-region memory access counters and symbol access telemetry.
+    // Turn on for unpacking/PEB-walk/import-resolver analysis.
+    "memory_tracing": false,
+
+    // Enables static + in-memory string extraction in the report.
+    // Disable for speed when string data is not needed.
+    "strings": true,
+
+    // Enables instruction-address coverage collection per entry point.
+    // Useful for diffing runs and rough execution mapping.
+    "coverage": false
+  },
+
+  // If true, frees do not immediately remove memory maps.
+  // Useful when you want to inspect post-free data artifacts.
+  "keep_memory_on_free": false,
+
+  // If true, report memory regions can include base64(zlib(raw_bytes)).
+  // This greatly increases report size but helps memory forensics.
+  "capture_memory_dumps": false,
+
+  "exceptions": {
+    // If true, emulate exception-handler dispatch (SEH/VEH-like paths).
+    // If false, faulting paths stop sooner and are easier to localize.
+    "dispatch_handlers": true
+  },
+
+  "os_ver": {
+    // OS family marker. Keep as "windows".
+    "name": "windows",
+
+    // Version fields exposed through PEB/API version behavior.
+    // Align these with the environment your sample expects.
+    "major": 6,
+    "minor": 1,
+
+    // Optional release discriminator. Usually left null.
+    "release": null,
+
+    // Build number used by version checks.
+    "build": 7601
+  },
+
+  // Current directory exposed to process APIs and relative path resolution.
+  "current_dir": "C:\\Windows\\system32",
+
+  // Process command line exposed to query APIs.
+  "command_line": "svchost.exe -k netsvcs",
+
+  // Environment variables visible to the emulated process.
+  // Change when malware reads env values for path decisions or anti-sandbox checks.
+  "env": {
+    "comspec": "C:\\Windows\\system32\\cmd.exe",
+    "systemroot": "C:\\Windows",
+    "windir": "C:\\Windows",
+    "temp": "C:\\Windows\\temp",
+    "userprofile": "C:\\Users\\analyst"
+  },
+
+  // Domain/workgroup identity used by account/network APIs.
+  // Set to match expected enterprise or non-domain environments.
+  "domain": "LAB",
+
+  // Hostname returned by networking/system identity APIs.
+  "hostname": "WIN7-LAB",
+
+  "user": {
+    // Username used by account/profile APIs.
+    "name": "analyst",
+
+    // Privilege context for is-admin checks.
+    "is_admin": true,
+
+    // Optional explicit SID. Set when SID-sensitive logic is present.
+    "sid": "S-1-5-21-1111111111-2222222222-3333333333-1001"
+  },
+
+  "api_hammering": {
+    // Enables anti-API-hammering mitigation.
+    "enabled": false,
+
+    // Repeat count before mitigation patches trigger.
+    "threshold": 2000,
+
+    // APIs exempt from mitigation. Use for hot APIs that are legitimately noisy.
+    "allow_list": [
+      "kernel32.WriteFile",
+      "kernel32.ReadFile"
+    ]
+  },
+
+  // Object-manager symbolic links, used by path/device resolution.
+  "symlinks": [
+    {
+      "name": "\\??\\C:",
+      "target": "\\Device\\HarddiskVolume1"
+    },
+    {
+      "name": "\\??\\PhysicalDrive0",
+      "target": "\\Device\\Harddisk0\\DR0"
+    }
+  ],
+
+  // Virtual drive metadata used by drive APIs.
+  "drives": [
+    {
+      "root_path": "C:\\",
+      "drive_type": "DRIVE_FIXED",
+      "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\"
+    },
+    {
+      "root_path": "D:\\",
+      "drive_type": "DRIVE_CDROM",
+      "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\"
+    }
+  ],
+
+  "filesystem": {
+    "files": [
+      {
+        // Mode discriminator. full_path = exact/wildcard path matching.
+        "mode": "full_path",
+
+        // Emulated file path pattern to match (supports wildcard matching).
+        "emu_path": "c:\\programdata\\seed\\config.bin",
+
+        // Host file to serve for reads.
+        // Use $ROOT$ for repo-relative assets in packaged configs.
+        "path": "$ROOT$/resources/files/default.bin"
+      },
+      {
+        "mode": "full_path",
+        "emu_path": "c:\\programdata\\seed\\padding.bin",
+
+        // Synthetic content source when no host file is desired.
+        "byte_fill": {
+          // Byte to repeat for generated data.
+          "byte": "0x41",
+          // Generated size in bytes.
+          "size": 512
+        }
+      },
+      {
+        // by_ext = apply to all paths with this extension.
+        "mode": "by_ext",
+        "ext": "txt",
+        "path": "$ROOT$/resources/files/default.bin"
+      },
+      {
+        // default = catch-all fallback if no full_path/by_ext matches.
+        "mode": "default",
+        "path": "$ROOT$/resources/files/default.bin"
+      }
+    ]
+  },
+
+  // Optional registry seed data.
+  // Keep only keys/values that your sample reads to reduce maintenance.
+  "registry": {
+    "keys": [
+      {
+        "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "values": [
+          {
+            // Value name. Use "default" for unnamed default values.
+            "name": "Updater",
+            // Registry type token consumed by registry emulation.
+            "type": "REG_SZ",
+            // Value payload as string form.
+            "data": "C:\\ProgramData\\updater.exe"
+          }
+        ]
+      }
+    ]
+  },
+
+  "network": {
+    "dns": {
+      // A-record style domain -> IP mappings.
+      // Include "default" for fallback name lookups.
+      "names": {
+        "default": "10.10.10.10",
+        "example.org": "93.184.216.34"
+      },
+
+      // TXT response handlers loaded from files.
+      "txt": [
+        {
+          // Domain-specific TXT mapping.
+          "name": "bootstrap.example.org",
+          "path": "$ROOT$/resources/web/default.bin"
+        },
+        {
+          // Fallback TXT response if no exact name matches.
+          "name": "default",
+          "path": "$ROOT$/resources/web/default.bin"
+        }
+      ]
+    },
+
+    "http": {
+      "responses": [
+        {
+          // Verb this response set applies to.
+          "verb": "GET",
+          "files": [
+            {
+              "mode": "by_ext",
+              "ext": "gif",
+              "path": "$ROOT$/resources/web/decoy.gif"
+            },
+            {
+              "mode": "default",
+              "path": "$ROOT$/resources/web/default.bin"
+            }
+          ]
+        },
+        {
+          "verb": "POST",
+          "files": [
+            {
+              "mode": "default",
+              "path": "$ROOT$/resources/web/default.bin"
+            }
+          ]
+        }
+      ]
+    },
+
+    "winsock": {
+      // Raw socket recv seed payloads. A default handler is typically sufficient.
+      "responses": [
+        {
+          "mode": "default",
+          "path": "$ROOT$/resources/web/stager.bin"
+        }
+      ]
+    },
+
+    // Adapter inventory returned by networking APIs such as GetAdaptersInfo.
+    "adapters": [
+      {
+        "name": "{00000000-0000-0000-0000-000000000000}",
+        "description": "Intel(R) PRO/1000 MT Network Connection",
+        "mac_address": "00-13-CE-12-34-56",
+        "type": "ethernet",
+        "ip_address": "192.168.56.101",
+        "subnet_mask": "255.255.255.0",
+        "dhcp_enabled": true
+      }
+    ]
+  },
+
+  // Process inventory visible to process enumeration APIs.
+  // Include one is_main_exe=true process for shellcode/DLL container use.
+  "processes": [
+    {
+      "name": "System",
+      "base_addr": "0x80000000",
+      "pid": 4,
+      "path": "[System Process]",
+      "command_line": null,
+      "is_main_exe": false,
+      "session": 0
+    },
+    {
+      "name": "main",
+      "base_addr": "0x00400000",
+      "path": "C:\\Windows\\system32\\svchost.exe",
+      "pid": 1337,
+      "command_line": "svchost.exe -k netsvcs",
+      "is_main_exe": true,
+      "session": 1
+    }
+  ],
+
+  "modules": {
+    // If true, unknown module loads synthesize decoys instead of failing.
+    "modules_always_exist": false,
+
+    // If true, unresolved API imports are treated as existing stubs.
+    "functions_always_exist": false,
+
+    // Decoy search roots by architecture.
+    "module_directory_x86": "$ROOT$/winenv/decoys/x86",
+    "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
+
+    // User-mode module inventory.
+    "user_modules": [
+      {
+        "name": "ntdll",
+        "base_addr": "0x7C000000",
+        "path": "C:\\Windows\\system32\\ntdll.dll",
+        "images": [
+          {
+            // arch accepts 32/64 or aliases x86/i386/x64/amd64.
+            "arch": "x86",
+            "name": "ntdll"
+          },
+          {
+            "arch": "x64",
+            "name": "ntdll"
+          }
+        ]
+      },
+      {
+        "name": "kernel32",
+        "base_addr": "0x77000000",
+        "path": "C:\\Windows\\system32\\kernel32.dll",
+        "images": []
+      }
+    ],
+
+    // Kernel/system module inventory.
+    "system_modules": [
+      {
+        "name": "ntoskrnl",
+        "base_addr": "0x803D0000",
+        "path": "C:\\Windows\\system32\\ntoskrnl.exe",
+
+        // Optional driver/device object declaration for kernel object namespace realism.
+        "driver": {
+          "name": "\\Driver\\ntoskrnl",
+          "devices": [
+            {
+              "name": "\\Device\\HarddiskVolume1"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+Operational notes:
+- CLI config overrides are generated from `SpeakeasyConfig` field definitions. Runtime config precedence is: built-in `configs/default.json`, then optional `--config` overlay, then explicit CLI flags. `--volume` remains a dedicated shortcut for filesystem mappings.
+- Field behavior for report population is implemented primarily in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`.

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -6,89 +8,89 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class AnalysisConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    memory_tracing: bool = False
-    strings: bool = True
-    coverage: bool = False
+    memory_tracing: bool = Field(default=False, description="Enable memory access tracing in reports.")
+    strings: bool = Field(default=True, description="Extract strings from input and emulated memory.")
+    coverage: bool = Field(default=False, description="Collect executed instruction addresses per run.")
 
 
 class ExceptionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    dispatch_handlers: bool = True
+    dispatch_handlers: bool = Field(default=True, description="Dispatch configured exception handlers during faults.")
 
 
 class OsVersionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: Literal["windows"] = "windows"
-    major: int | None = None
-    minor: int | None = None
-    release: int | None = None
-    build: int | None = None
+    name: Literal["windows"] = Field(default="windows", description="Emulated operating system family.")
+    major: int | None = Field(default=None, description="Emulated OS major version.")
+    minor: int | None = Field(default=None, description="Emulated OS minor version.")
+    release: int | None = Field(default=None, description="Optional emulated OS release number.")
+    build: int | None = Field(default=None, description="Emulated OS build number.")
 
 
 class UserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    is_admin: bool = False
-    sid: str | None = None
+    name: str = Field(description="Username exposed to account and profile APIs.")
+    is_admin: bool = Field(default=False, description="Expose elevated privileges to admin checks.")
+    sid: str | None = Field(default=None, description="Optional explicit SID for the emulated user.")
 
 
 class ApiHammeringConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool
-    threshold: int
-    allow_list: list[str] = []
+    enabled: bool = Field(description="Enable API hammering mitigation.")
+    threshold: int = Field(description="Repetition threshold that triggers mitigation.")
+    allow_list: list[str] = Field(default_factory=list, description="API names exempt from mitigation.")
 
 
 class SymlinkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    target: str
+    name: str = Field(description="Object manager symlink name.")
+    target: str = Field(description="Object manager symlink target.")
 
 
 class DriveConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    root_path: str | None = None
-    drive_type: str | None = None
-    volume_guid_path: str | None = None
+    root_path: str | None = Field(default=None, description="Drive root path returned by drive APIs.")
+    drive_type: str | None = Field(default=None, description="Drive type token used by drive APIs.")
+    volume_guid_path: str | None = Field(default=None, description="Volume GUID path mapped to this drive.")
 
 
 class ByteFillConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    byte: str
-    size: int
+    byte: str = Field(description="Byte value used to synthesize file content.")
+    size: int = Field(description="Number of bytes to synthesize.")
 
 
 class FileEntryFullPath(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["full_path"]
-    emu_path: str
-    path: str | None = None
-    byte_fill: ByteFillConfig | None = None
+    mode: Literal["full_path"] = Field(description="File entry matcher mode.")
+    emu_path: str = Field(description="Emulated path pattern matched by this entry.")
+    path: str | None = Field(default=None, description="Host file path served for matched reads.")
+    byte_fill: ByteFillConfig | None = Field(default=None, description="Synthetic content source for matched reads.")
 
 
 class FileEntryByExt(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["by_ext"]
-    ext: str
-    path: str | None = None
-    byte_fill: ByteFillConfig | None = None
+    mode: Literal["by_ext"] = Field(description="File entry matcher mode.")
+    ext: str = Field(description="File extension matched by this entry.")
+    path: str | None = Field(default=None, description="Host file path served for matched reads.")
+    byte_fill: ByteFillConfig | None = Field(default=None, description="Synthetic content source for matched reads.")
 
 
 class FileEntryDefault(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["default"]
-    path: str | None = None
-    byte_fill: ByteFillConfig | None = None
+    mode: Literal["default"] = Field(description="File entry matcher mode.")
+    path: str | None = Field(default=None, description="Fallback host file path served for reads.")
+    byte_fill: ByteFillConfig | None = Field(default=None, description="Fallback synthetic content source.")
 
 
 FileEntry = Annotated[
@@ -100,101 +102,103 @@ FileEntry = Annotated[
 class FilesystemConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    files: list[FileEntry] = []
+    files: list[FileEntry] = Field(default_factory=list, description="Filesystem response mapping rules.")
 
 
 class RegistryValueConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    type: str
-    data: str
+    name: str = Field(description="Registry value name.")
+    type: str = Field(description="Registry type token.")
+    data: str = Field(description="Registry value payload.")
 
 
 class RegistryKeyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    path: str
-    values: list[RegistryValueConfig] = []
+    path: str = Field(description="Registry key path.")
+    values: list[RegistryValueConfig] = Field(default_factory=list, description="Values under this key.")
 
 
 class RegistryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    keys: list[RegistryKeyConfig] = []
+    keys: list[RegistryKeyConfig] = Field(default_factory=list, description="Seed registry key definitions.")
 
 
 class DnsTxtConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str | None = None
-    path: str | None = None
+    name: str | None = Field(default=None, description="Domain name for this TXT response mapping.")
+    path: str | None = Field(default=None, description="Host file path used as TXT response payload.")
 
 
 class DnsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    names: dict[str, str] = {}
-    txt: list[DnsTxtConfig] = []
+    names: dict[str, str] = Field(default_factory=dict, description="Domain-to-IP mappings used by DNS lookups.")
+    txt: list[DnsTxtConfig] = Field(default_factory=list, description="TXT response mapping entries.")
 
 
 class HttpResponseConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    verb: Literal["GET", "POST", "HEAD"] | None = None
-    files: list[FileEntry] = []
+    verb: Literal["GET", "POST", "HEAD"] | None = Field(
+        default=None, description="HTTP verb matched by this response set."
+    )
+    files: list[FileEntry] = Field(default_factory=list, description="File mapping rules for this HTTP response set.")
 
 
 class HttpConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    responses: list[HttpResponseConfig] = []
+    responses: list[HttpResponseConfig] = Field(default_factory=list, description="HTTP response mapping entries.")
 
 
 class WinsockConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    responses: list[FileEntry] = []
+    responses: list[FileEntry] = Field(default_factory=list, description="Winsock receive response mapping entries.")
 
 
 class NetworkAdapterConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str | None = None
-    description: str | None = None
-    mac_address: str | None = None
-    type: str | None = None
-    ip_address: str | None = None
-    subnet_mask: str | None = None
-    dhcp_enabled: bool | None = None
+    name: str | None = Field(default=None, description="Adapter name or GUID.")
+    description: str | None = Field(default=None, description="Adapter description string.")
+    mac_address: str | None = Field(default=None, description="Adapter MAC address.")
+    type: str | None = Field(default=None, description="Adapter media type.")
+    ip_address: str | None = Field(default=None, description="Adapter IPv4 address.")
+    subnet_mask: str | None = Field(default=None, description="Adapter subnet mask.")
+    dhcp_enabled: bool | None = Field(default=None, description="Whether DHCP is enabled for this adapter.")
 
 
 class NetworkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    dns: DnsConfig | None = None
-    http: HttpConfig | None = None
-    winsock: WinsockConfig | None = None
-    adapters: list[NetworkAdapterConfig] = []
+    dns: DnsConfig | None = Field(default=None, description="DNS emulation settings.")
+    http: HttpConfig | None = Field(default=None, description="HTTP emulation settings.")
+    winsock: WinsockConfig | None = Field(default=None, description="Winsock emulation settings.")
+    adapters: list[NetworkAdapterConfig] = Field(default_factory=list, description="Network adapters returned by APIs.")
 
 
 class ProcessConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    base_addr: str
-    path: str
-    pid: int | None = None
-    command_line: str | None = None
-    is_main_exe: bool | None = None
-    session: int | None = None
+    name: str = Field(description="Process name.")
+    base_addr: str = Field(description="Process image base address.")
+    path: str = Field(description="Process executable path.")
+    pid: int | None = Field(default=None, description="Optional process identifier.")
+    command_line: str | None = Field(default=None, description="Optional process command line.")
+    is_main_exe: bool | None = Field(default=None, description="Whether this process is the main executable container.")
+    session: int | None = Field(default=None, description="Optional session identifier.")
 
 
 class ModuleImageConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    arch: int
-    name: str
+    arch: int = Field(description="Module image architecture (32 or 64).")
+    name: str = Field(description="Module image name.")
 
     @field_validator("arch", mode="before")
     @classmethod
@@ -206,7 +210,7 @@ class ModuleImageConfig(BaseModel):
         arch_str = v.lower()
         if arch_str in ("x86", "i386"):
             return 32
-        elif arch_str in ("x64", "amd64"):
+        if arch_str in ("x64", "amd64"):
             return 64
         raise ValueError(f"Unsupported image arch: {v}")
 
@@ -214,74 +218,88 @@ class ModuleImageConfig(BaseModel):
 class DeviceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
+    name: str = Field(description="Device object name.")
 
 
 class DriverConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    devices: list[DeviceConfig] = []
+    name: str = Field(description="Driver object name.")
+    devices: list[DeviceConfig] = Field(default_factory=list, description="Device objects exposed by this driver.")
 
 
 class UserModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    base_addr: str
-    path: str
-    images: list[ModuleImageConfig] = []
+    name: str = Field(description="User-mode module short name.")
+    base_addr: str = Field(description="Module base address.")
+    path: str = Field(description="Module path.")
+    images: list[ModuleImageConfig] = Field(
+        default_factory=list, description="Architecture-specific module image definitions."
+    )
 
 
 class SystemModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str
-    base_addr: str
-    path: str
-    driver: DriverConfig | None = None
+    name: str = Field(description="System module short name.")
+    base_addr: str = Field(description="Module base address.")
+    path: str = Field(description="Module path.")
+    driver: DriverConfig | None = Field(default=None, description="Optional driver and device object metadata.")
 
 
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    modules_always_exist: bool = False
-    functions_always_exist: bool = False
-    module_directory_x86: str | None = None
-    module_directory_x64: str | None = None
-    user_modules: list[UserModuleConfig] = []
-    system_modules: list[SystemModuleConfig] = []
+    modules_always_exist: bool = Field(
+        default=False, description="Synthesize unknown modules instead of failing loads."
+    )
+    functions_always_exist: bool = Field(default=False, description="Treat unresolved imports as existing stubs.")
+    module_directory_x86: str | None = Field(default=None, description="Search path for x86 decoy modules.")
+    module_directory_x64: str | None = Field(default=None, description="Search path for x64 decoy modules.")
+    user_modules: list[UserModuleConfig] = Field(
+        default_factory=list, description="Configured user-mode module inventory."
+    )
+    system_modules: list[SystemModuleConfig] = Field(
+        default_factory=list, description="Configured kernel/system module inventory."
+    )
 
 
 class SpeakeasyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    config_version: Literal[0.2]  # type: ignore[valid-type]  # Pydantic supports float literals, mypy does not
-    description: str | None = None
-    emu_engine: Literal["unicorn"]
-    timeout: float
-    max_api_count: int = 5000
-    max_instructions: int = -1
-    system: Literal["windows"]
-    analysis: AnalysisConfig
-    keep_memory_on_free: bool = False
-    capture_memory_dumps: bool = False
-    exceptions: ExceptionsConfig
-    os_ver: OsVersionConfig
-    current_dir: str
-    command_line: str = ""
-    env: dict[str, str] = {}
-    domain: str | None = None
-    hostname: str
-    user: UserConfig
-    api_hammering: ApiHammeringConfig | None = None
-    symlinks: list[SymlinkConfig] = []
-    drives: list[DriveConfig] = []
-    filesystem: FilesystemConfig
-    registry: RegistryConfig | None = None
-    network: NetworkConfig
-    processes: list[ProcessConfig] = []
-    modules: ModulesConfig
+    config_version: Literal[0.2] = Field(  # type: ignore[valid-type]
+        description="Configuration schema version."
+    )
+    description: str | None = Field(default=None, description="Human-readable profile description.")
+    emu_engine: Literal["unicorn"] = Field(description="Emulation backend identifier.")
+    timeout: float = Field(description="Emulation timeout in seconds.")
+    max_api_count: int = Field(default=5000, description="Maximum API calls allowed per run.")
+    max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
+    system: Literal["windows"] = Field(description="Emulated operating system family.")
+    analysis: AnalysisConfig = Field(description="Analysis and telemetry collection settings.")
+    keep_memory_on_free: bool = Field(default=False, description="Retain freed memory maps for post-free inspection.")
+    capture_memory_dumps: bool = Field(default=False, description="Include compressed raw memory in report regions.")
+    exceptions: ExceptionsConfig = Field(description="Exception dispatch behavior.")
+    os_ver: OsVersionConfig = Field(description="OS version values exposed to emulated code.")
+    current_dir: str = Field(description="Current working directory for emulated process APIs.")
+    command_line: str = Field(default="", description="Command line exposed to emulated process APIs.")
+    env: dict[str, str] = Field(
+        default_factory=dict, description="Environment variables visible to the emulated process."
+    )
+    domain: str | None = Field(default=None, description="Domain or workgroup identity.")
+    hostname: str = Field(description="Hostname exposed to emulated system APIs.")
+    user: UserConfig = Field(description="Primary emulated user account.")
+    api_hammering: ApiHammeringConfig | None = Field(default=None, description="API hammering mitigation settings.")
+    symlinks: list[SymlinkConfig] = Field(default_factory=list, description="Object manager symbolic links.")
+    drives: list[DriveConfig] = Field(default_factory=list, description="Virtual drive metadata.")
+    filesystem: FilesystemConfig = Field(description="Filesystem mapping rules.")
+    registry: RegistryConfig | None = Field(default=None, description="Registry key and value seed data.")
+    network: NetworkConfig = Field(description="Network emulation settings.")
+    processes: list[ProcessConfig] = Field(
+        default_factory=list, description="Process inventory visible to enumeration APIs."
+    )
+    modules: ModulesConfig = Field(description="Module loading and inventory settings.")
 
 
 def model_to_dict(model: BaseModel) -> dict[str, Any]:

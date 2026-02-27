@@ -95,41 +95,32 @@ For more examples, see the [examples](examples/) directory.
 For users who don't wish to programatically interact with the speakeasy framework as a library, a standalone script is provided to automatically emulate Windows binaries. Speakeasy can be invoked by running the command `speakeasy`. This command will parse a specified PE and invoke the appropriate emulator (kernel mode or user mode). The script's parameters are shown below.
 
 ```
-usage: speakeasy [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-m] [-r] [--raw_offset RAW_OFFSET]
-                        [-a ARCH] [-d DUMP_PATH] [-q TIMEOUT] [-z DROP_FILES_PATH] [-l MODULE_DIR] [-k] [--no-mp]
-
-Emulate a Windows binary with speakeasy
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -t TARGET, --target TARGET
-                        Path to input file to emulate
-  -o OUTPUT, --output OUTPUT
-                        Path to output file to save report
-  -p [PARAMS ...], --params [PARAMS ...]
-                        Commandline parameters to supply to emulated process (e.g. main(argv))
-  -c CONFIG, --config CONFIG
-                        Path to emulator config file
-  -m, --mem-tracing     Enables memory tracing. This will log all memory access by the sample but will impact speed
-  -r, --raw             Attempt to emulate file as-is with no parsing (e.g. shellcode)
-  --raw_offset RAW_OFFSET
-                        When in raw mode, offset (hex) to start emulating
-  -a ARCH, --arch ARCH  Force architecture to use during emulation (for multi-architecture files or shellcode). Supported
-                        archs: [ x86 | amd64 ]
-  -d DUMP_PATH, --dump DUMP_PATH
-                        Path to store compressed memory dump package
-  -q TIMEOUT, --timeout TIMEOUT
-                        Emulation timeout in seconds (default 60 sec)
-  -z DROP_FILES_PATH, --dropped-files DROP_FILES_PATH
-                        Path to store files created during emulation
-  -l MODULE_DIR, --module-dir MODULE_DIR
-                        Path to directory containing loadable PE modules. When modules are parsed or loaded by samples, PEs
-                        from this directory will be loaded into the emulated address space
-  -k, --emulate-children
-                        Emulate any processes created with the CreateProcess APIs after the input file finishes emulating
-  --no-mp               Run emulation in the current process to assist instead of a child process. Useful when
-                        debugging speakeasy itself (using pdb.set_trace()).
+usage: speakeasy [-h] [-t TARGET] [-o OUTPUT] [-p [PARAMS ...]] [-c CONFIG] [-r]
+                 [--raw_offset RAW_OFFSET] [-a ARCH] [-d DUMP_PATH]
+                 [-z DROP_FILES_PATH] [-k] [--no-mp] [-v] [--gdb]
+                 [--gdb-port GDB_PORT] [-V HOST:GUEST]
+                 [config-derived flags...]
 ```
+
+Most scalar and toggle fields from `SpeakeasyConfig` are exposed automatically as CLI flags. Flag names are derived from config paths using dashes, for example:
+
+- `analysis.memory_tracing` -> `--analysis-memory-tracing` / `--no-analysis-memory-tracing`
+- `analysis.coverage` -> `--analysis-coverage`
+- `modules.module_directory_x86` -> `--modules-module-directory-x86`
+- `user.is_admin` -> `--user-is-admin` / `--no-user-is-admin`
+
+Mapping fields are repeatable with `KEY=VALUE` syntax:
+
+- `--env KEY=VALUE`
+- `--network-dns-names HOST=IP`
+
+Runtime config precedence is:
+
+1. built-in `speakeasy/configs/default.json`
+2. optional `--config` overlay
+3. explicit CLI overrides
+
+At execution start, speakeasy logs the active configuration values at INFO level.
 
 ---
 
@@ -303,7 +294,40 @@ See [doc/gdb](doc/gdb.md) for the full reference, including IDA Pro integration 
 
 ## Configuration
 
-Speakeasy uses configuration files that describe the environment that is presented to the emulated binaries. For a full description of these fields see the README [here](doc/configuration.md).
+A Speakeasy config is the emulated machine profile. It controls the OS identity, user identity, process/module inventory, filesystem/registry/network behavior, and analysis collectors. The sample path and the quality of the final report are strongly influenced by this file.
+
+Common high-impact fields:
+- `analysis.memory_tracing`, `analysis.coverage`, `analysis.strings`: trade execution speed for deeper telemetry.
+- `timeout`, `max_api_count`, `max_instructions`: stop conditions for long or looping paths.
+- `modules.modules_always_exist`, `modules.functions_always_exist`: strictness of unresolved module/function lookups.
+- `filesystem.files`, `registry.keys`, `network.dns/http/winsock`: deterministic environment responses for I/O-heavy samples.
+- `processes[*].is_main_exe`, `modules.user_modules/system_modules`: process and loader context presented to the sample.
+- `capture_memory_dumps`, `keep_memory_on_free`: memory artifact retention and report size.
+
+Start from `speakeasy/configs/default.json` and then tune only the fields needed for the target sample family.
+
+Deep reference:
+- [Configuration walkthrough](doc/configuration.md)
+
+---
+
+## Reports
+
+A report is the structured output of one emulation session. It includes top-level metadata plus an ordered `entry_points` list, where each entry point represents one execution primitive (for example module entry, export call, callback, or injected thread).
+
+Common high-value fields:
+- top level `arch`, `sha256`, `filetype`, `emulation_total_runtime`: sample identity and run timing.
+- `entry_points[*].apihash`: behavior fingerprint from unique API names.
+- `entry_points[*].events`: chronological behavior stream (API, process, file, registry, network, exception).
+- `entry_points[*].error`: per-run termination reason.
+- `entry_points[*].dynamic_code_segments`, `sym_accesses`, `coverage`: unpacking and execution-structure indicators.
+- `entry_points[*].dropped_files`: file artifacts written by the sample.
+- `entry_points[*].memory`: run-end memory layout and optional compressed memory bytes.
+
+Report content is directly influenced by config toggles such as `analysis.*`, `capture_memory_dumps`, and execution limits.
+
+Deep reference:
+- [Report walkthrough](doc/reporting.md)
 
 ---
 
@@ -327,7 +351,7 @@ Since we do not rely on a physical OS to handle API calls, object and memory all
 
 ## Module export parsing
 
-Many malware samples such as shellcode will attempt to manually parse the export tables of PE modules in order resolve API function pointers. An attempt is made to make "decoy" export tables using the emulated function names currently supported but this may not be enough for some samples. The configuration files support two fields named `module_directory_x86` and `module_directory_x64`. These fields are directories that can contain DLLs or other modules that are loaded into the virtual address space of the emulated sample. There is also a command line option (`-l`) that can specify this directory at runtime. This can be useful for samples that do deep parsing of PE modules that are expected to be loaded within memory.
+Many malware samples such as shellcode will attempt to manually parse the export tables of PE modules in order resolve API function pointers. An attempt is made to make "decoy" export tables using the emulated function names currently supported but this may not be enough for some samples. The configuration files support two fields named `module_directory_x86` and `module_directory_x64`. These fields are directories that can contain DLLs or other modules that are loaded into the virtual address space of the emulated sample. They can also be overridden at runtime with `--modules-module-directory-x86` and `--modules-module-directory-x64`.
 
 ---
 
