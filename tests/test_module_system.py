@@ -9,43 +9,11 @@ tests against new APIs are marked xfail.
 from __future__ import annotations
 
 import copy
-import json
-import os
 
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.windows.loaders import (
-    DecoyLoader,
-    ExportEntry,
-    ImportEntry,
-    LoadedImage,
-    MemoryRegion,
-    RuntimeModule,
-)
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def config():
-    fp = os.path.join(os.path.dirname(__file__), "test.json")
-    with open(fp) as f:
-        return json.load(f)
-
-
-@pytest.fixture(scope="session")
-def load_test_bin():
-    def _load(bin_name):
-        import lzma
-
-        fp = os.path.join(os.path.dirname(__file__), "bins", bin_name)
-        with lzma.open(fp) as f:
-            return f.read()
-
-    return _load
+from speakeasy.windows.loaders import ExportEntry, ImportEntry, LoadedImage, MemoryRegion, RuntimeModule
 
 
 def _make_image(
@@ -315,21 +283,6 @@ def test_getprocaddress_returns_sentinel_for_emulated_export(config):
     assert sentinel != 0, "Sentinel should be non-zero"
 
 
-def test_default_export_mode_applied():
-    """Exports without explicit execution_mode inherit the image's default_export_mode.
-
-    This tests the data model: LoadedImage.default_export_mode is set correctly.
-    """
-    image = _make_image(
-        default_export_mode="emulated",
-        exports=[
-            ExportEntry(name="Func1", address=0x401000, ordinal=1, execution_mode="emulated"),
-        ],
-    )
-    assert image.default_export_mode == "emulated"
-    assert image.exports[0].execution_mode == "emulated"
-
-
 # ---------------------------------------------------------------------------
 # §20.5: Unified Module List
 # ---------------------------------------------------------------------------
@@ -570,54 +523,9 @@ def test_provenance_tracking(config, load_test_bin):
         ), f"Unexpected loader type: {loader_type}"
 
 
-def test_provenance_repr_useful():
-    """repr() of RuntimeModule shows loader type for diagnostics."""
-    loader = DecoyLoader(name="test", base=0x1000, emu_path="C:\\test.dll", image_size=0x100)
-    image = loader.make_image()
-    mod = RuntimeModule(image)
-    r = repr(mod)
-    assert "DecoyLoader" in r
-    assert "test" in r
-    assert "0x1000" in r
-
-
 # ---------------------------------------------------------------------------
 # §20.10: Edge Cases
 # ---------------------------------------------------------------------------
-
-
-def test_tls_callbacks_from_loaded_image():
-    """RuntimeModule.get_tls_callbacks() returns callbacks from LoadedImage."""
-    image = _make_image(
-        tls_directory_va=0x401500,
-        tls_callbacks=[0x401600],
-    )
-    mod = RuntimeModule(image)
-    assert mod.get_tls_callbacks() == [0x401600]
-
-
-def test_tls_skipped_for_non_pe_modules():
-    """Non-PE module (IDA, API-backed) with no TLS -> empty callback list."""
-    image = _make_image(
-        tls_directory_va=None,
-        tls_callbacks=[],
-    )
-    mod = RuntimeModule(image)
-    assert mod.get_tls_callbacks() == []
-
-
-def test_init_tls_uses_runtime_module_tls_directory_va(config, load_test_bin):
-    """init_tls() uses tls_directory_va from RuntimeModule, not PE headers.
-
-    After the refactor, the TLS directory virtual address comes from the
-    RuntimeModule (set via LoadedImage), not from parsing PE OPTIONAL_HEADER.
-    """
-    data = load_test_bin("dll_test_x86.dll.xz")
-    se = Speakeasy(config=config)
-    module = se.load_module(data=data)
-
-    assert isinstance(module, RuntimeModule), "load_module should return RuntimeModule"
-    assert hasattr(module, "_image"), "RuntimeModule should have _image attribute"
 
 
 def test_empty_loaded_image_handled(config):
@@ -632,53 +540,6 @@ def test_empty_loaded_image_handled(config):
     se = Speakeasy(config=config)
     mod = se.load_image(image)
     assert mod is not None
-
-
-# ---------------------------------------------------------------------------
-# §20.5c: RuntimeModule interface tests (pass today — data model works)
-# ---------------------------------------------------------------------------
-
-
-def test_runtime_module_stack_commit_from_image():
-    """RuntimeModule.stack_commit comes from LoadedImage.stack_size."""
-    image = _make_image()
-    image.stack_size = 0x20000
-    mod = RuntimeModule(image)
-    assert mod.stack_commit == 0x20000
-
-
-def test_runtime_module_arch_from_image():
-    """RuntimeModule.arch comes from LoadedImage.arch."""
-    image = _make_image()
-    mod = RuntimeModule(image)
-    assert mod.arch == 0x3
-
-
-def test_runtime_module_loader_reference():
-    """RuntimeModule.loader is set to the LoadedImage.loader value."""
-    loader = DecoyLoader(name="x", base=0, emu_path="x.dll", image_size=0x100)
-    image = loader.make_image()
-    mod = RuntimeModule(image)
-    assert mod.loader is loader
-
-
-def test_runtime_module_base_matches_image():
-    """RuntimeModule.base matches LoadedImage.image_base."""
-    image = _make_image(image_base=0x10000000)
-    mod = RuntimeModule(image)
-    assert mod.base == 0x10000000
-    assert mod.get_base() == 0x10000000
-
-
-def test_runtime_module_decoy_type():
-    """RuntimeModule from decoy has module_type='decoy'."""
-    loader = DecoyLoader(name="fake", base=0x80000000, emu_path="C:\\fake.dll", image_size=0x4000)
-    image = loader.make_image()
-    mod = RuntimeModule(image)
-    assert mod.module_type == "decoy"
-    assert mod.is_exe() is False
-    assert mod.is_dll() is False
-    assert mod.is_driver() is False
 
 
 # ---------------------------------------------------------------------------

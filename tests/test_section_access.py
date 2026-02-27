@@ -6,15 +6,18 @@ from speakeasy import Speakeasy
 
 
 @pytest.fixture(scope="module")
-def tracing_report(config, load_test_bin):
+def tracing_report(base_config, load_test_bin):
     data = load_test_bin("dll_test_x86.dll.xz")
-    cfg = copy.deepcopy(config)
+    cfg = copy.deepcopy(base_config)
     cfg["analysis"] = dict(cfg.get("analysis", {}))
     cfg["analysis"]["memory_tracing"] = True
     se = Speakeasy(config=cfg)
-    module = se.load_module(data=data)
-    se.run_module(module, all_entrypoints=True)
-    return se.get_report()
+    try:
+        module = se.load_module(data=data)
+        se.run_module(module, all_entrypoints=True)
+        return se.get_report()
+    finally:
+        se.shutdown()
 
 
 def _get_primary_sections(report):

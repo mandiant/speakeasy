@@ -6,7 +6,7 @@ def get_api_calls(ep, api_name):
     return [evt for evt in events if evt.event == "api" and evt.api_name == api_name]
 
 
-def test_GetProcAddress_on_not_existing_function_fails(config, load_test_bin, run_test):
+def test_get_proc_address_on_missing_function_returns_zero(config, load_test_bin, run_test):
     data = load_test_bin("GetProcAddress.exe.xz")
     report = run_test(config, data)
     eps = report.entry_points

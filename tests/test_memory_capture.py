@@ -1,4 +1,5 @@
 import base64
+import copy
 import zlib
 
 import pytest
@@ -7,19 +8,21 @@ from speakeasy import Speakeasy
 
 
 @pytest.fixture(scope="module")
-def report_with_dumps(config, load_test_bin):
-    """Run emulation with capture_memory_dumps=True and return parsed report."""
+def report_with_dumps(base_config, load_test_bin):
     data = load_test_bin("dll_test_x86.dll.xz")
 
-    cfg = dict(config)
+    cfg = copy.deepcopy(base_config)
     cfg["capture_memory_dumps"] = True
     cfg["analysis"] = dict(cfg.get("analysis", {}))
     cfg["analysis"]["memory_tracing"] = True
 
     se = Speakeasy(config=cfg)
-    module = se.load_module(data=data)
-    se.run_module(module, all_entrypoints=True)
-    return se.get_report()
+    try:
+        module = se.load_module(data=data)
+        se.run_module(module, all_entrypoints=True)
+        return se.get_report()
+    finally:
+        se.shutdown()
 
 
 def test_report_has_regions_with_data(report_with_dumps):
