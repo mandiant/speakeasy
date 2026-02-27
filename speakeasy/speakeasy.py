@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
-import json
 import logging
 import ntpath
 import os
@@ -13,10 +12,10 @@ from pathlib import Path, PureWindowsPath
 from pefile import MACHINE_TYPE
 from pydantic import ValidationError
 
-import speakeasy
 import speakeasy.winenv.arch as _arch
 from speakeasy import Win32Emulator, WinKernelEmulator
-from speakeasy.config import SpeakeasyConfig
+from speakeasy.cli_config import output_active_config
+from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
 from speakeasy.volumes import apply_volumes
@@ -48,9 +47,7 @@ class Speakeasy:
                     "Cannot apply --volume to an already-validated SpeakeasyConfig; pass a raw dict or None instead"
                 )
             if config is None:
-                config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
-                with open(config_path) as f:
-                    config = json.load(f)
+                config = get_default_config_dict()
             apply_volumes(config, volumes)
 
         self._init_config(config)
@@ -86,9 +83,7 @@ class Speakeasy:
             None
         """
         if config is None:
-            config_path = os.path.join(os.path.dirname(speakeasy.__file__), "configs", "default.json")
-            with open(config_path) as f:
-                config = json.load(f)
+            config = get_default_config_dict()
 
         if isinstance(config, SpeakeasyConfig):
             self.config = config
@@ -296,6 +291,7 @@ class Speakeasy:
         return:
             None
         """
+        output_active_config(self.config, logger)
         self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
@@ -332,6 +328,7 @@ class Speakeasy:
         return:
             None
         """
+        output_active_config(self.config, logger)
         self._init_hooks()
         return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)  # type: ignore[no-any-return, union-attr]
 
@@ -382,6 +379,7 @@ class Speakeasy:
         return:
             None
         """
+        output_active_config(self.config, logger)
         self.emu.run_complete = False  # type: ignore[union-attr]
         self.emu.resume(addr, count=count)  # type: ignore[union-attr]
 
@@ -417,6 +415,7 @@ class Speakeasy:
         return:
             None
         """
+        output_active_config(self.config, logger)
         return self.emu.call(addr, params=params)  # type: ignore[no-any-return, union-attr]
 
     def add_code_hook(self, cb: Callable, begin=1, end=0, ctx={}):
