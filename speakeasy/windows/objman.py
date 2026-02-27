@@ -551,7 +551,18 @@ class Process(KernelObject):
         self.image = ""
         self.title = ""
 
-        if pe and pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
+        is_console = False
+        pe_meta = None
+        if pe:
+            if hasattr(pe, "get_pe_metadata"):
+                pe_meta = pe.get_pe_metadata()
+                if pe_meta and pe_meta.subsystem == 3: # IMAGE_SUBSYSTEM_WINDOWS_CUI
+                    is_console = True
+            elif hasattr(pe, "OPTIONAL_HEADER"):
+                 if pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
+                     is_console = True
+
+        if is_console:
             self.alloc_console()
 
     def get_peb(self):
