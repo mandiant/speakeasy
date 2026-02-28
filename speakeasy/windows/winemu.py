@@ -1121,11 +1121,9 @@ class WindowsEmulator(BinaryEmulator):
         mod_data = self.get_module_data_from_emu_file(file_path)
 
         if mod_data:
-            # We'll create a PE out of this when we go to execute it
             p.pe_data = mod_data
         else:
-            new_mod = self.init_module(name=file_path, emu_path=path)
-            self.map_decoy(new_mod)
+            new_mod = self.load_module_by_name(file_path, emu_path=path)
             p.pe = new_mod
 
         p.path = file_path
@@ -1982,7 +1980,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.config.modules.modules_always_exist:
             return 0
 
-        mod = self.init_module(name=lib, default_base=0x6F000000)
+        mod = self.load_module_by_name(lib)
 
         proc = self.get_current_process()
         if self.get_address_map(proc.get_peb_ldr().address):
@@ -1990,181 +1988,48 @@ class WindowsEmulator(BinaryEmulator):
 
         return mod.get_base()
 
-    def generate_decoy_module(self, modname, base):
+    def load_module_by_name(self, name, emu_path=None, base=None):
         """
-        Create a decoy module that emulates a DLL. The decoy module will contain basic
-        structures such as a .text section and an .edata section containing a list of exported functions.
+        Load a module by name using the appropriate loader.
+
+        Priority: native PE file -> API handler (JIT PE) -> placeholder stub.
         """
+        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader, PeLoader
 
-        if not modname:
-            return
-        modname = modname.lower()
-        mod_handler = self.api.load_api_handler(modname)  # type: ignore[union-attr]
-        if mod_handler:
-            jit = winemu.JitPeFile(self.get_arch(), base=base)
-
-            funcs = [(f[4], f[0]) for k, f in mod_handler.funcs.items() if isinstance(k, str)]
-            data_exports = [k for k, d in mod_handler.data.items() if isinstance(k, str)]
-            new = funcs.copy()
-
-            if modname == "ntdll":
-                nt_handler = self.api.load_api_handler("ntoskrnl")  # type: ignore[union-attr]
-                funcs = [(f[4], f[0]) for k, f in nt_handler.funcs.items() if isinstance(k, str)]
-                funcs = new + funcs
-                new = funcs.copy()
-
-            if modname in ("ntdll", "ntoskrnl"):
-                for o, fn in funcs:
-                    if fn.startswith("Nt"):
-                        new.append((None, "Zw" + fn[2:]))
-                    elif fn.startswith("Zw"):
-                        new.append((None, "Nt" + fn[2:]))
-            else:
-                for o, fn in funcs:
-                    new.append((None, fn + "A"))
-                    new.append((None, fn + "W"))
-            func_names = new
-
-            func_names = [fn for o, fn in func_names]
-            func_names.sort()
-
-            exports = []  # type: ignore[var-annotated]
-            ords = [o for o, fn in funcs if o is not None]
-            if ords:
-                if max(ords) > len(exports):
-                    num_exports = max(ords) + 1
-                else:
-                    num_exports = len(exports) + 1
-
-                exports = [f"ordinal_{i}" for i in range(num_exports)]
-
-                for o, fn in funcs:
-                    if o is not None:
-                        exports[o - 1] = fn
-
-                [exports.append(fn) for fn in func_names if fn not in exports]  # type: ignore[arg-type, func-returns-value]
-
-            if not exports:
-                exports = func_names  # type: ignore[assignment]
-
-            exports += data_exports
-            img = jit.get_decoy_pe_image(modname, exports)
-            mod = winemu.DecoyModule(data=img, is_jitted=True, fast_load=False)
-
-            return mod
-        return None
-
-    def init_module(self, modconf=None, name="none", emu_path="", default_base=None):
-        """
-        Initialize a module from a config entry
-        """
-        modname = getattr(modconf, "name", None) or name
-        base_addr = getattr(modconf, "base_addr", None) or default_base
-        if isinstance(base_addr, str):
-            base_addr = int(base_addr, 16)
-
-        mod = None
-
-        images = getattr(modconf, "images", []) or []
-        default_file_path = self.get_native_module_path(mod_name=modname)
-        if not images:
-            if not default_file_path:
-                mod = self.generate_decoy_module(modname, base_addr)
-                default_file_path = self.get_native_module_path(mod_name="default_exe")
-
-        path = None
-        for img in images:
-            if img.arch == self.get_arch():
-                path = self.get_native_module_path(mod_name=img.name)
-
-        if not path:
-            path = default_file_path
-
-        if not mod:
-            mod = winemu.DecoyModule(path=path)
-
-        mod.decoy_path = getattr(modconf, "path", None) or emu_path or (name + ".dll")
-        # Reserve memory for the module
-        res, size = self.get_valid_ranges(mod.image_size, base_addr)
-        mod.decoy_base = res
-        mod.name = getattr(modconf, "name", None) or name
-
-        img_size = mod.OPTIONAL_HEADER.SizeOfImage
-        alloc_size = max(img_size, size)
-        mem_base = self.mem_map(alloc_size, base=res, tag=f"emu.module.{mod.name}", perms=common.PERM_MEM_RW)
-        mod.decoy_base = mem_base
-        mod.OPTIONAL_HEADER.ImageBase = mem_base
-        mod.image_size = alloc_size
-
-        headers_size = mod.OPTIONAL_HEADER.SizeOfHeaders
-        headers_content = bytes(mod.get_data(length=headers_size))
-        self.mem_write(mem_base, headers_content)
-        aligned_headers = (headers_size + self.page_size - 1) & ~(self.page_size - 1)
-        self.mem_protect(mem_base, aligned_headers, common.PERM_MEM_READ)
-
-        if hasattr(mod, "sections"):
-            for section in mod.sections:
-                va = section.VirtualAddress
-                section_data = bytes(section.get_data())
-                self.mem_write(mem_base + va, section_data)
-                chars = section.Characteristics
-                r = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_READ
-                w = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_WRITE
-                x = chars & winemu.ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE
-                perms = common.PERM_MEM_NONE
-                if r:
-                    perms |= common.PERM_MEM_READ
-                if w:
-                    perms |= common.PERM_MEM_WRITE
-                if x:
-                    perms |= common.PERM_MEM_EXEC
-                vsize = section.Misc_VirtualSize
-                section_addr = mem_base + va
-                aligned_addr = section_addr & ~(self.page_size - 1)
-                end_addr = section_addr + vsize
-                aligned_end = (end_addr + self.page_size - 1) & ~(self.page_size - 1)
-                aligned_size = aligned_end - aligned_addr
-                if aligned_size > 0:
-                    try:
-                        self.mem_protect(aligned_addr, aligned_size, perms)
-                    except Exception:
-                        pass
-
-        if "\\" not in mod.decoy_path and name != "":
+        base = base or 0x6F000000
+        if not emu_path:
             sysdir = self.config.current_dir or "C:\\Windows\\system32"
-            basename = mod.decoy_path if mod.decoy_path else name + ".dll"
-            mod.decoy_path = sysdir + "\\" + basename
+            emu_path = sysdir + "\\" + name + ".dll"
 
-        mod.base_name = ntpath.basename(mod.decoy_path)
+        native_path = self.get_native_module_path(mod_name=name)
 
-        if hasattr(mod, "is_jitted") and mod.is_jitted:
-            mod_base_name = mod.get_base_name()
-            for exp in mod.get_exports():
-                if exp.name:
-                    self.symbols[exp.address] = (mod_base_name, exp.name)
-                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)  # type: ignore[union-attr]
-                    if hndlr and not self.config.analysis.memory_tracing:
-                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
-                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
+        loader: PeLoader | ApiModuleLoader | DecoyLoader
+        if native_path:
+            loader = PeLoader(path=native_path, base_override=base, emu_path=emu_path)
+        else:
+            handler = self.api.load_api_handler(name) if self.api else None
+            if handler:
+                if name == "ntdll":
+                    nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
+                    if nt_handler:
+                        handler._nt_handler = nt_handler
+                loader = ApiModuleLoader(
+                    name=name,
+                    api=handler,
+                    arch=self.get_arch(),
+                    base=base,
+                    emu_path=emu_path,
+                )
+            else:
+                fallback_path = self.get_native_module_path(mod_name="default_exe")
+                if fallback_path:
+                    loader = PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
+                else:
+                    loader = DecoyLoader(name=name, base=base, emu_path=emu_path, image_size=0x1000)
 
-            if not self.config.analysis.memory_tracing:
-                mod_start = mod.OPTIONAL_HEADER.ImageBase
-                mod_end = mod_start + mod.OPTIONAL_HEADER.SizeOfImage
-                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
-
-        from speakeasy.windows.loaders import DecoyLoader, RuntimeModule
-
-        decoy_image = DecoyLoader(
-            name=modname,
-            base=mem_base,
-            emu_path=mod.decoy_path,
-            image_size=alloc_size,
-        ).make_image()
-        rtmod = RuntimeModule(decoy_image)
-        rtmod._pe = mod
-        self.modules.append(rtmod)
-
-        return rtmod
+        image = loader.make_image()
+        image.name = name
+        return self.load_image(image)
 
     # This will create a module from a file inside Speakeasy's
     # object manager. file_path is expected to point to a valid PE
@@ -2184,63 +2049,6 @@ class WindowsEmulator(BinaryEmulator):
         # from the BytesIO object
         return mod_file.data.getvalue()
 
-    def _wrap_decoy_as_runtime_module(self, decoy_mod):
-        from speakeasy.windows.loaders import (
-            ApiModuleLoader,
-            DecoyLoader,
-            ExportEntry,
-            LoadedImage,
-            RuntimeModule,
-        )
-
-        exports = []
-        for exp in decoy_mod.get_exports():
-            exports.append(
-                ExportEntry(
-                    name=exp.name,
-                    address=exp.address,
-                    ordinal=exp.ordinal,
-                    execution_mode="intercepted",
-                )
-            )
-
-        is_jitted = getattr(decoy_mod, "is_jitted", False)
-        loader_ref: ApiModuleLoader | DecoyLoader
-        if is_jitted:
-            loader_ref = ApiModuleLoader(
-                name=decoy_mod.name or "",
-                api=None,
-                arch=self.arch,
-                base=decoy_mod.get_base(),
-                emu_path=decoy_mod.get_emu_path(),
-            )
-        else:
-            loader_ref = DecoyLoader(
-                name=decoy_mod.name or "",
-                base=decoy_mod.get_base(),
-                emu_path=decoy_mod.get_emu_path(),
-                image_size=decoy_mod.image_size,
-            )
-
-        image = LoadedImage(
-            arch=self.arch,
-            module_type="dll",
-            name=decoy_mod.name or "",
-            emu_path=decoy_mod.get_emu_path(),
-            image_base=decoy_mod.get_base(),
-            image_size=decoy_mod.image_size,
-            regions=[],
-            imports=[],
-            exports=exports,
-            default_export_mode="intercepted",
-            entry_points=[],
-            visible_in_peb=True,
-            loader=loader_ref,
-        )
-        rtmod = RuntimeModule(image)
-        rtmod._pe = decoy_mod
-        return rtmod
-
     def init_environment(self, system_modules=None, user_modules=None):
         if system_modules is None:
             system_modules = self.config.modules.system_modules
@@ -2258,7 +2066,7 @@ class WindowsEmulator(BinaryEmulator):
         return self._init_module_group(modules_config, default_base=0x6F000000)
 
     def _init_module_group(self, modules_config, default_base=None):
-        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader
+        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader, PeLoader
 
         rtmods = []
         for modconf in modules_config:
@@ -2277,92 +2085,41 @@ class WindowsEmulator(BinaryEmulator):
             if not path:
                 path = native_path
 
+            loader: PeLoader | ApiModuleLoader | DecoyLoader
             if path:
-                rtmod = self._init_native_decoy(modname, path, base_addr, emu_path)
-                rtmods.append(rtmod)
-                continue
-
-            handler = self.api.load_api_handler(modname) if self.api else None
-
-            if handler and modname == "ntdll":
-                nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
-                if nt_handler:
-                    handler._nt_handler = nt_handler
-
-            loader: ApiModuleLoader | DecoyLoader
-            if handler:
-                loader = ApiModuleLoader(
-                    name=modname,
-                    api=handler,
-                    arch=self.get_arch(),
-                    base=base_addr or 0,
+                loader = PeLoader(
+                    path=path,
+                    base_override=base_addr,
                     emu_path=emu_path,
                 )
             else:
-                loader = DecoyLoader(
-                    name=modname,
-                    base=base_addr or 0,
-                    emu_path=emu_path,
-                    image_size=0,
-                )
+                handler = self.api.load_api_handler(modname) if self.api else None
+
+                if handler and modname == "ntdll":
+                    nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
+                    if nt_handler:
+                        handler._nt_handler = nt_handler
+
+                if handler:
+                    loader = ApiModuleLoader(
+                        name=modname,
+                        api=handler,
+                        arch=self.get_arch(),
+                        base=base_addr or 0,
+                        emu_path=emu_path,
+                    )
+                else:
+                    loader = DecoyLoader(
+                        name=modname,
+                        base=base_addr or 0,
+                        emu_path=emu_path,
+                        image_size=0,
+                    )
 
             image = loader.make_image()
             rtmod = self.load_image(image)
             rtmods.append(rtmod)
         return rtmods
-
-    def _init_native_decoy(self, modname, path, base_addr, emu_path):
-        from speakeasy.windows.loaders import DecoyLoader, RuntimeModule
-
-        decoy_mod = winemu.DecoyModule(path=path)
-        res, size = self.get_valid_ranges(decoy_mod.image_size, base_addr)
-        alloc_size = max(decoy_mod.OPTIONAL_HEADER.SizeOfImage, size)
-        mem_base = self.mem_map(alloc_size, base=res, tag=f"emu.module.{modname}", perms=common.PERM_MEM_RW)
-
-        headers_size = decoy_mod.OPTIONAL_HEADER.SizeOfHeaders
-        headers_content = bytes(decoy_mod.get_data(length=headers_size))
-        self.mem_write(mem_base, headers_content)
-        aligned_headers = (headers_size + self.page_size - 1) & ~(self.page_size - 1)
-        self.mem_protect(mem_base, aligned_headers, common.PERM_MEM_READ)
-
-        if hasattr(decoy_mod, "sections"):
-            for section in decoy_mod.sections:
-                va = section.VirtualAddress
-                section_data = bytes(section.get_data())
-                self.mem_write(mem_base + va, section_data)
-
-        decoy_mod.decoy_base = mem_base
-        decoy_mod.decoy_path = emu_path
-        decoy_mod.name = modname
-        decoy_mod.OPTIONAL_HEADER.ImageBase = mem_base
-        decoy_mod.image_size = alloc_size
-
-        is_jitted = getattr(decoy_mod, "is_jitted", False)
-        if is_jitted:
-            mod_base_name = decoy_mod.get_base_name()
-            for exp in decoy_mod.get_exports():
-                if exp.name:
-                    self.symbols[exp.address] = (mod_base_name, exp.name)
-                    m, hndlr = self.api.get_data_export_handler(mod_base_name, exp.name)  # type: ignore[union-attr]
-                    if hndlr and not self.config.analysis.memory_tracing:
-                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
-                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
-
-            if not self.config.analysis.memory_tracing:
-                mod_start = decoy_mod.OPTIONAL_HEADER.ImageBase
-                mod_end = mod_start + decoy_mod.OPTIONAL_HEADER.SizeOfImage
-                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
-
-        decoy_image = DecoyLoader(
-            name=modname,
-            base=mem_base,
-            emu_path=emu_path,
-            image_size=alloc_size,
-        ).make_image()
-        rtmod = RuntimeModule(decoy_image)
-        rtmod._pe = decoy_mod
-        self.modules.append(rtmod)
-        return rtmod
 
     def map_decoy(self, module):
         """

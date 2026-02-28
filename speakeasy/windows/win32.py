@@ -8,7 +8,6 @@ import shlex
 import zlib
 
 import speakeasy.common as common
-import speakeasy.windows.common as w32common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import Win32EmuError
@@ -498,7 +497,7 @@ class Win32Emulator(WindowsEmulator):
         CORE_DLLS = ["ntdll", "kernel32", "kernelbase"]
         for dll in CORE_DLLS:
             if not self.get_mod_by_name(dll):
-                self.init_module(name=dll, default_base=0x6F000000)
+                self.load_module_by_name(dll)
 
     def set_unhandled_exception_handler(self, handler_addr):
         """
@@ -531,54 +530,17 @@ class Win32Emulator(WindowsEmulator):
         """
         Get the system modules (e.g. drivers) that are loaded in the emulator
         """
-        from speakeasy.windows.loaders import DecoyLoader, LoadedImage
-
-        sys_mods = []
+        rtmods = super().init_sys_modules(modules_config)
 
         for modconf in modules_config:
-            mod = w32common.DecoyModule()
-            mod.name = modconf.name
-            base = modconf.base_addr
-            if isinstance(base, str):
-                base = int(base, 16)
-
-            mod.decoy_base = base
-            mod.decoy_path = modconf.path
-
             drv = modconf.driver
             if drv:
-                devs = drv.devices
-                for dev in devs:
+                for dev in drv.devices:
                     name = dev.name or ""
                     do = self.new_object(objman.Device)
                     do.name = name
 
-            sys_mods.append(mod)
-
-            decoy_image = LoadedImage(
-                arch=self.arch if self.arch else 0,
-                module_type="decoy",
-                name=modconf.name or "",
-                emu_path=modconf.path or "",
-                image_base=base or 0,
-                image_size=0,
-                regions=[],
-                imports=[],
-                exports=[],
-                default_export_mode="intercepted",
-                entry_points=[],
-                visible_in_peb=True,
-                loader=DecoyLoader(
-                    name=modconf.name or "",
-                    base=base or 0,
-                    emu_path=modconf.path or "",
-                    image_size=0,
-                ),
-            )
-            rtmod = RuntimeModule(decoy_image)
-            rtmod._pe = mod
-            self.modules.append(rtmod)
-        return sys_mods
+        return rtmods
 
     def init_container_process(self):
         """
