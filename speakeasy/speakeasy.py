@@ -1,45 +1,55 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import json
-import ntpath
 import hashlib
+import logging
+import ntpath
+import os
 import zipfile
+from collections.abc import Callable
 from io import BytesIO
-from typing import Callable
-
+from pathlib import Path, PureWindowsPath
 
 from pefile import MACHINE_TYPE
-import jsonschema
-import jsonschema.exceptions
+from pydantic import ValidationError
 
-import speakeasy
 import speakeasy.winenv.arch as _arch
-from speakeasy import PeFile
-from speakeasy import Win32Emulator
-from speakeasy import WinKernelEmulator
+from speakeasy import Win32Emulator, WinKernelEmulator
+from speakeasy.cli_config import output_active_config
+from speakeasy.config import SpeakeasyConfig, get_default_config_dict
+from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
+from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
+from speakeasy.volumes import apply_volumes
 
-from speakeasy.errors import SpeakeasyError, ConfigError, NotSupportedError
+logger = logging.getLogger(__name__)
 
 
-class Speakeasy(object):
+class Speakeasy:
     """
     Wrapper class for invoking the speakeasy emulators
     """
 
+    @staticmethod
     def check_init(func):
-
         """Wrapper to make sure the emulator is initialized"""
 
         def wrap(self, *args, **kwargs):
             if not self.emu:
-                raise SpeakeasyError('Emulator not initialized')
+                raise SpeakeasyError("Emulator not initialized")
             return func(self, *args, **kwargs)
+
         return wrap
 
-    def __init__(self, config=None, logger=None, argv=[], debug=False, exit_event=None):
+    def __init__(self, config=None, argv=[], debug=False, exit_event=None, gdb_port=None, volumes=None):
 
-        self.logger = logger
+        if volumes:
+            if isinstance(config, SpeakeasyConfig):
+                raise ConfigError(
+                    "Cannot apply --volume to an already-validated SpeakeasyConfig; pass a raw dict or None instead"
+                )
+            if config is None:
+                config = get_default_config_dict()
+            apply_volumes(config, volumes)
+
         self._init_config(config)
         self.emu = None
         self.api_hooks = []
@@ -50,6 +60,7 @@ class Speakeasy(object):
         self.argv = argv
         self.exit_event = exit_event
         self.debug = debug
+        self.gdb_port = gdb_port
         self.loaded_bins = []
         self.mem_write_hooks = []
         self.mem_invalid_hooks = []
@@ -60,9 +71,9 @@ class Speakeasy(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        del self
+        self.shutdown()
 
-    def _init_config(self, config: dict) -> None:
+    def _init_config(self, config: dict | SpeakeasyConfig | None) -> None:
         """
         Init the emulator config
         args:
@@ -71,24 +82,17 @@ class Speakeasy(object):
         return:
             None
         """
-        if not config:
-            config_path = os.path.join(os.path.dirname(speakeasy.__file__),
-                                       'configs', 'default.json')
-            with open(config_path, 'r') as f:
-                self.config = json.load(f)
-        else:
-            self.config = config
+        if config is None:
+            config = get_default_config_dict()
 
-        try:
-            validate_config(self.config)
-        except jsonschema.exceptions.SchemaError as err:
-            if self.logger:
-                self.logger.exception('Invalid config schema: %s', str(err))
-            raise ConfigError('Invalid config schema')
-        except jsonschema.exceptions.ValidationError as err:
-            if self.logger:
-                self.logger.exception('Invalid config: %s', str(err))
-            raise ConfigError('Invalid config')
+        if isinstance(config, SpeakeasyConfig):
+            self.config = config
+        else:
+            try:
+                self.config = SpeakeasyConfig.model_validate(config)
+            except ValidationError as err:
+                logger.exception("Invalid config: %s", str(err))
+                raise ConfigError("Invalid config") from err
 
     def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
         """
@@ -97,24 +101,37 @@ class Speakeasy(object):
 
         """
         if not is_raw_code:
-            pe = PeFile(path=path, data=data)
+            from speakeasy.windows.common import _PeParser
+
+            pe = _PeParser(path=path, data=data)
             # Get the machine type we only support x86/x64 atm
-            mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split('_')[-1:][0].lower()
-            if mach not in ('amd64', 'i386'):
-                raise SpeakeasyError('Unsupported architecture: %s' % mach)
+            mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
+            if mach not in ("amd64", "i386"):
+                raise SpeakeasyError(f"Unsupported architecture: {mach}")
 
             if pe.is_dotnet():
-                raise NotSupportedError('.NET assemblies are not currently supported')
+                raise NotSupportedError(".NET assemblies are not currently supported")
 
             if pe.is_driver():
-                self.emu = WinKernelEmulator(config=self.config, logger=self.logger,
-                                             debug=self.debug, exit_event=self.exit_event)
+                self.emu = WinKernelEmulator(
+                    config=self.config, debug=self.debug, exit_event=self.exit_event, gdb_port=self.gdb_port
+                )
             else:
-                self.emu = Win32Emulator(config=self.config, logger=self.logger, argv=self.argv,
-                                         debug=self.debug, exit_event=self.exit_event)
+                self.emu = Win32Emulator(
+                    config=self.config,
+                    argv=self.argv,
+                    debug=self.debug,
+                    exit_event=self.exit_event,
+                    gdb_port=self.gdb_port,
+                )
         else:
-            self.emu = Win32Emulator(config=self.config, logger=self.logger, argv=self.argv,
-                                     debug=self.debug, exit_event=self.exit_event)
+            self.emu = Win32Emulator(
+                config=self.config,
+                argv=self.argv,
+                debug=self.debug,
+                exit_event=self.exit_event,
+                gdb_port=self.gdb_port,
+            )
 
     def _init_hooks(self) -> None:
         """
@@ -147,7 +164,7 @@ class Speakeasy(object):
             self.add_mem_write_hook(cb, begin, end)
         while self.mem_invalid_hooks:
             h = self.mem_invalid_hooks.pop(0)
-            cb, = h
+            (cb,) = h
             self.add_mem_invalid_hook(cb)
         while self.interrupt_hooks:
             h = self.interrupt_hooks.pop(0)
@@ -168,9 +185,9 @@ class Speakeasy(object):
             A tuple of: (mnemonic, operands, and the full instruction)
         """
         try:
-            return self.emu.get_disasm(addr, size, fast)
+            return self.emu.get_disasm(addr, size, fast)  # type: ignore[union-attr]
         except Exception:
-            raise SpeakeasyError("Failed to disassemble at address: 0x%x" % (addr))
+            raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}")
 
     def is_pe(self, data: bytes) -> bool:
         """
@@ -182,41 +199,82 @@ class Speakeasy(object):
             True is data appears to be a PE
         """
         # Check for the PE header
-        if data[:2] == b'MZ':
+        if data[:2] == b"MZ":
             return True
         else:
             return False
 
-    def load_module(self, path=None, data=None) -> PeFile:
-        """
-        Load a module into the speakeasy emulator
+    def _auto_mount_target_directory(self, path: str) -> None:
+        """Mount direct-child files in the target's host directory into the emulated current directory.
 
-        args:
-            path: Path to file to load into the emulation space
-            data: Raw data to load as a module into the emulation space
-        return:
-            A PeFile object representing the newly loaded module
+        This makes sibling files (e.g. data files the sample expects to find
+        in its working directory) available to the emulated program.  Only
+        immediate children are mounted (no recursion into subdirectories).
+        """
+        target_dir = Path(path).resolve().parent
+        if not target_dir.is_dir():
+            return
+
+        guest_cd = PureWindowsPath(self.config.current_dir)
+        entries: list[dict] = []
+        for child in sorted(target_dir.iterdir()):
+            if not child.is_file():
+                continue
+            emu_path = guest_cd / child.name
+            entries.append(
+                {
+                    "mode": "full_path",
+                    "emu_path": str(emu_path),
+                    "path": str(child),
+                }
+            )
+        if not entries:
+            return
+
+        config_dict = self.config.model_dump()
+        config_dict["filesystem"]["files"] = entries + config_dict["filesystem"]["files"]
+        self.config = SpeakeasyConfig.model_validate(config_dict)
+
+        logger.info("Auto-mounted %d file(s) from target directory %s into %s", len(entries), target_dir, guest_cd)
+        for e in entries:
+            logger.debug("  %s -> %s", e["emu_path"], e["path"])
+
+    def load_module(self, path=None, data=None):
+        """
+        Load a module into the speakeasy emulator.
         """
         if not path and not data:
-            raise SpeakeasyError('No emulation target supplied')
+            raise SpeakeasyError("No emulation target supplied")
 
         if path and not os.path.exists(path):
-            raise SpeakeasyError('Target file not found: %s' % (path))
+            raise SpeakeasyError(f"Target file not found: {path}")
 
         if data:
             test = data
         else:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 test = f.read(4)
 
         self.loaded_bins.append(path)
 
         if not self.is_pe(test):
-            raise SpeakeasyError('Target file is not a PE')
+            raise SpeakeasyError("Target file is not a PE")
+
+        if path:
+            self._auto_mount_target_directory(path)
 
         self._init_emulator(path=path, data=data)
 
-        return self.emu.load_module(path=path, data=data)
+        return self.emu.load_module(path=path, data=data)  # type: ignore[union-attr]
+
+    def load_image(self, image):
+        """
+        Load a LoadedImage into the emulator.
+        """
+        if not self.emu:
+            self._init_emulator(is_raw_code=True)
+        self._init_hooks()
+        return self.emu.load_image(image)  # type: ignore[union-attr]
 
     @check_init
     def run_module(self, module, all_entrypoints=False, emulate_children=False) -> None:
@@ -233,17 +291,17 @@ class Speakeasy(object):
         return:
             None
         """
+        output_active_config(self.config, logger)
         self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
-            return self.emu.run_module(module=module,
-                    all_entrypoints=all_entrypoints,
-                    emulate_children=emulate_children)
+            return self.emu.run_module(  # type: ignore[no-any-return]
+                module=module, all_entrypoints=all_entrypoints, emulate_children=emulate_children
+            )
         else:
-            return self.emu.run_module(module=module,
-                    all_entrypoints=all_entrypoints)
+            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)  # type: ignore[no-any-return, union-attr]
 
-    def load_shellcode(self, fpath, arch, data=None) -> int:
+    def load_shellcode(self, fpath=None, arch=None, data=None) -> int:
         """
         Load a shellcode blob into emulation space
 
@@ -257,7 +315,7 @@ class Speakeasy(object):
         self._init_emulator(is_raw_code=True)
         self.loaded_bins.append(fpath)
 
-        return self.emu.load_shellcode(fpath, arch, data=data)
+        return self.emu.load_shellcode(fpath, arch, data=data)  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
@@ -270,18 +328,19 @@ class Speakeasy(object):
         return:
             None
         """
+        output_active_config(self.config, logger)
         self._init_hooks()
-        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
+        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)  # type: ignore[no-any-return, union-attr]
 
     @check_init
-    def get_report(self) -> dict:
+    def get_report(self) -> Report:
         """
         Get the emulation report from the emulator
 
         return:
-            Get the raw emulation report as a python dictionary
+            Get the emulation report as a Pydantic Report model
         """
-        return self.emu.get_report()
+        return self.emu.get_report()  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def get_json_report(self) -> str:
@@ -290,9 +349,9 @@ class Speakeasy(object):
         return:
             Get the emulation report as a JSON object
         """
-        return self.emu.get_json_report()
+        return self.emu.get_json_report()  # type: ignore[no-any-return, union-attr]
 
-    def add_api_hook(self, cb: Callable, module='', api_name='', argc=0, call_conv=None):
+    def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
         """
         Set a callback to fire when a specified API is called during emulation
 
@@ -308,8 +367,7 @@ class Speakeasy(object):
         if not self.emu:
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
             return
-        return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc,
-                                     call_conv=call_conv, emu=self)
+        return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
 
     def resume(self, addr, count=-1):
         """
@@ -321,21 +379,31 @@ class Speakeasy(object):
         return:
             None
         """
-        self.emu.run_complete = False
-        self.emu.resume(addr, count=count)
+        output_active_config(self.config, logger)
+        self.emu.run_complete = False  # type: ignore[union-attr]
+        self.emu.resume(addr, count=count)  # type: ignore[union-attr]
 
     def stop(self) -> None:
         """
         Stops emulation
         """
-        return self.emu.stop()
+        return self.emu.stop()  # type: ignore[no-any-return, union-attr]
 
     def shutdown(self) -> None:
         """
-        Closes the emulation instance
+        Closes the emulation instance and releases underlying engine resources.
+
+        Removes all Unicorn hooks so the native engine can be safely finalized
+        by the garbage collector without accessing stale callbacks.  The Uc
+        handle itself is intentionally kept alive — Unicorn's ``uc_close`` has
+        process-global side effects that can corrupt other live engine
+        instances, so we let the normal GC + weak-ref finalizer handle it when
+        the object graph is fully unreachable.
         """
-        # TODO
-        return
+        if self.emu is None:
+            return
+        if hasattr(self.emu, "emu_eng") and self.emu.emu_eng is not None:
+            self.emu.emu_eng.close()
 
     def call(self, addr: int, params=[]) -> None:
         """
@@ -347,7 +415,8 @@ class Speakeasy(object):
         return:
             None
         """
-        return self.emu.call(addr, params=params)
+        output_active_config(self.config, logger)
+        return self.emu.call(addr, params=params)  # type: ignore[no-any-return, union-attr]
 
     def add_code_hook(self, cb: Callable, begin=1, end=0, ctx={}):
         """
@@ -470,7 +539,7 @@ class Speakeasy(object):
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.mem_invalid_hooks.append((cb, ))
+            self.mem_invalid_hooks.append((cb,))
             return
         return self.emu.add_mem_invalid_hook(cb, emu=self)
 
@@ -485,11 +554,11 @@ class Speakeasy(object):
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.interrupt_hooks.append((cb, ))
+            self.interrupt_hooks.append((cb,))
             return
         return self.emu.add_interrupt_hook(cb, ctx=ctx, emu=self)
 
-    def get_registry_key(self, handle=0, path=''):
+    def get_registry_key(self, handle=0, path=""):
         """
         Get registry key by path or handle
 
@@ -499,7 +568,7 @@ class Speakeasy(object):
         return:
             If valid, a registry key object
         """
-        return self.emu.reg_get_key(handle=handle, path=path)
+        return self.emu.reg_get_key(handle=handle, path=path)  # type: ignore[union-attr]
 
     def get_address_map(self, addr: int):
         """
@@ -510,27 +579,9 @@ class Speakeasy(object):
         return:
             A memory map object that holds the specified address
         """
-        return self.emu.get_address_map(addr)
+        return self.emu.get_address_map(addr)  # type: ignore[union-attr]
 
-    def get_user_modules(self) -> list:
-        """
-        Get the address ranges of loaded user modules
-
-        return:
-            List of all currently loaded user modules
-        """
-        return self.emu.get_user_modules()
-
-    def get_sys_modules(self) -> list:
-        """
-        Get the address ranges of loaded system modules
-
-        return:
-            List of all currently loaded system modules
-        """
-        return self.emu.get_sys_modules()
-
-    def mem_alloc(self, size, base=None, tag='speakeasy.None') -> int:
+    def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
         """
         Allocate a block of memory in the emulation space
 
@@ -542,7 +593,7 @@ class Speakeasy(object):
         return:
             Address of the newly allocated memory block
         """
-        return self.emu.mem_map(size, base=base, tag=tag)
+        return self.emu.mem_map(size, base=base, tag=tag)  # type: ignore[no-any-return, union-attr]
 
     def mem_free(self, base: int) -> None:
         """
@@ -552,7 +603,7 @@ class Speakeasy(object):
         return:
             None
         """
-        return self.emu.mem_free(base)
+        return self.emu.mem_free(base)  # type: ignore[no-any-return, union-attr]
 
     def mem_read(self, addr: int, size: int) -> bytes:
         """
@@ -565,9 +616,9 @@ class Speakeasy(object):
             Python bytes object contained the data read
         """
         try:
-            return self.emu.mem_read(addr, size)
+            return self.emu.mem_read(addr, size)  # type: ignore[no-any-return, union-attr]
         except Exception:
-            raise SpeakeasyError("Failed to read %d bytes at address: 0x%x" % (size, addr))
+            raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}")
 
     def mem_write(self, addr: int, data: bytes) -> None:
         """
@@ -580,9 +631,9 @@ class Speakeasy(object):
             None
         """
         try:
-            return self.emu.mem_write(addr, data)
+            return self.emu.mem_write(addr, data)  # type: ignore[no-any-return, union-attr]
         except Exception:
-            raise SpeakeasyError("Failed to write %d bytes at address: 0x%x" % (len(data), addr))
+            raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}")
 
     def mem_cast(self, obj, addr: int):
         """
@@ -594,7 +645,7 @@ class Speakeasy(object):
         return:
             Python object based on the data located at addr
         """
-        return self.emu.mem_cast(obj, addr)
+        return self.emu.mem_cast(obj, addr)  # type: ignore[union-attr]
 
     def reg_read(self, reg: str) -> int:
         """
@@ -605,17 +656,7 @@ class Speakeasy(object):
         return:
             value contained in the requested register
         """
-        return self.emu.reg_read(reg)
-
-    def get_dyn_imports(self) -> list:
-        """
-        Returns the imports dynamically resolved at runtime
-
-        return:
-            List of functions that were resolved at runtime (e.g. GetProcAddress,
-                                                                  MmGetSystemRoutineAddress)
-        """
-        return self.emu.get_dyn_imports()
+        return self.emu.reg_read(reg)  # type: ignore[no-any-return, union-attr]
 
     def reg_write(self, reg: str, val: int) -> None:
         """
@@ -626,7 +667,7 @@ class Speakeasy(object):
         return:
             None
         """
-        return self.emu.reg_write(reg, val)
+        return self.emu.reg_write(reg, val)  # type: ignore[no-any-return, union-attr]
 
     def get_dropped_files(self) -> list:
         """
@@ -635,7 +676,7 @@ class Speakeasy(object):
         return:
             Returns a list of files that were written by the sample
         """
-        return self.emu.get_dropped_files()
+        return self.emu.get_dropped_files()  # type: ignore[no-any-return, union-attr]
 
     def create_file_archive(self) -> bytes:
         """
@@ -646,27 +687,28 @@ class Speakeasy(object):
         return:
             A Bytes object containing a zip archive of dropped files
         """
-        manifest = []
+        manifest: list[FileManifestEntry] = []
         _zip = BytesIO()
         files = self.get_dropped_files()
 
         if not files:
-            return b''
+            return b""
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-
             for f in files:
-
                 path = f.get_path()
                 file_name = ntpath.basename(path)
-                manifest.append({'path': path,
-                                 'file_name': file_name,
-                                 'size': f.get_size(),
-                                 'sha256': f.get_hash()})
+                entry = FileManifestEntry(
+                    path=path,
+                    file_name=file_name,
+                    size=f.get_size(),
+                    sha256=f.get_hash(),
+                )
+                manifest.append(entry)
                 zf.writestr(file_name, f.get_data())
 
-            manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr('speakeasy_manifest.json', manifest)
+            manifest_json = "[" + ",".join(e.model_dump_json(indent=4) for e in manifest) + "]"
+            zf.writestr("speakeasy_manifest.json", manifest_json)
 
         return _zip.getvalue()
 
@@ -677,23 +719,23 @@ class Speakeasy(object):
         return:
             A list of all valid memory maps from the emulator
         """
-        return self.emu.get_mem_maps()
+        return self.emu.get_mem_maps()  # type: ignore[no-any-return, union-attr]
 
-    def get_memory_dumps(self) -> tuple:
+    def get_memory_dumps(self):
         """
         Returns all memory contents along with context information
 
         return:
             A generator of tuples of all valid memory with context
         """
-        for mm in self.emu.get_mem_maps():
+        for mm in self.emu.get_mem_maps():  # type: ignore[union-attr]
             base = mm.get_base()
             size = mm.get_size()
             tag = mm.get_tag()
             proc = mm.get_process()
             is_free = mm.is_free()
             try:
-                data = self.emu.mem_read(base, size)
+                data = self.emu.mem_read(base, size)  # type: ignore[union-attr]
             except Exception:
                 continue
             yield (tag, base, size, is_free, proc, data)
@@ -710,7 +752,7 @@ class Speakeasy(object):
         return:
             decoded string
         """
-        return self.emu.read_mem_string(address, width, max_chars)
+        return self.emu.read_mem_string(address, width, max_chars)  # type: ignore[no-any-return, union-attr]
 
     def get_symbols(self) -> dict:
         """
@@ -719,7 +761,7 @@ class Speakeasy(object):
         return:
             a dictionary of symbol information
         """
-        return self.emu.symbols
+        return self.emu.symbols  # type: ignore[no-any-return, union-attr]
 
     def get_ret_address(self) -> int:
         """
@@ -728,7 +770,7 @@ class Speakeasy(object):
         return:
             value stored at the top of the stack
         """
-        return self.emu.get_ret_address()
+        return self.emu.get_ret_address()  # type: ignore[no-any-return, union-attr]
 
     def set_ret_address(self, addr) -> int:
         """
@@ -737,7 +779,7 @@ class Speakeasy(object):
         return:
             None
         """
-        return self.emu.set_ret_address(addr)
+        return self.emu.set_ret_address(addr)  # type: ignore[no-any-return, union-attr]
 
     def push_stack(self, val: int) -> None:
         """
@@ -748,7 +790,7 @@ class Speakeasy(object):
         return:
             None
         """
-        self.emu.push_stack(val)
+        self.emu.push_stack(val)  # type: ignore[union-attr]
 
     def pop_stack(self) -> int:
         """
@@ -757,7 +799,7 @@ class Speakeasy(object):
         return:
             value stored at the top of the stack
         """
-        return self.emu.pop_stack()
+        return self.emu.pop_stack()  # type: ignore[no-any-return, union-attr]
 
     def get_stack_ptr(self) -> int:
         """
@@ -766,7 +808,7 @@ class Speakeasy(object):
         return:
             address of stack pointer
         """
-        return self.emu.get_stack_ptr()
+        return self.emu.get_stack_ptr()  # type: ignore[no-any-return, union-attr]
 
     def set_stack_ptr(self, addr: int) -> None:
         """
@@ -777,7 +819,7 @@ class Speakeasy(object):
         return:
             None
         """
-        self.emu.set_stack_ptr(addr)
+        self.emu.set_stack_ptr(addr)  # type: ignore[union-attr]
 
     def get_pc(self) -> int:
         """
@@ -786,7 +828,7 @@ class Speakeasy(object):
         return:
             value of the program counter
         """
-        return self.emu.get_pc()
+        return self.emu.get_pc()  # type: ignore[no-any-return, union-attr]
 
     def set_pc(self, addr: int) -> None:
         """
@@ -797,7 +839,7 @@ class Speakeasy(object):
         return:
             None
         """
-        self.emu.set_pc(addr)
+        self.emu.set_pc(addr)  # type: ignore[union-attr]
 
     def reset_stack(self, base: int) -> tuple:
         """
@@ -808,7 +850,7 @@ class Speakeasy(object):
         return:
             base, ptr
         """
-        return self.emu.reset_stack(base)
+        return self.emu.reset_stack(base)  # type: ignore[no-any-return, union-attr]
 
     def get_stack_base(self) -> int:
         """
@@ -817,7 +859,7 @@ class Speakeasy(object):
         return:
             base address of stack
         """
-        return self.emu.stack_base
+        return self.emu.stack_base  # type: ignore[no-any-return, union-attr]
 
     def get_arch(self) -> int:
         """
@@ -826,16 +868,16 @@ class Speakeasy(object):
         return:
             emulator architecture constant value
         """
-        return self.emu.get_arch()
+        return self.emu.get_arch()  # type: ignore[no-any-return, union-attr]
 
-    def get_ptr_size(self) -> int:
+    def get_ptr_size(self):
         """
         Get the size of a pointer
 
         return:
             pointer size
         """
-        return self.emu.ptr_size
+        return self.emu.ptr_size  # type: ignore[union-attr]
 
     def get_all_registers(self) -> dict:
         """
@@ -844,7 +886,7 @@ class Speakeasy(object):
         return:
             Dict containing emulation register states
         """
-        return self.emu.get_register_state()
+        return self.emu.get_register_state()  # type: ignore[no-any-return, union-attr]
 
     def get_symbol_from_address(self, address: int) -> str:
         """
@@ -856,7 +898,7 @@ class Speakeasy(object):
         return:
             symbol name
         """
-        return self.emu.get_symbol_from_address(address)
+        return self.emu.get_symbol_from_address(address)  # type: ignore[no-any-return, union-attr]
 
     def is_address_valid(self, address: int) -> bool:
         """
@@ -868,7 +910,7 @@ class Speakeasy(object):
         return:
             True if address is valid, false otherwise
         """
-        return self.emu.is_address_valid(address)
+        return self.emu.is_address_valid(address)  # type: ignore[no-any-return, union-attr]
 
     def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
         """
@@ -895,23 +937,22 @@ class Speakeasy(object):
         return:
             Bytes object containing a zip of all memory
         """
-        manifest = []
+        manifest: list[ProcessMemoryManifest] = []
         _zip = BytesIO()
 
         loaded_bins = [os.path.splitext(os.path.basename(b))[0] for b in self.loaded_bins]
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             procs = []
-            [procs.append(block[4]) for block in self.get_memory_dumps()
-             if block[4] not in procs]
+            [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]  # type: ignore[func-returns-value]
 
             for process in procs:
-                memory_blocks = []
-                arch = self.emu.get_arch()
+                memory_blocks: list[MemoryBlock] = []
+                arch = self.emu.get_arch()  # type: ignore[union-attr]
                 if arch == _arch.ARCH_X86:
-                    arch = 'x86'
+                    arch_str = "x86"
                 else:
-                    arch = 'amd64'
+                    arch_str = "amd64"
 
                 if process:
                     pid = process.get_pid()
@@ -919,10 +960,15 @@ class Speakeasy(object):
                 else:
                     continue
 
-                manifest.append({'pid': pid, 'process_name': path, 'arch': arch,
-                                 'memory_blocks': memory_blocks})
-                for block in self.get_memory_dumps():
+                proc_manifest = ProcessMemoryManifest(
+                    pid=pid,
+                    process_name=path,
+                    arch=arch_str,
+                    memory_blocks=memory_blocks,
+                )
+                manifest.append(proc_manifest)
 
+                for block in self.get_memory_dumps():
                     tag, base, size, is_free, _proc, data = block
 
                     if not tag:
@@ -931,7 +977,7 @@ class Speakeasy(object):
                         continue
                     # Ignore emulator noise such as structures created by the emulator, or
                     # modules that were loaded
-                    if tag and tag.startswith('emu') and not tag.startswith('emu.shellcode.'):
+                    if tag and tag.startswith("emu") and not tag.startswith("emu.shellcode."):
                         bns = [b for b in loaded_bins if b in tag]
                         if not len(bns):
                             continue
@@ -940,31 +986,31 @@ class Speakeasy(object):
                     h.update(data)
                     _hash = h.hexdigest()
 
-                    file_name = '%s.mem' % (tag)
+                    file_name = f"{tag}.mem"
 
-                    memory_blocks.append({'tag':  tag, 'base': hex(base), 'size': hex(size),
-                                          'is_free': is_free, 'sha256': _hash,
-                                          'file_name': file_name})
+                    mem_block = MemoryBlock(
+                        tag=tag,
+                        base=base,
+                        size=size,
+                        is_free=is_free,
+                        sha256=_hash,
+                        file_name=file_name,
+                    )
+                    memory_blocks.append(mem_block)
                     zf.writestr(file_name, data)
 
-            manifest = json.dumps(manifest, indent=4, sort_keys=False)
-            zf.writestr('speakeasy_manifest.json', manifest)
+            manifest_json = "[" + ",".join(m.model_dump_json(indent=4) for m in manifest) + "]"
+            zf.writestr("speakeasy_manifest.json", manifest_json)
 
         return _zip.getvalue()
 
 
-def validate_config(config) -> None:
+def validate_config(config: dict) -> SpeakeasyConfig:
     """
-    Validates the given configuration objects against the built-in schemas.
+    Validates the given configuration dict against the Pydantic schema.
 
-    Raises jsonschema.exceptions.ValidationError on invalid configuration.
-    Expose the underlying jsonschema exception due to it having lots of information
-    about failures.
+    Raises pydantic.ValidationError on invalid configuration.
 
-    On success, returns without exception.
+    Returns the validated SpeakeasyConfig model on success.
     """
-    schema_path = os.path.join(os.path.dirname(speakeasy.__file__), 'config_schema.json')
-    with open(schema_path, 'r') as ff:
-        schema = json.load(ff)
-    validator = jsonschema.Draft7Validator(schema)
-    validator.validate(config)
+    return SpeakeasyConfig.model_validate(config)

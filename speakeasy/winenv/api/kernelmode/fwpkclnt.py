@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
-import speakeasy.winenv.defs.nt.ddk as ddk
 
+import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.wfp.fwpmtypes as fwp
 
 from .. import api
@@ -24,13 +24,13 @@ class Fwpkclnt(api.ApiHandler):
     For example, packet filters can be writting using this framework.
     """
 
-    name = 'fwpkclnt'
+    name = "fwpkclnt"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
 
-        super(Fwpkclnt, self).__init__(emu)
+        super().__init__(emu)
 
         self.funcs = {}
         self.data = {}
@@ -45,7 +45,7 @@ class Fwpkclnt(api.ApiHandler):
 
         self.fwp = fwp
 
-        super(Fwpkclnt, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
 
     def new_id(self):
         tmp = self.handle
@@ -56,23 +56,23 @@ class Fwpkclnt(api.ApiHandler):
 
         # stub
         ret = self.new_id()
-        self.sessions.update({ret: 'sess'})
+        self.sessions.update({ret: "sess"})
 
         return ret
 
     def new_injection(self):
         ret = self.new_id()
         # TODO
-        self.injections.update({ret: 'inj'})
+        self.injections.update({ret: "inj"})
         return ret
 
     def new_filter(self, name, desc, key):
         ret = self.new_id()
-        flt = {ret: {'name': name, 'desc': desc, 'key': key}}
+        flt = {ret: {"name": name, "desc": desc, "key": key}}
         self.filters.update(flt)
         return ret
 
-    @apihook('FwpmEngineOpen0', argc=5)
+    @apihook("FwpmEngineOpen0", argc=5)
     def FwpmEngineOpen0(self, emu, argv, ctx={}):
         """
         DWORD FwpmEngineOpen0(
@@ -90,11 +90,11 @@ class Fwpkclnt(api.ApiHandler):
 
         hnd = self.new_session()
 
-        self.mem_write(eng, hnd.to_bytes(self.get_ptr_size(), 'little'))
+        self.mem_write(eng, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
-    @apihook('FwpsInjectionHandleCreate0', argc=3)
+    @apihook("FwpsInjectionHandleCreate0", argc=3)
     def FwpsInjectionHandleCreate0(self, emu, argv, ctx={}):
         """
         NTSTATUS FwpsInjectionHandleCreate0(
@@ -109,12 +109,11 @@ class Fwpkclnt(api.ApiHandler):
 
         hnd = self.new_injection()
 
-        self.mem_write(inj_handle,
-                       hnd.to_bytes(self.get_ptr_size(), 'little'))
+        self.mem_write(inj_handle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
-    @apihook('FwpmSubLayerAdd0', argc=3)
+    @apihook("FwpmSubLayerAdd0", argc=3)
     def FwpmSubLayerAdd0(self, emu, argv, ctx={}):
         """
         DWORD FwpmSubLayerAdd0(
@@ -125,8 +124,8 @@ class Fwpkclnt(api.ApiHandler):
         """
         engineHandle, subLayer, sd = argv
 
-        name = ''
-        desc = ''
+        name = ""
+        desc = ""
         weight = 0
 
         rv = ddk.STATUS_SUCCESS
@@ -150,14 +149,13 @@ class Fwpkclnt(api.ApiHandler):
         provkey = uuid.UUID(bytes_le=provkey)
         provkey = str(provkey)
 
-        layer = {subkey: {'name': name, 'desc': desc, 'weight': weight,
-                          'subkey': subkey, 'provkey': provkey}}
+        layer = {subkey: {"name": name, "desc": desc, "weight": weight, "subkey": subkey, "provkey": provkey}}
 
         self.sublayers.update(layer)
 
         return rv
 
-    @apihook('FwpsCalloutRegister1', argc=3)
+    @apihook("FwpsCalloutRegister1", argc=3)
     def FwpsCalloutRegister1(self, emu, argv, ctx={}):
         """
         NTSTATUS FwpsCalloutRegister1(
@@ -183,18 +181,24 @@ class Fwpkclnt(api.ApiHandler):
         co_key = uuid.UUID(bytes_le=co_key)
         co_key = str(co_key)
 
-        co = {cid: {'key': co_key, 'flags': callout.flags,
-                    'classify_fn': classify_fn, 'notify_fn': notify_fn,
-                    'delete_fn': delete_fn}}
+        co = {
+            cid: {
+                "key": co_key,
+                "flags": callout.flags,
+                "classify_fn": classify_fn,
+                "notify_fn": notify_fn,
+                "delete_fn": delete_fn,
+            }
+        }
 
         self.callouts.update(co)
 
         if calloutId:
-            self.mem_write(calloutId, cid.to_bytes(4, 'little'))
+            self.mem_write(calloutId, cid.to_bytes(4, "little"))
 
         return rv
 
-    @apihook('FwpmCalloutAdd0', argc=4)
+    @apihook("FwpmCalloutAdd0", argc=4)
     def FwpmCalloutAdd0(self, emu, argv, ctx={}):
         """
         DWORD FwpmCalloutAdd0(
@@ -206,8 +210,8 @@ class Fwpkclnt(api.ApiHandler):
         """
         eng, pCallout, sd, pCid = argv
 
-        name = ''
-        desc = ''
+        name = ""
+        desc = ""
         rv = ddk.STATUS_SUCCESS
 
         _co = self.fwp.FWPM_CALLOUT0(emu.get_ptr_size())
@@ -226,16 +230,16 @@ class Fwpkclnt(api.ApiHandler):
 
         cid = 0
         for k, v in self.callouts.items():
-            if v['key'] == co_key:
+            if v["key"] == co_key:
                 cid = k
-                self.callouts[k].update({'name': name, 'desc': desc})
+                self.callouts[k].update({"name": name, "desc": desc})
 
         if pCid:
-            cid = self.mem_write(pCid, cid.to_bytes(4, 'little'))
+            cid = self.mem_write(pCid, cid.to_bytes(4, "little"))
 
         return rv
 
-    @apihook('FwpmFilterAdd0', argc=4)
+    @apihook("FwpmFilterAdd0", argc=4)
     def FwpmFilterAdd0(self, emu, argv, ctx={}):
         """
         DWORD FwpmFilterAdd0(
@@ -247,12 +251,12 @@ class Fwpkclnt(api.ApiHandler):
         """
         eng, pFilter, sd, pId = argv
 
-        self.mem_write(pId, b'\x41\x41')
+        self.mem_write(pId, b"\x41\x41")
 
         rv = ddk.STATUS_SUCCESS
 
-        name = ''
-        desc = ''
+        name = ""
+        desc = ""
 
         _filt = self.fwp.FWPM_FILTER0(emu.get_ptr_size())
         filt = self.mem_cast(_filt, pFilter)
@@ -271,11 +275,11 @@ class Fwpkclnt(api.ApiHandler):
         flt_key = str(flt_key)
 
         fid = self.new_filter(name, desc, flt_key)
-        self.mem_write(pId, fid.to_bytes(8, 'little'))
+        self.mem_write(pId, fid.to_bytes(8, "little"))
 
         return rv
 
-    @apihook('FwpmFilterDeleteById0', argc=2)
+    @apihook("FwpmFilterDeleteById0", argc=2)
     def FwpmFilterDeleteById0(self, emu, argv, ctx={}):
         """
         DWORD FwpmFilterDeleteById0(
@@ -289,7 +293,7 @@ class Fwpkclnt(api.ApiHandler):
 
         return rv
 
-    @apihook('FwpmCalloutDeleteById0', argc=2)
+    @apihook("FwpmCalloutDeleteById0", argc=2)
     def FwpmCalloutDeleteById0(self, emu, argv, ctx={}):
         """
         DWORD FwpmCalloutDeleteById0(
@@ -305,14 +309,14 @@ class Fwpkclnt(api.ApiHandler):
             rv = ddk.STATUS_SUCCESS
         return rv
 
-    @apihook('FwpsCalloutUnregisterById0', argc=1)
+    @apihook("FwpsCalloutUnregisterById0", argc=1)
     def FwpsCalloutUnregisterById0(self, emu, argv, ctx={}):
         """
         NTSTATUS FwpsCalloutUnregisterById0(
         const UINT32 calloutId
         );
         """
-        cid, = argv
+        (cid,) = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
         co = self.callouts.get(cid)
@@ -320,7 +324,7 @@ class Fwpkclnt(api.ApiHandler):
             rv = ddk.STATUS_SUCCESS
         return rv
 
-    @apihook('FwpmSubLayerDeleteByKey0', argc=2)
+    @apihook("FwpmSubLayerDeleteByKey0", argc=2)
     def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx={}):
         """
         DWORD FwpmSubLayerDeleteByKey0(
@@ -340,26 +344,26 @@ class Fwpkclnt(api.ApiHandler):
 
         return rv
 
-    @apihook('FwpmEngineClose0', argc=1)
+    @apihook("FwpmEngineClose0", argc=1)
     def FwpmEngineClose0(self, emu, argv, ctx={}):
         """
         DWORD FwpmEngineClose0(
         HANDLE engineHandle
         );
         """
-        eng, = argv
+        (eng,) = argv
 
         rv = ddk.STATUS_SUCCESS
         return rv
 
-    @apihook('FwpsInjectionHandleDestroy0', argc=1)
+    @apihook("FwpsInjectionHandleDestroy0", argc=1)
     def FwpsInjectionHandleDestroy0(self, emu, argv, ctx={}):
         """
         NTSTATUS FwpsInjectionHandleDestroy0(
         HANDLE injectionHandle
         );
         """
-        handle, = argv
+        (handle,) = argv
 
         rv = ddk.STATUS_SUCCESS
         if not self.injections.get(handle):

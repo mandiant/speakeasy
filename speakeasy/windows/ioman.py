@@ -1,21 +1,22 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.windows.kernel_mods as km
+import speakeasy.winenv.defs.nt.ddk as ddk
 
 
-class IoManager(object):
+class IoManager:
     """
     Directs IO requests to a module handler. For example, if a user mode application
     sends an ioctl to a device this can be handled here.
     """
+
     def __init__(self):
-        super(IoManager, self).__init__()
+        super().__init__()
         self.emu_kmods = [m.DriverModule() for m in km._get_kmods()]
 
     def dev_ioctl(self, arch, dev, ioctl, inbuf):
         rv = ddk.STATUS_INVALID_DEVICE_REQUEST
-        outbuf = b''
+        outbuf = b""
 
         # Get parent driver for you
         drv = dev.get_parent_driver()

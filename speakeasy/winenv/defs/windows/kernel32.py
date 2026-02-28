@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 WSADESCRIPTION_LEN = 256
 WSASYS_STATUS_LEN = 128
@@ -55,6 +56,7 @@ EXCEPTION_CONTINUE_SEARCH = 0
 EXCEPTION_EXECUTE_HANDLER = 1
 
 THREAD_PRIORITY_NORMAL = 0
+
 
 class PROCESSENTRY32(EmuStruct):
     def __init__(self, ptr_size, width):
@@ -224,7 +226,7 @@ class OSVERSIONINFOEX(EmuStruct):
         self.wReserved = ct.c_uint8
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue
@@ -235,7 +237,7 @@ def get_define(define, prefix=''):
             return k
 
 
-def get_define_value(define, prefix=''):
+def get_define_value(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or k != define:
             continue
@@ -246,7 +248,7 @@ def get_define_value(define, prefix=''):
             return v
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):

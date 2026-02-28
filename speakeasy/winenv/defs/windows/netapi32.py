@@ -1,7 +1,8 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 NERR_Success = 0
 

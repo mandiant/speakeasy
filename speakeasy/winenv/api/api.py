@@ -1,27 +1,31 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.arch as _arch
-from speakeasy.profiler import Run
-from speakeasy.struct import EmuStruct
-from speakeasy.errors import ApiEmuError
+import logging
+
 import speakeasy.windows.common as winemu
-
+import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+from speakeasy.errors import ApiEmuError
+from speakeasy.profiler import Run
+from speakeasy.profiler_events import TracePosition
+from speakeasy.struct import EmuStruct
+
+logger = logging.getLogger(__name__)
 
 
-class ApiHandler(object):
+class ApiHandler:
     """
     Base class for handling exported functions
     """
 
-    name = ''
+    name = ""
 
     @staticmethod
     def apihook(impname=None, argc=0, conv=_arch.CALL_CONV_STDCALL, ordinal=None):
 
         def apitemp(f):
             if not callable(f):
-                raise ApiEmuError('Invalid function type supplied: %s' % (str(f)))
+                raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)
             return f
 
@@ -32,7 +36,7 @@ class ApiHandler(object):
 
         def datatmp(f):
             if not callable(f):
-                raise ApiEmuError('Invalid function type supplied: %s' % (str(f)))
+                raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             f.__datahook__ = (impname, f)
             return f
 
@@ -43,10 +47,10 @@ class ApiHandler(object):
         return func.__apihook__[0]
 
     def __init__(self, emu):
-        super(ApiHandler, self).__init__()
+        super().__init__()
         self.funcs = {}
         self.data = {}
-        self.mod_name = ''
+        self.mod_name = ""
         self.emu = emu
         arch = self.emu.get_arch()
 
@@ -55,15 +59,15 @@ class ApiHandler(object):
         elif arch == _arch.ARCH_AMD64:
             self.ptr_size = 8
         else:
-            raise ApiEmuError('Invalid architecture')
+            raise ApiEmuError("Invalid architecture")
 
         for name in dir(self):
             val = getattr(self, name, None)
             if val is None:
                 continue
 
-            func_attrs = getattr(val, '__apihook__', None)
-            data_attrs = getattr(val, '__datahook__', None)
+            func_attrs = getattr(val, "__apihook__", None)
+            data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
                 name, func, argc, conv, ordinal = func_attrs
                 self.funcs[name] = (name, func, argc, conv, ordinal)
@@ -80,8 +84,8 @@ class ApiHandler(object):
             if val is None:
                 continue
 
-            func_attrs = getattr(val, '__apihook__', None)
-            data_attrs = getattr(val, '__datahook__', None)
+            func_attrs = getattr(val, "__apihook__", None)
+            data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
                 name, func, argc, conv, ordinal = func_attrs
                 obj.funcs[name] = (name, func, argc, conv, ordinal)
@@ -96,8 +100,8 @@ class ApiHandler(object):
         return self.data.get(exp_name)
 
     def get_func_handler(self, exp_name):
-        if exp_name.startswith('ordinal_'):
-            ord_num = exp_name.split('_')
+        if exp_name.startswith("ordinal_"):
+            ord_num = exp_name.split("_")
             if len(ord_num) == 2 and ord_num[1].isdigit():
                 ord_num = int(ord_num[1])
                 handler = self.funcs.get(ord_num)
@@ -112,19 +116,19 @@ class ApiHandler(object):
         if isinstance(obj, EmuStruct):
             return obj.sizeof()
         else:
-            raise ApiEmuError('Invalid object')
+            raise ApiEmuError("Invalid object")
 
     def get_bytes(self, obj):
         if isinstance(obj, EmuStruct):
             return obj.get_bytes()
         else:
-            raise ApiEmuError('Invalid object')
+            raise ApiEmuError("Invalid object")
 
     def cast(self, obj, bytez):
         if isinstance(obj, EmuStruct):
             return obj.cast(bytez)
         else:
-            raise ApiEmuError('Invalid object')
+            raise ApiEmuError("Invalid object")
         return obj
 
     def write_back(self, addr, obj):
@@ -138,8 +142,7 @@ class ApiHandler(object):
         return self.emu.heap_alloc(size, heap)
 
     def mem_alloc(self, size, base=None, tag=None, flags=0, perms=0, shared=False, process=None):
-        return self.emu.mem_map(size, base=base, tag=tag, flags=flags, perms=perms,
-                                shared=shared, process=process)
+        return self.emu.mem_map(size, base=base, tag=tag, flags=flags, perms=perms, shared=shared, process=process)
 
     def mem_free(self, addr):
         return self.emu.mem_free(addr)
@@ -195,70 +198,91 @@ class ApiHandler(object):
     def queue_run(self, run_type, ep, run_args=[]):
         run = Run()
         if not isinstance(run_type, str):
-            raise ApiEmuError('Invalid run type')
+            raise ApiEmuError("Invalid run type")
         if not isinstance(ep, int):
-            raise ApiEmuError('Invalid run entry point')
+            raise ApiEmuError("Invalid run entry point")
         if not any((isinstance(run_args, list), isinstance(run_args, tuple))):
-            raise ApiEmuError('Invalid run args')
+            raise ApiEmuError("Invalid run args")
 
         run.type = run_type
         run.start_addr = ep
         run.args = run_args
         self.emu.add_run(run)
 
-    def log_file_access(self, path, event_type, data=None,
-                        handle=0, disposition=[], access=[], buffer=0,
-                        size=None):
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            profiler.log_file_access(run, path, event_type, data, handle,
-                                     disposition, access, buffer, size)
+    def _get_current_trace_position(self) -> TracePosition:
+        run = self.emu.get_current_run()
+        thread = self.emu.get_current_thread()
+        proc = self.emu.get_current_process()
+        tick = run.instr_cnt if run else 0
+        tid = thread.tid if thread else 0
+        pid = proc.get_id() if proc else 0
+        return TracePosition(tick=tick, tid=tid, pid=pid)
 
-    def log_process_event(self, proc, event_type, **kwargs):
+    def record_file_access_event(
+        self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+    ):
+        logger.debug("file_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_process_event(run, proc, event_type, kwargs)
+            pos = self._get_current_trace_position()
+            profiler.record_file_access_event(
+                run, pos, path, event_type, data, handle, disposition, access, buffer, size
+            )
 
-    def log_registry_access(self, path, event_type, value_name=None, data=None,
-                            handle=0, disposition=[], access=[], buffer=0,
-                            size=None):
+    def record_process_event(self, proc, event_type, **kwargs):
+        logger.debug("process_%s: pid=%d", event_type, proc.get_id())
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_registry_access(run, path, event_type, value_name, data, handle,
-                                         disposition, access, buffer, size)
+            pos = self._get_current_trace_position()
+            profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
-    def log_dns(self, domain, ip=''):
+    def record_registry_access_event(
+        self, path, event_type, value_name=None, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+    ):
+        logger.debug("reg_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_dns(run, domain, ip)
+            pos = self._get_current_trace_position()
+            profiler.record_registry_access_event(
+                run, pos, path, event_type, value_name, data, handle, disposition, access, buffer, size
+            )
 
-    def log_network(self, server, port, typ='unknown', proto='unknown', data=b'', method=''):
+    def record_dns_event(self, domain, ip=""):
+        logger.debug("dns: %s -> %s", domain, ip)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_network(run, server, port, typ=typ, proto=proto,
-                                 data=data, method=method)
+            pos = self._get_current_trace_position()
+            profiler.record_dns_event(run, pos, domain, ip)
 
-    def log_http(self, server, port, headers='', body=b'', secure=False):
+    def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+        logger.debug("net: %s:%d %s", server, port, proto)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            profiler.log_http(run, server, port, headers=headers,
-                              body=body, secure=secure)
+            pos = self._get_current_trace_position()
+            profiler.record_network_event(run, pos, server, port, typ=typ, proto=proto, data=data, method=method)
+
+    def record_http_event(self, server, port, headers="", body=b"", secure=False):
+        logger.debug("http: %s:%d", server, port)
+        profiler = self.emu.get_profiler()
+        if profiler:
+            run = self.emu.get_current_run()
+            pos = self._get_current_trace_position()
+            profiler.record_http_event(run, pos, server, port, headers=headers, body=body, secure=secure)
 
     def get_max_int(self):
         # Byte order is irrelevant here
-        return int.from_bytes(b'\xFF' * self.get_ptr_size(), 'little')
+        return int.from_bytes(b"\xff" * self.get_ptr_size(), "little")
 
     def mem_read(self, addr, size):
         return self.emu.mem_read(addr, size)
 
-    def file_open(self, path, create=False):
-        return self.emu.file_open(path, create)
+    def file_open(self, path, create=False, truncate=False):
+        return self.emu.file_open(path, create, truncate=truncate)
 
     def file_create_mapping(self, hfile, name, size, prot):
         return self.emu.file_create_mapping(hfile, name, size, prot)
@@ -280,11 +304,11 @@ class ApiHandler(object):
 
     def get_encoding(self, char_width):
         if char_width == 2:
-            enc = 'utf-16le'
+            enc = "utf-16le"
         elif char_width == 1:
-            enc = 'utf-8'
+            enc = "utf-8"
         else:
-            raise ApiEmuError('No encoding found for char width: %d' % (char_width))
+            raise ApiEmuError(f"No encoding found for char width: {char_width}")
         return enc
 
     def mem_write(self, addr, data):
@@ -305,9 +329,8 @@ class ApiHandler(object):
 
         return self.emu.mem_write(addr, data)
 
-    def create_thread(self, addr, ctx, hproc, thread_type='thread', is_suspended=False):
-        return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type,
-                                      is_suspended=is_suspended)
+    def create_thread(self, addr, ctx, hproc, thread_type="thread", is_suspended=False):
+        return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type, is_suspended=is_suspended)
 
     def get_object_from_id(self, id):
         return self.emu.get_object_from_id(id)
@@ -324,9 +347,6 @@ class ApiHandler(object):
     def get_object_from_name(self, name):
         return self.emu.get_object_from_name(name)
 
-    def get_os_version(self):
-        return self.emu.osversion
-
     def exit_process(self):
         self.emu.exit_process()
 
@@ -335,12 +355,12 @@ class ApiHandler(object):
         Based on the API name, determine the character width
         being used by the function
         """
-        name = ctx.get('func_name', '')
-        if name.endswith('A'):
+        name = ctx.get("func_name", "")
+        if name.endswith("A"):
             return 1
-        elif name.endswith('W'):
+        elif name.endswith("W"):
             return 2
-        raise ApiEmuError('Failed to get character width from function: %s' % (name))
+        raise ApiEmuError(f"Failed to get character width from function: {name}")
 
     def get_va_arg_count(self, fmt):
         """
@@ -348,11 +368,11 @@ class ApiHandler(object):
         """
 
         # Ignore escapes
-        i = fmt.count('%%')
-        c = fmt.count('%')
+        i = fmt.count("%%")
+        c = fmt.count("%")
 
         if self.get_ptr_size() != 8:
-            c += fmt.count('%ll')
+            c += fmt.count("%ll")
         return c - i
 
     def va_args(self, va_list, num_args):
@@ -364,7 +384,7 @@ class ApiHandler(object):
         ptrsize = self.get_ptr_size()
 
         for n in range(num_args):
-            arg = int.from_bytes(self.emu.mem_read(ptr, ptrsize), 'little')
+            arg = int.from_bytes(self.emu.mem_read(ptr, ptrsize), "little")
             args.append(arg)
             ptr += ptrsize
         return args
@@ -396,37 +416,36 @@ class ApiHandler(object):
         # Skip over the format string
         args = list(argv)
         new = list(string)
-        curr_fmt = ''
+        curr_fmt = ""
         new_fmts = []
 
         # Very brittle format string parser, should improve later
         inside_fmt = False
         for i, c in enumerate(string):
-
-            if c == '%':
+            if c == "%":
                 if inside_fmt:
                     inside_fmt = False
                 else:
                     inside_fmt = True
 
             if inside_fmt:
-                if c == 'S':
+                if c == "S":
                     s = self.read_wide_string(args.pop(0))
                     new_fmts.append(s)
-                    new[i] = 's'
+                    new[i] = "s"
                     inside_fmt = False
 
-                elif c == 's':
-                    if curr_fmt.startswith('w'):
+                elif c == "s":
+                    if curr_fmt.startswith("w"):
                         s = self.read_wide_string(args.pop(0))
-                        new[i - 1] = '\xFF'
-                        curr_fmt = ''
+                        new[i - 1] = "\xff"
+                        curr_fmt = ""
                         new_fmts.append(s)
                     else:
                         s = self.read_string(args.pop(0))
                         new_fmts.append(s)
-                elif c in ('x', 'X', 'd', 'u', 'i'):
-                    if curr_fmt.startswith('ll'):
+                elif c in ("x", "X", "d", "u", "i"):
+                    if curr_fmt.startswith("ll"):
                         if self.get_ptr_size() == 8:
                             new_fmts.append(args.pop(0))
                         else:
@@ -434,30 +453,30 @@ class ApiHandler(object):
                             high = args.pop(0)
                             new_fmts.append(high << 32 | low)
                         new = new[: i - 2] + new[i:]
-                        curr_fmt = ''
+                        curr_fmt = ""
                     else:
                         new_fmts.append(0xFFFFFFFF & args.pop(0))
-                elif c == 'c':
+                elif c == "c":
                     new_fmts.append(0xFF & args.pop(0))
-                elif c == 'P':
-                    new[i] = 'X'
+                elif c == "P":
+                    new[i] = "X"
                     new_fmts.append(args.pop(0))
-                elif c == 'p':
-                    new[i] = 'x'
+                elif c == "p":
+                    new[i] = "x"
                     new_fmts.append(args.pop(0))
-                elif c == 'l':
+                elif c == "l":
                     curr_fmt += c
-                elif c == 'w':
+                elif c == "w":
                     curr_fmt += c
 
-            if inside_fmt and c in 'diuoxXfFeEgGaAcspn':
+            if inside_fmt and c in "diuoxXfFeEgGaAcspn":
                 inside_fmt = False
 
             if not args:
                 break
 
-        new = ''.join(new)
-        new = new.replace('\xFF', '')
+        new = "".join(new)  # type: ignore[assignment]  # intentional list-to-str reuse
+        new = new.replace("\xff", "")  # type: ignore[attr-defined]  # new is str after join above
         new = new % tuple(new_fmts)
 
         return new

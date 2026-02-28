@@ -17,7 +17,7 @@ RESOURCEUSAGE_ALL = 0x13
 ERROR_NO_NETWORK = 0x4C6
 
 
-def get_define_int(define, prefix=''):
+def get_define_int(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue

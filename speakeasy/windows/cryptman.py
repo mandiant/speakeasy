@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class CryptKey(object):
+
+class CryptKey:
     def __init__(self, blob_type, blob, blob_len, hnd_import_key, param_list, flags):
         self.blob_type = blob_type
         self.blob = blob
@@ -10,10 +11,11 @@ class CryptKey(object):
         self.flags = flags
 
 
-class CryptContext(object):
+class CryptContext:
     """
     Represents crypto context used by crypto functions
     """
+
     curr_handle = 0x680
 
     def __init__(self, cname, pname, ptype, flags):
@@ -28,8 +30,7 @@ class CryptContext(object):
         CryptContext.curr_handle += 4
         return hkey
 
-    def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None,
-                   param_list=None, flags=None):
+    def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None, param_list=None, flags=None):
         key = CryptKey(blob_type, blob, blob_len, hnd_import_key, param_list, flags)
         hnd = self.get_handle()
         self.keys.update({hnd: key})
@@ -43,12 +44,13 @@ class CryptContext(object):
         self.keys.pop(hnd)
 
 
-class CryptoManager(object):
+class CryptoManager:
     """
     Manages the emulation of crypto functions
     """
+
     def __init__(self, config=None):
-        super(CryptoManager, self).__init__()
+        super().__init__()
         self.ctx_handles = {}
         self.config = config
 

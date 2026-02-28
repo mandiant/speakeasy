@@ -107,3 +107,6 @@ ENV/
 
 # PyCharm
 .idea
+report.json
+/uv.lock
+.claude/

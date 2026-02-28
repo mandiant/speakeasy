@@ -1,25 +1,26 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import binascii
+import base64
+import hashlib
+import ntpath
 import os
 import shlex
+import zlib
 
-import ntpath
-import hashlib
-import capstone as cs
-
-import speakeasy.winenv.arch as _arch
-import speakeasy.windows.common as w32common
-from speakeasy.profiler import Run
-from speakeasy.windows.winemu import WindowsEmulator
-import speakeasy.windows.objman as objman
-from speakeasy.winenv.api.winapi import WindowsApi
 import speakeasy.common as common
+import speakeasy.windows.objman as objman
+import speakeasy.winenv.arch as _arch
 from speakeasy.errors import Win32EmuError
-
-from speakeasy.windows.sessman import SessionManager
+from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
-
+from speakeasy.windows.loaders import (
+    PeLoader,
+    RuntimeModule,
+    get_prot_string,
+)
+from speakeasy.windows.sessman import SessionManager
+from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.winenv.api.winapi import WindowsApi
 
 DLL_PROCESS_DETACH = 0
 DLL_PROCESS_ATTACH = 1
@@ -31,9 +32,9 @@ class Win32Emulator(WindowsEmulator):
     """
     User Mode Windows Emulator Class
     """
-    def __init__(self, config, argv=[], debug=False, logger=None, exit_event=None):
-        super(Win32Emulator, self).__init__(config, debug=debug, logger=logger,
-                                            exit_event=exit_event)
+
+    def __init__(self, config, argv=[], debug=False, exit_event=None, gdb_port=None):
+        super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port)
 
         self.last_error = 0
         self.peb_addr = 0
@@ -47,15 +48,13 @@ class Win32Emulator(WindowsEmulator):
         Get command line arguments (if any) that are being passed
         to the emulated process. (e.g. main(argv))
         """
-        argv0 = ''
+        argv0 = ""
         out = []
 
         if len(self.argv):
             for m in self.modules:
-                pe = m[0]
-                emu_path = m[2]
-                if pe.is_exe():
-                    argv0 = emu_path
+                if isinstance(m, RuntimeModule) and m.is_exe():
+                    argv0 = m.get_emu_path()
             out = [argv0] + self.argv
         elif self.command_line:
             out = shlex.split(self.command_line, posix=False)
@@ -98,7 +97,7 @@ class Win32Emulator(WindowsEmulator):
 
     def get_processes(self):
         if len(self.processes) <= 1:
-            self.init_processes(self.config_processes)
+            self.init_processes(self.config.processes)
         return self.processes
 
     def init_processes(self, processes):
@@ -109,158 +108,82 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self)
             self.add_object(p)
 
-            p.name = proc.get('name', '')
-            new_pid = proc.get('pid')
-            if new_pid:
-                p.pid = new_pid
+            p.name = proc.name
+            if proc.pid is not None:
+                p.pid = proc.pid
 
-            base = proc.get('base_addr')
-
+            base = proc.base_addr
             if isinstance(base, str):
                 base = int(base, 16)
             p.base = base
-            p.path = proc.get('path')
-            p.session = proc.get('session', 0)
+            p.path = proc.path
+            p.session = proc.session or 0
             p.image = ntpath.basename(p.path)
 
             self.processes.append(p)
 
-    def load_module(self, path=None, data=None, first_time_setup=True):
-        """
-        Load a module into the emulator space from the specified path
-        """
+    def load_module(self, path=None, data=None):
         self._init_name(path, data)
-        pe = self.load_pe(path=path, data=data, imp_id=w32common.IMPORT_HOOK_ADDR)
-
-        if pe.arch == _arch.ARCH_X86:
-            disasm_mode = cs.CS_MODE_32
-        elif pe.arch == _arch.ARCH_AMD64:
-            disasm_mode = cs.CS_MODE_64
-        else:
-            raise Win32EmuError('Unsupported architecture: %s', pe.arch)
-
-        if not self.arch:
-            self.arch = pe.arch
-            self.set_ptr_size(self.arch)
-
-        # No need to initialize the engine and Capstone again
-        if first_time_setup:
-            self.emu_eng.init_engine(_arch.ARCH_X86, pe.arch)
-
-            if not self.disasm_eng:
-                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
-
-        self.api = WindowsApi(self)
-
-        cd = self.get_cd()
-        if not cd.endswith('\\'):
-            cd += '\\'
-        emu_path = cd + self.file_name
 
         if not data:
-            with open(path, 'rb') as f:
+            assert path is not None
+            with open(path, "rb") as f:
                 data = f.read()
+
+        emu_path = self._make_emu_path(path, data)
         self.fileman.add_existing_file(emu_path, data)
 
-        # Strings the initial buffer so that we can detect decoded strings later on
-        if self.profiler and self.do_strings:
-            self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(data)]
-            self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(data)]
+        self._set_input_metadata(path, data)
 
-        # Set the emulated path
-        emu_path = ''
-        self.cd = self.get_cd()
-        if self.cd:
-            if not self.cd.endswith('\\'):
-                self.cd += '\\'
-            emu_path = self.cd + os.path.basename(self.file_name)
+        loader = PeLoader(path=path, data=data)
+        image = loader.make_image()
+        image.name = self.mod_name
+        image.emu_path = emu_path
 
-        pe.set_emu_path(emu_path)
-
-        # There's a bit of a problem here, if we cannot reserve memory
-        # at the PE's desired base address, and the relocation table
-        # is not present, we can't rebase it. So this is gonna have to
-        # be a bit of a hack for binaries without a relocation table.
-        # This logic is really only for child processes, since we're pretty
-        # much guarenteed memory at the base address of the main module.
-        #   1. If the memory at the child's desired load address is already
-        #      being used, remap it somewhere else. I'm pretty sure that
-        #      the already-used memory will always be for a module,
-        #      since desired load addresses don't really vary across PEs
-        #   2. Fix up any modules that speakeasy has open for the parent
-        #      to reflect where it was remapped
-        #   3. Try and grab memory at the child's desired base address,
-        #      if that isn't still isn't possible, we're out of luck
-        #
-        # But if the relocation table is present, we can rebase it,
-        # so we do that instead of the above hack.
-        imgbase = pe.OPTIONAL_HEADER.ImageBase
-        ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
-        base, size = ranges
-
-        if base != imgbase:
-            if pe.has_reloc_table():
-                pe.rebase(base)
-            else:
-                parent_map = self.get_address_map(imgbase)
-
-                # Already being used by the parent, so let's remap the parent
-                # Do get_valid_ranges on the parent map size so we get a
-                # suitable region for it
-                new_parent_mem, unused = self.get_valid_ranges(parent_map.size)
-                new_parent_mem = self.mem_remap(imgbase, new_parent_mem)
-
-                # Failed
-                if new_parent_mem == -1:
-                    # XXX what to do here
-                    pass
-
-                # Update parent module pointer
-                for pe_, ranges_, emu_path_ in self.modules:
-                    base_, size_ = ranges_
-
-                    if base_ == imgbase:
-                        self.modules.remove((pe_, ranges_, emu_path_))
-                        self.modules.append((pe_, (new_parent_mem, size_), emu_path_))
-                        break
-
-                # Alright, let's try to grab that memory for the child again
-                ranges = self.get_valid_ranges(pe.image_size, addr=imgbase)
-                base, size = ranges
-
-                if base != imgbase:
-                    # Out of luck
-                    # XXX what to do here
-                    pass
-
-        self.mem_map(pe.image_size, base=base,
-                     tag='emu.module.%s' % (self.mod_name))
-
-        self.modules.append((pe, ranges, emu_path))
-        self.mem_write(pe.base, pe.mapped_image)
-
-        self.setup(first_time_setup=first_time_setup)
-
-        if not self.stack_base:
-            self.stack_base, stack_addr = self.alloc_stack(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0x12000)
+        rtmod = self.load_image(image)
         self.set_func_args(self.stack_base, self.return_hook)
 
-        # Init imported data
-        for addr, imp in pe.imports.items():
-            mn, fn = imp
-            mod, eh = self.api.get_data_export_handler(mn, fn)
-            if eh:
-                data_ptr = self.handle_import_data(mn, fn)
-                sym = "%s.%s" % (mn, fn)
-                self.global_data.update({addr: [sym, data_ptr]})
-                self.mem_write(addr, data_ptr.to_bytes(self.get_ptr_size(),
-                                                       'little'))
-        return pe
+        return rtmod
+
+    def _make_emu_path(self, path, data):
+        cd = self.get_cd()
+        if not cd.endswith("\\"):
+            cd += "\\"
+        return cd + os.path.basename(self.file_name)
+
+    def _set_input_metadata(self, path, data):
+        if not self.profiler:
+            return
+        from speakeasy.windows.common import _PeParser
+
+        pe = _PeParser(path=path, data=data, fast_load=True)
+        pe_type = "unknown"
+        if pe.is_driver():
+            pe_type = "driver"
+        elif pe.is_dll():
+            pe_type = "dll"
+        elif pe.is_exe():
+            pe_type = "exe"
+        arch = "unknown"
+        if pe.arch == _arch.ARCH_AMD64:
+            arch = "x64"
+        elif pe.arch == _arch.ARCH_X86:
+            arch = "x86"
+        self.input = {
+            "path": pe.path,
+            "sha256": pe.hash,
+            "size": pe.file_size,
+            "arch": arch,
+            "filetype": pe_type,
+            "emu_version": self.get_emu_version(),
+            "os_run": self.get_osver_string(),
+        }
+        self.profiler.add_input_metadata(self.input)
 
     def prepare_module_for_emulation(self, module, all_entrypoints):
         if not module:
             self.stop()
-            raise Win32EmuError('Module not found')
+            raise Win32EmuError("Module not found")
 
         # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
@@ -269,7 +192,7 @@ class Win32Emulator(WindowsEmulator):
             if base < cb_addr < base + module.get_image_size():
                 run = Run()
                 run.start_addr = cb_addr
-                run.type = 'tls_callback_%d' % (i)
+                run.type = f"tls_callback_{i}"
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
@@ -278,21 +201,16 @@ class Win32Emulator(WindowsEmulator):
         run = Run()
         run.start_addr = ep
 
-        main_exe = None
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
-            run.type = 'dll_entry.DLL_PROCESS_ATTACH'
+            run.type = "dll_entry.DLL_PROCESS_ATTACH"
             container = self.init_container_process()
             if container:
                 self.processes.append(container)
                 self.curr_process = container
         else:
-            run.type = 'module_entry'
-            main_exe = module
-            run.args = [self.mem_map(8, tag='emu.module_arg_%d' % (i)) for i in range(4)]
-
-        if main_exe:
-            self.user_modules = [main_exe] + self.user_modules
+            run.type = "module_entry"
+            run.args = [self.mem_map(8, tag=f"emu.module_arg_{i}") for i in range(4)]
 
         self.add_run(run)
 
@@ -300,22 +218,22 @@ class Win32Emulator(WindowsEmulator):
             # Only emulate a subset of all the exported functions
             # There are some modules (such as the windows kernel) with
             # thousands of exports
-            exports = [k for k in module.get_exports()[: MAX_EXPORTS_TO_EMULATE]]
+            exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
 
             if exports:
-                args = [self.mem_map(8, tag='emu.export_arg_%d' % (i), base=0x41420000) for i in range(4)] # noqa
+                args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
                 for exp in exports:
-                    if exp.name in ('DllMain', ):
+                    if exp.name in ("DllMain",):
                         continue
                     run = Run()
                     if exp.name:
                         fn = exp.name
                     else:
-                        fn = 'no_name'
+                        fn = "no_name"
 
-                    run.type = 'export.%s' % (fn)
+                    run.type = f"export.{fn}"
                     run.start_addr = exp.address
-                    if exp.name == 'ServiceMain':
+                    if exp.name == "ServiceMain":
                         # ServiceMain accepts a (argc, argv) pair like main().
                         #
                         # now, we're not exactly sure if we're in A or W mode.
@@ -332,9 +250,9 @@ class Win32Emulator(WindowsEmulator):
                         #     0x00:    (argv[0]) pointer to +0x10 -+
                         #     0x04/08: (argv[1]) 0x0               |
                         #     0x10:    "IPRIP"  <------------------+
-                        svc_name = "IPRIP\x00".encode('utf-16le')
+                        svc_name = "IPRIP\x00".encode("utf-16le")
                         argc = 1
-                        argv = self.mem_map(len(svc_name) + 0x10, tag='emu.export_ServiceMain_argv', base=0x41420000)
+                        argv = self.mem_map(len(svc_name) + 0x10, tag="emu.export_ServiceMain_argv", base=0x41420000)
 
                         self.write_ptr(argv, argv + 0x10)
                         self.mem_write(argv + 0x10, svc_name)
@@ -362,21 +280,21 @@ class Win32Emulator(WindowsEmulator):
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
         if len(self.processes) == 0:
-            p = objman.Process(self, path=module.get_emu_path(), base=module.base,
-                               pe=module, cmdline=self.command_line)
+            p = objman.Process(self, path=module.get_emu_path(), base=module.base, pe=module, cmdline=self.command_line)
             self.curr_process = p
-            self.om.objects.update({p.address: p})
+            self.om.objects.update({p.address: p})  # type: ignore[union-attr]
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
 
-        t = objman.Thread(self,
-                          stack_base=self.stack_base,
-                          stack_commit=module.stack_commit)
+        t = objman.Thread(self, stack_base=self.stack_base, stack_commit=module.stack_commit)
 
-        self.om.objects.update({t.address: t})
-        self.curr_process.threads.append(t)
+        self.om.objects.update({t.address: t})  # type: ignore[union-attr]
+        self.curr_process.threads.append(t)  # type: ignore[union-attr]
         self.curr_thread = t
+
+        if self.run_queue:
+            self.run_queue[0].thread = t
 
         peb = self.alloc_peb(self.curr_process)
 
@@ -393,8 +311,7 @@ class Win32Emulator(WindowsEmulator):
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
-            child.pe = self.load_module(data=child.pe_data,
-                                        first_time_setup=False)
+            child.pe = self.load_module(data=child.pe_data)
             self.prepare_module_for_emulation(child.pe, all_entrypoints)
 
             self.command_line = child.cmdline
@@ -403,7 +320,7 @@ class Win32Emulator(WindowsEmulator):
             self.curr_process.base = child.pe.base
             self.curr_thread = child.threads[0]
 
-            self.om.objects.update({self.curr_thread.address: self.curr_thread})
+            self.om.objects.update({self.curr_thread.address: self.curr_thread})  # type: ignore[union-attr]
 
             # PEB and TEB will be initialized when the next run happens
 
@@ -418,7 +335,7 @@ class Win32Emulator(WindowsEmulator):
         else:
             mod_hash = hashlib.sha256()
             mod_hash.update(data)
-            mod_hash = mod_hash.hexdigest()
+            mod_hash = mod_hash.hexdigest()  # type: ignore[assignment]
             self.mod_name = mod_hash
             self.file_name = f"{self.mod_name}.exe"
         self.bin_base_name = os.path.basename(self.file_name)
@@ -431,69 +348,44 @@ class Win32Emulator(WindowsEmulator):
         self.run_module(mod)
 
     def load_shellcode(self, path, arch, data=None):
-        """
-        Load position independent code (i.e. shellcode) to prepare for emulation
-        """
-        sc_hash = None
+        from speakeasy.windows.loaders import ShellcodeLoader
+
         self._init_name(path, data)
-        if arch == 'x86':
+        if arch == "x86":
             arch = _arch.ARCH_X86
-        elif arch in ('x64', 'amd64'):
+        elif arch in ("x64", "amd64"):
             arch = _arch.ARCH_AMD64
 
-        self.arch = arch
+        if data is None:
+            with open(path, "rb") as f:
+                data = f.read()
 
-        if data:
-            sc_hash = hashlib.sha256()
-            sc_hash.update(data)
-            sc_hash = sc_hash.hexdigest()
-            sc = data
-        else:
-            with open(path, 'rb') as scpath:
-                sc = scpath.read()
+        sc_hash = hashlib.sha256(data).hexdigest()
 
-            sc_hash = hashlib.sha256()
-            sc_hash.update(sc)
-            sc_hash = sc_hash.hexdigest()
+        loader = ShellcodeLoader(data=data, arch=arch)
+        image = loader.make_image()
+        image.name = str(sc_hash)
+        rtmod = self.load_image(image)
+        sc_addr = rtmod.get_base()
 
-        if self.arch == _arch.ARCH_X86:
-            disasm_mode = cs.CS_MODE_32
-        elif self.arch == _arch.ARCH_AMD64:
-            disasm_mode = cs.CS_MODE_64
-        else:
-            raise Win32EmuError('Unsupported architecture: %s' % self.arch)
-
-        self.emu_eng.init_engine(_arch.ARCH_X86, self.arch)
-
-
-        if not self.disasm_eng:
-            self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, disasm_mode)
-
-        sc_tag = 'emu.shellcode.%s' % (sc_hash)
-
-        # Map the shellcode into memory
-        sc_addr = self.mem_map(len(sc), tag=sc_tag)
-        self.mem_write(sc_addr, sc)
-
-        self.pic_buffers.append((path, sc_addr, len(sc)))
-
-        sc_arch = 'unknown'
+        sc_arch = "unknown"
         if arch == _arch.ARCH_AMD64:
-            sc_arch = 'x64'
+            sc_arch = "x64"
         elif arch == _arch.ARCH_X86:
-            sc_arch = 'x86'
+            sc_arch = "x86"
 
+        sc_tag = f"emu.shellcode.{sc_hash}"
         if self.profiler:
-            self.input = {'path': path, 'sha256': sc_hash, 'size': len(sc),
-                          'arch': sc_arch, 'mem_tag': sc_tag,
-                          'emu_version': self.get_emu_version(),
-                          'os_run': self.get_osver_string()}
+            self.input = {
+                "path": path,
+                "sha256": sc_hash,
+                "size": len(data),
+                "arch": sc_arch,
+                "mem_tag": sc_tag,
+                "emu_version": self.get_emu_version(),
+                "os_run": self.get_osver_string(),
+            }
             self.profiler.add_input_metadata(self.input)
-            # Strings the initial buffer so that we can detect decoded strings later on
-            if self.do_strings:
-                self.profiler.strings['ansi'] = [a[1] for a in self.get_ansi_strings(sc)]
-                self.profiler.strings['unicode'] = [u[1] for u in self.get_unicode_strings(sc)]
-        self.setup()
 
         return sc_addr
 
@@ -503,24 +395,23 @@ class Win32Emulator(WindowsEmulator):
         """
 
         target = None
-        for sc_path, _sc_addr, size in self.pic_buffers:
-            if _sc_addr == sc_addr:
-                target = _sc_addr
+        for mod in self.modules:
+            if isinstance(mod, RuntimeModule) and mod.get_base() == sc_addr:
+                target = sc_addr
                 break
 
         if not target:
-            raise Win32EmuError('Invalid shellcode address')
+            raise Win32EmuError("Invalid shellcode address")
 
         self.stack_base, stack_addr = self.alloc_stack(stack_commit)
         self.set_func_args(self.stack_base, self.return_hook, 0x7000)
 
         run = Run()
-        run.type = 'shellcode'
+        run.type = "shellcode"
         run.start_addr = sc_addr + offset
         run.instr_cnt = 0
-        args = [self.mem_map(1024, tag='emu.shellcode_arg_%d' % (i), base=0x41420000 + i)
-                for i in range(4)]
-        run.args = (args)
+        args = [self.mem_map(1024, tag=f"emu.shellcode_arg_{i}", base=0x41420000 + i) for i in range(4)]
+        run.args = args
 
         self.reg_write(_arch.X86_REG_ECX, 1024)
 
@@ -541,9 +432,8 @@ class Win32Emulator(WindowsEmulator):
         if mm:
             mm.set_process(self.curr_process)
 
-        t = objman.Thread(self,
-                          stack_base=self.stack_base, stack_commit=stack_commit)
-        self.om.objects.update({t.address: t})
+        t = objman.Thread(self, stack_base=self.stack_base, stack_commit=stack_commit)
+        self.om.objects.update({t.address: t})  # type: ignore[union-attr]
         self.curr_process.threads.append(t)
 
         self.curr_thread = t
@@ -563,17 +453,51 @@ class Win32Emulator(WindowsEmulator):
             return
         size = proc.get_peb_ldr().sizeof()
         res, size = self.get_valid_ranges(size)
-        self.mem_reserve(size, base=res, tag='emu.struct.PEB_LDR_DATA')
+        self.mem_reserve(size, base=res, tag="emu.struct.PEB_LDR_DATA")
         proc.set_peb_ldr_address(res)
 
         peb = proc.get_peb()
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
-        peb.object.OSMajorVersion = self.osversion['major']
-        peb.object.OSMinorVersion = self.osversion['minor']
-        peb.object.OSBuildNumber = self.osversion['build']
+        peb.object.OSMajorVersion = self.config.os_ver.major or 0
+        peb.object.OSMinorVersion = self.config.os_ver.minor or 0
+        peb.object.OSBuildNumber = self.config.os_ver.build or 0
         peb.write_back()
+
+        self._ensure_core_dlls_loaded()
+        self.mem_map_reserve(proc.get_peb_ldr().address)
+        self.init_peb(self._ordered_peb_modules())
+
         return peb
+
+    def _ordered_peb_modules(self):
+        import os as _os
+
+        CORE_ORDER = {"ntdll": 0, "kernel32": 1, "kernelbase": 2}
+        mods = self.get_peb_modules()
+        exe_mods = []
+        core_mods = []
+        other_mods = []
+        for m in mods:
+            if m.is_exe():
+                exe_mods.append(m)
+                continue
+            name = (m.name or "").lower()
+            if not name:
+                bn = m.get_base_name()
+                name = _os.path.splitext(bn)[0].lower() if bn else ""
+            if name in CORE_ORDER:
+                core_mods.append((CORE_ORDER[name], m))
+            else:
+                other_mods.append(m)
+        core_mods.sort(key=lambda x: x[0])
+        return exe_mods + [m for _, m in core_mods] + other_mods
+
+    def _ensure_core_dlls_loaded(self):
+        CORE_DLLS = ["ntdll", "kernel32", "kernelbase"]
+        for dll in CORE_DLLS:
+            if not self.get_mod_by_name(dll):
+                self.load_module_by_name(dll)
 
     def set_unhandled_exception_handler(self, handler_addr):
         """
@@ -581,10 +505,8 @@ class Win32Emulator(WindowsEmulator):
         """
         self.unhandled_exception_filter = handler_addr
 
-    def setup(self, stack_commit=0, first_time_setup=True):
-        if first_time_setup:
-            # Set the emulator to run in protected mode
-            self.om = objman.ObjectManager(emu=self)
+    def setup(self):
+        self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()
         self._setup_gdt(arch)
@@ -598,84 +520,58 @@ class Win32Emulator(WindowsEmulator):
 
         self.api = WindowsApi(self)
 
-        # Init symlinks
-        for sl in self.symlinks:
-            self.om.add_symlink(sl['name'], sl['target'])
+        for sl in self.config.symlinks:
+            self.om.add_symlink(sl.name, sl.target)
 
-        self.init_sys_modules(self.config_system_modules)
+        self.init_sys_modules(self.config.modules.system_modules)
+        self._init_user_modules_from_config()
 
     def init_sys_modules(self, modules_config):
         """
         Get the system modules (e.g. drivers) that are loaded in the emulator
         """
-        sys_mods = []
+        rtmods = super().init_sys_modules(modules_config)
 
         for modconf in modules_config:
-
-            mod = w32common.DecoyModule()
-            mod.name = modconf['name']
-            base = modconf.get('base_addr')
-            if isinstance(base, str):
-                base = int(base, 16)
-
-            mod.decoy_base = base
-            mod.decoy_path = modconf['path']
-
-            drv = modconf.get('driver')
+            drv = modconf.driver
             if drv:
-                devs = drv.get('devices')
-                for dev in devs:
-                    name = dev.get('name', '')
+                for dev in drv.devices:
+                    name = dev.name or ""
                     do = self.new_object(objman.Device)
                     do.name = name
 
-            sys_mods.append(mod)
-        return sys_mods
+        return rtmods
 
     def init_container_process(self):
         """
         Create a process to be used to host shellcode or DLLs
         """
-        for p in self.config_processes:
-            if p.get('is_main_exe'):
-                name = p.get('name', '')
-                emu_path = p.get('path', '')
-                base = p.get('base_addr', 0)
+        for p in self.config.processes:
+            if p.is_main_exe:
+                name = p.name or ""
+                emu_path = p.path or ""
+                base = p.base_addr or 0
                 if isinstance(base, str):
                     base = int(base, 0)
-                cmd_line = p.get('command_line', '')
+                cmd_line = p.command_line or ""
 
-                proc = objman.Process(self, name=name,
-                                      path=emu_path, base=base, cmdline=cmd_line)
+                proc = objman.Process(self, name=name, path=emu_path, base=base, cmdline=cmd_line)
                 return proc
         return None
 
-    def get_user_modules(self):
-        """
-        Get the user modules (e.g. dlls) that are loaded in the emulator
-        """
-        # Generate the decoy user module list
-        if len(self.user_modules) < 2:
-            # Check if we have a host process configured
-            proc_mod = None
-            for p in self.config_processes:
+    def _init_user_modules_from_config(self):
+        proc_mod = None
+        for p in self.config.processes:
+            if p.is_main_exe:
+                proc_mod = p
+                break
 
-                if not self.user_modules and p.get('is_main_exe'):
-                    proc_mod = p
-                    break
+        if proc_mod:
+            all_user_mods = [proc_mod] + list(self.config.modules.user_modules)
+        else:
+            all_user_mods = list(self.config.modules.user_modules)
 
-            if proc_mod:
-                all_user_mods = [proc_mod] + self.config_user_modules
-                user_modules = self.init_user_modules(all_user_mods)
-            else:
-                user_modules = self.init_user_modules(self.config_user_modules)
-
-            self.user_modules += user_modules
-            # add sample to user modules list if it is a dll
-            if self.modules and not self.modules[0][0].is_exe():
-                self.user_modules.append(self.modules[0][0])
-
-        return self.user_modules
+        self.init_user_modules(all_user_mods)
 
     def exit_process(self):
         """
@@ -685,25 +581,22 @@ class Win32Emulator(WindowsEmulator):
         self.enable_code_hook()
         self.run_complete = True
 
-    def _hook_mem_unmapped(self, emu, access, address, size, value, user_data):
-
-        _access = self.emu_eng.mem_access.get(access)
+    def _hook_mem_unmapped(self, emu, access, address, size, value, ctx):
+        _access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
 
         if _access == common.INVALID_MEM_READ:
             p = self.get_current_process()
             pld = p.get_peb_ldr()
             if address > pld.address and address < (pld.address + pld.sizeof()):
                 self.mem_map_reserve(pld.address)
-                user_mods = self.get_user_modules()
-                self.init_peb(user_mods)
+                self.init_peb(self._ordered_peb_modules())
                 return True
-        return super(Win32Emulator, self)._hook_mem_unmapped(emu, access, address, size,
-                                                             value, user_data)
+        return super()._hook_mem_unmapped(emu, access, address, size, value, ctx)
 
     def set_hooks(self):
         """Set the emulator callbacks"""
 
-        super(Win32Emulator, self).set_hooks()
+        super().set_hooks()
 
         if not self.builtin_hooks_set:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
@@ -711,12 +604,14 @@ class Win32Emulator(WindowsEmulator):
             self.builtin_hooks_set = True
 
         self.set_mem_tracing_hooks()
+        self.set_coverage_hooks()
+        self.set_debug_hooks()
 
     def stop(self):
         self.run_complete = True
         # self._unset_emu_hooks()
         # self.unset_hooks()
-        super(Win32Emulator, self).stop()
+        super().stop()
 
     def on_emu_complete(self):
         """
@@ -724,13 +619,12 @@ class Win32Emulator(WindowsEmulator):
         """
         if not self.emu_complete:
             self.emu_complete = True
-            if self.do_strings and self.profiler:
+            if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
-                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings['ansi']]
-                dec_unicode = [u[1] for u in dec_unicode
-                               if u not in self.profiler.strings['unicode']]
-                self.profiler.decoded_strings['ansi'] = dec_ansi
-                self.profiler.decoded_strings['unicode'] = dec_unicode
+                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]]
+                dec_unicode = [u[1] for u in dec_unicode if u not in self.profiler.strings["unicode"]]
+                self.profiler.decoded_strings["ansi"] = dec_ansi
+                self.profiler.decoded_strings["unicode"] = dec_unicode
         self.stop()
 
     def on_run_complete(self):
@@ -739,16 +633,158 @@ class Win32Emulator(WindowsEmulator):
         next run from the run queue and emulate it.
         """
         self.run_complete = True
-        self.curr_run.ret_val = self.get_return_val()
+        self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
         if self.profiler:
-            self.profiler.log_dropped_files(self.curr_run, self.get_dropped_files())
+            self.profiler.record_dropped_files_event(self.curr_run, self.get_dropped_files())
+            self._capture_memory_layout()
 
         return self._exec_next_run()
 
-    def heap_alloc(self, size, heap='None'):
+    def _capture_memory_layout(self):
+        """
+        Capture current memory layout and loaded modules for the run report.
+        """
+        EXCLUDED_TAG_PREFIXES = ("emu.stack", "api.heap", "emu.process_heap")
+
+        prot_map = {
+            common.PERM_MEM_NONE: "---",
+            common.PERM_MEM_READ: "r--",
+            common.PERM_MEM_WRITE: "-w-",
+            common.PERM_MEM_EXEC: "--x",
+            common.PERM_MEM_READ | common.PERM_MEM_WRITE: "rw-",
+            common.PERM_MEM_READ | common.PERM_MEM_EXEC: "r-x",
+            common.PERM_MEM_WRITE | common.PERM_MEM_EXEC: "-wx",
+            common.PERM_MEM_RWX: "rwx",
+        }
+
+        capture_dumps = getattr(self.config, "capture_memory_dumps", False)
+
+        modules_by_base: dict[int, object] = {}
+        for m in self.modules:
+            if m.image_size > 0:
+                modules_by_base[m.base] = m
+
+        for mm in self.get_mem_maps():
+            prot = prot_map.get(mm.get_prot(), "???")
+            access_stats = None
+            if mm in self.curr_run.mem_access:  # type: ignore[union-attr]
+                ma = self.curr_run.mem_access[mm]  # type: ignore[union-attr]
+                access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
+
+            tag = mm.get_tag() or ""
+            mm_base = mm.get_base()
+            mm_size = mm.get_size()
+
+            mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
+            sections = getattr(mod, "sections", None) if mod else None
+
+            if sections:
+                mod_name = ntpath.basename(mod.get_emu_path()) or "unknown"  # type: ignore[union-attr]
+                try:
+                    full_data = self.mem_read(mm_base, mm_size) if capture_dumps else None
+                except Exception:
+                    full_data = None
+
+                first_section_rva = sections[0].virtual_address if sections else mm_size
+                hdr_size = first_section_rva
+                hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
+                hdr_access = access_stats
+                hdr_key = (mm_base, 0)
+                hdr_ma = self.curr_run.section_access.get(hdr_key)  # type: ignore[union-attr]
+                if hdr_ma:
+                    hdr_access = {"reads": hdr_ma.reads, "writes": hdr_ma.writes, "execs": hdr_ma.execs}
+                hdr_dict: dict = {
+                    "tag": hdr_tag,
+                    "address": mm_base,
+                    "size": hdr_size,
+                    "prot": "r--",
+                    "is_free": mm.is_free(),
+                    "accesses": hdr_access,
+                }
+                if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                    try:
+                        compressed = zlib.compress(full_data[:hdr_size])
+                        hdr_dict["data"] = base64.b64encode(compressed).decode()
+                    except Exception:
+                        pass
+                self.curr_run.memory_regions.append(hdr_dict)  # type: ignore[union-attr]
+
+                for sect in sections:
+                    sec_addr = sect.virtual_address + mm_base
+                    sec_prot = get_prot_string(sect.perms)
+
+                    sec_access = access_stats
+                    sec_key = (mm_base, sect.virtual_address)
+                    sec_ma = self.curr_run.section_access.get(sec_key)  # type: ignore[union-attr]
+                    if sec_ma:
+                        sec_access = {"reads": sec_ma.reads, "writes": sec_ma.writes, "execs": sec_ma.execs}
+
+                    sec_tag = f"emu.module.{mod_name}.{sect.name}.0x{sec_addr:x}"
+                    sec_dict: dict = {
+                        "tag": sec_tag,
+                        "address": sec_addr,
+                        "size": sect.virtual_size,
+                        "prot": sec_prot,
+                        "is_free": mm.is_free(),
+                        "accesses": sec_access,
+                    }
+                    if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                        try:
+                            compressed = zlib.compress(
+                                full_data[sect.virtual_address : sect.virtual_address + sect.virtual_size]
+                            )
+                            sec_dict["data"] = base64.b64encode(compressed).decode()
+                        except Exception:
+                            pass
+                    self.curr_run.memory_regions.append(sec_dict)  # type: ignore[union-attr]
+            else:
+                region_dict: dict = {
+                    "tag": tag,
+                    "address": mm_base,
+                    "size": mm_size,
+                    "prot": prot,
+                    "is_free": mm.is_free(),
+                    "accesses": access_stats,
+                }
+
+                if capture_dumps and not tag.startswith(EXCLUDED_TAG_PREFIXES):
+                    try:
+                        data = self.mem_read(mm_base, mm_size)
+                        compressed = zlib.compress(data)
+                        region_dict["data"] = base64.b64encode(compressed).decode()
+                    except Exception:
+                        pass
+
+                self.curr_run.memory_regions.append(region_dict)  # type: ignore[union-attr]
+
+        for m in self.modules:
+            if m.image_size == 0:
+                continue
+            mod_name = ntpath.basename(m.get_emu_path()) or "unknown"
+            segments = []
+            for sect in m.sections:
+                segments.append(
+                    {
+                        "name": sect.name,
+                        "address": sect.virtual_address + m.base,
+                        "size": sect.virtual_size,
+                        "prot": get_prot_string(sect.perms),
+                    }
+                )
+            self.curr_run.loaded_modules.append(  # type: ignore[union-attr]
+                {
+                    "name": mod_name,
+                    "path": m.get_emu_path(),
+                    "base": m.base,
+                    "size": m.image_size,
+                    "segments": segments,
+                }
+            )
+
+    def heap_alloc(self, size, heap="None"):
         """
         Allocate a memory chunk and add it to the "heap"
         """
-        addr = self.mem_map(size, base=None, tag='api.heap.%s' % (heap))
+        addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
         self.heap_allocs.append((addr, size, heap))
         return addr

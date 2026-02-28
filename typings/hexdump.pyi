@@ -1,0 +1,9 @@
+from collections.abc import Generator
+from typing import Literal, overload
+
+@overload
+def hexdump(data: bytes, result: Literal["generator"]) -> Generator[str]: ...
+@overload
+def hexdump(data: bytes, result: Literal["print"] = ...) -> None: ...
+@overload
+def hexdump(data: bytes, result: Literal["return"]) -> str: ...

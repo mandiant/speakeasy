@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 WH_CALLWNDPROC = 4
 WH_CALLWNDPROCRET = 12
@@ -63,7 +64,7 @@ class WNDCLASSEX(EmuStruct):
         self.hIconSm = Ptr
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -75,4 +76,4 @@ def get_flag_defines(flags, prefix=''):
 
 
 def get_windowhook_flags(flags):
-    return get_flag_defines(flags, prefix='WH_')
+    return get_flag_defines(flags, prefix="WH_")

@@ -1,31 +1,36 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import os
-import io
-import ntpath
-import hashlib
 import fnmatch
+import hashlib
+import io
+import logging
+import ntpath
+import os
 import shlex
-import speakeasy.winenv.defs.windows.windows as windefs
+
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_response_path(path):
     def _get_speakeasy_root():
         return os.path.join(os.path.dirname(__file__), os.pardir)
 
-    root_var = '$ROOT$'
+    root_var = "$ROOT$"
     if root_var in path:
         root = _get_speakeasy_root()
         return path.replace(root_var, root)
     return path
 
 
-class MapView(object):
+class MapView:
     """
     Represents a shared memory view
     """
+
     def __init__(self, base, offset, size, protect, process=None):
         self.base = base
         self.offset = offset
@@ -34,10 +39,11 @@ class MapView(object):
         self.process = process
 
 
-class FileMap(object):
+class FileMap:
     """
     Represents a memory mapped file
     """
+
     curr_handle = 0x280
 
     def __init__(self, name, size, prot, backed_file=None):
@@ -66,13 +72,14 @@ class FileMap(object):
         self.views.update({base: view})
 
 
-class File(object):
+class File:
     """
     Base class for an emulated file
     """
+
     curr_handle = 0x80
 
-    def __init__(self, path, config={}, data=b''):
+    def __init__(self, path, config={}, data=b""):
         self.path = path
         self.data = None
         self.bytes_written = 0
@@ -83,10 +90,10 @@ class File(object):
         self.config = config
 
     def duplicate(self):
-        new = File(self.path, config=self.config, data=self.data.getvalue())
+        new = File(self.path, config=self.config, data=self.data.getvalue())  # type: ignore[union-attr]  # data is always set when duplicate() is called
         new.is_dir = self.is_dir
         return new
-        
+
     def get_handle(self):
         hfile = File.curr_handle
         File.curr_handle += 4
@@ -117,7 +124,7 @@ class File(object):
             self.data = self.handle_file_data()
 
         if not self.data:
-            return b''
+            return b""
 
         off = self.data.tell()
         if off == self.get_size():
@@ -125,7 +132,7 @@ class File(object):
                 # Reset the file pointer
                 self.data.seek(0)
             else:
-                return b''
+                return b""
 
         return self.data.read(size)
 
@@ -151,7 +158,7 @@ class File(object):
         self.bytes_written += len(data)
 
     def remove_data(self):
-        self.data = io.BytesIO(b'')
+        self.data = io.BytesIO(b"")
 
     def is_directory(self):
         return self.is_dir
@@ -161,33 +168,36 @@ class File(object):
         Based on the emulation config, determine what data
         to return from the read request
         """
+        if not self.config:
+            return io.BytesIO(b"")
 
-        path = self.config.get('path')
+        path = getattr(self.config, "path", None)
         if path:
             path = normalize_response_path(path)
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 return io.BytesIO(f.read())
-        bf = self.config.get('byte_fill')
+        bf = getattr(self.config, "byte_fill", None)
         if bf:
-            byte = bf.get('byte')
-            if byte.startswith('0x'):
+            byte = bf.byte
+            if byte.startswith("0x"):
                 byte = 0xFF & int(byte, 0)
             else:
                 byte = 0xFF & int(byte, 16)
-            size = bf.get('size')
-            b = (byte).to_bytes(1, 'little')
+            size = bf.size
+            b = (byte).to_bytes(1, "little")
             return b * size
-        return io.BytesIO(b'')
+        return io.BytesIO(b"")
 
 
 class Pipe(File):
     """
     Emulated named pipe objects
     """
+
     curr_handle = 0x400
 
     def __init__(self, name, mode, num_instances, out_size, in_size, config={}):
-        super(Pipe, self).__init__(path=name, config=config)
+        super().__init__(path=name, config=config)
         self.name = name
         self.mode = mode
         self.num_instances = num_instances
@@ -200,12 +210,13 @@ class Pipe(File):
         return hpipe
 
 
-class FileManager(object):
+class FileManager:
     """
     Manages file system activity during emulation
     """
+
     def __init__(self, config, emu):
-        super(FileManager, self).__init__()
+        super().__init__()
         self.file_handles = {}
         self.pipe_handles = {}
         self.file_maps = {}
@@ -214,18 +225,21 @@ class FileManager(object):
         self.config = config
 
         # "files" key of config
-        self.file_config = self.config.get('filesystem', {})
+        self.file_config = self.config.filesystem
         self.emu = emu
 
-        cmdline = self.config.get('command_line')
+        cmdline = self.config.command_line or ""
 
-        if cmdline is None:
-            cmdline = ""
-
-        self.emulated_binname = shlex.split(cmdline)[0]
+        self.emulated_binname = shlex.split(cmdline)[0] if cmdline else ""
 
         # First file in this list seems to always be the module itself
         self.files = []
+
+        full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
+        if full_path_entries:
+            logger.info("Emulated filesystem: %d full_path entries", len(full_path_entries))
+            for f in full_path_entries:
+                logger.debug("  emu_path=%s  host_path=%s", f.emu_path, getattr(f, "path", None))
 
     def file_create_mapping(self, hfile, name, size, prot):
         if hfile not in (windefs.INVALID_HANDLE_VALUE, 0):
@@ -241,8 +255,8 @@ class FileManager(object):
             return hnd
 
     def walk_files(self):
-        for f in self.file_config.get('files', []):
-            path = f.get('emu_path')
+        for f in self.file_config.files:
+            path = getattr(f, "emu_path", None)
             if not path:
                 continue
             yield path
@@ -280,21 +294,20 @@ class FileManager(object):
         return self.files
 
     def handle_file_data(self, fconf):
-
-        path = fconf.get('path')
+        path = getattr(fconf, "path", None)
         if path:
             path = normalize_response_path(path)
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 return f.read()
-        bf = fconf.get('byte_fill')
+        bf = getattr(fconf, "byte_fill", None)
         if bf:
-            byte = bf.get('byte')
-            if byte.startswith('0x'):
+            byte = bf.byte if hasattr(bf, "byte") else bf.get("byte")
+            if byte.startswith("0x"):
                 byte = 0xFF & int(byte, 0)
             else:
                 byte = 0xFF & int(byte, 16)
-            size = bf.get('size')
-            b = (byte).to_bytes(1, 'little')
+            size = bf.size if hasattr(bf, "size") else bf.get("size")
+            b = (byte).to_bytes(1, "little")
             return b * size
 
     def add_existing_file(self, path, data):
@@ -324,48 +337,44 @@ class FileManager(object):
     def get_emu_file(self, path):
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
-        for f in self.file_config.get('files', []):
-            mode = f.get('mode')
-            if mode == 'full_path':
-                if fnmatch.fnmatch(path.lower(), f.get('emu_path').lower()):
+        for f in self.file_config.files:
+            if f.mode == "full_path":
+                if fnmatch.fnmatch(path.lower(), f.emu_path.lower()):
                     return f
 
-        all_modules = self.config.get('modules')
+        all_modules = self.config.modules
 
         if self.emu.arch == _arch.ARCH_X86:
-            decoy_dir = all_modules.get('module_directory_x86', [])
+            decoy_dir = all_modules.module_directory_x86 or ""
         else:
-            decoy_dir = all_modules.get('module_directory_x64', [])
+            decoy_dir = all_modules.module_directory_x64 or ""
 
         ext = os.path.splitext(path)[1]
 
         # Check if we can load the contents of a decoy DLL
-        for f in all_modules.get('user_modules', []):
-            if f.get('path') == path:
+        for f in all_modules.user_modules:
+            if f.path == path:
                 newconf = dict()
-                newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
+                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
                 return newconf
 
-        for f in all_modules.get('system_modules', []):
-            if f.get('path') == path:
+        for f in all_modules.system_modules:
+            if f.path == path:
                 newconf = dict()
-                newconf['path'] = os.path.join(decoy_dir, f.get('name') + ext)
+                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
                 return newconf
 
         # If no full path handler exists, do we have an extension handler?
-        for f in self.file_config.get('files', []):
-            path_ext = ntpath.splitext(path)[-1:][0].strip('.')
+        for f in self.file_config.files:
+            path_ext = ntpath.splitext(path)[-1:][0].strip(".")
             if path_ext:
-                mode = f.get('mode')
-                if mode == 'by_ext':
-                    if path_ext.lower() == f.get('ext'):
+                if f.mode == "by_ext":
+                    if path_ext.lower() == f.ext:
                         return f
 
         # Finally, do we have a catch-all default handler?
-        for f in self.file_config.get('files', []):
-
-            mode = f.get('mode')
-            if mode == 'default':
+        for f in self.file_config.files:
+            if f.mode == "default":
                 return f
         return None
 
@@ -418,18 +427,19 @@ class FileManager(object):
 
             fconf = self.get_emu_file(path)
             if not fconf:
+                logger.debug("file_open: no handler for path %r", path)
                 return hnd
 
-            real_path = fconf.get('path', '')
+            real_path = getattr(fconf, "path", None) or ""
             real_path = normalize_response_path(real_path)
             if not truncate:
                 if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError('File path not found: %s' % (real_path))
+                    raise FileSystemEmuError(f"File path not found: {real_path}")
                 f = File(path, config=fconf)
                 self.files.append(f)
             else:
                 if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError('File path not found: %s' % (real_path))
+                    raise FileSystemEmuError(f"File path not found: {real_path}")
                 f = File(path, config=fconf)
                 self.files.append(f)
             hnd = f.get_handle()

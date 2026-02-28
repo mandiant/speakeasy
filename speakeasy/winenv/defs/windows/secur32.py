@@ -17,7 +17,7 @@ NameSurname = 0xE
 SEC_E_INVALID_HANDLE = 0x80090301
 
 
-def get_define(define, prefix=''):
+def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue

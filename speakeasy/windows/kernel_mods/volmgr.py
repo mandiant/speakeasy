@@ -1,11 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from . import kernel_mod as km
-
-from speakeasy.struct import EmuStruct
 import ctypes as ct
 
 import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.struct import EmuStruct
+
+from . import kernel_mod as km
 
 
 class DISK_EXTENT(EmuStruct):
@@ -24,13 +24,14 @@ class VOLUME_DISK_EXTENTS(EmuStruct):
 
 
 class DriverModule(km.KernelModule):
-    '''Class for emulation of specific drivers (e.g. their ioctl handlers)'''
-    def __init__(self):
-        super(DriverModule, self).__init__()
-        self.name = 'volmgr'
+    """Class for emulation of specific drivers (e.g. their ioctl handlers)"""
 
-    def ioctl(self, ptr_size, code, inbuf):
-        vde = VOLUME_DISK_EXTENTS(ptr_size)
+    def __init__(self):
+        super().__init__()
+        self.name = "volmgr"
+
+    def ioctl(self, arch, code, inbuf):
+        vde = VOLUME_DISK_EXTENTS(arch)
         vde.NumberOfDiskExtents = 1
         vde.Extents[0].DiskNumber = 0
         vde.Extents[0].StartingOffset = 0
