@@ -178,9 +178,18 @@ class RuntimeModule:
 
 
 class PeLoader:
-    def __init__(self, *, path: str | None = None, data: bytes | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        path: str | None = None,
+        data: bytes | None = None,
+        base_override: int | None = None,
+        emu_path: str = "",
+    ) -> None:
         self._path = path
         self._data = data
+        self._base_override = base_override
+        self._emu_path = emu_path
         self._pe_obj: Any = None
 
     def make_image(self) -> LoadedImage:
@@ -188,6 +197,9 @@ class PeLoader:
 
         pe = _PeParser(path=self._path, data=self._data, imp_id=0xFEEDF00C, imp_step=4)
         self._pe_obj = pe
+
+        if self._base_override is not None and self._base_override != pe.base:
+            pe.rebase(self._base_override)
 
         module_type = "exe"
         if pe.is_driver():
@@ -330,7 +342,7 @@ class PeLoader:
             arch=pe.arch,
             module_type=module_type,
             name=name,
-            emu_path="",
+            emu_path=self._emu_path,
             image_base=base,
             image_size=pe.image_size,
             regions=[region],
