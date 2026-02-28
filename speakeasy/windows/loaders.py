@@ -109,7 +109,6 @@ class Loader(Protocol):
 class RuntimeModule:
     def __init__(self, image: LoadedImage) -> None:
         self._image = image
-        self._pe: Any = None
         self.base = image.image_base
         self.image_size = image.image_size
         self.ep = (image.entry_points[0] - image.image_base) if image.entry_points else 0

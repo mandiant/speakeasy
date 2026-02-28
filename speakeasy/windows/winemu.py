@@ -962,11 +962,6 @@ class WindowsEmulator(BinaryEmulator):
         if image.image_base != 0 and mod.base != image.image_base:
             mod.base = image.image_base
 
-        # Legacy decoupling: We no longer attach the raw pefile object to the runtime module
-        # for standard PE loads. Metadata should be accessed via mod.get_pe_metadata().
-        # if isinstance(image.loader, _PeLoaderType) and image.loader._pe_obj is not None:
-        #    mod._pe = image.loader._pe_obj
-
         is_primary = isinstance(image.loader, _PeLoaderType) or image.module_type == "shellcode"
 
         mod_base_name = ntpath.basename(image.emu_path)
@@ -1724,10 +1719,9 @@ class WindowsEmulator(BinaryEmulator):
         """
         Hook each invalid memory read event that occurs.
         """
-        # Check if the sample is trying to read from another module
-        decoy = self.get_mod_from_addr(address)
-        if decoy:
-            return self.map_decoy(decoy)
+        mod = self.get_mod_from_addr(address)
+        if mod:
+            return True
 
         if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
             self._unset_emu_hooks()
@@ -2120,47 +2114,6 @@ class WindowsEmulator(BinaryEmulator):
             rtmod = self.load_image(image)
             rtmods.append(rtmod)
         return rtmods
-
-    def map_decoy(self, module):
-        """
-        Map a decoy PE into memory. This allows samples such as shellcode to
-        parse a PE's export table while resolving exported functions
-        """
-        from speakeasy.windows.loaders import RuntimeModule
-
-        if isinstance(module, RuntimeModule):
-            decoy = module._pe
-            if decoy is None:
-                return False
-        else:
-            decoy = module
-        if not decoy.is_mapped:
-            decoy.full_load()
-
-            for exp in decoy.get_exports():
-                if exp.name:
-                    sym = exp.name
-                    mod_name = decoy.get_base_name()
-                    addr = exp.address
-                    self.symbols.update({addr: (mod_name, sym)})
-                    m, hndlr = self.api.get_data_export_handler(mod_name, sym)  # type: ignore[union-attr]
-                    if hndlr and not self.config.analysis.memory_tracing:
-                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=addr, end=addr)
-                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=addr, end=addr)
-
-            # Map the module into the emulation address space
-            mem = self.mem_map_reserve(decoy.get_base())
-            if mem is None:
-                base, size = self.get_valid_ranges(decoy.image_size, addr=decoy.get_base())
-                mem = self.mem_map(size, base=base, tag=f"emu.module.{decoy.name}", perms=common.PERM_MEM_RW)
-
-            decoy.is_mapped = True
-            img = decoy.get_memory_mapped_image(base=mem)
-            self.mem_write(mem, bytes(img))
-            if not self.config.analysis.memory_tracing:
-                self.add_code_hook(cb=self._module_access_hook, begin=mem, end=mem + len(img))
-            decoy.base = mem
-            return True
 
     def get_thread_context(self, thread=None):
         """
