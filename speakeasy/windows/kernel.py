@@ -4,7 +4,6 @@ import hashlib
 import ntpath
 import os
 
-import speakeasy.windows.common as w32common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -70,28 +69,13 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Create a driver object for the driver that is going to be emulated
         """
+        from speakeasy.windows.common import _PeParser
 
         drv = objman.Driver(emu=self)
 
-        # If no PE was supplied, assign a dummy driver
         if not pe:
-            # Get the path for the dummy driver
             default_path = self.get_native_module_path("default_sys")
-
-            pe = w32common.DecoyModule(path=default_path)
-            if name:
-                bn = ntpath.basename(name)
-            else:
-                bn = "none"
-            pe.decoy_path = f"{self.get_system_root()}drivers\\{os.path.basename(bn)}.sys"
-            pe.decoy_base = pe.get_base()
-
-        else:
-            if not name:
-                bn = pe.path
-                path = f"{self.get_system_root()}drivers\\{os.path.basename(bn)}"
-                pe.decoy_path = path
-                pe.decoy_base = pe.base
+            pe = _PeParser(path=default_path)
 
         drv.init_driver_object(name, pe, is_decoy=False)
 
@@ -608,18 +592,16 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Setup machine specific registers for kernel emulation
         """
-        # Initalize the LSTAR on amd64 with the address of KiSystemCall64
         km = self.get_kernel_mod()
-        km_pe = getattr(km, "_pe", None)
 
-        if self.get_arch() == _arch.ARCH_AMD64 and km_pe:
-            ksc64_off = km_pe.find_bytes(b"\x00" * 100, 0)
+        if self.get_arch() == _arch.ARCH_AMD64 and km.image_size > 0:
+            kbase = km.get_base()
+            km_data = bytes(self.mem_read(kbase, km.image_size))
+            ksc64_off = km_data.find(b"\x00" * 100)
             if ksc64_off != -1:
-                self.map_decoy(km_pe)
-                sdt = km_pe.get_export_by_name("KeServiceDescriptorTable")
-                if sdt:
-                    kbase = km.get_base()
-                    sdt_addr = kbase + sdt
+                sdt_entry = km.get_export_by_name("KeServiceDescriptorTable")
+                sdt_addr = sdt_entry.address if sdt_entry else None
+                if sdt_addr:
                     for i in range(0x20):
                         self.symbols.update({sdt_addr + i: (km.get_base_name(), "KeServiceDescriptorTable")})
                     self.symbols.update({sdt_addr: (km.get_base_name(), "KeServiceDescriptorTable.pServiceTable")})
@@ -638,7 +620,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                     ksc64_off += 7
                     sdt_offset = sdt_addr - (kbase + ksc64_off)
                     data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little")
-                    km_pe.set_bytes(ksc64_off, data)
+                    self.mem_write(kbase + ksc64_off, data)
                     ksc64_off += 7
                     data = b"\x90\x90\x90\x90\x90\x90\xc3"
-                    km_pe.set_bytes(ksc64_off, data)
+                    self.mem_write(kbase + ksc64_off, data)

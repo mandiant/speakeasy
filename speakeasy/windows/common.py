@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
-import ntpath
 import os
 from collections import namedtuple
 from enum import IntFlag
@@ -428,57 +427,6 @@ class _PeParser(pefile.PE):
         self._patch_imports()
 
         return
-
-
-class DecoyModule(_PeParser):
-    """
-    Class that represents "decoy" modules that are loaded into emulated memory.
-    We use decoy modules so that shellcode
-    (or other modules) can parse the PE file to resolve exports.
-    """
-
-    def __init__(self, path=None, data=None, fast_load=True, base=0, emu_path="", is_jitted=False):
-        self.image_size = 0
-        self.ep = 0
-        self.is_jitted = is_jitted
-        self.decoy_base = base
-        if path or data:
-            super().__init__(path=path, data=data, fast_load=fast_load)
-
-        if data:
-            if hasattr(self, "OPTIONAL_HEADER"):
-                self.image_size = max(len(data), self.OPTIONAL_HEADER.SizeOfImage)
-            else:
-                self.image_size = len(data)
-
-        self.decoy_path = emu_path
-        self.base_name = ""
-        self.is_mapped = False
-        self.data = b""
-
-    def get_memory_mapped_image(self, max_virtual_address=0x10000000, base=None):
-        mmi = super().get_memory_mapped_image(max_virtual_address, base)
-        if self.is_jitted and len(mmi) < len(self.__data__):
-            return self.__data__
-        return mmi
-
-    def get_base(self):
-        return self.decoy_base
-
-    def get_emu_path(self):
-        return self.decoy_path
-
-    def get_base_name(self):
-        p = self.get_emu_path()
-        img = ntpath.basename(p)
-        bn = os.path.splitext(img)[0]
-        return bn
-
-    def get_ep(self):
-        return self.get_base() + self.ep
-
-    def is_decoy(self):
-        return True
 
 
 class JitPeFile:

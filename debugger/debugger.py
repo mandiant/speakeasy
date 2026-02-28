@@ -434,10 +434,6 @@ class SpeakeasyDebugger(cmd.Cmd):
         address = split_args[0]
         address = self.convert_bin_str(address)
 
-        decoy = self.se.emu.get_mod_from_addr(address)
-        if decoy:
-            self.se.emu.map_decoy(decoy)
-
         if len(split_args) == 1:
             address = split_args[0]
             address = self.convert_bin_str(address)
