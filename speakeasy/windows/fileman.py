@@ -285,6 +285,11 @@ class FileManager:
         if self.emulated_binname in path:
             return self.files[0]
 
+        # Resolve relative paths against the current directory
+        if not ntpath.isabs(path):
+            cwd = self.config.current_dir
+            path = ntpath.normpath(ntpath.join(cwd, path))
+
         for f in self.files:
             if f.get_path().lower() == path.lower():
                 return f
@@ -335,6 +340,11 @@ class FileManager:
         return False
 
     def get_emu_file(self, path):
+        # Resolve relative paths against the current directory
+        if not ntpath.isabs(path):
+            cwd = self.config.current_dir
+            path = ntpath.normpath(ntpath.join(cwd, path))
+
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
         for f in self.file_config.files:
