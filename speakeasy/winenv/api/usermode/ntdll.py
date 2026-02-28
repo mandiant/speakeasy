@@ -302,10 +302,10 @@ class Ntdll(api.ApiHandler):
         else:
             pe = emu.get_mod_from_addr(DllHandle)
             if pe and DllHandle != pe.get_base():
-                return 0
+                return ddk.STATUS_INVALID_HANDLE
 
         if not pe:
-            return 0
+            return ddk.STATUS_INVALID_HANDLE
 
         type_ptr = emu.read_ptr(ResourceInfo)
         name_ptr = emu.read_ptr(ResourceInfo + emu.get_ptr_size())
@@ -314,24 +314,18 @@ class Ntdll(api.ApiHandler):
             name = k32.normalize_res_identifier(emu, cw, name_ptr)
             _type = k32.normalize_res_identifier(emu, cw, type_ptr)
         except Exception:
-            return 0
+            return ddk.STATUS_INVALID_PARAMETER
 
         res = k32.find_resource(pe, name, _type)
         if res is None:
-            return 0
+            return ddk.STATUS_RESOURCE_DATA_NOT_FOUND
 
-        hnd = k32.get_handle()
-        # res is ResourceEntry now, use data_rva and size directly
-        resource = {"ptr": pe.get_base() + res.data_rva, "size": res.size}
+        struct_ptr = pe.get_base() + res.entry_rva
 
-        k32.find_resources.update({hnd: resource})
+        # Write the output parameter with the address of the data entry
+        emu.write_ptr(ResourceDataEntry, struct_ptr)
 
-        ptr_data_entry = emu.read_ptr(ResourceDataEntry)
-        # Write the output struct ResourceDataEntry
-        self.mem_write(ptr_data_entry, resource["ptr"].to_bytes(4, "little"))
-        self.mem_write(ptr_data_entry + 4, resource["size"].to_bytes(4, "little"))
-
-        return hnd
+        return ddk.STATUS_SUCCESS
 
     @apihook("NtUnmapViewOfSection", argc=2)
     def NtUnmapViewOfSection(self, emu, argv, ctx={}):
@@ -354,11 +348,16 @@ class Ntdll(api.ApiHandler):
         """
         BaseAddress, ResourceDataEntry, Resource, Size = argv
 
-        offset = emu.read_ptr(ResourceDataEntry)
-        size = emu.read_ptr(ResourceDataEntry + 4)
+        if ResourceDataEntry == 0:
+            return ddk.STATUS_INVALID_PARAMETER
 
-        # Fill in the Resource struct
-        self.mem_write(Size, size.to_bytes(4, "little"))
-        self.mem_write(Resource, offset.to_bytes(4, "little"))
+        offset = emu.read_mem_value(ResourceDataEntry, 4)
+        size = emu.read_mem_value(ResourceDataEntry + 4, 4)
 
-        return 0
+        if Size:
+            emu.write_ptr(Size, size)
+
+        if Resource:
+            emu.write_ptr(Resource, BaseAddress + offset)
+
+        return ddk.STATUS_SUCCESS
