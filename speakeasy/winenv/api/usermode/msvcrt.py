@@ -215,6 +215,56 @@ class Msvcrt(api.ApiHandler):
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
         rv = 0
 
+        ptr_size = self.get_ptr_size()
+        _argv = emu.get_argv()
+
+        argc = len(_argv)
+
+        if _Argc:
+            self.mem_write(_Argc, argc.to_bytes(4, "little"))
+
+        if _Argv:
+            argv_list = [(a + "\x00").encode("utf-8") for a in _argv]
+            array_size = ptr_size * (len(argv_list) + 1)
+            total = sum([len(a) for a in argv_list]) + array_size
+
+            arg_mem = self.mem_alloc(size=total, tag="api.argv")
+            pptr = arg_mem
+            sptr = arg_mem + array_size
+
+            for a in argv_list:
+                self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+                pptr += ptr_size
+                self.mem_write(sptr, a)
+                sptr += len(a)
+            self.mem_write(pptr, b"\x00" * ptr_size)
+
+            self.mem_write(_Argv, arg_mem.to_bytes(ptr_size, "little"))
+
+        if _Env:
+            env = emu.get_env()
+            fmt_env = []
+            total = ptr_size
+            for k, v in env.items():
+                envstr = f"{k}={v}\x00"
+                envstr = envstr.encode("utf-8")
+                total += len(envstr)
+                fmt_env.append(envstr)
+                total += ptr_size
+
+            env_mem = self.mem_alloc(size=total, tag="api.envp")
+            pptr = env_mem
+            sptr = env_mem + ptr_size * (len(fmt_env) + 1)
+
+            for v in fmt_env:
+                self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+                pptr += ptr_size
+                self.mem_write(sptr, v)
+                sptr += len(v)
+            self.mem_write(pptr, b"\x00" * ptr_size)
+
+            self.mem_write(_Env, env_mem.to_bytes(ptr_size, "little"))
+
         return rv
 
     @apihook("__wgetmainargs", argc=5)
