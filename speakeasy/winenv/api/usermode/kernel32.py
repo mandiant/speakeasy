@@ -1922,8 +1922,7 @@ class Kernel32(api.ApiHandler):
                     mname, _ = os.path.splitext(bn)
                     entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
                     if entry:
-                        proc_addr = None if mod.is_decoy() else entry.address
-                        rv = emu.get_proc(mname, proc, proc_addr=proc_addr)
+                        rv = emu.get_proc(mname, proc)
                     elif emu.config.modules.functions_always_exist:
                         rv = emu.get_proc(mname, proc)
                     break
