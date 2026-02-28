@@ -38,6 +38,12 @@ LOCALE_SYSTEM_DEFAULT = 0x0800
 
 SEC_IMAGE = 0x1000000
 
+FILE_MAP_COPY = 0x0001
+FILE_MAP_WRITE = 0x0002
+FILE_MAP_READ = 0x0004
+FILE_MAP_EXECUTE = 0x0020
+FILE_MAP_ALL_ACCESS = 0xF001F
+
 
 class Kernel32(api.ApiHandler):
     """
@@ -162,6 +168,23 @@ class Kernel32(api.ApiHandler):
             if emu_perms & common.PERM_MEM_WRITE:
                 new |= windefs.PAGE_READWRITE
         return new
+
+    def map_view_access_to_emu_perms(self, desired_access, mapping_protect):
+        perms = 0
+
+        if desired_access & (FILE_MAP_READ | FILE_MAP_COPY | FILE_MAP_EXECUTE | FILE_MAP_ALL_ACCESS):
+            perms |= common.PERM_MEM_READ
+        if desired_access & (FILE_MAP_WRITE | FILE_MAP_COPY | FILE_MAP_ALL_ACCESS):
+            perms |= common.PERM_MEM_WRITE
+        if desired_access & (FILE_MAP_EXECUTE | FILE_MAP_ALL_ACCESS):
+            perms |= common.PERM_MEM_EXEC
+
+        if perms == 0:
+            perms = self.win_perms_to_emu_perms(mapping_protect)
+            if perms in (0, common.PERM_MEM_NONE):
+                perms = common.PERM_MEM_READ
+
+        return perms
 
     def normalize_res_identifier(self, emu, cw, val):
         mask = (16 ** (emu.get_ptr_size() // 2) - 1) << 16
@@ -3265,6 +3288,7 @@ class Kernel32(api.ApiHandler):
             full_offset = (offset_high << 32) | offset_low
             buf = 0
             size = 0
+            view_perms = self.map_view_access_to_emu_perms(access, mapping.get_prot())
             if f:
                 data = f.get_data()
                 if bytes_to_map != 0:
@@ -3285,7 +3309,7 @@ class Kernel32(api.ApiHandler):
                     while base and base & 0xFFF:
                         base, size = emu.get_valid_ranges(size)
 
-                    emu.mem_map(pe.image_size, base=base, tag=f"{tag_prefix}.{fname}.0x{base:x}")
+                    emu.mem_map(pe.image_size, base=base, perms=view_perms, tag=f"{tag_prefix}.{fname}.0x{base:x}")
                     mapping.add_view(base, full_offset, size, access)
                     self.mem_write(base, pe.mapped_image)
                     buf = base
@@ -3295,7 +3319,7 @@ class Kernel32(api.ApiHandler):
                     while base and base & 0xFFF:
                         base, size = emu.get_valid_ranges(size)
 
-                    buf = self.mem_alloc(base=base, size=size, shared=True)
+                    buf = self.mem_alloc(base=base, size=size, perms=view_perms, shared=True)
                     mm = emu.get_address_map(buf)
                     mm.update_tag(f"{tag_prefix}.{fname}.0x{buf:x}")
                     mapping.add_view(buf, full_offset, size, access)
@@ -3303,7 +3327,7 @@ class Kernel32(api.ApiHandler):
                     emu.set_last_error(windefs.ERROR_SUCCESS)
             else:
                 base, size = emu.get_valid_ranges(bytes_to_map)
-                buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, shared=True)
+                buf = self.mem_alloc(base=base, size=size, perms=view_perms, tag=tag_prefix, shared=True)
                 emu.set_last_error(windefs.ERROR_SUCCESS)
                 mapping.add_view(buf, full_offset, size, access)
 
