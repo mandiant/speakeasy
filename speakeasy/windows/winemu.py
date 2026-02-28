@@ -1222,7 +1222,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return curr_idx
 
-    def get_proc(self, mod_name, func_name, proc_addr=None):
+    def get_proc(self, mod_name, func_name):
         """
         Get a pointer for a supplied function name, similar to how the
         "GetProcAddress" API functions.
