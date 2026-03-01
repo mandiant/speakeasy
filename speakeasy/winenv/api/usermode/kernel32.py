@@ -3729,21 +3729,56 @@ class Kernel32(api.ApiHandler):
         hFile, lpBuffer, num_bytes, bytes_written, lpOverlapped = argv
         rv = 0
 
+        data = b""
+        if lpBuffer and num_bytes:
+            data = self.mem_read(lpBuffer, num_bytes)
+
+        if bytes_written:
+            self.mem_write(bytes_written, (0).to_bytes(4, "little"))
+
         f = self.file_get(hFile)
-        data = self.mem_read(lpBuffer, num_bytes)
         if f:
             path = f.get_path()
-            data = self.mem_read(lpBuffer, num_bytes)
             if data:
                 f.add_data(data)
-                # Log the file event
                 self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
-                data = data.hex()
-                argv[1] = f"{hex(lpBuffer)} ({data[:0x20]})"
+                data_hex = data.hex()
+                argv[1] = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
+
+            if bytes_written:
+                self.mem_write(bytes_written, len(data).to_bytes(4, "little"))
+
+            rv = 1
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return rv
+
+        pipe = emu.pipe_get(hFile)
+        if pipe:
+            if data:
+                pipe.add_data(data)
+
+            if bytes_written:
+                self.mem_write(bytes_written, len(data).to_bytes(4, "little"))
+
+            rv = 1
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return rv
+
+        proc = emu.get_current_process()
+        if proc:
+            std_output = proc.get_std_handle(0xFFFFFFF5)
+            std_error = proc.get_std_handle(0xFFFFFFF4)
+
+            if hFile in (std_output, std_error):
+                if bytes_written:
+                    self.mem_write(bytes_written, len(data).to_bytes(4, "little"))
 
                 rv = 1
                 emu.set_last_error(windefs.ERROR_SUCCESS)
+                return rv
+
+        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
 
         return rv
 
