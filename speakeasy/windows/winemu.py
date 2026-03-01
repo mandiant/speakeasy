@@ -965,17 +965,23 @@ class WindowsEmulator(BinaryEmulator):
                 aligned_headers = (first_section_rva + self.page_size - 1) & ~(self.page_size - 1)
                 self.mem_protect(base, aligned_headers, common.PERM_MEM_READ)
 
+            page_perms = {}
             for sect in image.sections:
                 section_addr = base + sect.virtual_address
                 aligned_addr = section_addr & ~(self.page_size - 1)
                 end_addr = section_addr + sect.virtual_size
                 aligned_end = (end_addr + self.page_size - 1) & ~(self.page_size - 1)
-                aligned_size = aligned_end - aligned_addr
-                if aligned_size > 0:
-                    try:
-                        self.mem_protect(aligned_addr, aligned_size, sect.perms)
-                    except Exception:
-                        pass
+                # PE sections can be smaller than a page and multiple sections can share one page.
+                # Merge permissions per page so a later tiny read-only section does not clobber
+                # earlier writable/executable permissions already required on that same page.
+                for page_base in range(aligned_addr, aligned_end, self.page_size):
+                    page_perms[page_base] = page_perms.get(page_base, 0) | sect.perms
+
+            for page_base, perms in page_perms.items():
+                try:
+                    self.mem_protect(page_base, self.page_size, perms)
+                except Exception:
+                    pass
 
         mod = RuntimeModule(image)
         if image.image_base != 0 and mod.base != image.image_base:

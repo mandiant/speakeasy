@@ -524,6 +524,14 @@ class Process(KernelObject):
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
+        if emu.get_arch() == _arch.ARCH_X86:
+            list_entry = self.address + 0x88
+            self.emu.mem_write(list_entry, list_entry.to_bytes(4, "little"))
+            self.emu.mem_write(list_entry + 4, list_entry.to_bytes(4, "little"))
+        elif emu.get_arch() == _arch.ARCH_AMD64:
+            list_entry = self.address + 0x188
+            self.emu.mem_write(list_entry, list_entry.to_bytes(8, "little"))
+            self.emu.mem_write(list_entry + 8, list_entry.to_bytes(8, "little"))
         self.name = name
         self.base = base
         self.pid = self.get_id()

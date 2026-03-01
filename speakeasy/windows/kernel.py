@@ -227,6 +227,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Get the current process context
         """
+        if self.om is None:
+            return self.curr_process
         if not self.processes:
             self.processes = self.get_processes()
         return self.curr_process
