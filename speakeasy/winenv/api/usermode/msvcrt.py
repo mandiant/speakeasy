@@ -1206,6 +1206,24 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(_str1, new + b"\x00")
         return _str1
 
+    @apihook("strncat", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strncat(self, emu, argv, ctx={}):
+        """
+        char *strncat(
+            char *destination,
+            const char *source,
+            size_t num
+        );
+        """
+        dest, src, count = argv
+        s1 = self.read_mem_string(dest, 1)
+        s2 = self.read_string(src, max_chars=count)
+        argv[0] = s1
+        argv[1] = s2
+        new = (s1 + s2).encode("utf-8")
+        self.mem_write(dest, new + b"\x00")
+        return dest
+
     @apihook("wcscat", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscat(self, emu, argv, ctx={}):
         """
