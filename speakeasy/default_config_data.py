@@ -92,6 +92,10 @@ DEFAULT_CONFIG_DATA = {
                 "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
                 "values": [{"name": "default", "type": "REG_SZ", "data": "IEnumConnections"}],
             },
+            {
+                "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
+                "values": [],
+            },
         ]
     },
     "network": {
