@@ -6,6 +6,7 @@ import os
 import shlex
 import traceback
 from abc import abstractmethod
+from enum import IntEnum
 from typing import Any
 
 import speakeasy.common as common
@@ -32,6 +33,13 @@ from speakeasy.windows.regman import RegistryManager
 DISASM_SIZE = 0x20
 
 logger = logging.getLogger(__name__)
+
+
+class BootstrapPhase(IntEnum):
+    INITIALIZED = 0
+    ENGINE_API_READY = 1
+    OBJECT_MANAGER_READY = 2
+    FULL_SETUP_READY = 3
 
 
 class WindowsEmulator(BinaryEmulator):
@@ -64,6 +72,7 @@ class WindowsEmulator(BinaryEmulator):
         self.arch = 0
         self.modules = []
         self._setup_done = False
+        self.bootstrap_phase = BootstrapPhase.INITIALIZED
         self.curr_run = None
         self.restart_curr_run = False
         self.curr_mod = None
@@ -134,6 +143,43 @@ class WindowsEmulator(BinaryEmulator):
         super()._parse_config(config)
         self.cd = self.config.current_dir
         self.command_line = self.config.command_line
+
+    def advance_bootstrap_phase(self, phase):
+        if phase <= self.bootstrap_phase:
+            return
+
+        # Keep bootstrap ordering explicit so object-dependent APIs fail fast
+        # if loader/setup sequencing regresses.
+        transitions = {
+            BootstrapPhase.INITIALIZED: {BootstrapPhase.ENGINE_API_READY},
+            BootstrapPhase.ENGINE_API_READY: {BootstrapPhase.OBJECT_MANAGER_READY, BootstrapPhase.FULL_SETUP_READY},
+            BootstrapPhase.OBJECT_MANAGER_READY: {BootstrapPhase.FULL_SETUP_READY},
+            BootstrapPhase.FULL_SETUP_READY: set(),
+        }
+
+        allowed = transitions[self.bootstrap_phase]
+        if phase not in allowed:
+            raise WindowsEmuError(
+                f"invalid bootstrap transition {self.bootstrap_phase.name} -> {phase.name}"
+            )
+
+        self.bootstrap_phase = phase
+
+    def get_bootstrap_phase(self):
+        return self.bootstrap_phase
+
+    def validate_bootstrap_phase(self, phase, reason):
+        if self.bootstrap_phase < phase:
+            raise WindowsEmuError(
+                f"{reason} requires bootstrap phase {phase.name}, current phase is {self.bootstrap_phase.name}"
+            )
+
+    def bootstrap_object_services(self):
+        return None
+
+    def validate_object_services(self, reason):
+        if self.om is None:
+            raise WindowsEmuError(f"{reason} requires initialized object services")
 
     def on_run_complete(self):
         """
@@ -931,6 +977,9 @@ class WindowsEmulator(BinaryEmulator):
 
             self.api = WindowsApi(self)
 
+        self.advance_bootstrap_phase(BootstrapPhase.ENGINE_API_READY)
+        self.bootstrap_object_services()
+
         single_region_pe = (
             len(image.regions) == 1
             and image.regions[0].base == image.image_base
@@ -1036,6 +1085,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self._setup_done:
             self._setup_done = True
             self.setup()
+            self.advance_bootstrap_phase(BootstrapPhase.FULL_SETUP_READY)
 
         return mod
 
@@ -1083,15 +1133,19 @@ class WindowsEmulator(BinaryEmulator):
         return self.env.update({var.lower(): val})
 
     def get_object_from_addr(self, addr):
+        self.validate_object_services("object lookup by address")
         return self.om.get_object_from_addr(addr)  # type: ignore[union-attr]
 
     def get_object_from_id(self, id):
+        self.validate_object_services("object lookup by id")
         return self.om.get_object_from_id(id)  # type: ignore[union-attr]
 
     def get_object_from_name(self, name):
+        self.validate_object_services("object lookup by name")
         return self.om.get_object_from_name(name)  # type: ignore[union-attr]
 
     def get_object_from_handle(self, handle):
+        self.validate_object_services("object lookup by handle")
         obj = self.om.get_object_from_handle(handle)  # type: ignore[union-attr]
         if obj:
             return obj
@@ -1100,11 +1154,13 @@ class WindowsEmulator(BinaryEmulator):
             return obj
 
     def get_object_handle(self, obj):
+        self.validate_object_services("object handle lookup")
         obj = self.om.objects.get(obj.address)  # type: ignore[union-attr]
         if obj:
             return self.om.get_handle(obj)  # type: ignore[union-attr]
 
     def add_object(self, obj):
+        self.validate_object_services("object registration")
         self.om.add_object(obj)  # type: ignore[union-attr]
 
     def search_path(self, file_name):
@@ -1117,12 +1173,15 @@ class WindowsEmulator(BinaryEmulator):
         return fp + file_name
 
     def new_object(self, otype):
+        self.validate_object_services("object creation")
         return self.om.new_object(otype)  # type: ignore[union-attr]
 
     def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
         Create a process object that will exist in the emulator
         """
+        self.validate_object_services("process creation")
+
         if not path and cmdline:
             path = cmdline
 
@@ -1188,6 +1247,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a thread object that will exist in the emulator
         """
+        self.validate_object_services("thread creation")
+
         if len(self.run_queue) >= self.max_runs:
             return 0, None
 
@@ -2456,6 +2517,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a kernel event object
         """
+        self.validate_object_services("event creation")
         evt = self.new_object(objman.Event)
         evt.name = name
         hnd = self.om.get_handle(evt)  # type: ignore[union-attr]
@@ -2465,12 +2527,14 @@ class WindowsEmulator(BinaryEmulator):
         """
         Dereference an object
         """
+        self.validate_object_services("object dereference")
         return self.om.dec_ref(obj)  # type: ignore[union-attr]
 
     def create_mutant(self, name=""):
         """
         Create a kernel mutant object
         """
+        self.validate_object_services("mutant creation")
         if name == 0:
             name = ""
         mtx = self.new_object(objman.Mutant)
