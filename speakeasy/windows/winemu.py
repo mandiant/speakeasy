@@ -2259,12 +2259,12 @@ class WindowsEmulator(BinaryEmulator):
 
             p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
             prec = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_RECORD")
-            pctx = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
+            _ctx = self.get_thread_context()
+            pctx = self.mem_map(_ctx.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
 
             exp_ptrs.ExceptionRecord = prec
             exp_ptrs.ContextRecord = pctx
 
-            _ctx = self.get_thread_context()
             self.mem_write(pctx, _ctx.get_bytes())
             seh.set_context(_ctx, address=pctx)
 
@@ -2379,12 +2379,19 @@ class WindowsEmulator(BinaryEmulator):
 
         self.run_complete = True
 
+    def _map_faulting_page_for_exception(self, faulting_address):
+        fakeout = faulting_address & 0xFFFFFFFFFFFFF000
+        for base, end, _ in self.get_mem_regions():
+            if base <= fakeout <= end:
+                return
+        self.mem_map(self.page_size, base=fakeout)
+        self.tmp_maps.append((fakeout, self.page_size))
+
     def dispatch_seh(self, except_code, faulting_address=None):
         rv = False
         if self.get_arch() == _arch.ARCH_X86:
             rv = self._dispatch_seh_x86(except_code)
         if not rv and self.unhandled_exception_filter:
-            # Create the _EXCEPTION_RECORD
             record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
             record.ExceptionCode = except_code
             record.ExceptionFlags = 0
@@ -2394,24 +2401,26 @@ class WindowsEmulator(BinaryEmulator):
             exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
             p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
             prec = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_RECORD")
-            pctx = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
+            ctx = self.get_thread_context()
+            pctx = self.mem_map(ctx.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
 
             exp_ptrs.ExceptionRecord = prec
             exp_ptrs.ContextRecord = pctx
 
             self.mem_write(p_exp_ptrs, exp_ptrs.get_bytes())
             self.mem_write(prec, record.get_bytes())
+            self.mem_write(pctx, ctx.get_bytes())
 
             sp = self.get_stack_ptr()
             args = [p_exp_ptrs]
             self.set_func_args(sp, winemu.EMU_RETURN_ADDR, *args)
             self.set_pc(self.unhandled_exception_filter)
             self.unhandled_exception_filter = 0
-            if faulting_address:
-                fakeout = faulting_address & 0xFFFFFFFFFFFFF000
-                self.mem_map(self.page_size, base=fakeout)
-                self.tmp_maps.append((fakeout, self.page_size))
             rv = True
+
+        if rv and faulting_address is not None:
+            self._map_faulting_page_for_exception(faulting_address)
+
         return rv
 
     def continue_seh(self):
