@@ -12,7 +12,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.ioman import IoManager
-from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.windows.winemu import BootstrapPhase, WindowsEmulator
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
@@ -84,8 +84,17 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.drivers.append(drv)
         return drv
 
+    def bootstrap_object_services(self):
+        if self.om is None:
+            self.om = objman.ObjectManager(emu=self)
+
+        if not self.processes:
+            self.init_processes(self.config.processes)
+
+        self.advance_bootstrap_phase(BootstrapPhase.OBJECT_MANAGER_READY)
+
     def setup(self):
-        self.om = objman.ObjectManager(emu=self)
+        self.bootstrap_object_services()
         self._setup_gdt(self.get_arch())
         self.init_sys_modules(self.config.modules.system_modules)
         self.setup_kernel_mode()
@@ -227,10 +236,11 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Get the current process context
         """
-        if self.om is None:
-            return self.curr_process
+        self.validate_bootstrap_phase(BootstrapPhase.OBJECT_MANAGER_READY, "kernel current-process resolution")
+
         if not self.processes:
             self.processes = self.get_processes()
+
         return self.curr_process
 
     def run_module(self, module, all_entrypoints=False):
