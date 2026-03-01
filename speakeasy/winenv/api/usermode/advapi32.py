@@ -177,14 +177,17 @@ class AdvApi32(api.ApiHandler):
                 if typ == "REG_SZ":
                     output = data.encode("utf-8")
 
-                if lpcbData:
-                    self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
-
-                if len(output) > length:
-                    rv = windefs.ERROR_INSUFFICIENT_BUFFER
+                if not lpData and not lpcbData:
+                    rv = windefs.ERROR_SUCCESS
                 else:
-                    if lpData:
-                        self.mem_write(lpData, output)
+                    if lpcbData:
+                        self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+
+                    if len(output) > length:
+                        rv = windefs.ERROR_INSUFFICIENT_BUFFER
+                    else:
+                        if lpData:
+                            self.mem_write(lpData, output)
 
             # For now, return an empty buffer
             else:
@@ -357,6 +360,85 @@ class AdvApi32(api.ApiHandler):
                     self.mem_write(phkResult, hkey)
                     rv = windefs.ERROR_SUCCESS
         return rv
+
+    @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
+    def RegCreateKeyEx(self, emu, argv, ctx={}):
+        """
+        LSTATUS RegCreateKeyExA(
+          HKEY                  hKey,
+          LPCSTR                lpSubKey,
+          DWORD                 Reserved,
+          LPSTR                 lpClass,
+          DWORD                 dwOptions,
+          REGSAM                samDesired,
+          const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+          PHKEY                 phkResult,
+          LPDWORD               lpdwDisposition
+        );
+        """
+        hKey, lpSubKey, _reserved, _lpClass, _dwOptions, _samDesired, _sa, phkResult, lpdwDisposition = argv
+
+        key_path = ""
+        hkey_name = regdefs.get_hkey_type(hKey)
+        if hkey_name:
+            argv[0] = hkey_name
+            key_path = hkey_name
+        else:
+            key_obj = self.reg_get_key(hKey)
+            if not key_obj:
+                return windefs.ERROR_INVALID_HANDLE
+            key_path = key_obj.get_path()
+
+        cw = self.get_char_width(ctx)
+        if lpSubKey:
+            sub_key = self.read_mem_string(lpSubKey, cw)
+            argv[1] = sub_key
+            if key_path and sub_key:
+                if not sub_key.startswith("\\"):
+                    sub_key = "\\" + sub_key
+                key_path = key_path + sub_key
+
+        existing = self.emu.reg_get_key(path=key_path)
+        hnd = self.reg_open_key(key_path, create=True)
+        if not hnd:
+            return windefs.ERROR_PATH_NOT_FOUND
+
+        if phkResult:
+            self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
+
+        if lpdwDisposition:
+            disp = 2 if existing else 1
+            self.mem_write(lpdwDisposition, disp.to_bytes(4, "little"))
+
+        self.record_registry_access_event(key_path, REG_CREATE, handle=hnd)
+        return windefs.ERROR_SUCCESS
+
+    @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
+    def RegDeleteValue(self, emu, argv, ctx={}):
+        """
+        LSTATUS RegDeleteValueA(
+          HKEY   hKey,
+          LPCSTR lpValueName
+        );
+        """
+        hKey, lpValueName = argv
+
+        key = self.reg_get_key(hKey)
+        if not key:
+            return windefs.ERROR_INVALID_HANDLE
+
+        cw = self.get_char_width(ctx)
+        value_name = ""
+        if lpValueName:
+            value_name = self.read_mem_string(lpValueName, cw)
+            argv[1] = value_name
+
+        value = key.get_value(value_name)
+        if not value:
+            return windefs.ERROR_FILE_NOT_FOUND
+
+        key.values.remove(value)
+        return windefs.ERROR_SUCCESS
 
     @apihook("RegQueryInfoKey", argc=12, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryInfoKey(self, emu, argv, ctx={}):
@@ -749,6 +831,55 @@ class AdvApi32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv
+
+    @apihook("ChangeServiceConfig", argc=11)
+    def ChangeServiceConfig(self, emu, argv, ctx={}):
+        """
+        BOOL ChangeServiceConfigA(
+          SC_HANDLE hService,
+          DWORD     dwServiceType,
+          DWORD     dwStartType,
+          DWORD     dwErrorControl,
+          LPCSTR    lpBinaryPathName,
+          LPCSTR    lpLoadOrderGroup,
+          LPDWORD   lpdwTagId,
+          LPCSTR    lpDependencies,
+          LPCSTR    lpServiceStartName,
+          LPCSTR    lpPassword,
+          LPCSTR    lpDisplayName
+        );
+        """
+        (
+            _hService,
+            _dwServiceType,
+            _dwStartType,
+            _dwErrorControl,
+            lpBinaryPathName,
+            lpLoadOrderGroup,
+            _lpdwTagId,
+            lpDependencies,
+            lpServiceStartName,
+            lpPassword,
+            lpDisplayName,
+        ) = argv
+
+        cw = self.get_char_width(ctx)
+
+        if lpBinaryPathName:
+            argv[4] = self.read_mem_string(lpBinaryPathName, cw)
+        if lpLoadOrderGroup:
+            argv[5] = self.read_mem_string(lpLoadOrderGroup, cw)
+        if lpDependencies:
+            argv[7] = self.read_mem_string(lpDependencies, cw)
+        if lpServiceStartName:
+            argv[8] = self.read_mem_string(lpServiceStartName, cw)
+        if lpPassword:
+            argv[9] = self.read_mem_string(lpPassword, cw)
+        if lpDisplayName:
+            argv[10] = self.read_mem_string(lpDisplayName, cw)
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("ChangeServiceConfig2", argc=3)
     def ChangeServiceConfig2(self, emu, argv, ctx={}):
