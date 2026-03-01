@@ -60,6 +60,45 @@ class Win32Emulator(WindowsEmulator):
             out = shlex.split(self.command_line, posix=False)
         return out
 
+    def build_service_main_args(self, service_name, service_args=None, char_width=1):
+        ptr_size = self.get_ptr_size()
+        args = [service_name]
+        if service_args:
+            args.extend(service_args)
+
+        enc_args = []
+        if char_width == 1:
+            codec = "utf-8"
+        elif char_width == 2:
+            codec = "utf-16le"
+        else:
+            raise Win32EmuError(f"Unsupported service argument width: {char_width}")
+
+        for arg in args:
+            if not isinstance(arg, str):
+                arg = str(arg)
+            enc_args.append((arg + "\x00").encode(codec))
+
+        ptr_count = len(enc_args) + 1
+        size = ptr_count * ptr_size + sum(len(arg) for arg in enc_args)
+        argv_ptr = self.mem_map(size, tag="emu.service_main_argv", base=0x41420000)
+
+        str_ptr = argv_ptr + (ptr_count * ptr_size)
+        for i, enc_arg in enumerate(enc_args):
+            self.write_ptr(argv_ptr + (i * ptr_size), str_ptr)
+            self.mem_write(str_ptr, enc_arg)
+            str_ptr += len(enc_arg)
+
+        self.write_ptr(argv_ptr + (len(enc_args) * ptr_size), 0)
+        return len(enc_args), argv_ptr
+
+    def get_service_main_char_width(self, module, export_name):
+        if export_name.endswith("A"):
+            return 1
+        if export_name.endswith("W"):
+            return 2
+        return 2
+
     def set_last_error(self, code):
         """
         Set the last error code for the current thread
@@ -233,30 +272,9 @@ class Win32Emulator(WindowsEmulator):
 
                     run.type = f"export.{fn}"
                     run.start_addr = exp.address
-                    if exp.name == "ServiceMain":
-                        # ServiceMain accepts a (argc, argv) pair like main().
-                        #
-                        # now, we're not exactly sure if we're in A or W mode.
-                        # maybe there are some hints we could take to guess this.
-                        # instead, we'll assume W mode and use default service name "IPRIP".
-                        #
-                        # hack: if we're actually in A mode, then string routines
-                        # will think the service name is "I" which isn't perfect,
-                        # but might still be good enough.
-                        #
-                        # layout:
-                        #   argc: 1
-                        #   argv:
-                        #     0x00:    (argv[0]) pointer to +0x10 -+
-                        #     0x04/08: (argv[1]) 0x0               |
-                        #     0x10:    "IPRIP"  <------------------+
-                        svc_name = "IPRIP\x00".encode("utf-16le")
-                        argc = 1
-                        argv = self.mem_map(len(svc_name) + 0x10, tag="emu.export_ServiceMain_argv", base=0x41420000)
-
-                        self.write_ptr(argv, argv + 0x10)
-                        self.mem_write(argv + 0x10, svc_name)
-
+                    if exp.name and exp.name.startswith("ServiceMain"):
+                        char_width = self.get_service_main_char_width(module, exp.name)
+                        argc, argv = self.build_service_main_args("IPRIP", char_width=char_width)
                         run.args = [argc, argv]
                     else:
                         # Here we set dummy args to pass into the export function
