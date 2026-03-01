@@ -5890,8 +5890,15 @@ class Kernel32(api.ApiHandler):
         """
         hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv  # noqa
         nts = ddk.STATUS_SUCCESS
+        out_written = 0
+
+        if bytes_ret:
+            self.mem_write(bytes_ret, (0).to_bytes(4, "little"))
 
         obj = self.get_object_from_handle(hnd)
+        if not obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         in_buf = b""
         if InputBuffer:
@@ -5904,7 +5911,22 @@ class Kernel32(api.ApiHandler):
                 nts = ddk.STATUS_BUFFER_TOO_SMALL
             else:
                 self.mem_write(out_buf, outbuf)
-        return nts
+                out_written = len(outbuf)
+
+        if bytes_ret:
+            self.mem_write(bytes_ret, out_written.to_bytes(4, "little"))
+
+        if nts == ddk.STATUS_SUCCESS:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
+        if nts == ddk.STATUS_BUFFER_TOO_SMALL:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+        elif nts == ddk.STATUS_INVALID_DEVICE_REQUEST:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        else:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        return 0
 
     @apihook("GetTimeFormat", argc=6)
     def GetTimeFormat(self, emu, argv, ctx={}):

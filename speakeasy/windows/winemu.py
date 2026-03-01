@@ -125,6 +125,7 @@ class WindowsEmulator(BinaryEmulator):
         self.driveman = DriveManager(config=self.config.drives)
         self.cryptman = CryptoManager()
         self.hammer = ApiHammer(self)
+        self._io_manager = None
 
     def _parse_config(self, config):
         """
@@ -276,6 +277,24 @@ class WindowsEmulator(BinaryEmulator):
         Get the drive manager
         """
         return self.driveman
+
+    def dev_ioctl(self, arch, dev, ioctl, inbuf):
+        rv = ddk.STATUS_INVALID_DEVICE_REQUEST
+        outbuf = b""
+
+        if not dev or not hasattr(dev, "get_parent_driver"):
+            return rv, outbuf
+
+        parent = dev.get_parent_driver()
+        if not parent:
+            return rv, outbuf
+
+        if self._io_manager is None:
+            from speakeasy.windows.ioman import IoManager
+
+            self._io_manager = IoManager()
+
+        return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
 
     def reg_open_key(self, path, create=False):
         """
