@@ -1353,15 +1353,15 @@ class WindowsEmulator(BinaryEmulator):
             impfunc = self.curr_mod.import_table.get(address)
             if impfunc:
                 mod_name, func_name = impfunc
-                self.handle_import_func(mod_name, func_name)
                 self._unset_emu_hooks()
+                self.handle_import_func(mod_name, func_name)
                 return True
 
         impfunc = self.import_table.get(address)
         if impfunc:
             mod_name, func_name = impfunc
-            self.handle_import_func(mod_name, func_name)
             self._unset_emu_hooks()
+            self.handle_import_func(mod_name, func_name)
             return True
 
         # dyn_imps merged into import_table — checked above
@@ -1369,8 +1369,8 @@ class WindowsEmulator(BinaryEmulator):
         # Is the address a callback func ptr?
         for addr, mod, fn in self.callbacks:
             if addr == address:
-                self.handle_import_func(mod, fn)
                 self._unset_emu_hooks()
+                self.handle_import_func(mod, fn)
                 return True
 
         # Are there any SEH handlers registered?
