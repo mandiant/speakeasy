@@ -90,7 +90,17 @@ class File:
         self.config = config
 
     def duplicate(self):
-        new = File(self.path, config=self.config, data=self.data.getvalue())  # type: ignore[union-attr]  # data is always set when duplicate() is called
+        if not self.data and self.config:
+            self.data = self.handle_file_data()
+
+        if isinstance(self.data, io.BytesIO):
+            data = self.data.getvalue()
+        elif isinstance(self.data, bytes):
+            data = self.data
+        else:
+            data = b""
+
+        new = File(self.path, config=self.config, data=data)
         new.is_dir = self.is_dir
         return new
 
