@@ -528,7 +528,10 @@ class AdvApi32(api.ApiHandler):
         """
         (lpServiceStartTable,) = argv
 
-        cw = self.get_char_width(ctx)
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
 
         ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
         entry = self.mem_cast(ste, lpServiceStartTable)
@@ -536,20 +539,21 @@ class AdvApi32(api.ApiHandler):
         argv[0] = "lpServiceStartTable=["
 
         while entry.lpServiceName != windefs.NULL or entry.lpServiceProc != windefs.NULL:
-            # Get the service name
+            service_name = "Service"
             if entry.lpServiceName != windefs.NULL:
-                name = self.read_mem_string(entry.lpServiceName, cw)  # noqa
-                argv[0] += f" {{ lpServiceName={name}"
+                service_name = self.read_mem_string(entry.lpServiceName, cw)
+                argv[0] += f" {{ lpServiceName={service_name}"
             else:
                 argv[0] += " { lpServiceName=NULL"
-            # Get the ServiceMain function
+
             if entry.lpServiceProc != windefs.NULL:
                 service_main = entry.lpServiceProc
                 argv[0] += f", lpServiceProc={hex(service_main)} }} "
-                handle, obj = self.create_thread(service_main, windefs.NULL, emu.get_current_process())
+                argc, svc_argv = emu.build_service_main_args(service_name, char_width=cw)
+                self.queue_run("thread.service", service_main, [argc, svc_argv])
             else:
                 argv[0] += ", lpServiceProc=NULL } "
-            # next entry
+
             lpServiceStartTable += self.sizeof(ste)
             ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
             entry = self.mem_cast(ste, lpServiceStartTable)
