@@ -36,8 +36,11 @@ class RegValue:
             elif isinstance(data, int):
                 return data
         elif val_type == regdefs.REG_BINARY:
-            # Binary data is expected to be base64'd
-            return base64.b64encode(data.encode("utf-8"))
+            if isinstance(data, bytes):
+                return base64.b64encode(data)
+            if isinstance(data, str):
+                return base64.b64encode(data.encode("utf-8"))
+            raise RegistryEmuError("Invalid registry value expected bytes or string")
         else:
             return data
 
