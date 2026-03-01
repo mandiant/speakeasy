@@ -198,6 +198,25 @@ class Wininet(api.ApiHandler):
 
         return rv
 
+    @apihook("InternetGetConnectedState", argc=2, conv=_arch.CALL_CONV_STDCALL)
+    def InternetGetConnectedState(self, emu, argv, ctx={}):
+        """
+        BOOLAPI InternetGetConnectedState(
+          LPDWORD lpdwFlags,
+          DWORD   dwReserved
+        );
+        """
+        lpdwFlags, dwReserved = argv
+
+        rv = True
+        flags = windefs.INTERNET_CONNECTION_LAN
+
+        if lpdwFlags:
+            self.mem_write(lpdwFlags, flags.to_bytes(4, "little"))
+            argv[0] = "INTERNET_CONNECTION_LAN"
+
+        return rv
+
     @apihook("HttpSendRequest", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def HttpSendRequest(self, emu, argv, ctx={}):
         """
