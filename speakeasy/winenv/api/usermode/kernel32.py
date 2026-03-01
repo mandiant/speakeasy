@@ -3550,20 +3550,44 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         if src:
-            _src = self.read_mem_string(src, cw)
-            argv[0] = _src
+            src = self.read_mem_string(src, cw)
+            argv[0] = src
         if dst:
-            _dst = self.read_mem_string(dst, cw)
-            argv[1] = _dst
-            dHandle = self.file_open(_dst, create=True)
-            self.record_file_access_event(_dst, FILE_CREATE)
-            self.record_file_access_event(_dst, FILE_WRITE)
-            sHandle = self.file_open(_src)
-            sf = self.file_get(sHandle)
-            df = self.file_get(dHandle)
-            data = sf.get_data()
-            df.add_data(data)
+            dst = self.read_mem_string(dst, cw)
+            argv[1] = dst
 
+        if not src or not dst:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
+
+        if fail and self.does_file_exist(dst):
+            emu.set_last_error(windefs.ERROR_FILE_EXISTS)
+            return False
+
+        s_handle = self.file_open(src)
+        if s_handle is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return False
+
+        sf = self.file_get(s_handle)
+        if sf is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return False
+
+        d_handle = self.file_open(dst, create=True)
+        if d_handle is None:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return False
+
+        df = self.file_get(d_handle)
+        if df is None:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return False
+
+        data = sf.get_data() or b""
+        df.add_data(data)
+        self.record_file_access_event(dst, FILE_CREATE)
+        self.record_file_access_event(dst, FILE_WRITE)
         return True
 
     @apihook("CreateFile", argc=7)
