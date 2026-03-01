@@ -3881,11 +3881,20 @@ class Kernel32(api.ApiHandler):
         );
         """
         (hObject,) = argv
+
+        reg_key = emu.reg_get_key(handle=hObject)
+        if reg_key:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
         obj = self.get_object_from_handle(hObject)
         if obj:
             emu.dec_ref(obj)
-            return True
-        return False
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
+        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+        return 0
 
     @apihook("SetEndOfFile", argc=1)
     def SetEndOfFile(self, emu, argv, ctx={}):
