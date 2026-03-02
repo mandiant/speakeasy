@@ -44,6 +44,14 @@ class Psapi(api.ApiHandler):
 
         return ntpath.basename(proc.get_process_path() or "")
 
+    def _get_module_file_name(self, proc, hModule):
+        if hModule:
+            mod = self.emu.get_mod_from_addr(hModule)
+            if mod:
+                return mod.get_emu_path()
+
+        return proc.get_process_path() or ""
+
     @apihook("EnumProcesses", argc=3)
     def EnumProcesses(self, emu, argv, ctx={}):
         lpidProcess, cb, lpcbNeeded = argv
@@ -116,4 +124,34 @@ class Psapi(api.ApiHandler):
             output = truncated.encode("utf-16le") + b"\x00\x00"
 
         self.mem_write(lpBaseName, output)
+        return len(truncated)
+
+    @apihook("GetModuleFileNameEx", argc=4)
+    @apihook("GetModuleFileNameExA", argc=4)
+    @apihook("GetModuleFileNameExW", argc=4)
+    def GetModuleFileNameEx(self, emu, argv, ctx={}):
+        hProcess, hModule, lpFilename, nSize = argv
+        if not lpFilename or nSize == 0:
+            return 0
+
+        proc = self.get_object_from_handle(hProcess)
+        if not proc:
+            return 0
+
+        module_path = self._get_module_file_name(proc, hModule)
+        if not module_path:
+            return 0
+
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
+
+        truncated = module_path[: max(nSize - 1, 0)]
+        if cw == 1:
+            output = truncated.encode("utf-8") + b"\x00"
+        else:
+            output = truncated.encode("utf-16le") + b"\x00\x00"
+
+        self.mem_write(lpFilename, output)
         return len(truncated)
