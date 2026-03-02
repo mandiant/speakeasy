@@ -1511,3 +1511,12 @@ class AdvApi32(api.ApiHandler):
         svcname = self.read_mem_string(lpServiceName, cw)
         argv[1] = svcname
         return self.get_handle()
+
+    @apihook("DeleteService", argc=1, conv=_arch.CALL_CONV_STDCALL)
+    def DeleteService(self, emu, argv, ctx={}):
+        """
+        BOOL DeleteService(
+          SC_HANDLE hService
+        );
+        """
+        return 1
