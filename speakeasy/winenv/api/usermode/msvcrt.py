@@ -1781,6 +1781,32 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook("_strnicmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _strnicmp(self, emu, argv, ctx={}):
+        """
+        int _strnicmp(
+            const char *string1,
+            const char *string2,
+            size_t count
+        );
+        """
+        string1, string2, count = argv
+        rv = 1
+
+        if not string1 or not string2:
+            return rv
+
+        cs1 = self.read_string(string1)
+        cs2 = self.read_string(string2)
+
+        argv[0] = cs1
+        argv[1] = cs2
+
+        if cs1[:count].lower() == cs2[:count].lower():
+            rv = 0
+
+        return rv
+
     @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
     def _wcsicmp(self, emu, argv, ctx={}):
         """
