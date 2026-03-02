@@ -32,6 +32,19 @@ class Msvfw32(api.ApiHandler):
         _fcc_type, _fcc_handler, _mode = argv
         return self.get_handle()
 
+    @apihook("ICSendMessage", argc=4)
+    def ICSendMessage(self, emu, argv, ctx={}):
+        """
+        LRESULT ICSendMessage(
+            HIC hic,
+            UINT msg,
+            DWORD_PTR dw1,
+            DWORD_PTR dw2
+            );
+        """
+        _hic, _msg, _dw1, _dw2 = argv
+        return 1
+
     @apihook("ICClose", argc=1)
     def ICClose(self, emu, argv, ctx={}):
         """
