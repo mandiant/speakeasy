@@ -17,3 +17,7 @@ class sfc(api.ApiHandler):
     @apihook("SfcIsFileProtected", argc=2)
     def SfcIsFileProtected(self, emu, argv, ctx={}):
         return False
+
+    @apihook("SfcTerminateWatcherThread", argc=0, ordinal=2)
+    def SfcTerminateWatcherThread(self, emu, argv, ctx={}):
+        return 0
