@@ -3598,6 +3598,62 @@ class Kernel32(api.ApiHandler):
         self.record_file_access_event(dst, FILE_WRITE)
         return True
 
+    @apihook("MoveFile", argc=2)
+    def MoveFile(self, emu, argv, ctx={}):
+        """
+        BOOL MoveFile(
+            LPCTSTR lpExistingFileName,
+            LPCTSTR lpNewFileName
+        );
+        """
+        src, dst = argv
+        cw = self.get_char_width(ctx)
+
+        if src:
+            src = self.read_mem_string(src, cw)
+            argv[0] = src
+        if dst:
+            dst = self.read_mem_string(dst, cw)
+            argv[1] = dst
+
+        if not src or not dst:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        if not self.does_file_exist(src):
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        src_handle = self.file_open(src)
+        if src_handle is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        src_file = self.file_get(src_handle)
+        if src_file is None:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        dst_handle = self.file_open(dst, create=True)
+        if dst_handle is None:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return 0
+
+        dst_file = self.file_get(dst_handle)
+        if dst_file is None:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return 0
+
+        dst_file.remove_data()
+        dst_file.add_data(src_file.get_data(reset_pointer=True) or b"")
+        emu.file_delete(src)
+
+        self.record_file_access_event(dst, FILE_CREATE)
+        self.record_file_access_event(dst, FILE_WRITE)
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
+
     @apihook("CreateFile", argc=7)
     def CreateFile(self, emu, argv, ctx={}):
         """
