@@ -458,7 +458,11 @@ class WindowsEmulator(BinaryEmulator):
                 self.init_tls(thread)
 
         if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
-            self._set_emu_hooks()
+            try:
+                self.mem_unmap(winemu.EMU_RESERVED, winemu.EMU_RESERVE_SIZE)
+            except Exception:
+                pass
+            self.emu_hooks_set = True
 
         self.set_pc(run.start_addr)
         return run
