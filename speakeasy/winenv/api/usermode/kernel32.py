@@ -1709,6 +1709,18 @@ class Kernel32(api.ApiHandler):
 
         return
 
+    @apihook("GetTimeZoneInformation", argc=1)
+    def GetTimeZoneInformation(self, emu, argv, ctx={}):
+        """DWORD GetTimeZoneInformation(
+            LPTIME_ZONE_INFORMATION lpTimeZoneInformation
+        );"""
+
+        (lpTimeZoneInformation,) = argv
+        if lpTimeZoneInformation:
+            self.mem_write(lpTimeZoneInformation, b"\x00" * 168)
+
+        return 0
+
     @apihook("GetCurrentThreadId", argc=0)
     def GetCurrentThreadId(self, emu, argv, ctx={}):
         """DWORD GetCurrentThreadId();"""
