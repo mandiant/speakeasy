@@ -11,3 +11,9 @@ ruff:
 #     uvx mypy --check-untyped-defs debugger speakeasy tests examples
 
 lint: format ruff
+
+test:
+    ./.venv/bin/pytest -q tests/
+
+test-pma:
+    ./.venv/bin/pytest -q tests/test_pma_samples.py
