@@ -5047,15 +5047,12 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         cd = emu.get_cd()
-        if cw == 1:
-            data = cd.encode("utf-8")
-        else:
-            data = cd.encode("utf-16le")
+        required = len(cd) + 1
 
-        if len(cd) > nBufferLength:
-            return 0
+        if nBufferLength < required or not lpBuffer:
+            return required
 
-        self.mem_write(lpBuffer, data)
+        self.write_mem_string(cd, lpBuffer, cw)
 
         return len(cd)
 

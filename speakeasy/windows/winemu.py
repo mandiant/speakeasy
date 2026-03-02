@@ -457,6 +457,9 @@ class WindowsEmulator(BinaryEmulator):
                 self.init_teb(thread, self.curr_process.get_peb())  # type: ignore[union-attr]
                 self.init_tls(thread)
 
+        if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
+            self._set_emu_hooks()
+
         self.set_pc(run.start_addr)
         return run
 

@@ -30,6 +30,10 @@ class Psapi(api.ApiHandler):
             if mod:
                 return [mod.get_base()]
 
+        process_base = int(getattr(proc, "base", 0) or 0)
+        if process_base:
+            return [process_base]
+
         return []
 
     def _get_module_base_name(self, proc, hModule):
