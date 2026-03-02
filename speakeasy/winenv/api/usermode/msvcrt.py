@@ -59,6 +59,7 @@ class Msvcrt(api.ApiHandler):
 
         self.tick_counter = TICK_BASE
         self.errno_t = None
+        self.file_streams = {}
 
         super().__get_hook_attrs__(self)
 
@@ -644,6 +645,30 @@ class Msvcrt(api.ApiHandler):
         rv = len(fin)
         return rv
 
+    @apihook("fprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def fprintf(self, emu, argv, ctx={}):
+        """
+        int fprintf(
+            FILE *stream,
+            const char *format,
+            ...
+            );
+        """
+        stream, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        if not fmt_cnt:
+            argv.clear()
+            argv.extend([stream, fmt_str])
+            return len(fmt_str)
+
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
+        fin = self.do_str_format(fmt_str, _argv)
+        argv.clear()
+        argv.extend([stream, fin])
+        return len(fin)
+
     @apihook("memset", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memset(self, emu, argv, ctx={}):
         """
@@ -1216,6 +1241,23 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(_str1, new + b"\x00")
         return _str1
 
+    @apihook("_strlwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _strlwr(self, emu, argv, ctx={}):
+        """
+        char *_strlwr(
+            char *str
+            );
+        """
+        (string_ptr,) = argv
+
+        if not string_ptr:
+            return 0
+
+        string = self.read_string(string_ptr)
+        argv[0] = string
+        self.write_string(string.lower(), string_ptr)
+        return string_ptr
+
     @apihook("strncat", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncat(self, emu, argv, ctx={}):
         """
@@ -1406,6 +1448,16 @@ class Msvcrt(api.ApiHandler):
         (c,) = argv
         return c | 0x20
 
+    @apihook("isdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isdigit(self, emu, argv, ctx={}):
+        """
+        int isdigit(
+            int c
+            );
+        """
+        (c,) = argv
+        return int(48 <= c <= 57)
+
     @apihook("sscanf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sscanf(self, emu, argv, ctx={}):
         """
@@ -1573,13 +1625,19 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook("??3@YAXPAX@Z", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("??3@YAXPAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __3_YAXPAX_Z(self, emu, argv, ctx={}):
+        (ptr,) = argv
+        if ptr:
+            self.mem_free(ptr)
         return
 
-    @apihook("??2@YAPAXI@Z", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("??2@YAPAXI@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __2_YAPAXI_Z(self, emu, argv, ctx={}):
-        return
+        (size,) = argv
+        if size <= 0:
+            size = self.get_ptr_size()
+        return self.mem_alloc(size, tag="api.msvcrt.operator_new")
 
     @apihook("__current_exception_context", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception_context(self, emu, argv, ctx={}):
@@ -1804,6 +1862,99 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(self.errno_t, _VAL.to_bytes(4, "little"))
 
         return self.errno_t
+
+    @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fopen(self, emu, argv, ctx={}):
+        """
+        FILE *fopen(
+            const char *filename,
+            const char *mode
+            );
+        """
+        filename, mode = argv
+
+        if not filename or not mode:
+            return 0
+
+        path = self.read_string(filename)
+        mode_str = self.read_string(mode)
+
+        argv[0] = path
+        argv[1] = mode_str
+
+        create = any(flag in mode_str for flag in ("w", "a", "+"))
+        truncate = "w" in mode_str and "a" not in mode_str
+
+        hfile = self.file_open(path, create=create, truncate=truncate)
+        if hfile is None:
+            return 0
+
+        stream = self.mem_alloc(self.get_ptr_size(), tag="api.msvcrt.fopen")
+        self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
+        self.file_streams[stream] = hfile
+        return stream
+
+    @apihook("_wfopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wfopen(self, emu, argv, ctx={}):
+        """
+        FILE *_wfopen(
+            const wchar_t *filename,
+            const wchar_t *mode
+            );
+        """
+        filename, mode = argv
+
+        if not filename or not mode:
+            return 0
+
+        path = self.read_wide_string(filename)
+        mode_str = self.read_wide_string(mode)
+
+        argv[0] = path
+        argv[1] = mode_str
+
+        create = any(flag in mode_str for flag in ("w", "a", "+"))
+        truncate = "w" in mode_str and "a" not in mode_str
+
+        hfile = self.file_open(path, create=create, truncate=truncate)
+        if hfile is None:
+            return 0
+
+        stream = self.mem_alloc(self.get_ptr_size(), tag="api.msvcrt._wfopen")
+        self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
+        self.file_streams[stream] = hfile
+        return stream
+
+    @apihook("fclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def fclose(self, emu, argv, ctx={}):
+        """
+        int fclose(
+            FILE *stream
+            );
+        """
+        (stream,) = argv
+
+        if not stream:
+            return -1
+
+        self.file_streams.pop(stream, None)
+        self.mem_free(stream)
+        return 0
+
+    @apihook("fseek", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def fseek(self, emu, argv, ctx={}):
+        """
+        int fseek(
+            FILE *stream,
+            long offset,
+            int origin
+            );
+        """
+        stream, offset, origin = argv
+        argv[0] = self.file_streams.get(stream, 0)
+        argv[1] = offset
+        argv[2] = origin
+        return 0
 
     @apihook("fputc", argc=2)
     def fputc(self, emu, argv, ctx={}):
