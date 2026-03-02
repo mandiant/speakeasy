@@ -5334,6 +5334,17 @@ class Kernel32(api.ApiHandler):
         """
         return 1
 
+    @apihook("SetProcessPriorityBoost", argc=2)
+    def SetProcessPriorityBoost(self, emu, argv, ctx={}):
+        """
+        BOOL SetProcessPriorityBoost(
+          HANDLE hProcess,
+          BOOL   bDisablePriorityBoost
+        );
+        """
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
+
     @apihook("GetDriveType", argc=1)
     def GetDriveType(self, emu, argv, ctx={}):
         """
