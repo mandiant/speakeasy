@@ -442,6 +442,18 @@ class Msvcrt(api.ApiHandler):
 
         self.exit_process()
 
+    @apihook("_XcptFilter", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _XcptFilter(self, emu, argv, ctx={}):
+        """
+        int _XcptFilter(
+            unsigned long xcptnum,
+            struct _EXCEPTION_POINTERS *pxcptinfoptrs
+        );
+        """
+        _xcptnum, _pxcptinfoptrs = argv
+
+        return 0
+
     @apihook("__acrt_iob_func", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __acrt_iob_func(self, emu, argv, ctx={}):
         """FILE * __acrt_iob_func (fd)"""
