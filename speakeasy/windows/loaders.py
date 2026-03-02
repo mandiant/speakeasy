@@ -308,9 +308,9 @@ class PeLoader:
                     if type_id == 6:  # RT_STRING
                         if hasattr(resource_id, "directory"):
                             for str_entry in resource_id.directory.entries:
-                                # pefile handles strings as a dict {id: string}
-                                if hasattr(str_entry.directory, "strings"):
-                                    for s_id, s_val in str_entry.directory.strings.items():
+                                directory = getattr(str_entry, "directory", None)
+                                if hasattr(directory, "strings"):
+                                    for s_id, s_val in directory.strings.items():
                                         pe_metadata.string_table[s_id] = s_val
 
                     # Regular resource entry
