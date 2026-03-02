@@ -45,6 +45,10 @@ class User32(api.ApiHandler):
         self.wndprocs = {}
         self.timer_count = 0
         self.sessman = sessman.SessionManager(config=None)
+        self.synthetic_async_keys = [0x41, 0x42, 0x43]
+        self.synthetic_async_key_index = 0
+        self.synthetic_hook_keys = [0x41, 0x42, 0x43]
+        self.synthetic_hook_key_index = 0
 
         super().__get_hook_attrs__(self)
 
@@ -53,6 +57,50 @@ class User32(api.ApiHandler):
         hnd = self.handle
         self.handles.append(hnd)
         return hnd
+
+    def get_synthetic_async_key_state(self, vkey):
+        if self.synthetic_async_key_index >= len(self.synthetic_async_keys):
+            return 0
+
+        if vkey != self.synthetic_async_keys[self.synthetic_async_key_index]:
+            return 0
+
+        self.synthetic_async_key_index += 1
+        return 0x8001
+
+    def get_synthetic_keyboard_hook(self):
+        for _, hook in self.window_hooks.items():
+            if len(hook) == 3 and hook[0] == windefs.WH_KEYBOARD_LL:
+                return hook
+        return None
+
+    def emit_synthetic_keyboard_hook_event(self, emu, caller_argv):
+        hook = self.get_synthetic_keyboard_hook()
+        if not hook:
+            return None
+
+        if self.synthetic_hook_key_index >= len(self.synthetic_hook_keys):
+            return None
+
+        hook_index = self.synthetic_hook_key_index
+        vkey = self.synthetic_hook_keys[hook_index]
+        self.synthetic_hook_key_index += 1
+
+        wparam = windefs.WM_KEYDOWN if (hook_index % 2 == 0) else windefs.WM_SYSKEYDOWN
+
+        kbd = windefs.KBDLLHOOKSTRUCT(emu.get_ptr_size())
+        kbd.vkCode = vkey
+        kbd.scanCode = 0
+        kbd.flags = 0
+        kbd.time = 0
+        kbd.dwExtraInfo = 0
+
+        kbd_ptr = self.mem_alloc(kbd.sizeof(), tag="api.user32.kbdllhook")
+        self.mem_write(kbd_ptr, kbd.get_bytes())
+
+        _, lpfn, _ = hook
+        self.setup_callback(lpfn, (0, wparam, kbd_ptr), caller_argv=caller_argv)
+        return wparam, vkey
 
     def find_string_resource_by_id(self, pe, uID):
         pe_metadata = pe.get_pe_metadata()
@@ -425,12 +473,8 @@ class User32(api.ApiHandler):
         );
         """
 
-        # From MS docs:
-        # If the most significant bit is set, the key is down,
-        # and if the least significant bit is set, the key was
-        # pressed after the previous call to GetAsyncKeyState
-
-        return 0
+        (vkey,) = argv
+        return self.get_synthetic_async_key_state(vkey)
 
     @apihook("GetKeyboardType", argc=1)
     def GetKeyboardType(self, emu, argv, ctx={}):
@@ -570,6 +614,19 @@ class User32(api.ApiHandler):
 
         return False
 
+    @apihook("CallNextHookEx", argc=4)
+    def CallNextHookEx(self, emu, argv, ctx={}):
+        """
+        LRESULT CallNextHookEx(
+            HHOOK  hhk,
+            int    nCode,
+            WPARAM wParam,
+            LPARAM lParam
+        );
+        """
+        hhk, nCode, wParam, lParam = argv
+        return 0
+
     @apihook("SetWindowsHookEx", argc=4)
     def SetWindowsHookEx(self, emu, argv, ctx={}):
         """
@@ -588,7 +645,7 @@ class User32(api.ApiHandler):
             argv[0] = hname
 
         hnd = self.get_handle()
-        self.window_hooks.update({hnd: (lpfn, hmod)})
+        self.window_hooks.update({hnd: (idHook, lpfn, hmod)})
         return hnd
 
     @apihook("UnhookWindowsHookEx", argc=1)
@@ -632,18 +689,31 @@ class User32(api.ApiHandler):
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
 
         t = emu.get_current_thread()
+        msg = None
+
         try:
             msg = t.message_queue.pop(0)
         except IndexError:
-            # If the queue is empty but a timer is active, write a WM_TIMER message and return True
             if self.timer_count > 0:
                 msg = windefs.MSG(emu.get_ptr_size())
                 msg.hwnd = hWnd
                 msg.message = windefs.WM_TIMER
             else:
-                return False
+                synthetic = self.emit_synthetic_keyboard_hook_event(emu, argv)
+                if synthetic is None:
+                    return False
+                if lpMsg:
+                    wparam, vkey = synthetic
+                    msg = windefs.MSG(emu.get_ptr_size())
+                    msg.hwnd = hWnd
+                    msg.message = wparam
+                    msg.wParam = vkey
+                    msg.lParam = 0
+                else:
+                    return True
 
-        self.mem_write(lpMsg, msg.get_bytes())
+        if lpMsg:
+            self.mem_write(lpMsg, msg.get_bytes())
 
         return True
 
