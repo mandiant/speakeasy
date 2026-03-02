@@ -2568,6 +2568,12 @@ class WindowsEmulator(BinaryEmulator):
                 self.prev_pc = self.get_pc()
                 self.enable_code_hook()
                 return True
+            # Catch divide-by-zero exceptions
+            elif intnum == 0:
+                self.curr_exception_code = ddk.STATUS_INTEGER_DIVIDE_BY_ZERO
+                self.enable_code_hook()
+                self.prev_pc = self.get_pc()
+                return True
             # Catch single step exceptions
             elif intnum == 1:
                 self.curr_exception_code = ddk.STATUS_SINGLE_STEP
