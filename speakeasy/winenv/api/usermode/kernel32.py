@@ -3464,6 +3464,47 @@ class Kernel32(api.ApiHandler):
         self.mem_write(lpFileInformation, file_data.get_bytes())
         return True
 
+    @apihook("GetFileTime", argc=4)
+    def GetFileTime(self, emu, argv, ctx={}):
+        """
+        BOOL GetFileTime(
+          HANDLE     hFile,
+          LPFILETIME lpCreationTime,
+          LPFILETIME lpLastAccessTime,
+          LPFILETIME lpLastWriteTime
+        );
+        """
+        _hFile, lpCreationTime, lpLastAccessTime, lpLastWriteTime = argv
+
+        ft = self.k32types.FILETIME(emu.get_ptr_size())
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+        ft.dwHighDateTime = timestamp >> 32
+        data = self.get_bytes(ft)
+
+        if lpCreationTime:
+            self.mem_write(lpCreationTime, data)
+        if lpLastAccessTime:
+            self.mem_write(lpLastAccessTime, data)
+        if lpLastWriteTime:
+            self.mem_write(lpLastWriteTime, data)
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
+
+    @apihook("SetFileTime", argc=4)
+    def SetFileTime(self, emu, argv, ctx={}):
+        """
+        BOOL SetFileTime(
+          HANDLE         hFile,
+          const FILETIME *lpCreationTime,
+          const FILETIME *lpLastAccessTime,
+          const FILETIME *lpLastWriteTime
+        );
+        """
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
+
     @apihook("CreateDirectory", argc=2)
     def CreateDirectory(self, emu, argv, ctx={}):
         """
