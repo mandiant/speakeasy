@@ -747,12 +747,20 @@ class Kernel32(api.ApiHandler):
 
         access, inherit, pid = argv
 
-        hnd = 0
-        proc = emu.get_object_from_id(pid)
-        if proc:
-            hnd = emu.get_object_handle(proc)
-        else:
+        proc = next((p for p in emu.get_processes() if p.get_pid() == pid), None)
+        if not proc:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        if not emu.get_object_from_addr(proc.address):
+            emu.add_object(proc)
+
+        hnd = emu.get_object_handle(proc)
+        if not hnd:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
         return hnd
 
     @apihook("OpenMutex", argc=3)
