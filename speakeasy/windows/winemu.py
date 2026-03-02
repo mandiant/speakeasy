@@ -118,6 +118,8 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_exception_code = 0
         self.prev_pc = 0
         self.unhandled_exception_filter = 0
+        self._seh_last_fault = None
+        self._seh_repeat_count = 0
 
         self.fs_addr = 0
         self.gs_addr = 0
@@ -394,6 +396,8 @@ class WindowsEmulator(BinaryEmulator):
             return None
 
         self.run_complete = False
+        self._seh_last_fault = None
+        self._seh_repeat_count = 0
         self.reset_stack(self.stack_base)
         return self._prepare_run_context(run)
 
@@ -2480,7 +2484,18 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_map(self.page_size, base=fakeout)
         self.tmp_maps.append((fakeout, self.page_size))
 
+    _SEH_MAX_REPEAT = 4
+
     def dispatch_seh(self, except_code, faulting_address=None):
+        fault_key = (self.get_pc(), faulting_address)
+        if fault_key == self._seh_last_fault:
+            self._seh_repeat_count += 1
+            if self._seh_repeat_count >= self._SEH_MAX_REPEAT:
+                return False
+        else:
+            self._seh_last_fault = fault_key
+            self._seh_repeat_count = 1
+
         rv = False
         if self.get_arch() == _arch.ARCH_X86:
             rv = self._dispatch_seh_x86(except_code)
@@ -2517,6 +2532,8 @@ class WindowsEmulator(BinaryEmulator):
         return rv
 
     def continue_seh(self):
+        self._seh_last_fault = None
+        self._seh_repeat_count = 0
         if self.get_arch() == _arch.ARCH_X86:
             self._continue_seh_x86()
 

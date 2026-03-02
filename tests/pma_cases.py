@@ -35,7 +35,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-01-01-exe-staged",
         sample="Practical Malware Analysis Lab 01-01.exe_",
         expected_apis=("KERNEL32.CreateFileMappingA", "KERNEL32.MapViewOfFile"),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
         profile=profile_pma_0101_staged,
     ),
     PmaCase(
@@ -107,7 +107,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
     ),
     PmaCase(
         name="pma-06-03-exe",
@@ -182,6 +182,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-12-02-exe",
         sample="Practical Malware Analysis Lab 12-02.exe_",
         expected_apis=("KERNEL32.CreateProcessA", "KERNEL32.ResumeThread", "ntdll.NtUnmapViewOfSection"),
+        allowed_entrypoint_errors=("invalid_fetch",),
         profile=profile_pma_1202_deep,
     ),
     PmaCase(
@@ -237,7 +238,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 17-02.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
         profile=profile_pma_1702,
     ),
     PmaCase(
