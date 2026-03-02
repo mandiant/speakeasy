@@ -161,9 +161,7 @@ class WindowsEmulator(BinaryEmulator):
 
         allowed = transitions[self.bootstrap_phase]
         if phase not in allowed:
-            raise WindowsEmuError(
-                f"invalid bootstrap transition {self.bootstrap_phase.name} -> {phase.name}"
-            )
+            raise WindowsEmuError(f"invalid bootstrap transition {self.bootstrap_phase.name} -> {phase.name}")
 
         self.bootstrap_phase = phase
 
