@@ -815,6 +815,35 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook("QueryServiceStatus", argc=2)
+    def QueryServiceStatus(self, emu, argv, ctx={}):
+        """
+        BOOL QueryServiceStatus(
+          SC_HANDLE        hService,
+          LPSERVICE_STATUS lpServiceStatus
+        );
+        """
+        hService, lpServiceStatus = argv
+
+        if not hService:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        if lpServiceStatus:
+            service_status = (
+                (0x10).to_bytes(4, "little")
+                + (0x4).to_bytes(4, "little")
+                + (0x1).to_bytes(4, "little")
+                + (0x0).to_bytes(4, "little")
+                + (0x0).to_bytes(4, "little")
+                + (0x0).to_bytes(4, "little")
+                + (0x0).to_bytes(4, "little")
+            )
+            self.mem_write(lpServiceStatus, service_status)
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
+
     @apihook("CloseServiceHandle", argc=1)
     def CloseServiceHandle(self, emu, argv, ctx={}):
         """
