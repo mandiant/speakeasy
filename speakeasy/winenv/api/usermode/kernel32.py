@@ -3779,6 +3779,9 @@ class Kernel32(api.ApiHandler):
         hFile, lpBuffer, num_bytes, bytes_read, lpOverlapped = argv
         rv = False
 
+        if bytes_read:
+            self.mem_write(bytes_read, (0).to_bytes(4, "little"))
+
         f = self.file_get(hFile)
         if f:
             path = f.get_path()
@@ -3796,11 +3799,10 @@ class Kernel32(api.ApiHandler):
         p = emu.pipe_get(hFile)
         if p:
             data = p.get_data(num_bytes)
-            if not data:
-                return False
-            if lpBuffer:
+            if data and lpBuffer:
                 _write_output(emu, data, lpBuffer, bytes_read)
-            rv = True
+            rv = bool(data)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
         return rv
 
     @apihook("WriteFile", argc=5)
@@ -4512,10 +4514,19 @@ class Kernel32(api.ApiHandler):
         """
         hReadPipe, hWritePipe, lpPipeAttributes, nSize = argv
 
+        if not hReadPipe or not hWritePipe:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
         hnd = emu.pipe_open("", 0, 1, nSize, nSize)
         if not hnd:
-            hnd = windefs.INVALID_HANDLE_VALUE
-        return hnd
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        self.mem_write(hReadPipe, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(hWritePipe, hnd.to_bytes(self.get_ptr_size(), "little"))
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("PeekNamedPipe", argc=6)
     def PeekNamedPipe(self, emu, argv, ctx={}):
@@ -4530,7 +4541,20 @@ class Kernel32(api.ApiHandler):
         );
         """
         (hNamedPipe, lpBuffer, nBufferSize, lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage) = argv
-        return True
+        pipe = emu.pipe_get(hNamedPipe)
+        if not pipe:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        if lpBytesRead:
+            self.mem_write(lpBytesRead, (0).to_bytes(4, "little"))
+        if lpTotalBytesAvail:
+            self.mem_write(lpTotalBytesAvail, (0).to_bytes(4, "little"))
+        if lpBytesLeftThisMessage:
+            self.mem_write(lpBytesLeftThisMessage, (0).to_bytes(4, "little"))
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("ConnectNamedPipe", argc=2)
     def ConnectNamedPipe(self, emu, argv, ctx={}):

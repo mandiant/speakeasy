@@ -402,7 +402,7 @@ class FileManager:
         hnd = None
         fconf = self.get_emu_file(path)
         if not fconf:
-            return hnd
+            fconf = {}
         p = Pipe(path, mode, num_instances, out_size, in_size, config=fconf)
         hnd = p.get_handle()
         self.pipe_handles.update({hnd: p})
