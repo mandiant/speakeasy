@@ -1072,6 +1072,39 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook("GetCurrentHwProfile", argc=1)
+    def GetCurrentHwProfile(self, emu, argv, ctx={}):
+        """
+        BOOL GetCurrentHwProfileA(
+          LPHW_PROFILE_INFOA lpHwProfileInfo
+        );
+        """
+        (lpHwProfileInfo,) = argv
+
+        if not lpHwProfileInfo:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        cw = self.get_char_width(ctx)
+        guid = "{00000000-0000-0000-0000-000000000000}"
+        profile_name = "Speakeasy HW Profile"
+
+        if cw == 2:
+            guid_bytes = (guid + "\x00").encode("utf-16le")
+            name_bytes = (profile_name + "\x00").encode("utf-16le")
+            guid_bytes = guid_bytes.ljust(39 * 2, b"\x00")[: 39 * 2]
+            name_bytes = name_bytes.ljust(80 * 2, b"\x00")[: 80 * 2]
+        else:
+            guid_bytes = (guid + "\x00").encode("utf-8")
+            name_bytes = (profile_name + "\x00").encode("utf-8")
+            guid_bytes = guid_bytes.ljust(39, b"\x00")[:39]
+            name_bytes = name_bytes.ljust(80, b"\x00")[:80]
+
+        out = (0).to_bytes(4, "little") + guid_bytes + name_bytes
+        self.mem_write(lpHwProfileInfo, out)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
+
     @apihook("GetUserName", argc=2)
     def GetUserName(self, emu, argv, ctx={}):
         """
