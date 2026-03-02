@@ -1,9 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import logging
+
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+logger = logging.getLogger(__name__)
 
 
 class Ole32(api.ApiHandler):
@@ -121,9 +125,9 @@ class Ole32(api.ApiHandler):
                     self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
                     self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), "little"))
             else:
-                self.emu.logger.info("Unsupported COM IID %s", riid)
+                logger.info("Unsupported COM IID %s", riid)
         else:
-            self.emu.logger.info("Unsupported COM CLSID %s", clsid_str)
+            logger.info("Unsupported COM CLSID %s", clsid_str)
 
         return rv
 
