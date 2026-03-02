@@ -2,7 +2,7 @@
 
 Speakeasy is a Windows malware emulation framework that executes binaries, drivers, and shellcode in a modeled Windows runtime instead of a full VM. It emulates APIs, process/thread behavior, filesystem, registry, and network activity so samples can keep moving through realistic execution paths. You can run it from the `speakeasy` CLI for fast triage or embed it as a Python library and consume structured JSON reports.
 
-Background context: [Mandiant's overview post](https://www.fireeye.com/blog/threat-research/2020/08/emulation-of-malicious-shellcode-with-speakeasy.html).
+Background context: [Mandiant's overview post](https://cloud.google.com/blog/topics/threat-intelligence/emulation-of-malicious-shellcode-with-speakeasy/).
 
 ## Quick start
 
