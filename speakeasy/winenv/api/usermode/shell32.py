@@ -115,6 +115,18 @@ class Shell32(api.ApiHandler):
 
         return True
 
+    @apihook("SHChangeNotify", argc=4)
+    def SHChangeNotify(self, emu, argv, ctx={}):
+        """
+        void SHChangeNotify(
+            LONG wEventId,
+            UINT uFlags,
+            LPCVOID dwItem1,
+            LPCVOID dwItem2
+        );
+        """
+        return
+
     @apihook("IsUserAnAdmin", argc=0, ordinal=680)
     def IsUserAnAdmin(self, emu, argv, ctx={}):
         """
