@@ -3867,6 +3867,130 @@ class Kernel32(api.ApiHandler):
 
         return hnd
 
+    @apihook("CreateWaitableTimer", argc=3)
+    def CreateWaitableTimer(self, emu, argv, ctx={}):
+        """
+        HANDLE CreateWaitableTimer(
+            LPSECURITY_ATTRIBUTES lpTimerAttributes,
+            BOOL                  bManualReset,
+            LPCSTR                lpTimerName
+        );
+        """
+        _attrs, _manual_reset, name = argv
+
+        cw = self.get_char_width(ctx)
+        timer_name = None
+        obj = None
+        if name:
+            timer_name = self.read_mem_string(name, cw)
+            argv[2] = timer_name
+            obj = self.get_object_from_name(timer_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            hnd, _evt = emu.create_event(timer_name)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return hnd
+
+    @apihook("CreateWaitableTimerEx", argc=4)
+    def CreateWaitableTimerEx(self, emu, argv, ctx={}):
+        """
+        HANDLE CreateWaitableTimerEx(
+            LPSECURITY_ATTRIBUTES lpTimerAttributes,
+            LPCSTR                lpTimerName,
+            DWORD                 dwFlags,
+            DWORD                 dwDesiredAccess
+        );
+        """
+        _attrs, name, _flags, _access = argv
+
+        cw = self.get_char_width(ctx)
+        timer_name = None
+        obj = None
+        if name:
+            timer_name = self.read_mem_string(name, cw)
+            argv[1] = timer_name
+            obj = self.get_object_from_name(timer_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            hnd, _evt = emu.create_event(timer_name)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return hnd
+
+    @apihook("OpenWaitableTimer", argc=3)
+    def OpenWaitableTimer(self, emu, argv, ctx={}):
+        """
+        HANDLE OpenWaitableTimer(
+            DWORD  dwDesiredAccess,
+            BOOL   bInheritHandle,
+            LPCSTR lpTimerName
+        );
+        """
+        _access, _inherit, name = argv
+
+        cw = self.get_char_width(ctx)
+        timer_name = None
+        hnd = 0
+        if name:
+            timer_name = self.read_mem_string(name, cw)
+            argv[2] = timer_name
+
+        obj = self.get_object_from_name(timer_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+
+        return hnd
+
+    @apihook("SetWaitableTimer", argc=6)
+    def SetWaitableTimer(self, emu, argv, ctx={}):
+        """
+        BOOL SetWaitableTimer(
+            HANDLE               hTimer,
+            const LARGE_INTEGER  *lpDueTime,
+            LONG                 lPeriod,
+            PTIMERAPCROUTINE     pfnCompletionRoutine,
+            LPVOID               lpArgToCompletionRoutine,
+            BOOL                 fResume
+        );
+        """
+        hTimer, _due_time, _period, _completion_routine, _completion_arg, _resume = argv
+
+        obj = self.get_object_from_handle(hTimer)
+        if not obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
+
+    @apihook("CancelWaitableTimer", argc=1)
+    def CancelWaitableTimer(self, emu, argv, ctx={}):
+        """
+        BOOL CancelWaitableTimer(
+            HANDLE hTimer
+        );
+        """
+        (hTimer,) = argv
+
+        obj = self.get_object_from_handle(hTimer)
+        if not obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
+
     @apihook("OpenEvent", argc=3)
     def OpenEvent(self, emu, argv, ctx={}):
         """
