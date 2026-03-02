@@ -6105,6 +6105,18 @@ class Kernel32(api.ApiHandler):
         """
         return k32types.THREAD_PRIORITY_NORMAL
 
+    @apihook("RtlUnwind", argc=4)
+    def RtlUnwind(self, emu, argv, ctx={}):
+        """
+        VOID RtlUnwind(
+          PVOID TargetFrame,
+          PVOID TargetIp,
+          PEXCEPTION_RECORD ExceptionRecord,
+          PVOID ReturnValue
+        );
+        """
+        return
+
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu, argv, ctx={}):
         """
