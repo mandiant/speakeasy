@@ -454,6 +454,16 @@ class Msvcrt(api.ApiHandler):
 
         return 0
 
+    @apihook("_CxxThrowException", argc=2, conv=e_arch.CALL_CONV_STDCALL)
+    def _CxxThrowException(self, emu, argv, ctx={}):
+        """
+        void _CxxThrowException(
+            void *pExceptionObject,
+            _ThrowInfo *pThrowInfo
+        );
+        """
+        return
+
     @apihook("__acrt_iob_func", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __acrt_iob_func(self, emu, argv, ctx={}):
         """FILE * __acrt_iob_func (fd)"""
