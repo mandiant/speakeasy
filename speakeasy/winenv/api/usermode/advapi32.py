@@ -844,6 +844,49 @@ class AdvApi32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
+    @apihook("QueryServiceConfig", argc=4)
+    @apihook("QueryServiceConfigA", argc=4)
+    @apihook("QueryServiceConfigW", argc=4)
+    def QueryServiceConfig(self, emu, argv, ctx={}):
+        """
+        BOOL QueryServiceConfigA(
+          SC_HANDLE               hService,
+          LPQUERY_SERVICE_CONFIGA lpServiceConfig,
+          DWORD                   cbBufSize,
+          LPDWORD                 pcbBytesNeeded
+        );
+        """
+        hService, lpServiceConfig, cbBufSize, pcbBytesNeeded = argv
+
+        if not hService:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        ptr_size = self.get_ptr_size()
+        required = (4 * 4) + (5 * ptr_size)
+
+        if pcbBytesNeeded:
+            self.mem_write(pcbBytesNeeded, required.to_bytes(4, "little"))
+
+        if not lpServiceConfig or cbBufSize < required:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+
+        buf = bytearray()
+        buf.extend((0x10).to_bytes(4, "little"))
+        buf.extend((0x2).to_bytes(4, "little"))
+        buf.extend((0x1).to_bytes(4, "little"))
+        buf.extend((0).to_bytes(ptr_size, "little"))
+        buf.extend((0).to_bytes(ptr_size, "little"))
+        buf.extend((0).to_bytes(4, "little"))
+        buf.extend((0).to_bytes(ptr_size, "little"))
+        buf.extend((0).to_bytes(ptr_size, "little"))
+        buf.extend((0).to_bytes(ptr_size, "little"))
+
+        self.mem_write(lpServiceConfig, bytes(buf))
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
+
     @apihook("CloseServiceHandle", argc=1)
     def CloseServiceHandle(self, emu, argv, ctx={}):
         """
