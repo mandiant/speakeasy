@@ -203,6 +203,54 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    @apihook("RegSetValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
+    def RegSetValueEx(self, emu, argv, ctx={}):
+        """
+        LSTATUS RegSetValueEx(
+          HKEY       hKey,
+          LPCSTR     lpValueName,
+          DWORD      Reserved,
+          DWORD      dwType,
+          const BYTE *lpData,
+          DWORD      cbData
+        );
+        """
+
+        hKey, lpValueName, _reserved, dwType, lpData, cbData = argv
+
+        key = self.reg_get_key(hKey)
+        if not key:
+            return windefs.ERROR_INVALID_HANDLE
+
+        cw = self.get_char_width(ctx)
+        value_name = ""
+        if lpValueName:
+            value_name = self.read_mem_string(lpValueName, cw)
+            argv[1] = value_name
+
+        value_data = ""
+        if lpData and cbData:
+            raw = self.mem_read(lpData, cbData)
+            if dwType in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ):
+                value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
+            elif dwType == regdefs.REG_MULTI_SZ:
+                value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
+            elif dwType == regdefs.REG_DWORD:
+                value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
+            elif dwType == regdefs.REG_QWORD:
+                value_data = int.from_bytes(raw[:8].ljust(8, b"\x00"), "little")
+            else:
+                value_data = raw
+
+        value = key.get_value(value_name)
+        if value:
+            value.type = dwType
+            value.data = value.normalize_value(dwType, value_data)
+        else:
+            key.create_value(value_name, dwType, value_data)
+
+        return windefs.ERROR_SUCCESS
+
     @apihook("RegCloseKey", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def RegCloseKey(self, emu, argv, ctx={}):
         """
