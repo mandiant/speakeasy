@@ -80,3 +80,16 @@ class OleAut32(api.ApiHandler):
         """
         argv[0] = self.read_wide_string(argv[0])
         return
+
+    @apihook("VariantInit", argc=1, ordinal=8)
+    def VariantInit(self, emu, argv, ctx={}):
+        """
+        void VariantInit(
+            VARIANTARG *pvarg
+        );
+        """
+        (pvarg,) = argv
+        if pvarg:
+            size = 0x18 if emu.get_ptr_size() == 8 else 0x10
+            self.mem_write(pvarg, b"\x00" * size)
+        return
