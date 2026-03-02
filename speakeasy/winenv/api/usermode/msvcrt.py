@@ -669,6 +669,29 @@ class Msvcrt(api.ApiHandler):
         argv.extend([stream, fin])
         return len(fin)
 
+    @apihook("printf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def printf(self, emu, argv, ctx={}):
+        """
+        int printf(
+            const char *format,
+            ...
+            );
+        """
+        (fmt,) = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        if not fmt_cnt:
+            argv.clear()
+            argv.extend([fmt_str])
+            return len(fmt_str)
+
+        fmt_argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1 + fmt_cnt)[1:]
+        fin = self.do_str_format(fmt_str, fmt_argv)
+        argv.clear()
+        argv.extend([fin])
+        return len(fin)
+
     @apihook("memset", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memset(self, emu, argv, ctx={}):
         """
@@ -694,9 +717,31 @@ class Msvcrt(api.ApiHandler):
 
         out_time = TIME_BASE
         if destTime:
-            self.mem_write(destTime, out_time)
+            self.mem_write(destTime, out_time.to_bytes(4, "little", signed=False))
 
         return out_time
+
+    @apihook("_strtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _strtime(self, emu, argv, ctx={}):
+        """
+        char *_strtime(char *buffer);
+        """
+        (buffer,) = argv
+        if not buffer:
+            return 0
+        self.mem_write(buffer, b"12:34:56\x00")
+        return buffer
+
+    @apihook("_strdate", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _strdate(self, emu, argv, ctx={}):
+        """
+        char *_strdate(char *buffer);
+        """
+        (buffer,) = argv
+        if not buffer:
+            return 0
+        self.mem_write(buffer, b"12/29/19\x00")
+        return buffer
 
     @apihook("clock", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def clock(self, emu, argv, ctx={}):
@@ -1977,10 +2022,70 @@ class Msvcrt(api.ApiHandler):
             );
         """
         stream, offset, origin = argv
-        argv[0] = self.file_streams.get(stream, 0)
+        hfile = self.file_streams.get(stream)
+        argv[0] = hfile or 0
         argv[1] = offset
         argv[2] = origin
+        if hfile is None:
+            return -1
+
+        fobj = self.file_get(hfile)
+        if not fobj:
+            return -1
+
+        fobj.seek(offset, origin)
         return 0
+
+    @apihook("ftell", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def ftell(self, emu, argv, ctx={}):
+        """
+        long ftell(
+            FILE *stream
+            );
+        """
+        (stream,) = argv
+        hfile = self.file_streams.get(stream)
+        argv[0] = hfile or 0
+        if hfile is None:
+            return -1
+
+        fobj = self.file_get(hfile)
+        if not fobj:
+            return -1
+
+        pos = fobj.tell()
+        if pos is None:
+            return -1
+        return pos
+
+    @apihook("fread", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def fread(self, emu, argv, ctx={}):
+        """
+        size_t fread(
+            void *ptr,
+            size_t size,
+            size_t count,
+            FILE *stream
+            );
+        """
+        ptr, size, count, stream = argv
+        hfile = self.file_streams.get(stream)
+        argv[3] = hfile or 0
+
+        if not ptr or size == 0 or count == 0 or hfile is None:
+            return 0
+
+        fobj = self.file_get(hfile)
+        if not fobj:
+            return 0
+
+        total = size * count
+        data = fobj.get_data(size=total)
+        if not data:
+            return 0
+
+        self.mem_write(ptr, data)
+        return len(data) // size
 
     @apihook("fputc", argc=2)
     def fputc(self, emu, argv, ctx={}):
