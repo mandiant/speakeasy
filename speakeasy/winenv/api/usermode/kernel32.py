@@ -1929,10 +1929,10 @@ class Kernel32(api.ApiHandler):
             sname = winemu.normalize_dll_name(sname)
             mods = emu.get_peb_modules()
             for mod in mods:
-                img = ntpath.basename(mod.get_emu_path())
+                img = ntpath.basename(mod.emu_path)
                 fname, _ = os.path.splitext(img)
                 if fname.lower() == sname.lower():
-                    rv = mod.get_base()
+                    rv = mod.base
                     break
 
         return rv
@@ -1960,7 +1960,7 @@ class Kernel32(api.ApiHandler):
         if proc:
             mods = emu.get_peb_modules()
             for mod in mods:
-                if mod.get_base() == hmod:
+                if mod.base == hmod:
                     bn = mod.get_base_name()
                     mname, _ = os.path.splitext(bn)
                     entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
@@ -3087,12 +3087,12 @@ class Kernel32(api.ApiHandler):
         else:
             mods = emu.get_peb_modules()
             cm = emu.get_current_module()
-            if cm.get_base() == hModule:
-                filename = cm.get_emu_path()
+            if cm.base == hModule:
+                filename = cm.emu_path
             else:
                 for mod in mods:
-                    if mod.get_base() == hModule:
-                        filename = mod.get_emu_path()
+                    if mod.base == hModule:
+                        filename = mod.emu_path
 
         if filename:
             argv[1] = filename
@@ -5001,7 +5001,7 @@ class Kernel32(api.ApiHandler):
             pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
-            if pe and hModule != pe.get_base():
+            if pe and hModule != pe.base:
                 return 0
 
         if not pe:
@@ -5017,7 +5017,7 @@ class Kernel32(api.ApiHandler):
 
         # Return RVA of IMAGE_RESOURCE_DATA_ENTRY structure + base
         # This acts as the HRSRC handle which points to the resource entry in mapped memory
-        return pe.get_base() + res.entry_rva
+        return pe.base + res.entry_rva
 
     @apihook("FindResourceEx", argc=4)
     def FindResourceEx(self, emu, argv, ctx={}):
@@ -5037,7 +5037,7 @@ class Kernel32(api.ApiHandler):
             pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
-            if pe and hModule != pe.get_base():
+            if pe and hModule != pe.base:
                 return 0
 
         if not pe:
@@ -5051,7 +5051,7 @@ class Kernel32(api.ApiHandler):
         if res is None:
             return 0
 
-        return pe.get_base() + res.entry_rva
+        return pe.base + res.entry_rva
 
     @apihook("LoadResource", argc=2)
     def LoadResource(self, emu, argv, ctx={}):
@@ -5068,7 +5068,7 @@ class Kernel32(api.ApiHandler):
             pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hModule)
-            if pe and hModule != pe.get_base():
+            if pe and hModule != pe.base:
                 return 0
 
         if not pe:
@@ -5076,7 +5076,7 @@ class Kernel32(api.ApiHandler):
 
         res_rva = self.mem_read(hResInfo, 4)
         if res_rva:
-            return pe.get_base() + int.from_bytes(res_rva, "little")
+            return pe.base + int.from_bytes(res_rva, "little")
         else:
             return 0
 

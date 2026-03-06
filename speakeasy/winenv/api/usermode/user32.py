@@ -415,7 +415,7 @@ class User32(api.ApiHandler):
             pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(hInstance)
-            if pe and hInstance != pe.get_base():
+            if pe and hInstance != pe.base:
                 return 0
 
         if not pe:

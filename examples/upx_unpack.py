@@ -40,7 +40,7 @@ def main(args):
 
     # Load the module
     module = unpacker.load_module(args.file)
-    base = module.get_base()
+    base = module.base
 
     print("[*] Unpacking module with section hop")
     # Get the section info for "UPX0" to detect the section hop

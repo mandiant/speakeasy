@@ -254,7 +254,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         drv = self.create_driver_object(pe=module)
         svc_key = self.regman.create_key(drv.get_reg_path())
         # Create the values for the service key
-        svc_key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, module.get_emu_path())
+        svc_key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, module.emu_path)
         svc_key.create_value("Type", regdefs.REG_DWORD, 0x1)  # SERVICE_KERNEL_DRIVER
         svc_key.create_value("Start", regdefs.REG_DWORD, 0x3)  # SERVICE_DEMAND_START
         svc_key.create_value("ErrorControl", regdefs.REG_DWORD, 0x1)  # SERVICE_ERROR_NORMAL
@@ -540,7 +540,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         # Get kernel base address
         kern = self.get_kernel_mod()
-        return kern.get_base()
+        return kern.base
 
     def get_kernel_mod(self):
         """
@@ -607,7 +607,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         km = self.get_kernel_mod()
 
         if self.get_arch() == _arch.ARCH_AMD64 and km.image_size > 0:
-            kbase = km.get_base()
+            kbase = km.base
             km_data = bytes(self.mem_read(kbase, km.image_size))
             ksc64_off = km_data.find(b"\x00" * 100)
             if ksc64_off != -1:

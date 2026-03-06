@@ -568,9 +568,9 @@ class Ntoskrnl(api.ApiHandler):
 
                 for i, mod in enumerate(mods):
                     sm = self.win.SYSTEM_MODULE(emu.get_ptr_size())
-                    sm.Base = mod.get_base()
-                    sm.Size = mod.get_image_size()
-                    sm.ImageName = b"\\??\\" + mod.get_emu_path().encode("utf-8")
+                    sm.Base = mod.base
+                    sm.Size = mod.image_size
+                    sm.ImageName = b"\\??\\" + mod.emu_path.encode("utf-8")
                     sm.LoadCount = 1
                     sm.Index = i
                     sm.ModuleNameOffset = bytes(sm.ImageName)[:].rfind(b"\\") + 1

@@ -243,15 +243,6 @@ class _PeParser(pefile.PE):
 
         return res_dir_rva
 
-    def get_emu_path(self):
-        """
-        Get the path of the module (as it appears to the emulated binary)
-        """
-        return self.emu_path
-
-    def set_emu_path(self, path):
-        self.emu_path = path
-
     def _hash_pe(self, path=None, data=None):
         hasher = hashlib.sha256()
         buf = b""
@@ -299,7 +290,7 @@ class _PeParser(pefile.PE):
         for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
             entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])  # type: ignore[name-match]  # legacy: namedtuple name differs from var
             entry.name = exp.name
-            entry.address = exp.address + pe.get_base()
+            entry.address = exp.address + pe.base
             entry.forwarder = exp.forwarder
             entry.ordinal = exp.ordinal
             if entry.name:
@@ -315,11 +306,8 @@ class _PeParser(pefile.PE):
             sections.append(sect)
         return sections
 
-    def get_sections(self):
-        return self.sections
-
     def get_section_by_name(self, name):
-        sect = [s for s in self.get_sections() if s.Name.decode("utf-8").strip("\x00") == name]
+        sect = [s for s in self.sections if s.Name.decode("utf-8").strip("\x00") == name]
         if sect:
             return sect[0]
 
@@ -368,19 +356,10 @@ class _PeParser(pefile.PE):
     def set_bytes(self, offset, pattern):
         self.set_bytes_at_offset(offset, pattern)
 
-    def get_ptr_size(self):
-        return self.ptr_size
-
-    def get_base(self):
-        return self.base
-
     def get_base_name(self):
         fn = os.path.basename(self.path)
         bn = os.path.splitext(fn)[0]
         return bn
-
-    def get_image_size(self):
-        return self.image_size
 
     def is_decoy(self):
         return False

@@ -20,7 +20,7 @@ class Psapi(api.ApiHandler):
     def _get_process_module_bases(self, proc):
         proc_module = proc.get_module()
         if proc_module:
-            return [proc_module.get_base()]
+            return [proc_module.base]
 
         process_path = proc.get_process_path() or ""
         process_name = ntpath.basename(process_path)
@@ -28,7 +28,7 @@ class Psapi(api.ApiHandler):
         if module_name:
             mod = self.emu.get_mod_by_name(module_name)
             if mod:
-                return [mod.get_base()]
+                return [mod.base]
 
         process_base = int(getattr(proc, "base", 0) or 0)
         if process_base:
@@ -40,7 +40,7 @@ class Psapi(api.ApiHandler):
         if hModule:
             mod = self.emu.get_mod_from_addr(hModule)
             if mod:
-                return ntpath.basename(mod.get_emu_path())
+                return ntpath.basename(mod.emu_path)
 
         return ntpath.basename(proc.get_process_path() or "")
 
@@ -48,7 +48,7 @@ class Psapi(api.ApiHandler):
         if hModule:
             mod = self.emu.get_mod_from_addr(hModule)
             if mod:
-                return mod.get_emu_path()
+                return mod.emu_path
 
         return proc.get_process_path() or ""
 

@@ -52,7 +52,7 @@ class Win32Emulator(WindowsEmulator):
         if len(self.argv):
             for m in self.modules:
                 if isinstance(m, RuntimeModule) and m.is_exe():
-                    argv0 = m.get_emu_path()
+                    argv0 = m.emu_path
             out = [argv0] + self.argv
         elif self.command_line:
             out = shlex.split(self.command_line, posix=False)
@@ -225,8 +225,8 @@ class Win32Emulator(WindowsEmulator):
         # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
-            base = module.get_base()
-            if base < cb_addr < base + module.get_image_size():
+            base = module.base
+            if base < cb_addr < base + module.image_size:
                 run = Run()
                 run.start_addr = cb_addr
                 run.type = f"tls_callback_{i}"
@@ -296,7 +296,7 @@ class Win32Emulator(WindowsEmulator):
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
         if len(self.processes) == 0:
-            p = objman.Process(self, path=module.get_emu_path(), base=module.base, pe=module, cmdline=self.command_line)
+            p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
             self.curr_process = p
             self.om.objects.update({p.address: p})  # type: ignore[union-attr]
             mm = self.get_address_map(module.base)
@@ -382,7 +382,7 @@ class Win32Emulator(WindowsEmulator):
         image = loader.make_image()
         image.name = str(sc_hash)
         rtmod = self.load_image(image)
-        sc_addr = rtmod.get_base()
+        sc_addr = rtmod.base
 
         sc_arch = "unknown"
         if arch == _arch.ARCH_AMD64:
@@ -412,7 +412,7 @@ class Win32Emulator(WindowsEmulator):
 
         target = None
         for mod in self.modules:
-            if isinstance(mod, RuntimeModule) and mod.get_base() == sc_addr:
+            if isinstance(mod, RuntimeModule) and mod.base == sc_addr:
                 target = sc_addr
                 break
 
@@ -695,7 +695,7 @@ class Win32Emulator(WindowsEmulator):
             sections = getattr(mod, "sections", None) if mod else None
 
             if sections:
-                mod_name = ntpath.basename(mod.get_emu_path()) or "unknown"  # type: ignore[union-attr]
+                mod_name = ntpath.basename(mod.emu_path) or "unknown"  # type: ignore[union-attr]
                 try:
                     full_data = self.mem_read(mm_base, mm_size) if capture_dumps else None
                 except Exception:
@@ -773,7 +773,7 @@ class Win32Emulator(WindowsEmulator):
         for m in self.modules:
             if m.image_size == 0:
                 continue
-            mod_name = ntpath.basename(m.get_emu_path()) or "unknown"
+            mod_name = ntpath.basename(m.emu_path) or "unknown"
             segments = []
             for sect in m.sections:
                 segments.append(
@@ -787,7 +787,7 @@ class Win32Emulator(WindowsEmulator):
             self.curr_run.loaded_modules.append(  # type: ignore[union-attr]
                 {
                     "name": mod_name,
-                    "path": m.get_emu_path(),
+                    "path": m.emu_path,
                     "base": m.base,
                     "size": m.image_size,
                     "segments": segments,

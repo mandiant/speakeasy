@@ -138,15 +138,6 @@ class RuntimeModule:
     def is_decoy(self) -> bool:
         return self._image.module_type == "decoy"
 
-    def get_base(self) -> int:
-        return self.base
-
-    def get_image_size(self) -> int:
-        return self.image_size
-
-    def get_emu_path(self) -> str:
-        return self.emu_path
-
     def get_base_name(self) -> str:
         return ntpath.basename(self.emu_path)
 
@@ -395,7 +386,6 @@ class ShellcodeLoader:
                 )
             ],
         )
-
 
 
 class ApiModuleLoader:
