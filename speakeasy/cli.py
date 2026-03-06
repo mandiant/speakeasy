@@ -81,129 +81,126 @@ def emulate_binary(
                 logger.info("* No dropped files found")
 
 
-class Main:
-    def __init__(self, parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> None:
-        self.target = args.target
-        self.output = args.output
-        self.dropped_files_path = args.dropped_files_path
-        self.config_path = args.config
-        self.emulate_children = args.emulate_children
-        self.cfg: dict = {}
-        self.do_raw = args.do_raw
-        self.raw_offset = args.raw_offset
-        self.arch = args.arch
-        self.timeout = 0.0
-        self.argv = args.argv
-        self.verbose = args.verbose
-        self.gdb_port = args.gdb_port if args.gdb else None
+def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> None:
+    target = args.target
+    output = args.output
+    dropped_files_path = args.dropped_files_path
+    config_path = args.config
+    emulate_children = args.emulate_children
+    do_raw = args.do_raw
+    raw_offset = args.raw_offset
+    arch = args.arch
+    argv = args.argv
+    verbose = args.verbose
+    gdb_port = args.gdb_port if args.gdb else None
 
-        setup_logging(self.verbose)
+    setup_logging(verbose)
 
-        if args.gdb and not args.no_mp:
-            args.no_mp = True
-            logger.info("--gdb requires --no-mp mode; enabling automatically")
+    if args.gdb and not args.no_mp:
+        args.no_mp = True
+        logger.info("--gdb requires --no-mp mode; enabling automatically")
 
-        cfg = get_default_config_dict()
+    cfg = get_default_config_dict()
 
-        if self.config_path:
-            if not os.path.isfile(self.config_path):
-                parser.error(f"Config file not found: {self.config_path}")
-            with open(self.config_path) as f:
-                user_cfg = json.load(f)
-            cfg = merge_config_dicts(cfg, user_cfg)
+    if config_path:
+        if not os.path.isfile(config_path):
+            parser.error(f"Config file not found: {config_path}")
+        with open(config_path) as f:
+            user_cfg = json.load(f)
+        cfg = merge_config_dicts(cfg, user_cfg)
 
-        if args.volumes:
-            apply_volumes(cfg, args.volumes)
+    if args.volumes:
+        apply_volumes(cfg, args.volumes)
 
-        cfg = apply_config_cli_overrides(cfg, args, config_specs)
+    cfg = apply_config_cli_overrides(cfg, args, config_specs)
 
-        try:
-            validated = SpeakeasyConfig.model_validate(cfg)
-        except Exception as err:
-            parser.error(f"Invalid active configuration: {err}")
+    try:
+        validated = SpeakeasyConfig.model_validate(cfg)
+    except Exception as err:
+        parser.error(f"Invalid active configuration: {err}")
 
-        self.cfg = validated.model_dump(mode="python")
-        self.timeout = float(validated.timeout)
+    active_cfg = validated.model_dump(mode="python")
+    timeout = float(validated.timeout)
 
-        if self.target and not os.path.isfile(self.target):
-            parser.error(f"Target file not found: {self.target}")
+    if target and not os.path.isfile(target):
+        parser.error(f"Target file not found: {target}")
 
-        if not self.target:
-            parser.error("No target file supplied")
+    if not target:
+        parser.error("No target file supplied")
 
-        q: mp.Queue = mp.Queue()
-        evt = mp.Event()
+    q: mp.Queue = mp.Queue()
+    evt = mp.Event()
 
-        if args.no_mp:
-            emulate_binary(
+    if args.no_mp:
+        emulate_binary(
+            q,
+            evt,
+            target,
+            active_cfg,
+            argv,
+            do_raw,
+            arch,
+            dropped_files_path,
+            raw_offset=raw_offset,
+            emulate_children=emulate_children,
+            verbose=verbose,
+            gdb_port=gdb_port,
+        )
+        report = q.get()
+    else:
+        p = mp.Process(
+            target=emulate_binary,
+            args=(
                 q,
                 evt,
-                args.target,
-                self.cfg,
-                self.argv,
-                self.do_raw,
-                self.arch,
-                self.dropped_files_path,
-                raw_offset=self.raw_offset,
-                emulate_children=self.emulate_children,
-                verbose=self.verbose,
-                gdb_port=self.gdb_port,
-            )
-            report = q.get()
-        else:
-            p = mp.Process(
-                target=emulate_binary,
-                args=(
-                    q,
-                    evt,
-                    args.target,
-                    self.cfg,
-                    self.argv,
-                    self.do_raw,
-                    self.arch,
-                    self.dropped_files_path,
-                ),
-                kwargs={
-                    "raw_offset": self.raw_offset,
-                    "emulate_children": self.emulate_children,
-                    "verbose": self.verbose,
-                    "gdb_port": self.gdb_port,
-                },
-            )
-            p.start()
+                target,
+                active_cfg,
+                argv,
+                do_raw,
+                arch,
+                dropped_files_path,
+            ),
+            kwargs={
+                "raw_offset": raw_offset,
+                "emulate_children": emulate_children,
+                "verbose": verbose,
+                "gdb_port": gdb_port,
+            },
+        )
+        p.start()
 
-            report = None
-            start_time = time.time()
-            while True:
-                if self.timeout and self.timeout < (time.time() - start_time):
-                    evt.set()
-                    logger.error("* Child process timeout reached after %d seconds", self.timeout)
-                    try:
-                        report = q.get(timeout=5)
-                    except mp.queues.Empty:  # type: ignore[attr-defined]
-                        pass
-                    break
+        report = None
+        start_time = time.time()
+        while True:
+            if timeout and timeout < (time.time() - start_time):
+                evt.set()
+                logger.error("* Child process timeout reached after %d seconds", timeout)
                 try:
-                    report = q.get(timeout=1)
-                    break
+                    report = q.get(timeout=5)
                 except mp.queues.Empty:  # type: ignore[attr-defined]
-                    if not p.is_alive():
-                        break
-                except KeyboardInterrupt:
-                    evt.set()
-                    logger.error("\n* User exited")
-                    try:
-                        report = q.get(timeout=5)
-                    except mp.queues.Empty:  # type: ignore[attr-defined]
-                        pass
+                    pass
+                break
+            try:
+                report = q.get(timeout=1)
+                break
+            except mp.queues.Empty:  # type: ignore[attr-defined]
+                if not p.is_alive():
                     break
+            except KeyboardInterrupt:
+                evt.set()
+                logger.error("\n* User exited")
+                try:
+                    report = q.get(timeout=5)
+                except mp.queues.Empty:  # type: ignore[attr-defined]
+                    pass
+                break
 
-        logger.info("* Finished emulating")
+    logger.info("* Finished emulating")
 
-        if report and self.output:
-            logger.info("* Saving emulation report to %s", self.output)
-            with open(self.output, "w") as f:
-                f.write(report)
+    if report and output:
+        logger.info("* Saving emulation report to %s", output)
+        with open(output, "w") as f:
+            f.write(report)
 
 
 def main():
@@ -318,7 +315,7 @@ def main():
     if args.dump_default_config:
         print(json.dumps(get_default_config_dict(), indent=4))
         return
-    Main(parser, args, config_specs)
+    run_main(parser, args, config_specs)
 
 
 if __name__ == "__main__":

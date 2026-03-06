@@ -34,6 +34,18 @@ def test_cli_help_omits_removed_short_forms_and_flags():
     assert "--capture-memory-dumps" not in help_text
 
 
+def test_dump_default_config_uses_snapshot_memory_regions():
+    result = subprocess.run(
+        [sys.executable, "-m", "speakeasy.cli", "--dump-default-config"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert '"snapshot_memory_regions": false' in result.stdout
+    assert '"capture_memory_dumps"' not in result.stdout
+
+
 @pytest.mark.parametrize(
     "legacy_args",
     [
