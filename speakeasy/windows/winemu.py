@@ -456,7 +456,7 @@ class WindowsEmulator(BinaryEmulator):
             # Reset the TIB data
             thread = self.get_current_thread()
             if thread:
-                self.init_teb(thread, self.curr_process.get_peb())  # type: ignore[union-attr]
+                self.init_teb(thread, self.curr_process.peb)  # type: ignore[union-attr]
                 self.init_tls(thread)
 
         if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
@@ -2072,7 +2072,7 @@ class WindowsEmulator(BinaryEmulator):
         mod = self.load_module_by_name(lib)
 
         proc = self.get_current_process()
-        if self.get_address_map(proc.get_peb_ldr().address):
+        if self.get_address_map(proc.peb_ldr_data.address):
             proc.add_module_to_peb(mod)
 
         return mod.base

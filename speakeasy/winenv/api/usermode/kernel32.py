@@ -436,30 +436,30 @@ class Kernel32(api.ApiHandler):
         elif k32types.TH32CS_SNAPTHREAD == dwFlags:
             hnd = self.get_handle()
             index = 0
-            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+            if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
                 for p in emu.get_processes():
-                    if th32ProcessID == p.get_pid():
+                    if th32ProcessID == p.pid:
                         proc = p
                         break
                 else:
                     raise ApiEmuError("The specified PID not found")
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.pid]}})
         elif k32types.TH32CS_SNAPMODULE == dwFlags:
             hnd = self.get_handle()
             index = 0
-            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+            if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
                 for p in emu.get_processes():
-                    if th32ProcessID == p.get_pid():
+                    if th32ProcessID == p.pid:
                         proc = p
                         break
                 else:
                     raise ApiEmuError("The specified PID not found")
 
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.pid]}})
 
         elif (
             k32types.TH32CS_SNAPHEAPLIST
@@ -470,19 +470,19 @@ class Kernel32(api.ApiHandler):
             # ignoring HEAPLIST for now
             hnd = self.get_handle()
             index = 0
-            if th32ProcessID in [0, emu.curr_process.get_pid()]:
+            if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
                 for p in emu.get_processes():
-                    if th32ProcessID == p.get_pid():
+                    if th32ProcessID == p.pid:
                         proc = p
                         break
                 else:
                     raise ApiEmuError("The specified PID not found")
 
             self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.get_pid()]}})
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.get_pid()]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.pid]}})
+            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.pid]}})
 
         else:
             raise ApiEmuError(f"Unsupported snapshot type: 0x{dwFlags:x}")
@@ -524,7 +524,7 @@ class Kernel32(api.ApiHandler):
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
         data = self.mem_cast(pe, pe32)
-        pe.th32ProcessID = proc.get_pid()
+        pe.th32ProcessID = proc.pid
         if cw == 2:
             pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
         else:
@@ -566,7 +566,7 @@ class Kernel32(api.ApiHandler):
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
         data = self.mem_cast(pe, pe32)
-        pe.th32ProcessID = proc.get_pid()
+        pe.th32ProcessID = proc.pid
         if cw == 2:
             pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
         else:
@@ -747,7 +747,7 @@ class Kernel32(api.ApiHandler):
 
         access, inherit, pid = argv
 
-        proc = next((p for p in emu.get_processes() if p.get_pid() == pid), None)
+        proc = next((p for p in emu.get_processes() if p.pid == pid), None)
         if not proc:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
@@ -1054,12 +1054,12 @@ class Kernel32(api.ApiHandler):
         if not obj:
             return windefs.NULL
 
-        proc_path = obj.get_process_path()
+        proc_path = obj.path
         argv[0] = proc_path
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace(".", "_")
 
-        tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.get_pid()}"
+        tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
 
         prot_def = windefs.get_page_rights(flProtect)
         if prot_def:
@@ -1113,7 +1113,7 @@ class Kernel32(api.ApiHandler):
         else:
             obj = self.get_object_from_handle(hProcess)
 
-        proc_path = obj.get_process_path()
+        proc_path = obj.path
         argv[0] = proc_path
 
         data = b""
@@ -1151,7 +1151,7 @@ class Kernel32(api.ApiHandler):
         else:
             obj = self.get_object_from_handle(hProcess)
 
-        proc_path = obj.get_process_path()
+        proc_path = obj.path
         argv[0] = proc_path
 
         data = b""
@@ -1196,7 +1196,7 @@ class Kernel32(api.ApiHandler):
             is_remote = True
             proc_obj = self.get_object_from_handle(hProcess)
 
-        proc_path = proc_obj.get_process_path()
+        proc_path = proc_obj.path
         argv[0] = proc_path
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace(".", "_")
@@ -1985,7 +1985,7 @@ class Kernel32(api.ApiHandler):
         hwnd = 0
 
         proc = emu.get_current_process()
-        console = proc.get_console()
+        console = proc.console
         if console:
             win = console.window
             hwnd = win.handle
@@ -2538,7 +2538,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         curr_proc = emu.get_current_process()
 
-        cmdline = curr_proc.get_command_line()
+        cmdline = curr_proc.cmdline
 
         cmd_ptr = self.command_lines[cw]
         if not cmd_ptr:
@@ -2700,9 +2700,9 @@ class Kernel32(api.ApiHandler):
             title = {"title": {}}
             self.startup_info.update({proc: title})
 
-        title_name = proc.get_title_name()
+        title_name = proc.title
         if not title_name:
-            title_name = proc.get_process_path()
+            title_name = proc.path
 
         if title:
             si.lpTitle = title
@@ -3083,7 +3083,7 @@ class Kernel32(api.ApiHandler):
         filename = ""
         if hModule == 0:
             proc = emu.get_current_process()
-            filename = proc.get_process_path()
+            filename = proc.path
         else:
             mods = emu.get_peb_modules()
             cm = emu.get_current_module()
@@ -4280,7 +4280,7 @@ class Kernel32(api.ApiHandler):
         if pSessionId:
             for p in emu.get_processes():
                 if p.id == dwProcessId:
-                    sessid = p.get_session_id()
+                    sessid = p.session
                     sessid = (sessid).to_bytes(4, "little")
                     self.mem_write(pSessionId, sessid)
                     rv = True
@@ -6230,7 +6230,7 @@ class Kernel32(api.ApiHandler):
         if proc is None:
             return
 
-        filename = proc.get_process_path()
+        filename = proc.path
 
         if filename:
             if cw == 2:
@@ -6520,7 +6520,7 @@ class Kernel32(api.ApiHandler):
 
     @apihook("WTSGetActiveConsoleSessionId", argc=0)
     def WTSGetActiveConsoleSessionId(self, emu, argv, ctx={}):
-        return emu.get_current_process().get_session_id()
+        return emu.get_current_process().session
 
     @apihook("WaitForSingleObjectEx", argc=3)
     def WaitForSingleObjectEx(self, emu, argv, ctx={}):

@@ -50,7 +50,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         Get the process object for the system process (PID 4)
         """
         for proc in self.processes:
-            if proc.get_pid() == 4:
+            if proc.pid == 4:
                 return proc
 
     def get_current_irql(self):
@@ -210,13 +210,13 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Allocate PEB and related substructures for a given process
         """
-        ldr = proc.get_peb_ldr()
+        ldr = proc.peb_ldr_data
         if not ldr.address:
             size = ldr.sizeof()
             res, size = self.get_valid_ranges(size)
             base = self.mem_map(size, base=res, tag="emu.struct.PEB_LDR_DATA")
             proc.set_peb_ldr_address(base)
-        return proc.get_peb()
+        return proc.peb
 
     def get_process_peb(self, process):
         """
