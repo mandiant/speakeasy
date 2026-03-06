@@ -516,9 +516,6 @@ class Process(KernelObject):
         if is_console:
             self.alloc_console()
 
-    def get_peb(self):
-        return self.peb
-
     def set_peb_ldr_address(self, addr):
         self.peb.object.Ldr = addr
         self.peb.write_back()
@@ -528,9 +525,6 @@ class Process(KernelObject):
         process_parameters = RTL_USER_PROCESS_PARAMETERS(emu=emu, proc=self)
         self.peb.object.ProcessParameters = process_parameters.address
         self.peb.write_back()
-
-    def get_peb_ldr(self):
-        return self.peb_ldr_data
 
     def alloc_console(self):
 
@@ -552,12 +546,6 @@ class Process(KernelObject):
 
         return name
 
-    def get_token(self):
-        """
-        Get the token associated with the process
-        """
-        return self.token
-
     def get_std_handle(self, dev):
         STD_INPUT_HANDLE = 0xFFFFFFF6
         STD_OUTPUT_HANDLE = 0xFFFFFFF5
@@ -572,33 +560,9 @@ class Process(KernelObject):
                 return v
         return 0
 
-    def get_title_name(self):
-        return self.title
-
-    def get_module(self):
-        return self.pe
-
     def get_ep(self):
         if self.pe:
             return self.pe.get_ep()
-
-    def get_console(self):
-        return self.console
-
-    def get_session_id(self):
-        return self.session
-
-    def get_pid(self):
-        return self.pid
-
-    def get_process_path(self):
-        return self.path
-
-    def get_command_line(self):
-        return self.cmdline
-
-    def set_user_modules(self, mods):
-        self.modules = mods
 
     def new_thread(self):
         thr = Thread(self.emu)

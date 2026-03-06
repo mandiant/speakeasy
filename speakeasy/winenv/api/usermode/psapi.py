@@ -18,11 +18,11 @@ class Psapi(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     def _get_process_module_bases(self, proc):
-        proc_module = proc.get_module()
+        proc_module = proc.pe
         if proc_module:
             return [proc_module.base]
 
-        process_path = proc.get_process_path() or ""
+        process_path = proc.path or ""
         process_name = ntpath.basename(process_path)
         module_name = ntpath.splitext(process_name)[0]
         if module_name:
@@ -42,7 +42,7 @@ class Psapi(api.ApiHandler):
             if mod:
                 return ntpath.basename(mod.emu_path)
 
-        return ntpath.basename(proc.get_process_path() or "")
+        return ntpath.basename(proc.path or "")
 
     def _get_module_file_name(self, proc, hModule):
         if hModule:
@@ -50,7 +50,7 @@ class Psapi(api.ApiHandler):
             if mod:
                 return mod.emu_path
 
-        return proc.get_process_path() or ""
+        return proc.path or ""
 
     @apihook("EnumProcesses", argc=3)
     def EnumProcesses(self, emu, argv, ctx={}):
@@ -66,7 +66,7 @@ class Psapi(api.ApiHandler):
         count = min(cb // 4, len(processes))
         cursor = lpidProcess
         for process in processes[:count]:
-            pid = process.get_pid() or 0
+            pid = process.pid or 0
             self.mem_write(cursor, int(pid).to_bytes(4, "little"))
             cursor += 4
 

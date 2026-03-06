@@ -1388,7 +1388,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             obj = self.get_object_from_handle(hProcess)
 
-        proc_path = obj.get_process_path()
+        proc_path = obj.path
         argv[0] = proc_path
 
         data = b""

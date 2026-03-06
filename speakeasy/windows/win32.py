@@ -467,12 +467,12 @@ class Win32Emulator(WindowsEmulator):
         """
         if proc.is_peb_active:
             return
-        size = proc.get_peb_ldr().sizeof()
+        size = proc.peb_ldr_data.sizeof()
         res, size = self.get_valid_ranges(size)
         self.mem_reserve(size, base=res, tag="emu.struct.PEB_LDR_DATA")
         proc.set_peb_ldr_address(res)
 
-        peb = proc.get_peb()
+        peb = proc.peb
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
         peb.object.OSMajorVersion = self.config.os_ver.major or 0
@@ -481,7 +481,7 @@ class Win32Emulator(WindowsEmulator):
         peb.write_back()
 
         self._ensure_core_dlls_loaded()
-        self.mem_map_reserve(proc.get_peb_ldr().address)
+        self.mem_map_reserve(proc.peb_ldr_data.address)
         self.init_peb(self._ordered_peb_modules())
 
         return peb
@@ -602,7 +602,7 @@ class Win32Emulator(WindowsEmulator):
 
         if _access == common.INVALID_MEM_READ:
             p = self.get_current_process()
-            pld = p.get_peb_ldr()
+            pld = p.peb_ldr_data
             if address > pld.address and address < (pld.address + pld.sizeof()):
                 self.mem_map_reserve(pld.address)
                 self.init_peb(self._ordered_peb_modules())

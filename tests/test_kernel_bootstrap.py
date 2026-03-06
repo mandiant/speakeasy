@@ -35,6 +35,6 @@ def test_kernel_import_data_allocation_uses_system_process_context(config):
         assert maps
         proc = maps[0].process
         assert proc is not None
-        assert proc.get_pid() == 4
+        assert proc.pid == 4
     finally:
         se.shutdown()

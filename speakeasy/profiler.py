@@ -423,7 +423,7 @@ class Profiler:
         within another process.
         """
         pid = proc.id
-        path = proc.get_process_path()
+        path = proc.path
         proc_pos = TracePosition(tick=pos.tick, tid=pos.tid, pid=pid, pc=pos.pc)
 
         event: AnyEvent
@@ -431,7 +431,7 @@ class Profiler:
             event = ProcessCreateEvent(
                 pos=proc_pos,
                 path=path,
-                cmdline=proc.get_command_line(),
+                cmdline=proc.cmdline,
             )
 
         elif event_type == MEM_ALLOC:
