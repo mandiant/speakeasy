@@ -40,72 +40,6 @@ class MemMap:
         self.block_base = block_base
         self.block_size = block_size
 
-    def update_tag(self, new_tag):
-        """
-        Set the tag for the memory mapping
-        """
-        self.tag = new_tag
-
-    def get_process(self):
-        """
-        Get the process object associated with a memory map
-        """
-        return self.process
-
-    def set_process(self, process):
-        """
-        Set the process object associated with a memory map
-        """
-        self.process = process
-
-    def get_tag(self):
-        """
-        Get the tag for the memory mapping
-        """
-        return self.tag
-
-    def get_prot(self):
-        """
-        Get the memory permissions for a map
-        """
-        return self.prot
-
-    def get_flags(self):
-        """
-        Get the memory flags for a map
-        """
-        return self.flags
-
-    def get_size(self):
-        """
-        Get the byte size for the current memory mapping
-        """
-        return self.size
-
-    def get_base(self):
-        """
-        Get the base address (lowest possible address) of the current memory map
-        """
-        return self.base
-
-    def set_alloc(self):
-        """
-        Set the current mapping to be in an allocated state
-        """
-        self.free = False
-
-    def set_free(self):
-        """
-        Set the current mapping to be in a free state
-        """
-        self.free = True
-
-    def is_free(self):
-        """
-        Return the alloc state of a memory block
-        """
-        return self.free
-
     def __hash__(self):
         return hash(self.base)
 
@@ -148,11 +82,9 @@ class MemoryManager:
         for mem_map_hook in hl:
             if mem_map_hook.enabled:
                 # the mapped memory region's base address falls within the hook's bounds
-                if mem_map_hook.begin <= mm.get_base():
-                    if not mem_map_hook.end or mem_map_hook.end > mm.get_base():
-                        mem_map_hook.cb(
-                            self, mm.get_base(), mm.get_size(), mm.get_tag(), mm.get_prot(), mm.get_flags(), ctx
-                        )
+                if mem_map_hook.begin <= mm.base:
+                    if not mem_map_hook.end or mem_map_hook.end > mm.base:
+                        mem_map_hook.cb(self, mm.base, mm.size, mm.tag, mm.prot, mm.flags, ctx)
 
     def mem_map(self, size, base=None, perms=common.PERM_MEM_RWX, tag=None, flags=0, shared=False, process=None):
         """
@@ -201,7 +133,7 @@ class MemoryManager:
         """
         mm = self.get_address_map(base)
         if mm:
-            mm.set_free()
+            mm.free = True
 
             # If we want to freeze memory, just return
             if self.config.keep_memory_on_free:  # type: ignore[attr-defined]  # config is defined on subclasses

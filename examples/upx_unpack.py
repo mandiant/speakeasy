@@ -23,7 +23,7 @@ class UpxUnpacker(speakeasy.Speakeasy):
         # Save the module to disk in it's unpacked state
         with open(self.output_path, "wb") as up:
             mm = self.get_address_map(self.base_addr)
-            up.write(self.mem_read(mm.get_base(), mm.get_size()))
+            up.write(self.mem_read(mm.base, mm.size))
             # TODO: Fixup the import table after dumping
 
     def code_hook(self, emu, addr, size, ctx):

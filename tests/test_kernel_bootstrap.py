@@ -33,7 +33,7 @@ def test_kernel_import_data_allocation_uses_system_process_context(config):
         maps = [mm for mm in emu.get_mem_maps() if mm.tag and mm.tag.startswith("api.ntoskrnl.KeTickCount.")]
 
         assert maps
-        proc = maps[0].get_process()
+        proc = maps[0].process
         assert proc is not None
         assert proc.get_pid() == 4
     finally:

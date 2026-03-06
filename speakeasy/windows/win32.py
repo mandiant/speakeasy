@@ -446,7 +446,7 @@ class Win32Emulator(WindowsEmulator):
 
         mm = self.get_address_map(sc_addr)
         if mm:
-            mm.set_process(self.curr_process)
+            mm.process = self.curr_process
 
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=stack_commit)
         self.om.objects.update({t.address: t})  # type: ignore[union-attr]
@@ -681,15 +681,15 @@ class Win32Emulator(WindowsEmulator):
                 modules_by_base[m.base] = m
 
         for mm in self.get_mem_maps():
-            prot = prot_map.get(mm.get_prot(), "???")
+            prot = prot_map.get(mm.prot, "???")
             access_stats = None
             if mm in self.curr_run.mem_access:  # type: ignore[union-attr]
                 ma = self.curr_run.mem_access[mm]  # type: ignore[union-attr]
                 access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
 
-            tag = mm.get_tag() or ""
-            mm_base = mm.get_base()
-            mm_size = mm.get_size()
+            tag = mm.tag or ""
+            mm_base = mm.base
+            mm_size = mm.size
 
             mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
             sections = getattr(mod, "sections", None) if mod else None
@@ -714,7 +714,7 @@ class Win32Emulator(WindowsEmulator):
                     "address": mm_base,
                     "size": hdr_size,
                     "prot": "r--",
-                    "is_free": mm.is_free(),
+                    "is_free": mm.free,
                     "accesses": hdr_access,
                 }
                 if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
@@ -740,7 +740,7 @@ class Win32Emulator(WindowsEmulator):
                         "address": sec_addr,
                         "size": sect.virtual_size,
                         "prot": sec_prot,
-                        "is_free": mm.is_free(),
+                        "is_free": mm.free,
                         "accesses": sec_access,
                     }
                     if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
@@ -757,7 +757,7 @@ class Win32Emulator(WindowsEmulator):
                     "address": mm_base,
                     "size": mm_size,
                     "prot": prot,
-                    "is_free": mm.is_free(),
+                    "is_free": mm.free,
                     "accesses": access_stats,
                 }
 

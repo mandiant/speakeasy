@@ -1,6 +1,11 @@
-from speakeasy.const import FILE_WRITE, REG_WRITE
 from speakeasy.profiler import Profiler, Run
-from speakeasy.profiler_events import FileWriteEvent, RegWriteValueEvent, TracePosition
+from speakeasy.profiler_events import (
+    FILE_WRITE,
+    REG_WRITE,
+    FileWriteEvent,
+    RegWriteValueEvent,
+    TracePosition,
+)
 from speakeasy.windows.fileman import File
 
 
