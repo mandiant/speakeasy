@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import Any
+
 
 class GuiObject:
     """
@@ -24,8 +26,8 @@ class Session(GuiObject):
 
     def __init__(self, sess_id):
         super().__init__()
-        self.id = sess_id
-        self.stations = {}
+        self.id: int = sess_id
+        self.stations: dict[int, Station] = {}
 
     def new_station(self, name="WinSta0"):
         stat = Station(name=name)
@@ -40,8 +42,8 @@ class Station(GuiObject):
 
     def __init__(self, name=""):
         super().__init__()
-        self.name = name
-        self.desktops = {}
+        self.name: str = name
+        self.desktops: dict[int, Desktop] = {}
 
     def new_desktop(self, name=""):
         desk = Desktop(name=name)
@@ -56,9 +58,9 @@ class Desktop(GuiObject):
 
     def __init__(self, name=""):
         super().__init__()
-        self.windows = {}
-        self.desktop_window = self.new_window()
-        self.name = name
+        self.windows: dict[int, Window] = {}
+        self.desktop_window: Window = self.new_window()
+        self.name: str = name
 
     def new_window(self):
         # create the desktop window
@@ -74,8 +76,8 @@ class Window(GuiObject):
 
     def __init__(self, name=None, class_name=None):
         super().__init__()
-        self.name = name
-        self.class_name = class_name
+        self.name: str | None = name
+        self.class_name: str | None = class_name
 
 
 class WindowClass(GuiObject):
@@ -85,8 +87,8 @@ class WindowClass(GuiObject):
 
     def __init__(self, wclass, name):
         super().__init__()
-        self.wclass = wclass
-        self.name = name
+        self.wclass: Any = wclass
+        self.name: str = name
 
 
 class SessionManager:
@@ -97,14 +99,14 @@ class SessionManager:
 
     def __init__(self, config):
         super().__init__()
-        self.sessions = {}
-        self.window_classes = {}
-        self.windows = {}
-        self.curr_session = None
-        self.curr_station = None
-        self.curr_desktop = None
-        self.config = config
-        self.dev_ctx = GuiObject.curr_handle
+        self.sessions: dict[int, Session] = {}
+        self.window_classes: dict[int | str, WindowClass] = {}
+        self.windows: dict[int | str, Window] = {}
+        self.curr_session: Session | None = None
+        self.curr_station: Station | None = None
+        self.curr_desktop: Desktop | None = None
+        self.config: Any = config
+        self.dev_ctx: int = GuiObject.curr_handle
 
         # create a session 0
         self.curr_session = Session(sess_id=0)

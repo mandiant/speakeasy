@@ -2,6 +2,7 @@
 
 import ntpath
 import os
+from typing import Any
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -48,14 +49,14 @@ class SEH:
             self.searched = False
 
     def __init__(self):
-        self.context = None
-        self.context_address = 0
-        self.record = None
-        self.frames = []
-        self.last_func = 0
-        self.last_exception_code = 0
-        self.exception_ptrs = 0
-        self.handler_ret_val = None
+        self.context: Any | None = None
+        self.context_address: int = 0
+        self.record: Any | None = None
+        self.frames: list[SEH.Frame] = []
+        self.last_func: int = 0
+        self.last_exception_code: int = 0
+        self.exception_ptrs: int = 0
+        self.handler_ret_val: int | None = None
 
     def set_context(self, context, address=0):
         self.context = context
@@ -78,14 +79,14 @@ class KernelObject:
     curr_id = 0x400
 
     def __init__(self, emu):
-        self.emu = emu
-        self.address = None
-        self.name = ""
-        self.object = 0
-        self.ref_cnt = 0
-        self.handles = []
-        self.arch = emu.get_arch()
-        self.id = KernelObject.curr_id
+        self.emu: Any = emu
+        self.address: int | None = None
+        self.name: str = ""
+        self.object: Any = 0
+        self.ref_cnt: int = 0
+        self.handles: list[int] = []
+        self.arch: int = emu.get_arch()
+        self.id: int = KernelObject.curr_id
         KernelObject.curr_id += 4
 
         self.nt_types = ntoskrnl
@@ -132,16 +133,16 @@ class Driver(KernelObject):
 
     def __init__(self, emu):
         super().__init__(emu=emu)
-        self.pe = None
-        self.devices = []
-        self.ldr_entries = []
-        self.mj_funcs = [None] * (ddk.IRP_MJ_MAXIMUM_FUNCTION + 1)
-        self.on_unload = None
-        self.unload_called = False
-        self.reg_path_ptr = 0
-        self.reg_path = ""
-        self.name = ""
-        self.basename = ""
+        self.pe: Any | None = None
+        self.devices: list[Device] = []
+        self.ldr_entries: list[LdrDataTableEntry] = []
+        self.mj_funcs: list[int | None] = [None] * (ddk.IRP_MJ_MAXIMUM_FUNCTION + 1)
+        self.on_unload: int | None = None
+        self.unload_called: bool = False
+        self.reg_path_ptr: int = 0
+        self.reg_path: str = ""
+        self.name: str = ""
+        self.basename: str = ""
         self.object = self.nt_types.DRIVER_OBJECT(emu.get_ptr_size())
 
     def create_reg_path(self, name):
@@ -310,9 +311,9 @@ class Device(KernelObject):
         devobj.Size = self.sizeof(devobj)
         devobj.ReferenceCount = 1
 
-        self.file_object = None
+        self.file_object: FileObject | None = None
         self.object = devobj
-        self.driver = None
+        self.driver: Driver | None = None
 
 
 class FileObject(KernelObject):
@@ -382,22 +383,22 @@ class Thread(KernelObject):
         self.object = self.nt_types.ETHREAD(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
         self.object.Data = b"\xff" * self.sizeof()
-        self.tid = self.id
-        self.modified_pc = False
-        self.teb = None
-        self.seh = SEH()
-        self.tls = []
-        self.message_queue = []
-        self.ctx = self.emu.get_thread_context()
-        self.fls = []
-        self.suspend_count = 0
-        self.token = Token(self.emu)
-        self.last_error = 0
-        self.stack_base = stack_base
-        self.stack_commit = stack_commit
+        self.tid: int = self.id
+        self.modified_pc: bool = False
+        self.teb: TEB | None = None
+        self.seh: SEH = SEH()
+        self.tls: list[int] = []
+        self.message_queue: list[Any] = []
+        self.ctx: Any = self.emu.get_thread_context()
+        self.fls: list[int] = []
+        self.suspend_count: int = 0
+        self.token: Token = Token(self.emu)
+        self.last_error: int = 0
+        self.stack_base: int = stack_base
+        self.stack_commit: int = stack_commit
 
         self.write_back()
-        self.process = None
+        self.process: Process | None = None
 
     def queue_message(self, msg):
         """
@@ -460,7 +461,7 @@ class Process(KernelObject):
     An EPROCESS object used by the Windows kernel to represent a process
     """
 
-    ldr_entries = []
+    ldr_entries: list[LdrDataTableEntry] = []
 
     def __init__(self, emu, pe=None, user_modules=[], name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
@@ -475,19 +476,19 @@ class Process(KernelObject):
             list_entry = self.address + 0x188
             self.emu.mem_write(list_entry, list_entry.to_bytes(8, "little"))
             self.emu.mem_write(list_entry + 8, list_entry.to_bytes(8, "little"))
-        self.name = name
-        self.base = base
-        self.pid = self.id
-        self.modules = user_modules
-        self.threads = []
-        self.console = None
-        self.curr_thread = None
-        self.cmdline = cmdline
-        self.session = session
-        self.token = Token(self.emu)
+        self.name: str = name
+        self.base: int = base
+        self.pid: int = self.id
+        self.modules: list[Any] = user_modules
+        self.threads: list[Thread] = []
+        self.console: Console | None = None
+        self.curr_thread: Thread | None = None
+        self.cmdline: str = cmdline
+        self.session: int = session
+        self.token: Token = Token(self.emu)
         emu.add_object(self.token)
-        self.pe = pe
-        self.pe_data = None
+        self.pe: Any | None = pe
+        self.pe_data: bytes | None = None
 
         self.stdin = (0xF000) + 1
         self.stdout = (0xF000) + 2
