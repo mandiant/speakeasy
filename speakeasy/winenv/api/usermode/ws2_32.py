@@ -2,6 +2,7 @@
 import re
 import struct
 from socket import htonl, htons, inet_aton, inet_ntoa, inet_ntop, inet_pton, ntohl, ntohs
+from typing import Any
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -28,11 +29,11 @@ class Ws2_32(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.addr_bufs = {}
-        self.last_error = 0
-        self.win = None
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.addr_bufs: dict[int, int] = {}
+        self.last_error: int = 0
+        self.win: Any | None = None
         self.netman = emu.get_network_manager()
         self.wstypes = wstypes
 

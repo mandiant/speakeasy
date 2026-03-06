@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_aton
+from typing import Any
 from urllib.parse import urlparse
 
 import speakeasy.windows.netman as netman
@@ -31,9 +32,9 @@ class WinHttp(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.win = None
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.win: Any | None = None
         self.netman = netman.NetworkManager(config=emu.config.network)
         super().__get_hook_attrs__(self)
 

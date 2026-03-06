@@ -2,6 +2,7 @@
 
 import ntpath
 import os
+from typing import Any
 
 import speakeasy.winenv.arch as e_arch
 
@@ -23,11 +24,11 @@ class Shlwapi(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.window_hooks = {}
-        self.handle = 0
-        self.win = None
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.window_hooks: dict[int, tuple] = {}
+        self.handle: int = 0
+        self.win: Any | None = None
 
         super().__get_hook_attrs__(self)
 

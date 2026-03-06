@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import Any
+
 import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
@@ -36,14 +38,14 @@ class User32(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.window_hooks = {}
-        self.handle = 0
-        self.win = None
-        self.handles = []
-        self.wndprocs = {}
-        self.timer_count = 0
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.window_hooks: dict[int, tuple] = {}
+        self.handle: int = 0
+        self.win: Any | None = None
+        self.handles: list[int] = []
+        self.wndprocs: dict[int, int] = {}
+        self.timer_count: int = 0
         self.sessman = sessman.SessionManager(config=None)
         self.synthetic_async_keys = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index = 0
