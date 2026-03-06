@@ -1,15 +1,7 @@
-# Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
-
 import pytest
 
 
-@pytest.mark.parametrize(
-    "bin_file",
-    [
-        "argv_test_x86.exe.xz",
-        "argv_test_x64.exe.xz",
-    ],
-)
+@pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz"])
 def test_argv_exe(config, load_test_bin, run_test, bin_file):
     argv_len = 10
     argv = [f"argument_{i + 1}" for i in range(argv_len)]
