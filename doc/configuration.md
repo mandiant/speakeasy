@@ -390,9 +390,16 @@ Runtime precedence:
 2. optional `--config` overlay
 3. explicit CLI flags
 
+Overlay semantics:
+- mappings merge recursively
+- lists replace the baseline list wholesale
+- omitted fields inherit model defaults
+
 `--volume` is a dedicated shortcut for filesystem mappings and is applied before schema-derived CLI overrides.
 
 Use `--dump-default-config` to emit the built-in default profile.
+
+The packaged files under `speakeasy/configs/*.json` are ordinary config overlays. They are not selected automatically or treated specially by the runtime.
 
 Complex nested structures remain config-file-only (for example `filesystem.files`, `registry.keys`, `processes`, `modules.user_modules`, `modules.system_modules`, and structured network response lists).
 
