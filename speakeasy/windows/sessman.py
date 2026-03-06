@@ -48,9 +48,6 @@ class Station(GuiObject):
         self.desktops.update({desk.get_handle(): desk})
         return desk
 
-    def get_name(self):
-        return self.name
-
 
 class Desktop(GuiObject):
     """
@@ -68,12 +65,6 @@ class Desktop(GuiObject):
         window = Window()
         self.windows.update({window.get_handle(): window})
         return window
-
-    def get_desktop_window(self):
-        return self.desktop_window
-
-    def get_name(self):
-        return self.name
 
 
 class Window(GuiObject):

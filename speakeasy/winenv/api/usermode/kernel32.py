@@ -1987,7 +1987,7 @@ class Kernel32(api.ApiHandler):
         proc = emu.get_current_process()
         console = proc.get_console()
         if console:
-            win = console.get_window()
+            win = console.window
             hwnd = win.handle
 
         return hwnd
