@@ -60,24 +60,24 @@ class BinaryEmulator(MemoryManager, ABC):
 
         super().__init__()
 
-        self.stack_base = 0
-        self.page_size = None  # type: ignore[assignment]  # set to real value in subclass init
-        self.inst_count = 0
-        self.curr_instr_size = 0
+        self.stack_base: int = 0
+        self.page_size: int | None = None
+        self.inst_count: int = 0
+        self.curr_instr_size: int = 0
         self.disasm_eng: Any = None
-        self.builtin_hooks_set = False
+        self.builtin_hooks_set: bool = False
         self.emu_eng: unicorn_eng.EmuEngine | None = None
-        self.maps = []
+        self.maps: list[Any] = []
         self.config = config
         self.hooks: dict[int, Any] = {}
 
-        self.profiler = Profiler()
+        self.profiler: Profiler = Profiler()
 
-        self.runtime = 0
+        self.runtime: float = 0
 
         self.emu_version = self.get_emu_version()
 
-    def get_profiler(self):
+    def get_profiler(self) -> Profiler:
         """
         Get the current event profiler object (if any)
         """
@@ -813,8 +813,8 @@ class BinaryEmulator(MemoryManager, ABC):
         If the supplied address belongs to a module, return it
         """
         for mod in self.modules:
-            base = mod.get_base()
-            size = mod.get_image_size()
+            base = mod.base
+            size = mod.image_size
             if addr >= base and addr <= base + size:
                 return mod
         return None

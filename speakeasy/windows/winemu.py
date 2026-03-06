@@ -754,7 +754,7 @@ class WindowsEmulator(BinaryEmulator):
 
         if module:
             if isinstance(module, RuntimeModule):
-                modname = ntpath.basename(module.get_emu_path())
+                modname = ntpath.basename(module.emu_path)
                 if module._image and module._image.tls_directory_va:
                     tls_dirp = module._image.tls_directory_va
                     tls_dir = self.mem_read(tls_dirp, ptrsz)
@@ -810,13 +810,13 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_mod_from_addr(self, addr):
         if self.curr_mod:
-            end = self.curr_mod.get_base() + self.curr_mod.get_image_size()
-            if addr >= self.curr_mod.get_base() and addr <= end:
+            end = self.curr_mod.base + self.curr_mod.image_size
+            if addr >= self.curr_mod.base and addr <= end:
                 return self.curr_mod
 
         for m in self.modules:
-            base = m.get_base()
-            size = m.get_image_size()
+            base = m.base
+            size = m.image_size
             if addr >= base and addr < base + size:
                 return m
         return None
@@ -944,7 +944,7 @@ class WindowsEmulator(BinaryEmulator):
     def get_mod_by_name(self, name):
         name_lower = name.lower()
         for mod in self.modules:
-            mod_name = ntpath.basename(mod.get_emu_path())
+            mod_name = ntpath.basename(mod.emu_path)
             base_name = os.path.splitext(mod_name)[0]
             if base_name.lower() == name_lower:
                 return mod
@@ -2064,7 +2064,7 @@ class WindowsEmulator(BinaryEmulator):
 
         existing = self.get_mod_by_name(lib)
         if existing:
-            return existing.get_base()
+            return existing.base
 
         if not self.config.modules.modules_always_exist:
             return 0
@@ -2075,7 +2075,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.get_address_map(proc.get_peb_ldr().address):
             proc.add_module_to_peb(mod)
 
-        return mod.get_base()
+        return mod.base
 
     def load_module_by_name(self, name, emu_path=None, base=None):
         """

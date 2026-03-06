@@ -199,8 +199,8 @@ class Driver(KernelObject):
         tag = f"emu.object.{self.name}.DriverSection"
         mod = self.pe
 
-        if mod and mod.get_emu_path():
-            mod_name = mod.get_emu_path()
+        if mod and mod.emu_path:
+            mod_name = mod.emu_path
         else:
             mod_name = "None"
 
@@ -212,9 +212,9 @@ class Driver(KernelObject):
             last = self.ldr_entries[-1]
         self.ldr_entries.append(ldte)
 
-        ldte.object.DllBase = mod.get_base()
+        ldte.object.DllBase = mod.base
 
-        dllname = mod.get_emu_path().encode("utf-16le")
+        dllname = mod.emu_path.encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
@@ -224,7 +224,7 @@ class Driver(KernelObject):
         ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = ntpath.basename(mod.get_emu_path()).encode("utf-16le")
+        dllname = ntpath.basename(mod.emu_path).encode("utf-16le")
         ldte.object.BaseDllName.Length = len(dllname)
         ldte.object.BaseDllName.MaximumLength = len(dllname)
         ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.Length - len(dllname))
@@ -262,12 +262,12 @@ class Driver(KernelObject):
         drvobj.Flags = 2
         us = b""
         if pe:
-            drvobj.DriverStart = pe.get_base()
+            drvobj.DriverStart = pe.base
             drvobj.DriverSize = pe.image_size
-            drvobj.DriverInit = pe.get_base() + pe.ep
+            drvobj.DriverInit = pe.base + pe.ep
 
             if is_decoy:
-                ep = pe.get_base() + pe.ep
+                ep = pe.base + pe.ep
                 drvobj.MajorFunction[ddk.IRP_MJ_CREATE] = ep + 1
                 drvobj.MajorFunction[ddk.IRP_MJ_READ] = ep + 2
                 drvobj.MajorFunction[ddk.IRP_MJ_WRITE] = ep + 3
@@ -660,7 +660,7 @@ class Process(KernelObject):
         list_type = self.nt_types.LIST_ENTRY(self.emu.get_ptr_size())
 
         # Initialize the LDTE
-        ldte = LdrDataTableEntry(self.emu, module.get_emu_path())
+        ldte = LdrDataTableEntry(self.emu, module.emu_path)
         if not self.ldr_entries:
             prev = ldte
         else:
@@ -673,8 +673,8 @@ class Process(KernelObject):
         ldte.object.InMemoryOrderLinks.Flink = first.address + self.sizeof(list_type)
         ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
 
-        ldte.object.DllBase = module.get_base()
-        dllname = (module.get_emu_path() + "\x00").encode("utf-16le")
+        ldte.object.DllBase = module.base
+        dllname = (module.emu_path + "\x00").encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
@@ -684,7 +684,7 @@ class Process(KernelObject):
         ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = (ntpath.basename(module.get_emu_path()) + "\x00").encode("utf-16le")
+        dllname = (ntpath.basename(module.emu_path) + "\x00").encode("utf-16le")
 
         ldte.object.BaseDllName.Length = len(dllname) - 2
         ldte.object.BaseDllName.MaximumLength = len(dllname)

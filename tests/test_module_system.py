@@ -173,7 +173,7 @@ def test_load_image_assigns_address_for_base_zero(config):
 
     se = Speakeasy(config=config)
     mod = se.load_image(image)
-    assert mod.get_base() > 0, "Emulator should assign a non-zero base"
+    assert mod.base > 0, "Emulator should assign a non-zero base"
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +311,7 @@ def test_get_mod_from_addr_finds_correct_module(config, load_test_bin):
     found = emu.get_mod_from_addr(module.base + 0x100)
     assert found is not None
     assert isinstance(found, RuntimeModule)
-    assert found.get_base() == module.base
+    assert found.base == module.base
 
 
 def test_get_mod_from_addr_returns_none_for_unmapped(config, load_test_bin):
@@ -345,7 +345,7 @@ def test_shellcode_appears_in_modules(config):
     emu = se.emu
     found = False
     for mod in emu.modules:
-        if isinstance(mod, RuntimeModule) and mod.get_base() == sc_addr:
+        if isinstance(mod, RuntimeModule) and mod.base == sc_addr:
             found = True
             break
     assert found, "Shellcode should appear in self.modules"
@@ -403,8 +403,8 @@ def test_load_library_already_loaded(config, load_test_bin):
 
     kernel32_bases = []
     for mod in emu.modules:
-        if isinstance(mod, RuntimeModule) and "kernel32" in mod.get_emu_path().lower():
-            kernel32_bases.append(mod.get_base())
+        if isinstance(mod, RuntimeModule) and "kernel32" in mod.emu_path.lower():
+            kernel32_bases.append(mod.base)
     assert len(kernel32_bases) <= 1, "kernel32 should not be double-loaded"
 
 
@@ -438,7 +438,7 @@ def test_shellcode_not_in_peb(config):
     peb_mods = emu.get_peb_modules()
     for mod in peb_mods:
         if isinstance(mod, RuntimeModule):
-            assert mod.get_base() != sc_addr, "Shellcode should not appear in PEB"
+            assert mod.base != sc_addr, "Shellcode should not appear in PEB"
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +487,7 @@ def test_shellcode_resolving_exports_from_api_module(config):
     emu = se.emu
     k32_mod = None
     for mod in emu.modules:
-        if isinstance(mod, RuntimeModule) and "kernel32" in mod.get_emu_path().lower():
+        if isinstance(mod, RuntimeModule) and "kernel32" in mod.emu_path.lower():
             k32_mod = mod
             break
     assert k32_mod is not None, "kernel32 should be in modules as a RuntimeModule"

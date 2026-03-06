@@ -157,7 +157,7 @@ class Ntdll(api.ApiHandler):
 
         mods = emu.get_peb_modules()
         for mod in mods:
-            if mod.get_base() == hmod:
+            if mod.base == hmod:
                 bn = mod.get_base_name()
                 mname, _ = os.path.splitext(bn)
                 addr = emu.get_proc(mname, proc)
@@ -301,7 +301,7 @@ class Ntdll(api.ApiHandler):
             pe = emu.modules[0] if emu.modules else None
         else:
             pe = emu.get_mod_from_addr(DllHandle)
-            if pe and DllHandle != pe.get_base():
+            if pe and DllHandle != pe.base:
                 return ddk.STATUS_INVALID_HANDLE
 
         if not pe:
@@ -320,7 +320,7 @@ class Ntdll(api.ApiHandler):
         if res is None:
             return ddk.STATUS_RESOURCE_DATA_NOT_FOUND
 
-        struct_ptr = pe.get_base() + res.entry_rva
+        struct_ptr = pe.base + res.entry_rva
 
         # Write the output parameter with the address of the data entry
         emu.write_ptr(ResourceDataEntry, struct_ptr)
