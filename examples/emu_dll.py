@@ -42,8 +42,8 @@ def hook_mem_write(emu, access, address, size, value, ctx):
     # For a quick example, lets just log writes that occur to the stack
     for mm in emu.get_mem_maps():
         if mm.tag and mm.tag.startswith("emu.stack"):
-            start = mm.get_base()
-            end = start + mm.get_size()
+            start = mm.base
+            end = start + mm.size
             if start < address < end:
                 # Get the assembly instruction that did the write
                 mnem, op, instr = emu.disasm(emu.reg_read("eip"), 0x20)

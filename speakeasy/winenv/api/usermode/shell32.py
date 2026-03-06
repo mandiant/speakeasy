@@ -3,7 +3,7 @@ import shlex
 
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import PROC_CREATE
+from speakeasy.profiler_events import PROC_CREATE
 
 from .. import api
 

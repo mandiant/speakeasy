@@ -1548,7 +1548,7 @@ class WindowsEmulator(BinaryEmulator):
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
-            if mm and "virtualalloc" in mm.get_tag().lower():
+            if mm and "virtualalloc" in mm.tag.lower():
                 self._dynamic_code_cb(self, ret, 0, {})
 
             # Log the API args and return value

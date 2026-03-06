@@ -12,8 +12,8 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE
 from speakeasy.errors import ApiEmuError
+from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE
 from speakeasy.winenv.api import api
 
 logger = logging.getLogger(__name__)
@@ -3126,7 +3126,7 @@ class Ntoskrnl(api.ApiHandler):
                 mm = emu.get_address_map(buf)
                 fname = ntpath.basename(f.get_path())
                 fname = fname.replace(".", "_")
-                mm.update_tag(f"{tag_prefix}.{fname}.0x{buf:x}")
+                mm.tag = f"{tag_prefix}.{fname}.0x{buf:x}"
                 self.mem_write(buf, data)
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), "little"))
@@ -3138,7 +3138,7 @@ class Ntoskrnl(api.ApiHandler):
                 base, size = emu.get_valid_ranges(bytes_to_map)
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, process=proc_obj)
                 mm = emu.get_address_map(buf)
-                mm.update_tag(f"{tag_prefix}.0x{buf:x}")
+                mm.tag = f"{tag_prefix}.0x{buf:x}"
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), "little"))
                 argv[2] = buf

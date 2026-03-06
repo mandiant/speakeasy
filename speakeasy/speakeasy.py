@@ -727,11 +727,11 @@ class Speakeasy:
             A generator of tuples of all valid memory with context
         """
         for mm in self.emu.get_mem_maps():  # type: ignore[union-attr]
-            base = mm.get_base()
-            size = mm.get_size()
-            tag = mm.get_tag()
-            proc = mm.get_process()
-            is_free = mm.is_free()
+            base = mm.base
+            size = mm.size
+            tag = mm.tag
+            proc = mm.process
+            is_free = mm.free
             try:
                 data = self.emu.mem_read(base, size)  # type: ignore[union-attr]
             except Exception:

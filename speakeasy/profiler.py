@@ -8,7 +8,7 @@ import time
 from collections import deque
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
-from speakeasy.const import (
+from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_OPEN,
     FILE_READ,
@@ -26,8 +26,6 @@ from speakeasy.const import (
     REG_WRITE,
     THREAD_CREATE,
     THREAD_INJECT,
-)
-from speakeasy.profiler_events import (
     AnyEvent,
     ApiEvent,
     ExceptionEvent,

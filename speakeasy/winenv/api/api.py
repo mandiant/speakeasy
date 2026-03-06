@@ -319,12 +319,12 @@ class ApiHandler:
         mm = self.emu.get_address_map(addr)
         if mm and mm.shared:
             fm = self.emu.get_file_manager()
-            fmap = fm.get_mapping_from_addr(mm.get_base())
+            fmap = fm.get_mapping_from_addr(mm.base)
             if fmap:
                 for base, view in fmap.views.items():
-                    if base == mm.get_base():
+                    if base == mm.base:
                         continue
-                    tgt_offset = addr - mm.get_base()
+                    tgt_offset = addr - mm.base
                     self.emu.mem_write(base + tgt_offset, data)
 
         return self.emu.mem_write(addr, data)

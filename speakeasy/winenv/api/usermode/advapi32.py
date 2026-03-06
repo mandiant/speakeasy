@@ -10,7 +10,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
+from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 
 from .. import api
 

@@ -786,9 +786,9 @@ class BinaryEmulator(MemoryManager, ABC):
         input_mem_tag = self.input.get("mem_tag") if self.input else None
 
         for mmap in self.get_mem_maps():
-            tag = mmap.get_tag()
+            tag = mmap.tag
             if tag and tag.startswith(tgt_tag_prefixes) and tag != input_mem_tag:
-                data = self.mem_read(mmap.get_base(), mmap.get_size() - 1)
+                data = self.mem_read(mmap.base, mmap.size - 1)
                 ansi_strings += self.get_ansi_strings(data)
                 unicode_strings += self.get_unicode_strings(data)
 
@@ -922,7 +922,7 @@ class BinaryEmulator(MemoryManager, ABC):
         mm = self.get_address_map(addr)
         if profiler:
             run = self.get_current_run()
-            profiler.record_dyn_code_event(run, mm.get_tag(), mm.get_base(), mm.get_size())
+            profiler.record_dyn_code_event(run, mm.tag, mm.base, mm.size)
 
         for h in self.hooks.get(common.HOOK_DYN_CODE, []):
             h.cb(mm)

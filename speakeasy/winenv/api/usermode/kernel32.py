@@ -15,7 +15,8 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import (
+from speakeasy.errors import ApiEmuError
+from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_READ,
     FILE_WRITE,
@@ -27,7 +28,6 @@ from speakeasy.const import (
     THREAD_CREATE,
     THREAD_INJECT,
 )
-from speakeasy.errors import ApiEmuError
 
 from .. import api
 
