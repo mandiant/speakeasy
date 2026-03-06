@@ -102,7 +102,7 @@ Overlay semantics:
 - lists replace the baseline list wholesale
 - omitted fields inherit model defaults
 
-The packaged files under `speakeasy/configs/*.json` are ordinary overlays. They are not selected automatically.
+Speakeasy does not currently ship named built-in config profiles beyond the default baseline.
 
 Conflict example:
 
