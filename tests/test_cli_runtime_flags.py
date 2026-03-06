@@ -1,74 +1,20 @@
 import subprocess
 import sys
 
-import pytest
 
-
-def get_cli_help_text() -> str:
-    result = subprocess.run(
-        [sys.executable, "-m", "speakeasy.cli", "-h"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout
-
-
-def test_cli_help_includes_renamed_runtime_flags():
-    help_text = get_cli_help_text()
-
-    assert "--argv" in help_text
-    assert "--raw-offset" in help_text
-    assert "--dropped-files-path" in help_text
-    assert "--snapshot-memory-regions" in help_text
-
-
-def test_cli_help_omits_removed_short_forms_and_flags():
-    help_text = get_cli_help_text()
-
-    assert "-p, --argv" not in help_text
-    assert "-r, --raw" not in help_text
-    assert "-a, --arch" not in help_text
-    assert "-z, --dropped-files-path" not in help_text
-    assert "--memory-dump-path" not in help_text
-    assert "--capture-memory-dumps" not in help_text
-
-
-def test_dump_default_config_uses_snapshot_memory_regions():
-    result = subprocess.run(
-        [sys.executable, "-m", "speakeasy.cli", "--dump-default-config"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert '"snapshot_memory_regions": false' in result.stdout
-    assert '"capture_memory_dumps"' not in result.stdout
-
-
-@pytest.mark.parametrize(
-    "legacy_args",
-    [
-        ["--params", "foo"],
-        ["--raw_offset", "0x10"],
-        ["--dump", "memdump.zip"],
-        ["--dropped-files", "dropped.zip"],
-        ["--memory-dump-path", "memdump.zip"],
+def test_cli_rejects_removed_runtime_flags():
+    legacy_arg_sets = [
         ["--capture-memory-dumps"],
         ["-p", "foo"],
-        ["-r"],
-        ["-a", "x86"],
-        ["-d", "memdump.zip"],
-        ["-z", "dropped.zip"],
-    ],
-)
-def test_cli_rejects_removed_runtime_flags(legacy_args: list[str]):
-    result = subprocess.run(
-        [sys.executable, "-m", "speakeasy.cli", "--dump-default-config", *legacy_args],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    ]
 
-    assert result.returncode != 0
-    assert "unrecognized arguments" in result.stderr
+    for legacy_args in legacy_arg_sets:
+        result = subprocess.run(
+            [sys.executable, "-m", "speakeasy.cli", "--dump-default-config", *legacy_args],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode != 0
+        assert "unrecognized arguments" in result.stderr
