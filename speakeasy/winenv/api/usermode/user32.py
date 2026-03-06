@@ -115,7 +115,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd
@@ -1426,7 +1426,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd
@@ -1439,7 +1439,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd
@@ -1461,7 +1461,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd
@@ -1474,7 +1474,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd
@@ -1487,7 +1487,7 @@ class User32(api.ApiHandler):
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
-        window = desk.get_desktop_window()
+        window = desk.desktop_window
         hnd = window.get_handle()
 
         return hnd

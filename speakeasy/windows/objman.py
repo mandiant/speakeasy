@@ -25,12 +25,6 @@ class Console:
         Console.curr_handle += 4
         return tmp
 
-    def set_window(self, window):
-        self.window = window
-
-    def get_window(self):
-        return self.window
-
 
 class SEH:
     """
@@ -595,15 +589,15 @@ class Process(KernelObject):
             self.console = Console()
         sm = self.emu.get_session_manager()
         desk = sm.get_current_desktop()
-        self.console.set_window(desk.new_window())
+        self.console.window = desk.new_window()
 
     def get_desktop_name(self):
         sm = self.emu.get_session_manager()
         stat = sm.get_current_station()
-        stat_name = stat.get_name()
+        stat_name = stat.name
 
         desk = sm.get_current_desktop()
-        desk_name = desk.get_name()
+        desk_name = desk.name
 
         name = f"{stat_name}\\{desk_name}"
 
