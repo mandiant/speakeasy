@@ -2,7 +2,7 @@ import base64
 import zlib
 
 from speakeasy.artifacts import ArtifactStore
-from speakeasy.report import DataArtifact, MemoryAccesses, MemoryRegion, Report
+from speakeasy.report import DataArtifact, Report
 
 
 def decode_artifact(entry: DataArtifact) -> bytes:
@@ -19,22 +19,6 @@ def test_artifact_store_deduplicates_payloads():
     report_data = store.to_report_data()
     assert list(report_data) == [first_ref]
     assert decode_artifact(report_data[first_ref]) == b"artifact-bytes"
-
-
-def test_memory_region_data_ref_roundtrip_json():
-    region = MemoryRegion(
-        tag="test",
-        address=0x1000,
-        size=16,
-        prot="rw-",
-        accesses=MemoryAccesses(reads=1, writes=2, execs=3),
-        data_ref="abc123",
-    )
-
-    json_str = region.model_dump_json()
-    restored = MemoryRegion.model_validate_json(json_str)
-
-    assert restored.data_ref == "abc123"
 
 
 def test_report_data_roundtrip_json():

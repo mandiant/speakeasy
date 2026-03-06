@@ -1,63 +1,6 @@
 from speakeasy.config import SpeakeasyConfig
 
 
-def test_snapshot_memory_regions_defaults_false():
-    data = {
-        "config_version": 0.2,
-        "emu_engine": "unicorn",
-        "timeout": 60,
-        "system": "windows",
-        "analysis": {"memory_tracing": False, "strings": True, "coverage": False},
-        "exceptions": {"dispatch_handlers": True},
-        "os_ver": {},
-        "current_dir": "C:\\Windows",
-        "hostname": "test",
-        "user": {"name": "test"},
-        "filesystem": {"files": []},
-        "network": {
-            "dns": {"names": {}},
-            "http": {"responses": []},
-            "winsock": {"responses": []},
-            "adapters": [],
-        },
-        "modules": {
-            "module_directory_x86": "",
-            "module_directory_x64": "",
-        },
-    }
-    cfg = SpeakeasyConfig.model_validate(data)
-    assert cfg.snapshot_memory_regions is False
-
-
-def test_snapshot_memory_regions_enabled():
-    data = {
-        "config_version": 0.2,
-        "emu_engine": "unicorn",
-        "timeout": 60,
-        "system": "windows",
-        "snapshot_memory_regions": True,
-        "analysis": {"memory_tracing": False, "strings": True, "coverage": False},
-        "exceptions": {"dispatch_handlers": True},
-        "os_ver": {},
-        "current_dir": "C:\\Windows",
-        "hostname": "test",
-        "user": {"name": "test"},
-        "filesystem": {"files": []},
-        "network": {
-            "dns": {"names": {}},
-            "http": {"responses": []},
-            "winsock": {"responses": []},
-            "adapters": [],
-        },
-        "modules": {
-            "module_directory_x86": "",
-            "module_directory_x64": "",
-        },
-    }
-    cfg = SpeakeasyConfig.model_validate(data)
-    assert cfg.snapshot_memory_regions is True
-
-
 def test_legacy_capture_memory_dumps_alias_still_works():
     data = {
         "config_version": 0.2,

@@ -12,43 +12,22 @@ import speakeasy.common as common
 import speakeasy.winenv.arch as arch
 from speakeasy.errors import EmuEngineError
 
-if uc.UC_VERSION_MAJOR >= 2:
-    from unicorn.unicorn_py3.arch.types import uc_hook_h
-    from unicorn.unicorn_py3.unicorn import (
-        HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
-    )
-    from unicorn.unicorn_py3.unicorn import (
-        HOOK_MEM_ACCESS_CFUNC as UC_HOOK_MEM_ACCESS_CB,
-    )
-    from unicorn.unicorn_py3.unicorn import (
-        HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
-    )
-    from unicorn.unicorn_py3.unicorn import uclib as _uc
+from unicorn.unicorn_py3.arch.types import uc_hook_h
+from unicorn.unicorn_py3.unicorn import (
+    HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
+)
+from unicorn.unicorn_py3.unicorn import (
+    HOOK_MEM_ACCESS_CFUNC as UC_HOOK_MEM_ACCESS_CB,
+)
+from unicorn.unicorn_py3.unicorn import (
+    HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
+)
+from unicorn.unicorn_py3.unicorn import uclib as _uc
 
-    uc_engine = ct.c_void_p
-    UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
-    UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
-    hook_id = uc_hook_h()
-else:
-    import unicorn.unicorn
-
-    _uc = unicorn.unicorn._uc  # type: ignore[attr-defined]  # internal unicorn API
-    _uc.uc_hook_add.argtypes = [
-        ct.c_void_p,
-        ct.c_void_p,
-        ct.c_void_p,
-        ct.c_void_p,
-        ct.c_void_p,
-        ct.c_uint64,
-        ct.c_uint64,
-    ]
-    _uc.uc_hook_add.restype = ct.c_uint32
-    UC_HOOK_CODE_CB = unicorn.unicorn.UC_HOOK_CODE_CB
-    UC_HOOK_MEM_INVALID_CB = unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
-    UC_HOOK_MEM_ACCESS_CB = unicorn.unicorn.UC_HOOK_MEM_ACCESS_CB
-    UC_HOOK_INSN_IN_CB = unicorn.unicorn.UC_HOOK_INSN_IN_CB
-    UC_HOOK_INSN_SYSCALL_CB = unicorn.unicorn.UC_HOOK_INSN_SYSCALL_CB
-    hook_id = ct.c_void_p()  # type: ignore[assignment]  # different type for unicorn v1 vs v2
+uc_engine = ct.c_void_p
+UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
+UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
+hook_id = uc_hook_h()
 
 
 def is_platform_intel():
