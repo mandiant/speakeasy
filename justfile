@@ -8,7 +8,7 @@ ruff:
 # lots of errors due to dynamic access to C structures
 # address this later
 # mypy:
-#     uvx mypy --check-untyped-defs debugger speakeasy tests examples
+#     uvx mypy --check-untyped-defs speakeasy tests examples
 
 lint: format ruff
 
