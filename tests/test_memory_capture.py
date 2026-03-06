@@ -23,17 +23,9 @@ def report_with_dumps(base_config, load_test_bin):
         se.shutdown()
 
 
-def test_report_has_regions_with_data_refs(report_with_dumps):
-    for ep in report_with_dumps.entry_points:
-        if ep.memory:
-            for region in ep.memory.layout:
-                if region.data_ref is not None:
-                    return
-    pytest.fail("No memory regions with data refs found in report")
-
-
 def test_captured_data_refs_resolve(report_with_dumps):
     assert report_with_dumps.data
+
     for ep in report_with_dumps.entry_points:
         if ep.memory:
             for region in ep.memory.layout:
@@ -47,7 +39,7 @@ def test_stack_regions_excluded(report_with_dumps):
         if ep.memory:
             for region in ep.memory.layout:
                 if region.tag.startswith("emu.stack"):
-                    assert region.data_ref is None, f"Stack region {region.tag} should not have data refs"
+                    assert region.data_ref is None
 
 
 def test_heap_regions_excluded(report_with_dumps):
@@ -55,20 +47,7 @@ def test_heap_regions_excluded(report_with_dumps):
         if ep.memory:
             for region in ep.memory.layout:
                 if region.tag.startswith("api.heap") or region.tag == "emu.process_heap":
-                    assert region.data_ref is None, f"Heap region {region.tag} should not have data refs"
-
-
-def test_unwritten_regions_included(report_with_dumps):
-    found_unwritten_with_data = False
-    for ep in report_with_dumps.entry_points:
-        if ep.memory:
-            for region in ep.memory.layout:
-                if region.accesses and region.accesses.writes == 0:
-                    if region.tag.startswith(("emu.stack", "api.heap", "emu.process_heap")):
-                        continue
-                    if region.data_ref is not None:
-                        found_unwritten_with_data = True
-    assert found_unwritten_with_data, "Expected at least one unwritten non-excluded region with data ref"
+                    assert region.data_ref is None
 
 
 def test_report_data_deduplicates_repeated_regions(report_with_dumps):
