@@ -58,15 +58,6 @@ class FileMap:
         FileMap.curr_handle += 4
         return hmap
 
-    def get_name(self):
-        return self.name
-
-    def get_prot(self):
-        return self.prot
-
-    def get_backed_file(self):
-        return self.backed_file
-
     def add_view(self, base, offset, size, protect):
         view = MapView(base, offset, size, protect)
         self.views.update({base: view})
@@ -108,9 +99,6 @@ class File:
         hfile = File.curr_handle
         File.curr_handle += 4
         return hfile
-
-    def get_path(self):
-        return self.path
 
     def get_hash(self):
         h = hashlib.sha256()
@@ -301,7 +289,7 @@ class FileManager:
             path = ntpath.normpath(ntpath.join(cwd, path))
 
         for f in self.files:
-            if f.get_path().lower() == path.lower():
+            if f.path.lower() == path.lower():
                 return f
         return None
 

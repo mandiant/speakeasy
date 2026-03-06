@@ -3304,24 +3304,24 @@ class Kernel32(api.ApiHandler):
         tag_prefix = "api.MapViewOfFile"
 
         if mapping:
-            f = mapping.get_backed_file()
+            f = mapping.backed_file
             full_offset = (offset_high << 32) | offset_low
             buf = 0
             size = 0
-            view_perms = self.map_view_access_to_emu_perms(access, mapping.get_prot())
+            view_perms = self.map_view_access_to_emu_perms(access, mapping.prot)
             if f:
                 data = f.get_data()
                 if bytes_to_map != 0:
                     data = data[full_offset : full_offset + bytes_to_map]
 
-                fname = ntpath.basename(f.get_path())
+                fname = ntpath.basename(f.path)
                 fname = fname.replace(".", "_")
 
                 # If the call to CreateFileMapping (done before calling this API)
                 # has beed done with SEC_IMAGE protection, the mapping is not
                 # done as a contigous stream of bytes, but it is mapped as
                 # PE file
-                pe_mapping = mapping.get_prot() & SEC_IMAGE
+                pe_mapping = mapping.prot & SEC_IMAGE
                 if pe_mapping:
                     # Now map the file as PE file
                     pe = emu.load_pe(data=data)
@@ -3784,7 +3784,7 @@ class Kernel32(api.ApiHandler):
 
         f = self.file_get(hFile)
         if f:
-            path = f.get_path()
+            path = f.path
             data = f.get_data(num_bytes)
 
             if lpBuffer:
@@ -3828,7 +3828,7 @@ class Kernel32(api.ApiHandler):
 
         f = self.file_get(hFile)
         if f:
-            path = f.get_path()
+            path = f.path
             if data:
                 f.add_data(data)
                 self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)

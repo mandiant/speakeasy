@@ -95,30 +95,30 @@ class Run:
     """
 
     def __init__(self):
-        self.instr_cnt = 0
-        self.ret_val = None
+        self.instr_cnt: int = 0
+        self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
-        self.sym_access = {}
-        self.dropped_files = []
-        self.mem_access = {}
+        self.sym_access: dict = {}
+        self.dropped_files: list[dict] = []
+        self.mem_access: dict = {}
         self.section_access: dict[tuple[int, int], MemAccess] = {}
         self.dyn_code: dict[str, list | set] = {"mmap": [], "base_addrs": set()}
-        self.process_context = None
-        self.thread = None
-        self.unique_apis = []
+        self.process_context: object | None = None
+        self.thread: object | None = None
+        self.unique_apis: list[str] = []
         self.api_hash = hashlib.sha256()
-        self.stack = None
-        self.api_callbacks = []
+        self.stack: object | None = None
+        self.api_callbacks: list = []
         self.exec_cache: deque = deque(maxlen=4)
         self.read_cache: deque = deque(maxlen=4)
         self.write_cache: deque = deque(maxlen=4)
 
-        self.args = None
-        self.start_addr = None
-        self.type = None
-        self.error = {}
-        self.num_apis = 0
-        self.coverage = set()
+        self.args: list | None = None
+        self.start_addr: int | None = None
+        self.type: str | None = None
+        self.error: dict = {}
+        self.num_apis: int = 0
+        self.coverage: set[int] = set()
         self.memory_regions: list[dict] = []
         self.loaded_modules: list[dict] = []
 
@@ -222,7 +222,7 @@ class Profiler:
             data_ref = None
             if len(data) <= MAX_EMBEDDED_FILE_SIZE:
                 data_ref = self.artifact_store.put_bytes(data)
-            entry = {"path": f.get_path(), "size": len(data), "sha256": _hash, "data_ref": data_ref}
+            entry = {"path": f.path, "size": len(data), "sha256": _hash, "data_ref": data_ref}
             run.dropped_files.append(entry)
 
     def record_api_event(self, run, pos: TracePosition, name, ret, argv, ctx=[]):
