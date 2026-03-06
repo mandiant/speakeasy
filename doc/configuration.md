@@ -399,7 +399,7 @@ Overlay semantics:
 
 Use `--dump-default-config` to emit the built-in default profile.
 
-The packaged files under `speakeasy/configs/*.json` are ordinary config overlays. They are not selected automatically or treated specially by the runtime.
+Speakeasy does not currently ship named built-in config profiles beyond that default baseline. If you use `--config`, you are supplying your own overlay file.
 
 Complex nested structures remain config-file-only (for example `filesystem.files`, `registry.keys`, `processes`, `modules.user_modules`, `modules.system_modules`, and structured network response lists).
 
