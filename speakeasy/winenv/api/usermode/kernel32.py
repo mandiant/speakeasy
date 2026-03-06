@@ -993,7 +993,7 @@ class Kernel32(api.ApiHandler):
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
-        if mm and mm.get_tag() and mm.get_tag().startswith(tag_prefix):
+        if mm and mm.tag and mm.tag.startswith(tag_prefix):
             buf = lpAddress
         else:
             if dwSize:
@@ -1068,7 +1068,7 @@ class Kernel32(api.ApiHandler):
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
-        if mm and mm.get_tag() and mm.get_tag().startswith(tag_prefix):
+        if mm and mm.tag and mm.tag.startswith(tag_prefix):
             buf = lpAddress
         else:
             if dwSize:
@@ -1377,12 +1377,12 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return rv
 
-        mbi.BaseAddress = mm.get_base()
-        mbi.AllocationBase = mm.get_base()
-        mbi.AllocationProtect = self.emu_perms_to_win_perms(mm.get_prot())
-        mbi.RegionSize = mm.get_size()
+        mbi.BaseAddress = mm.base
+        mbi.AllocationBase = mm.base
+        mbi.AllocationProtect = self.emu_perms_to_win_perms(mm.prot)
+        mbi.RegionSize = mm.size
         mbi.State = windefs.MEM_COMMIT
-        mbi.Protect = self.emu_perms_to_win_perms(mm.get_prot())
+        mbi.Protect = self.emu_perms_to_win_perms(mm.prot)
         mbi.Type = 0
 
         self.mem_write(lpBuffer, mbi.get_bytes())
@@ -1406,7 +1406,7 @@ class Kernel32(api.ApiHandler):
 
         maps = emu.get_mem_maps()
         for m in maps:
-            if m.get_base() <= lpAddress < m.get_base() + m.get_size():
+            if m.base <= lpAddress < m.base + m.size:
                 mm = m
                 break
 
@@ -1414,11 +1414,11 @@ class Kernel32(api.ApiHandler):
         if mm and lpflOldProtect:
             # See if we saved off the flags if this chunk is from a previous
             # VirtualAlloc()
-            old_prot = mm.get_flags()
+            old_prot = mm.flags
             if not old_prot:
                 # Otherwise, get the perms from the emulator and convert it to
                 # Win32 protection flags
-                old_prot = self.emu_perms_to_win_perms(mm.get_prot())
+                old_prot = self.emu_perms_to_win_perms(mm.prot)
             # Check for page alignment
             addr = lpAddress & 0xFFFFFFFFFFFFF000
             size = dwSize & 0xFFFFFFFFFFFFF000
@@ -1478,7 +1478,7 @@ class Kernel32(api.ApiHandler):
         maps = emu.get_mem_maps()
         for m in maps:
             if m.base == lpAddress:
-                m.set_free()
+                m.free = True
                 rv = True
                 break
 
@@ -2033,8 +2033,8 @@ class Kernel32(api.ApiHandler):
         size = 0
 
         for mmap in emu.get_mem_maps():
-            if hMem == mmap.get_base():
-                size = mmap.get_size()
+            if hMem == mmap.base:
+                size = mmap.size
                 emu.set_last_error(windefs.ERROR_SUCCESS)
 
         if not size:
@@ -2052,8 +2052,8 @@ class Kernel32(api.ApiHandler):
         (hMem,) = argv
         flags = 0
         for mmap in emu.get_mem_maps():
-            if hMem == mmap.get_base():
-                flags = mmap.get_flags()
+            if hMem == mmap.base:
+                flags = mmap.flags
                 emu.set_last_error(windefs.ERROR_SUCCESS)
 
         if not flags:
@@ -2109,8 +2109,8 @@ class Kernel32(api.ApiHandler):
 
         size = 0
         for mmap in emu.get_mem_maps():
-            if lpMem == mmap.get_base():
-                size = mmap.get_size()
+            if lpMem == mmap.base:
+                size = mmap.size
                 emu.set_last_error(windefs.ERROR_SUCCESS)
 
         if not size:
@@ -2244,9 +2244,9 @@ class Kernel32(api.ApiHandler):
 
         if hHeap and lpMem and dwBytes:
             mm = emu.get_address_map(lpMem)
-            if mm and mm.get_tag().startswith(tag_prefix):
+            if mm and mm.tag.startswith(tag_prefix):
                 # Copy the existing data
-                data = self.mem_read(lpMem, mm.get_size())
+                data = self.mem_read(lpMem, mm.size)
                 new_buf = self.heap_alloc(dwBytes, heap="HeapReAlloc")
                 self.mem_write(new_buf, data)
 
@@ -2269,9 +2269,9 @@ class Kernel32(api.ApiHandler):
 
         if hMem and uBytes:
             mm = emu.get_address_map(hMem)
-            if mm and mm.get_tag().startswith(tag_prefix):
+            if mm and mm.tag.startswith(tag_prefix):
                 # Copy the existing data
-                data = self.mem_read(hMem, mm.get_size())
+                data = self.mem_read(hMem, mm.size)
                 new_buf = self.heap_alloc(uBytes, heap="LocalReAlloc")
                 self.mem_write(new_buf, data)
 
@@ -3341,7 +3341,7 @@ class Kernel32(api.ApiHandler):
 
                     buf = self.mem_alloc(base=base, size=size, perms=view_perms, shared=True)
                     mm = emu.get_address_map(buf)
-                    mm.update_tag(f"{tag_prefix}.{fname}.0x{buf:x}")
+                    mm.tag = f"{tag_prefix}.{fname}.0x{buf:x}"
                     mapping.add_view(buf, full_offset, size, access)
                     self.mem_write(buf, data)
                     emu.set_last_error(windefs.ERROR_SUCCESS)
