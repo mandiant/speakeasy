@@ -405,9 +405,6 @@ class Thread(KernelObject):
         """
         self.message_queue.append(msg)
 
-    def get_seh(self):
-        return self.seh
-
     def get_context(self):
         if self.ctx:
             return self.ctx
@@ -435,27 +432,6 @@ class Thread(KernelObject):
 
     def get_teb(self):
         return self.teb.read_back()
-
-    def set_last_error(self, code):
-        self.last_error = code
-
-    def get_last_error(self):
-        return self.last_error
-
-    def get_tls(self):
-        return self.tls
-
-    def set_tls(self, tls):
-        self.tls = tls
-
-    def get_fls(self):
-        return self.fls
-
-    def set_fls(self, fls):
-        self.fls = fls
-
-    def get_token(self):
-        return self.token
 
     def init_tls(self, tls_dir, modname):
         ptrsz = self.emu.get_ptr_size()

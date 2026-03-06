@@ -102,14 +102,14 @@ class Win32Emulator(WindowsEmulator):
         Set the last error code for the current thread
         """
         if self.curr_thread:
-            self.curr_thread.set_last_error(code)
+            self.curr_thread.last_error = code
 
     def get_last_error(self):
         """
         Get the last error code for the current thread
         """
         if self.curr_thread:
-            return self.curr_thread.get_last_error()
+            return self.curr_thread.last_error
 
     def get_session_manager(self):
         """

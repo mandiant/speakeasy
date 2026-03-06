@@ -1026,7 +1026,7 @@ class Msvcrt(api.ApiHandler):
 
         # Break down the exception records into something more manageable
         curr_frame = frame
-        seh = thread.get_seh()
+        seh = thread.seh
 
         _ctx = self.wintypes.CONTEXT(emu.get_ptr_size())
         _ctx = self.mem_cast(_ctx, context)

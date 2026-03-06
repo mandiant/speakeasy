@@ -523,7 +523,7 @@ class AdvApi32(api.ApiHandler):
             obj = self.get_object_from_handle(hProcess)
 
         if obj:
-            token = obj.get_token()
+            token = obj.token
             hToken = token.get_handle()
 
             if pTokenHandle:
@@ -556,7 +556,7 @@ class AdvApi32(api.ApiHandler):
             obj = self.get_object_from_handle(ThreadHandle)
 
         if obj:
-            token = obj.get_token()
+            token = obj.token
             hToken = token.get_handle()
 
             if pTokenHandle:

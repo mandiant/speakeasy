@@ -2333,7 +2333,7 @@ class WindowsEmulator(BinaryEmulator):
         thread = self.get_current_thread()
         if not thread:
             return False
-        seh = thread.get_seh()
+        seh = thread.seh
         exception_list = self._get_exception_list()
         ptr_size = self.get_ptr_size()
 
@@ -2416,7 +2416,7 @@ class WindowsEmulator(BinaryEmulator):
         Get the next exception handler while processing SEH
         """
         thread = self.get_current_thread()
-        seh = thread.get_seh()
+        seh = thread.seh
         sp = self.get_stack_ptr()
         ret_val = self.get_return_val()
 
