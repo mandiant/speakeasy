@@ -397,13 +397,6 @@ class ShellcodeLoader:
         )
 
 
-class IdaLoader:
-    def __init__(self) -> None:
-        pass
-
-    def make_image(self) -> LoadedImage:
-        raise NotImplementedError
-
 
 class ApiModuleLoader:
     def __init__(self, *, name: str, api: Any, arch: int, base: int, emu_path: str) -> None:
