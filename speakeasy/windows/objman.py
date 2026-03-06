@@ -461,7 +461,7 @@ class Process(KernelObject):
     An EPROCESS object used by the Windows kernel to represent a process
     """
 
-    ldr_entries: list[LdrDataTableEntry] = []
+    ldr_entries: list["LdrDataTableEntry"] = []
 
     def __init__(self, emu, pe=None, user_modules=[], name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
