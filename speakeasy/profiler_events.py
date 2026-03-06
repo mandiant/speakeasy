@@ -143,10 +143,9 @@ class MemWriteEvent(Event):
     path: str = Field(description="Target process path associated with the write event.")
     base: str = Field(description="Write start address in hexadecimal string form.")
     size: int = Field(description="Number of bytes written.")
-    data: str = Field(
-        description=(
-            "Base64-encoded written bytes.\n\nLarge sequences may be truncated or chunk-merged by profiler logic."
-        )
+    data_ref: str | None = Field(
+        default=None,
+        description=("Reference into the top-level report ``data`` store for the captured write preview bytes."),
     )
 
 
@@ -163,7 +162,10 @@ class MemReadEvent(Event):
     path: str = Field(description="Target process path associated with the read event.")
     base: str = Field(description="Read start address in hexadecimal string form.")
     size: int = Field(description="Number of bytes read.")
-    data: str = Field(description=("Base64-encoded read bytes.\n\nDecode to inspect sampled process memory content."))
+    data_ref: str | None = Field(
+        default=None,
+        description="Reference into the top-level report ``data`` store for the captured read preview bytes.",
+    )
 
 
 class MemProtectEvent(Event):
@@ -305,9 +307,9 @@ class FileReadEvent(Event):
     path: str = Field(description="File path associated with the read operation.")
     handle: str | None = Field(default=None, description="File handle used by the read operation.")
     size: int | None = Field(default=None, description="Number of bytes requested/read.")
-    data: str | None = Field(
+    data_ref: str | None = Field(
         default=None,
-        description="Base64-encoded file bytes captured from the read operation.",
+        description="Reference into the top-level report ``data`` store for the captured file bytes.",
     )
     buffer: str | None = Field(
         default=None,
@@ -327,9 +329,9 @@ class FileWriteEvent(Event):
     path: str = Field(description="File path associated with the write operation.")
     handle: str | None = Field(default=None, description="File handle used by the write operation.")
     size: int | None = Field(default=None, description="Number of bytes written.")
-    data: str | None = Field(
+    data_ref: str | None = Field(
         default=None,
-        description="Base64-encoded bytes captured from the write operation.",
+        description="Reference into the top-level report ``data`` store for the captured file bytes.",
     )
     buffer: str | None = Field(
         default=None,
@@ -401,8 +403,34 @@ class RegReadValueEvent(Event):
     handle: str | None = Field(default=None, description="Registry key handle used for the read, when available.")
     value_name: str | None = Field(default=None, description="Registry value name requested by the API call.")
     size: int | None = Field(default=None, description="Requested/returned value size in bytes.")
-    data: str | None = Field(default=None, description="Base64-encoded value data captured by the profiler.")
+    data_ref: str | None = Field(
+        default=None,
+        description="Reference into the top-level report ``data`` store for the captured registry value bytes.",
+    )
     buffer: str | None = Field(default=None, description="Destination buffer pointer in hexadecimal string form.")
+
+
+class RegWriteValueEvent(Event):
+    """Records registry value write operations.
+
+    Emitted when APIs set or overwrite a registry value.
+
+    Use this to capture persistence and configuration mutations.
+    """
+
+    event: Literal["reg_write_value"] = Field(
+        default="reg_write_value",
+        description="Discriminator for registry value write events.",
+    )
+    path: str = Field(description="Registry key path containing the written value.")
+    handle: str | None = Field(default=None, description="Registry key handle used for the write, when available.")
+    value_name: str | None = Field(default=None, description="Registry value name written by the API call.")
+    size: int | None = Field(default=None, description="Written value size in bytes.")
+    data_ref: str | None = Field(
+        default=None,
+        description="Reference into the top-level report ``data`` store for the written registry value bytes.",
+    )
+    buffer: str | None = Field(default=None, description="Source buffer pointer in hexadecimal string form.")
 
 
 class RegListSubkeysEvent(Event):
@@ -450,7 +478,10 @@ class NetTrafficEvent(Event):
     port: int = Field(description="Remote endpoint port number.")
     proto: str = Field(description="Protocol label such as tcp/udp variants.")
     type: str | None = Field(default=None, description="Traffic subtype (connect, bind, data_in, data_out, etc.).")
-    data: str | None = Field(default=None, description="Base64-encoded payload bytes, when captured.")
+    data_ref: str | None = Field(
+        default=None,
+        description="Reference into the top-level report ``data`` store for the captured traffic payload bytes.",
+    )
     method: str | None = Field(default=None, description="Source API path or method that produced the event.")
 
 
@@ -467,7 +498,10 @@ class NetHttpEvent(Event):
     port: int = Field(description="HTTP server port.")
     proto: str = Field(description="Transport/protocol label, e.g. tcp.http or tcp.https.")
     headers: str | None = Field(default=None, description="Serialized HTTP request headers, when available.")
-    body: str | None = Field(default=None, description="Base64-encoded HTTP body payload, when present.")
+    body_ref: str | None = Field(
+        default=None,
+        description="Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
+    )
 
 
 class ExceptionEvent(Event):
@@ -503,6 +537,7 @@ AnyEvent = Annotated[
     | RegOpenKeyEvent
     | RegCreateKeyEvent
     | RegReadValueEvent
+    | RegWriteValueEvent
     | RegListSubkeysEvent
     | NetDnsEvent
     | NetTrafficEvent

@@ -41,7 +41,6 @@ def emulate_binary(
     do_raw,
     arch="",
     dropped_files_path="",
-    memory_dump_path="",
     raw_offset=0x0,
     emulate_children=False,
     verbose=False,
@@ -72,12 +71,6 @@ def emulate_binary(
             report = se.get_json_report()
         q.put(report)
 
-        if memory_dump_path and se is not None:
-            data = se.create_memdump_archive()
-            logger.info("* Saving memory dump archive to %s", memory_dump_path)
-            with open(memory_dump_path, "wb") as f:
-                f.write(data)
-
         if dropped_files_path and se is not None:
             data = se.create_file_archive()
             if data:
@@ -92,7 +85,6 @@ class Main:
     def __init__(self, parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> None:
         self.target = args.target
         self.output = args.output
-        self.memory_dump_path = args.memory_dump_path
         self.dropped_files_path = args.dropped_files_path
         self.config_path = args.config
         self.emulate_children = args.emulate_children
@@ -152,7 +144,6 @@ class Main:
                 self.do_raw,
                 self.arch,
                 self.dropped_files_path,
-                self.memory_dump_path,
                 raw_offset=self.raw_offset,
                 emulate_children=self.emulate_children,
                 verbose=self.verbose,
@@ -171,7 +162,6 @@ class Main:
                     self.do_raw,
                     self.arch,
                     self.dropped_files_path,
-                    self.memory_dump_path,
                 ),
                 kwargs={
                     "raw_offset": self.raw_offset,
@@ -265,13 +255,6 @@ def main():
         required=False,
         help="Force architecture to use during emulation (for multi-architecture files or shellcode). "
         "Supported archs: [ x86 | amd64 ]",
-    )
-    parser.add_argument(
-        "--memory-dump-path",
-        action="store",
-        dest="memory_dump_path",
-        required=False,
-        help="Path to store compressed memory dump package",
     )
     parser.add_argument(
         "--dropped-files-path",

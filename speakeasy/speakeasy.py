@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import hashlib
 import logging
 import ntpath
 import os
@@ -12,12 +11,11 @@ from pathlib import Path, PureWindowsPath
 from pefile import MACHINE_TYPE
 from pydantic import ValidationError
 
-import speakeasy.winenv.arch as _arch
 from speakeasy import Win32Emulator, WinKernelEmulator
 from speakeasy.cli_config import output_active_config
 from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
-from speakeasy.report import FileManifestEntry, MemoryBlock, ProcessMemoryManifest, Report
+from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
 
 logger = logging.getLogger(__name__)
@@ -927,82 +925,6 @@ class Speakeasy:
             self.mem_map_hooks.append((cb, begin, end))
             return
         return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)
-
-    def create_memdump_archive(self) -> bytes:
-        """
-        Creates a memory dump archive package of the emulated sample.
-        The archive contains a manifest that can be used to match memory chunk
-        metadata with the dumped binary memory files.
-
-        return:
-            Bytes object containing a zip of all memory
-        """
-        manifest: list[ProcessMemoryManifest] = []
-        _zip = BytesIO()
-
-        loaded_bins = [os.path.splitext(os.path.basename(b))[0] for b in self.loaded_bins]
-
-        with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            procs = []
-            [procs.append(block[4]) for block in self.get_memory_dumps() if block[4] not in procs]  # type: ignore[func-returns-value]
-
-            for process in procs:
-                memory_blocks: list[MemoryBlock] = []
-                arch = self.emu.get_arch()  # type: ignore[union-attr]
-                if arch == _arch.ARCH_X86:
-                    arch_str = "x86"
-                else:
-                    arch_str = "amd64"
-
-                if process:
-                    pid = process.get_pid()
-                    path = process.get_process_path()
-                else:
-                    continue
-
-                proc_manifest = ProcessMemoryManifest(
-                    pid=pid,
-                    process_name=path,
-                    arch=arch_str,
-                    memory_blocks=memory_blocks,
-                )
-                manifest.append(proc_manifest)
-
-                for block in self.get_memory_dumps():
-                    tag, base, size, is_free, _proc, data = block
-
-                    if not tag:
-                        continue
-                    if _proc != process:
-                        continue
-                    # Ignore emulator noise such as structures created by the emulator, or
-                    # modules that were loaded
-                    if tag and tag.startswith("emu") and not tag.startswith("emu.shellcode."):
-                        bns = [b for b in loaded_bins if b in tag]
-                        if not len(bns):
-                            continue
-
-                    h = hashlib.sha256()
-                    h.update(data)
-                    _hash = h.hexdigest()
-
-                    file_name = f"{tag}.mem"
-
-                    mem_block = MemoryBlock(
-                        tag=tag,
-                        base=base,
-                        size=size,
-                        is_free=is_free,
-                        sha256=_hash,
-                        file_name=file_name,
-                    )
-                    memory_blocks.append(mem_block)
-                    zf.writestr(file_name, data)
-
-            manifest_json = "[" + ",".join(m.model_dump_json(indent=4) for m in manifest) + "]"
-            zf.writestr("speakeasy_manifest.json", manifest_json)
-
-        return _zip.getvalue()
 
 
 def validate_config(config: dict) -> SpeakeasyConfig:

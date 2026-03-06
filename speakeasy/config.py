@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from speakeasy.default_config_data import DEFAULT_CONFIG_DATA
 
@@ -275,6 +275,14 @@ class ModulesConfig(BaseModel):
 class SpeakeasyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_memory_snapshot_field(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "snapshot_memory_regions" not in data and "capture_memory_dumps" in data:
+            data = dict(data)
+            data["snapshot_memory_regions"] = data.pop("capture_memory_dumps")
+        return data
+
     config_version: Literal[0.2] = Field(  # type: ignore[valid-type]
         default=DEFAULT_CONFIG_DATA["config_version"],
         description="Configuration schema version.",
@@ -301,7 +309,10 @@ class SpeakeasyConfig(BaseModel):
         default=DEFAULT_CONFIG_DATA["keep_memory_on_free"],
         description="Retain freed memory maps for post-free inspection.",
     )
-    capture_memory_dumps: bool = Field(default=False, description="Include compressed raw memory in report regions.")
+    snapshot_memory_regions: bool = Field(
+        default=False,
+        description="Include run-end memory region snapshots in the report data store.",
+    )
     exceptions: ExceptionsConfig = Field(
         default_factory=lambda: ExceptionsConfig.model_validate(_copy_default_value("exceptions")),
         description="Exception dispatch behavior.",

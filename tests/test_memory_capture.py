@@ -1,6 +1,4 @@
-import base64
 import copy
-import zlib
 
 import pytest
 
@@ -12,7 +10,7 @@ def report_with_dumps(base_config, load_test_bin):
     data = load_test_bin("dll_test_x86.dll.xz")
 
     cfg = copy.deepcopy(base_config)
-    cfg["capture_memory_dumps"] = True
+    cfg["snapshot_memory_regions"] = True
     cfg["analysis"] = dict(cfg.get("analysis", {}))
     cfg["analysis"]["memory_tracing"] = True
 
@@ -25,23 +23,23 @@ def report_with_dumps(base_config, load_test_bin):
         se.shutdown()
 
 
-def test_report_has_regions_with_data(report_with_dumps):
+def test_report_has_regions_with_data_refs(report_with_dumps):
     for ep in report_with_dumps.entry_points:
         if ep.memory:
             for region in ep.memory.layout:
-                if region.data is not None:
+                if region.data_ref is not None:
                     return
-    pytest.fail("No memory regions with data found in report")
+    pytest.fail("No memory regions with data refs found in report")
 
 
-def test_captured_data_decompresses(report_with_dumps):
+def test_captured_data_refs_resolve(report_with_dumps):
+    assert report_with_dumps.data
     for ep in report_with_dumps.entry_points:
         if ep.memory:
             for region in ep.memory.layout:
-                if region.data is not None:
-                    raw = base64.b64decode(region.data)
-                    decompressed = zlib.decompress(raw)
-                    assert len(decompressed) == region.size
+                if region.data_ref is not None:
+                    assert region.data_ref in report_with_dumps.data
+                    assert report_with_dumps.data[region.data_ref].size == region.size
 
 
 def test_stack_regions_excluded(report_with_dumps):
@@ -49,7 +47,7 @@ def test_stack_regions_excluded(report_with_dumps):
         if ep.memory:
             for region in ep.memory.layout:
                 if region.tag.startswith("emu.stack"):
-                    assert region.data is None, f"Stack region {region.tag} should not have data"
+                    assert region.data_ref is None, f"Stack region {region.tag} should not have data refs"
 
 
 def test_heap_regions_excluded(report_with_dumps):
@@ -57,7 +55,7 @@ def test_heap_regions_excluded(report_with_dumps):
         if ep.memory:
             for region in ep.memory.layout:
                 if region.tag.startswith("api.heap") or region.tag == "emu.process_heap":
-                    assert region.data is None, f"Heap region {region.tag} should not have data"
+                    assert region.data_ref is None, f"Heap region {region.tag} should not have data refs"
 
 
 def test_unwritten_regions_included(report_with_dumps):
@@ -68,6 +66,16 @@ def test_unwritten_regions_included(report_with_dumps):
                 if region.accesses and region.accesses.writes == 0:
                     if region.tag.startswith(("emu.stack", "api.heap", "emu.process_heap")):
                         continue
-                    if region.data is not None:
+                    if region.data_ref is not None:
                         found_unwritten_with_data = True
-    assert found_unwritten_with_data, "Expected at least one unwritten non-excluded region with data"
+    assert found_unwritten_with_data, "Expected at least one unwritten non-excluded region with data ref"
+
+
+def test_report_data_deduplicates_repeated_regions(report_with_dumps):
+    region_refs = [
+        region.data_ref
+        for ep in report_with_dumps.entry_points
+        for region in (ep.memory.layout if ep.memory else [])
+        if region.data_ref is not None
+    ]
+    assert len(set(region_refs)) < len(region_refs)

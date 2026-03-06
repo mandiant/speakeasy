@@ -10,7 +10,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.const import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ
+from speakeasy.const import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 
 from .. import api
 
@@ -202,7 +202,14 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_SUCCESS
 
             kp = key.get_path()
-            self.record_registry_access_event(kp, REG_READ, value_name=lpValueName, size=length, buffer=lpData)
+            self.record_registry_access_event(
+                kp,
+                REG_READ,
+                value_name=lpValueName,
+                data=output,
+                size=length,
+                buffer=lpData,
+            )
 
         return rv
 
@@ -251,6 +258,16 @@ class AdvApi32(api.ApiHandler):
             value.data = value.normalize_value(dwType, value_data)
         else:
             key.create_value(value_name, dwType, value_data)
+
+        self.record_registry_access_event(
+            key.get_path(),
+            REG_WRITE,
+            value_name=value_name,
+            data=raw if lpData and cbData else b"",
+            handle=hKey,
+            size=cbData,
+            buffer=lpData,
+        )
 
         return windefs.ERROR_SUCCESS
 
@@ -1697,7 +1714,14 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_SUCCESS
 
             kp = key.get_path()
-            self.record_registry_access_event(kp, REG_READ, value_name=lpValue, size=length, buffer=lpData)
+            self.record_registry_access_event(
+                kp,
+                REG_READ,
+                value_name=lpValue,
+                data=output,
+                size=length,
+                buffer=lpData,
+            )
 
         return rv
 

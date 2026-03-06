@@ -18,6 +18,7 @@ FILE_READ = "file_read"
 # registry events
 REG_OPEN = "reg_open_key"
 REG_READ = "reg_read_value"
+REG_WRITE = "reg_write_value"
 REG_LIST = "reg_list_subkeys"
 REG_CREATE = "reg_create_key"
 

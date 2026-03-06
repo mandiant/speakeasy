@@ -19,18 +19,19 @@ def test_cli_help_includes_renamed_runtime_flags():
 
     assert "--argv" in help_text
     assert "--raw-offset" in help_text
-    assert "--memory-dump-path" in help_text
     assert "--dropped-files-path" in help_text
+    assert "--snapshot-memory-regions" in help_text
 
 
-def test_cli_help_omits_removed_short_forms():
+def test_cli_help_omits_removed_short_forms_and_flags():
     help_text = get_cli_help_text()
 
     assert "-p, --argv" not in help_text
     assert "-r, --raw" not in help_text
     assert "-a, --arch" not in help_text
-    assert "-d, --memory-dump-path" not in help_text
     assert "-z, --dropped-files-path" not in help_text
+    assert "--memory-dump-path" not in help_text
+    assert "--capture-memory-dumps" not in help_text
 
 
 @pytest.mark.parametrize(
@@ -40,6 +41,8 @@ def test_cli_help_omits_removed_short_forms():
         ["--raw_offset", "0x10"],
         ["--dump", "memdump.zip"],
         ["--dropped-files", "dropped.zip"],
+        ["--memory-dump-path", "memdump.zip"],
+        ["--capture-memory-dumps"],
         ["-p", "foo"],
         ["-r"],
         ["-a", "x86"],

@@ -1,13 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 # Data format versioning
-__report_version__ = "2.0.0"
+__report_version__ = "3.0.0"
 
 import hashlib
 import time
-from base64 import b64decode, b64encode
 from collections import deque
 
+from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
 from speakeasy.const import (
     FILE_CREATE,
     FILE_OPEN,
@@ -23,6 +23,7 @@ from speakeasy.const import (
     REG_LIST,
     REG_OPEN,
     REG_READ,
+    REG_WRITE,
     THREAD_CREATE,
     THREAD_INJECT,
 )
@@ -48,6 +49,7 @@ from speakeasy.profiler_events import (
     RegListSubkeysEvent,
     RegOpenKeyEvent,
     RegReadValueEvent,
+    RegWriteValueEvent,
     ThreadCreateEvent,
     ThreadInjectEvent,
     TracePosition,
@@ -147,6 +149,7 @@ class Profiler:
         self.runtime = 0
         self.meta = {}
         self.runs = []
+        self.artifact_store = ArtifactStore()
 
     def add_input_metadata(self, meta):
         """
@@ -185,11 +188,23 @@ class Profiler:
         """
         self.runs.append(run)
 
-    def handle_binary_data(self, data):
-        """
-        Compress and encode binary data to be included in a report
-        """
-        return b64encode(data).decode("utf-8")
+    def put_binary_data(self, data: bytes, limit: int | None = None) -> str | None:
+        """Store binary data and return its artifact reference."""
+        if not data:
+            return None
+        payload = data[:limit] if limit else data
+        return self.artifact_store.put_bytes(payload)
+
+    def merge_binary_data(self, artifact_ref: str | None, data: bytes, limit: int | None = None) -> str | None:
+        """Append raw bytes to an existing artifact payload and store the merged result."""
+        if not data and artifact_ref:
+            return artifact_ref
+        if not artifact_ref:
+            return self.put_binary_data(data, limit=limit)
+        merged = self.artifact_store.get_bytes(artifact_ref) + data
+        if limit:
+            merged = merged[:limit]
+        return self.artifact_store.put_bytes(merged)
 
     def record_error_event(self, error):
         """
@@ -206,7 +221,10 @@ class Profiler:
                 continue
 
             _hash = f.get_hash()
-            entry = {"path": f.get_path(), "size": len(data), "sha256": _hash}
+            data_ref = None
+            if len(data) <= MAX_EMBEDDED_FILE_SIZE:
+                data_ref = self.artifact_store.put_bytes(data)
+            entry = {"path": f.get_path(), "size": len(data), "sha256": _hash, "data_ref": data_ref}
             run.dropped_files.append(entry)
 
     def record_api_event(self, run, pos: TracePosition, name, ret, argv, ctx=[]):
@@ -260,9 +278,7 @@ class Profiler:
         Log file access events. This will include things like handles being opened,
         data reads, and data writes.
         """
-        enc = None
-        if data:
-            enc = self.handle_binary_data(data[:1024])
+        data_ref = self.put_binary_data(data or b"", limit=1024)
 
         for et in (FILE_WRITE, FILE_READ):
             if event_type == et:
@@ -270,8 +286,8 @@ class Profiler:
                     if isinstance(evt, (FileWriteEvent, FileReadEvent)) and evt.path == path and evt.event == et:
                         if size:
                             evt.size = (evt.size or 0) + size
-                        if enc:
-                            evt.data = (evt.data or "") + enc
+                        if data:
+                            evt.data_ref = self.merge_binary_data(evt.data_ref, data, limit=1024)
                         return
 
         handle_str = hex(handle) if handle else None
@@ -307,7 +323,7 @@ class Profiler:
                 path=path,
                 handle=handle_str,
                 size=size,
-                data=enc,
+                data_ref=data_ref,
                 buffer=buffer_str,
             )
         elif event_type == FILE_WRITE:
@@ -316,7 +332,7 @@ class Profiler:
                 path=path,
                 handle=handle_str,
                 size=size,
-                data=enc,
+                data_ref=data_ref,
                 buffer=buffer_str,
             )
         else:
@@ -342,9 +358,7 @@ class Profiler:
         Log registry access events. This includes values and keys being accessed and
         being read/written
         """
-        enc = None
-        if data:
-            enc = self.handle_binary_data(data[:1024])
+        data_ref = self.put_binary_data(data or b"", limit=1024)
 
         handle_str = hex(handle) if handle else None
         buffer_str = hex(buffer) if buffer else None
@@ -380,7 +394,17 @@ class Profiler:
                 handle=handle_str,
                 value_name=value_name,
                 size=size,
-                data=enc,
+                data_ref=data_ref,
+                buffer=buffer_str,
+            )
+        elif event_type == REG_WRITE:
+            event = RegWriteValueEvent(
+                pos=pos,
+                path=path,
+                handle=handle_str,
+                value_name=value_name,
+                size=size,
+                data_ref=data_ref,
                 buffer=buffer_str,
             )
         elif event_type == REG_LIST:
@@ -445,7 +469,7 @@ class Profiler:
             last_base, last_size = self.last_data
             last_evt = self.last_event
             if isinstance(last_evt, MemWriteEvent) and (last_base + last_size) == base:
-                last_evt.data = self.handle_binary_data(b64decode(last_evt.data) + data)
+                last_evt.data_ref = self.merge_binary_data(last_evt.data_ref, data, limit=1024)
                 last_evt.size += len(data)
                 self.last_data = [base, size]
                 return
@@ -454,7 +478,7 @@ class Profiler:
                 path=path,
                 base=hex(base),
                 size=size,
-                data=self.handle_binary_data(data),
+                data_ref=self.put_binary_data(data, limit=1024),
             )
             self.last_data = [base, size]
 
@@ -465,7 +489,7 @@ class Profiler:
             last_base, last_size = self.last_data
             last_evt = self.last_event
             if isinstance(last_evt, MemReadEvent) and (last_base + last_size) == base:
-                last_evt.data = self.handle_binary_data(b64decode(last_evt.data) + data)
+                last_evt.data_ref = self.merge_binary_data(last_evt.data_ref, data, limit=1024)
                 last_evt.size += len(data)
                 self.last_data = [base, size]
                 return
@@ -474,7 +498,7 @@ class Profiler:
                 path=path,
                 base=hex(base),
                 size=size,
-                data=self.handle_binary_data(data),
+                data_ref=self.put_binary_data(data, limit=1024),
             )
             self.last_data = [base, size]
 
@@ -522,9 +546,7 @@ class Profiler:
         Log HTTP traffic that occur during emulation
         """
         proto_str = "https" if secure else "http"
-        body_enc = None
-        if body:
-            body_enc = self.handle_binary_data(body[:0x3000])
+        body_ref = self.put_binary_data(body or b"", limit=0x3000)
 
         event = NetHttpEvent(
             pos=pos,
@@ -532,7 +554,7 @@ class Profiler:
             port=port,
             proto=f"tcp.{proto_str}",
             headers=headers if headers else None,
-            body=body_enc,
+            body_ref=body_ref,
         )
 
         for evt in run.events:
@@ -562,9 +584,7 @@ class Profiler:
         """
         Log network activity for an emulation run
         """
-        data_enc = None
-        if data:
-            data_enc = self.handle_binary_data(data[:0x3000])
+        data_ref = self.put_binary_data(data or b"", limit=0x3000)
 
         event = NetTrafficEvent(
             pos=pos,
@@ -572,7 +592,7 @@ class Profiler:
             port=port,
             proto=proto,
             type=typ if typ != "unknown" else None,
-            data=data_enc,
+            data_ref=data_ref,
             method=method if method else None,
         )
         run.events.append(event)
@@ -636,11 +656,7 @@ class Profiler:
 
             events = None
             if r.events:
-                events = []
-                for evt in r.events:
-                    if isinstance(evt, (MemWriteEvent, MemReadEvent)):
-                        evt.data = evt.data[:1024]
-                    events.append(evt)
+                events = list(r.events)
 
             sym_accesses: list[SymAccessReport] | None = None
             if r.sym_access:
@@ -666,7 +682,8 @@ class Profiler:
             dropped_files = None
             if r.dropped_files:
                 dropped_files = [
-                    DroppedFile(path=f["path"], data=f.get("data"), sha256=f["sha256"]) for f in r.dropped_files
+                    DroppedFile(path=f["path"], size=f["size"], sha256=f["sha256"], data_ref=f.get("data_ref"))
+                    for f in r.dropped_files
                 ]
 
             memory_layout = None
@@ -688,7 +705,7 @@ class Profiler:
                             prot=reg["prot"],
                             is_free=reg.get("is_free", False),
                             accesses=accesses,
-                            data=reg.get("data"),
+                            data_ref=reg.get("data_ref"),
                         )
                     )
                 modules = []
@@ -768,6 +785,7 @@ class Profiler:
 
             errors = [parse_error(e) for e in meta_errors]
 
+        report_data = self.artifact_store.to_report_data()
         report = Report(
             report_version=__report_version__,
             emulation_total_runtime=round(self.runtime, 3),
@@ -779,6 +797,7 @@ class Profiler:
             filetype=self.meta.get("filetype"),
             errors=errors,
             strings=strings_report,
+            data=report_data or None,
             entry_points=entry_points,
         )
         return report

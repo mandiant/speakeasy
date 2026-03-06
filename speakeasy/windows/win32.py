@@ -1,11 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import base64
 import hashlib
 import ntpath
 import os
 import shlex
-import zlib
 
 import speakeasy.common as common
 import speakeasy.windows.objman as objman
@@ -675,7 +673,7 @@ class Win32Emulator(WindowsEmulator):
             common.PERM_MEM_RWX: "rwx",
         }
 
-        capture_dumps = getattr(self.config, "capture_memory_dumps", False)
+        capture_dumps = getattr(self.config, "snapshot_memory_regions", False)
 
         modules_by_base: dict[int, object] = {}
         for m in self.modules:
@@ -719,10 +717,9 @@ class Win32Emulator(WindowsEmulator):
                     "is_free": mm.is_free(),
                     "accesses": hdr_access,
                 }
-                if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
                     try:
-                        compressed = zlib.compress(full_data[:hdr_size])
-                        hdr_dict["data"] = base64.b64encode(compressed).decode()
+                        hdr_dict["data_ref"] = self.profiler.artifact_store.put_bytes(full_data[:hdr_size])
                     except Exception:
                         pass
                 self.curr_run.memory_regions.append(hdr_dict)  # type: ignore[union-attr]
@@ -746,12 +743,11 @@ class Win32Emulator(WindowsEmulator):
                         "is_free": mm.is_free(),
                         "accesses": sec_access,
                     }
-                    if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES):
+                    if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
                         try:
-                            compressed = zlib.compress(
+                            sec_dict["data_ref"] = self.profiler.artifact_store.put_bytes(
                                 full_data[sect.virtual_address : sect.virtual_address + sect.virtual_size]
                             )
-                            sec_dict["data"] = base64.b64encode(compressed).decode()
                         except Exception:
                             pass
                     self.curr_run.memory_regions.append(sec_dict)  # type: ignore[union-attr]
@@ -765,11 +761,10 @@ class Win32Emulator(WindowsEmulator):
                     "accesses": access_stats,
                 }
 
-                if capture_dumps and not tag.startswith(EXCLUDED_TAG_PREFIXES):
+                if capture_dumps and not tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
                     try:
                         data = self.mem_read(mm_base, mm_size)
-                        compressed = zlib.compress(data)
-                        region_dict["data"] = base64.b64encode(compressed).decode()
+                        region_dict["data_ref"] = self.profiler.artifact_store.put_bytes(data)
                     except Exception:
                         pass
 
