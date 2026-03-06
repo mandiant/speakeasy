@@ -3,8 +3,7 @@
 import ctypes as ct
 
 import speakeasy.winenv.defs.usb as usbdefs
-from speakeasy.struct import EmuStruct, Ptr, EmuUnion, Enum
-
+from speakeasy.struct import EmuStruct, EmuUnion, Enum, Ptr
 
 WdfUsbTargetDeviceSelectConfigType = Enum()
 WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeInvalid = 0

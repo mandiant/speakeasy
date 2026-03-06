@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 NTE_BAD_ALGID = 0x80090008
 
@@ -18,6 +19,7 @@ class SERVICE_TABLE_ENTRY(EmuStruct):
         self.lpServiceName = Ptr
         self.lpServiceProc = Ptr
 
+
 class HCRYPTKEY(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
@@ -26,7 +28,7 @@ class HCRYPTKEY(EmuStruct):
         self.keyp = Ptr
 
 
-def get_define_int(define, prefix=''):
+def get_define_int(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
             continue

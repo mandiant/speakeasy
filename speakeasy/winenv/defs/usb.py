@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct
 import ctypes as ct
 
+from speakeasy.struct import EmuStruct
 
 USB_DEVICE_DESCRIPTOR_TYPE = 0x01
 USB_CONFIGURATION_DESCRIPTOR_TYPE = 0x02
