@@ -107,7 +107,7 @@ ENV/
 
 # PyCharm
 .idea
+
 report.json
 /uv.lock
 .claude/
-tests/capa-testfiles.bak/
