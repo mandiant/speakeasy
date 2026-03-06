@@ -49,21 +49,21 @@ class Speakeasy:
             apply_volumes(config, volumes)
 
         self._init_config(config)
-        self.emu = None
-        self.api_hooks = []
-        self.code_hooks = []
-        self.dyn_code_hooks = []
-        self.invalid_insn_hooks = []
-        self.mem_read_hooks = []
+        self.emu: Win32Emulator | WinKernelEmulator | None = None
+        self.api_hooks: list[tuple[Callable, str, str, int, object | None]] = []
+        self.code_hooks: list[tuple[Callable, int, int, dict]] = []
+        self.dyn_code_hooks: list[tuple[Callable, dict]] = []
+        self.invalid_insn_hooks: list[tuple[Callable, list]] = []
+        self.mem_read_hooks: list[tuple[Callable, int, int]] = []
         self.argv = argv
         self.exit_event = exit_event
         self.debug = debug
         self.gdb_port = gdb_port
-        self.loaded_bins = []
-        self.mem_write_hooks = []
-        self.mem_invalid_hooks = []
-        self.interrupt_hooks = []
-        self.mem_map_hooks = []
+        self.loaded_bins: list[str | None] = []
+        self.mem_write_hooks: list[tuple[Callable, int, int]] = []
+        self.mem_invalid_hooks: list[tuple[Callable]] = []
+        self.interrupt_hooks: list[tuple[Callable, dict]] = []
+        self.mem_map_hooks: list[tuple[Callable, int, int]] = []
 
     def __enter__(self):
         return self
@@ -552,7 +552,7 @@ class Speakeasy:
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.interrupt_hooks.append((cb,))
+            self.interrupt_hooks.append((cb, ctx))
             return
         return self.emu.add_interrupt_hook(cb, ctx=ctx, emu=self)
 
