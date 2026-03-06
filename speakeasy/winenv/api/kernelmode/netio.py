@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_ntoa, ntohs
+from typing import Any
 
 import speakeasy.windows.netman as netman
 import speakeasy.windows.objman as objman
@@ -23,13 +24,13 @@ class WskSocket(objman.KernelObject):
 
         self.emu = api.emu
         super().__init__(self.emu)
-        self.family = family
-        self.sock_type = stype
-        self.protocol = protocol
-        self.flags = flags
-        self.dispatch = None
-        self.dispatch_addr = 0
-        self.dispatch_ptr = 0
+        self.family: int = family
+        self.sock_type: int = stype
+        self.protocol: int = protocol
+        self.flags: int = flags
+        self.dispatch: Any | None = None
+        self.dispatch_addr: int = 0
+        self.dispatch_ptr: int = 0
         self.types = api.win
 
         # TODO: support other wsk socket types
@@ -81,13 +82,13 @@ class Netio(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.win = None
-        self.nt = None
-        self.wsk_registrations = {}
-        self.wsk_sockets = {}
-        self.provider_npi = None
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.win: Any | None = None
+        self.nt: Any | None = None
+        self.wsk_registrations: dict[int, Any] = {}
+        self.wsk_sockets: dict[int, WskSocket] = {}
+        self.provider_npi: Any | None = None
 
         self.win = wsk
         self.nt = nt

@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+from typing import Any
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -13,23 +14,23 @@ from .. import api
 
 class WdfDriver:
     def __init__(self):
-        self.reg_path = None
-        self.typed_context_worker = None
-        self.queues = {}
-        self.driver_object_addr = None
-        self.driver_object = None
+        self.reg_path: int | None = None
+        self.typed_context_worker: int | None = None
+        self.queues: dict[int, int] = {}
+        self.driver_object_addr: int | None = None
+        self.driver_object: Any | None = None
 
 
 class WdfDevice:
     def __init__(self):
-        self.device_object_addr = None
-        self.device_object = None
+        self.device_object_addr: int | None = None
+        self.device_object: Any | None = None
 
 
 class WdfUsbDevice:
     def __init__(self):
-        self.num_interfaces = 0
-        self.config_desc = None
+        self.num_interfaces: int = 0
+        self.config_desc: int | None = None
 
 
 class WdfUsbInterface:
@@ -41,8 +42,8 @@ class WdfUsbInterface:
 
 class WdfUsbPipe:
     def __init__(self):
-        self.interface = None
-        self.index = 0
+        self.interface: WdfUsbInterface | None = None
+        self.index: int = 0
 
 
 class Wdfldr(api.ApiHandler):
@@ -58,21 +59,21 @@ class Wdfldr(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.curr_handle = 4
-        self.pnp_device = None
-        self.data = {}
+        self.funcs: dict[str, Any] = {}
+        self.curr_handle: int = 4
+        self.pnp_device: Any | None = None
+        self.data: dict[str, Any] = {}
         self.emu = emu
-        self.wdf_drivers = {}
-        self.wdf_devices = {}
-        self.usb_devices = {}
-        self.usb_pipes = {}
-        self.usb_interfaces = {}
-        self.handles = {}
+        self.wdf_drivers: dict[int, WdfDriver] = {}
+        self.wdf_devices: dict[int, WdfDevice] = {}
+        self.usb_devices: dict[int, WdfUsbDevice] = {}
+        self.usb_pipes: dict[int, WdfUsbPipe] = {}
+        self.usb_interfaces: dict[int, WdfUsbInterface] = {}
+        self.handles: dict[int, Any] = {}
         self.types = wdf
         self.func_table = self.types.WDFFUNCTIONS(emu.get_ptr_size())
-        self.func_table_ptr = None
-        self.component_globals = None
+        self.func_table_ptr: int | None = None
+        self.component_globals: int | None = None
         super().__get_hook_attrs__(self)
 
     def get_handle(self):

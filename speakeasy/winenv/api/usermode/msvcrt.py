@@ -2,6 +2,7 @@
 
 import math
 import struct
+from typing import Any
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
@@ -53,13 +54,13 @@ class Msvcrt(api.ApiHandler):
 
         self.rand_int = RAND_BASE
 
-        self.funcs = {}
-        self.data = {}
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
         self.wintypes = windef
 
-        self.tick_counter = TICK_BASE
-        self.errno_t = None
-        self.file_streams = {}
+        self.tick_counter: int = TICK_BASE
+        self.errno_t: int | None = None
+        self.file_streams: dict[int, Any] = {}
 
         super().__get_hook_attrs__(self)
 

@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 import shlex
+from typing import Any
 
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -21,12 +22,12 @@ class Shell32(api.ApiHandler):
 
         super().__init__(emu)
 
-        self.funcs = {}
-        self.data = {}
-        self.window_hooks = {}
-        self.handle = 0
-        self.win = None
-        self.curr_handle = 0x2800
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.window_hooks: dict[int, tuple] = {}
+        self.handle: int = 0
+        self.win: Any | None = None
+        self.curr_handle: int = 0x2800
 
         super().__get_hook_attrs__(self)
 

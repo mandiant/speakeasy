@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
+from typing import Any
 
 from Crypto.Cipher import ARC4
 
@@ -28,17 +29,17 @@ class AdvApi32(api.ApiHandler):
 
     def __init__(self, emu):
         super().__init__(emu)
-        self.funcs = {}
-        self.data = {}
-        self.hash_objects = {}
-        self.key_objects = {}
+        self.funcs: dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
+        self.hash_objects: dict[int, Any] = {}
+        self.key_objects: dict[int, Any] = {}
         self.k32types = k32
         self.win = adv32
-        self.curr_rand = 0
-        self.curr_handle = 0x2800
-        self.service_status_handle = SERVICE_STATUS_HANDLE_BASE
+        self.curr_rand: int = 0
+        self.curr_handle: int = 0x2800
+        self.service_status_handle: int = SERVICE_STATUS_HANDLE_BASE
 
-        self.rc4 = None
+        self.rc4: Any | None = None
 
         super().__get_hook_attrs__(self)
 
