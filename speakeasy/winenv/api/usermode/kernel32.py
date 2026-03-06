@@ -963,7 +963,7 @@ class Kernel32(api.ApiHandler):
         data = self.mem_cast(_pi, ppi)
         _pi.hProcess = proc_hnd
         _pi.hThread = thread_hnd
-        _pi.dwProcessId = proc.get_id()
+        _pi.dwProcessId = proc.id
         _pi.dwThreadId = thread.tid
 
         self.mem_write(ppi, self.get_bytes(data))
@@ -1202,7 +1202,7 @@ class Kernel32(api.ApiHandler):
         proc_path = proc_path.replace(".", "_")
 
         if is_remote:
-            run_type = f"injected_thread_{proc_path}_{proc_obj.get_id():x}"
+            run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
             evt_type = THREAD_INJECT
         else:
             run_type = "thread"
@@ -1214,7 +1214,7 @@ class Kernel32(api.ApiHandler):
             return handle
 
         if lpThreadId:
-            self.mem_write(lpThreadId, obj.get_id().to_bytes(4, "little"))
+            self.mem_write(lpThreadId, obj.id.to_bytes(4, "little"))
 
         self.record_process_event(proc_obj, evt_type, start_addr=lpStartAddress, param=lpParameter)
 
@@ -1254,7 +1254,7 @@ class Kernel32(api.ApiHandler):
             return handle
 
         if lpThreadId:
-            self.mem_write(lpThreadId, obj.get_id().to_bytes(4, "little"))
+            self.mem_write(lpThreadId, obj.id.to_bytes(4, "little"))
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -1294,7 +1294,7 @@ class Kernel32(api.ApiHandler):
                 if mm:
                     emu.ensure_pe_import_hooks(mm.base)
 
-            handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.get_id()}")
+            handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.id}")
             if proc in emu.child_processes:
                 emu.child_processes.remove(proc)
         return rv
@@ -1352,7 +1352,7 @@ class Kernel32(api.ApiHandler):
         if not obj:
             return 0
 
-        return obj.get_id()
+        return obj.id
 
     @apihook("VirtualQuery", argc=3)
     def VirtualQuery(self, emu, argv, ctx={}):
@@ -1734,7 +1734,7 @@ class Kernel32(api.ApiHandler):
         """DWORD GetCurrentThreadId();"""
 
         thread = emu.get_current_thread()
-        rv = thread.get_id()
+        rv = thread.id
 
         return rv
 
@@ -1743,7 +1743,7 @@ class Kernel32(api.ApiHandler):
         """DWORD GetCurrentProcessId();"""
 
         proc = emu.get_current_process()
-        rv = proc.get_id()
+        rv = proc.id
 
         return rv
 
@@ -4279,7 +4279,7 @@ class Kernel32(api.ApiHandler):
 
         if pSessionId:
             for p in emu.get_processes():
-                if p.get_id() == dwProcessId:
+                if p.id == dwProcessId:
                     sessid = p.get_session_id()
                     sessid = (sessid).to_bytes(4, "little")
                     self.mem_write(pSessionId, sessid)

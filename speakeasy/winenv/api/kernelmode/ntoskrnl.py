@@ -627,13 +627,13 @@ class Ntoskrnl(api.ApiHandler):
                     spi = self.win.SYSTEM_PROCESS_INFORMATION(emu.get_ptr_size())
 
                     spi.NumberOfThreads = len(proc.threads)
-                    spi.UniqueProcessId = proc.get_id()
+                    spi.UniqueProcessId = proc.id
                     rel_offset += self.sizeof(spi)
 
                     for thread in proc.threads:
                         sti = self.win.SYSTEM_THREAD_INFORMATION(emu.get_ptr_size())
-                        sti.ClientId.UniqueProcess = proc.get_id()
-                        sti.ClientId.UniqueThread = thread.get_id()
+                        sti.ClientId.UniqueProcess = proc.id
+                        sti.ClientId.UniqueThread = thread.id
                         tis.append(sti)
                         rel_offset += self.sizeof(sti)
 

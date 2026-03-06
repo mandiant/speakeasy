@@ -252,7 +252,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         # Create the service key for the driver
         drv = self.create_driver_object(pe=module)
-        svc_key = self.regman.create_key(drv.get_reg_path())
+        svc_key = self.regman.create_key(drv.reg_path)
         # Create the values for the service key
         svc_key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, module.emu_path)
         svc_key.create_value("Type", regdefs.REG_DWORD, 0x1)  # SERVICE_KERNEL_DRIVER
@@ -260,7 +260,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         svc_key.create_value("ErrorControl", regdefs.REG_DWORD, 0x1)  # SERVICE_ERROR_NORMAL
 
         # Create the parameters subkey
-        self.regman.create_key(drv.get_reg_path() + "\\Parameters")
+        self.regman.create_key(drv.reg_path + "\\Parameters")
 
         if module.ep > 0:
             ep = module.base + module.ep
@@ -304,7 +304,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         alloc_size = ext_size + dev.sizeof()
 
         if not name:
-            devname = rf"\Device\{dev.get_id():x}"
+            devname = rf"\Device\{dev.id:x}"
             if not tag:
                 tag = "emu.device.autogen"
             name = f"{tag}.{devname}"

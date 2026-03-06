@@ -61,21 +61,6 @@ class SEH:
         self.context = context
         self.context_address = address
 
-    def get_context(self):
-        return self.context
-
-    def set_last_func(self, func):
-        self.last_func = func
-
-    def set_record(self, record, address=0):
-        self.record = record
-
-    def set_current_frame(self, frame):
-        self.frame = frame
-
-    def get_frames(self):
-        return self.frames
-
     def clear_frames(self):
         self.frames = []
 
@@ -125,12 +110,6 @@ class KernelObject:
         data = self.get_bytes()
         if data and self.address:
             self.emu.mem_write(self.address, data)
-
-    def get_id(self):
-        return self.id
-
-    def set_id(self, oid):
-        self.id = oid
 
     def get_class_name(self):
         if self.object:
@@ -187,9 +166,6 @@ class Driver(KernelObject):
 
     def get_basename(self):
         return self.basename.lower()
-
-    def get_reg_path(self):
-        return self.reg_path
 
     def init_driver_section(self):
         """
@@ -338,9 +314,6 @@ class Device(KernelObject):
         self.object = devobj
         self.driver = None
 
-    def get_parent_driver(self):
-        return self.driver
-
 
 class FileObject(KernelObject):
     """
@@ -409,7 +382,7 @@ class Thread(KernelObject):
         self.object = self.nt_types.ETHREAD(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
         self.object.Data = b"\xff" * self.sizeof()
-        self.tid = self.get_id()
+        self.tid = self.id
         self.modified_pc = False
         self.teb = None
         self.seh = SEH()
@@ -528,7 +501,7 @@ class Process(KernelObject):
             self.emu.mem_write(list_entry + 8, list_entry.to_bytes(8, "little"))
         self.name = name
         self.base = base
-        self.pid = self.get_id()
+        self.pid = self.id
         self.modules = user_modules
         self.threads = []
         self.console = None
@@ -899,7 +872,7 @@ class ObjectManager:
     def new_object(self, obj_type):
 
         obj = obj_type(emu=self.emu)
-        obj.set_id(self.new_id())
+        obj.id = self.new_id()
         return self.add_object(obj)
 
     def add_object(self, obj):
@@ -948,7 +921,7 @@ class ObjectManager:
 
     def get_object_from_id(self, id):
         for a, o in self.objects.items():
-            if o.get_id() == id:
+            if o.id == id:
                 return o
 
     def get_object_from_name(self, name, check_symlinks=True):

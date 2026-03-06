@@ -1032,7 +1032,7 @@ class Msvcrt(api.ApiHandler):
         _ctx = self.mem_cast(_ctx, context)
 
         seh.set_context(_ctx, address=context)
-        seh.set_record(record)
+        seh.record = record
 
         seh.clear_frames()
 
@@ -1206,7 +1206,7 @@ class Msvcrt(api.ApiHandler):
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
 
         if thrdaddr:
-            self.mem_write(thrdaddr, obj.get_id().to_bytes(4, "little"))
+            self.mem_write(thrdaddr, obj.id.to_bytes(4, "little"))
 
         return handle
 

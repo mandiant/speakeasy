@@ -98,29 +98,29 @@ class Run:
         self.instr_cnt: int = 0
         self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
-        self.sym_access: dict = {}
-        self.dropped_files: list[dict] = []
-        self.mem_access: dict = {}
+        self.sym_access: dict[int, MemAccess] = {}
+        self.dropped_files: list[dict[str, Any]] = []
+        self.mem_access: dict[Any, MemAccess] = {}
         self.section_access: dict[tuple[int, int], MemAccess] = {}
-        self.dyn_code: dict[str, list | set] = {"mmap": [], "base_addrs": set()}
-        self.process_context: object | None = None
-        self.thread: object | None = None
+        self.dyn_code: dict[str, list[dict[str, int | str]] | set[int]] = {"mmap": [], "base_addrs": set()}
+        self.process_context: Any | None = None
+        self.thread: Any | None = None
         self.unique_apis: list[str] = []
         self.api_hash = hashlib.sha256()
-        self.stack: object | None = None
-        self.api_callbacks: list = []
-        self.exec_cache: deque = deque(maxlen=4)
-        self.read_cache: deque = deque(maxlen=4)
-        self.write_cache: deque = deque(maxlen=4)
+        self.stack: MemAccess | None = None
+        self.api_callbacks: list[tuple[int, str, list[Any] | tuple[Any, ...]]] = []
+        self.exec_cache: deque[MemAccess] = deque(maxlen=4)
+        self.read_cache: deque[MemAccess] = deque(maxlen=4)
+        self.write_cache: deque[MemAccess] = deque(maxlen=4)
 
-        self.args: list | None = None
+        self.args: list[Any] | tuple[Any, ...] | None = None
         self.start_addr: int | None = None
-        self.type: str | None = None
-        self.error: dict = {}
+        self.type: str | int | None = None
+        self.error: dict[str, Any] = {}
         self.num_apis: int = 0
         self.coverage: set[int] = set()
-        self.memory_regions: list[dict] = []
-        self.loaded_modules: list[dict] = []
+        self.memory_regions: list[dict[str, Any]] = []
+        self.loaded_modules: list[dict[str, Any]] = []
 
     def get_api_count(self):
         """
@@ -139,14 +139,14 @@ class Profiler:
         super().__init__()
 
         self.start_time: float = 0
-        self.strings: dict[str, list] = {"ansi": [], "unicode": []}
-        self.decoded_strings: dict[str, list] = {"ansi": [], "unicode": []}
-        self.last_data = [0, 0]
-        self.last_event: AnyEvent | dict = {}
+        self.strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
+        self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
+        self.last_data: list[int] = [0, 0]
+        self.last_event: AnyEvent | dict[str, Any] = {}
         self.set_start_time()
-        self.runtime = 0
-        self.meta = {}
-        self.runs = []
+        self.runtime: float = 0
+        self.meta: dict[str, Any] = {}
+        self.runs: list[Run] = []
         self.artifact_store = ArtifactStore()
 
     def add_input_metadata(self, meta):
@@ -180,7 +180,7 @@ class Profiler:
         """
         return int(time.time())
 
-    def add_run(self, run):
+    def add_run(self, run: Run) -> None:
         """
         Add a new run to the captured run list
         """
@@ -422,7 +422,7 @@ class Profiler:
         creating a child process, reading/writing to a process, or creating a thread
         within another process.
         """
-        pid = proc.get_id()
+        pid = proc.id
         path = proc.get_process_path()
         proc_pos = TracePosition(tick=pos.tick, tid=pos.tid, pid=pid, pc=pos.pc)
 
@@ -635,8 +635,8 @@ class Profiler:
         entry_points = []
 
         for r in self.runs:
-            args = []
-            for a in r.args:
+            args: list[Any] = []
+            for a in r.args or []:
                 if isinstance(a, int):
                     args.append(hex(a))
                 else:
@@ -731,12 +731,12 @@ class Profiler:
             ep_tid = r.thread.tid if r.thread else None
             ep_pid = None
             if r.process_context:
-                ep_pid = r.process_context.get_id()
+                ep_pid = r.process_context.id
             elif r.thread and r.thread.process:
-                ep_pid = r.thread.process.get_id()
+                ep_pid = r.thread.process.id
 
             ep = EntryPoint(
-                ep_type=r.type,
+                ep_type=str(r.type) if r.type is not None else "",
                 start_addr=r.start_addr,
                 ep_args=args,
                 pid=ep_pid,
