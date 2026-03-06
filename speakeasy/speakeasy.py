@@ -694,7 +694,7 @@ class Speakeasy:
 
         with zipfile.ZipFile(_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             for f in files:
-                path = f.get_path()
+                path = f.path
                 file_name = ntpath.basename(path)
                 entry = FileManifestEntry(
                     path=path,

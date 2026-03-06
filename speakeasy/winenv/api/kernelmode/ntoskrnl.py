@@ -2932,7 +2932,7 @@ class Ntoskrnl(api.ApiHandler):
         _file = self.file_get(FileHandle)
 
         if _file and buf and length:
-            path = _file.get_path()
+            path = _file.path
             argv[0] = path
 
             data = self.mem_read(buf, length)
@@ -2972,7 +2972,7 @@ class Ntoskrnl(api.ApiHandler):
         _file = self.file_get(FileHandle)
 
         if _file and buf:
-            path = _file.get_path()
+            path = _file.path
             argv[0] = path
 
             data = _file.get_data()
@@ -3110,7 +3110,7 @@ class Ntoskrnl(api.ApiHandler):
         if sect:
             buf = None
             size = 0
-            f = sect.get_backed_file()
+            f = sect.backed_file
             if f and not pref_address:
                 data = f.get_data()
 
@@ -3124,7 +3124,7 @@ class Ntoskrnl(api.ApiHandler):
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, tag="api", process=proc_obj)
                 sect.add_view(buf, full_offset, size, access)
                 mm = emu.get_address_map(buf)
-                fname = ntpath.basename(f.get_path())
+                fname = ntpath.basename(f.path)
                 fname = fname.replace(".", "_")
                 mm.tag = f"{tag_prefix}.{fname}.0x{buf:x}"
                 self.mem_write(buf, data)
