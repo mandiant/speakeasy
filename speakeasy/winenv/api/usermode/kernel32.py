@@ -2309,10 +2309,10 @@ class Kernel32(api.ApiHandler):
         """
 
         thread = emu.get_current_thread()
-        tls = thread.get_tls()
+        tls = thread.tls
 
         tls.append(0)
-        thread.set_tls(tls)
+        thread.tls = tls
         idx = len(tls) - 1
 
         return idx
@@ -2330,11 +2330,11 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         thread = emu.get_current_thread()
-        tls = thread.get_tls()
+        tls = thread.tls
 
         if dwTlsIndex < len(tls):
             tls[dwTlsIndex] = lpTlsValue
-            thread.set_tls(tls)
+            thread.tls = tls
             rv = 1
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
@@ -2354,7 +2354,7 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         thread = emu.get_current_thread()
-        tls = thread.get_tls()
+        tls = thread.tls
 
         if dwTlsIndex < len(tls):
             rv = tls[dwTlsIndex]
@@ -2373,10 +2373,10 @@ class Kernel32(api.ApiHandler):
         """
 
         thread = emu.get_current_thread()
-        fls = thread.get_fls()
+        fls = thread.fls
 
         fls.append(0)
-        thread.set_fls(fls)
+        thread.fls = fls
         idx = len(fls) - 1
 
         return idx
@@ -2394,14 +2394,14 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         thread = emu.get_current_thread()
-        fls = thread.get_fls()
+        fls = thread.fls
 
         if len(fls) == 0:
             fls.append(0)
 
         if dwFlsIndex < len(fls):
             fls[dwFlsIndex] = lpFlsData
-            thread.set_fls(fls)
+            thread.fls = fls
             rv = 1
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
@@ -2420,7 +2420,7 @@ class Kernel32(api.ApiHandler):
         rv = 0
 
         thread = emu.get_current_thread()
-        fls = thread.get_fls()
+        fls = thread.fls
 
         if dwFlsIndex < len(fls):
             rv = fls[dwFlsIndex]
