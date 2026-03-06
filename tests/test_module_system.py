@@ -519,7 +519,6 @@ def test_provenance_tracking(config, load_test_bin):
             "ApiModuleLoader",
             "DecoyLoader",
             "ShellcodeLoader",
-            "IdaLoader",
         ), f"Unexpected loader type: {loader_type}"
 
 

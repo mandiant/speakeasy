@@ -170,13 +170,6 @@ def test_shellcode_loader_make_image():
     assert image.visible_in_peb is False
 
 
-@pytest.mark.xfail(reason="not yet implemented", raises=NotImplementedError)
-def test_ida_loader_make_image():
-    from speakeasy.windows.loaders import IdaLoader
-
-    loader = IdaLoader()
-    loader.make_image()
-
 
 def test_api_module_loader_make_image():
     class FakeApiHandler:
