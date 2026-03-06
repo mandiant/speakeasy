@@ -67,76 +67,76 @@ class WindowsEmulator(BinaryEmulator):
     def __init__(self, config, exit_event=None, debug=False, gdb_port=None):
         super().__init__(config)
 
-        self.debug = debug
-        self.gdb_port = gdb_port
-        self.arch = 0
-        self.modules = []
-        self._setup_done = False
-        self.bootstrap_phase = BootstrapPhase.INITIALIZED
-        self.curr_run = None
-        self.restart_curr_run = False
-        self.curr_mod = None
-        self.runs = []
-        self.input = None
-        self.exit_event = exit_event
-        self.page_size = 4096
-        self.ptr_size = None  # type: ignore[assignment]
-        self.max_runs = 100
-        self.symbols = {}
-        self.ansi_strings = []
-        self.unicode_strings = []
-        self.tmp_maps = []
-        self.impdata_queue = []
-        self.run_queue = []
-        self.suspended_runs = []
-        self.cd = ""
-        self.emu_hooks_set = True
-        self.api = None
-        self.curr_process = None
-        self.om = None
+        self.debug: bool = debug
+        self.gdb_port: int | None = gdb_port
+        self.arch: int = 0
+        self.modules: list[Any] = []
+        self._setup_done: bool = False
+        self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
+        self.curr_run: Run | None = None
+        self.restart_curr_run: bool = False
+        self.curr_mod: Any | None = None
+        self.runs: list[Run] = []
+        self.input: dict[str, Any] | None = None
+        self.exit_event: Any | None = exit_event
+        self.page_size: int = 4096
+        self.ptr_size: int | None = None
+        self.max_runs: int = 100
+        self.symbols: dict[int, str] = {}
+        self.ansi_strings: list[str] = []
+        self.unicode_strings: list[str] = []
+        self.tmp_maps: list[tuple[int, int]] = []
+        self.impdata_queue: list[tuple[int, int, str, int]] = []
+        self.run_queue: list[Run] = []
+        self.suspended_runs: list[Run] = []
+        self.cd: str = ""
+        self.emu_hooks_set: bool = True
+        self.api: Any | None = None
+        self.curr_process: Any | None = None
+        self.om: objman.ObjectManager | None = None
         self.import_table: dict[int, tuple[str, str]] = {}
-        self._next_sentinel = winemu.IMPORT_HOOK_ADDR
-        self.callbacks = []
-        self.mem_trace_hooks = []
-        self.coverage_hook = None
-        self.debug_hook = None
-        self.kernel_mode = False
-        self.virtual_mem_base = 0x50000
+        self._next_sentinel: int = winemu.IMPORT_HOOK_ADDR
+        self.callbacks: list[tuple[int, str, str]] = []
+        self.mem_trace_hooks: list[Any] = []
+        self.coverage_hook: Any | None = None
+        self.debug_hook: Any | None = None
+        self.kernel_mode: bool = False
+        self.virtual_mem_base: int = 0x50000
 
-        self.tmp_code_hook = None
-        self.veh_handlers = []
+        self.tmp_code_hook: Any | None = None
+        self.veh_handlers: list[int] = []
 
-        self.run_complete = False
-        self.emu_complete = False
-        self.global_data = {}
-        self.processes = []
+        self.run_complete: bool = False
+        self.emu_complete: bool = False
+        self.global_data: dict[str, Any] = {}
+        self.processes: list[Any] = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
         # to not mix up config processes with child processes
-        self.child_processes = []
-        self.curr_thread = None
-        self.curr_exception_code = 0
-        self.prev_pc = 0
-        self.unhandled_exception_filter = 0
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
+        self.child_processes: list[Any] = []
+        self.curr_thread: Any | None = None
+        self.curr_exception_code: int = 0
+        self.prev_pc: int = 0
+        self.unhandled_exception_filter: int = 0
+        self._seh_last_fault: tuple[int, int | None] | None = None
+        self._seh_repeat_count: int = 0
 
-        self.fs_addr = 0
-        self.gs_addr = 0
+        self.fs_addr: int = 0
+        self.gs_addr: int = 0
 
-        self.return_hook = winemu.EMU_RETURN_ADDR
-        self.exit_hook = winemu.EXIT_RETURN_ADDR
+        self.return_hook: int = winemu.EMU_RETURN_ADDR
+        self.exit_hook: int = winemu.EXIT_RETURN_ADDR
         self._parse_config(config)
 
         self.wintypes = windef
         # OS resource managers
-        self.regman = RegistryManager(self.config.registry)
-        self.fileman = FileManager(config, self)
-        self.netman = NetworkManager(config=self.config.network)
-        self.driveman = DriveManager(config=self.config.drives)
-        self.cryptman = CryptoManager()
-        self.hammer = ApiHammer(self)
-        self._io_manager = None
+        self.regman: RegistryManager = RegistryManager(self.config.registry)
+        self.fileman: FileManager = FileManager(config, self)
+        self.netman: NetworkManager = NetworkManager(config=self.config.network)
+        self.driveman: DriveManager = DriveManager(config=self.config.drives)
+        self.cryptman: CryptoManager = CryptoManager()
+        self.hammer: ApiHammer = ApiHammer(self)
+        self._io_manager: Any | None = None
 
     def _parse_config(self, config):
         """
@@ -217,11 +217,11 @@ class WindowsEmulator(BinaryEmulator):
             return
 
         logger.debug("installing memory tracing hooks")
-        self.mem_trace_hooks = (  # type: ignore[assignment]
+        self.mem_trace_hooks = [
             self.add_code_hook(cb=self._hook_code_tracing),
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write),
-        )
+        ]
 
     def set_coverage_hooks(self):
         if not self.config.analysis.coverage:

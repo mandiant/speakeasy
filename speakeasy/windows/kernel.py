@@ -30,16 +30,16 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     def __init__(self, config, debug=False, exit_event=None, gdb_port=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port)
 
-        self.disasm_eng = None
-        self.curr_mod = None
-        self.debug = debug
-        self.drivers = []
-        self.pool_allocs = []
-        self.all_entrypoints = False
-        self.kernel_mode = True
-        self.irql = ddk.PASSIVE_LEVEL
-        self.delayed_runs = []
-        self.system_time = SYSTEM_TIME_START
+        self.disasm_eng: object | None = None
+        self.curr_mod: object | None = None
+        self.debug: bool = debug
+        self.drivers: list[objman.Driver] = []
+        self.pool_allocs: list[tuple[int, int, int, str]] = []
+        self.all_entrypoints: bool = False
+        self.kernel_mode: bool = True
+        self.irql: int = ddk.PASSIVE_LEVEL
+        self.delayed_runs: list[Run] = []
+        self.system_time: int = SYSTEM_TIME_START
         self.ktypes = ntos
 
     def get_system_time(self):
