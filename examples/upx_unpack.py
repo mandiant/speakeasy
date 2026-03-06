@@ -44,10 +44,12 @@ def main(args):
 
     print("[*] Unpacking module with section hop")
     # Get the section info for "UPX0" to detect the section hop
-    upx0 = module.get_section_by_name("UPX0")
+    upx0 = next((section for section in module.sections if section.name == "UPX0"), None)
+    if upx0 is None:
+        raise ValueError("module has no UPX0 section")
 
-    start = base + upx0.VirtualAddress
-    end = start + upx0.Misc_VirtualSize
+    start = base + upx0.virtual_address
+    end = start + upx0.virtual_size
 
     unpacker.set_dump_range(base, start, end)
     # Add the callback
