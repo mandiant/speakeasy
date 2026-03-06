@@ -88,7 +88,7 @@ class Ws2_32(api.ApiHandler):
 
         sock = self.netman.new_socket(fam_str, sock_str, protocol, dwFlags)
 
-        fd = sock.get_fd()
+        fd = sock.fd
 
         argv[0] = fam_str
         argv[1] = sock_str
@@ -149,7 +149,7 @@ class Ws2_32(api.ApiHandler):
 
         sock = self.netman.new_socket(fam_str, sock_str, protocol, 0)
 
-        fd = sock.get_fd()
+        fd = sock.fd
 
         argv[0] = fam_str
         argv[1] = sock_str
@@ -339,7 +339,7 @@ class Ws2_32(api.ApiHandler):
         socket = self.netman.get_socket(s)
         if not socket:
             return 0xFFFFFFFF
-        stype = socket.get_type()
+        stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
             proto = "tcp"
@@ -374,7 +374,7 @@ class Ws2_32(api.ApiHandler):
         rport = ntohs(sa.sin_port)
 
         socket = self.netman.get_socket(s)
-        stype = socket.get_type()
+        stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
             proto = "tcp"
@@ -446,7 +446,7 @@ class Ws2_32(api.ApiHandler):
         s, addr, addrlen = argv
 
         socket = self.netman.get_socket(s)
-        stype = socket.get_type()
+        stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
             proto = "tcp"
@@ -475,7 +475,7 @@ class Ws2_32(api.ApiHandler):
             sockaddr.sin_port = port
             self.mem_write(addr, sockaddr.get_bytes())
 
-        return new_sock.get_fd()
+        return new_sock.fd
 
     @apihook("inet_ntoa", argc=1, ordinal=12)
     def inet_ntoa(self, emu, argv, ctx={}):
@@ -601,7 +601,7 @@ class Ws2_32(api.ApiHandler):
 
         self.mem_write(buf, data)
 
-        stype = sock.get_type()
+        stype = sock.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
             proto = "tcp"
@@ -629,7 +629,7 @@ class Ws2_32(api.ApiHandler):
         data = b""
 
         socket = self.netman.get_socket(s)
-        stype = socket.get_type()
+        stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
             proto = "tcp"

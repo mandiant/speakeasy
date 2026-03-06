@@ -43,12 +43,6 @@ class Socket:
         self.curr_packet = BytesIO(b"")
         self.packet_queue = []
 
-    def get_fd(self):
-        return self.fd
-
-    def get_type(self):
-        return self.type
-
     def set_connection_info(self, host, port):
         self.connected_host = host
         self.connected_port = port
@@ -137,18 +131,14 @@ class WininetRequest(WininetComponent):
         self.ctx = ctx
         self.response = None
 
-    def get_session(self):
-        return self.session
-
     def get_server(self):
-        return self.get_session().server
+        return self.session.server
 
     def get_port(self):
-        return self.get_session().port
+        return self.session.port
 
     def get_instance(self):
-        sess = self.get_session()
-        return sess.get_instance()
+        return self.session.instance
 
     def is_secure(self):
         if "INTERNET_FLAG_SECURE" in self.flags:
@@ -164,12 +154,11 @@ class WininetRequest(WininetComponent):
             request_string += headers
 
         inst = self.get_instance()
-        sess = self.get_session()
 
-        host = sess.server
+        host = self.session.server
         request_string += f"Host: {host}\n"
 
-        ua = inst.get_user_agent()
+        ua = inst.user_agent
         if ua:
             request_string += f"User-Agent: {ua}\n"
 
@@ -238,9 +227,6 @@ class WininetRequest(WininetComponent):
 
         return self.response
 
-    def get_object_path(self):
-        return self.objname
-
 
 class WininetSession(WininetComponent):
     def __init__(self, instance, server, port, user, password, service, flags, ctx):
@@ -255,12 +241,6 @@ class WininetSession(WininetComponent):
         self.requests = {}
 
         self.instance = instance
-
-    def get_instance(self):
-        return self.instance
-
-    def get_flags(self):
-        return self.flags
 
     def new_request(self, verb, objname, ver, ref, accepts, flags, ctx):
         req = WininetRequest(self, verb, objname, ver, ref, accepts, flags, ctx)
@@ -290,9 +270,6 @@ class WininetInstance(WininetComponent):
         hdl = sess.get_handle()
         self.sessions.update({hdl: sess})
         return sess
-
-    def get_user_agent(self):
-        return self.user_agent
 
 
 class NetworkManager:
