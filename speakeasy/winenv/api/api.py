@@ -215,7 +215,7 @@ class ApiHandler:
         proc = self.emu.get_current_process()
         tick = run.instr_cnt if run else 0
         tid = thread.tid if thread else 0
-        pid = proc.get_id() if proc else 0
+        pid = proc.id if proc else 0
         return TracePosition(tick=tick, tid=tid, pid=pid)
 
     def record_file_access_event(
@@ -231,7 +231,7 @@ class ApiHandler:
             )
 
     def record_process_event(self, proc, event_type, **kwargs):
-        logger.debug("process_%s: pid=%d", event_type, proc.get_id())
+        logger.debug("process_%s: pid=%d", event_type, proc.id)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()

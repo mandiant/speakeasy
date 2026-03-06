@@ -328,10 +328,10 @@ class WindowsEmulator(BinaryEmulator):
         rv = ddk.STATUS_INVALID_DEVICE_REQUEST
         outbuf = b""
 
-        if not dev or not hasattr(dev, "get_parent_driver"):
+        if not dev or not hasattr(dev, "driver"):
             return rv, outbuf
 
-        parent = dev.get_parent_driver()
+        parent = dev.driver
         if not parent:
             return rv, outbuf
 
@@ -1496,7 +1496,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.profiler:
             tick = self.curr_run.instr_cnt if self.curr_run else 0
             tid = self.curr_thread.tid if self.curr_thread else 0
-            pid = self.curr_process.get_id() if self.curr_process else 0
+            pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
             self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv)
 
@@ -2395,7 +2395,7 @@ class WindowsEmulator(BinaryEmulator):
             if self.profiler:
                 tick = run.instr_cnt if run else 0
                 tid = self.curr_thread.tid if self.curr_thread else 0
-                pid = self.curr_process.get_id() if self.curr_process else 0
+                pid = self.curr_process.id if self.curr_process else 0
                 pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
                 self.profiler.record_exception_event(run, pos, instr, except_code, entry.Handler, regs)
 
@@ -2423,7 +2423,7 @@ class WindowsEmulator(BinaryEmulator):
         if seh.handler_ret_val is None:
             seh.handler_ret_val = ret_val
 
-        ctx = seh.get_context()
+        ctx = seh.context
 
         if seh.context_address:
             ctx = self.mem_cast(ctx, seh.context_address)
@@ -2432,14 +2432,14 @@ class WindowsEmulator(BinaryEmulator):
         # do this?
         self.load_thread_context(ctx)
 
-        for frame in seh.get_frames():
+        for frame in seh.frames:
             if not frame.searched:
-                seh.set_current_frame(frame)
+                seh.frame = frame
                 scope_record = frame.scope_records[0]
                 if not scope_record.filter_called and scope_record.record.FilterFunc:
                     self.set_func_args(sp, winemu.SEH_RETURN_ADDR)
                     self.set_pc(scope_record.record.FilterFunc)
-                    seh.set_last_func(scope_record.record.FilterFunc)
+                    seh.last_func = scope_record.record.FilterFunc
                     scope_record.filter_called = True
                     return
 
@@ -2451,11 +2451,11 @@ class WindowsEmulator(BinaryEmulator):
                     if not scope_record.handler_called:
                         # If no filter was provided, this is a finally block
                         self.set_pc(scope_record.record.HandlerAddress)
-                        seh.set_last_func(scope_record.record.HandlerAddress)
+                        seh.last_func = scope_record.record.HandlerAddress
                         scope_record.handler_called = True
                         return
                 elif windef.EXCEPTION_CONTINUE_EXECUTION == ret_val:
-                    ctx = seh.get_context()
+                    ctx = seh.context
                     if seh.context_address:
                         _ctx = self.mem_cast(ctx, seh.context_address)
                     self.load_thread_context(_ctx)
@@ -2467,8 +2467,8 @@ class WindowsEmulator(BinaryEmulator):
 
                 frame.searched = True
 
-        if windef.EXCEPTION_CONTINUE_SEARCH == ret_val and not len(seh.get_frames()):
-            ctx = seh.get_context()
+        if windef.EXCEPTION_CONTINUE_SEARCH == ret_val and not len(seh.frames):
+            ctx = seh.context
             self.set_pc(ctx.Eip)
             return
 

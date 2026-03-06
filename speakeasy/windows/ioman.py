@@ -19,7 +19,7 @@ class IoManager:
         outbuf = b""
 
         # Get parent driver for you
-        drv = dev.get_parent_driver()
+        drv = dev.driver
         bn = drv.get_basename()
 
         # Find the emulated kernel module (if any)
