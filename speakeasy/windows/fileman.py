@@ -7,6 +7,7 @@ import logging
 import ntpath
 import os
 import shlex
+from typing import Any
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -71,14 +72,14 @@ class File:
     curr_handle = 0x80
 
     def __init__(self, path, config={}, data=b""):
-        self.path = path
-        self.data = None
-        self.bytes_written = 0
+        self.path: str = path
+        self.data: io.BytesIO | bytes | None = None
+        self.bytes_written: int = 0
         if data:
             self.data = io.BytesIO(data)
-        self.curr_offset = 0
-        self.is_dir = False
-        self.config = config
+        self.curr_offset: int = 0
+        self.is_dir: bool = False
+        self.config: Any = config
 
     def duplicate(self):
         if not self.data and self.config:
@@ -215,23 +216,23 @@ class FileManager:
 
     def __init__(self, config, emu):
         super().__init__()
-        self.file_handles = {}
-        self.pipe_handles = {}
-        self.file_maps = {}
+        self.file_handles: dict[int, File] = {}
+        self.pipe_handles: dict[int, Pipe] = {}
+        self.file_maps: dict[int, FileMap] = {}
 
         # top level config
-        self.config = config
+        self.config: Any = config
 
         # "files" key of config
-        self.file_config = self.config.filesystem
-        self.emu = emu
+        self.file_config: Any = self.config.filesystem
+        self.emu: Any = emu
 
         cmdline = self.config.command_line or ""
 
         self.emulated_binname = shlex.split(cmdline)[0] if cmdline else ""
 
         # First file in this list seems to always be the module itself
-        self.files = []
+        self.files: list[File] = []
 
         full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
         if full_path_entries:

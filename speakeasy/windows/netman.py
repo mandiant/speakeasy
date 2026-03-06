@@ -3,6 +3,7 @@
 import io
 import os
 from io import BytesIO
+from typing import Any
 from urllib.parse import urlparse
 
 from speakeasy.errors import NetworkEmuError
@@ -33,15 +34,15 @@ class Socket:
     """
 
     def __init__(self, fd, family, stype, protocol, flags):
-        self.fd = fd
-        self.family = family
-        self.type = stype
-        self.protocol = protocol
-        self.flags = flags
-        self.connected_host = ""
-        self.connected_port = 0
-        self.curr_packet = BytesIO(b"")
-        self.packet_queue = []
+        self.fd: int = fd
+        self.family: int = family
+        self.type: int = stype
+        self.protocol: int = protocol
+        self.flags: int = flags
+        self.connected_host: str = ""
+        self.connected_port: int = 0
+        self.curr_packet: BytesIO = BytesIO(b"")
+        self.packet_queue: list[bytes] = []
 
     def set_connection_info(self, host, port):
         self.connected_host = host
@@ -86,7 +87,7 @@ class WininetComponent:
     """
 
     curr_handle = 0x20
-    config = None
+    config: Any | None = None
 
     def __init__(self):
         super().__init__()
@@ -124,12 +125,12 @@ class WininetRequest(WininetComponent):
 
         if not ver:
             ver = "HTTP/1.1"
-        self.ver = ver
+        self.ver: str = ver
         self.referrer = ref
         self.accept_types = accepts
         self.flags = flags
         self.ctx = ctx
-        self.response = None
+        self.response: BytesIO | None = None
 
     def get_server(self):
         return self.session.server
@@ -238,7 +239,7 @@ class WininetSession(WininetComponent):
         self.service = service
         self.flags = flags
         self.ctx = ctx
-        self.requests = {}
+        self.requests: dict[int, WininetRequest] = {}
 
         self.instance = instance
 
@@ -257,7 +258,7 @@ class WininetInstance(WininetComponent):
         self.proxy = proxy
         self.bypass = bypass
         self.flags = flags
-        self.sessions = {}
+        self.sessions: dict[int, WininetSession] = {}
 
     def get_session(self, sess_handle):
         self.sessions.get(sess_handle)
@@ -279,12 +280,12 @@ class NetworkManager:
 
     def __init__(self, config):
         super().__init__()
-        self.sockets = {}
-        self.wininets = {}
-        self.curr_fd = 4
-        self.curr_handle = 0x20
-        self.config = config
-        self.dns = None
+        self.sockets: dict[int, Socket] = {}
+        self.wininets: dict[int, WininetInstance] = {}
+        self.curr_fd: int = 4
+        self.curr_handle: int = 0x20
+        self.config: Any = config
+        self.dns: Any | None = None
 
         WininetComponent.config = config
         if config:
