@@ -97,6 +97,13 @@ Active runtime config is built in this order:
 2. optional `--config` JSON overlay
 3. explicit CLI overrides
 
+Overlay semantics:
+- mappings merge recursively
+- lists replace the baseline list wholesale
+- omitted fields inherit model defaults
+
+The packaged files under `speakeasy/configs/*.json` are ordinary overlays. They are not selected automatically.
+
 Conflict example:
 
 ```bash
