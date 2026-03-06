@@ -24,23 +24,23 @@ Entry-point highlights:
 - `dynamic_code_segments`: populated when dynamically mapped code executes.
 - `coverage`: populated only if `analysis.coverage=true`.
 - `dropped_files`: populated from filesystem manager fully-written files.
-- `memory`: populated from run-end memory/module capture, with optional compressed region data when `capture_memory_dumps=true`.
+- `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
 
 ## Report fields to recipe flags
 
 - top-level `strings` is controlled by `--analysis-strings` / `--no-analysis-strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
 - `entry_points[*].coverage` is populated by `--analysis-coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
 - `entry_points[*].sym_accesses` and `entry_points[*].memory.layout[*].accesses` are populated by `--analysis-memory-tracing` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
-- `entry_points[*].memory.layout[*].data` is populated by `--capture-memory-dumps` ([recipe](cli-analysis-recipes.md#recipe-capture-memory-dumps)).
-- `entry_points[*].dropped_files` is report-native file artifact capture; archive export is controlled separately by `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
-- memory archive export is controlled by `--memory-dump-path` ([recipe](cli-analysis-recipes.md#recipe-memory-dump)).
+- `entry_points[*].memory.layout[*].data_ref` is populated by `--snapshot-memory-regions` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
+- `entry_points[*].dropped_files[*].data_ref` resolves through the top-level `data` store; large files keep metadata only. Dropped-files archive export is still available via `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
+- report-wide binary payload deduplication lives in the top-level `data` mapping, keyed by SHA-256.
 
 ## Annotated report schema example
 
 ```jsonc
 {
   // Report format version.
-  "report_version": "2.0.0",
+  "report_version": "3.0.0",
 
   // Total wall-clock runtime in seconds.
   "emulation_total_runtime": 1.234,
@@ -73,6 +73,10 @@ Entry-point highlights:
       "ansi": ["decoded_c2_token"],
       "unicode": []
     }
+  },
+
+  "data": {
+    "data-region": {"compression": "zlib", "encoding": "base64", "size": 1, "data": "eJw="}
   },
 
   "entry_points": [
@@ -135,7 +139,7 @@ Entry-point highlights:
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
           "size": 16,
-          "data": "QUJDRA=="
+          "data_ref": "data-mem-write"
         },
         {
           "pos": {"tick": 50, "tid": 2000, "pid": 4242, "pc": 4198440},
@@ -143,7 +147,7 @@ Entry-point highlights:
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
           "size": 16,
-          "data": "QUJDRA=="
+          "data_ref": "data-mem-read"
         },
         {
           "pos": {"tick": 60, "tid": 2000, "pid": 4242, "pc": 4198450},
@@ -204,7 +208,7 @@ Entry-point highlights:
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x84",
           "size": 4,
-          "data": "QUJDRA==",
+          "data_ref": "data-file-read",
           "buffer": "0x120000"
         },
         {
@@ -213,7 +217,7 @@ Entry-point highlights:
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x80",
           "size": 4,
-          "data": "QUJDRA==",
+          "data_ref": "data-file-write",
           "buffer": "0x130000"
         },
         {
@@ -239,7 +243,17 @@ Entry-point highlights:
           "handle": "0x184",
           "value_name": "Config",
           "size": 4,
-          "data": "QUJDRA==",
+          "data_ref": "data-reg-read",
+          "buffer": "0x140000"
+        },
+        {
+          "pos": {"tick": 175, "tid": 2000, "pid": 1337, "pc": 4198565},
+          "event": "reg_write_value",
+          "path": "HKEY_CURRENT_USER\\Software\\Lab",
+          "handle": "0x184",
+          "value_name": "Config",
+          "size": 4,
+          "data_ref": "data-reg-write",
           "buffer": "0x140000"
         },
         {
@@ -261,7 +275,7 @@ Entry-point highlights:
           "port": 443,
           "proto": "tcp",
           "type": "connect",
-          "data": "QUJDRA==",
+          "data_ref": "data-net-traffic",
           "method": "winsock.connect"
         },
         {
@@ -271,7 +285,7 @@ Entry-point highlights:
           "port": 443,
           "proto": "tcp.https",
           "headers": "GET /stage HTTP/1.1\nHost: example.org\n",
-          "body": null
+          "body_ref": null
         },
         {
           "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": 4198610},
@@ -309,8 +323,9 @@ Entry-point highlights:
       "dropped_files": [
         {
           "path": "C:\\ProgramData\\drop.bin",
-          "data": "QUJDRA==",
-          "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          "size": 4,
+          "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "data_ref": "3333333333333333333333333333333333333333333333333333333333333333"
         }
       ],
 
@@ -328,8 +343,8 @@ Entry-point highlights:
               "execs": 400
             },
 
-            // Optional: base64(zlib(raw_region_bytes)).
-            "data": "eJw="
+            // Optional: resolve via the top-level data store.
+            "data_ref": "data-region"
           }
         ],
         "modules": [
@@ -358,7 +373,7 @@ Entry-point highlights:
 
 ```json
 {
-  "report_version": "2.0.0",
+  "report_version": "3.0.0",
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
@@ -382,7 +397,7 @@ Entry-point highlights:
 ```jsonc
 {
   // Report schema version.
-  "report_version": "2.0.0",
+  "report_version": "3.0.0",
 
   // Total runtime in seconds for this emulation session.
   "emulation_total_runtime": 0.012,

@@ -17,17 +17,14 @@ Typical origins:
 
 Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep mappings after free operations. This is useful when samples allocate, populate, and free buffers quickly but you still need to inspect resulting artifacts.
 
-## Memory acquisition modes
+## Memory acquisition mode
 
-Archive export:
+In-report snapshots:
 
-- `--memory-dump-path <zip>` writes a dump archive
+- `--snapshot-memory-regions` stores region payload refs in the report
+- resolve those refs through the top-level `data` section, which stores `base64(zlib(raw_bytes))` keyed by SHA-256
 
-In-report bytes:
-
-- `--capture-memory-dumps` embeds `base64(zlib(raw_bytes))` in report memory regions
-
-You can use either mode or both together.
+This keeps memory snapshots self-contained while deduplicating repeated regions across runs.
 
 ## Memory tracing
 

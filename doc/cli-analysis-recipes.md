@@ -2,47 +2,27 @@
 
 This page focuses on practical flag combinations for common analysis outputs.
 
-<a id="recipe-memory-dump"></a>
-## Memory dump archive (`--memory-dump-path`)
+<a id="recipe-memory-snapshots"></a>
+## In-report memory snapshots (`--snapshot-memory-regions`)
 
 Command:
 
 ```bash
-speakeasy -t sample.exe --memory-dump-path memdump.zip
+speakeasy -t sample.exe --snapshot-memory-regions -o report.json
 ```
 
 Expected artifact:
-- `memdump.zip` with dumped memory blocks and a manifest
+- `entry_points[*].memory.layout[*].data_ref` populated with SHA-256 refs
+- top-level `data` populated with `base64(zlib(raw_bytes))` entries
 
 Quick verification:
 
 ```bash
-unzip -l memdump.zip
+jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
 ```
 
 Tradeoff:
-- archive size can grow quickly for long or multi-process runs
-
-<a id="recipe-capture-memory-dumps"></a>
-## In-report memory bytes (`--capture-memory-dumps`)
-
-Command:
-
-```bash
-speakeasy -t sample.exe --capture-memory-dumps -o report.json
-```
-
-Expected artifact:
-- `entry_points[*].memory.layout[*].data` populated with `base64(zlib(raw_bytes))`
-
-Quick verification:
-
-```bash
-jq '.entry_points[].memory.layout[] | select(.data != null) | .tag' report.json
-```
-
-Tradeoff:
-- report size increases significantly
+- report size increases, but repeated payloads deduplicate across runs
 
 <a id="recipe-analysis-coverage"></a>
 ## Coverage collection (`--analysis-coverage`)
@@ -142,9 +122,8 @@ speakeasy -t sample.exe \
   --timeout 30 \
   --analysis-coverage \
   --analysis-memory-tracing \
-  --capture-memory-dumps \
+  --snapshot-memory-regions \
   --dropped-files-path dropped.zip \
-  --memory-dump-path memdump.zip \
   -o report.json
 ```
 

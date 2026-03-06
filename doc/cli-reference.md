@@ -30,7 +30,6 @@ These flags are not generated from the config schema.
 - `--raw`: treat input as raw bytes/shellcode
 - `--raw-offset`: raw execution start offset (hex)
 - `--arch`: architecture override (`x86`, `amd64`; `x64` accepted in raw mode)
-- `--memory-dump-path`: memory dump archive output path
 - `--dropped-files-path`: dropped-files archive output path
 - `-k, --emulate-children`: emulate child processes spawned by the sample
 - `--no-mp`: run in current process instead of worker process
@@ -61,7 +60,7 @@ Boolean toggles:
 - `--analysis-strings` / `--no-analysis-strings`
 - `--analysis-coverage` / `--no-analysis-coverage`
 - `--keep-memory-on-free` / `--no-keep-memory-on-free`
-- `--capture-memory-dumps` / `--no-capture-memory-dumps`
+- `--snapshot-memory-regions` / `--no-snapshot-memory-regions`
 - `--exceptions-dispatch-handlers` / `--no-exceptions-dispatch-handlers`
 - `--user-is-admin` / `--no-user-is-admin`
 - `--api-hammering-enabled` / `--no-api-hammering-enabled`
@@ -138,10 +137,10 @@ Raw shellcode run:
 speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output report.json
 ```
 
-Memory and dropped-files archives:
+Memory snapshots and dropped-files archive:
 
 ```bash
-speakeasy --target sample.exe --memory-dump-path memdump.zip --dropped-files-path dropped.zip
+speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dropped.zip
 ```
 
 ## Related docs

@@ -55,29 +55,27 @@ Injected PEs written with WriteProcessMemory can bypass normal loader IAT patchi
 
 ## Config gate for memory byte capture
 
-A new capture_memory_dumps configuration option controls whether raw memory content is included directly in reports. This capture happens at the end of each entry-point run (module entry, TLS callback, export run, etc.) when Speakeasy snapshots memory layout for that run. If enabled, each non-excluded region gets a `data` field with `base64(zlib(raw_bytes))`; module-backed regions are emitted as headers + per-section slices, while non-module maps are emitted as one region each.
+A new `snapshot_memory_regions` configuration option controls whether run-end memory content is included in reports. This capture happens at the end of each entry-point run (module entry, TLS callback, export run, etc.) when Speakeasy snapshots memory layout for that run. If enabled, each non-excluded region gets a `data_ref` field that points into the top-level `data` store, where payloads are saved once as `base64(zlib(raw_bytes))` keyed by SHA-256; module-backed regions are emitted as headers + per-section slices, while non-module maps are emitted as one region each.
 
-This is separate from the archive-style memory dumper behind `-d/--dump`. The report path embeds compressed bytes into `entry_points[*].memory.layout[*].data`, while the archive path writes standalone `.mem` files into a zip package with a manifest. They are independent switches, so you can use report-only, archive-only, or both depending on whether you want one self-contained JSON report or larger raw artifacts for external tooling.
+The same top-level `data` store is also used for dropped-file content and other captured binary previews, so repeated payloads deduplicate naturally across runs.
 
 ```json
 {
-  "capture_memory_dumps": true
+  "snapshot_memory_regions": true
 }
 ```
 
 ```console
-speakeasy -t sample.exe --capture-memory-dumps -o report.json
-speakeasy -t sample.exe -d memdump.zip --no-capture-memory-dumps -o report.json
-speakeasy -t sample.exe --capture-memory-dumps -d memdump.zip -o report.json
+speakeasy -t sample.exe --snapshot-memory-regions -o report.json
 ```
 
 ## Per-section memory layout and broader dump coverage
 
 Memory layout reporting now emits module headers and sections as distinct regions instead of a single module-wide block. Dump capture also includes non-excluded regions even when write counters are absent, which covers API-populated memory not tracked as direct writes. This makes reported layout and content closer to actual runtime state.
 
-Here is what that looks like in a real report from `dll_test_x86.dll` with `analysis.memory_tracing=true` and `capture_memory_dumps=true`. In `entry_points[0].memory.layout`, the sample module is split into `headers`, `.text`, `.rdata`, and `.data` records, each with its own protection, size, and counters instead of one merged module region. In this run, `.text` recorded only execution (`execs: 677`), `.rdata` recorded reads (`reads: 15`), and `.data` recorded both reads and writes (`reads: 30`, `writes: 26`).
+Here is what that looks like in a real report from `dll_test_x86.dll` with `analysis.memory_tracing=true` and `snapshot_memory_regions=true`. In `entry_points[0].memory.layout`, the sample module is split into `headers`, `.text`, `.rdata`, and `.data` records, each with its own protection, size, and counters instead of one merged module region. In this run, `.text` recorded only execution (`execs: 677`), `.rdata` recorded reads (`reads: 15`), and `.data` recorded both reads and writes (`reads: 30`, `writes: 26`).
 
-The same snapshot also shows the broader dump rule: non-excluded regions get `data` even if `writes == 0`, while excluded regions like stack still keep counters but skip raw bytes. So you end up with section-level activity you can reason about directly in JSON, plus embedded bytes for module sections when capture is enabled.
+The same snapshot also shows the broader capture rule: non-excluded regions get `data_ref` even if `writes == 0`, while excluded regions like stack still keep counters but skip raw bytes. So you end up with section-level activity you can reason about directly in JSON, plus deduplicated payloads in the top-level `data` store when capture is enabled.
 
 ```json
 {
@@ -91,7 +89,7 @@ The same snapshot also shows the broader dump rule: non-excluded regions get `da
             "size": "0x1000",
             "prot": "r--",
             "accesses": null,
-            "data": "..."
+            "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..text.0x10001000",
@@ -99,7 +97,7 @@ The same snapshot also shows the broader dump rule: non-excluded regions get `da
             "size": "0xce4",
             "prot": "r-x",
             "accesses": {"reads": 0, "writes": 0, "execs": 677},
-            "data": "..."
+            "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..rdata.0x10002000",
@@ -107,7 +105,7 @@ The same snapshot also shows the broader dump rule: non-excluded regions get `da
             "size": "0x876",
             "prot": "r--",
             "accesses": {"reads": 15, "writes": 0, "execs": 0},
-            "data": "..."
+            "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..data.0x10003000",
@@ -115,7 +113,7 @@ The same snapshot also shows the broader dump rule: non-excluded regions get `da
             "size": "0x388",
             "prot": "rw-",
             "accesses": {"reads": 30, "writes": 26, "execs": 0},
-            "data": "..."
+            "data_ref": "<sha256>"
           },
           {
             "tag": "emu.stack.0x1200000",
@@ -123,7 +121,7 @@ The same snapshot also shows the broader dump rule: non-excluded regions get `da
             "size": "0x100000",
             "prot": "rwx",
             "accesses": {"reads": 170, "writes": 210, "execs": 0},
-            "data": null
+            "data_ref": null
           }
         ]
       }

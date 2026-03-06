@@ -12,8 +12,7 @@ Captured from the current source tree to show the full runtime and schema-derive
 ```output
 usage: cli.py [-h] [-t TARGET] [-o OUTPUT] [--argv [ARGV ...]] [-c CONFIG]
               [--dump-default-config] [--raw] [--raw-offset RAW_OFFSET]
-              [--arch ARCH] [--memory-dump-path MEMORY_DUMP_PATH]
-              [--dropped-files-path DROPPED_FILES_PATH] [-k] [--no-mp] [-v]
+              [--arch ARCH] [--dropped-files-path DROPPED_FILES_PATH] [-k] [--no-mp] [-v]
               [--gdb] [--gdb-port GDB_PORT] [-V VOLUMES] [--timeout TIMEOUT]
               [--max-api-count MAX_API_COUNT]
               [--max-instructions MAX_INSTRUCTIONS]
@@ -21,7 +20,7 @@ usage: cli.py [-h] [-t TARGET] [-o OUTPUT] [--argv [ARGV ...]] [-c CONFIG]
               [--analysis-strings | --no-analysis-strings]
               [--analysis-coverage | --no-analysis-coverage]
               [--keep-memory-on-free | --no-keep-memory-on-free]
-              [--capture-memory-dumps | --no-capture-memory-dumps]
+              [--snapshot-memory-regions | --no-snapshot-memory-regions]
               [--exceptions-dispatch-handlers | --no-exceptions-dispatch-handlers]
               [--os-ver-major MAJOR] [--os-ver-minor MINOR]
               [--os-ver-release RELEASE] [--os-ver-build BUILD]
@@ -56,8 +55,6 @@ options:
   --arch ARCH           Force architecture to use during emulation (for multi-
                         architecture files or shellcode). Supported archs: [
                         x86 | amd64 ]
-  --memory-dump-path MEMORY_DUMP_PATH
-                        Path to store compressed memory dump package
   --dropped-files-path DROPPED_FILES_PATH
                         Path to store files created during emulation
   -k, --emulate-children
@@ -88,8 +85,9 @@ options:
   --keep-memory-on-free, --no-keep-memory-on-free
                         Retain freed memory maps for post-free inspection.
                         (default: False)
-  --capture-memory-dumps, --no-capture-memory-dumps
-                        Include compressed raw memory in report regions.
+  --snapshot-memory-regions, --no-snapshot-memory-regions
+                        Include run-end memory region snapshots in the report
+                        data store.
                         (default: False)
   --exceptions-dispatch-handlers, --no-exceptions-dispatch-handlers
                         Dispatch configured exception handlers during faults.

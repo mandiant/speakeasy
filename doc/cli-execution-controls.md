@@ -84,7 +84,7 @@ Practical tuning:
 - disable heavy collectors unless needed:
   - `--no-analysis-memory-tracing`
   - `--no-analysis-coverage`
-  - `--no-capture-memory-dumps`
+  - `--no-snapshot-memory-regions`
 - set hard stop limits for unstable or looping samples:
   - `--timeout`
   - `--max-api-count`

@@ -51,9 +51,9 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Useful when you want to inspect post-free data artifacts.
   "keep_memory_on_free": false,
 
-  // If true, report memory regions can include base64(zlib(raw_bytes)).
-  // This greatly increases report size but helps memory forensics.
-  "capture_memory_dumps": false,
+  // If true, report memory regions include deduplicated snapshot refs in the top-level data store.
+  // This increases report size but keeps memory forensics self-contained.
+  "snapshot_memory_regions": false,
 
   "exceptions": {
     // If true, emulate exception-handler dispatch (SEH/VEH-like paths).
