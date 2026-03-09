@@ -2,8 +2,8 @@
 
 import ctypes as ct
 
-from speakeasy.struct import EmuStruct, Ptr
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.struct import EmuStruct, Ptr
 
 from .. import api
 
@@ -30,21 +30,20 @@ class DNS_TXT_DATA(EmuStruct):
 
 
 class DnsApi(api.ApiHandler):
-
-    name = 'dnsapi'
+    name = "dnsapi"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
 
-        super(DnsApi, self).__init__(emu)
+        super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        super(DnsApi, self).__get_hook_attrs__(self)
+        super().__get_hook_attrs__(self)
         self.netman = emu.get_network_manager()
         self.names = {}
 
-    @apihook('DnsQuery_', argc=6)
+    @apihook("DnsQuery_", argc=6)
     def DnsQuery_(self, emu, argv, ctx={}):
         """
         DNS_STATUS DnsQuery_A(
@@ -65,22 +64,22 @@ class DnsApi(api.ApiHandler):
         if pszName:
             name = self.read_mem_string(pszName, cw)
             ip = self.netman.name_lookup(name)
-            self.log_dns(name, ip)
+            self.record_dns_event(name, ip)
 
             rec = _DnsRecord(emu.get_ptr_size())
             rec.pName = pszName
             rec.wType = wType
             if wType == DNS_TYPE_TEXT:
-                argv[1] = 'DNS_TYPE_TEXT'
+                argv[1] = "DNS_TYPE_TEXT"
 
                 text = self.netman.get_dns_txt(name)
                 if not text:
-                    text = b'\x00'*12
+                    text = b"\x00" * 12
 
                 ts = DNS_TXT_DATA(emu.get_ptr_size())
                 size = len(text) + ts.sizeof()
 
-                rr = self.mem_alloc(rec.sizeof() + size, tag='api.DnsQuery._DnsRecord')
+                rr = self.mem_alloc(rec.sizeof() + size, tag="api.DnsQuery._DnsRecord")
                 ts.dwStringCount = 1
                 ts.pStringArray = rr + rec.sizeof() + ts.sizeof()
                 rec.wDataLength = size
@@ -89,7 +88,7 @@ class DnsApi(api.ApiHandler):
                 self.mem_write(ts.pStringArray, text)
 
             if ppQueryResults and rr:
-                out = rr.to_bytes(self.get_ptr_size(), 'little')
+                out = rr.to_bytes(self.get_ptr_size(), "little")
                 self.mem_write(ppQueryResults, out)
                 rv = windefs.ERROR_SUCCESS
 

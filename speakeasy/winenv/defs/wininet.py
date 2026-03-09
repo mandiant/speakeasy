@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from speakeasy.struct import EmuStruct, Ptr
 
+from speakeasy.struct import EmuStruct, Ptr
 
 INTERNET_FLAG_ASYNC = 0x10000000
 INTERNET_FLAG_CACHE_ASYNC = 0x00000080
@@ -37,6 +37,13 @@ INTERNET_FLAG_SECURE = 0x00800000
 INTERNET_FLAG_TRANSFER_ASCII = 0x00000001
 INTERNET_FLAG_TRANSFER_BINARY = 0x00000002
 INTERNET_NO_CALLBACK = 0x00000000
+INTERNET_CONNECTION_MODEM = 0x00000001
+INTERNET_CONNECTION_LAN = 0x00000002
+INTERNET_CONNECTION_PROXY = 0x00000004
+INTERNET_CONNECTION_MODEM_BUSY = 0x00000008
+INTERNET_RAS_INSTALLED = 0x00000010
+INTERNET_CONNECTION_OFFLINE = 0x00000020
+INTERNET_CONNECTION_CONFIGURED = 0x00000040
 INTERNET_OPTION_SUPPRESS_SERVER_AUTH = 104
 WININET_API_FLAG_ASYNC = 0x00000001
 WININET_API_FLAG_SYNC = 0x00000004
@@ -164,7 +171,7 @@ class URL_COMPONENTS(EmuStruct):
         self.dwExtraInfoLength = ct.c_uint32
 
 
-def get_const_defines(flags, prefix=''):
+def get_const_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if isinstance(v, int):
@@ -178,20 +185,20 @@ def get_const_defines(flags, prefix=''):
 
 
 def get_flag_defines(flags):
-    return get_const_defines(flags, prefix='INTERNET_FLAG')
+    return get_const_defines(flags, prefix="INTERNET_FLAG")
 
 
 def get_option_define(opt):
     for k, v in globals().items():
-        if k.startswith('INTERNET_OPTION_') and v == opt:
+        if k.startswith("INTERNET_OPTION_") and v == opt:
             return k
 
 
 def get_header_info_winhttp(flags):
-    return get_const_defines(flags, prefix='WINHTTP_ADDREQ_')
+    return get_const_defines(flags, prefix="WINHTTP_ADDREQ_")
 
 
 def get_header_query(opt):
     for k, v in globals().items():
-        if k.startswith('WINHTTP_QUERY_') and v == opt:
+        if k.startswith("WINHTTP_QUERY_") and v == opt:
             return k
