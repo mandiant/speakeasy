@@ -444,7 +444,8 @@ class ApiModuleLoader:
         all_exports += data_exports
 
         jit = JitPeFile(self._arch, base=self._base)
-        img_data = jit.get_decoy_pe_image(self._name, all_exports)
+        jit.get_decoy_pe_image(self._name, all_exports)
+        img_data = jit.basepe.get_memory_mapped_image()
         image_size = jit.basepe.OPTIONAL_HEADER.SizeOfImage
 
         text_sect = jit.get_section_by_name(jit.basepe, ".text")
