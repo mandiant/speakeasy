@@ -398,6 +398,7 @@ class Ntdll(api.ApiHandler):
         # RTL_OSVERSIONINFOW: dwOSVersionInfoSize(4), dwMajorVersion(4),
         # dwMinorVersion(4), dwBuildNumber(4), dwPlatformId(4), szCSDVersion(256)
         import struct
+
         info = struct.pack("<IIIII", 276, 10, 0, 19041, 2)  # VER_PLATFORM_WIN32_NT=2
         info += b"\x00" * (276 - len(info))
         self.mem_write(lpVersionInformation, info)

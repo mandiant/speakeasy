@@ -509,11 +509,11 @@ class WindowsEmulator(BinaryEmulator):
 
         # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
         interrupt_100ns = int(time.monotonic() * 10_000_000)
-        struct.pack_into("<IiI", data, 0x008,
-                         interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32)
+        struct.pack_into(
+            "<IiI", data, 0x008, interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32
+        )
         # SystemTime (offset 0x014): KSYSTEM_TIME
-        struct.pack_into("<IiI", data, 0x014,
-                         now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
+        struct.pack_into("<IiI", data, 0x014, now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
         # NtMajorVersion (offset 0x260)
         struct.pack_into("<I", data, 0x260, 10)
         # NtMinorVersion (offset 0x264)
