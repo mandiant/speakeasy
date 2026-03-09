@@ -2022,8 +2022,12 @@ class WindowsEmulator(BinaryEmulator):
         for every instruction when debug mode is enabled.
         """
         x = self.get_disasm(addr, size)[2]
-        edi, esi, ebp, eax = (self.reg_read(r) for r in ("edi", "esi", "ebp", "eax"))
-        print(f"0x{addr:x}: {x}, edi=0x{edi:x} : esi=0x{esi:x} : ebp=0x{ebp:x} : eax=0x{eax:x}")
+        if self.get_arch() == _arch.ARCH_AMD64:
+            regs = ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9")
+        else:
+            regs = ("eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp")
+        vals = " : ".join(f"{r}=0x{self.reg_read(r):x}" for r in regs)
+        print(f"0x{addr:x}: {x}, {vals}")
         return True
 
     def get_native_module_path(self, mod_name=""):
