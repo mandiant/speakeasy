@@ -42,6 +42,7 @@ def emulate_binary(
     arch="",
     dropped_files_path="",
     raw_offset=0x0,
+    entry_point=None,
     emulate_children=False,
     verbose=False,
     gdb_port=None,
@@ -65,7 +66,12 @@ def emulate_binary(
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(fpath)
-            se.run_module(module, all_entrypoints=True, emulate_children=emulate_children)
+            se.run_module(
+                module,
+                all_entrypoints=True,
+                emulate_children=emulate_children,
+                entry_point=entry_point,
+            )
     finally:
         if se is not None:
             report = se.get_json_report()
@@ -89,6 +95,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     emulate_children = args.emulate_children
     do_raw = args.do_raw
     raw_offset = args.raw_offset
+    entry_point = args.entry_point
     arch = args.arch
     argv = args.argv
     verbose = args.verbose
@@ -142,6 +149,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             arch,
             dropped_files_path,
             raw_offset=raw_offset,
+            entry_point=entry_point,
             emulate_children=emulate_children,
             verbose=verbose,
             gdb_port=gdb_port,
@@ -162,6 +170,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             ),
             kwargs={
                 "raw_offset": raw_offset,
+                "entry_point": entry_point,
                 "emulate_children": emulate_children,
                 "verbose": verbose,
                 "gdb_port": gdb_port,
@@ -244,6 +253,15 @@ def main():
         required=False,
         dest="raw_offset",
         help="When in raw mode, offset (hex) to start emulating",
+    )
+    parser.add_argument(
+        "--entry-point",
+        type=lambda s: int(s, 0),
+        default=None,
+        required=False,
+        dest="entry_point",
+        help="RVA (hex) to use as entry point instead of the PE's default. "
+        "Prefix with 0x for hex (e.g. 0x1234). Only applies to PE modules, not raw/shellcode.",
     )
     parser.add_argument(
         "--arch",

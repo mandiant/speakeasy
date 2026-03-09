@@ -243,7 +243,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         return self.curr_process
 
-    def run_module(self, module, all_entrypoints=False):
+    def run_module(self, module, all_entrypoints=False, entry_point=None):
         """
         Begin emulation fo a previously loaded kernel module
         """
@@ -262,9 +262,12 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         # Create the parameters subkey
         self.regman.create_key(drv.reg_path + "\\Parameters")
 
-        if module.ep > 0:
+        if entry_point is not None:
+            ep = module.base + entry_point
+        else:
             ep = module.base + module.ep
 
+        if entry_point is not None or module.ep > 0:
             run = Run()
             run.type = EP_DRIVER_ENTRY
             run.start_addr = ep

@@ -217,7 +217,7 @@ class Win32Emulator(WindowsEmulator):
         }
         self.profiler.add_input_metadata(self.input)
 
-    def prepare_module_for_emulation(self, module, all_entrypoints):
+    def prepare_module_for_emulation(self, module, all_entrypoints, entry_point=None):
         if not module:
             self.stop()
             raise Win32EmuError("Module not found")
@@ -233,7 +233,10 @@ class Win32Emulator(WindowsEmulator):
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
 
-        ep = module.base + module.ep
+        if entry_point is not None:
+            ep = module.base + entry_point
+        else:
+            ep = module.base + module.ep
 
         run = Run()
         run.start_addr = ep
@@ -284,14 +287,14 @@ class Win32Emulator(WindowsEmulator):
 
         return
 
-    def run_module(self, module, all_entrypoints=False, emulate_children=False):
+    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None):
         """
         Begin emulating a previously loaded module
 
         Arguments:
             module: Module to emulate
         """
-        self.prepare_module_for_emulation(module, all_entrypoints)
+        self.prepare_module_for_emulation(module, all_entrypoints, entry_point=entry_point)
 
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
