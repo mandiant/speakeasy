@@ -260,6 +260,34 @@ class FileManager:
                 continue
             yield path
 
+    def find_matching_entries(self, search):
+        """
+        Given a search pattern like ``C:\\*`` or ``C:\\Windows\\*.exe``,
+        yield ``(name, is_dir)`` tuples for immediate children that match,
+        synthesizing directory entries from configured file paths.
+        """
+        search_dir = ntpath.dirname(search)
+        pattern = ntpath.basename(search)
+        if not pattern:
+            return
+
+        search_dir_lower = search_dir.lower().rstrip("\\")
+        seen = set()
+
+        for emu_path in self.walk_files():
+            emu_lower = emu_path.lower()
+            if not emu_lower.startswith(search_dir_lower + "\\"):
+                continue
+            remainder = emu_lower[len(search_dir_lower) + 1 :]
+            parts = remainder.split("\\")
+            child = parts[0]
+            is_dir = len(parts) > 1
+            if child in seen:
+                continue
+            if fnmatch.fnmatch(child, pattern.lower()):
+                seen.add(child)
+                yield (child, is_dir)
+
     def get_dropped_files(self):
         return [f for f in self.files if f.bytes_written == f.get_size()]
 
