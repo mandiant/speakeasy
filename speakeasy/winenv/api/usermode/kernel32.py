@@ -4428,6 +4428,30 @@ class Kernel32(api.ApiHandler):
         """
         return 0
 
+    @apihook("GetErrorMode", argc=0)
+    def GetErrorMode(self, emu, argv, ctx={}):
+        """
+        UINT GetErrorMode();
+        """
+        return 0
+
+    @apihook("WerGetFlags", argc=2)
+    def WerGetFlags(self, emu, argv, ctx={}):
+        """
+        HRESULT WerGetFlags(HANDLE hProcess, DWORD *pdwFlags);
+        """
+        hProcess, pdwFlags = argv
+        if pdwFlags:
+            self.mem_write(pdwFlags, (0).to_bytes(4, "little"))
+        return 0  # S_OK
+
+    @apihook("WerSetFlags", argc=1)
+    def WerSetFlags(self, emu, argv, ctx={}):
+        """
+        HRESULT WerSetFlags(DWORD dwFlags);
+        """
+        return 0  # S_OK
+
     @apihook("InterlockedCompareExchange", argc=3)
     def InterlockedCompareExchange(self, emu, argv, ctx={}):
         """

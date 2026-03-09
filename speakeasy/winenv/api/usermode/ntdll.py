@@ -378,3 +378,27 @@ class Ntdll(api.ApiHandler):
             self.mem_write(pMinor, (0).to_bytes(4, "little"))
         if pBuild:
             self.mem_write(pBuild, (0xF0004A61).to_bytes(4, "little"))
+
+    @apihook("RtlGetCurrentPeb", argc=0)
+    def RtlGetCurrentPeb(self, emu, argv, ctx={}):
+        """
+        PPEB RtlGetCurrentPeb();
+        """
+        proc = emu.get_current_process()
+        if proc and proc.peb:
+            return proc.peb.address
+        return 0
+
+    @apihook("RtlGetVersion", argc=1)
+    def RtlGetVersion(self, emu, argv, ctx={}):
+        """
+        NTSTATUS RtlGetVersion(PRTL_OSVERSIONINFOW lpVersionInformation);
+        """
+        (lpVersionInformation,) = argv
+        # RTL_OSVERSIONINFOW: dwOSVersionInfoSize(4), dwMajorVersion(4),
+        # dwMinorVersion(4), dwBuildNumber(4), dwPlatformId(4), szCSDVersion(256)
+        import struct
+        info = struct.pack("<IIIII", 276, 10, 0, 19041, 2)  # VER_PLATFORM_WIN32_NT=2
+        info += b"\x00" * (276 - len(info))
+        self.mem_write(lpVersionInformation, info)
+        return 0  # STATUS_SUCCESS
