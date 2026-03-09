@@ -381,6 +381,11 @@
                     "name": "mscoree",
                     "base_addr": "0x53000000",
                     "path": "C:\\Windows\\system32\\mscoree.dll"
+                },
+                {
+                    "name": "sfc_os",
+                    "base_addr": "0x5fe00000",
+                    "path": "C:\\Windows\\system32\\sfc_os.dll"
                 }
         ]
     }
