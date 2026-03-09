@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct
 
 
 class POINT(EmuStruct):
