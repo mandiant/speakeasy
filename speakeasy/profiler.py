@@ -794,6 +794,7 @@ class Profiler:
             sha256=self.meta.get("sha256"),
             size=self.meta.get("size"),
             filetype=self.meta.get("filetype"),
+            image_base=self.meta.get("image_base"),
             errors=errors,
             strings=strings_report,
             data=report_data or None,

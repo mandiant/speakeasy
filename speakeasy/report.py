@@ -637,6 +637,13 @@ class Report(BaseModel):
             "Derived from loader inspection before emulation starts."
         ),
     )
+    image_base: HexIntOptional = Field(
+        default=None,
+        description=(
+            "Base address at which the primary module was loaded during emulation.\n\n"
+            "Use this to rebase analysis tools (e.g. IDA Pro) to match emulated addresses."
+        ),
+    )
     errors: list[ErrorInfo] | None = Field(
         default=None,
         description=(
