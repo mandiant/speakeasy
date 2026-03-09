@@ -1626,8 +1626,16 @@ class WindowsEmulator(BinaryEmulator):
                 elif address == winemu.API_CALLBACK_HANDLER_ADDR:
                     run = self.get_current_run()
                     if run.api_callbacks:
-                        pc, orig_func, args = run.api_callbacks.pop(0)
-                        self.do_call_return(len(args), pc)
+                        ret, orig_func, args = run.api_callbacks.pop(0)
+                        if run.api_callbacks:
+                            next_ret, next_func, next_args = run.api_callbacks[0]
+                            if next_ret is None:
+                                run.api_callbacks[0] = (ret, next_func, next_args)
+                            sp = self.get_stack_ptr()
+                            self.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *next_args)
+                            self.set_pc(next_func)
+                        else:
+                            self.do_call_return(len(args), ret)
                         self._unset_emu_hooks()
                     return True
                 return self._handle_invalid_fetch(emu, address, size, value, ctx)
