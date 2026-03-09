@@ -11,7 +11,7 @@ def test_get_proc_address_on_missing_function_returns_zero(config, load_test_bin
     report = run_test(config, data)
     eps = report.entry_points
 
-    get_proc_addr = get_api_calls(eps[0], "KERNEL32.GetProcAddress")
+    get_proc_addr = get_api_calls(eps[0], "kernel32.GetProcAddress")
 
     assert get_proc_addr[2].args[1] == "AreFileApisANSI"
     assert get_proc_addr[2].ret_val != "0x0"
