@@ -2,7 +2,6 @@
 
 import ctypes as ct
 import datetime
-import fnmatch
 import ntpath
 import os
 import string
@@ -4806,24 +4805,27 @@ class Kernel32(api.ApiHandler):
             srch = srch.replace("\\\\?\\", "")
 
         fm = emu.get_file_manager()
-        fw = fm.walk_files()
+        walker = fm.find_matching_entries(srch)
         hnd = self.get_handle()
-        self.find_files.update({hnd: {"search": srch, "walker": fw}})
+        self.find_files.update({hnd: {"walker": walker}})
 
-        curr_file = next(fw)
-        curr_file = ntpath.basename(curr_file)
+        try:
+            name, is_dir = next(walker)
+        except StopIteration:
+            return windefs.INVALID_HANDLE_VALUE
 
         if cw == 2:
-            cfn = curr_file.encode("utf-16le")
+            cfn = name.encode("utf-16le")
         else:
-            cfn = curr_file.encode("utf-8")
+            cfn = name.encode("utf-8")
 
-        if fnmatch.fnmatch(curr_file, srch):
-            find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        if is_dir:
+            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+        else:
             find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
-            find_data.cFileName = cfn
-
-            self.mem_write(lpFindFileData, find_data.get_bytes())
+        find_data.cFileName = cfn
+        self.mem_write(lpFindFileData, find_data.get_bytes())
 
         return hnd
 
@@ -4837,7 +4839,6 @@ class Kernel32(api.ApiHandler):
         """
 
         hFindFile, lpFindFileData = argv
-        rv = 1
 
         cw = self.get_char_width(ctx)
 
@@ -4846,28 +4847,28 @@ class Kernel32(api.ApiHandler):
         if not hFindFile or not lpFindFileData or not fsearch:
             return windefs.INVALID_HANDLE_VALUE
 
-        search = fsearch.get("search", "").lower()
         walker = fsearch.get("walker")
         try:
-            next_file = next(walker).lower()
+            name, is_dir = next(walker)
         except StopIteration:
             return 0
 
-        if fnmatch.fnmatch(next_file, search):
-            next_file = ntpath.basename(next_file)
-            argv[1] = next_file
+        argv[1] = name
 
-            if cw == 2:
-                cfn = next_file.encode("utf-16le")
-            else:
-                cfn = next_file.encode("utf-8")
+        if cw == 2:
+            cfn = name.encode("utf-16le")
+        else:
+            cfn = name.encode("utf-8")
 
-            find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        if is_dir:
+            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+        else:
             find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
-            find_data.cFileName = cfn
-            self.mem_write(lpFindFileData, find_data.get_bytes())
+        find_data.cFileName = cfn
+        self.mem_write(lpFindFileData, find_data.get_bytes())
 
-        return rv
+        return 1
 
     @apihook("FindClose", argc=1)
     def FindClose(self, emu, argv, ctx={}):
