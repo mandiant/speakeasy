@@ -6,6 +6,7 @@ __report_version__ = "3.0.0"
 import hashlib
 import time
 from collections import deque
+from typing import Any
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
 from speakeasy.profiler_events import (

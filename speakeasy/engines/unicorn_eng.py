@@ -7,11 +7,6 @@ import platform
 
 import unicorn as uc
 import unicorn.x86_const as u
-
-import speakeasy.common as common
-import speakeasy.winenv.arch as arch
-from speakeasy.errors import EmuEngineError
-
 from unicorn.unicorn_py3.arch.types import uc_hook_h
 from unicorn.unicorn_py3.unicorn import (
     HOOK_CODE_CFUNC as UC_HOOK_CODE_CB,
@@ -23,6 +18,10 @@ from unicorn.unicorn_py3.unicorn import (
     HOOK_MEM_INVALID_CFUNC as UC_HOOK_MEM_INVALID_CB,
 )
 from unicorn.unicorn_py3.unicorn import uclib as _uc
+
+import speakeasy.common as common
+import speakeasy.winenv.arch as arch
+from speakeasy.errors import EmuEngineError
 
 uc_engine = ct.c_void_p
 UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
