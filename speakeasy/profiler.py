@@ -117,7 +117,7 @@ class Run:
         self.args: list[Any] | tuple[Any, ...] | None = None
         self.start_addr: int | None = None
         self.type: str | int | None = None
-        self.error: dict[str, Any] = {}
+        self.error: ErrorInfo | None = None
         self.num_apis: int = 0
         self.coverage: set[int] = set()
         self.memory_regions: list[dict[str, Any]] = []
@@ -205,10 +205,8 @@ class Profiler:
             merged = merged[:limit]
         return self.artifact_store.put_bytes(merged)
 
-    def record_error_event(self, error):
-        """
-        Log a top level emulator error for the emulation report
-        """
+    def record_error_event(self, error: ErrorInfo) -> None:
+        """Log a top level emulator error for the emulation report."""
         if not self.meta.get("errors"):
             self.meta["errors"] = []
         self.meta["errors"].append(error)
@@ -596,16 +594,28 @@ class Profiler:
         )
         run.events.append(event)
 
-    def record_exception_event(self, run, pos: TracePosition, instr, exception_code, handler_address, registers):
-        """
-        Log a handled exception event
-        """
+    def record_exception_event(
+        self,
+        run,
+        pos: TracePosition,
+        instr,
+        exception_code,
+        handler_address,
+        registers,
+        faulting_address=None,
+        pc_module=None,
+        stack_trace=None,
+    ):
+        """Log a handled exception event."""
         event = ExceptionEvent(
             pos=pos,
             instr=instr,
             exception_code=hex(exception_code),
             handler_address=hex(handler_address),
             registers=registers,
+            faulting_address=faulting_address,
+            pc_module=pc_module,
+            stack_trace=stack_trace,
         )
         run.events.append(event)
 
@@ -643,15 +653,7 @@ class Profiler:
                 else:
                     args.append(a)
 
-            error_info = None
-            if r.error:
-                pc_str = r.error.get("pc")
-                pc_int = int(pc_str, 16) if pc_str else None
-                error_info = ErrorInfo(
-                    type=r.error.get("type", ""),
-                    pc=pc_int,
-                    instr=r.error.get("instr"),
-                )
+            error_info = r.error
 
             events = None
             if r.events:
@@ -773,16 +775,7 @@ class Profiler:
                 ),
             )
 
-        errors = None
-        meta_errors = self.meta.get("errors", [])
-        if meta_errors:
-
-            def parse_error(e):
-                pc_str = e.get("pc")
-                pc_int = int(pc_str, 16) if pc_str else None
-                return ErrorInfo(type=e.get("type", ""), pc=pc_int, instr=e.get("instr"))
-
-            errors = [parse_error(e) for e in meta_errors]
+        errors: list[ErrorInfo] | None = self.meta.get("errors") or None
 
         report_data = self.artifact_store.to_report_data()
         report = Report(

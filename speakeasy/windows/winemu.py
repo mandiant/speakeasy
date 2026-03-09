@@ -19,11 +19,13 @@ from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
 from speakeasy.profiler import MemAccess, Run
 from speakeasy.profiler_events import TracePosition
+from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
+from speakeasy.windows.loaders import get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.regman import RegistryManager
 
@@ -1391,36 +1393,133 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info("invalid_fetch", address)
+        error = self.get_error_info("invalid_fetch", address, access_type="fetch")
         self.curr_run.error = error  # type: ignore[union-attr]
         self.tmp_maps.append((fakeout, self.page_size))
         self.on_run_complete()
         return True
 
-    def get_error_info(self, desc, address, traceback=None):
+    def _resolve_module_offset(self, addr: int) -> str | None:
+        """Return 'module+0xoffset' string for an address inside a loaded module, or None."""
+        mod = self.get_module_from_addr(addr)
+        if mod:
+            offset = addr - mod.base
+            name = getattr(mod, "name", None) or getattr(mod, "path", "unknown")
+            return f"{name}+{offset:#x}"
+        return None
+
+    def _resolve_region_info(self, addr: int) -> RegionInfo | None:
+        """Return a RegionInfo for the region containing addr, or None if unmapped."""
+        for m in self.get_mem_maps():
+            if m.base <= addr <= (m.base + m.size) - 1:
+                prot = get_prot_string(m.prot) if m.prot is not None else None
+                return RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, prot=prot)
+        return None
+
+    def _find_nearby_regions(self, addr: int, count: int = 2) -> list[RegionInfo]:
+        """Return up to `count` nearest memory regions to an unmapped address."""
+        maps = self.get_mem_maps()
+        if not maps:
+            return []
+        distances = []
+        for m in maps:
+            end = m.base + m.size - 1
+            if addr < m.base:
+                dist = m.base - addr
+            elif addr > end:
+                dist = addr - end
+            else:
+                continue
+            prot = get_prot_string(m.prot) if m.prot is not None else None
+            distances.append((dist, RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, prot=prot)))
+        distances.sort(key=lambda x: x[0])
+        return [r for _, r in distances[:count]]
+
+    def _build_context_summary(
+        self,
+        desc: str,
+        pc: int,
+        address: int,
+        access_type: str | None,
+        pc_module: str | None,
+        address_region: RegionInfo | None,
+        nearby_regions: list[RegionInfo] | None,
+    ) -> str:
+        """Build a human-readable one-line triage summary.
+
+        Examples::
+
+            read of unmapped 0x12345678 from sample.exe+0x8d14; nearest: heap [0x12340000-0x12340fff]
+            write of 0x401500 from sample.exe+0x2000; in .text [0x401000-0x405fff]
+            fetch at 0xdeadbeef from pc=0xdeadbeef
         """
-        Collect emulator state information in the event of an error
-        """
+        parts = []
+        access_str = access_type or desc
+        if address != pc:
+            parts.append(f"{access_str} of {'unmapped ' if not address_region else ''}0x{address:x}")
+        else:
+            parts.append(f"{access_str} at 0x{address:x}")
+        if pc_module:
+            parts.append(f"from {pc_module}")
+        else:
+            parts.append(f"from pc=0x{pc:x}")
+        if address_region:
+            ri = address_region
+            parts.append(f"in {ri.tag} [0x{ri.base:x}-0x{ri.base + ri.size - 1:x}]")
+        elif nearby_regions:
+            nearest = nearby_regions[0]
+            parts.append(f"nearest: {nearest.tag} [0x{nearest.base:x}-0x{nearest.base + nearest.size - 1:x}]")
+        return "; ".join(parts)
+
+    def get_error_info(
+        self, desc: str, address: int, traceback: str | None = None, access_type: str | None = None
+    ) -> ErrorInfo:
+        """Collect emulator state information in the event of an error."""
         run = self.get_current_run()
         pc = self.get_pc()
-        error = {}
-        logger.error("0x%x: %s: Caught error: %s", pc, run.type, desc)
-        error["type"] = desc
-        error["pc"] = hex(pc)
-        error["address"] = hex(address)
+
         try:
             mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
         except Exception as e:
             logger.error(str(e))
             instr = "disasm_failed"
-        error["instr"] = instr
-        error["regs"] = self.get_register_state()
-        error["stack"] = self.get_stack_trace()
 
-        if traceback:
-            error["traceback"] = traceback
+        regs = self.get_register_state()
+        stack = self.get_stack_trace()
+        pc_module = self._resolve_module_offset(pc)
+        address_region = self._resolve_region_info(address)
+        nearby_regions = self._find_nearby_regions(address) if not address_region else None
+        tid = self.curr_thread.tid if self.curr_thread else None
+        pid = self.curr_process.id if self.curr_process else None
 
-        return error
+        summary = self._build_context_summary(desc, pc, address, access_type, pc_module, address_region, nearby_regions)
+
+        logger.error(
+            "0x%x: %s: Caught error: %s\n  summary: %s\n  instr: %s\n  regs: %s",
+            pc,
+            run.type,
+            desc,
+            summary,
+            instr,
+            "  ".join(f"{k}={v}" for k, v in regs.items()),
+        )
+
+        return ErrorInfo(
+            type=desc,
+            pc=pc,
+            address=address,
+            access_type=access_type,
+            instr=instr,
+            regs=regs,
+            stack=stack,
+            pc_module=pc_module,
+            address_region=address_region,
+            nearby_regions=nearby_regions,
+            thread_id=tid,
+            process_id=pid,
+            context_summary=summary,
+            traceback=traceback,
+        )
 
     def normalize_import_miss(self, dll, name):
         """
@@ -1589,17 +1688,19 @@ class WindowsEmulator(BinaryEmulator):
             run = self.get_current_run()
             error = self.get_error_info("unsupported_api", self.get_pc())
             logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
-            error["api_name"] = imp_api
+            error.api_name = imp_api
             self.curr_run.error = error  # type: ignore[union-attr]
             self.on_run_complete()
 
         run = self.get_current_run()
         if run and run.get_api_count() > self.config.max_api_count:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
-            run.error["type"] = "max_api_count"
-            run.error["count"] = self.config.max_api_count
-            run.error["pc"] = hex(self.get_pc())
-            run.error["last_api"] = imp_api
+            run.error = ErrorInfo(
+                type="max_api_count",
+                pc=self.get_pc(),
+                count=self.config.max_api_count,
+                last_api=imp_api,
+            )
             self.on_run_complete()
 
     def _hook_mem_unmapped(self, emu, access, address, size, value, ctx):
@@ -1657,7 +1758,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info("invalid_protect_write", address)
+        error = self.get_error_info("invalid_protect_write", address, access_type="write")
         self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
@@ -1829,7 +1930,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info("invalid_read", address)
+        error = self.get_error_info("invalid_read", address, access_type="read")
         self.curr_run.error = error  # type: ignore[union-attr]
 
         # Let the next run know to remove this map since its
@@ -1874,7 +1975,7 @@ class WindowsEmulator(BinaryEmulator):
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
-        error = self.get_error_info("invalid_write", address)
+        error = self.get_error_info("invalid_write", address, access_type="write")
         self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
@@ -2384,20 +2485,44 @@ class WindowsEmulator(BinaryEmulator):
                 logger.error(str(e))
                 instr = "disasm_failed"
 
+            pc_module = self._resolve_module_offset(pc)
+            stack_trace = self.get_stack_trace()
+            handler_module = self._resolve_module_offset(entry.Handler)
+
+            pc_desc = pc_module or f"0x{pc:x}"
+            handler_desc = f"0x{entry.Handler:x}"
+            if handler_module:
+                handler_desc = f"{handler_desc} ({handler_module})"
             logger.info(
-                '0x%x: Exception caught: code=0x%x handler=0x%x instr="%s"',
+                '0x%x: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
                 pc,
                 except_code,
-                entry.Handler,
+                handler_desc,
                 instr,
+                pc_desc,
+                "  ".join(f"{k}={v}" for k, v in regs.items()),
             )
+
+            faulting_addr_hex = None
+            if except_code == ddk.STATUS_ACCESS_VIOLATION:
+                faulting_addr_hex = hex(self.prev_pc) if hasattr(self, "prev_pc") else None
 
             if self.profiler:
                 tick = run.instr_cnt if run else 0
                 tid = self.curr_thread.tid if self.curr_thread else 0
                 pid = self.curr_process.id if self.curr_process else 0
                 pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-                self.profiler.record_exception_event(run, pos, instr, except_code, entry.Handler, regs)
+                self.profiler.record_exception_event(
+                    run,
+                    pos,
+                    instr,
+                    except_code,
+                    entry.Handler,
+                    regs,
+                    faulting_address=faulting_addr_hex,
+                    pc_module=pc_module,
+                    stack_trace=stack_trace,
+                )
 
             # EBX clobber, -1 is what I observed inside a VM
             self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
@@ -2612,7 +2737,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.debug("interrupt: intnum=0x%x", intnum)
         logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
         error = self.get_error_info("unhandled_interrupt", pc)
-        error.update({"interrupt_num": intnum})
+        error.interrupt_num = intnum
         self.curr_run.error = error  # type: ignore[union-attr]
 
         self.restart_curr_run = True
