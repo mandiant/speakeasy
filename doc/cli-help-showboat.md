@@ -10,7 +10,7 @@ Captured from the current source tree to show the full runtime and schema-derive
 ```
 
 ```output
-usage: cli.py [-h] [-t TARGET] [-o OUTPUT] [--argv [ARGV ...]] [-c CONFIG]
+usage: cli.py [-h] [-t TARGET] [-o OUTPUT] [--argv ARGV] [-c CONFIG]
               [--dump-default-config] [--raw] [--raw-offset RAW_OFFSET]
               [--arch ARCH] [--dropped-files-path DROPPED_FILES_PATH] [-k] [--no-mp] [-v]
               [--gdb] [--gdb-port GDB_PORT] [-V VOLUMES] [--timeout TIMEOUT]
@@ -43,8 +43,9 @@ options:
   -h, --help            show this help message and exit
   -t, --target TARGET   Path to input file to emulate
   -o, --output OUTPUT   Path to output file to save report
-  --argv [ARGV ...]     Commandline parameters to supply to emulated process
-                        (e.g. main(argv))
+  --argv ARGV           Commandline parameters to supply to emulated process,
+                        as a quoted string (e.g. --argv="-log -path
+                        'C:\\path with spaces\\'")
   -c, --config CONFIG   Path to emulator config file
   --dump-default-config
                         Print built-in default config JSON and exit

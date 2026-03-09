@@ -24,7 +24,7 @@ These flags are not generated from the config schema.
 
 - `-t, --target`: input file to emulate
 - `-o, --output`: output report JSON path
-- `--argv`: argv values for the emulated process
+- `--argv`: argv values for the emulated process (quoted string, parsed with shell rules)
 - `-c, --config`: JSON config overlay file
 - `--dump-default-config`: print built-in default config and exit
 - `--raw`: treat input as raw bytes/shellcode

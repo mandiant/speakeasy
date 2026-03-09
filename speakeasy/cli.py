@@ -5,6 +5,7 @@ import json
 import logging
 import multiprocessing as mp
 import os
+import shlex
 import time
 
 from rich.console import Console
@@ -90,7 +91,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     do_raw = args.do_raw
     raw_offset = args.raw_offset
     arch = args.arch
-    argv = args.argv
+    argv = shlex.split(args.argv) if args.argv else []
     verbose = args.verbose
     gdb_port = args.gdb_port if args.gdb else None
 
@@ -214,11 +215,11 @@ def main():
     parser.add_argument(
         "--argv",
         action="store",
-        default=[],
-        nargs="*",
+        default="",
         dest="argv",
         required=False,
-        help="Commandline parameters to supply to emulated process (e.g. main(argv))",
+        help="Commandline parameters to supply to emulated process, as a quoted string "
+        "(e.g. --argv=\"-log -path 'C:\\\\path with spaces\\\\'\")",
     )
     parser.add_argument(
         "-c", "--config", action="store", dest="config", required=False, help="Path to emulator config file"
