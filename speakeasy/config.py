@@ -11,6 +11,7 @@ DEFAULT_CONFIG_DATA = {
     "emu_engine": "unicorn",
     "timeout": 60,
     "max_api_count": 10000,
+    "stack_size": 0,
     "system": "windows",
     "analysis": {"memory_tracing": False, "strings": True, "coverage": False},
     "keep_memory_on_free": False,
@@ -527,6 +528,10 @@ class SpeakeasyConfig(BaseModel):
         default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."
     )
     max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
+    stack_size: int = Field(
+        default=DEFAULT_CONFIG_DATA["stack_size"],
+        description="Override stack size in bytes. 0 uses the PE header value or the built-in default (0x12000).",
+    )
     system: Literal["windows"] = Field(
         default=DEFAULT_CONFIG_DATA["system"], description="Emulated operating system family."
     )

@@ -30,6 +30,11 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // -1 means effectively unbounded from Speakeasy policy.
   "max_instructions": -1,
 
+  // Override the stack size in bytes for all emulated threads.
+  // 0 (default) uses the PE header's SizeOfStackReserve or the built-in default (0x12000).
+  // Set to e.g. 0x100000 (1 MiB) for samples that allocate a large stack.
+  "stack_size": 0,
+
   // OS family model. Only "windows" is supported.
   "system": "windows",
 

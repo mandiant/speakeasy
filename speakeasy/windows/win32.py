@@ -419,7 +419,8 @@ class Win32Emulator(WindowsEmulator):
         if not target:
             raise Win32EmuError("Invalid shellcode address")
 
-        self.stack_base, stack_addr = self.alloc_stack(stack_commit)
+        effective_stack = self.config.stack_size or stack_commit
+        self.stack_base, stack_addr = self.alloc_stack(effective_stack)
         self.set_func_args(self.stack_base, self.return_hook, 0x7000)
 
         run = Run()
