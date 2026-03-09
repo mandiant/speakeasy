@@ -159,8 +159,8 @@ class Win32Emulator(WindowsEmulator):
 
             self.processes.append(p)
 
-    def load_module(self, path=None, data=None):
-        self._init_name(path, data)
+    def load_module(self, path=None, data=None, filename=None):
+        self._init_name(path, data, filename=filename)
 
         if not data:
             assert path is not None
@@ -344,8 +344,11 @@ class Win32Emulator(WindowsEmulator):
 
         return
 
-    def _init_name(self, path, data=None):
-        if not data:
+    def _init_name(self, path, data=None, filename=None):
+        if filename:
+            self.file_name = ntpath.basename(filename)
+            self.mod_name = os.path.splitext(self.file_name)[0]
+        elif not data:
             self.file_name = os.path.basename(path)
             self.mod_name = os.path.splitext(self.file_name)[0]
         else:
@@ -363,10 +366,10 @@ class Win32Emulator(WindowsEmulator):
         mod = self.load_module(path)
         self.run_module(mod)
 
-    def load_shellcode(self, path, arch, data=None):
+    def load_shellcode(self, path, arch, data=None, filename=None):
         from speakeasy.windows.loaders import ShellcodeLoader
 
-        self._init_name(path, data)
+        self._init_name(path, data, filename=filename)
         if arch == "x86":
             arch = _arch.ARCH_X86
         elif arch in ("x64", "amd64"):
@@ -380,7 +383,7 @@ class Win32Emulator(WindowsEmulator):
 
         loader = ShellcodeLoader(data=data, arch=arch)
         image = loader.make_image()
-        image.name = str(sc_hash)
+        image.name = self.mod_name if filename else str(sc_hash)
         rtmod = self.load_image(image)
         sc_addr = rtmod.base
 
