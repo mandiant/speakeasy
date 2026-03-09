@@ -200,7 +200,7 @@ class Msvcrt(api.ApiHandler):
         pfbegin, pfend = argv
         funcs = self._read_func_table(pfbegin, pfend)
         if funcs:
-            argv.append(", ".join("0x%x" % f for f in funcs))
+            argv.append(", ".join(f"0x{f:x}" for f in funcs))
         return 0
 
     @apihook("_initterm", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -209,7 +209,7 @@ class Msvcrt(api.ApiHandler):
         pfbegin, pfend = argv
         funcs = self._read_func_table(pfbegin, pfend)
         if funcs:
-            argv.append(", ".join("0x%x" % f for f in funcs))
+            argv.append(", ".join(f"0x{f:x}" for f in funcs))
         return 0
 
     @apihook("__getmainargs", argc=5)
