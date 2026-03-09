@@ -100,10 +100,17 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.setup_kernel_mode()
         self.setup_user_shared_data()
 
-    def load_module(self, path=None, data=None):
+    def load_module(self, path=None, data=None, filename=None):
         from speakeasy.windows.loaders import PeLoader
 
-        if not data:
+        if filename:
+            file_name = ntpath.basename(filename)
+            mod_name = os.path.splitext(file_name)[0]
+            if not data:
+                assert path is not None
+                with open(path, "rb") as f:
+                    data = f.read()
+        elif not data:
             assert path is not None
             file_name = os.path.basename(path)
             mod_name = os.path.splitext(file_name)[0]

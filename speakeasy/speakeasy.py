@@ -237,9 +237,16 @@ class Speakeasy:
         for e in entries:
             logger.debug("  %s -> %s", e["emu_path"], e["path"])
 
-    def load_module(self, path=None, data=None):
+    def load_module(self, path=None, data=None, filename=None):
         """
         Load a module into the speakeasy emulator.
+
+        args:
+            path: file path to PE module
+            data: bytes object containing PE module
+            filename: override the module filename seen by the emulated program.
+                      Useful when emulating from bytes and the malware checks its
+                      own filename (e.g. via GetModuleFileName).
         """
         if not path and not data:
             raise SpeakeasyError("No emulation target supplied")
@@ -263,7 +270,7 @@ class Speakeasy:
 
         self._init_emulator(path=path, data=data)
 
-        return self.emu.load_module(path=path, data=data)  # type: ignore[union-attr]
+        return self.emu.load_module(path=path, data=data, filename=filename)  # type: ignore[union-attr]
 
     def load_image(self, image):
         """
@@ -299,7 +306,7 @@ class Speakeasy:
         else:
             return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)  # type: ignore[no-any-return, union-attr]
 
-    def load_shellcode(self, fpath=None, arch=None, data=None) -> int:
+    def load_shellcode(self, fpath=None, arch=None, data=None, filename=None) -> int:
         """
         Load a shellcode blob into emulation space
 
@@ -307,13 +314,14 @@ class Speakeasy:
             fpath: file path containing shellcode blob
             arch: Architecture (x86 | amd64) to load shellcode as
             data: bytes object containing shellcode blob
+            filename: override the module filename seen by the emulated program
         return:
             Address of the loaded shellcode in the emulation space
         """
         self._init_emulator(is_raw_code=True)
         self.loaded_bins.append(fpath)
 
-        return self.emu.load_shellcode(fpath, arch, data=data)  # type: ignore[no-any-return, union-attr]
+        return self.emu.load_shellcode(fpath, arch, data=data, filename=filename)  # type: ignore[no-any-return, union-attr]
 
     @check_init
     def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
