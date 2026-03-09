@@ -1,7 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from speakeasy.struct import EmuStruct, Ptr
 import ctypes as ct
+
+from speakeasy.struct import EmuStruct, Ptr
 
 WH_CALLWNDPROC = 4
 WH_CALLWNDPROCRET = 12
@@ -18,6 +19,8 @@ WH_MOUSE_LL = 14
 WH_MSGFILTER = -1
 WH_SHELL = 10
 WH_SYSMSGFILTER = 6
+WM_KEYDOWN = 0x0100
+WM_SYSKEYDOWN = 0x0104
 WM_TIMER = 0x0113
 
 WM_PAINT = 0x0F
@@ -36,6 +39,16 @@ class MSG(EmuStruct):
         self.pt_x = Ptr
         self.pt_y = Ptr
         self.lPrivate = ct.c_uint32
+
+
+class KBDLLHOOKSTRUCT(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.vkCode = ct.c_uint32
+        self.scanCode = ct.c_uint32
+        self.flags = ct.c_uint32
+        self.time = ct.c_uint32
+        self.dwExtraInfo = Ptr
 
 
 class USEROBJECTFLAGS(EmuStruct):
@@ -63,7 +76,7 @@ class WNDCLASSEX(EmuStruct):
         self.hIconSm = Ptr
 
 
-def get_flag_defines(flags, prefix=''):
+def get_flag_defines(flags, prefix=""):
     defs = []
     for k, v in globals().items():
         if not isinstance(v, int):
@@ -75,4 +88,4 @@ def get_flag_defines(flags, prefix=''):
 
 
 def get_windowhook_flags(flags):
-    return get_flag_defines(flags, prefix='WH_')
+    return get_flag_defines(flags, prefix="WH_")
