@@ -1,9 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-class GuiObject(object):
+from typing import Any
+
+
+class GuiObject:
     """
     Base class for all GUI objects
     """
+
     curr_handle = 0x120
 
     def __init__(self):
@@ -19,12 +23,13 @@ class Session(GuiObject):
     """
     Represents a windows Session
     """
-    def __init__(self, sess_id):
-        super(Session, self).__init__()
-        self.id = sess_id
-        self.stations = {}
 
-    def new_station(self, name='WinSta0'):
+    def __init__(self, sess_id):
+        super().__init__()
+        self.id: int = sess_id
+        self.stations: dict[int, Station] = {}
+
+    def new_station(self, name="WinSta0"):
         stat = Station(name=name)
         self.stations.update({stat.get_handle(): stat})
         return stat
@@ -34,29 +39,28 @@ class Station(GuiObject):
     """
     Represents a window station
     """
-    def __init__(self, name=''):
-        super(Station, self).__init__()
-        self.name = name
-        self.desktops = {}
 
-    def new_desktop(self, name=''):
+    def __init__(self, name=""):
+        super().__init__()
+        self.name: str = name
+        self.desktops: dict[int, Desktop] = {}
+
+    def new_desktop(self, name=""):
         desk = Desktop(name=name)
         self.desktops.update({desk.get_handle(): desk})
         return desk
-
-    def get_name(self):
-        return self.name
 
 
 class Desktop(GuiObject):
     """
     Represents a Desktop object
     """
-    def __init__(self, name=''):
-        super(Desktop, self).__init__()
-        self.windows = {}
-        self.desktop_window = self.new_window()
-        self.name = name
+
+    def __init__(self, name=""):
+        super().__init__()
+        self.windows: dict[int, Window] = {}
+        self.desktop_window: Window = self.new_window()
+        self.name: str = name
 
     def new_window(self):
         # create the desktop window
@@ -64,59 +68,56 @@ class Desktop(GuiObject):
         self.windows.update({window.get_handle(): window})
         return window
 
-    def get_desktop_window(self):
-        return self.desktop_window
-
-    def get_name(self):
-        return self.name
-
 
 class Window(GuiObject):
     """
     Represents a GUI window
     """
+
     def __init__(self, name=None, class_name=None):
-        super(Window, self).__init__()
-        self.name = name
-        self.class_name = class_name
+        super().__init__()
+        self.name: str | None = name
+        self.class_name: str | None = class_name
 
 
 class WindowClass(GuiObject):
     """
     Represents a GUI window class
     """
+
     def __init__(self, wclass, name):
-        super(WindowClass, self).__init__()
-        self.wclass = wclass
-        self.name = name
+        super().__init__()
+        self.wclass: Any = wclass
+        self.name: str = name
 
 
-class SessionManager(object):
+class SessionManager:
     """
     The session manager for the emulator. This will manage things like desktops,
     windows, and session isolation
     """
+
     def __init__(self, config):
-        super(SessionManager, self).__init__()
-        self.sessions = {}
-        self.window_classes = {}
-        self.windows = {}
-        self.curr_session = None
-        self.curr_station = None
-        self.curr_desktop = None
-        self.config = config
-        self.dev_ctx = GuiObject.curr_handle
+        super().__init__()
+        self.sessions: dict[int, Session] = {}
+        self.window_classes: dict[int | str, WindowClass] = {}
+        self.windows: dict[int | str, Window] = {}
+        self.curr_session: Session | None = None
+        self.curr_station: Station | None = None
+        self.curr_desktop: Desktop | None = None
+        self.config: Any = config
+        self.dev_ctx: int = GuiObject.curr_handle
 
         # create a session 0
         self.curr_session = Session(sess_id=0)
 
         # create WinSta0
-        self.curr_station = self.curr_session.new_station(name='WinSta0')
+        self.curr_station = self.curr_session.new_station(name="WinSta0")
 
         # Create a desktop
-        self.curr_station.new_desktop('Winlogon')
-        default = self.curr_station.new_desktop('Default')
-        self.curr_station.new_desktop('Disconnect')
+        self.curr_station.new_desktop("Winlogon")
+        default = self.curr_station.new_desktop("Default")
+        self.curr_station.new_desktop("Disconnect")
 
         # For now lets default to the Default desktop
         self.curr_desktop = default
