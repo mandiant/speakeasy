@@ -361,3 +361,20 @@ class Ntdll(api.ApiHandler):
             emu.write_ptr(Resource, BaseAddress + offset)
 
         return ddk.STATUS_SUCCESS
+
+    @apihook("RtlGetNtVersionNumbers", argc=3)
+    def RtlGetNtVersionNumbers(self, emu, argv, ctx={}):
+        """
+        void RtlGetNtVersionNumbers(
+            DWORD *pNtMajorVersion,
+            DWORD *pNtMinorVersion,
+            DWORD *pNtBuildNumber
+        );
+        """
+        pMajor, pMinor, pBuild = argv
+        if pMajor:
+            self.mem_write(pMajor, (10).to_bytes(4, "little"))
+        if pMinor:
+            self.mem_write(pMinor, (0).to_bytes(4, "little"))
+        if pBuild:
+            self.mem_write(pBuild, (0xF0004A61).to_bytes(4, "little"))

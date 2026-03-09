@@ -232,6 +232,7 @@ DEFAULT_CONFIG_DATA = {
             {"name": "wkscli", "base_addr": "0x5fc00000", "path": "C:\\Windows\\system32\\wkscli.dll"},
             {"name": "iphlpapi", "base_addr": "0x5fd00000", "path": "C:\\Windows\\system32\\iphlpapi.dll"},
             {"name": "sfc_os", "base_addr": "0x5fe00000", "path": "C:\\Windows\\system32\\sfc_os.dll"},
+            {"name": "winmm", "base_addr": "0x5ff00000", "path": "C:\\Windows\\system32\\winmm.dll"},
         ],
     },
 }
