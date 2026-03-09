@@ -1999,6 +1999,11 @@ class Kernel32(api.ApiHandler):
 
         return
 
+    @apihook("SwitchToThread", argc=0)
+    def SwitchToThread(self, emu, argv, ctx={}):
+        """BOOL SwitchToThread();"""
+        return 0
+
     @apihook("SleepEx", argc=2)
     def SleepEx(self, emu, argv, ctx={}):
         """DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);"""
