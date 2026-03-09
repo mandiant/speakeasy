@@ -5812,6 +5812,9 @@ class Kernel32(api.ApiHandler):
         if volume_guid_path:
             argv[0] = volume_guid_path
 
+        ERROR_MORE_DATA = 234
+
+        rv = 1
         dm = emu.get_drive_manager()
         drive = dm.get_drive(volume_guid_path=volume_guid_path)
         if drive:
@@ -5822,10 +5825,14 @@ class Kernel32(api.ApiHandler):
             root_path_len = len(root_path)
             argv[3] = root_path_len
 
-            self.write_mem_string(root_path, lpszVolumePathNames, cw)
+            if lpszVolumePathNames and cchBufferLength >= root_path_len:
+                self.write_mem_string(root_path, lpszVolumePathNames, cw)
+            else:
+                emu.set_last_error(ERROR_MORE_DATA)
+                rv = 0
             self.mem_write(lpcchReturnLength, root_path_len.to_bytes(4, "little"))
 
-        return 1
+        return rv
 
     @apihook("GetLogicalDrives", argc=0)
     def GetLogicalDrives(self, emu, argv, ctx={}):
