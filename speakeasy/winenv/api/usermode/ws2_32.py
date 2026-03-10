@@ -40,13 +40,14 @@ class Ws2_32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WSAStartup", argc=2, conv=_arch.CALL_CONV_STDCALL, ordinal=115)
-    def WSAStartup(self, emu, argv, ctx={}):
+    def WSAStartup(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAStartup(
           WORD      wVersionRequired,
           LPWSADATA lpWSAData
         );
         """
+        ctx = ctx or {}
         ver, lpWSAData = argv
 
         wsa = self.wstypes.WSAData(emu.get_ptr_size())
@@ -63,15 +64,16 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("WSACleanup", argc=0, ordinal=116)
-    def WSACleanup(self, emu, argv, ctx={}):
+    def WSACleanup(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSACleanup();
         """
+        ctx = ctx or {}
 
         return 0
 
     @apihook("WSASocket", argc=6)
-    def WSASocket(self, emu, argv, ctx={}):
+    def WSASocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SOCKET WSAAPI WSASocket(
           int                 af,
@@ -82,6 +84,7 @@ class Ws2_32(api.ApiHandler):
           DWORD               dwFlags
         );
         """
+        ctx = ctx or {}
         af, typ, protocol, lpProtocolInfo, g, dwFlags = argv
 
         fam_str = winsock.get_addr_family(af)
@@ -97,7 +100,7 @@ class Ws2_32(api.ApiHandler):
         return fd
 
     @apihook("WSAIoctl", argc=9, conv=_arch.CALL_CONV_STDCALL)
-    def WSAIoctl(self, emu, argv, ctx={}):
+    def WSAIoctl(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI WSAIoctl(
           SOCKET                             s,
@@ -111,13 +114,14 @@ class Ws2_32(api.ApiHandler):
           LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
         );
         """
+        ctx = ctx or {}
 
         # TODO: Add actual function logic. However, for now, returning 0 (success) should cover most use cases.
 
         return windefs.ERROR_SUCCESS
 
     @apihook("WSAConnect", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def WSAConnect(self, emu, argv, ctx={}):
+    def WSAConnect(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI WSAConnect(
             SOCKET         s,
@@ -129,13 +133,14 @@ class Ws2_32(api.ApiHandler):
             LPQOS          lpGQOS
         );
         """
+        ctx = ctx or {}
 
         # TODO: Add actual function logic. However, for now, just call connect()
 
         return self.connect(emu, argv[:3], ctx)
 
     @apihook("socket", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=23)
-    def socket(self, emu, argv, ctx={}):
+    def socket(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SOCKET WSAAPI socket(
           int af,
@@ -143,6 +148,7 @@ class Ws2_32(api.ApiHandler):
           int protocol
         );
         """
+        ctx = ctx or {}
         af, typ, protocol = argv
 
         fam_str = winsock.get_addr_family(af)
@@ -158,12 +164,13 @@ class Ws2_32(api.ApiHandler):
         return fd
 
     @apihook("inet_addr", argc=1, ordinal=11)
-    def inet_addr(self, emu, argv, ctx={}):
+    def inet_addr(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         unsigned long inet_addr(
           _In_ const char *cp
         );
         """
+        ctx = ctx or {}
         (a,) = argv
 
         if a:
@@ -178,12 +185,13 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("htons", argc=1, conv=_arch.CALL_CONV_STDCALL, ordinal=9)
-    def htons(self, emu, argv, ctx={}):
+    def htons(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         u_short htons(
           u_short hostshort
         );
         """
+        ctx = ctx or {}
         (hostshort,) = argv
 
         netshort = htons(hostshort)
@@ -191,29 +199,31 @@ class Ws2_32(api.ApiHandler):
         return netshort
 
     @apihook("ntohs", argc=1, ordinal=15)
-    def ntohs(self, emu, argv, ctx={}):
+    def ntohs(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         u_short ntohs(
             u_short netshort
         );
         """
+        ctx = ctx or {}
         (netshort,) = argv
 
         return ntohs(netshort)
 
     @apihook("ntohl", argc=1, ordinal=14)
-    def ntohl(self, emu, argv, ctx={}):
+    def ntohl(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         u_long ntohl(
             u_long netlong
         );
         """
+        ctx = ctx or {}
         (netlong,) = argv
 
         return ntohl(netlong)
 
     @apihook("setsockopt", argc=5, ordinal=21)
-    def setsockopt(self, emu, argv, ctx={}):
+    def setsockopt(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int setsockopt(
           SOCKET     s,
@@ -223,6 +233,7 @@ class Ws2_32(api.ApiHandler):
           int        optlen
         );
         """
+        ctx = ctx or {}
         s, level, optname, optval, optlen = argv
         rv = 0
 
@@ -241,25 +252,27 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("WSASetLastError", argc=1, ordinal=112)
-    def WSASetLastError(self, emu, argv, ctx={}):
+    def WSASetLastError(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WSASetLastError(
             int iError
         );
         """
+        ctx = ctx or {}
         (iError,) = argv
 
         self.last_error = iError
         return
 
     @apihook("gethostname", argc=2, ordinal=57)
-    def gethostname(self, emu, argv, ctx={}):
+    def gethostname(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int gethostname(
             char *name,
             int  namelen
         );
         """
+        ctx = ctx or {}
         (
             name,
             namelen,
@@ -276,10 +289,11 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("gethostbyname", argc=1, conv=_arch.CALL_CONV_STDCALL, ordinal=52)
-    def gethostbyname(self, emu, argv, ctx={}):
+    def gethostbyname(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         struct hostent * gethostbyname(const char FAR * name);
         """
+        ctx = ctx or {}
         (name,) = argv
 
         name = self.read_mem_string(name, 1)
@@ -318,7 +332,7 @@ class Ws2_32(api.ApiHandler):
         return ptr_hostent
 
     @apihook("connect", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=4)
-    def connect(self, emu, argv, ctx={}):
+    def connect(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI connect(
           SOCKET         s,
@@ -326,6 +340,7 @@ class Ws2_32(api.ApiHandler):
           int            namelen
         );
         """
+        ctx = ctx or {}
 
         s, pname, namelen = argv
 
@@ -358,7 +373,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("bind", argc=3, ordinal=2)
-    def bind(self, emu, argv, ctx={}):
+    def bind(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int bind(
             SOCKET         s,
@@ -366,6 +381,7 @@ class Ws2_32(api.ApiHandler):
             int            namelen
         );
         """
+        ctx = ctx or {}
         s, pname, namelen = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -392,20 +408,21 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("listen", argc=2, ordinal=13)
-    def listen(self, emu, argv, ctx={}):
+    def listen(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI listen(
             SOCKET s,
             int    backlog
         );
         """
+        ctx = ctx or {}
         s, backlog = argv
         rv = windefs.ERROR_SUCCESS
 
         return rv
 
     @apihook("select", argc=5, ordinal=18)
-    def select(self, emu, argv, ctx={}):
+    def select(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI select(
             int           nfds,
@@ -415,6 +432,7 @@ class Ws2_32(api.ApiHandler):
             const timeval *timeout
         );
         """
+        ctx = ctx or {}
         nfds, readfds, writefds, exceptfds, timeout = argv
         fd_count = 0
 
@@ -436,7 +454,7 @@ class Ws2_32(api.ApiHandler):
         return fd_count
 
     @apihook("accept", argc=3, ordinal=1)
-    def accept(self, emu, argv, ctx={}):
+    def accept(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SOCKET WSAAPI accept(
             SOCKET   s,
@@ -444,6 +462,7 @@ class Ws2_32(api.ApiHandler):
             int      *addrlen
         );
         """
+        ctx = ctx or {}
         s, addr, addrlen = argv
 
         socket = self.netman.get_socket(s)
@@ -479,10 +498,11 @@ class Ws2_32(api.ApiHandler):
         return new_sock.fd
 
     @apihook("inet_ntoa", argc=1, ordinal=12)
-    def inet_ntoa(self, emu, argv, ctx={}):
+    def inet_ntoa(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         char FAR* inet_ntoa(struct in_addr in);
         """
+        ctx = ctx or {}
         (in_addr,) = argv
 
         raddr = inet_ntoa(in_addr.to_bytes(4, "little"))
@@ -494,7 +514,7 @@ class Ws2_32(api.ApiHandler):
         return buf
 
     @apihook("inet_ntop", argc=4, ordinal=180)
-    def inet_ntop(self, emu, argv, ctx={}):
+    def inet_ntop(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PCSTR WSAAPI inet_ntop(
           [in]  INT        Family,
@@ -503,6 +523,7 @@ class Ws2_32(api.ApiHandler):
           [in]  size_t     StringBufSize
         );
         """
+        ctx = ctx or {}
         family, pAddr, pStringBuf, StringBufSize = argv
 
         fam_str = winsock.get_addr_family(family)
@@ -523,7 +544,7 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("inet_pton", argc=3, ordinal=181)
-    def inet_pton(self, emu, argv, ctx={}):
+    def inet_pton(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         INT WSAAPI inet_pton(
           [in]  INT   Family,
@@ -531,6 +552,7 @@ class Ws2_32(api.ApiHandler):
           [out] PVOID pAddrBuf
         );
         """
+        ctx = ctx or {}
 
         family, pszAddrString, pAddrBuf = argv
 
@@ -552,36 +574,39 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("htonl", argc=1, ordinal=8)
-    def htonl(self, emu, argv, ctx={}):
+    def htonl(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         uint32_t htonl(uint32_t hostlong);
         """
+        ctx = ctx or {}
         (hostlong,) = argv
         return htonl(hostlong)
 
     @apihook("__WSAFDIsSet", argc=2, ordinal=151)
-    def __WSAFDIsSet(self, emu, argv, ctx={}):
+    def __WSAFDIsSet(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int __WSAFDIsSet(
             SOCKET ,
             fd_set *
         );
         """
+        ctx = ctx or {}
         sock, fd_set = argv
         return 1
 
     @apihook("shutdown", argc=2, ordinal=22)
-    def shutdown(self, emu, argv, ctx={}):
+    def shutdown(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int shutdown(
             SOCKET s,
             int    how
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("recv", argc=4, ordinal=16)
-    def recv(self, emu, argv, ctx={}):
+    def recv(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int recv(
           SOCKET s,
@@ -590,6 +615,7 @@ class Ws2_32(api.ApiHandler):
           int    flags
         );
         """
+        ctx = ctx or {}
 
         s, buf, blen, flags = argv
         rv = 0
@@ -617,7 +643,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("send", argc=4, ordinal=19)
-    def send(self, emu, argv, ctx={}):
+    def send(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WSAAPI send(
           SOCKET     s,
@@ -626,6 +652,7 @@ class Ws2_32(api.ApiHandler):
           int        flags
         );
         """
+        ctx = ctx or {}
         s, buf, blen, flags = argv
         data = b""
 
@@ -648,12 +675,13 @@ class Ws2_32(api.ApiHandler):
         return len(data)
 
     @apihook("closesocket", argc=1, ordinal=3)
-    def closesocket(self, emu, argv, ctx={}):
+    def closesocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int closesocket(
           IN SOCKET s
         );
         """
+        ctx = ctx or {}
         (s,) = argv
 
         rv = 0
@@ -668,7 +696,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("ioctlsocket", argc=3, ordinal=10)
-    def ioctlsocket(self, emu, argv, ctx={}):
+    def ioctlsocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int ioctlsocket(
             SOCKET s,
@@ -676,6 +704,7 @@ class Ws2_32(api.ApiHandler):
             u_long *argp
         );
         """
+        ctx = ctx or {}
         s, cmd, argp = argv
         rv = winsock.WSAENOTSOCK
 
@@ -686,7 +715,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("getaddrinfo", argc=4, ordinal=178)
-    def getaddrinfo(self, emu, argv, ctx={}):
+    def getaddrinfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         INT WSAAPI getaddrinfo(
           PCSTR           pNodeName,
@@ -695,6 +724,7 @@ class Ws2_32(api.ApiHandler):
           PADDRINFOA      *ppResult
         );
         """
+        ctx = ctx or {}
         pNodeName, pServiceName, pHints, ppResult = argv
         rv = 0
 
@@ -754,18 +784,19 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("freeaddrinfo", argc=1, ordinal=177)
-    def freeaddrinfo(self, emu, argv, ctx={}):
+    def freeaddrinfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID WSAAPI freeaddrinfo(
           PADDRINFOA pAddrInfo
         );
         """
+        ctx = ctx or {}
         self.mem_free(argv[0])
 
         return
 
     @apihook("getsockopt", argc=5, ordinal=7)
-    def getsockopt(self, emu, argv, ctx={}):
+    def getsockopt(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int getsockopt(
           SOCKET s,
@@ -775,6 +806,7 @@ class Ws2_32(api.ApiHandler):
           int    *optlen
         );
         """
+        ctx = ctx or {}
         s, level, optname, optval, optlen = argv
         rv = 0
 

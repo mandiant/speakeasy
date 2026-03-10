@@ -73,7 +73,7 @@ class Fwpkclnt(api.ApiHandler):
         return ret
 
     @apihook("FwpmEngineOpen0", argc=5)
-    def FwpmEngineOpen0(self, emu, argv, ctx={}):
+    def FwpmEngineOpen0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmEngineOpen0(
         const wchar_t             *serverName,
@@ -83,6 +83,7 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE                    *engineHandle
         );
         """
+        ctx = ctx or {}
 
         sname, asvc, authid, sess, eng = argv
 
@@ -95,7 +96,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsInjectionHandleCreate0", argc=3)
-    def FwpsInjectionHandleCreate0(self, emu, argv, ctx={}):
+    def FwpsInjectionHandleCreate0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS FwpsInjectionHandleCreate0(
         ADDRESS_FAMILY addressFamily,
@@ -103,6 +104,7 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE         *injectionHandle
         );
         """
+        ctx = ctx or {}
         family, flags, inj_handle = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -114,7 +116,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerAdd0", argc=3)
-    def FwpmSubLayerAdd0(self, emu, argv, ctx={}):
+    def FwpmSubLayerAdd0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmSubLayerAdd0(
         HANDLE               engineHandle,
@@ -122,6 +124,7 @@ class Fwpkclnt(api.ApiHandler):
         PSECURITY_DESCRIPTOR sd
         );
         """
+        ctx = ctx or {}
         engineHandle, subLayer, sd = argv
 
         name = ""
@@ -156,7 +159,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutRegister1", argc=3)
-    def FwpsCalloutRegister1(self, emu, argv, ctx={}):
+    def FwpsCalloutRegister1(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS FwpsCalloutRegister1(
           void                *deviceObject,
@@ -164,6 +167,7 @@ class Fwpkclnt(api.ApiHandler):
           UINT32              *calloutId
         );
         """
+        ctx = ctx or {}
         deviceObject, pCallout, calloutId = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -199,7 +203,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutAdd0", argc=4)
-    def FwpmCalloutAdd0(self, emu, argv, ctx={}):
+    def FwpmCalloutAdd0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmCalloutAdd0(
           HANDLE               engineHandle,
@@ -208,6 +212,7 @@ class Fwpkclnt(api.ApiHandler):
           UINT32               *id
         );
         """
+        ctx = ctx or {}
         eng, pCallout, sd, pCid = argv
 
         name = ""
@@ -240,7 +245,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterAdd0", argc=4)
-    def FwpmFilterAdd0(self, emu, argv, ctx={}):
+    def FwpmFilterAdd0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmFilterAdd0(
           HANDLE               engineHandle,
@@ -249,6 +254,7 @@ class Fwpkclnt(api.ApiHandler):
           UINT64               *id
         );
         """
+        ctx = ctx or {}
         eng, pFilter, sd, pId = argv
 
         self.mem_write(pId, b"\x41\x41")
@@ -280,13 +286,14 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterDeleteById0", argc=2)
-    def FwpmFilterDeleteById0(self, emu, argv, ctx={}):
+    def FwpmFilterDeleteById0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmFilterDeleteById0(
         HANDLE engineHandle,
         UINT64 id
         );
         """
+        ctx = ctx or {}
         eng, fid = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -294,13 +301,14 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutDeleteById0", argc=2)
-    def FwpmCalloutDeleteById0(self, emu, argv, ctx={}):
+    def FwpmCalloutDeleteById0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmCalloutDeleteById0(
         HANDLE engineHandle,
         UINT32 id
         );
         """
+        ctx = ctx or {}
         eng, cid = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
@@ -310,12 +318,13 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutUnregisterById0", argc=1)
-    def FwpsCalloutUnregisterById0(self, emu, argv, ctx={}):
+    def FwpsCalloutUnregisterById0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS FwpsCalloutUnregisterById0(
         const UINT32 calloutId
         );
         """
+        ctx = ctx or {}
         (cid,) = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
@@ -325,13 +334,14 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerDeleteByKey0", argc=2)
-    def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx={}):
+    def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmSubLayerDeleteByKey0(
         HANDLE     engineHandle,
         const GUID *key
         );
         """
+        ctx = ctx or {}
         eng, key = argv
 
         rv = FWP_E_SUBLAYER_NOT_FOUND
@@ -345,24 +355,26 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmEngineClose0", argc=1)
-    def FwpmEngineClose0(self, emu, argv, ctx={}):
+    def FwpmEngineClose0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FwpmEngineClose0(
         HANDLE engineHandle
         );
         """
+        ctx = ctx or {}
         (eng,) = argv
 
         rv = ddk.STATUS_SUCCESS
         return rv
 
     @apihook("FwpsInjectionHandleDestroy0", argc=1)
-    def FwpsInjectionHandleDestroy0(self, emu, argv, ctx={}):
+    def FwpsInjectionHandleDestroy0(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS FwpsInjectionHandleDestroy0(
         HANDLE injectionHandle
         );
         """
+        ctx = ctx or {}
         (handle,) = argv
 
         rv = ddk.STATUS_SUCCESS

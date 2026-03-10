@@ -22,11 +22,12 @@ class Mscoree(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("CorExitProcess", argc=1)
-    def CorExitProcess(self, emu, argv, ctx={}):
+    def CorExitProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void STDMETHODCALLTYPE CorExitProcess (
             int  exitCode
         );
         """
+        ctx = ctx or {}
 
         return 0

@@ -53,10 +53,11 @@ class Ndis(api.ApiHandler):
         return tmp
 
     @apihook("NdisGetVersion", argc=0)
-    def NdisGetVersion(self, emu, argv, ctx={}):
+    def NdisGetVersion(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT NdisGetVersion();
         """
+        ctx = ctx or {}
 
         ndis_major = 5
         ndis_minor = 0
@@ -76,12 +77,13 @@ class Ndis(api.ApiHandler):
         return out_ver
 
     @apihook("NdisGetRoutineAddress", argc=1)
-    def NdisGetRoutineAddress(self, emu, argv, ctx={}):
+    def NdisGetRoutineAddress(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID NdisGetRoutineAddress(
             PNDIS_STRING NdisRoutineName
         );
         """
+        ctx = ctx or {}
         (NdisRoutineName,) = argv
         fn = self.read_unicode_string(NdisRoutineName)
 
@@ -90,7 +92,7 @@ class Ndis(api.ApiHandler):
         return addr
 
     @apihook("NdisMRegisterMiniportDriver", argc=5)
-    def NdisMRegisterMiniportDriver(self, emu, argv, ctx={}):
+    def NdisMRegisterMiniportDriver(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NDIS_STATUS NdisMRegisterMiniportDriver(
             PDRIVER_OBJECT DriverObject,
@@ -100,6 +102,7 @@ class Ndis(api.ApiHandler):
             PNDIS_HANDLE NdisMiniportDriverHandle
         );
         """
+        ctx = ctx or {}
         drv, reg, drv_ctx, chars, phnd = argv
         rv = NDIS_STATUS_SUCCESS
 
@@ -110,7 +113,7 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisInitializeWrapper", argc=4)
-    def NdisInitializeWrapper(self, emu, argv, ctx={}):
+    def NdisInitializeWrapper(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID NdisInitializeWrapper(
             PNDIS_HANDLE    NdisWrapperHandle,
@@ -118,6 +121,7 @@ class Ndis(api.ApiHandler):
             PVOID           SystemSpecific2,
             PVOID           SystemSpecific3)
         """
+        ctx = ctx or {}
         pHandle, ss1, ss2, ss3 = argv
 
         hnd = self.new_id()
@@ -125,36 +129,39 @@ class Ndis(api.ApiHandler):
         self.mem_write(pHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisTerminateWrapper", argc=2)
-    def NdisTerminateWrapper(self, emu, argv, ctx={}):
+    def NdisTerminateWrapper(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID NdisTerminateWrapper(
         _In_ NDIS_HANDLE NdisWrapperHandle,
         _In_ PVOID       SystemSpecific
         );
         """
+        ctx = ctx or {}
         hnd, ss = argv
 
     @apihook("NdisInitializeReadWriteLock", argc=1)
-    def NdisInitializeReadWriteLock(self, emu, argv, ctx={}):
+    def NdisInitializeReadWriteLock(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void NdisInitializeReadWriteLock(
             PNDIS_RW_LOCK Lock
         );
         """
+        ctx = ctx or {}
         (lock,) = argv
 
     @apihook("NdisMRegisterUnloadHandler", argc=2)
-    def NdisMRegisterUnloadHandler(self, emu, argv, ctx={}):
+    def NdisMRegisterUnloadHandler(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID NdisMRegisterUnloadHandler(
         _In_ NDIS_HANDLE    NdisWrapperHandle,
         _In_ PDRIVER_UNLOAD UnloadHandler
         );
         """
+        ctx = ctx or {}
         hnd, unload = argv
 
     @apihook("NdisRegisterProtocol", argc=4)
-    def NdisRegisterProtocol(self, emu, argv, ctx={}):
+    def NdisRegisterProtocol(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID NdisRegisterProtocol(
         _Out_ PNDIS_STATUS                   Status,
@@ -163,6 +170,7 @@ class Ndis(api.ApiHandler):
         _In_  UINT                           CharacteristicsLength
         );
         """
+        ctx = ctx or {}
         pStatus, pProtoHandle, pChars, clen = argv
         rv = NDIS_STATUS_SUCCESS
         hnd = self.new_id()
@@ -177,7 +185,7 @@ class Ndis(api.ApiHandler):
             self.mem_write(pProtoHandle, hnd.to_bytes(4, "little"))
 
     @apihook("NdisIMRegisterLayeredMiniport", argc=4)
-    def NdisIMRegisterLayeredMiniport(self, emu, argv, ctx={}):
+    def NdisIMRegisterLayeredMiniport(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NDIS_STATUS NdisIMRegisterLayeredMiniport(
         _In_  NDIS_HANDLE                    NdisWrapperHandle,
@@ -186,6 +194,7 @@ class Ndis(api.ApiHandler):
         _Out_ PNDIS_HANDLE                   DriverHandle
         );
         """
+        ctx = ctx or {}
         hnd, mp_chars, clen, drv_hnd = argv
         rv = NDIS_STATUS_SUCCESS
 
@@ -202,17 +211,18 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisIMAssociateMiniport", argc=2)
-    def NdisIMAssociateMiniport(self, emu, argv, ctx={}):
+    def NdisIMAssociateMiniport(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void NdisIMAssociateMiniport(
         NDIS_HANDLE DriverHandle,
         NDIS_HANDLE ProtocolHandle
         );
         """
+        ctx = ctx or {}
         drv_hnd, phnd = argv
 
     @apihook("NdisAllocateGenericObject", argc=3)
-    def NdisAllocateGenericObject(self, emu, argv, ctx={}):
+    def NdisAllocateGenericObject(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PNDIS_GENERIC_OBJECT NdisAllocateGenericObject(
             PDRIVER_OBJECT DriverObject,
@@ -220,6 +230,7 @@ class Ndis(api.ApiHandler):
             USHORT         Size
         );
         """
+        ctx = ctx or {}
         drv, tag, size = argv
 
         ptr = 0
@@ -237,7 +248,7 @@ class Ndis(api.ApiHandler):
         return ptr
 
     @apihook("NdisAllocateMemoryWithTag", argc=3)
-    def NdisAllocateMemoryWithTag(self, emu, argv, ctx={}):
+    def NdisAllocateMemoryWithTag(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NDIS_STATUS NdisAllocateMemoryWithTag(
           _Out_ PVOID *VirtualAddress,
@@ -245,6 +256,7 @@ class Ndis(api.ApiHandler):
           _In_  ULONG Tag
         );
         """
+        ctx = ctx or {}
         va, size, tag = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -258,13 +270,14 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisAllocateNetBufferListPool", argc=2)
-    def NdisAllocateNetBufferListPool(self, emu, argv, ctx={}):
+    def NdisAllocateNetBufferListPool(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NDIS_HANDLE NdisAllocateNetBufferListPool(
           NDIS_HANDLE                      NdisHandle,
           PNET_BUFFER_LIST_POOL_PARAMETERS Parameters
         );
         """
+        ctx = ctx or {}
         NdisHandle, Parameters = argv
 
         params = self.mem_cast(self.ndis.NET_BUFFER_LIST_POOL_PARAMETERS(emu.get_ptr_size()), Parameters)
@@ -284,18 +297,19 @@ class Ndis(api.ApiHandler):
         return nbl_ptr
 
     @apihook("NdisFreeNetBufferListPool", argc=1)
-    def NdisFreeNetBufferListPool(self, emu, argv, ctx={}):
+    def NdisFreeNetBufferListPool(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void NdisFreeNetBufferListPool(
         NDIS_HANDLE PoolHandle
         );
         """
+        ctx = ctx or {}
         (handle,) = argv
 
         return
 
     @apihook("NdisFreeMemory", argc=3)
-    def NdisFreeMemory(self, emu, argv, ctx={}):
+    def NdisFreeMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void NdisFreeMemory(
         PVOID VirtualAddress,
@@ -303,17 +317,19 @@ class Ndis(api.ApiHandler):
         UINT  MemoryFlags
         );
         """
+        ctx = ctx or {}
         va, length, flags = argv
 
         return
 
     @apihook("NdisFreeGenericObject", argc=1)
-    def NdisFreeGenericObject(self, emu, argv, ctx={}):
+    def NdisFreeGenericObject(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void NdisFreeGenericObject(
         PNDIS_GENERIC_OBJECT NdisObject
         );
         """
+        ctx = ctx or {}
         (pObj,) = argv
 
         return

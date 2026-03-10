@@ -26,7 +26,7 @@ class Usbd(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("USBD_ValidateConfigurationDescriptor", argc=5)
-    def USBD_ValidateConfigurationDescriptor(self, emu, argv, ctx={}):
+    def USBD_ValidateConfigurationDescriptor(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         USBD_STATUS USBD_ValidateConfigurationDescriptor(
           PUSB_CONFIGURATION_DESCRIPTOR ConfigDesc,
@@ -36,6 +36,7 @@ class Usbd(api.ApiHandler):
           ULONG                         Tag
         );
         """
+        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
         ConfigDesc, BufferLength, Level, Offset, Tag = argv
 

@@ -21,7 +21,7 @@ class Msvfw32(api.ApiHandler):
         return handle
 
     @apihook("ICOpen", argc=3)
-    def ICOpen(self, emu, argv, ctx={}):
+    def ICOpen(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HIC ICOpen(
             DWORD fccType,
@@ -29,11 +29,12 @@ class Msvfw32(api.ApiHandler):
             UINT wMode
             );
         """
+        ctx = ctx or {}
         _fcc_type, _fcc_handler, _mode = argv
         return self.get_handle()
 
     @apihook("ICSendMessage", argc=4)
-    def ICSendMessage(self, emu, argv, ctx={}):
+    def ICSendMessage(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LRESULT ICSendMessage(
             HIC hic,
@@ -42,14 +43,16 @@ class Msvfw32(api.ApiHandler):
             DWORD_PTR dw2
             );
         """
+        ctx = ctx or {}
         _hic, _msg, _dw1, _dw2 = argv
         return 1
 
     @apihook("ICClose", argc=1)
-    def ICClose(self, emu, argv, ctx={}):
+    def ICClose(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LRESULT ICClose(
             HIC hic
             );
         """
+        ctx = ctx or {}
         return 1

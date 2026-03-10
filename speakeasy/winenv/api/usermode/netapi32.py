@@ -20,7 +20,7 @@ class NetApi32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NetGetJoinInformation", argc=3)
-    def NetGetJoinInformation(self, emu, argv, ctx={}):
+    def NetGetJoinInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
           LPCWSTR lpServer,
@@ -28,6 +28,7 @@ class NetApi32(api.ApiHandler):
           PNETSETUP_JOIN_STATUS BufferType
         );
         """
+        ctx = ctx or {}
         lpServer, lpNameBuffer, BufferType = argv
 
         if lpServer:
@@ -47,7 +48,7 @@ class NetApi32(api.ApiHandler):
         return netapi32defs.NERR_Success
 
     @apihook("NetWkstaGetInfo", argc=3)
-    def NetWkstaGetInfo(self, emu, argv, ctx={}):
+    def NetWkstaGetInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NET_API_STATUS NET_API_FUNCTION NetWkstaGetInfo(
           LMSTR  servername,
@@ -55,6 +56,7 @@ class NetApi32(api.ApiHandler):
           LPBYTE *bufptr
         );
         """
+        ctx = ctx or {}
         servername, level, bufptr = argv
 
         if level not in [100, 101, 102]:
@@ -107,10 +109,11 @@ class NetApi32(api.ApiHandler):
         return netapi32defs.NERR_Success
 
     @apihook("NetApiBufferFree", argc=1)
-    def NetApiBufferFree(self, emu, argv, ctx={}):
+    def NetApiBufferFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NET_API_STATUS NET_API_FUNCTION NetApiBufferFree(
           _Frees_ptr_opt_ LPVOID Buffer
         );
         """
+        ctx = ctx or {}
         return netapi32defs.NERR_Success

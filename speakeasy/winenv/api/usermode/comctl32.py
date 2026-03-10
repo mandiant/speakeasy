@@ -19,23 +19,25 @@ class Comctl32(api.ApiHandler):
         self.names = {}
 
     @apihook("InitCommonControlsEx", argc=1)
-    def InitCommonControlsEx(self, emu, argv, ctx={}):
+    def InitCommonControlsEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL InitCommonControlsEx(
             const INITCOMMONCONTROLSEX *picce
         );
         """
+        ctx = ctx or {}
         (picce,) = argv
         rv = True
 
         return rv
 
     @apihook("InitCommonControls", argc=0)
-    def InitCommonControls(self, emu, argv, ctx={}):
+    def InitCommonControls(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void InitCommonControls();
 
         Under Comctl32.dll version 6.0 and later, InitCommonControls does nothing.
         Applications must explicitly register all common controls through InitCommonControlsEx.
         """
+        ctx = ctx or {}
         return

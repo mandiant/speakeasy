@@ -22,8 +22,9 @@ class Advpack(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("IsNTAdmin", argc=2)
-    def IsNTAdmin(self, emu, argv, ctx={}):
+    def IsNTAdmin(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         bool IsNTAdmin();
         """
+        ctx = ctx or {}
         return emu.config.user.is_admin

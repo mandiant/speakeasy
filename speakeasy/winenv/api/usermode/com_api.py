@@ -25,34 +25,37 @@ class ComApi(api.ApiHandler):
 
     # First argument (self) is not reflected in method definitions; note this increases argc by 1
     @apihook("IUnknown.QueryInterface", argc=3)
-    def IUnknown_QueryInterface(self, emu, argv, ctx={}):
+    def IUnknown_QueryInterface(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT QueryInterface(
             REFIID riid,
             void   **ppvObject
         );
         """
+        ctx = ctx or {}
         # not implemented
         return comdefs.S_OK
 
     @apihook("IUnknown.AddRef", argc=1)
-    def IUnknown_AddRef(self, emu, argv, ctx={}):
+    def IUnknown_AddRef(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ULONG AddRef();
         """
+        ctx = ctx or {}
         # not implemented
         return 1
 
     @apihook("IUnknown.Release", argc=1)
-    def IUnknown_Release(self, emu, argv, ctx={}):
+    def IUnknown_Release(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ULONG Release();
         """
+        ctx = ctx or {}
         # not implemented
         return 0
 
     @apihook("IWbemLocator.ConnectServer", argc=9)
-    def IWbemLocator_ConnectServer(self, emu, argv, ctx={}):
+    def IWbemLocator_ConnectServer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT ConnectServer(
             const BSTR    strNetworkResource,
@@ -65,6 +68,7 @@ class ComApi(api.ApiHandler):
             IWbemServices **ppNamespace
         );
         """
+        ctx = ctx or {}
         ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, pCtx, ppNamespace = argv
         argv[1] = self.read_wide_string(strNetworkResource)
 
@@ -77,7 +81,7 @@ class ComApi(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("IWbemServices.ExecQuery", argc=6)
-    def IWbemServices_ExecQuery(self, emu, argv, ctx={}):
+    def IWbemServices_ExecQuery(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT ExecQuery(
             const BSTR           strQueryLanguage,
@@ -87,6 +91,7 @@ class ComApi(api.ApiHandler):
             IEnumWbemClassObject **ppEnum
         );
         """
+        ctx = ctx or {}
         ptr, strQueryLanguage, strQuery, lFlags, pCtx, ppEnum = argv
         argv[1] = self.read_wide_string(strQueryLanguage)
         argv[2] = self.read_wide_string(strQuery)

@@ -241,48 +241,52 @@ class Kernel32(api.ApiHandler):
         return None
 
     @apihook("GetThreadLocale", argc=0)
-    def GetThreadLocale(self, emu, argv, ctx={}):
+    def GetThreadLocale(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LCID GetThreadLocale();
         """
+        ctx = ctx or {}
         return 0xC000
 
     @apihook("SetThreadLocale", argc=1)
-    def SetThreadLocale(self, emu, argv, ctx={}):
+    def SetThreadLocale(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LCID SetThreadLocale(
             LCID Locale
         );
         """
+        ctx = ctx or {}
 
         (lcid,) = argv
         return lcid
 
     @apihook("IsValidLocale", argc=2)
-    def IsValidLocale(self, emu, argv, ctx={}):
+    def IsValidLocale(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsValidLocale(
             LCID  Locale,
             DWORD dwFlags
         );
         """
+        ctx = ctx or {}
 
         lcid, flags = argv
         return True
 
     @apihook("OutputDebugString", argc=1)
-    def OutputDebugString(self, emu, argv, ctx={}):
+    def OutputDebugString(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void OutputDebugStringA(
             LPCSTR lpOutputString
         );
         """
+        ctx = ctx or {}
         (_str,) = argv
         cw = self.get_char_width(ctx)
         argv[0] = self.read_mem_string(_str, cw)
 
     @apihook("GetThreadTimes", argc=5)
-    def GetThreadTimes(self, emu, argv, ctx={}):
+    def GetThreadTimes(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetThreadTimes(
             HANDLE     hThread,
@@ -292,6 +296,7 @@ class Kernel32(api.ApiHandler):
             LPFILETIME lpUserTime
         );
         """
+        ctx = ctx or {}
         hnd, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
 
         if lpCreationTime:
@@ -299,10 +304,11 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetProcessHeap", argc=0)
-    def GetProcessHeap(self, emu, argv, ctx={}):
+    def GetProcessHeap(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE GetProcessHeap();
         """
+        ctx = ctx or {}
 
         if not self.heaps:
             heap = self.create_heap(emu)
@@ -311,12 +317,13 @@ class Kernel32(api.ApiHandler):
         return heap
 
     @apihook("GetProcessVersion", argc=1)
-    def GetProcessVersion(self, emu, argv, ctx={}):
+    def GetProcessVersion(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetProcessVersion(
             DWORD ProcessId
         );
         """
+        ctx = ctx or {}
 
         ver = self.emu.config.os_ver
         major = ver.major
@@ -327,19 +334,20 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("DisableThreadLibraryCalls", argc=1)
-    def DisableThreadLibraryCalls(self, emu, argv, ctx={}):
+    def DisableThreadLibraryCalls(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL DisableThreadLibraryCalls(
             HMODULE hLibModule
         );
         """
+        ctx = ctx or {}
 
         (hLibModule,) = argv
 
         return True
 
     @apihook("CreateMutex", argc=3)
-    def CreateMutex(self, emu, argv, ctx={}):
+    def CreateMutex(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateMutex(
             LPSECURITY_ATTRIBUTES lpMutexAttributes,
@@ -347,6 +355,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR                lpName
         );
         """
+        ctx = ctx or {}
 
         attrs, owner, name = argv
 
@@ -369,7 +378,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("CreateMutexEx", argc=4)
-    def CreateMutexEx(self, emu, argv, ctx={}):
+    def CreateMutexEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateMutexExA(
           LPSECURITY_ATTRIBUTES lpMutexAttributes,
@@ -378,6 +387,7 @@ class Kernel32(api.ApiHandler):
           DWORD                 dwDesiredAccess
         );
         """
+        ctx = ctx or {}
         attrs, name, flags, access = argv
 
         cw = self.get_char_width(ctx)
@@ -399,10 +409,11 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("LoadLibrary", argc=1)
-    def LoadLibrary(self, emu, argv, ctx={}):
+    def LoadLibrary(self, emu, argv, ctx: dict[str, str] | None = None):
         """HMODULE LoadLibrary(
           LPTSTR lpLibFileName
         );"""
+        ctx = ctx or {}
 
         (lib_name,) = argv
         hmod = windefs.NULL
@@ -417,13 +428,14 @@ class Kernel32(api.ApiHandler):
         return hmod
 
     @apihook("CreateToolhelp32Snapshot", argc=2)
-    def CreateToolhelp32Snapshot(self, emu, argv, ctx={}):
+    def CreateToolhelp32Snapshot(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateToolhelp32Snapshot(
             DWORD dwFlags,
             DWORD th32ProcessID
         );
         """
+        ctx = ctx or {}
 
         (
             dwFlags,
@@ -495,13 +507,14 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("Process32First", argc=2)
-    def Process32First(self, emu, argv, ctx={}):
+    def Process32First(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Process32First(
             HANDLE           hSnapshot,
             LPPROCESSENTRY32 lppe
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -535,13 +548,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("Process32Next", argc=2)
-    def Process32Next(self, emu, argv, ctx={}):
+    def Process32Next(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Process32Next(
             HANDLE           hSnapshot,
             LPPROCESSENTRY32 lppe
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -577,13 +591,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("Thread32First", argc=2)
-    def Thread32First(self, emu, argv, ctx={}):
+    def Thread32First(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Thread32First(
         HANDLE          hSnapshot,
         LPTHREADENTRY32 lpte
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -609,13 +624,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("Thread32Next", argc=2)
-    def Thread32Next(self, emu, argv, ctx={}):
+    def Thread32Next(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Thread32Next(
         HANDLE          hSnapshot,
         LPTHREADENTRY32 lpte
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -643,13 +659,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("Module32First", argc=2)
-    def Module32First(self, emu, argv, ctx={}):
+    def Module32First(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Module32First(
           HANDLE          hSnapshot,
           LPMODULEENTRY32 lpme
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -689,13 +706,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("Module32Next", argc=2)
-    def Module32Next(self, emu, argv, ctx={}):
+    def Module32Next(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Module32Next(
           HANDLE          hSnapshot,
           LPMODULEENTRY32 lpme
         );
         """
+        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -736,7 +754,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("OpenProcess", argc=3)
-    def OpenProcess(self, emu, argv, ctx={}):
+    def OpenProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE OpenProcess(
             DWORD dwDesiredAccess,
@@ -744,6 +762,7 @@ class Kernel32(api.ApiHandler):
             DWORD dwProcessId
         );
         """
+        ctx = ctx or {}
 
         access, inherit, pid = argv
 
@@ -764,7 +783,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("OpenMutex", argc=3)
-    def OpenMutex(self, emu, argv, ctx={}):
+    def OpenMutex(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE OpenMutex(
             DWORD   dwDesiredAccess,
@@ -772,6 +791,7 @@ class Kernel32(api.ApiHandler):
             LPCWSTR lpName
         );
         """
+        ctx = ctx or {}
 
         access, inherit, name = argv
 
@@ -791,13 +811,14 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("TerminateProcess", argc=2)
-    def TerminateProcess(self, emu, argv, ctx={}):
+    def TerminateProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL TerminateProcess(
             HANDLE hProcess,
             UINT   uExitCode
         );
         """
+        ctx = ctx or {}
 
         hProcess, uExitCode = argv
         rv = False
@@ -810,34 +831,37 @@ class Kernel32(api.ApiHandler):
         rv = True
 
     @apihook("FreeLibraryAndExitThread", argc=2)
-    def FreeLibraryAndExitThread(self, emu, argv, ctx={}):
+    def FreeLibraryAndExitThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void FreeLibraryAndExitThread(
             HMODULE hLibModule,
             DWORD   dwExitCode
         );
         """
+        ctx = ctx or {}
         emu.exit_process()
         return
 
     @apihook("ExitThread", argc=1)
-    def ExitThread(self, emu, argv, ctx={}):
+    def ExitThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void ExitThread(
             DWORD   dwExitCode
         );
         """
+        ctx = ctx or {}
         emu.exit_process()
         return
 
     @apihook("WinExec", argc=2)
-    def WinExec(self, emu, argv, ctx={}):
+    def WinExec(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT WinExec(
             LPCSTR lpCmdLine,
             UINT   uCmdShow
         );
         """
+        ctx = ctx or {}
 
         lpCmdLine, uCmdShow = argv
         rv = 1
@@ -853,12 +877,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("LoadLibraryEx", argc=3)
-    def LoadLibraryEx(self, emu, argv, ctx={}):
+    def LoadLibraryEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """HMODULE LoadLibraryExA(
           LPCSTR lpLibFileName,
           HANDLE hFile,
           DWORD  dwFlags
         );"""
+        ctx = ctx or {}
 
         lib_name, _, dwFlags = argv
 
@@ -896,7 +921,7 @@ class Kernel32(api.ApiHandler):
         return hmod
 
     @apihook("CreateProcessInternal", argc=12)
-    def CreateProcessInternal(self, emu, argv, ctx={}):
+    def CreateProcessInternal(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CreateProcessInternal(
           PVOID Reserved1,
@@ -913,6 +938,7 @@ class Kernel32(api.ApiHandler):
           PVOID Reserved2
         );
         """
+        ctx = ctx or {}
         # Args are the same as CreateProcess except for argv[0] and argv[-1]
         _argv = argv[1:-1]
         rv = self.CreateProcess(emu, _argv, ctx)
@@ -920,7 +946,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("CreateProcess", argc=10)
-    def CreateProcess(self, emu, argv, ctx={}):
+    def CreateProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL CreateProcess(
           LPTSTR                lpApplicationName,
           LPTSTR                lpCommandLine,
@@ -933,6 +959,7 @@ class Kernel32(api.ApiHandler):
           LPSTARTUPINFO         lpStartupInfo,
           LPPROCESS_INFORMATION lpProcessInformation
         );"""
+        ctx = ctx or {}
         app, cmd, pa, ta, inherit, flags, env, cd, si, ppi = argv
 
         cw = self.get_char_width(ctx)
@@ -974,13 +1001,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("VirtualAlloc", argc=4)
-    def VirtualAlloc(self, emu, argv, ctx={}):
+    def VirtualAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """LPVOID WINAPI VirtualAlloc(
           _In_opt_ LPVOID lpAddress,
           _In_     SIZE_T dwSize,
           _In_     DWORD  flAllocationType,
           _In_     DWORD  flProtect
         );"""
+        ctx = ctx or {}
 
         lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
@@ -1033,7 +1061,7 @@ class Kernel32(api.ApiHandler):
         return buf
 
     @apihook("VirtualAllocEx", argc=5)
-    def VirtualAllocEx(self, emu, argv, ctx={}):
+    def VirtualAllocEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID VirtualAllocEx(
           HANDLE hProcess,
@@ -1043,6 +1071,7 @@ class Kernel32(api.ApiHandler):
           DWORD  flProtect
         );
         """
+        ctx = ctx or {}
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
 
@@ -1095,7 +1124,7 @@ class Kernel32(api.ApiHandler):
         return buf
 
     @apihook("WriteProcessMemory", argc=5)
-    def WriteProcessMemory(self, emu, argv, ctx={}):
+    def WriteProcessMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL WriteProcessMemory(
           HANDLE  hProcess,
@@ -1105,6 +1134,7 @@ class Kernel32(api.ApiHandler):
           SIZE_T  *lpNumberOfBytesWritten
         );
         """
+        ctx = ctx or {}
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
         rv = False
 
@@ -1133,7 +1163,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("ReadProcessMemory", argc=5)
-    def ReadProcessMemory(self, emu, argv, ctx={}):
+    def ReadProcessMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ReadProcessMemory(
             HANDLE  hProcess,
@@ -1143,6 +1173,7 @@ class Kernel32(api.ApiHandler):
             SIZE_T  *lpNumberOfBytesRead
         );
         """
+        ctx = ctx or {}
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead = argv
         rv = False
 
@@ -1175,7 +1206,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("CreateRemoteThread", argc=7)
-    def CreateRemoteThread(self, emu, argv, ctx={}):
+    def CreateRemoteThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateRemoteThread(
           HANDLE                 hProcess,
@@ -1187,6 +1218,7 @@ class Kernel32(api.ApiHandler):
           LPDWORD                lpThreadId
         );
         """
+        ctx = ctx or {}
         (hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) = argv
 
         is_remote = False
@@ -1223,7 +1255,7 @@ class Kernel32(api.ApiHandler):
         return handle
 
     @apihook("CreateThread", argc=6)
-    def CreateThread(self, emu, argv, ctx={}):
+    def CreateThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateThread(
             LPSECURITY_ATTRIBUTES   lpThreadAttributes,
@@ -1234,6 +1266,7 @@ class Kernel32(api.ApiHandler):
             LPDWORD                 lpThreadId
         );
         """
+        ctx = ctx or {}
         (lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) = argv
 
         proc_obj = emu.get_current_process()
@@ -1261,12 +1294,13 @@ class Kernel32(api.ApiHandler):
         return handle
 
     @apihook("ResumeThread", argc=1)
-    def ResumeThread(self, emu, argv, ctx={}):
+    def ResumeThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD ResumeThread(
             HANDLE hThread
         );
         """
+        ctx = ctx or {}
         (hThread,) = argv
         rv = -1
         obj = self.get_object_from_handle(hThread)
@@ -1300,12 +1334,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SuspendThread", argc=1)
-    def SuspendThread(self, emu, argv, ctx={}):
+    def SuspendThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD SuspendThread(
             HANDLE hThread
         );
         """
+        ctx = ctx or {}
         (hThread,) = argv
         rv = -1
         obj = self.get_object_from_handle(hThread)
@@ -1317,13 +1352,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("TerminateThread", argc=2)
-    def TerminateThread(self, emu, argv, ctx={}):
+    def TerminateThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL TerminateThread(
           [in, out] HANDLE hThread,
           [in]      DWORD  dwExitCode
         );
         """
+        ctx = ctx or {}
         hThread, dwExitCode = argv
         rv = 0
         obj = self.get_object_from_handle(hThread)
@@ -1336,12 +1372,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetThreadId", argc=1)
-    def GetThreadId(self, emu, argv, ctx={}):
+    def GetThreadId(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetThreadId(
           HANDLE Thread
         );
         """
+        ctx = ctx or {}
         (Thread,) = argv
 
         if not Thread:
@@ -1355,7 +1392,7 @@ class Kernel32(api.ApiHandler):
         return obj.id
 
     @apihook("VirtualQuery", argc=3)
-    def VirtualQuery(self, emu, argv, ctx={}):
+    def VirtualQuery(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SIZE_T VirtualQuery(
             LPCVOID                   lpAddress,
@@ -1363,6 +1400,7 @@ class Kernel32(api.ApiHandler):
             SIZE_T                    dwLength
         );
         """
+        ctx = ctx or {}
         rv = 0
 
         lpAddress, lpBuffer, dwLength = argv
@@ -1391,13 +1429,14 @@ class Kernel32(api.ApiHandler):
         return mbi.sizeof()
 
     @apihook("VirtualProtect", argc=4)
-    def VirtualProtect(self, emu, argv, ctx={}):
+    def VirtualProtect(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL WINAPI VirtualProtect(
           _In_  LPVOID lpAddress,
           _In_  SIZE_T dwSize,
           _In_  DWORD  flNewProtect,
           _Out_ PDWORD lpflOldProtect
         );"""
+        ctx = ctx or {}
         rv = 0
         mm = None
         new = 0
@@ -1436,7 +1475,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("VirtualProtectEx", argc=5)
-    def VirtualProtectEx(self, emu, argv, ctx={}):
+    def VirtualProtectEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL VirtualProtectEx(
             HANDLE hProcess,
@@ -1446,6 +1485,7 @@ class Kernel32(api.ApiHandler):
             PDWORD lpflOldProtect
         );
         """
+        ctx = ctx or {}
         hProcess, lpAddress, dwSize, flNewProtect, lpflOldProtect = argv
 
         proc_obj = self.get_object_from_handle(hProcess)
@@ -1464,7 +1504,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("VirtualFree", argc=3)
-    def VirtualFree(self, emu, argv, ctx={}):
+    def VirtualFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL VirtualFree(
           LPVOID lpAddress,
@@ -1472,6 +1512,7 @@ class Kernel32(api.ApiHandler):
           DWORD  dwFreeType
         );
         """
+        ctx = ctx or {}
         rv = 0
 
         lpAddress, dwSize, dwFreeType = argv
@@ -1487,18 +1528,20 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetCurrentProcess", argc=0)
-    def GetCurrentProcess(self, emu, argv, ctx={}):
+    def GetCurrentProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE GetCurrentProcess();
         """
+        ctx = ctx or {}
 
         rv = self.get_max_int()
 
         return rv
 
     @apihook("GetVersion", argc=0)
-    def GetVersion(self, emu, argv, ctx={}):
+    def GetVersion(self, emu, argv, ctx: dict[str, str] | None = None):
         """NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();"""
+        ctx = ctx or {}
 
         ver = self.emu.config.os_ver
         build = ver.build
@@ -1510,8 +1553,9 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetLastError", argc=0)
-    def GetLastError(self, emu, argv, ctx={}):
+    def GetLastError(self, emu, argv, ctx: dict[str, str] | None = None):
         """DWORD WINAPI GetLastError(void);"""
+        ctx = ctx or {}
 
         rv = emu.get_last_error()
 
@@ -1521,12 +1565,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SetLastError", argc=1)
-    def SetLastError(self, emu, argv, ctx={}):
+    def SetLastError(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void SetLastError(
           DWORD dwErrCode
         );
         """
+        ctx = ctx or {}
         (dwErrCode,) = argv
 
         emu.set_last_error(dwErrCode)
@@ -1534,7 +1579,7 @@ class Kernel32(api.ApiHandler):
         return None
 
     @apihook("SetHandleInformation", argc=3)
-    def SetHandleInformation(self, emu, argv, ctx={}):
+    def SetHandleInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetHandleInformation(
           HANDLE hObject,
@@ -1542,6 +1587,7 @@ class Kernel32(api.ApiHandler):
           DWORD  dwFlags
         );
         """
+        ctx = ctx or {}
 
         # Non-zero value for success.
         rv = 1
@@ -1549,13 +1595,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetHandleInformation", argc=2)
-    def GetHandleInformation(self, emu, argv, ctx={}):
+    def GetHandleInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetHandleInformation(
           HANDLE  hObject,
           LPDWORD lpdwFlags
         );
         """
+        ctx = ctx or {}
 
         # Non-zero value for success.
         rv = 1
@@ -1563,16 +1610,17 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("ExitProcess", argc=1)
-    def ExitProcess(self, emu, argv, ctx={}):
+    def ExitProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """void ExitProcess(
                 UINT uExitCode
         );"""
+        ctx = ctx or {}
 
         self.exit_process()
         return 0
 
     @apihook("SystemTimeToTzSpecificLocalTime", argc=3)
-    def SystemTimeToTzSpecificLocalTime(self, emu, argv, ctx={}):
+    def SystemTimeToTzSpecificLocalTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SystemTimeToTzSpecificLocalTime(
             const TIME_ZONE_INFORMATION *lpTimeZoneInformation,
@@ -1580,16 +1628,18 @@ class Kernel32(api.ApiHandler):
             LPSYSTEMTIME                lpLocalTime
         );
         """
+        ctx = ctx or {}
         return True
 
     @apihook("FileTimeToSystemTime", argc=2)
-    def FileTimeToSystemTime(self, emu, argv, ctx={}):
+    def FileTimeToSystemTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FileTimeToSystemTime(
             const FILETIME *lpFileTime,
             LPSYSTEMTIME   lpSystemTime
         );
         """
+        ctx = ctx or {}
 
         lpFileTime, lpSystemTime = argv
 
@@ -1617,10 +1667,11 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetSystemTimeAsFileTime", argc=1)
-    def GetSystemTimeAsFileTime(self, emu, argv, ctx={}):
+    def GetSystemTimeAsFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """void GetSystemTimeAsFileTime(
           LPFILETIME lpSystemTimeAsFileTime
         );"""
+        ctx = ctx or {}
 
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -1634,13 +1685,14 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook("SystemTimeToFileTime", argc=2)
-    def SystemTimeToFileTime(self, emu, argv, ctx={}):
+    def SystemTimeToFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SystemTimeToFileTime(
         const SYSTEMTIME *lpSystemTime,
         LPFILETIME       lpFileTime
         );
         """
+        ctx = ctx or {}
 
         lpSystemTime, lpFileTime = argv
         self.GetSystemTimeAsFileTime(emu, argv[1:], ctx)
@@ -1648,35 +1700,38 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("SetThreadErrorMode", argc=2)
-    def SetThreadErrorMode(self, emu, argv, ctx={}):
+    def SetThreadErrorMode(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetThreadErrorMode(
             DWORD   dwNewMode,
             LPDWORD lpOldMode
         );
         """
+        ctx = ctx or {}
 
         dwNewMode, lpOldMode = argv
 
         return True
 
     @apihook("SetDefaultDllDirectories", argc=1)
-    def SetDefaultDllDirectories(self, emu, argv, ctx={}):
+    def SetDefaultDllDirectories(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetDefaultDllDirectories(
             DWORD DirectoryFlags
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("SetConsoleTitle", argc=1)
-    def SetConsoleTitle(self, emu, argv, ctx={}):
+    def SetConsoleTitle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL WINAPI SetConsoleTitle(
         _In_ LPCTSTR lpConsoleTitle
         );
         """
+        ctx = ctx or {}
 
         (lpConsoleTitle,) = argv
         if lpConsoleTitle:
@@ -1686,20 +1741,22 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetLocalTime", argc=1)
-    def GetLocalTime(self, emu, argv, ctx={}):
+    def GetLocalTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GetLocalTime(
             LPSYSTEMTIME lpSystemTime
         );
         """
+        ctx = ctx or {}
         return self.GetSystemTime(emu, argv)
 
     @apihook("GetSystemTime", argc=1)
-    def GetSystemTime(self, emu, argv, ctx={}):
+    def GetSystemTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GetSystemTime(
             LPSYSTEMTIME lpSystemTime
         );"""
+        ctx = ctx or {}
         (lpSystemTime,) = argv
         st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
 
@@ -1718,10 +1775,11 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook("GetTimeZoneInformation", argc=1)
-    def GetTimeZoneInformation(self, emu, argv, ctx={}):
+    def GetTimeZoneInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """DWORD GetTimeZoneInformation(
             LPTIME_ZONE_INFORMATION lpTimeZoneInformation
         );"""
+        ctx = ctx or {}
 
         (lpTimeZoneInformation,) = argv
         if lpTimeZoneInformation:
@@ -1730,8 +1788,9 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("GetCurrentThreadId", argc=0)
-    def GetCurrentThreadId(self, emu, argv, ctx={}):
+    def GetCurrentThreadId(self, emu, argv, ctx: dict[str, str] | None = None):
         """DWORD GetCurrentThreadId();"""
+        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         rv = thread.id
@@ -1739,8 +1798,9 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetCurrentProcessId", argc=0)
-    def GetCurrentProcessId(self, emu, argv, ctx={}):
+    def GetCurrentProcessId(self, emu, argv, ctx: dict[str, str] | None = None):
         """DWORD GetCurrentProcessId();"""
+        ctx = ctx or {}
 
         proc = emu.get_current_process()
         rv = proc.id
@@ -1748,10 +1808,11 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("IsProcessorFeaturePresent", argc=1, conv=e_arch.CALL_CONV_STDCALL)
-    def IsProcessorFeaturePresent(self, emu, argv, ctx={}):
+    def IsProcessorFeaturePresent(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL IsProcessorFeaturePresent(
               DWORD ProcessorFeature
         );"""
+        ctx = ctx or {}
 
         rv = 1
         """
@@ -1818,11 +1879,12 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("lstrcmpi", argc=2)
-    def lstrcmpi(self, emu, argv, ctx={}):
+    def lstrcmpi(self, emu, argv, ctx: dict[str, str] | None = None):
         """int lstrcmpiA(
           LPCSTR lpString1,
           LPCSTR lpString2
         );"""
+        ctx = ctx or {}
         cw = self.get_char_width(ctx)
 
         string1, string2 = argv
@@ -1840,11 +1902,12 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("lstrcmp", argc=2)
-    def lstrcmp(self, emu, argv, ctx={}):
+    def lstrcmp(self, emu, argv, ctx: dict[str, str] | None = None):
         """int lstrcmpiA(
           LPCSTR lpString1,
           LPCSTR lpString2
         );"""
+        ctx = ctx or {}
         cw = self.get_char_width(ctx)
 
         string1, string2 = argv
@@ -1862,10 +1925,11 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("QueryPerformanceCounter", argc=1)
-    def QueryPerformanceCounter(self, emu, argv, ctx={}):
+    def QueryPerformanceCounter(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL WINAPI QueryPerformanceCounter(
           _Out_ LARGE_INTEGER *lpPerformanceCount
         );"""
+        ctx = ctx or {}
         (lpPerformanceCount,) = argv
 
         rv = 1
@@ -1874,12 +1938,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("lstrlen", argc=1)
-    def lstrlen(self, emu, argv, ctx={}):
+    def lstrlen(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int lstrlen(
             LPCSTR lpString
         );
         """
+        ctx = ctx or {}
         (src,) = argv
         try:
             cw = self.get_char_width(ctx)
@@ -1892,7 +1957,7 @@ class Kernel32(api.ApiHandler):
         return len(s)
 
     @apihook("GetModuleHandleEx", argc=3)
-    def GetModuleHandleEx(self, emu, argv, ctx={}):
+    def GetModuleHandleEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetModuleHandleExA(
             DWORD   dwFlags,
@@ -1900,6 +1965,7 @@ class Kernel32(api.ApiHandler):
             HMODULE *phModule
         );
         """
+        ctx = ctx or {}
         dwFlags, lpModuleName, phModule = argv
 
         hmod = self.GetModuleHandle(emu, [lpModuleName], ctx)
@@ -1909,10 +1975,11 @@ class Kernel32(api.ApiHandler):
         return hmod
 
     @apihook("GetModuleHandle", argc=1)
-    def GetModuleHandle(self, emu, argv, ctx={}):
+    def GetModuleHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """HMODULE GetModuleHandle(
           LPCSTR lpModuleName
         );"""
+        ctx = ctx or {}
 
         (mod_name,) = argv
 
@@ -1938,11 +2005,12 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetProcAddress", argc=2)
-    def GetProcAddress(self, emu, argv, ctx={}):
+    def GetProcAddress(self, emu, argv, ctx: dict[str, str] | None = None):
         """FARPROC GetProcAddress(
           HMODULE hModule,
           LPCSTR  lpProcName
         );"""
+        ctx = ctx or {}
 
         hmod, proc_name = argv
         rv = 0
@@ -1973,15 +2041,17 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("AllocConsole", argc=0)
-    def AllocConsole(self, emu, argv, ctx={}):
+    def AllocConsole(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL WINAPI AllocConsole(void);"""
+        ctx = ctx or {}
 
         # On success, return != 0
         return 1
 
     @apihook("GetConsoleWindow", argc=0)
-    def GetConsoleWindow(self, emu, argv, ctx={}):
+    def GetConsoleWindow(self, emu, argv, ctx: dict[str, str] | None = None):
         """HWND WINAPI GetConsoleWindow(void);"""
+        ctx = ctx or {}
         hwnd = 0
 
         proc = emu.get_current_process()
@@ -1993,27 +2063,30 @@ class Kernel32(api.ApiHandler):
         return hwnd
 
     @apihook("Sleep", argc=1)
-    def Sleep(self, emu, argv, ctx={}):
+    def Sleep(self, emu, argv, ctx: dict[str, str] | None = None):
         """void Sleep(DWORD dwMilliseconds);"""
+        ctx = ctx or {}
         (millisec,) = argv
 
         return
 
     @apihook("SleepEx", argc=2)
-    def SleepEx(self, emu, argv, ctx={}):
+    def SleepEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);"""
+        ctx = ctx or {}
         millisec, bAlertable = argv
 
         return
 
     @apihook("GlobalAlloc", argc=2)
-    def GlobalAlloc(self, emu, argv, ctx={}):
+    def GlobalAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DECLSPEC_ALLOCATOR HGLOBAL GlobalAlloc(
           UINT   uFlags,
           SIZE_T dwBytes
         );
         """
+        ctx = ctx or {}
 
         uFlags, dwBytes = argv
 
@@ -2022,12 +2095,13 @@ class Kernel32(api.ApiHandler):
         return chunk
 
     @apihook("GlobalSize", argc=1)
-    def GlobalSize(self, emu, argv, ctx={}):
+    def GlobalSize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SIZE_T GlobalSize(
           [in] HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
 
         (hMem,) = argv
         size = 0
@@ -2043,12 +2117,13 @@ class Kernel32(api.ApiHandler):
         return size
 
     @apihook("GlobalFlags", argc=1)
-    def GlobalFlags(self, emu, argv, ctx={}):
+    def GlobalFlags(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GlobalFlags(
         [in] HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
         (hMem,) = argv
         flags = 0
         for mmap in emu.get_mem_maps():
@@ -2063,13 +2138,14 @@ class Kernel32(api.ApiHandler):
         return flags
 
     @apihook("LocalAlloc", argc=2)
-    def LocalAlloc(self, emu, argv, ctx={}):
+    def LocalAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DECLSPEC_ALLOCATOR HLOCAL LocalAlloc(
           UINT   uFlags,
           SIZE_T uBytes
         );
         """
+        ctx = ctx or {}
 
         uFlags, dwBytes = argv
 
@@ -2078,7 +2154,7 @@ class Kernel32(api.ApiHandler):
         return chunk
 
     @apihook("HeapAlloc", argc=3)
-    def HeapAlloc(self, emu, argv, ctx={}):
+    def HeapAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DECLSPEC_ALLOCATOR LPVOID HeapAlloc(
           HANDLE hHeap,
@@ -2086,6 +2162,7 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwBytes
         );
         """
+        ctx = ctx or {}
 
         hHeap, dwFlags, dwBytes = argv
 
@@ -2096,7 +2173,7 @@ class Kernel32(api.ApiHandler):
         return chunk
 
     @apihook("HeapSize", argc=3)
-    def HeapSize(self, emu, argv, ctx={}):
+    def HeapSize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SIZE_T HeapSize(
           HANDLE  hHeap,
@@ -2104,6 +2181,7 @@ class Kernel32(api.ApiHandler):
           LPCVOID lpMem
         );
         """
+        ctx = ctx or {}
 
         hHeap, dwFlags, lpMem = argv
 
@@ -2119,33 +2197,36 @@ class Kernel32(api.ApiHandler):
         return size
 
     @apihook("GetTickCount", argc=0)
-    def GetTickCount(self, emu, argv, ctx={}):
+    def GetTickCount(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetTickCount();
         """
+        ctx = ctx or {}
 
         self.tick_counter += 20
 
         return self.tick_counter
 
     @apihook("GetTickCount64", argc=0)
-    def GetTickCount64(self, emu, argv, ctx={}):
+    def GetTickCount64(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ULONGLONG GetTickCount64();
         """
+        ctx = ctx or {}
 
         self.tick_counter += 20
 
         return self.tick_counter
 
     @apihook("lstrcat", argc=2)
-    def lstrcat(self, emu, argv, ctx={}):
+    def lstrcat(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPSTR lstrcat(
           LPSTR  lpString1,
           LPCSTR lpString2
         );
         """
+        ctx = ctx or {}
         lpString1, lpString2 = argv
 
         cw = self.get_char_width(ctx)
@@ -2165,7 +2246,7 @@ class Kernel32(api.ApiHandler):
         return lpString1
 
     @apihook("lstrcpyn", argc=3)
-    def lstrcpyn(self, emu, argv, ctx={}):
+    def lstrcpyn(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPSTR lstrcpynA(
           LPSTR  lpString1,
@@ -2173,6 +2254,7 @@ class Kernel32(api.ApiHandler):
           int    iMaxLength
         );
         """
+        ctx = ctx or {}
         dest, src, iMaxLength = argv
 
         cw = self.get_char_width(ctx)
@@ -2186,13 +2268,14 @@ class Kernel32(api.ApiHandler):
         return dest
 
     @apihook("lstrcpy", argc=2)
-    def lstrcpy(self, emu, argv, ctx={}):
+    def lstrcpy(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPSTR lstrcpyA(
           LPSTR  lpString1,
           LPCSTR lpString2
         );
         """
+        ctx = ctx or {}
         dest, src = argv
 
         cw = self.get_char_width(ctx)
@@ -2205,13 +2288,14 @@ class Kernel32(api.ApiHandler):
         return dest
 
     @apihook("IsBadReadPtr", argc=2)
-    def IsBadReadPtr(self, emu, argv, ctx={}):
+    def IsBadReadPtr(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsBadReadPtr(
           const VOID *lp,
           UINT_PTR   ucb
         );
         """
+        ctx = ctx or {}
 
         lp, ucb = argv
 
@@ -2227,7 +2311,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("HeapReAlloc", argc=4)
-    def HeapReAlloc(self, emu, argv, ctx={}):
+    def HeapReAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DECLSPEC_ALLOCATOR LPVOID HeapReAlloc(
           HANDLE                 hHeap,
@@ -2236,6 +2320,7 @@ class Kernel32(api.ApiHandler):
           SIZE_T                 dwBytes
         );
         """
+        ctx = ctx or {}
 
         hHeap, dwFlags, lpMem, dwBytes = argv
 
@@ -2253,7 +2338,7 @@ class Kernel32(api.ApiHandler):
         return new_buf
 
     @apihook("LocalReAlloc", argc=3)
-    def LocalReAlloc(self, emu, argv, ctx={}):
+    def LocalReAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DECLSPEC_ALLOCATOR HLOCAL LocalReAlloc(
           _Frees_ptr_opt_ HLOCAL hMem,
@@ -2261,6 +2346,7 @@ class Kernel32(api.ApiHandler):
           UINT                   uFlags
         );
         """
+        ctx = ctx or {}
 
         hMem, uBytes, uFlags = argv
 
@@ -2278,7 +2364,7 @@ class Kernel32(api.ApiHandler):
         return new_buf
 
     @apihook("HeapCreate", argc=3)
-    def HeapCreate(self, emu, argv, ctx={}):
+    def HeapCreate(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE HeapCreate(
           DWORD  flOptions,
@@ -2286,6 +2372,7 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwMaximumSize
         );
         """
+        ctx = ctx or {}
 
         flOptions, dwInitialSize, dwMaximumSize = argv
 
@@ -2294,19 +2381,21 @@ class Kernel32(api.ApiHandler):
         return heap
 
     @apihook("GetCurrentThread", argc=0)
-    def GetCurrentThread(self, emu, argv, ctx={}):
+    def GetCurrentThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE GetCurrentThread();
         """
+        ctx = ctx or {}
         thread = emu.get_current_thread()
         obj = emu.om.get_object_from_addr(thread.address)
         return emu.get_object_handle(obj)
 
     @apihook("TlsAlloc", argc=0)
-    def TlsAlloc(self, emu, argv, ctx={}):
+    def TlsAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD TlsAlloc();
         """
+        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         tls = thread.tls
@@ -2318,13 +2407,14 @@ class Kernel32(api.ApiHandler):
         return idx
 
     @apihook("TlsSetValue", argc=2)
-    def TlsSetValue(self, emu, argv, ctx={}):
+    def TlsSetValue(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL TlsSetValue(
           DWORD  dwTlsIndex,
           LPVOID lpTlsValue
         );
         """
+        ctx = ctx or {}
 
         dwTlsIndex, lpTlsValue = argv
         rv = 0
@@ -2343,12 +2433,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("TlsGetValue", argc=1)
-    def TlsGetValue(self, emu, argv, ctx={}):
+    def TlsGetValue(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID TlsGetValue(
           DWORD dwTlsIndex
         );
         """
+        ctx = ctx or {}
         (dwTlsIndex,) = argv
         dwTlsIndex &= 0xFFFFFFFF
         rv = 0
@@ -2365,12 +2456,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("FlsAlloc", argc=1)
-    def FlsAlloc(self, emu, argv, ctx={}):
+    def FlsAlloc(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD FlsAlloc(
           PFLS_CALLBACK_FUNCTION lpCallback
         );
         """
+        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         fls = thread.fls
@@ -2382,13 +2474,14 @@ class Kernel32(api.ApiHandler):
         return idx
 
     @apihook("FlsSetValue", argc=2)
-    def FlsSetValue(self, emu, argv, ctx={}):
+    def FlsSetValue(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FlsSetValue(
           DWORD dwFlsIndex,
           PVOID lpFlsData
         );
         """
+        ctx = ctx or {}
 
         dwFlsIndex, lpFlsData = argv
         rv = 0
@@ -2410,12 +2503,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("FlsGetValue", argc=1)
-    def FlsGetValue(self, emu, argv, ctx={}):
+    def FlsGetValue(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID FlsGetValue(
           DWORD dwFlsIndex
         );
         """
+        ctx = ctx or {}
         (dwFlsIndex,) = argv
         rv = 0
 
@@ -2431,12 +2525,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("EncodePointer", argc=1)
-    def EncodePointer(self, emu, argv, ctx={}):
+    def EncodePointer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID EncodePointer(
           _In_ PVOID Ptr
         );
         """
+        ctx = ctx or {}
 
         (Ptr,) = argv
         # Just increment the pointer for now
@@ -2445,12 +2540,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("DecodePointer", argc=1)
-    def DecodePointer(self, emu, argv, ctx={}):
+    def DecodePointer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID DecodePointer(
            PVOID Ptr
         );
         """
+        ctx = ctx or {}
 
         (Ptr,) = argv
         # Just decrement the pointer for now
@@ -2459,13 +2555,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("InitializeCriticalSectionAndSpinCount", argc=2)
-    def InitializeCriticalSectionAndSpinCount(self, emu, argv, ctx={}):
+    def InitializeCriticalSectionAndSpinCount(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL InitializeCriticalSectionAndSpinCount(
           LPCRITICAL_SECTION lpCriticalSection,
           DWORD              dwSpinCount
         );
         """
+        ctx = ctx or {}
 
         lpCriticalSection, dwSpinCount = argv
         rv = 1
@@ -2473,32 +2570,35 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("EnterCriticalSection", argc=1)
-    def EnterCriticalSection(self, emu, argv, ctx={}):
+    def EnterCriticalSection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void EnterCriticalSection(
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("LeaveCriticalSection", argc=1)
-    def LeaveCriticalSection(self, emu, argv, ctx={}):
+    def LeaveCriticalSection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void LeaveCriticalSection(
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("InterlockedIncrement", argc=1)
-    def InterlockedIncrement(self, emu, argv, ctx={}):
+    def InterlockedIncrement(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG InterlockedIncrement(
           LONG volatile *Addend
         );
         """
+        ctx = ctx or {}
 
         (Addend,) = argv
 
@@ -2511,12 +2611,13 @@ class Kernel32(api.ApiHandler):
         return ival
 
     @apihook("InterlockedDecrement", argc=1)
-    def InterlockedDecrement(self, emu, argv, ctx={}):
+    def InterlockedDecrement(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG InterlockedDecrement(
           LONG volatile *Addend
         );
         """
+        ctx = ctx or {}
 
         (Addend,) = argv
 
@@ -2529,10 +2630,11 @@ class Kernel32(api.ApiHandler):
         return ival
 
     @apihook("GetCommandLine", argc=0)
-    def GetCommandLine(self, emu, argv, ctx={}):
+    def GetCommandLine(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPTSTR GetCommandLine();
         """
+        ctx = ctx or {}
 
         fn = ctx["func_name"]
         cw = self.get_char_width(ctx)
@@ -2555,7 +2657,7 @@ class Kernel32(api.ApiHandler):
         return cmd_ptr
 
     @apihook("ExpandEnvironmentStrings", argc=3)
-    def ExpandEnvironmentStrings(self, emu, argv, ctx={}):
+    def ExpandEnvironmentStrings(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD ExpandEnvironmentStringsA(
             LPCSTR lpSrc,
@@ -2563,6 +2665,7 @@ class Kernel32(api.ApiHandler):
             DWORD  nSize
         );
         """
+        ctx = ctx or {}
         lpSrc, lpDst, nSize = argv
         rv = 0
 
@@ -2586,10 +2689,11 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetEnvironmentStrings", argc=0)
-    def GetEnvironmentStrings(self, emu, argv, ctx={}):
+    def GetEnvironmentStrings(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPCH GetEnvironmentStrings();
         """
+        ctx = ctx or {}
 
         out = ""
         fn = ctx["func_name"]
@@ -2611,12 +2715,13 @@ class Kernel32(api.ApiHandler):
         return env_ptr
 
     @apihook("FreeEnvironmentStrings", argc=1)
-    def FreeEnvironmentStrings(self, emu, argv, ctx={}):
+    def FreeEnvironmentStrings(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FreeEnvironmentStrings(
           LPCH penv
         );
         """
+        ctx = ctx or {}
 
         (penv,) = argv
 
@@ -2625,7 +2730,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetFullPathName", argc=4)
-    def GetFullPathName(self, emu, argv, ctx={}):
+    def GetFullPathName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetFullPathNameA(
             LPCSTR lpFileName,
@@ -2634,6 +2739,7 @@ class Kernel32(api.ApiHandler):
             LPSTR  *lpFilePart
         );
         """
+        ctx = ctx or {}
 
         lpFileName, nBufferLength, lpBuffer, lpFilePart = argv
         cw = self.get_char_width(ctx)
@@ -2656,12 +2762,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetStartupInfo", argc=1)
-    def GetStartupInfo(self, emu, argv, ctx={}):
+    def GetStartupInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GetStartupInfo(
           LPSTARTUPINFO lpStartupInfo
         );
         """
+        ctx = ctx or {}
 
         (lpStartupInfo,) = argv
 
@@ -2727,12 +2834,13 @@ class Kernel32(api.ApiHandler):
         return None
 
     @apihook("GetStdHandle", argc=1)
-    def GetStdHandle(self, emu, argv, ctx={}):
+    def GetStdHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE WINAPI GetStdHandle(
           _In_ DWORD nStdHandle
         );
         """
+        ctx = ctx or {}
 
         (nStdHandle,) = argv
 
@@ -2742,12 +2850,13 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("GetFileType", argc=1)
-    def GetFileType(self, emu, argv, ctx={}):
+    def GetFileType(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetFileType(
           HANDLE hFile
         );
         """
+        ctx = ctx or {}
         FILE_TYPE_DISK = 1
 
         (hFile,) = argv
@@ -2755,12 +2864,13 @@ class Kernel32(api.ApiHandler):
         return FILE_TYPE_DISK
 
     @apihook("SetHandleCount", argc=1)
-    def SetHandleCount(self, emu, argv, ctx={}):
+    def SetHandleCount(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT SetHandleCount(
           UINT uNumber
         );
         """
+        ctx = ctx or {}
         (uNumber,) = argv
 
         emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
@@ -2768,35 +2878,38 @@ class Kernel32(api.ApiHandler):
         return uNumber
 
     @apihook("GetACP", argc=0)
-    def GetACP(self, emu, argv, ctx={}):
+    def GetACP(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetACP();
         """
+        ctx = ctx or {}
 
         windows_1252 = 1252
 
         return windows_1252
 
     @apihook("IsValidCodePage", argc=1)
-    def IsValidCodePage(self, emu, argv, ctx={}):
+    def IsValidCodePage(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsValidCodePage(
           UINT CodePage
         );
         """
+        ctx = ctx or {}
 
         (CodePage,) = argv
 
         return True
 
     @apihook("GetCPInfo", argc=2)
-    def GetCPInfo(self, emu, argv, ctx={}):
+    def GetCPInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetCPInfo(
           UINT     CodePage,
           LPCPINFO lpCPInfo
         );
         """
+        ctx = ctx or {}
 
         CodePage, lpCPInfo = argv
 
@@ -2807,7 +2920,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("WideCharToMultiByte", argc=8)
-    def WideCharToMultiByte(self, emu, argv, ctx={}):
+    def WideCharToMultiByte(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int WideCharToMultiByte(
           UINT                               CodePage,
@@ -2820,6 +2933,7 @@ class Kernel32(api.ApiHandler):
           LPBOOL                             lpUsedDefaultChar
         );
         """
+        ctx = ctx or {}
 
         rv = 0
 
@@ -2870,7 +2984,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("MultiByteToWideChar", argc=6)
-    def MultiByteToWideChar(self, emu, argv, ctx={}):
+    def MultiByteToWideChar(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int MultiByteToWideChar(
           UINT                              CodePage,
@@ -2881,6 +2995,7 @@ class Kernel32(api.ApiHandler):
           int                               cchWideChar
         );
         """
+        ctx = ctx or {}
 
         (CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar) = argv
 
@@ -2925,7 +3040,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetStringTypeA", argc=5)
-    def GetStringTypeA(self, emu, argv, ctx={}):
+    def GetStringTypeA(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetStringTypeA(
             LCID   Locale,
@@ -2935,11 +3050,12 @@ class Kernel32(api.ApiHandler):
             LPWORD lpCharType
         );
         """
+        ctx = ctx or {}
         args = argv[1:]
         return self.GetStringTypeW(emu, args, ctx)
 
     @apihook("GetStringTypeW", argc=4)
-    def GetStringTypeW(self, emu, argv, ctx={}):
+    def GetStringTypeW(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetStringTypeW(
           DWORD                         dwInfoType,
@@ -2948,6 +3064,7 @@ class Kernel32(api.ApiHandler):
           LPWORD                        lpCharType
         );
         """
+        ctx = ctx or {}
         dwInfoType, lpSrcStr, cchSrc, lpCharType = argv
         rv = 0
 
@@ -3006,7 +3123,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("LCMapString", argc=6)
-    def LCMapString(self, emu, argv, ctx={}):
+    def LCMapString(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int LCMapString(
           LCID    Locale,
@@ -3017,6 +3134,7 @@ class Kernel32(api.ApiHandler):
           int     cchDest
         );
         """
+        ctx = ctx or {}
 
         (Locale, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest) = argv
 
@@ -3036,7 +3154,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("LCMapStringEx", argc=9)
-    def LCMapStringEx(self, emu, argv, ctx={}):
+    def LCMapStringEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int LCMapStringEx(
           LPCWSTR          lpLocaleName,
@@ -3050,6 +3168,7 @@ class Kernel32(api.ApiHandler):
           LPARAM           sortHandle
         );
         """
+        ctx = ctx or {}
 
         (lpLocaleName, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest, ver_info, res, sort_handle) = argv
 
@@ -3068,7 +3187,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetModuleFileName", argc=3)
-    def GetModuleFileName(self, emu, argv, ctx={}):
+    def GetModuleFileName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetModuleFileName(
           HMODULE hModule,
@@ -3076,6 +3195,7 @@ class Kernel32(api.ApiHandler):
           DWORD   nSize
         );
         """
+        ctx = ctx or {}
         hModule, lpFilename, nSize = argv
         size = 0
         cw = self.get_char_width(ctx)
@@ -3112,7 +3232,7 @@ class Kernel32(api.ApiHandler):
         return size
 
     @apihook("HeapFree", argc=3)
-    def HeapFree(self, emu, argv, ctx={}):
+    def HeapFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL HeapFree(
           HANDLE                 hHeap,
@@ -3120,6 +3240,7 @@ class Kernel32(api.ApiHandler):
           _Frees_ptr_opt_ LPVOID lpMem
         );
         """
+        ctx = ctx or {}
         rv = 1
         hHeap, dwFlags, lpMem = argv
 
@@ -3128,12 +3249,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("LocalFree", argc=1)
-    def LocalFree(self, emu, argv, ctx={}):
+    def LocalFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HLOCAL LocalFree(
             _Frees_ptr_opt_ HLOCAL hMem
         );
         """
+        ctx = ctx or {}
         rv = 0
         (hMem,) = argv
 
@@ -3145,41 +3267,45 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GlobalHandle", argc=1)
-    def GlobalHandle(self, emu, argv, ctx={}):
+    def GlobalHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HGLOBAL GlobalHandle(
             LPCVOID pMem
         );
         """
+        ctx = ctx or {}
         (pMem,) = argv
         return pMem
 
     @apihook("GlobalUnlock", argc=1)
-    def GlobalUnlock(self, emu, argv, ctx={}):
+    def GlobalUnlock(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GlobalUnlock(
             HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GlobalFree", argc=1)
-    def GlobalFree(self, emu, argv, ctx={}):
+    def GlobalFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HGLOBAL GlobalFree(
             _Frees_ptr_opt_ HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetSystemDirectory", argc=2)
-    def GetSystemDirectory(self, emu, argv, ctx={}):
+    def GetSystemDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetSystemDirectory(
           LPSTR lpBuffer,
           UINT  uSize
         );
         """
+        ctx = ctx or {}
         rv = 0
         lpBuffer, uSize = argv
 
@@ -3207,22 +3333,24 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("IsDBCSLeadByte", argc=1)
-    def IsDBCSLeadByte(self, emu, argv, ctx={}):
+    def IsDBCSLeadByte(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsDBCSLeadByte(
             BYTE TestChar
         );
         """
+        ctx = ctx or {}
         return True
 
     @apihook("SetEnvironmentVariable", argc=2)
-    def SetEnvironmentVariable(self, emu, argv, ctx={}):
+    def SetEnvironmentVariable(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetEnvironmentVariable(
             LPCTSTR lpName,
             LPCTSTR lpValue
             );
         """
+        ctx = ctx or {}
         lpName, lpValue = argv
         cw = self.get_char_width(ctx)
         if lpName and lpValue:
@@ -3234,12 +3362,13 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("SetDllDirectory", argc=1)
-    def SetDllDirectory(self, emu, argv, ctx={}):
+    def SetDllDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetDllDirectory(
             LPCSTR lpPathName
         );
         """
+        ctx = ctx or {}
         (path,) = argv
 
         cw = self.get_char_width(ctx)
@@ -3249,17 +3378,18 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetWindowsDirectory", argc=2)
-    def GetWindowsDirectory(self, emu, argv, ctx={}):
+    def GetWindowsDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetWindowsDirectory(
             LPSTR lpBuffer,
             UINT  uSize
         );
         """
+        ctx = ctx or {}
         return self.GetSystemDirectory(emu, argv, ctx)
 
     @apihook("CreateFileMapping", argc=6)
-    def CreateFileMapping(self, emu, argv, ctx={}):
+    def CreateFileMapping(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateFileMapping(
           HANDLE                hFile,
@@ -3270,6 +3400,7 @@ class Kernel32(api.ApiHandler):
           LPTSTR                lpName
         );
         """
+        ctx = ctx or {}
         hfile, map_attrs, prot, max_size_high, max_size_low, map_name = argv
 
         cw = self.get_char_width(ctx)
@@ -3287,7 +3418,7 @@ class Kernel32(api.ApiHandler):
         return hmap
 
     @apihook("MapViewOfFile", argc=5)
-    def MapViewOfFile(self, emu, argv, ctx={}):
+    def MapViewOfFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID MapViewOfFile(
           HANDLE hFileMappingObject,
@@ -3297,6 +3428,7 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwNumberOfBytesToMap
         );
         """
+        ctx = ctx or {}
         hmap, access, offset_high, offset_low, bytes_to_map = argv
 
         fman = emu.get_file_manager()
@@ -3362,12 +3494,13 @@ class Kernel32(api.ApiHandler):
         return buf
 
     @apihook("UnmapViewOfFile", argc=1)
-    def UnmapViewOfFile(self, emu, argv, ctx={}):
+    def UnmapViewOfFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL UnmapViewOfFile(
           LPCVOID lpBaseAddress
         );
         """
+        ctx = ctx or {}
         (lpBaseAddress,) = argv
         rv = False
 
@@ -3382,12 +3515,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetSystemInfo", argc=1)
-    def GetSystemInfo(self, emu, argv, ctx={}):
+    def GetSystemInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GetSystemInfo(
             LPSYSTEM_INFO lpSystemInfo
         );
         """
+        ctx = ctx or {}
         (lpSystemInfo,) = argv
         ptr_size = emu.get_ptr_size()
         si = self.k32types.SYSTEM_INFO(ptr_size)
@@ -3402,12 +3536,13 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook("GetFileAttributes", argc=1)
-    def GetFileAttributes(self, emu, argv, ctx={}):
+    def GetFileAttributes(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetFileAttributes(
             LPCSTR lpFileName
         );
         """
+        ctx = ctx or {}
         (fn,) = argv
         cw = self.get_char_width(ctx)
         rv = windefs.INVALID_FILE_ATTRIBUTES
@@ -3418,7 +3553,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetFileAttributesEx", argc=3)
-    def GetFileAttributesEx(self, emu, argv, ctx={}):
+    def GetFileAttributesEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetFileAttributesEx(
           LPCSTR                 lpFileName,
@@ -3426,6 +3561,7 @@ class Kernel32(api.ApiHandler):
           LPVOID                 lpFileInformation
         );
         """
+        ctx = ctx or {}
         lpFileName, fInfoLevelId, lpFileInformation = argv
 
         cw = self.get_char_width(ctx)
@@ -3473,7 +3609,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetFileTime", argc=4)
-    def GetFileTime(self, emu, argv, ctx={}):
+    def GetFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetFileTime(
           HANDLE     hFile,
@@ -3482,6 +3618,7 @@ class Kernel32(api.ApiHandler):
           LPFILETIME lpLastWriteTime
         );
         """
+        ctx = ctx or {}
         _hFile, lpCreationTime, lpLastAccessTime, lpLastWriteTime = argv
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -3501,7 +3638,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("SetFileTime", argc=4)
-    def SetFileTime(self, emu, argv, ctx={}):
+    def SetFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetFileTime(
           HANDLE         hFile,
@@ -3510,17 +3647,19 @@ class Kernel32(api.ApiHandler):
           const FILETIME *lpLastWriteTime
         );
         """
+        ctx = ctx or {}
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
     @apihook("CreateDirectory", argc=2)
-    def CreateDirectory(self, emu, argv, ctx={}):
+    def CreateDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CreateDirectory(
             LPCSTR                lpPathName,
             LPSECURITY_ATTRIBUTES lpSecurityAttributes
         );
         """
+        ctx = ctx or {}
         pn, sec = argv
         cw = self.get_char_width(ctx)
 
@@ -3530,12 +3669,13 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("RemoveDirectory", argc=1)
-    def RemoveDirectory(self, emu, argv, ctx={}):
+    def RemoveDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL RemoveDirectoryA(
         [in] LPCSTR lpPathName
         );
         """
+        ctx = ctx or {}
         (pn,) = argv
         cw = self.get_char_width(ctx)
 
@@ -3546,7 +3686,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("CopyFile", argc=3)
-    def CopyFile(self, emu, argv, ctx={}):
+    def CopyFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CopyFile(
             LPCTSTR lpExistingFileName,
@@ -3554,6 +3694,7 @@ class Kernel32(api.ApiHandler):
             BOOL    bFailIfExists
         );
         """
+        ctx = ctx or {}
         src, dst, fail = argv
         cw = self.get_char_width(ctx)
 
@@ -3599,13 +3740,14 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("MoveFile", argc=2)
-    def MoveFile(self, emu, argv, ctx={}):
+    def MoveFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL MoveFile(
             LPCTSTR lpExistingFileName,
             LPCTSTR lpNewFileName
         );
         """
+        ctx = ctx or {}
         src, dst = argv
         cw = self.get_char_width(ctx)
 
@@ -3655,7 +3797,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("CreateFile", argc=7)
-    def CreateFile(self, emu, argv, ctx={}):
+    def CreateFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateFile(
           LPTSTR                lpFileName,
@@ -3667,6 +3809,7 @@ class Kernel32(api.ApiHandler):
           HANDLE                hTemplateFile
         );
         """
+        ctx = ctx or {}
         fname, access, share, sec_attr, disp, flags, template = argv
         hnd = windefs.INVALID_HANDLE_VALUE
 
@@ -3734,12 +3877,13 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("DeleteFile", argc=1)
-    def DeleteFile(self, emu, argv, ctx={}):
+    def DeleteFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL DeleteFileW(
             LPCWSTR lpFileName
         );
         """
+        ctx = ctx or {}
         lpFileName = argv[0]
         cw = self.get_char_width(ctx)
         if not lpFileName:
@@ -3758,7 +3902,7 @@ class Kernel32(api.ApiHandler):
             return 0
 
     @apihook("ReadFile", argc=5)
-    def ReadFile(self, emu, argv, ctx={}):
+    def ReadFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ReadFile(
           HANDLE       hFile,
@@ -3768,6 +3912,7 @@ class Kernel32(api.ApiHandler):
           LPOVERLAPPED lpOverlapped
         );
         """
+        ctx = ctx or {}
 
         def _write_output(emu, data, pBuffer, pBytesRead):
             self.mem_write(pBuffer, data)
@@ -3806,7 +3951,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("WriteFile", argc=5)
-    def WriteFile(self, emu, argv, ctx={}):
+    def WriteFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
          BOOL WriteFile(
           HANDLE       hFile,
@@ -3816,6 +3961,7 @@ class Kernel32(api.ApiHandler):
           LPOVERLAPPED lpOverlapped
         );
         """
+        ctx = ctx or {}
         hFile, lpBuffer, num_bytes, bytes_written, lpOverlapped = argv
         rv = 0
 
@@ -3873,7 +4019,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SetFilePointer", argc=4)
-    def SetFilePointer(self, emu, argv, ctx={}):
+    def SetFilePointer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD SetFilePointer(
           HANDLE hFile,
@@ -3882,6 +4028,7 @@ class Kernel32(api.ApiHandler):
           DWORD  dwMoveMethod
         );
         """
+        ctx = ctx or {}
         hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod = argv
         rv = 0
 
@@ -3895,7 +4042,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SetFilePointerEx", argc=4)
-    def SetFilePointerEx(self, emu, argv, ctx={}):
+    def SetFilePointerEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetFilePointerEx(
         [in]            HANDLE         hFile,
@@ -3904,6 +4051,7 @@ class Kernel32(api.ApiHandler):
         [in]            DWORD          dwMoveMethod
         );
         """
+        ctx = ctx or {}
         hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv
         f = self.file_get(hFile)
         if f:
@@ -3915,13 +4063,14 @@ class Kernel32(api.ApiHandler):
         return False
 
     @apihook("GetFileSize", argc=2)
-    def GetFileSize(self, emu, argv, ctx={}):
+    def GetFileSize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetFileSize(
           HANDLE  hFile,
           LPDWORD lpFileSizeHigh
         );
         """
+        ctx = ctx or {}
         hFile, lpFileSizeHigh = argv
 
         f = self.file_get(hFile)
@@ -3943,13 +4092,14 @@ class Kernel32(api.ApiHandler):
         return low
 
     @apihook("GetFileSizeEx", argc=2)
-    def GetFileSizeEx(self, emu, argv, ctx={}):
+    def GetFileSizeEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetFileSizeEx(
           HANDLE         hFile,
           PLARGE_INTEGER lpFileSize
         );
         """
+        ctx = ctx or {}
         hFile, lpFileSize = argv
         f = self.file_get(hFile)
 
@@ -3964,12 +4114,13 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("CloseHandle", argc=1)
-    def CloseHandle(self, emu, argv, ctx={}):
+    def CloseHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CloseHandle(
           HANDLE hObject
         );
         """
+        ctx = ctx or {}
         (hObject,) = argv
 
         reg_key = emu.reg_get_key(handle=hObject)
@@ -3987,24 +4138,26 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("SetEndOfFile", argc=1)
-    def SetEndOfFile(self, emu, argv, ctx={}):
+    def SetEndOfFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetEndOfFile(
           HANDLE hFile
         );
         """
+        ctx = ctx or {}
         return True
 
     @apihook("IsDebuggerPresent", argc=0)
-    def IsDebuggerPresent(self, emu, argv, ctx={}):
+    def IsDebuggerPresent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsDebuggerPresent();
         """
+        ctx = ctx or {}
 
         return False
 
     @apihook("GetVolumeInformation", argc=8)
-    def GetVolumeInformation(self, emu, argv, ctx={}):
+    def GetVolumeInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetVolumeInformation(
             LPCSTR  lpRootPathName,
@@ -4017,6 +4170,7 @@ class Kernel32(api.ApiHandler):
             DWORD   nFileSystemNameSize
         );
         """
+        ctx = ctx or {}
         root, vol_buf, vol_size, serial, comp_len, fs_flags, fs_name, fs_name_len = argv
 
         cw = self.get_char_width(ctx)
@@ -4027,7 +4181,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("CreateEvent", argc=4)
-    def CreateEvent(self, emu, argv, ctx={}):
+    def CreateEvent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateEvent(
             LPSECURITY_ATTRIBUTES lpEventAttributes,
@@ -4036,6 +4190,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR                lpName
         );
         """
+        ctx = ctx or {}
         attrs, reset, state, name = argv
 
         cw = self.get_char_width(ctx)
@@ -4055,7 +4210,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("CreateWaitableTimer", argc=3)
-    def CreateWaitableTimer(self, emu, argv, ctx={}):
+    def CreateWaitableTimer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateWaitableTimer(
             LPSECURITY_ATTRIBUTES lpTimerAttributes,
@@ -4063,6 +4218,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR                lpTimerName
         );
         """
+        ctx = ctx or {}
         _attrs, _manual_reset, name = argv
 
         cw = self.get_char_width(ctx)
@@ -4083,7 +4239,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("CreateWaitableTimerEx", argc=4)
-    def CreateWaitableTimerEx(self, emu, argv, ctx={}):
+    def CreateWaitableTimerEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateWaitableTimerEx(
             LPSECURITY_ATTRIBUTES lpTimerAttributes,
@@ -4092,6 +4248,7 @@ class Kernel32(api.ApiHandler):
             DWORD                 dwDesiredAccess
         );
         """
+        ctx = ctx or {}
         _attrs, name, _flags, _access = argv
 
         cw = self.get_char_width(ctx)
@@ -4112,7 +4269,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("OpenWaitableTimer", argc=3)
-    def OpenWaitableTimer(self, emu, argv, ctx={}):
+    def OpenWaitableTimer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE OpenWaitableTimer(
             DWORD  dwDesiredAccess,
@@ -4120,6 +4277,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR lpTimerName
         );
         """
+        ctx = ctx or {}
         _access, _inherit, name = argv
 
         cw = self.get_char_width(ctx)
@@ -4140,7 +4298,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("SetWaitableTimer", argc=6)
-    def SetWaitableTimer(self, emu, argv, ctx={}):
+    def SetWaitableTimer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetWaitableTimer(
             HANDLE               hTimer,
@@ -4151,6 +4309,7 @@ class Kernel32(api.ApiHandler):
             BOOL                 fResume
         );
         """
+        ctx = ctx or {}
         hTimer, _due_time, _period, _completion_routine, _completion_arg, _resume = argv
 
         obj = self.get_object_from_handle(hTimer)
@@ -4162,12 +4321,13 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("CancelWaitableTimer", argc=1)
-    def CancelWaitableTimer(self, emu, argv, ctx={}):
+    def CancelWaitableTimer(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CancelWaitableTimer(
             HANDLE hTimer
         );
         """
+        ctx = ctx or {}
         (hTimer,) = argv
 
         obj = self.get_object_from_handle(hTimer)
@@ -4179,7 +4339,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("OpenEvent", argc=3)
-    def OpenEvent(self, emu, argv, ctx={}):
+    def OpenEvent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE OpenEvent(
             DWORD  dwDesiredAccess,
@@ -4187,6 +4347,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR lpName
         );
         """
+        ctx = ctx or {}
         access, inherit, name = argv
 
         cw = self.get_char_width(ctx)
@@ -4207,12 +4368,13 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("SetEvent", argc=1)
-    def SetEvent(self, emu, argv, ctx={}):
+    def SetEvent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetEvent(
             HANDLE hEvent
         );
         """
+        ctx = ctx or {}
         (hEvent,) = argv
 
         obj = self.get_object_from_handle(hEvent)
@@ -4224,12 +4386,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SetUnhandledExceptionFilter", argc=1)
-    def SetUnhandledExceptionFilter(self, emu, argv, ctx={}):
+    def SetUnhandledExceptionFilter(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPTOP_LEVEL_EXCEPTION_FILTER SetUnhandledExceptionFilter(
           LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter
         );
         """
+        ctx = ctx or {}
         (lpTopLevelExceptionFilter,) = argv
 
         emu.set_unhandled_exception_handler(lpTopLevelExceptionFilter)
@@ -4237,43 +4400,47 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("DeleteCriticalSection", argc=1)
-    def DeleteCriticalSection(self, emu, argv, ctx={}):
+    def DeleteCriticalSection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void DeleteCriticalSection(
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
+        ctx = ctx or {}
 
         return None
 
     @apihook("FlsFree", argc=1)
-    def FlsFree(self, emu, argv, ctx={}):
+    def FlsFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FlsFree(
           DWORD dwFlsIndex
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("TlsFree", argc=1)
-    def TlsFree(self, emu, argv, ctx={}):
+    def TlsFree(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL TlsFree(
           DWORD dwTlsIndex
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("ProcessIdToSessionId", argc=2)
-    def ProcessIdToSessionId(self, emu, argv, ctx={}):
+    def ProcessIdToSessionId(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ProcessIdToSessionId(
           DWORD dwProcessId,
           DWORD *pSessionId
         );
         """
+        ctx = ctx or {}
         dwProcessId, pSessionId = argv
         rv = False
 
@@ -4290,7 +4457,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("InitializeCriticalSectionEx", argc=3)
-    def InitializeCriticalSectionEx(self, emu, argv, ctx={}):
+    def InitializeCriticalSectionEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL InitializeCriticalSectionEx(
           LPCRITICAL_SECTION lpCriticalSection,
@@ -4298,69 +4465,76 @@ class Kernel32(api.ApiHandler):
           DWORD              Flags
         );
         """
+        ctx = ctx or {}
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
     @apihook("InitializeCriticalSection", argc=1)
-    def InitializeCriticalSection(self, emu, argv, ctx={}):
+    def InitializeCriticalSection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void InitializeCriticalSection(
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
+        ctx = ctx or {}
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return None
 
     @apihook("GetOEMCP", argc=0)
-    def GetOEMCP(self, emu, argv, ctx={}):
+    def GetOEMCP(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetOEMCP();
         """
+        ctx = ctx or {}
         return 1200
 
     @apihook("GlobalLock", argc=1)
-    def GlobalLock(self, emu, argv, ctx={}):
+    def GlobalLock(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID GlobalLock(
           HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
         (hMem,) = argv
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return hMem
 
     @apihook("LocalLock", argc=1)
-    def LocalLock(self, emu, argv, ctx={}):
+    def LocalLock(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID LocalLock(
           HGLOBAL hMem
         );
         """
+        ctx = ctx or {}
         (hMem,) = argv
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return hMem
 
     @apihook("HeapDestroy", argc=1)
-    def HeapDestroy(self, emu, argv, ctx={}):
+    def HeapDestroy(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL HeapDestroy(
           HANDLE hHeap
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("InitializeSListHead", argc=1)
-    def InitializeSListHead(self, emu, argv, ctx={}):
+    def InitializeSListHead(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void InitializeSListHead(
           PSLIST_HEADER ListHead
         );
         """
+        ctx = ctx or {}
         (ListHead,) = argv
 
         self.mem_write(ListHead, b"\x00" * 8)
@@ -4368,23 +4542,25 @@ class Kernel32(api.ApiHandler):
         return None
 
     @apihook("FreeLibrary", argc=1)
-    def FreeLibrary(self, emu, argv, ctx={}):
+    def FreeLibrary(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FreeLibrary(
           HMODULE hLibModule
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("WaitForSingleObject", argc=2)
-    def WaitForSingleObject(self, emu, argv, ctx={}):
+    def WaitForSingleObject(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WaitForSingleObject(
         HANDLE hHandle,
         DWORD  dwMilliseconds
         );
         """
+        ctx = ctx or {}
         hHandle, dwMilliseconds = argv
 
         # TODO
@@ -4396,18 +4572,19 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetConsoleMode", argc=2)
-    def GetConsoleMode(self, emu, argv, ctx={}):
+    def GetConsoleMode(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL WINAPI GetConsoleMode(
             _In_  HANDLE  hConsoleHandle,
             _Out_ LPDWORD lpMode
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("HeapSetInformation", argc=4)
-    def HeapSetInformation(self, emu, argv, ctx={}):
+    def HeapSetInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL HeapSetInformation(
             HANDLE                 HeapHandle,
@@ -4416,20 +4593,22 @@ class Kernel32(api.ApiHandler):
             SIZE_T                 HeapInformationLength
         );
         """
+        ctx = ctx or {}
 
         return True
 
     @apihook("SetErrorMode", argc=1)
-    def SetErrorMode(self, emu, argv, ctx={}):
+    def SetErrorMode(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT SetErrorMode(
             UINT uMode
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("InterlockedCompareExchange", argc=3)
-    def InterlockedCompareExchange(self, emu, argv, ctx={}):
+    def InterlockedCompareExchange(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG InterlockedCompareExchange(
         LONG volatile *Destination,
@@ -4437,6 +4616,7 @@ class Kernel32(api.ApiHandler):
         LONG          Comperand
         );
         """
+        ctx = ctx or {}
         pDest, ExChange, Comperand = argv
 
         dest_bytes = self.mem_read(pDest, 4)
@@ -4448,13 +4628,14 @@ class Kernel32(api.ApiHandler):
         return dest
 
     @apihook("InterlockedExchange", argc=2)
-    def InterlockedExchange(self, emu, argv, ctx={}):
+    def InterlockedExchange(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG InterlockedExchange(
         LONG volatile *Target,
         LONG          Value
         );
         """
+        ctx = ctx or {}
         Target, Value = argv
         tgt = self.mem_read(Target, 4)
         tgt = int.from_bytes(tgt, "little")
@@ -4466,7 +4647,7 @@ class Kernel32(api.ApiHandler):
         return tgt
 
     @apihook("CreateNamedPipe", argc=8)
-    def CreateNamedPipe(self, emu, argv, ctx={}):
+    def CreateNamedPipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateNamedPipe(
             LPCSTR                lpName,
@@ -4479,6 +4660,7 @@ class Kernel32(api.ApiHandler):
             LPSECURITY_ATTRIBUTES lpSecurityAttributes
         );
         """
+        ctx = ctx or {}
         (
             lpName,
             dwOpenMode,
@@ -4503,7 +4685,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("CreatePipe", argc=4)
-    def CreatePipe(self, emu, argv, ctx={}):
+    def CreatePipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CreatePipe(
         PHANDLE               hReadPipe,
@@ -4512,6 +4694,7 @@ class Kernel32(api.ApiHandler):
         DWORD                 nSize
         );
         """
+        ctx = ctx or {}
         hReadPipe, hWritePipe, lpPipeAttributes, nSize = argv
 
         if not hReadPipe or not hWritePipe:
@@ -4529,7 +4712,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("PeekNamedPipe", argc=6)
-    def PeekNamedPipe(self, emu, argv, ctx={}):
+    def PeekNamedPipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL PeekNamedPipe(
         HANDLE  hNamedPipe,
@@ -4540,6 +4723,7 @@ class Kernel32(api.ApiHandler):
         LPDWORD lpBytesLeftThisMessage
         );
         """
+        ctx = ctx or {}
         (hNamedPipe, lpBuffer, nBufferSize, lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage) = argv
         pipe = emu.pipe_get(hNamedPipe)
         if not pipe:
@@ -4557,13 +4741,14 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("ConnectNamedPipe", argc=2)
-    def ConnectNamedPipe(self, emu, argv, ctx={}):
+    def ConnectNamedPipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ConnectNamedPipe(
             HANDLE       hNamedPipe,
             LPOVERLAPPED lpOverlapped
         );
         """
+        ctx = ctx or {}
         hNamedPipe, lpOverlapped = argv
         rv = False
         pipe = emu.pipe_get(hNamedPipe)
@@ -4572,12 +4757,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("DisconnectNamedPipe", argc=1)
-    def DisconnectNamedPipe(self, emu, argv, ctx={}):
+    def DisconnectNamedPipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL DisconnectNamedPipe(
             HANDLE hNamedPipe
         );
         """
+        ctx = ctx or {}
         (hNamedPipe,) = argv
         rv = False
         pipe = emu.pipe_get(hNamedPipe)
@@ -4586,7 +4772,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetLocaleInfo", argc=4)
-    def GetLocaleInfo(self, emu, argv, ctx={}):
+    def GetLocaleInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int GetLocaleInfo(
           LCID   Locale,
@@ -4595,6 +4781,7 @@ class Kernel32(api.ApiHandler):
           int    cchData
         );
         """
+        ctx = ctx or {}
         Locale, LCType, lpLCData, cchData = argv
 
         rv = 0
@@ -4620,13 +4807,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("IsWow64Process", argc=2)
-    def IsWow64Process(self, emu, argv, ctx={}):
+    def IsWow64Process(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsWow64Process(
             HANDLE hProcess,
             PBOOL  Wow64Process
         );
         """
+        ctx = ctx or {}
         hProcess, Wow64Process = argv
         rv = False
 
@@ -4637,13 +4825,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("CheckRemoteDebuggerPresent", argc=2)
-    def CheckRemoteDebuggerPresent(self, emu, argv, ctx={}):
+    def CheckRemoteDebuggerPresent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CheckRemoteDebuggerPresent(
             HANDLE hProcess,
             PBOOL  pbDebuggerPresent
         );
         """
+        ctx = ctx or {}
         hProcess, pbDebuggerPresent = argv
         rv = False
 
@@ -4654,13 +4843,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetComputerName", argc=2)
-    def GetComputerName(self, emu, argv, ctx={}):
+    def GetComputerName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetComputerName(
             LPSTR   lpBuffer,
             LPDWORD nSize
         );
         """
+        ctx = ctx or {}
 
         lpBuffer, nSize = argv
         rv = False
@@ -4683,12 +4873,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetVersionEx", argc=1)
-    def GetVersionEx(self, emu, argv, ctx={}):
+    def GetVersionEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NOT_BUILD_WINDOWS_DEPRECATE BOOL GetVersionEx(
           LPOSVERSIONINFO lpVersionInformation
         );
         """
+        ctx = ctx or {}
         (lpVersionInformation,) = argv
 
         osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size())
@@ -4710,7 +4901,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetEnvironmentVariable", argc=3)
-    def GetEnvironmentVariable(self, emu, argv, ctx={}):
+    def GetEnvironmentVariable(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetEnvironmentVariable(
         LPCTSTR lpName,
@@ -4718,6 +4909,7 @@ class Kernel32(api.ApiHandler):
         DWORD   nSize
         );
         """
+        ctx = ctx or {}
 
         lpName, lpBuffer, nSize = argv
         rv = 0
@@ -4741,24 +4933,26 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetCurrentPackageId", argc=2)
-    def GetCurrentPackageId(self, emu, argv, ctx={}):
+    def GetCurrentPackageId(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG GetCurrentPackageId(
             UINT32 *bufferLength,
             BYTE   *buffer
         );
         """
+        ctx = ctx or {}
         return windefs.ERROR_SUCCESS
 
     @apihook("AreFileApisANSI", argc=0)
-    def AreFileApisANSI(self, emu, argv, ctx={}):
+    def AreFileApisANSI(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL AreFileApisANSI();
         """
+        ctx = ctx or {}
         return True
 
     @apihook("FindFirstFileEx", argc=6)
-    def FindFirstFileEx(self, emu, argv, ctx={}):
+    def FindFirstFileEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE FindFirstFileExA(
             LPCSTR             lpFileName,
@@ -4769,6 +4963,7 @@ class Kernel32(api.ApiHandler):
             DWORD              dwAdditionalFlags
         );
         """
+        ctx = ctx or {}
         (
             lpFileName,
             fInfoLevelId,
@@ -4785,13 +4980,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("FindFirstFile", argc=2)
-    def FindFirstFile(self, emu, argv, ctx={}):
+    def FindFirstFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE FindFirstFileA(
             LPCSTR             lpFileName,
             LPWIN32_FIND_DATAA lpFindFileData
         );
         """
+        ctx = ctx or {}
 
         lpFileName, lpFindFileData = argv
 
@@ -4828,13 +5024,14 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("FindNextFile", argc=2)
-    def FindNextFile(self, emu, argv, ctx={}):
+    def FindNextFile(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FindNextFile(
             HANDLE             hFindFile,
             LPWIN32_FIND_DATAA lpFindFileData
         );
         """
+        ctx = ctx or {}
 
         hFindFile, lpFindFileData = argv
         rv = 1
@@ -4870,12 +5067,13 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("FindClose", argc=1)
-    def FindClose(self, emu, argv, ctx={}):
+    def FindClose(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FindClose(
             HANDLE hFindFile
         );
         """
+        ctx = ctx or {}
 
         (hFindFile,) = argv
 
@@ -4887,7 +5085,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetSystemTimes", argc=3)
-    def GetSystemTimes(self, emu, argv, ctx={}):
+    def GetSystemTimes(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetSystemTimes(
             PFILETIME lpIdleTime,
@@ -4895,6 +5093,7 @@ class Kernel32(api.ApiHandler):
             PFILETIME lpUserTime
         );
         """
+        ctx = ctx or {}
 
         lpIdleTime, lpKernelTime, lpUserTime = argv
 
@@ -4911,13 +5110,14 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("GetThreadContext", argc=2)
-    def GetThreadContext(self, emu, argv, ctx={}):
+    def GetThreadContext(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetThreadContext(
             HANDLE    hThread,
             LPCONTEXT lpContext
         );
         """
+        ctx = ctx or {}
 
         hThread, lpContext = argv
 
@@ -4932,13 +5132,14 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("SetThreadContext", argc=2)
-    def SetThreadContext(self, emu, argv, ctx={}):
+    def SetThreadContext(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetThreadContext(
             HANDLE        hThread,
             const CONTEXT *lpContext
         );
         """
+        ctx = ctx or {}
 
         hThread, lpContext = argv
 
@@ -4957,13 +5158,14 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("CompareFileTime", argc=2)
-    def CompareFileTime(self, emu, argv, ctx={}):
+    def CompareFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG CompareFileTime(
             const FILETIME *lpFileTime1,
             const FILETIME *lpFileTime2
         );
         """
+        ctx = ctx or {}
 
         lpFileTime1, lpFileTime2 = argv
         rv = 0
@@ -4986,7 +5188,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("FindResource", argc=3)
-    def FindResource(self, emu, argv, ctx={}):
+    def FindResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRSRC FindResourceA(
             HMODULE hModule,
@@ -4994,6 +5196,7 @@ class Kernel32(api.ApiHandler):
             LPCSTR  lpType
         );
         """
+        ctx = ctx or {}
 
         cw = self.get_char_width(ctx)
         hModule, lpName, lpType = argv
@@ -5020,7 +5223,7 @@ class Kernel32(api.ApiHandler):
         return pe.base + res.entry_rva
 
     @apihook("FindResourceEx", argc=4)
-    def FindResourceEx(self, emu, argv, ctx={}):
+    def FindResourceEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRSRC FindResourceExW(
             [in, optional] HMODULE hModule,
@@ -5029,6 +5232,7 @@ class Kernel32(api.ApiHandler):
             [in]           WORD    wLanguage
         );
         """
+        ctx = ctx or {}
 
         # repeats code from FindResource()
         cw = self.get_char_width(ctx)
@@ -5054,13 +5258,14 @@ class Kernel32(api.ApiHandler):
         return pe.base + res.entry_rva
 
     @apihook("LoadResource", argc=2)
-    def LoadResource(self, emu, argv, ctx={}):
+    def LoadResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HGLOBAL LoadResource(
           HMODULE hModule,
           HRSRC   hResInfo
         );
         """
+        ctx = ctx or {}
 
         hModule, hResInfo = argv
 
@@ -5081,25 +5286,27 @@ class Kernel32(api.ApiHandler):
             return 0
 
     @apihook("LockResource", argc=1)
-    def LockResource(self, emu, argv, ctx={}):
+    def LockResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID LockResource(
           HGLOBAL hResData
         );
         """
+        ctx = ctx or {}
 
         (hResData,) = argv
 
         return hResData
 
     @apihook("SizeofResource", argc=2)
-    def SizeofResource(self, emu, argv, ctx={}):
+    def SizeofResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD SizeofResource(
           HMODULE hModule,
           HRSRC   hResInfo
         );
         """
+        ctx = ctx or {}
 
         hModule, hResInfo = argv
 
@@ -5114,23 +5321,25 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("FreeResource", argc=1)
-    def FreeResource(self, emu, argv, ctx={}):
+    def FreeResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FreeResource(
           [in] HGLOBAL hResData
         );
         """
+        ctx = ctx or {}
 
         return 0
 
     @apihook("GetCurrentDirectory", argc=2)
-    def GetCurrentDirectory(self, emu, argv, ctx={}):
+    def GetCurrentDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetCurrentDirectory(
             DWORD  nBufferLength,
             LPTSTR lpBuffer
         );
         """
+        ctx = ctx or {}
         nBufferLength, lpBuffer = argv
 
         cw = self.get_char_width(ctx)
@@ -5145,7 +5354,7 @@ class Kernel32(api.ApiHandler):
         return len(cd)
 
     @apihook("VirtualAllocExNuma", argc=6)
-    def VirtualAllocExNuma(self, emu, argv, ctx={}):
+    def VirtualAllocExNuma(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LPVOID VirtualAllocExNuma(
           HANDLE hProcess,
@@ -5156,34 +5365,38 @@ class Kernel32(api.ApiHandler):
           DWORD  nndPreferred
         );
         """
+        ctx = ctx or {}
 
         argv = argv[:-1]
         return self.VirtualAllocEx(emu, argv, ctx)
 
     @apihook("GetNativeSystemInfo", argc=1)
-    def GetNativeSystemInfo(self, emu, argv, ctx={}):
+    def GetNativeSystemInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GetNativeSystemInfo(
           LPSYSTEM_INFO lpSystemInfo
         );
         """
+        ctx = ctx or {}
         (lpSystemInfo,) = argv
         return 0
 
     @apihook("GetUserDefaultUILanguage", argc=0)
-    def GetUserDefaultUILanguage(self, emu, argv, ctx={}):
+    def GetUserDefaultUILanguage(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LANGID GetUserDefaultUILanguage();
         """
+        ctx = ctx or {}
         return 0xFFFF
 
     @apihook("SetCurrentDirectory", argc=1)
-    def SetCurrentDirectory(self, emu, argv, ctx={}):
+    def SetCurrentDirectory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetCurrentDirectory(
             LPCTSTR lpPathName
         );
         """
+        ctx = ctx or {}
         (path,) = argv
 
         if path:
@@ -5195,7 +5408,7 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("OpenThread", argc=3)
-    def OpenThread(self, emu, argv, ctx={}):
+    def OpenThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE OpenThread(
             DWORD dwDesiredAccess,
@@ -5203,6 +5416,7 @@ class Kernel32(api.ApiHandler):
             DWORD dwThreadId
         );
         """
+        ctx = ctx or {}
         access, bInheritHandle, dwThreadId = argv
         thread = emu.get_object_from_id(dwThreadId)
         hnd = emu.get_object_handle(thread)
@@ -5211,7 +5425,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("RaiseException", argc=4)
-    def RaiseException(self, emu, argv, ctx={}):
+    def RaiseException(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID RaiseException(
             DWORD           dwExceptionCode,
@@ -5220,13 +5434,14 @@ class Kernel32(api.ApiHandler):
             const ULONG_PTR *lpArguments
         );
         """
+        ctx = ctx or {}
         # Stub
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
 
         return
 
     @apihook("VerSetConditionMask", argc=3, conv=e_arch.CALL_CONV_CDECL)
-    def VerSetConditionMask(self, emu, argv, ctx={}):
+    def VerSetConditionMask(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSYSAPI ULONGLONG VerSetConditionMask(
             ULONGLONG ConditionMask,
@@ -5234,13 +5449,14 @@ class Kernel32(api.ApiHandler):
             BYTE      Condition
         );
         """
+        ctx = ctx or {}
         # Stub
         con_mask, type_mask, cond = argv
 
         return 0
 
     @apihook("VerifyVersionInfo", argc=3, conv=e_arch.CALL_CONV_CDECL)
-    def VerifyVersionInfo(self, emu, argv, ctx={}):
+    def VerifyVersionInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL VerifyVersionInfo(
             LPOSVERSIONINFOEX lpVersionInformation,
@@ -5248,26 +5464,29 @@ class Kernel32(api.ApiHandler):
             DWORDLONG          dwlConditionMask
         );
         """
+        ctx = ctx or {}
         # Stub
         vinfo, type_mask, con_mask = argv
 
         return True
 
     @apihook("FreeConsole", argc=0)
-    def FreeConsole(self, emu, argv, ctx={}):
+    def FreeConsole(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL WINAPI FreeConsole(void);
         """
+        ctx = ctx or {}
         return True
 
     @apihook("IsBadWritePtr", argc=2)
-    def IsBadWritePtr(self, emu, argv, ctx={}):
+    def IsBadWritePtr(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsBadWritePtr(
             LPVOID   lp,
             UINT_PTR ucb
         );
         """
+        ctx = ctx or {}
         lp, ucb = argv
 
         rv = True
@@ -5282,13 +5501,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("IsBadStringPtr", argc=2)
-    def IsBadStringPtr(self, emu, argv, ctx={}):
+    def IsBadStringPtr(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL IsBadStringPtrW(
             LPCWSTR  lpsz,
             UINT_PTR ucchMax
         );
         """
+        ctx = ctx or {}
         lpsz, ucchMax = argv
         cw = self.get_char_width(ctx)
         rv = True
@@ -5303,7 +5523,7 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetSystemFirmwareTable", argc=4)
-    def GetSystemFirmwareTable(self, emu, argv, ctx={}):
+    def GetSystemFirmwareTable(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetSystemFirmwareTable(
             DWORD FirmwareTableProviderSignature,
@@ -5312,6 +5532,7 @@ class Kernel32(api.ApiHandler):
             DWORD BufferSize
         );
         """
+        ctx = ctx or {}
         # Stub
         sig, tid, firm_buf, buf_size = argv
 
@@ -5323,13 +5544,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetTempPath", argc=2)
-    def GetTempPath(self, emu, argv, ctx={}):
+    def GetTempPath(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetTempPathA(
         DWORD nBufferLength,
         LPSTR lpBuffer
         );
         """
+        ctx = ctx or {}
 
         nBufferLength, lpBuffer = argv
         rv = 0
@@ -5346,33 +5568,36 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("SetPriorityClass", argc=2)
-    def SetPriorityClass(self, emu, argv, ctx={}):
+    def SetPriorityClass(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetPriorityClass(
         HANDLE hProcess,
         DWORD  dwPriorityClass
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("SetProcessPriorityBoost", argc=2)
-    def SetProcessPriorityBoost(self, emu, argv, ctx={}):
+    def SetProcessPriorityBoost(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetProcessPriorityBoost(
           HANDLE hProcess,
           BOOL   bDisablePriorityBoost
         );
         """
+        ctx = ctx or {}
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
     @apihook("GetDriveType", argc=1)
-    def GetDriveType(self, emu, argv, ctx={}):
+    def GetDriveType(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetDriveType(
           LPCSTR lpRootPathName
         );
         """
+        ctx = ctx or {}
         (lpRootPathName,) = argv
 
         cw = self.get_char_width(ctx)
@@ -5390,39 +5615,42 @@ class Kernel32(api.ApiHandler):
         return dm.get_drive_type(name)
 
     @apihook("GetExitCodeProcess", argc=2)
-    def GetExitCodeProcess(self, emu, argv, ctx={}):
+    def GetExitCodeProcess(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetExitCodeProcess(
         HANDLE  hProcess,
         LPDWORD lpExitCode
         );
         """
+        ctx = ctx or {}
         hProcess, lpExitCode = argv
         if lpExitCode:
             self.mem_write(lpExitCode, b"\x00" * 4)
         return 1
 
     @apihook("SetThreadPriority", argc=2)
-    def SetThreadPriority(self, emu, argv, ctx={}):
+    def SetThreadPriority(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetThreadPriority(
         HANDLE hThread,
         int    nPriority
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("ReleaseMutex", argc=1)
-    def ReleaseMutex(self, emu, argv, ctx={}):
+    def ReleaseMutex(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ReleaseMutex(
             HANDLE hMutex
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("GetShortPathName", argc=3)
-    def GetShortPathName(self, emu, argv, ctx={}):
+    def GetShortPathName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetShortPathNameW(
           LPCWSTR lpszLongPath,
@@ -5431,6 +5659,7 @@ class Kernel32(api.ApiHandler):
         );
         https://en.wikipedia.org/wiki/8.3_filename#VFAT_and_Computer-generated_8.3_filenames
         """
+        ctx = ctx or {}
         lpszLongPath, lpszShortPath, cchBuffer = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(lpszLongPath, cw)
@@ -5471,7 +5700,7 @@ class Kernel32(api.ApiHandler):
         return len(out) + 1
 
     @apihook("GetLongPathName", argc=3)
-    def GetLongPathName(self, emu, argv, ctx={}):
+    def GetLongPathName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetLongPathNameA(
           LPCSTR lpszShortPath,
@@ -5479,6 +5708,7 @@ class Kernel32(api.ApiHandler):
           DWORD  cchBuffer
         );
         """
+        ctx = ctx or {}
         lpszShortPath, lpszLongPath, cchBuffer = argv
 
         # Not an accurate implementation, just a placeholder for now
@@ -5492,7 +5722,7 @@ class Kernel32(api.ApiHandler):
         return len(s) * cw + 1
 
     @apihook("QueueUserAPC", argc=3)
-    def QueueUserAPC(self, emu, argv, ctx={}):
+    def QueueUserAPC(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD QueueUserAPC(
         PAPCFUNC  pfnAPC,
@@ -5500,12 +5730,13 @@ class Kernel32(api.ApiHandler):
         ULONG_PTR dwData
         );
         """
+        ctx = ctx or {}
         pfnAPC, hThread, dwData = argv
         run_type = f"apc_thread_{hThread:x}"
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
 
     @apihook("DuplicateHandle", argc=7)
-    def DuplicateHandle(self, emu, argv, ctx={}):
+    def DuplicateHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL DuplicateHandle(
           HANDLE   hSourceProcessHandle,
@@ -5517,71 +5748,79 @@ class Kernel32(api.ApiHandler):
           DWORD    dwOptions
         )
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("GetBinaryType", argc=2)
-    def GetBinaryType(self, emu, argv, ctx={}):
+    def GetBinaryType(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetBinaryTypeA(
           LPCSTR  lpApplicationName,
           LPDWORD lpBinaryType
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetThreadUILanguage", argc=0)
-    def GetThreadUILanguage(self, emu, argv, ctx={}):
+    def GetThreadUILanguage(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LANGID GetThreadUILanguage();
         """
+        ctx = ctx or {}
         return 0xFFFF
 
     @apihook("SetConsoleHistoryInfo", argc=1)
-    def SetConsoleHistoryInfo(self, emu, argv, ctx={}):
+    def SetConsoleHistoryInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL WINAPI SetConsoleHistoryInfo(
           _In_ PCONSOLE_HISTORY_INFO lpConsoleHistoryInfo
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("GetFileInformationByHandle", argc=2)
-    def GetFileInformationByHandle(self, emu, argv, ctx={}):
+    def GetFileInformationByHandle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetFileInformationByHandle(
           HANDLE                       hFile,
           LPBY_HANDLE_FILE_INFORMATION lpFileInformation
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetCommProperties", argc=2)
-    def GetCommProperties(self, emu, argv, ctx={}):
+    def GetCommProperties(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetCommProperties(
           HANDLE     hFile,
           LPCOMMPROP lpCommProp
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetCommTimeouts", argc=2)
-    def GetCommTimeouts(self, emu, argv, ctx={}):
+    def GetCommTimeouts(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetCommTimeouts(
           HANDLE         hFile,
           LPCOMMTIMEOUTS lpCommTimeouts
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("AddAtom", argc=1)
-    def AddAtom(self, emu, argv, ctx={}):
+    def AddAtom(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ATOM AddAtomW(
           LPCWSTR lpString
         );
         """
+        ctx = ctx or {}
         ATOM_RESERVED = 0xC000
         (lpString,) = argv
         cw = self.get_char_width(ctx)
@@ -5597,12 +5836,13 @@ class Kernel32(api.ApiHandler):
         return self.add_local_atom(s)
 
     @apihook("FindAtom", argc=1)
-    def FindAtom(self, emu, argv, ctx={}):
+    def FindAtom(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ATOM FindAtomA(
           LPCSTR lpString
         );
         """
+        ctx = ctx or {}
         ATOM_RESERVED = 0xC000
         (lpString,) = argv
         cw = self.get_char_width(ctx)
@@ -5623,7 +5863,7 @@ class Kernel32(api.ApiHandler):
         return atom
 
     @apihook("GetAtomName", argc=3)
-    def GetAtomName(self, emu, argv, ctx={}):
+    def GetAtomName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetAtomNameA(
           ATOM  nAtom,
@@ -5631,6 +5871,7 @@ class Kernel32(api.ApiHandler):
           int   nSize
         );
         """
+        ctx = ctx or {}
         ATOM_RESERVED = 0xC000
         nAtom, lpBuffer, nSize = argv
         cw = self.get_char_width(ctx)
@@ -5651,12 +5892,13 @@ class Kernel32(api.ApiHandler):
         return len(s) - 1
 
     @apihook("DeleteAtom", argc=1)
-    def DeleteAtom(self, emu, argv, ctx={}):
+    def DeleteAtom(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ATOM DeleteAtom(
           ATOM nAtom
         );
         """
+        ctx = ctx or {}
         ATOM_RESERVED = 0xC000
         (nAtom,) = argv
 
@@ -5670,17 +5912,18 @@ class Kernel32(api.ApiHandler):
         return nAtom
 
     @apihook("GetProcessHandleCount", argc=1)
-    def GetProcessHandleCount(self, emu, argv, ctx={}):
+    def GetProcessHandleCount(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetProcessHandleCount(
           HANDLE hProcess,
           PDWORD pdwHandleCount
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetMailslotInfo", argc=5)
-    def GetMailslotInfo(self, emu, argv, ctx={}):
+    def GetMailslotInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetMailslotInfo(
           HANDLE  hMailslot,
@@ -5690,48 +5933,53 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpReadTimeout
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("RtlZeroMemory", argc=2)
-    def RtlZeroMemory(self, emu, argv, ctx={}):
+    def RtlZeroMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void RtlZeroMemory(
             void*  Destination,
             size_t Length
         );
         """
+        ctx = ctx or {}
         dest, length = argv
         buf = b"\x00" * length
         self.mem_write(dest, buf)
 
     @apihook("RtlMoveMemory", argc=3)
-    def RtlMoveMemory(self, emu, argv, ctx={}):
+    def RtlMoveMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void RtlMoveMemory(void* pvDest, const void *pSrc, size_t Length);
         """
+        ctx = ctx or {}
         dest, source, length = argv
         buf = self.mem_read(source, length)
         self.mem_write(dest, buf)
 
     @apihook("QueryPerformanceFrequency", argc=1)
-    def QueryPerformanceFrequency(self, emu, argv, ctx={}):
+    def QueryPerformanceFrequency(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL QueryPerformanceFrequency(
             LARGE_INTEGER *lpFrequency
         );
         """
+        ctx = ctx or {}
         lpFrequency = argv[0]
         self.mem_write(lpFrequency, (10000000).to_bytes(8, "little"))
         return 1
 
     @apihook("FindFirstVolume", argc=2)
-    def FindFirstVolume(self, emu, argv, ctx={}):
+    def FindFirstVolume(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE FindFirstVolumeW(
           LPWSTR lpszVolumeName,
           DWORD  cchBufferLength
         );
         """
+        ctx = ctx or {}
         lpszVolumeName, _ = argv
 
         cw = self.get_char_width(ctx)
@@ -5752,7 +6000,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("FindNextVolume", argc=3)
-    def FindNextVolume(self, emu, argv, ctx={}):
+    def FindNextVolume(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FindNextVolumeW(
           HANDLE hFindVolume,
@@ -5760,6 +6008,7 @@ class Kernel32(api.ApiHandler):
           DWORD  cchBufferLength
         );
         """
+        ctx = ctx or {}
         hFindVolume, lpszVolumeName, cchBufferLength = argv
 
         cw = self.get_char_width(ctx)
@@ -5783,12 +6032,13 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("FindVolumeClose", argc=1)
-    def FindVolumeClose(self, emu, argv, ctx={}):
+    def FindVolumeClose(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL FindVolumeClose(
           HANDLE hFindVolume
         );
         """
+        ctx = ctx or {}
         (hFindVolume,) = argv
 
         try:
@@ -5799,7 +6049,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("CreateIoCompletionPort", argc=4)
-    def CreateIoCompletionPort(self, emu, argv, ctx={}):
+    def CreateIoCompletionPort(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE WINAPI CreateIoCompletionPort(
           _In_     HANDLE    FileHandle,
@@ -5808,6 +6058,7 @@ class Kernel32(api.ApiHandler):
           _In_     DWORD     NumberOfConcurrentThreads
         );
         """
+        ctx = ctx or {}
         FileHandle, ExistingCompletionPort, CompletionKey, NumberOfConcurrentThreads = argv
 
         # TODO: Implement completion port creation
@@ -5816,7 +6067,7 @@ class Kernel32(api.ApiHandler):
         return hnd
 
     @apihook("GetVolumePathNamesForVolumeName", argc=4)
-    def GetVolumePathNamesForVolumeName(self, emu, argv, ctx={}):
+    def GetVolumePathNamesForVolumeName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetVolumePathNamesForVolumeNameW(
           LPCWSTR lpszVolumeName,
@@ -5825,6 +6076,7 @@ class Kernel32(api.ApiHandler):
           PDWORD  lpcchReturnLength
         );
         """
+        ctx = ctx or {}
         lpszVolumeName, lpszVolumePathNames, cchBufferLength, lpcchReturnLength = argv
 
         cw = self.get_char_width(ctx)
@@ -5856,10 +6108,11 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetLogicalDrives", argc=0)
-    def GetLogicalDrives(self, emu, argv, ctx={}):
+    def GetLogicalDrives(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetLogicalDrives();
         """
+        ctx = ctx or {}
         dm = emu.get_drive_manager()
         rv = 0
         for i, dl in enumerate(string.ascii_uppercase):
@@ -5869,16 +6122,17 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GlobalMemoryStatus", argc=1)
-    def GlobalMemoryStatus(self, emu, argv, ctx={}):
+    def GlobalMemoryStatus(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GlobalMemoryStatus(
         LPMEMORYSTATUS lpBuffer
         );
         """
+        ctx = ctx or {}
         return
 
     @apihook("GlobalMemoryStatusEx", argc=1)
-    def GlobalMemoryStatusEx(self, emu, argv, ctx={}):
+    def GlobalMemoryStatusEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void GlobalMemoryStatusEx(
         LPMEMORYSTATUSEX lpBuffer
@@ -5896,6 +6150,7 @@ class Kernel32(api.ApiHandler):
             DWORDLONG ullAvailExtendedVirtual;
         } MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
         """
+        ctx = ctx or {}
         GB = 1024 * 1024 * 1024
         buf = struct.pack(
             "<IIQQQQQQQ",
@@ -5914,7 +6169,7 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook("GetDiskFreeSpaceEx", argc=4)
-    def GetDiskFreeSpaceEx(self, emu, argv, ctx={}):
+    def GetDiskFreeSpaceEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetDiskFreeSpaceEx(
         LPCSTR          lpDirectoryName,
@@ -5923,26 +6178,29 @@ class Kernel32(api.ApiHandler):
         PULARGE_INTEGER lpTotalNumberOfFreeBytes
         );
         """
+        ctx = ctx or {}
         return True
 
     @apihook("GetSystemDefaultLangID", argc=0)
-    def GetSystemDefaultLangID(self, emu, argv, ctx={}):
+    def GetSystemDefaultLangID(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LANGID GetSystemDefaultLangID();
         """
+        ctx = ctx or {}
         return True
 
     @apihook("ResetEvent", argc=1)
-    def ResetEvent(self, emu, argv, ctx={}):
+    def ResetEvent(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL ResetEvent(
         HANDLE hEvent
         );
         """
+        ctx = ctx or {}
         return True
 
     @apihook("WaitForMultipleObjects", argc=4)
-    def WaitForMultipleObjects(self, emu, argv, ctx={}):
+    def WaitForMultipleObjects(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WaitForMultipleObjects(
         DWORD        nCount,
@@ -5951,10 +6209,11 @@ class Kernel32(api.ApiHandler):
         DWORD        dwMilliseconds
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("GetComputerNameEx", argc=3)
-    def GetComputerNameEx(self, emu, argv, ctx={}):
+    def GetComputerNameEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetComputerNameExA(
           COMPUTER_NAME_FORMAT NameType,
@@ -5962,6 +6221,7 @@ class Kernel32(api.ApiHandler):
           LPDWORD              nSize
         );
         """
+        ctx = ctx or {}
         NameType, lpBuffer, nSize = argv
 
         cw = self.get_char_width(ctx)
@@ -5982,7 +6242,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("GetDateFormat", argc=6)
-    def GetDateFormat(self, emu, argv, ctx={}):
+    def GetDateFormat(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int GetDateFormatA(
           LCID             Locale,
@@ -5993,6 +6253,7 @@ class Kernel32(api.ApiHandler):
           int              cchDate
         );
         """
+        ctx = ctx or {}
         Locale, dwFlags, lpDate, lpFormat, lpDateStr, cchDate = argv
 
         cw = self.get_char_width(ctx)
@@ -6032,7 +6293,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("DeviceIoControl", argc=8)
-    def DeviceIoControl(self, emu, argv, ctx={}):
+    def DeviceIoControl(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL DeviceIoControl(
             HANDLE       hDevice,
@@ -6045,6 +6306,7 @@ class Kernel32(api.ApiHandler):
             LPOVERLAPPED lpOverlapped
         );
         """
+        ctx = ctx or {}
         hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv  # noqa
         nts = ddk.STATUS_SUCCESS
         out_written = 0
@@ -6086,7 +6348,7 @@ class Kernel32(api.ApiHandler):
         return 0
 
     @apihook("GetTimeFormat", argc=6)
-    def GetTimeFormat(self, emu, argv, ctx={}):
+    def GetTimeFormat(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int GetTimeFormatA(
           LCID             Locale,
@@ -6097,6 +6359,7 @@ class Kernel32(api.ApiHandler):
           int              cchTime
         );
         """
+        ctx = ctx or {}
         Locale, dwFlags, lpTime, lpFormat, lpTimeStr, cchTime = argv
 
         cw = self.get_char_width(ctx)
@@ -6140,10 +6403,11 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("FlushFileBuffers", argc=1)
-    def FlushFileBuffers(self, emu, argv, ctx={}):
+    def FlushFileBuffers(self, emu, argv, ctx: dict[str, str] | None = None):
         """BOOL FlushFileBuffers(
         HANDLE hFile
         );"""
+        ctx = ctx or {}
 
         (hFile,) = argv
         rv = 1
@@ -6152,13 +6416,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("GetExitCodeThread", argc=2)
-    def GetExitCodeThread(self, emu, argv, ctx={}):
+    def GetExitCodeThread(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetExitCodeThread(
         HANDLE  hThread,
         LPDWORD lpExitCode
         );
         """
+        ctx = ctx or {}
 
         hThread, lpExitCode = argv
         if lpExitCode:
@@ -6166,52 +6431,56 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("InitializeConditionVariable", argc=1)
-    def InitializeConditionVariable(self, emu, argv, ctx={}):
+    def InitializeConditionVariable(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void InitializeConditionVariable(
         PCONDITION_VARIABLE ConditionVariable
         );
         """
+        ctx = ctx or {}
         (ConditionVariable,) = argv
         rv = 0
 
         return rv
 
     @apihook("WakeAllConditionVariable", argc=1)
-    def WakeAllConditionVariable(self, emu, argv, ctx={}):
+    def WakeAllConditionVariable(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WakeAllConditionVariable(
           PCONDITION_VARIABLE ConditionVariable
         );
         """
+        ctx = ctx or {}
         return
 
     @apihook("Wow64DisableWow64FsRedirection", argc=1)
-    def Wow64DisableWow64FsRedirection(self, emu, argv, ctx={}):
+    def Wow64DisableWow64FsRedirection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Wow64DisableWow64FsRedirection(
           PVOID *OldValue
         );
         """
+        ctx = ctx or {}
         (OldValue,) = argv
         rv = 1
 
         return rv
 
     @apihook("Wow64RevertWow64FsRedirection", argc=1)
-    def Wow64RevertWow64FsRedirection(self, emu, argv, ctx={}):
+    def Wow64RevertWow64FsRedirection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL Wow64RevertWow64FsRedirection(
           PVOID OlValue
         );
         """
+        ctx = ctx or {}
         (OlValue,) = argv
         rv = 1
 
         return rv
 
     @apihook("EnumProcesses", argc=3)
-    def EnumProcesses(self, emu, argv, ctx={}):
+    def EnumProcesses(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL EnumProcesses(
           DWORD   *lpidProcess,
@@ -6219,6 +6488,7 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpcbNeeded
         );
         """
+        ctx = ctx or {}
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -6236,7 +6506,7 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("GetModuleFileNameExA", argc=4)
-    def GetModuleFileNameExA(self, emu, argv, ctx={}):
+    def GetModuleFileNameExA(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD GetModuleFileNameExA(
           HANDLE  hProcess,
@@ -6245,6 +6515,7 @@ class Kernel32(api.ApiHandler):
           DWORD   nSize
         );
         """
+        ctx = ctx or {}
         hProcess, hModule, lpFilename, nSize = argv
 
         if hModule:
@@ -6278,14 +6549,15 @@ class Kernel32(api.ApiHandler):
         return size
 
     @apihook("GetThreadPriority", argc=1)
-    def GetThreadPriority(self, emu, argv, ctx={}):
+    def GetThreadPriority(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE hThread;
         """
+        ctx = ctx or {}
         return k32types.THREAD_PRIORITY_NORMAL
 
     @apihook("RtlUnwind", argc=4)
-    def RtlUnwind(self, emu, argv, ctx={}):
+    def RtlUnwind(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         VOID RtlUnwind(
           PVOID TargetFrame,
@@ -6294,20 +6566,23 @@ class Kernel32(api.ApiHandler):
           PVOID ReturnValue
         );
         """
+        ctx = ctx or {}
         return
 
     @apihook("UnhandledExceptionFilter", argc=1)
-    def UnhandledExceptionFilter(self, emu, argv, ctx={}):
+    def UnhandledExceptionFilter(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         _EXCEPTION_POINTERS *ExceptionInfo;
         """
+        ctx = ctx or {}
         return k32types.EXCEPTION_EXECUTE_HANDLER
 
     @apihook("GetSystemTimePreciseAsFileTime", argc=1)
-    def GetSystemTimePreciseAsFileTime(self, emu, argv, ctx={}):
+    def GetSystemTimePreciseAsFileTime(self, emu, argv, ctx: dict[str, str] | None = None):
         """void GetSystemTimePreciseAsFileTime(
           LPFILETIME lpSystemTimeAsFileTime
         );"""
+        ctx = ctx or {}
 
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -6321,13 +6596,14 @@ class Kernel32(api.ApiHandler):
         return
 
     @apihook("AddVectoredExceptionHandler", argc=2)
-    def AddVectoredExceptionHandler(self, emu, argv, ctx={}):
+    def AddVectoredExceptionHandler(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID AddVectoredExceptionHandler(
             ULONG                       First,
             PVECTORED_EXCEPTION_HANDLER Handler
         );
         """
+        ctx = ctx or {}
         First, Handler = argv
 
         emu.add_vectored_exception_handler(First, Handler)
@@ -6335,47 +6611,52 @@ class Kernel32(api.ApiHandler):
         return Handler
 
     @apihook("RemoveVectoredExceptionHandler", argc=1)
-    def RemoveVectoredExceptionHandler(self, emu, argv, ctx={}):
+    def RemoveVectoredExceptionHandler(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ULONG RemoveVectoredExceptionHandler(
             PVOID Handle);
         """
+        ctx = ctx or {}
         Handler = argv
         emu.remove_vectored_exception_handler(Handler)
         return 1
 
     @apihook("GetSystemDefaultUILanguage", argc=0)
-    def GetSystemDefaultUILanguage(self, emu, argv, ctx={}):
+    def GetSystemDefaultUILanguage(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LANGID GetSystemDefaultUILanguage();
         """
+        ctx = ctx or {}
         return LANG_EN_US
 
     @apihook("GetUserDefaultLangID", argc=0)
-    def GetUserDefaultLangID(self, emu, argv, ctx={}):
+    def GetUserDefaultLangID(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LANGID GetUserDefaultLangID();
         """
+        ctx = ctx or {}
         return LANG_EN_US
 
     @apihook("GetUserDefaultLCID", argc=0)
-    def GetUserDefaultLCID(self, emu, argv, ctx={}):
+    def GetUserDefaultLCID(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LCID GetUserDefaultLCID();
         """
+        ctx = ctx or {}
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
 
     @apihook("GetSystemDefaultLCID", argc=0)
-    def GetSystemDefaultLCID(self, emu, argv, ctx={}):
+    def GetSystemDefaultLCID(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LCID GetUserDefaultLCID();
         """
+        ctx = ctx or {}
         # https://learn.microsoft.com/en-us/windows/win32/intl/locale-system-default
         return LOCALE_SYSTEM_DEFAULT
 
     @apihook("GetTempFileName", argc=4)
-    def GetTempFileName(self, emu, argv, ctx={}):
+    def GetTempFileName(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UINT GetTempFileName(
             [in]  LPCSTR lpPathName,
@@ -6384,6 +6665,7 @@ class Kernel32(api.ApiHandler):
             [out] LPSTR  lpTempFileName
         );
         """
+        ctx = ctx or {}
         lpPathName, lpPrefixString, uUnique, lpTempFileName = argv
 
         cw = self.get_char_width(ctx)
@@ -6402,7 +6684,7 @@ class Kernel32(api.ApiHandler):
         return len(out) + 1
 
     @apihook("_llseek", argc=3)
-    def _llseek(self, emu, argv, ctx={}):
+    def _llseek(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         LONG _llseek(
             HFILE hFile,
@@ -6410,6 +6692,7 @@ class Kernel32(api.ApiHandler):
             int   iOrigin
         );
         """
+        ctx = ctx or {}
         # _llseek is 16-bit variant of SetFilePointer
         # code replicates SetFilePointer()
         hFile, lOffset, iOrigin = argv
@@ -6424,13 +6707,14 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("_lopen", argc=2)
-    def _lopen(self, emu, argv, ctx={}):
+    def _lopen(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HFILE _lopen(
             LPCSTR lpPathName,
             int    iReadWrite
         );
         """
+        ctx = ctx or {}
         lpFileName, iRedWrite = argv
         cw = self.get_char_width(ctx)
         filename = self.read_mem_string(lpFileName, cw)
@@ -6438,12 +6722,13 @@ class Kernel32(api.ApiHandler):
         return fHandle
 
     @apihook("_lclose", argc=1)
-    def _lclose(self, emu, argv, ctx={}):
+    def _lclose(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HFILE _lclose(
             HFILE hFile
             );
         """
+        ctx = ctx or {}
         (hObject,) = argv
         obj = self.get_object_from_handle(hObject)
         if obj:
@@ -6452,13 +6737,14 @@ class Kernel32(api.ApiHandler):
         return False
 
     @apihook("GetConsoleTitle", argc=2)
-    def GetConsoleTitle(self, emu, argv, ctx={}):
+    def GetConsoleTitle(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WINAPI GetConsoleTitle(
             _Out_ LPTSTR lpConsoleTitle,
             _In_  DWORD nSize
         );
         """
+        ctx = ctx or {}
         lpConsoleTitle, nSize = argv
         cw = self.get_char_width(ctx)
         rv = False
@@ -6483,62 +6769,68 @@ class Kernel32(api.ApiHandler):
         return rv
 
     @apihook("InitializeSRWLock", argc=1)
-    def InitializeSRWLock(self, emu, argv, ctx={}):
+    def InitializeSRWLock(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void InitializeSRWLock(
           [out] PSRWLOCK SRWLock
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("AcquireSRWLockShared", argc=1)
-    def AcquireSRWLockShared(self, emu, argv, ctx={}):
+    def AcquireSRWLockShared(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void AcquireSRWLockShared(
           [in, out] PSRWLOCK SRWLock
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("ReleaseSRWLockShared", argc=1)
-    def ReleaseSRWLockShared(self, emu, argv, ctx={}):
+    def ReleaseSRWLockShared(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void ReleaseSRWLockShared(
           [in, out] PSRWLOCK SRWLock
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("AcquireSRWLockExclusive", argc=1)
-    def AcquireSRWLockExclusive(self, emu, argv, ctx={}):
+    def AcquireSRWLockExclusive(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void AcquireSRWLockExclusive(
           [in, out] PSRWLOCK SRWLock
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("ReleaseSRWLockExclusive", argc=1)
-    def ReleaseSRWLockExclusive(self, emu, argv, ctx={}):
+    def ReleaseSRWLockExclusive(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void ReleaseSRWLockExclusive(
           [in, out] PSRWLOCK SRWLock
         );
         """
+        ctx = ctx or {}
 
         return
 
     @apihook("GetPhysicallyInstalledSystemMemory", argc=1)
-    def GetPhysicallyInstalledSystemMemory(self, emu, argv, ctx={}):
+    def GetPhysicallyInstalledSystemMemory(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL GetPhysicallyInstalledSystemMemory(
           [out] PULONGLONG TotalMemoryInKilobytes
         );
         """
+        ctx = ctx or {}
 
         (TotalMemoryInKilobytes,) = argv
 
@@ -6547,20 +6839,23 @@ class Kernel32(api.ApiHandler):
         return 1
 
     @apihook("WTSGetActiveConsoleSessionId", argc=0)
-    def WTSGetActiveConsoleSessionId(self, emu, argv, ctx={}):
+    def WTSGetActiveConsoleSessionId(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         return emu.get_current_process().session
 
     @apihook("WaitForSingleObjectEx", argc=3)
-    def WaitForSingleObjectEx(self, emu, argv, ctx={}):
+    def WaitForSingleObjectEx(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         return 0  # = WAIT_OBJECT_0
 
     @apihook("GetProfileInt", argc=3)
-    def GetProfileInt(self, emu, argv, ctx={}):
+    def GetProfileInt(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         _, _, nDefault = argv
         return nDefault
 
     @apihook("CreateSemaphoreW", argc=4)
-    def CreateSemaphoreW(self, emu, argv, ctx={}):
+    def CreateSemaphoreW(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HANDLE CreateSemaphoreW(
             [in, optional] LPSECURITY_ATTRIBUTES lpSemaphoreAttributes,
@@ -6569,29 +6864,32 @@ class Kernel32(api.ApiHandler):
             [in, optional] LPCWSTR               lpName
         );
         """
+        ctx = ctx or {}
         return 0
 
     @apihook("SetThreadStackGuarantee", argc=1)
-    def SetThreadStackGuarantee(self, emu, argv, ctx={}):
+    def SetThreadStackGuarantee(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL SetThreadStackGuarantee(
             [in, out] PULONG StackSizeInBytes
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("SetThreadDescription", argc=2)
-    def SetThreadDescription(self, emu, argv, ctx={}):
+    def SetThreadDescription(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT SetThreadDescription(
             [in] HANDLE hThread,
             [in] PCWSTR lpThreadDescription
         );
         """
+        ctx = ctx or {}
         return windefs.ERROR_SUCCESS
 
     @apihook("InitOnceBeginInitialize", argc=4)
-    def InitOnceBeginInitialize(self, emu, argv, ctx={}):
+    def InitOnceBeginInitialize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL InitOnceBeginInitialize(
             [in, out]       LPINIT_ONCE lpInitOnce,
@@ -6600,10 +6898,12 @@ class Kernel32(api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("FlsGetValue2", argc=1)
-    def FlsGetValue2(self, emu, argv, ctx={}):
+    def FlsGetValue2(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         fls_index = argv[0]
         try:
             val = emu.get_fls_value(fls_index)
@@ -6612,7 +6912,8 @@ class Kernel32(api.ApiHandler):
             return 0x1000
 
     @apihook("RtlCaptureContext", argc=1)
-    def RtlCaptureContext(self, emu, argv, ctx={}):
+    def RtlCaptureContext(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         ptr = self.emu.reg_read("rcx")
         if ptr:
             try:
@@ -6628,11 +6929,12 @@ class Kernel32(api.ApiHandler):
         return True
 
     @apihook("RtlLookupFunctionEntry", argc=3)
-    def RtlLookupFunctionEntry(self, emu, argv, ctx={}):
+    def RtlLookupFunctionEntry(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         return 0
 
     @apihook("MulDiv", argc=3)
-    def MulDiv(self, emu, argv, ctx={}):
+    def MulDiv(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         int MulDiv(
             int nNumber,
@@ -6640,6 +6942,7 @@ class Kernel32(api.ApiHandler):
             int nDenominator
         );
         """
+        ctx = ctx or {}
         nNumber, nNumerator, nDenominator = argv
         try:
             if nDenominator == 0:
@@ -6649,11 +6952,12 @@ class Kernel32(api.ApiHandler):
             return 0
 
     @apihook("GlobalAddAtomA", argc=1)
-    def GlobalAddAtomA(self, emu, argv, ctx={}):
+    def GlobalAddAtomA(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         ATOM GlobalAddAtomA(
             LPCSTR lpString
         );
         """
+        ctx = ctx or {}
         # Return a fake ATOM value. ATOMs are 16-bit identifiers.
         return 0x1234

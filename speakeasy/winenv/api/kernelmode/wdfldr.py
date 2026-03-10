@@ -195,7 +195,7 @@ class Wdfldr(api.ApiHandler):
         return interfaces
 
     @apihook("WdfVersionBind", argc=4)
-    def WdfVersionBind(self, emu, argv, ctx={}):
+    def WdfVersionBind(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS
         WdfVersionBind(
@@ -205,6 +205,7 @@ class Wdfldr(api.ApiHandler):
         __out PWDF_COMPONENT_GLOBALS* ComponentGlobals
         );
         """
+        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
         drv, reg_path, BindInfo, comp_globals = argv
 
@@ -228,7 +229,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDriverCreate", argc=6)
-    def WdfDriverCreate(self, emu, argv, ctx={}):
+    def WdfDriverCreate(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfDriverCreate(
           PWDF_DRIVER_GLOBALS DriverGlobals,
@@ -239,6 +240,7 @@ class Wdfldr(api.ApiHandler):
           WDFDRIVER              *Driver
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DriverObject, RegistryPath, DriverAttributes, DriverConfig, Driver = argv
 
         driver = WdfDriver()
@@ -258,31 +260,33 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceInitSetPnpPowerEventCallbacks", argc=3)
-    def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx={}):
+    def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfDeviceInitSetPnpPowerEventCallbacks(
           PWDFDEVICE_INIT               DeviceInit,
           PWDF_PNPPOWER_EVENT_CALLBACKS PnpPowerEventCallbacks
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DeviceInit, PnpPowerEventCallbacks = argv
 
         return
 
     @apihook("WdfDeviceInitSetRequestAttributes", argc=3)
-    def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx={}):
+    def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfDeviceInitSetRequestAttributes(
           PWDFDEVICE_INIT        DeviceInit,
           PWDF_OBJECT_ATTRIBUTES RequestAttributes
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DeviceInit, RequestAttributes = argv
 
         return
 
     @apihook("WdfDeviceInitSetFileObjectConfig", argc=4)
-    def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx={}):
+    def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfDeviceInitSetFileObjectConfig(
           PWDFDEVICE_INIT        DeviceInit,
@@ -290,24 +294,26 @@ class Wdfldr(api.ApiHandler):
           PWDF_OBJECT_ATTRIBUTES FileObjectAttributes
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DeviceInit, FileObjectConfig, FileObjectAttributes = argv
 
         return
 
     @apihook("WdfDeviceInitSetIoType", argc=3)
-    def WdfDeviceInitSetIoType(self, emu, argv, ctx={}):
+    def WdfDeviceInitSetIoType(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfDeviceInitSetIoType(
           PWDFDEVICE_INIT    DeviceInit,
           WDF_DEVICE_IO_TYPE IoType
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DeviceInit, IoType = argv
 
         return
 
     @apihook("WdfDeviceCreate", argc=4)
-    def WdfDeviceCreate(self, emu, argv, ctx={}):
+    def WdfDeviceCreate(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfDeviceCreate(
           PWDFDEVICE_INIT        *DeviceInit,
@@ -315,6 +321,7 @@ class Wdfldr(api.ApiHandler):
           WDFDEVICE              *Device
         );
         """
+        ctx = ctx or {}
         DriverGlobals, DeviceInit, DeviceAttributes, Device = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -336,13 +343,14 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfObjectGetTypedContextWorker", argc=3, conv=e_arch.CALL_CONV_FASTCALL)
-    def WdfObjectGetTypedContextWorker(self, emu, argv, ctx={}):
+    def WdfObjectGetTypedContextWorker(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PVOID WdfObjectGetTypedContextWorker(
           WDFOBJECT                      Handle,
           PCWDF_OBJECT_CONTEXT_TYPE_INFO TypeInfo
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Handle, TypeInfo = argv
 
         driver = self.wdf_drivers.get(DriverGlobals)
@@ -355,7 +363,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDriverOpenParametersRegistryKey", argc=5)
-    def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx={}):
+    def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfDriverOpenParametersRegistryKey(
           WDFDRIVER              Driver,
@@ -364,6 +372,7 @@ class Wdfldr(api.ApiHandler):
           WDFKEY                 *Key
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Driver, DesiredAccess, KeyAttributes, pKey = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -379,7 +388,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfRegistryQueryULong", argc=4)
-    def WdfRegistryQueryULong(self, emu, argv, ctx={}):
+    def WdfRegistryQueryULong(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfRegistryQueryULong(
           WDFKEY           Key,
@@ -387,6 +396,7 @@ class Wdfldr(api.ApiHandler):
           PULONG           Value
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Key, ValueName, Value = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -403,28 +413,30 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfRegistryClose", argc=2)
-    def WdfRegistryClose(self, emu, argv, ctx={}):
+    def WdfRegistryClose(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfRegistryClose(
           WDFKEY Key
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Key = argv
         return
 
     @apihook("WdfDeviceSetPnpCapabilities", argc=3)
-    def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx={}):
+    def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfDeviceSetPnpCapabilities(
           WDFDEVICE                    Device,
           PWDF_DEVICE_PNP_CAPABILITIES PnpCapabilities
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device, PnpCapabilities = argv
         return
 
     @apihook("WdfIoQueueReadyNotify", argc=4)
-    def WdfIoQueueReadyNotify(self, emu, argv, ctx={}):
+    def WdfIoQueueReadyNotify(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfIoQueueReadyNotify(
           WDFQUEUE               Queue,
@@ -432,13 +444,14 @@ class Wdfldr(api.ApiHandler):
           WDFCONTEXT             Context
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Queue, QueueReady, Context = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
 
     @apihook("WdfDeviceCreateDeviceInterface", argc=4)
-    def WdfDeviceCreateDeviceInterface(self, emu, argv, ctx={}):
+    def WdfDeviceCreateDeviceInterface(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfDeviceCreateDeviceInterface(
           WDFDEVICE        Device,
@@ -446,6 +459,7 @@ class Wdfldr(api.ApiHandler):
           PCUNICODE_STRING ReferenceString
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device, InterfaceClassGUID, ReferenceString = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -461,7 +475,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfIoQueueCreate", argc=5)
-    def WdfIoQueueCreate(self, emu, argv, ctx={}):
+    def WdfIoQueueCreate(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfIoQueueCreate(
           WDFDEVICE              Device,
@@ -470,6 +484,7 @@ class Wdfldr(api.ApiHandler):
           WDFQUEUE               *Queue
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device, Config, QueueAttributes, Queue = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -486,12 +501,13 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceWdmGetAttachedDevice", argc=2)
-    def WdfDeviceWdmGetAttachedDevice(self, emu, argv, ctx={}):
+    def WdfDeviceWdmGetAttachedDevice(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetAttachedDevice(
           WDFDEVICE Device
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device = argv
 
         if not self.pnp_device:
@@ -502,7 +518,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceCreateWithParameters", argc=5)
-    def WdfUsbTargetDeviceCreateWithParameters(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceCreateWithParameters(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfUsbTargetDeviceCreateWithParameters(
           WDFDEVICE                     Device,
@@ -511,6 +527,7 @@ class Wdfldr(api.ApiHandler):
           WDFUSBDEVICE                  *UsbDevice
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device, Config, Attributes, UsbDevice = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -523,12 +540,13 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceWdmGetDeviceObject", argc=2)
-    def WdfDeviceWdmGetDeviceObject(self, emu, argv, ctx={}):
+    def WdfDeviceWdmGetDeviceObject(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetDeviceObject(
           WDFDEVICE Device
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Device = argv
         rv = 0
 
@@ -538,13 +556,14 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceGetDeviceDescriptor", argc=3)
-    def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfUsbTargetDeviceGetDeviceDescriptor(
           WDFUSBDEVICE           UsbDevice,
           PUSB_DEVICE_DESCRIPTOR UsbDeviceDescriptor
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = argv
 
         dev = self.usb_devices.get(UsbDevice)
@@ -554,7 +573,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfMemoryCreate", argc=7)
-    def WdfMemoryCreate(self, emu, argv, ctx={}):
+    def WdfMemoryCreate(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfMemoryCreate(
           PWDF_OBJECT_ATTRIBUTES Attributes,
@@ -565,6 +584,7 @@ class Wdfldr(api.ApiHandler):
           PVOID                  *Buffer
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Attributes, PoolType, PoolTag, BufferSize, Mem, Buf = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -579,7 +599,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceSelectConfig", argc=4)
-    def WdfUsbTargetDeviceSelectConfig(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceSelectConfig(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfUsbTargetDeviceSelectConfig(
           WDFUSBDEVICE                         UsbDevice,
@@ -587,6 +607,7 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_DEVICE_SELECT_CONFIG_PARAMS Params
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbDevice, PipeAttributes, Params = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -614,7 +635,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceRetrieveConfigDescriptor", argc=4)
-    def WdfUsbTargetDeviceRetrieveConfigDescriptor(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceRetrieveConfigDescriptor(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveConfigDescriptor(
           WDFUSBDEVICE UsbDevice,
@@ -622,6 +643,7 @@ class Wdfldr(api.ApiHandler):
           PUSHORT      ConfigDescriptorLength
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbDevice, ConfigDescriptor, ConfigDescriptorLength = argv
         rv = ddk.STATUS_BUFFER_TOO_SMALL
 
@@ -647,7 +669,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceSelectSetting", argc=4)
-    def WdfUsbInterfaceSelectSetting(self, emu, argv, ctx={}):
+    def WdfUsbInterfaceSelectSetting(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfUsbInterfaceSelectSetting(
           WDFUSBINTERFACE                          UsbInterface,
@@ -655,6 +677,7 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_INTERFACE_SELECT_SETTING_PARAMS Params
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbInterface, PipesAttributes, Params = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
@@ -671,12 +694,13 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceGetNumInterfaces", argc=2)
-    def WdfUsbTargetDeviceGetNumInterfaces(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceGetNumInterfaces(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         UCHAR WdfUsbTargetDeviceGetNumInterfaces(
           WDFUSBDEVICE UsbDevice
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbDevice = argv
 
         rv = 0
@@ -687,12 +711,13 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetNumConfiguredPipes", argc=2)
-    def WdfUsbInterfaceGetNumConfiguredPipes(self, emu, argv, ctx={}):
+    def WdfUsbInterfaceGetNumConfiguredPipes(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BYTE WdfUsbInterfaceGetNumConfiguredPipes(
           WDFUSBINTERFACE UsbInterface
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0
@@ -708,12 +733,13 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetNumSettings", argc=2)
-    def WdfUsbInterfaceGetNumSettings(self, emu, argv, ctx={}):
+    def WdfUsbInterfaceGetNumSettings(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BYTE WdfUsbInterfaceGetNumSettings(
           WDFUSBINTERFACE UsbInterface
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0
@@ -728,13 +754,14 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceRetrieveInformation", argc=3)
-    def WdfUsbTargetDeviceRetrieveInformation(self, emu, argv, ctx={}):
+    def WdfUsbTargetDeviceRetrieveInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveInformation(
           WDFUSBDEVICE                UsbDevice,
           PWDF_USB_DEVICE_INFORMATION Information
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbDevice, Information = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
@@ -750,7 +777,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetConfiguredPipe", argc=4)
-    def WdfUsbInterfaceGetConfiguredPipe(self, emu, argv, ctx={}):
+    def WdfUsbInterfaceGetConfiguredPipe(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         WDFUSBPIPE WdfUsbInterfaceGetConfiguredPipe(
           WDFUSBINTERFACE           UsbInterface,
@@ -758,6 +785,7 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_PIPE_INFORMATION PipeInfo
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbInterface, PipeIndex, PipeInfo = argv
 
         rv = 0
@@ -796,13 +824,14 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetPipeGetInformation", argc=3)
-    def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx={}):
+    def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WdfUsbTargetPipeGetInformation(
           WDFUSBPIPE                Pipe,
           PWDF_USB_PIPE_INFORMATION PipeInformation
         );
         """
+        ctx = ctx or {}
         DriverGlobals, Pipe, PipeInfo = argv
 
         _pipe = self.usb_pipes.get(Pipe)
@@ -835,12 +864,13 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfUsbInterfaceGetInterfaceNumber", argc=2)
-    def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx={}):
+    def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BYTE WdfUsbInterfaceGetInterfaceNumber(
           WDFUSBINTERFACE UsbInterface
         );
         """
+        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0

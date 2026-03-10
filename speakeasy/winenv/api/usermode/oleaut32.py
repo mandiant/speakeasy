@@ -16,12 +16,13 @@ class OleAut32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SysAllocString", argc=1, ordinal=2)
-    def SysAllocString(self, emu, argv, ctx={}):
+    def SysAllocString(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BSTR SysAllocString(
             const OLECHAR *psz
         );
         """
+        ctx = ctx or {}
         (psz,) = argv
         alloc_str = self.read_mem_string(psz, 2)
         if alloc_str:
@@ -42,13 +43,14 @@ class OleAut32(api.ApiHandler):
         return 0
 
     @apihook("SysAllocStringLen", argc=2, ordinal=4)
-    def SysAllocStringLen(self, emu, argv, ctx={}):
+    def SysAllocStringLen(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BSTR SysAllocStringLen(
           [in] const OLECHAR *strIn,
           [in] UINT          ui
         );
         """
+        ctx = ctx or {}
         strin, ui = argv
 
         ws_len = (ui + 1) * 2
@@ -72,22 +74,24 @@ class OleAut32(api.ApiHandler):
         return bstr + 4
 
     @apihook("SysFreeString", argc=1, ordinal=6)
-    def SysFreeString(self, emu, argv, ctx={}):
+    def SysFreeString(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void SysFreeString(
             BSTR bstrString
         );
         """
+        ctx = ctx or {}
         argv[0] = self.read_wide_string(argv[0])
         return
 
     @apihook("VariantInit", argc=1, ordinal=8)
-    def VariantInit(self, emu, argv, ctx={}):
+    def VariantInit(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void VariantInit(
             VARIANTARG *pvarg
         );
         """
+        ctx = ctx or {}
         (pvarg,) = argv
         if pvarg:
             size = 0x18 if emu.get_ptr_size() == 8 else 0x10

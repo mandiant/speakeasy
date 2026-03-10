@@ -25,50 +25,54 @@ class Ole32(api.ApiHandler):
         self.names = {}
 
     @apihook("OleInitialize", argc=1)
-    def OleInitialize(self, emu, argv, ctx={}):
+    def OleInitialize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT OleInitialize(
             IN LPVOID pvReserved
         );
         """
+        ctx = ctx or {}
 
         rv = windefs.S_OK
 
         return rv
 
     @apihook("CoInitialize", argc=1)
-    def CoInitialize(self, emu, argv, ctx={}):
+    def CoInitialize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT CoInitialize(
           LPVOID pvReserved
         );
         """
+        ctx = ctx or {}
 
         rv = windefs.S_OK
 
         return rv
 
     @apihook("CoInitializeEx", argc=2)
-    def CoInitializeEx(self, emu, argv, ctx={}):
+    def CoInitializeEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT CoInitializeEx(
           LPVOID pvReserved,
           DWORD  dwCoInit
         );
         """
+        ctx = ctx or {}
 
         rv = windefs.S_OK
 
         return rv
 
     @apihook("CoUninitialize", argc=0)
-    def CoUninitialize(self, emu, argv, ctx={}):
+    def CoUninitialize(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void CoUninitialize();
         """
+        ctx = ctx or {}
 
     @apihook("CoInitializeSecurity", argc=9)
-    def CoInitializeSecurity(self, emu, argv, ctx={}):
+    def CoInitializeSecurity(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT CoInitializeSecurity(
           PSECURITY_DESCRIPTOR        pSecDesc,
@@ -82,6 +86,7 @@ class Ole32(api.ApiHandler):
           void                        *pReserved3
         );
         """
+        ctx = ctx or {}
 
         rv = windefs.S_OK
 
@@ -96,7 +101,7 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CoCreateInstance", argc=5)
-    def CoCreateInstance(self, emu, argv, ctx={}):
+    def CoCreateInstance(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT CoCreateInstance(
           REFCLSID  rclsid,
@@ -106,6 +111,7 @@ class Ole32(api.ApiHandler):
           LPVOID    *ppv
         );
         """
+        ctx = ctx or {}
         rclsid, pUnkOuter, dwClsContext, riid, ppv = argv
         rv = windefs.S_OK
 
@@ -132,7 +138,7 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CoSetProxyBlanket", argc=8)
-    def CoSetProxyBlanket(self, emu, argv, ctx={}):
+    def CoSetProxyBlanket(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT CoSetProxyBlanket(
             IUnknown                 *pProxy,
@@ -145,16 +151,18 @@ class Ole32(api.ApiHandler):
             DWORD                    dwCapabilities
         );
         """
+        ctx = ctx or {}
         return 1
 
     @apihook("StringFromCLSID", argc=2)
-    def StringFromCLSID(self, emu, argv, ctx={}):
+    def StringFromCLSID(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         HRESULT StringFromCLSID(
         REFCLSID rclsid,
         LPOLESTR *lplpsz
         );
         """
+        ctx = ctx or {}
 
         rclsid, lplpsz = argv
         rv = windefs.S_OK
@@ -172,7 +180,8 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CoCreateGuid", argc=1)
-    def CoCreateGuid(self, emu, argv, ctx={}):
+    def CoCreateGuid(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         pguid = argv[0]
         guid_bytes = b"\xde\xad\xc0\xde\xbe\xef\xca\xfe\xba\xbe\x01\x23\x45\x67\x89\xab"
         if pguid:

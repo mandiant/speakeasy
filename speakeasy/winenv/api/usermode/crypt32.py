@@ -28,7 +28,7 @@ class Crypt32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("CryptStringToBinary", argc=7)
-    def CryptStringToBinary(self, emu, argv, ctx={}):
+    def CryptStringToBinary(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         BOOL CryptStringToBinaryA(
         LPCSTR pszString,
@@ -40,6 +40,7 @@ class Crypt32(api.ApiHandler):
         DWORD  *pdwFlags
         );
         """
+        ctx = ctx or {}
 
         cw = self.get_char_width(ctx)
 

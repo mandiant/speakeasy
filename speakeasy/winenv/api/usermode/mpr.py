@@ -17,7 +17,7 @@ class Mpr(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WNetOpenEnum", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WNetOpenEnum(self, emu, argv, ctx={}):
+    def WNetOpenEnum(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WNetOpenEnum(
           DWORD          dwScope,
@@ -27,6 +27,7 @@ class Mpr(api.ApiHandler):
           LPHANDLE       lphEnum
         );
         """
+        ctx = ctx or {}
         dwScope, dwType, dwUsage, lpNetResource, lphEnum = argv
 
         scope = mpr.get_define_int(dwScope, "RESOURCE_")
@@ -44,7 +45,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetEnumResource", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetEnumResource(self, emu, argv, ctx={}):
+    def WNetEnumResource(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WNetEnumResourceA(
           HANDLE  hEnum,
@@ -53,10 +54,11 @@ class Mpr(api.ApiHandler):
           LPDWORD lpBufferSize
         );
         """
+        ctx = ctx or {}
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetAddConnection2", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetAddConnection2(self, emu, argv, ctx={}):
+    def WNetAddConnection2(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WNetAddConnection2W(
           LPNETRESOURCEW lpNetResource,
@@ -65,10 +67,11 @@ class Mpr(api.ApiHandler):
           DWORD          dwFlags
         );
         """
+        ctx = ctx or {}
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetGetConnection", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def WNetGetConnection(self, emu, argv, ctx={}):
+    def WNetGetConnection(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         DWORD WNetGetConnectionA(
           LPCSTR  lpLocalName,
@@ -76,6 +79,7 @@ class Mpr(api.ApiHandler):
           LPDWORD lpnLength
         );
         """
+        ctx = ctx or {}
         lpLocalName, lpRemoteName, lpnLength = argv
 
         cw = self.get_char_width(ctx)

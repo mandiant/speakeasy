@@ -114,12 +114,13 @@ class Netio(api.ApiHandler):
         self.prov_disp.WskGetNameInfo = addr
 
     @apihook("WskRegister", argc=2)
-    def WskRegister(self, emu, argv, ctx={}):
+    def WskRegister(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS WskRegister(
           PWSK_CLIENT_NPI   WskClientNpi,
           PWSK_REGISTRATION WskRegistration
         );
         """
+        ctx = ctx or {}
         WskClientNpi, WskRegistration = argv
         rv = 0
 
@@ -128,13 +129,14 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("WskCaptureProviderNPI", argc=3)
-    def WskCaptureProviderNPI(self, emu, argv, ctx={}):
+    def WskCaptureProviderNPI(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS WskCaptureProviderNPI(
           PWSK_REGISTRATION WskRegistration,
           ULONG             WaitTimeout,
           PWSK_PROVIDER_NPI WskProviderNpi
         );
         """
+        ctx = ctx or {}
         WskRegistration, WaitTimeout, WskProviderNpi = argv
         rv = 0
 
@@ -160,7 +162,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSocket", argc=11)
-    def WskSocket(self, emu, argv, ctx={}):
+    def WskSocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskSocket(
           PWSK_CLIENT Client,
           ADDRESS_FAMILY AddressFamily,
@@ -174,6 +176,7 @@ class Netio(api.ApiHandler):
           PSECURITY_DESCRIPTOR SecurityDescriptor,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         cli, af, stype, proto, flags, sctx, disp, proc, thr, secdesc, pIrp = argv  # noqa
         rv = ddk.STATUS_INVALID_PARAMETER
 
@@ -190,7 +193,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSocketConnect", argc=12)
-    def WskSocketConnect(self, emu, argv, ctx={}):
+    def WskSocketConnect(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskSocketConnect(
           PWSK_CLIENT Client,
           USHORT SocketType,
@@ -205,6 +208,7 @@ class Netio(api.ApiHandler):
           PSECURITY_DESCRIPTOR SecurityDescriptor,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         cli, stype, proto, laddr, raddr, flags, sctx, disp, proc, thr, secdesc, irp = argv  # noqa
 
         rv = 0
@@ -212,7 +216,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskControlClient", argc=8)
-    def WskControlClient(self, emu, argv, ctx={}):
+    def WskControlClient(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskControlClient(
           PWSK_CLIENT Client,
           ULONG ControlCode,
@@ -223,13 +227,14 @@ class Netio(api.ApiHandler):
           SIZE_T *OutputSizeReturned,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         cli, ctl, insiz, inbuf, osiz, obuf, oret, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskGetAddressInfo", argc=10)
-    def WskGetAddressInfo(self, emu, argv, ctx={}):
+    def WskGetAddressInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskGetAddressInfo(
           PWSK_CLIENT Client,
           PUNICODE_STRING NodeName,
@@ -242,24 +247,26 @@ class Netio(api.ApiHandler):
           PETHREAD OwningThread,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         cli, node, svc, namespace, prov, hints, res, proc, thr, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskFreeAddressInfo", argc=2)
-    def WskFreeAddressInfo(self, emu, argv, ctx={}):
+    def WskFreeAddressInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """void PfnWskFreeAddressInfo(
           PWSK_CLIENT Client,
           PADDRINFOEXW AddrInfo
         )"""
+        ctx = ctx or {}
         cli, addr = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskGetNameInfo", argc=9)
-    def WskGetNameInfo(self, emu, argv, ctx={}):
+    def WskGetNameInfo(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskGetNameInfo(
           PWSK_CLIENT Client,
           PSOCKADDR SockAddr,
@@ -271,13 +278,14 @@ class Netio(api.ApiHandler):
           PETHREAD OwningThread,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         cli, saddr, saddrlen, node, svc, flags, proc, thr, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskControlSocket", argc=10)
-    def WskControlSocket(self, emu, argv, ctx={}):
+    def WskControlSocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskControlSocket(
           PWSK_SOCKET Socket,
           WSK_CONTROL_SOCKET_TYPE RequestType,
@@ -290,30 +298,33 @@ class Netio(api.ApiHandler):
           SIZE_T *OutputSizeReturned,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, rtype, ctl, level, isize, ibuf, osize, obuf, oret, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskCloseSocket", argc=2)
-    def WskCloseSocket(self, emu, argv, ctx={}):
+    def WskCloseSocket(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskCloseSocket(
           PWSK_SOCKET Socket,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskBind", argc=4)
-    def WskBind(self, emu, argv, ctx={}):
+    def WskBind(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskBind(
           PWSK_SOCKET Socket,
           PSOCKADDR LocalAddress,
           ULONG Flags,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, laddr, flags, irp = argv
         rv = 0
 
@@ -327,7 +338,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSendTo", argc=7)
-    def WskSendTo(self, emu, argv, ctx={}):
+    def WskSendTo(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskSendTo(
           PWSK_SOCKET Socket,
           PWSK_BUF Buffer,
@@ -337,13 +348,14 @@ class Netio(api.ApiHandler):
           PCMSGHDR ControlInfo,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, buf, flags, raddr, infolen, ctlinfo, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskReceiveFrom", argc=8)
-    def WskReceiveFrom(self, emu, argv, ctx={}):
+    def WskReceiveFrom(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskReceiveFrom(
           PWSK_SOCKET Socket,
           PWSK_BUF Buffer,
@@ -354,59 +366,65 @@ class Netio(api.ApiHandler):
           PULONG ControlFlags,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, buf, flags, raddr, ctllen, ctlinfo, irp = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskRelease", argc=2)
-    def WskRelease(self, emu, argv, ctx={}):
+    def WskRelease(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS WSKAPI WSKAPI * WskRelease(
           _In_ PWSK_SOCKET          Socket,
           _In_ PWSK_DATA_INDICATION DataIndication
         )"""
+        ctx = ctx or {}
         sock, data_indic = argv
         rv = 0
 
         return rv
 
     @apihook("callback_WskGetLocalAddress", argc=2)
-    def WskGetLocalAddress(self, emu, argv, ctx={}):
+    def WskGetLocalAddress(self, emu, argv, ctx: dict[str, str] | None = None):
         """NTSTATUS PfnWskGetLocalAddress(
           PWSK_SOCKET Socket,
           PSOCKADDR LocalAddress,
           PIRP Irp
         )"""
+        ctx = ctx or {}
         sock, laddr = argv
         rv = 0
 
         return rv
 
     @apihook("WskReleaseProviderNPI", argc=1)
-    def WskReleaseProviderNPI(self, emu, argv, ctx={}):
+    def WskReleaseProviderNPI(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WskReleaseProviderNPI(
         PWSK_REGISTRATION WskRegistration
         );
         """
+        ctx = ctx or {}
         (reg,) = argv
 
         return
 
     @apihook("NsiEnumerateObjectsAllParametersEx", argc=0)
-    def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx={}):
+    def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         N/A
         """
+        ctx = ctx or {}
         return
 
     @apihook("WskDeregister", argc=1)
-    def WskDeregister(self, emu, argv, ctx={}):
+    def WskDeregister(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         void WskDeregister(
         PWSK_REGISTRATION WskRegistration
         );
         """
+        ctx = ctx or {}
         (reg,) = argv
 
         return

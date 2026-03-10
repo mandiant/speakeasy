@@ -26,7 +26,7 @@ class Ncrypt(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NCryptOpenStorageProvider", argc=3)
-    def NCryptOpenStorageProvider(self, emu, argv, ctx={}):
+    def NCryptOpenStorageProvider(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SECURITY_STATUS NCryptOpenStorageProvider(
             NCRYPT_PROV_HANDLE *phProvider,
@@ -34,6 +34,7 @@ class Ncrypt(api.ApiHandler):
             DWORD              dwFlags
         );
         """
+        ctx = ctx or {}
         phProvider, pszProviderName, dwFlags = argv
         if pszProviderName:
             prov_str = self.read_wide_string(pszProviderName)
@@ -47,7 +48,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptImportKey", argc=8)
-    def NCryptImportKey(self, emu, argv, ctx={}):
+    def NCryptImportKey(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SECURITY_STATUS NCryptImportKey(
             NCRYPT_PROV_HANDLE hProvider,
@@ -60,6 +61,7 @@ class Ncrypt(api.ApiHandler):
             DWORD              dwFlags
         );
         """
+        ctx = ctx or {}
         hProvider, hImportKey, pszBlobType, pParameterList, phKey, pbData, cbData, dwFlags = argv
         blob_type = self.read_wide_string(pszBlobType)
         argv[2] = blob_type
@@ -84,13 +86,14 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptDeleteKey", argc=2)
-    def NCryptDeleteKey(self, emu, argv, ctx={}):
+    def NCryptDeleteKey(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SECURITY_STATUS NCryptDeleteKey(
             NCRYPT_KEY_HANDLE hKey,
             DWORD             dwFlags
         );
         """
+        ctx = ctx or {}
         hKey, dwFlags = argv
         cm = emu.get_crypt_manager()
         for hnd, ctx in cm.ctx_handles.items():
@@ -102,12 +105,13 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptFreeObject", argc=1)
-    def NCryptFreeObject(self, emu, argv, ctx={}):
+    def NCryptFreeObject(self, emu, argv, ctx: dict[str, str] | None = None):
         """
         SECURITY_STATUS NCryptFreeObject(
             NCRYPT_HANDLE hObject
         );
         """
+        ctx = ctx or {}
         hObject = argv[0]
         cm = emu.get_crypt_manager()
 

@@ -24,7 +24,8 @@ class Iphlpapi(api.ApiHandler):
         self.iphlpapi_types = iphlpapi_types
 
     @apihook("GetAdaptersInfo", argc=2)
-    def GetAdaptersInfo(self, emu, argv, ctx={}):
+    def GetAdaptersInfo(self, emu, argv, ctx: dict[str, str] | None = None):
+        ctx = ctx or {}
         ptr_adapter_info, size_ptr = argv
         rv = 0
 
