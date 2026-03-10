@@ -48,7 +48,7 @@ class AdvApi32(api.ApiHandler):
         return self.curr_handle
 
     @apihook("RegOpenKey", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def RegOpenKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegOpenKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegOpenKeyA(
           HKEY   hKey,
@@ -95,7 +95,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegOpenKeyEx", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def RegOpenKeyEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegOpenKeyEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegOpenKeyEx(
           HKEY   hKey,
@@ -140,7 +140,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegQueryValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def RegQueryValueEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegQueryValueEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegQueryValueEx(
           HKEY    hKey,
@@ -218,7 +218,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegSetValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def RegSetValueEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegSetValueEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegSetValueEx(
           HKEY       hKey,
@@ -277,7 +277,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegCloseKey", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def RegCloseKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegCloseKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegCloseKey(
           HKEY hKey
@@ -295,7 +295,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegEnumKey", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def RegEnumKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegEnumKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegEnumKey(
           HKEY  hKey,
@@ -315,7 +315,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegEnumKeyEx", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def RegEnumKeyEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegEnumKeyEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegEnumKeyEx(
             HKEY      hKey,
@@ -357,7 +357,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegCreateKey", argc=3)
-    def RegCreateKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegCreateKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegCreateKey(
             HKEY    hKey,
@@ -388,7 +388,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
-    def RegCreateKeyEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegCreateKeyEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegCreateKeyExA(
           HKEY                  hKey,
@@ -441,7 +441,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
-    def RegDeleteValue(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegDeleteValue(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegDeleteValueA(
           HKEY   hKey,
@@ -469,7 +469,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegQueryInfoKey", argc=12, conv=_arch.CALL_CONV_STDCALL)
-    def RegQueryInfoKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegQueryInfoKey(self, emu, argv, ctx: api.ApiContext = None):
         ctx = ctx or {}
         # TODO: stub
         """
@@ -517,7 +517,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("OpenProcessToken", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def OpenProcessToken(self, emu, argv, ctx: dict[str, str] | None = None):
+    def OpenProcessToken(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL OpenProcessToken(
           HANDLE  ProcessHandle,
@@ -550,7 +550,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("OpenThreadToken", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def OpenThreadToken(self, emu, argv, ctx: dict[str, str] | None = None):
+    def OpenThreadToken(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL OpenThreadToken(
             HANDLE  ThreadHandle,
@@ -584,7 +584,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("DuplicateTokenEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def DuplicateTokenEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def DuplicateTokenEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL DuplicateTokenEx(
           HANDLE                       hExistingToken,
@@ -617,7 +617,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("SetTokenInformation", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def SetTokenInformation(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SetTokenInformation(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL SetTokenInformation(
           HANDLE                  TokenHandle,
@@ -635,7 +635,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("StartServiceCtrlDispatcher", argc=1)
-    def StartServiceCtrlDispatcher(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StartServiceCtrlDispatcher(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL StartServiceCtrlDispatcher(
           const SERVICE_TABLE_ENTRY *lpServiceStartTable
@@ -682,7 +682,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegisterServiceCtrlHandler", argc=2)
-    def RegisterServiceCtrlHandler(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegisterServiceCtrlHandler(self, emu, argv, ctx: api.ApiContext = None):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerA(
             LPCSTR             lpServiceName,
@@ -701,7 +701,7 @@ class AdvApi32(api.ApiHandler):
         return self.service_status_handle
 
     @apihook("RegisterServiceCtrlHandlerEx", argc=3)
-    def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerExA(
             LPCSTR                lpServiceName,
@@ -715,7 +715,7 @@ class AdvApi32(api.ApiHandler):
         return self.RegisterServiceCtrlHandler(self, emu, [lpServiceName, lpHandlerProc], ctx)
 
     @apihook("SetServiceStatus", argc=2)
-    def SetServiceStatus(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SetServiceStatus(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL SetServiceStatus(
             SERVICE_STATUS_HANDLE hServiceStatus,
@@ -731,7 +731,7 @@ class AdvApi32(api.ApiHandler):
         return 0x1
 
     @apihook("RevertToSelf", argc=0)
-    def RevertToSelf(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RevertToSelf(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL RevertToSelf();
         """
@@ -739,7 +739,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("ImpersonateLoggedOnUser", argc=1)
-    def ImpersonateLoggedOnUser(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ImpersonateLoggedOnUser(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL ImpersonateLoggedOnUser(
         HANDLE hToken
@@ -749,7 +749,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("OpenSCManager", argc=3)
-    def OpenSCManager(self, emu, argv, ctx: dict[str, str] | None = None):
+    def OpenSCManager(self, emu, argv, ctx: api.ApiContext = None):
         """
         SC_HANDLE OpenSCManager(
           LPCSTR lpMachineName,
@@ -766,7 +766,7 @@ class AdvApi32(api.ApiHandler):
         return hScm
 
     @apihook("CreateService", argc=13)
-    def CreateService(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CreateService(self, emu, argv, ctx: api.ApiContext = None):
         """
         SC_HANDLE CreateServiceA(
           SC_HANDLE hSCManager,
@@ -819,7 +819,7 @@ class AdvApi32(api.ApiHandler):
         return hSvc
 
     @apihook("StartService", argc=3)
-    def StartService(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StartService(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL StartService(
           SC_HANDLE hService,
@@ -837,12 +837,12 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("StartServiceA", argc=3)
-    def StartServiceA(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StartServiceA(self, emu, argv, ctx: api.ApiContext = None):
         ctx = ctx or {}
         return self.StartService(emu, argv, ctx)
 
     @apihook("ControlService", argc=3)
-    def ControlService(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ControlService(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL ControlService(
           [in]  SC_HANDLE        hService,
@@ -860,7 +860,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("QueryServiceStatus", argc=2)
-    def QueryServiceStatus(self, emu, argv, ctx: dict[str, str] | None = None):
+    def QueryServiceStatus(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL QueryServiceStatus(
           SC_HANDLE        hService,
@@ -892,7 +892,7 @@ class AdvApi32(api.ApiHandler):
     @apihook("QueryServiceConfig", argc=4)
     @apihook("QueryServiceConfigA", argc=4)
     @apihook("QueryServiceConfigW", argc=4)
-    def QueryServiceConfig(self, emu, argv, ctx: dict[str, str] | None = None):
+    def QueryServiceConfig(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL QueryServiceConfigA(
           SC_HANDLE               hService,
@@ -934,7 +934,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CloseServiceHandle", argc=1)
-    def CloseServiceHandle(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CloseServiceHandle(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CloseServiceHandle(
           SC_HANDLE hSCObject
@@ -952,7 +952,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("ChangeServiceConfig", argc=11)
-    def ChangeServiceConfig(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ChangeServiceConfig(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL ChangeServiceConfigA(
           SC_HANDLE hService,
@@ -1002,7 +1002,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("ChangeServiceConfig2", argc=3)
-    def ChangeServiceConfig2(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ChangeServiceConfig2(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL ChangeServiceConfig2(
           SC_HANDLE hService,
@@ -1020,7 +1020,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("SystemFunction036", argc=2)
-    def RtlGenRandom(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RtlGenRandom(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOLEAN RtlGenRandom(
             PVOID RandomBuffer,
@@ -1039,7 +1039,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptAcquireContext", argc=5)
-    def CryptAcquireContext(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptAcquireContext(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptAcquireContext(
             HCRYPTPROV *phProv,
@@ -1073,7 +1073,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptGenRandom", argc=3)
-    def CryptGenRandom(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptGenRandom(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptGenRandom(
             HCRYPTPROV hProv,
@@ -1093,7 +1093,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("AllocateAndInitializeSid", argc=11)
-    def AllocateAndInitializeSid(self, emu, argv, ctx: dict[str, str] | None = None):
+    def AllocateAndInitializeSid(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL AllocateAndInitializeSid(
             PSID_IDENTIFIER_AUTHORITY pIdentifierAuthority,
@@ -1121,7 +1121,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CheckTokenMembership", argc=3)
-    def CheckTokenMembership(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CheckTokenMembership(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CheckTokenMembership(
             HANDLE TokenHandle,
@@ -1139,7 +1139,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("FreeSid", argc=1)
-    def FreeSid(self, emu, argv, ctx: dict[str, str] | None = None):
+    def FreeSid(self, emu, argv, ctx: api.ApiContext = None):
         """
         PVOID FreeSid(
             PSID pSid
@@ -1155,7 +1155,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptReleaseContext", argc=2)
-    def CryptReleaseContext(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptReleaseContext(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptReleaseContext(
             HCRYPTPROV hProv,
@@ -1172,7 +1172,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetCurrentHwProfile", argc=1)
-    def GetCurrentHwProfile(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetCurrentHwProfile(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL GetCurrentHwProfileA(
           LPHW_PROFILE_INFOA lpHwProfileInfo
@@ -1206,7 +1206,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("GetUserName", argc=2)
-    def GetUserName(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetUserName(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL GetUserName(
             LPSTR   lpBuffer,
@@ -1234,7 +1234,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("LookupPrivilegeValue", argc=3)
-    def LookupPrivilegeValue(self, emu, argv, ctx: dict[str, str] | None = None):
+    def LookupPrivilegeValue(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL LookupPrivilegeValue(
             LPCSTR lpSystemName,
@@ -1258,7 +1258,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("AdjustTokenPrivileges", argc=6)
-    def AdjustTokenPrivileges(self, emu, argv, ctx: dict[str, str] | None = None):
+    def AdjustTokenPrivileges(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL AdjustTokenPrivileges(
             HANDLE            TokenHandle,
@@ -1275,7 +1275,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetTokenInformation", argc=5)
-    def GetTokenInformation(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetTokenInformation(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL GetTokenInformation(
             HANDLE                  TokenHandle,
@@ -1301,7 +1301,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("EqualSid", argc=2)
-    def EqualSid(self, emu, argv, ctx: dict[str, str] | None = None):
+    def EqualSid(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL EqualSid(
             PSID pSid1,
@@ -1321,7 +1321,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetSidIdentifierAuthority", argc=1)
-    def GetSidIdentifierAuthority(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetSidIdentifierAuthority(self, emu, argv, ctx: api.ApiContext = None):
         """
         PSID_IDENTIFIER_AUTHORITY GetSidIdentifierAuthority(
           [in] PSID pSid
@@ -1334,7 +1334,7 @@ class AdvApi32(api.ApiHandler):
         return sid + 2
 
     @apihook("GetSidSubAuthorityCount", argc=1)
-    def GetSidSubAuthorityCount(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetSidSubAuthorityCount(self, emu, argv, ctx: api.ApiContext = None):
         """
         PUCHAR GetSidSubAuthorityCount(
             PSID pSid
@@ -1350,7 +1350,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetSidSubAuthority", argc=2)
-    def GetSidSubAuthority(self, emu, argv, ctx: dict[str, str] | None = None):
+    def GetSidSubAuthority(self, emu, argv, ctx: api.ApiContext = None):
         """
         PDWORD GetSidSubAuthority(
           [in] PSID  pSid,
@@ -1364,7 +1364,7 @@ class AdvApi32(api.ApiHandler):
         return sid + 8 + (nsub * 4)
 
     @apihook("LookupAccountName", argc=7)
-    def LookupAccountName(self, emu, argv, ctx: dict[str, str] | None = None):
+    def LookupAccountName(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL LookupAccountNameA(
           [in, optional]  LPCSTR        lpSystemName,
@@ -1439,7 +1439,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("LookupAccountSid", argc=7)
-    def LookupAccountSid(self, emu, argv, ctx: dict[str, str] | None = None):
+    def LookupAccountSid(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL LookupAccountSid(
             LPCSTR        lpSystemName,
@@ -1477,7 +1477,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CreateProcessAsUser", argc=11, conv=_arch.CALL_CONV_STDCALL)
-    def CreateProcessAsUser(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CreateProcessAsUser(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CreateProcessAsUser(
           HANDLE                hToken,
@@ -1529,7 +1529,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptCreateHash", argc=5)
-    def CryptCreateHash(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptCreateHash(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptCreateHash(
           HCRYPTPROV hProv,
@@ -1565,7 +1565,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptHashData", argc=4)
-    def CryptHashData(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptHashData(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptHashData(
           HCRYPTHASH hHash,
@@ -1590,7 +1590,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptGetHashParam", argc=5)
-    def CryptGetHashParam(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptGetHashParam(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptGetHashParam(
           HCRYPTHASH hHash,
@@ -1611,7 +1611,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptDestroyHash", argc=1)
-    def CryptDestroyHash(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptDestroyHash(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptDestroyHash(
           HCRYPTHASH hHash
@@ -1621,7 +1621,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptDeriveKey", argc=5)
-    def CryptDeriveKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptDeriveKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptDeriveKey(
           HCRYPTPROV hProv,
@@ -1667,7 +1667,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptDecrypt", argc=6)
-    def CryptDecrypt(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptDecrypt(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptDecrypt(
           HCRYPTKEY  hKey,
@@ -1716,7 +1716,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("RegGetValue", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def RegGetValue(self, emu, argv, ctx: dict[str, str] | None = None):
+    def RegGetValue(self, emu, argv, ctx: api.ApiContext = None):
         """
         LSTATUS RegGetValueW(
             HKEY    hkey,
@@ -1784,7 +1784,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("EnumServicesStatus", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def EnumServicesStatus(self, emu, argv, ctx: dict[str, str] | None = None):
+    def EnumServicesStatus(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL EnumServicesStatusA(
           SC_HANDLE              hSCManager,
@@ -1821,7 +1821,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def OpenService(self, emu, argv, ctx: dict[str, str] | None = None):
+    def OpenService(self, emu, argv, ctx: api.ApiContext = None):
         """
         SC_HANDLE OpenServiceA(
           SC_HANDLE hSCManager,
@@ -1837,7 +1837,7 @@ class AdvApi32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("DeleteService", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def DeleteService(self, emu, argv, ctx: dict[str, str] | None = None):
+    def DeleteService(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL DeleteService(
           SC_HANDLE hService

@@ -195,7 +195,7 @@ class Wdfldr(api.ApiHandler):
         return interfaces
 
     @apihook("WdfVersionBind", argc=4)
-    def WdfVersionBind(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfVersionBind(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS
         WdfVersionBind(
@@ -229,7 +229,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDriverCreate", argc=6)
-    def WdfDriverCreate(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDriverCreate(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfDriverCreate(
           PWDF_DRIVER_GLOBALS DriverGlobals,
@@ -260,7 +260,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceInitSetPnpPowerEventCallbacks", argc=3)
-    def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfDeviceInitSetPnpPowerEventCallbacks(
           PWDFDEVICE_INIT               DeviceInit,
@@ -273,7 +273,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfDeviceInitSetRequestAttributes", argc=3)
-    def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfDeviceInitSetRequestAttributes(
           PWDFDEVICE_INIT        DeviceInit,
@@ -286,7 +286,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfDeviceInitSetFileObjectConfig", argc=4)
-    def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfDeviceInitSetFileObjectConfig(
           PWDFDEVICE_INIT        DeviceInit,
@@ -300,7 +300,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfDeviceInitSetIoType", argc=3)
-    def WdfDeviceInitSetIoType(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceInitSetIoType(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfDeviceInitSetIoType(
           PWDFDEVICE_INIT    DeviceInit,
@@ -313,7 +313,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfDeviceCreate", argc=4)
-    def WdfDeviceCreate(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceCreate(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfDeviceCreate(
           PWDFDEVICE_INIT        *DeviceInit,
@@ -343,7 +343,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfObjectGetTypedContextWorker", argc=3, conv=e_arch.CALL_CONV_FASTCALL)
-    def WdfObjectGetTypedContextWorker(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfObjectGetTypedContextWorker(self, emu, argv, ctx: api.ApiContext = None):
         """
         PVOID WdfObjectGetTypedContextWorker(
           WDFOBJECT                      Handle,
@@ -363,7 +363,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDriverOpenParametersRegistryKey", argc=5)
-    def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfDriverOpenParametersRegistryKey(
           WDFDRIVER              Driver,
@@ -388,7 +388,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfRegistryQueryULong", argc=4)
-    def WdfRegistryQueryULong(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfRegistryQueryULong(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfRegistryQueryULong(
           WDFKEY           Key,
@@ -413,7 +413,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfRegistryClose", argc=2)
-    def WdfRegistryClose(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfRegistryClose(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfRegistryClose(
           WDFKEY Key
@@ -424,7 +424,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfDeviceSetPnpCapabilities", argc=3)
-    def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfDeviceSetPnpCapabilities(
           WDFDEVICE                    Device,
@@ -436,7 +436,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfIoQueueReadyNotify", argc=4)
-    def WdfIoQueueReadyNotify(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfIoQueueReadyNotify(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfIoQueueReadyNotify(
           WDFQUEUE               Queue,
@@ -451,7 +451,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceCreateDeviceInterface", argc=4)
-    def WdfDeviceCreateDeviceInterface(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceCreateDeviceInterface(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfDeviceCreateDeviceInterface(
           WDFDEVICE        Device,
@@ -475,7 +475,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfIoQueueCreate", argc=5)
-    def WdfIoQueueCreate(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfIoQueueCreate(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfIoQueueCreate(
           WDFDEVICE              Device,
@@ -501,7 +501,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceWdmGetAttachedDevice", argc=2)
-    def WdfDeviceWdmGetAttachedDevice(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceWdmGetAttachedDevice(self, emu, argv, ctx: api.ApiContext = None):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetAttachedDevice(
           WDFDEVICE Device
@@ -518,7 +518,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceCreateWithParameters", argc=5)
-    def WdfUsbTargetDeviceCreateWithParameters(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceCreateWithParameters(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfUsbTargetDeviceCreateWithParameters(
           WDFDEVICE                     Device,
@@ -540,7 +540,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfDeviceWdmGetDeviceObject", argc=2)
-    def WdfDeviceWdmGetDeviceObject(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfDeviceWdmGetDeviceObject(self, emu, argv, ctx: api.ApiContext = None):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetDeviceObject(
           WDFDEVICE Device
@@ -556,7 +556,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceGetDeviceDescriptor", argc=3)
-    def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfUsbTargetDeviceGetDeviceDescriptor(
           WDFUSBDEVICE           UsbDevice,
@@ -573,7 +573,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfMemoryCreate", argc=7)
-    def WdfMemoryCreate(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfMemoryCreate(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfMemoryCreate(
           PWDF_OBJECT_ATTRIBUTES Attributes,
@@ -599,7 +599,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceSelectConfig", argc=4)
-    def WdfUsbTargetDeviceSelectConfig(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceSelectConfig(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfUsbTargetDeviceSelectConfig(
           WDFUSBDEVICE                         UsbDevice,
@@ -635,7 +635,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceRetrieveConfigDescriptor", argc=4)
-    def WdfUsbTargetDeviceRetrieveConfigDescriptor(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceRetrieveConfigDescriptor(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveConfigDescriptor(
           WDFUSBDEVICE UsbDevice,
@@ -669,7 +669,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceSelectSetting", argc=4)
-    def WdfUsbInterfaceSelectSetting(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbInterfaceSelectSetting(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfUsbInterfaceSelectSetting(
           WDFUSBINTERFACE                          UsbInterface,
@@ -694,7 +694,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceGetNumInterfaces", argc=2)
-    def WdfUsbTargetDeviceGetNumInterfaces(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceGetNumInterfaces(self, emu, argv, ctx: api.ApiContext = None):
         """
         UCHAR WdfUsbTargetDeviceGetNumInterfaces(
           WDFUSBDEVICE UsbDevice
@@ -711,7 +711,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetNumConfiguredPipes", argc=2)
-    def WdfUsbInterfaceGetNumConfiguredPipes(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbInterfaceGetNumConfiguredPipes(self, emu, argv, ctx: api.ApiContext = None):
         """
         BYTE WdfUsbInterfaceGetNumConfiguredPipes(
           WDFUSBINTERFACE UsbInterface
@@ -733,7 +733,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetNumSettings", argc=2)
-    def WdfUsbInterfaceGetNumSettings(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbInterfaceGetNumSettings(self, emu, argv, ctx: api.ApiContext = None):
         """
         BYTE WdfUsbInterfaceGetNumSettings(
           WDFUSBINTERFACE UsbInterface
@@ -754,7 +754,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetDeviceRetrieveInformation", argc=3)
-    def WdfUsbTargetDeviceRetrieveInformation(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetDeviceRetrieveInformation(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveInformation(
           WDFUSBDEVICE                UsbDevice,
@@ -777,7 +777,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbInterfaceGetConfiguredPipe", argc=4)
-    def WdfUsbInterfaceGetConfiguredPipe(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbInterfaceGetConfiguredPipe(self, emu, argv, ctx: api.ApiContext = None):
         """
         WDFUSBPIPE WdfUsbInterfaceGetConfiguredPipe(
           WDFUSBINTERFACE           UsbInterface,
@@ -824,7 +824,7 @@ class Wdfldr(api.ApiHandler):
         return rv
 
     @apihook("WdfUsbTargetPipeGetInformation", argc=3)
-    def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WdfUsbTargetPipeGetInformation(
           WDFUSBPIPE                Pipe,
@@ -864,7 +864,7 @@ class Wdfldr(api.ApiHandler):
         return
 
     @apihook("WdfUsbInterfaceGetInterfaceNumber", argc=2)
-    def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx: api.ApiContext = None):
         """
         BYTE WdfUsbInterfaceGetInterfaceNumber(
           WDFUSBINTERFACE UsbInterface

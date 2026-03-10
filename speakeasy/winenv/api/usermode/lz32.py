@@ -16,7 +16,7 @@ class Lz32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("LZSeek", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def LZSeek(self, emu, argv, ctx: dict[str, str] | None = None):
+    def LZSeek(self, emu, argv, ctx: api.ApiContext = None):
         """
         LONG LZSeek(
           INT  hFile,

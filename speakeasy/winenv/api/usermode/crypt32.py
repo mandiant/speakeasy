@@ -28,7 +28,7 @@ class Crypt32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("CryptStringToBinary", argc=7)
-    def CryptStringToBinary(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CryptStringToBinary(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL CryptStringToBinaryA(
         LPCSTR pszString,

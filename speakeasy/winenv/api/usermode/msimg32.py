@@ -19,7 +19,7 @@ class Msimg32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("TransparentBlt", argc=11)
-    def TransparentBlt(self, emu, argv, ctx: dict[str, str] | None = None):
+    def TransparentBlt(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL TransparentBlt(
           HDC  hdcDest,

@@ -26,7 +26,7 @@ class Ncrypt(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NCryptOpenStorageProvider", argc=3)
-    def NCryptOpenStorageProvider(self, emu, argv, ctx: dict[str, str] | None = None):
+    def NCryptOpenStorageProvider(self, emu, argv, ctx: api.ApiContext = None):
         """
         SECURITY_STATUS NCryptOpenStorageProvider(
             NCRYPT_PROV_HANDLE *phProvider,
@@ -48,7 +48,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptImportKey", argc=8)
-    def NCryptImportKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def NCryptImportKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         SECURITY_STATUS NCryptImportKey(
             NCRYPT_PROV_HANDLE hProvider,
@@ -86,7 +86,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptDeleteKey", argc=2)
-    def NCryptDeleteKey(self, emu, argv, ctx: dict[str, str] | None = None):
+    def NCryptDeleteKey(self, emu, argv, ctx: api.ApiContext = None):
         """
         SECURITY_STATUS NCryptDeleteKey(
             NCRYPT_KEY_HANDLE hKey,
@@ -105,7 +105,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptFreeObject", argc=1)
-    def NCryptFreeObject(self, emu, argv, ctx: dict[str, str] | None = None):
+    def NCryptFreeObject(self, emu, argv, ctx: api.ApiContext = None):
         """
         SECURITY_STATUS NCryptFreeObject(
             NCRYPT_HANDLE hObject

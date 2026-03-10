@@ -44,7 +44,7 @@ class DnsApi(api.ApiHandler):
         self.names = {}
 
     @apihook("DnsQuery_", argc=6)
-    def DnsQuery_(self, emu, argv, ctx: dict[str, str] | None = None):
+    def DnsQuery_(self, emu, argv, ctx: api.ApiContext = None):
         """
         DNS_STATUS DnsQuery_A(
             PCSTR       pszName,

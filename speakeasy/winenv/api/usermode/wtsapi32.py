@@ -29,7 +29,7 @@ class WtsApi32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WTSEnumerateSessions", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WTSEnumerateSessions(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WTSEnumerateSessions(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL WTSEnumerateSessions(
           IN HANDLE          hServer,
@@ -79,7 +79,7 @@ class WtsApi32(api.ApiHandler):
         return rv
 
     @apihook("WTSFreeMemory", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def WTSFreeMemory(self, emu, argv, ctx: dict[str, str] | None = None):
+    def WTSFreeMemory(self, emu, argv, ctx: api.ApiContext = None):
         """
         void WTSFreeMemory(
           IN PVOID pMemory

@@ -23,7 +23,7 @@ class Urlmon(api.ApiHandler):
         self.names = {}
 
     @apihook("URLDownloadToFile", argc=5)
-    def URLDownloadToFile(self, emu, argv, ctx: dict[str, str] | None = None):
+    def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = None):
         """
         HRESULT URLDownloadToFile(
                     LPUNKNOWN            pCaller,
@@ -56,7 +56,7 @@ class Urlmon(api.ApiHandler):
         return rv
 
     @apihook("URLDownloadToCacheFile", argc=6)
-    def URLDownloadToCacheFile(self, emu, argv, ctx: dict[str, str] | None = None):
+    def URLDownloadToCacheFile(self, emu, argv, ctx: api.ApiContext = None):
         """
         HRESULT URLDownloadToCacheFileA(
           LPUNKNOWN            pCaller,

@@ -37,7 +37,7 @@ class Shlwapi(api.ApiHandler):
         return os.path.join(*args, **kwargs).replace("/", "\\")
 
     @apihook("PathIsRelative", argc=1)
-    def PathIsRelative(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathIsRelative(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathIsRelativeA(
             LPCSTR pszPath
@@ -60,7 +60,7 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("StrStr", argc=2)
-    def StrStr(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StrStr(self, emu, argv, ctx: api.ApiContext = None):
         """
         PCSTR StrStr(
             PCSTR pszFirst,
@@ -90,7 +90,7 @@ class Shlwapi(api.ApiHandler):
         return ret
 
     @apihook("StrStrI", argc=2)
-    def StrStrI(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StrStrI(self, emu, argv, ctx: api.ApiContext = None):
         """
         PCSTR StrStrI(
             PCSTR pszFirst,
@@ -122,7 +122,7 @@ class Shlwapi(api.ApiHandler):
         return ret
 
     @apihook("PathFindExtension", argc=1)
-    def PathFindExtension(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathFindExtension(self, emu, argv, ctx: api.ApiContext = None):
         """LPCSTR PathFindExtensionA(
           LPCSTR pszPath
         );
@@ -142,7 +142,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath + idx1 + 1 + idx2
 
     @apihook("StrCmpI", argc=2)
-    def StrCmpI(self, emu, argv, ctx: dict[str, str] | None = None):
+    def StrCmpI(self, emu, argv, ctx: api.ApiContext = None):
         """
         int StrCmpI(
         PCWSTR psz1,
@@ -166,7 +166,7 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("PathFindFileName", argc=1)
-    def PathFindFileName(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathFindFileName(self, emu, argv, ctx: api.ApiContext = None):
         """
         LPCSTR PathFindFileNameA(
           LPCSTR pszPath
@@ -185,7 +185,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath + idx + 1
 
     @apihook("PathRemoveExtension", argc=1)
-    def PathRemoveExtension(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathRemoveExtension(self, emu, argv, ctx: api.ApiContext = None):
         """
         void PathRemoveExtensionA(
           LPSTR pszPath
@@ -208,7 +208,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath
 
     @apihook("PathStripPath", argc=1)
-    def PathStripPath(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathStripPath(self, emu, argv, ctx: api.ApiContext = None):
         """
         void PathStripPath(
         LPSTR pszPath
@@ -226,7 +226,7 @@ class Shlwapi(api.ApiHandler):
         self.mem_write(pszPath, mod_name)
 
     @apihook("wvnsprintfA", argc=4)
-    def wvnsprintfA(self, emu, argv, ctx: dict[str, str] | None = None):
+    def wvnsprintfA(self, emu, argv, ctx: api.ApiContext = None):
         """
         int wvnsprintfA(
             PSTR    pszDest,
@@ -255,7 +255,7 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("wnsprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
-    def wnsprintf(self, emu, argv, ctx: dict[str, str] | None = None):
+    def wnsprintf(self, emu, argv, ctx: api.ApiContext = None):
         """
         int wnsprintfA(
           PSTR  pszDest,
@@ -289,7 +289,7 @@ class Shlwapi(api.ApiHandler):
             return -1
 
     @apihook("PathAppend", argc=2)
-    def PathAppend(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathAppend(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathAppendA(
           LPSTR  pszPath,
@@ -309,7 +309,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathCanonicalize", argc=2)
-    def PathCanonicalize(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathCanonicalize(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathCanonicalizeW(
             [out] LPWSTR  pszBuf,
@@ -323,7 +323,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathRemoveFileSpec", argc=1)
-    def PathRemoveFileSpec(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathRemoveFileSpec(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathRemoveFileSpec(LPTSTR pszPath);
         """
@@ -340,7 +340,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathAddBackslash", argc=1)
-    def PathAddBackslash(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathAddBackslash(self, emu, argv, ctx: api.ApiContext = None):
         """
         LPTSTR PathAddBackslash(LPTSTR pszPath);
         """
@@ -357,7 +357,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath
 
     @apihook("PathRenameExtension", argc=2)
-    def PathRenameExtension(self, emu, argv, ctx: dict[str, str] | None = None):
+    def PathRenameExtension(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathRenameExtension(
           [in, out] LPSTR  pszPath,

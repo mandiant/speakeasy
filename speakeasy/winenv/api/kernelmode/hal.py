@@ -28,7 +28,7 @@ class Hal(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("KeGetCurrentIrql", argc=0)
-    def KeGetCurrentIrql(self, emu, argv, ctx: dict[str, str] | None = None):
+    def KeGetCurrentIrql(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTHALAPI KIRQL KeGetCurrentIrql();
         """
@@ -37,7 +37,7 @@ class Hal(api.ApiHandler):
         return irql
 
     @apihook("ExAcquireFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExAcquireFastMutex(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ExAcquireFastMutex(self, emu, argv, ctx: api.ApiContext = None):
         """
         VOID ExAcquireFastMutex(
             _Inout_ PFAST_MUTEX FastMutex
@@ -47,7 +47,7 @@ class Hal(api.ApiHandler):
         return
 
     @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExReleaseFastMutex(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = None):
         """
         VOID ExReleaseFastMutex(
             _Inout_ PFAST_MUTEX FastMutex

@@ -12,6 +12,8 @@ from speakeasy.struct import EmuStruct
 
 logger = logging.getLogger(__name__)
 
+ApiContext = dict[str, str] | None
+
 
 class ApiHandler:
     """

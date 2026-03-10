@@ -36,7 +36,7 @@ class Shell32(api.ApiHandler):
         return self.curr_handle
 
     @apihook("SHCreateDirectoryEx", argc=3)
-    def SHCreateDirectoryEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SHCreateDirectoryEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         int SHCreateDirectoryExA(
             HWND                      hwnd,
@@ -59,7 +59,7 @@ class Shell32(api.ApiHandler):
         return 0
 
     @apihook("ShellExecute", argc=6)
-    def ShellExecute(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ShellExecute(self, emu, argv, ctx: api.ApiContext = None):
         """
         HINSTANCE ShellExecuteA(
             HWND   hwnd,
@@ -101,7 +101,7 @@ class Shell32(api.ApiHandler):
         return 33
 
     @apihook("ShellExecuteEx", argc=1)
-    def ShellExecuteEx(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ShellExecuteEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL ShellExecuteExA(
             [in, out] SHELLEXECUTEINFOA *pExecInfo
@@ -120,7 +120,7 @@ class Shell32(api.ApiHandler):
         return True
 
     @apihook("SHChangeNotify", argc=4)
-    def SHChangeNotify(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SHChangeNotify(self, emu, argv, ctx: api.ApiContext = None):
         """
         void SHChangeNotify(
             LONG wEventId,
@@ -133,7 +133,7 @@ class Shell32(api.ApiHandler):
         return
 
     @apihook("IsUserAnAdmin", argc=0, ordinal=680)
-    def IsUserAnAdmin(self, emu, argv, ctx: dict[str, str] | None = None):
+    def IsUserAnAdmin(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL IsUserAnAdmin();
         """
@@ -141,7 +141,7 @@ class Shell32(api.ApiHandler):
         return emu.config.user.is_admin
 
     @apihook("SHGetMalloc", argc=1)
-    def SHGetMalloc(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SHGetMalloc(self, emu, argv, ctx: api.ApiContext = None):
         """
         SHSTDAPI SHGetMalloc(
             IMalloc **ppMalloc
@@ -157,7 +157,7 @@ class Shell32(api.ApiHandler):
         return rv
 
     @apihook("CommandLineToArgv", argc=2)
-    def CommandLineToArgv(self, emu, argv, ctx: dict[str, str] | None = None):
+    def CommandLineToArgv(self, emu, argv, ctx: api.ApiContext = None):
         """
         LPWSTR * CommandLineToArgv(
             LPCWSTR lpCmdLine,
@@ -201,7 +201,7 @@ class Shell32(api.ApiHandler):
         return buf
 
     @apihook("ExtractIcon", argc=3)
-    def ExtractIcon(self, emu, argv, ctx: dict[str, str] | None = None):
+    def ExtractIcon(self, emu, argv, ctx: api.ApiContext = None):
         """
         HICON ExtractIconA(
           HINSTANCE hInst,
@@ -214,7 +214,7 @@ class Shell32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("SHGetFolderPath", argc=5)
-    def SHGetFolderPath(self, emu, argv, ctx: dict[str, str] | None = None):
+    def SHGetFolderPath(self, emu, argv, ctx: api.ApiContext = None):
         """
         HWND   hwnd,
         int    csidl,
