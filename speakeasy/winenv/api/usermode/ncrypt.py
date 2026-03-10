@@ -34,7 +34,6 @@ class Ncrypt(api.ApiHandler):
             DWORD              dwFlags
         );
         """
-        ctx = ctx or {}
         phProvider, pszProviderName, dwFlags = argv
         if pszProviderName:
             prov_str = self.read_wide_string(pszProviderName)

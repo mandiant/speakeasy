@@ -28,6 +28,5 @@ class Mscoree(api.ApiHandler):
             int  exitCode
         );
         """
-        ctx = ctx or {}
 
         return 0

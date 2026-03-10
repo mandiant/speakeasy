@@ -49,7 +49,6 @@ class WinHttp(api.ApiHandler):
           DWORD   dwFlags
         );
         """
-        ctx = ctx or {}
 
         ua, access, proxy, bypass, flags = argv
 
@@ -77,7 +76,6 @@ class WinHttp(api.ApiHandler):
           IN DWORD         dwReserved
         );
         """
-        ctx = ctx or {}
         hnd, server, port, reserve = argv
 
         if server:
@@ -106,7 +104,6 @@ class WinHttp(api.ApiHandler):
           IN DWORD     dwFlags
         );
         """
-        ctx = ctx or {}
         hnd, verb, objname, ver, ref, accepts, flags = argv
 
         if verb:
@@ -141,7 +138,6 @@ class WinHttp(api.ApiHandler):
           IN OUT WINHTTP_CURRENT_USER_IE_PROXY_CONFIG *pProxyConfig
         );
         """
-        ctx = ctx or {}
 
         (proxy_config,) = argv
 
@@ -160,7 +156,6 @@ class WinHttp(api.ApiHandler):
           OUT WINHTTP_PROXY_INFO       *pProxyInfo
         );
         """
-        ctx = ctx or {}
 
         hnd, url, proxopts, proxinfo = argv
 
@@ -183,7 +178,6 @@ class WinHttp(api.ApiHandler):
           IN DWORD_PTR dwContext
         );
         """
-        ctx = ctx or {}
         hnd, option, buff, buflen = argv
 
         return True
@@ -201,7 +195,6 @@ class WinHttp(api.ApiHandler):
           IN DWORD_PTR dwContext
         );
         """
-        ctx = ctx or {}
         hnd, headers, hdrlen, lpOptional, dwOptionalLength, totlen, context = argv
 
         body = b""
@@ -234,7 +227,6 @@ class WinHttp(api.ApiHandler):
           IN LPVOID    lpReserved
         );
         """
-        ctx = ctx or {}
         hnd, lpReserved = argv
 
         return True
@@ -249,7 +241,6 @@ class WinHttp(api.ApiHandler):
           OUT LPDWORD  lpdwNumberOfBytesRead
         );
         """
-        ctx = ctx or {}
         hnd, buf, size, bytes_read = argv
 
         rv = 1
@@ -276,7 +267,6 @@ class WinHttp(api.ApiHandler):
             LPURL_COMPONENTS lpUrlComponents
         );
         """
-        ctx = ctx or {}
         pwszUrl, dwUrlLength, dwFlags, lpUrlComponents = argv
         cw = 2  # Wide
         rv = False
@@ -320,7 +310,6 @@ class WinHttp(api.ApiHandler):
           DWORD     dwModifiers
         );
         """
-        ctx = ctx or {}
         hnd, headers, dwHeaderlen, dwModfier = argv
 
         headers = self.read_wide_string(headers, dwHeaderlen)
@@ -343,7 +332,6 @@ class WinHttp(api.ApiHandler):
            LPDWORD   lpdwIndex
          );
         """
-        ctx = ctx or {}
         hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
 
         header_query = windefs.get_header_query(dwInfoLevel)
@@ -372,7 +360,6 @@ class WinHttp(api.ApiHandler):
           HINTERNET hInternet
         );
         """
-        ctx = ctx or {}
         rv = 1
 
         return rv

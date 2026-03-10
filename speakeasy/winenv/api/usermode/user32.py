@@ -113,7 +113,6 @@ class User32(api.ApiHandler):
     @apihook("GetDesktopWindow", argc=0)
     def GetDesktopWindow(self, emu, argv, ctx: api.ApiContext = None):
         """HWND GetDesktopWindow();"""
-        ctx = ctx or {}
 
         hnd = 0
 
@@ -129,7 +128,6 @@ class User32(api.ApiHandler):
           HWND hWnd,
           int  nCmdShow
         );"""
-        ctx = ctx or {}
 
         rv = 1
 
@@ -145,7 +143,6 @@ class User32(api.ApiHandler):
             LPSECURITY_ATTRIBUTES lpsa
         );
         """
-        ctx = ctx or {}
         winsta, flags, access, sa = argv
 
         return self.get_handle()
@@ -157,7 +154,6 @@ class User32(api.ApiHandler):
             HWINSTA hWinSta
         );
         """
-        ctx = ctx or {}
         (winsta,) = argv
 
         rv = False
@@ -173,7 +169,6 @@ class User32(api.ApiHandler):
           HWND hWnd
         );
         """
-        ctx = ctx or {}
 
         rv = self.sessman.get_device_context()
 
@@ -208,7 +203,6 @@ class User32(api.ApiHandler):
             HINSTANCE hInstance
         );
         """
-        ctx = ctx or {}
 
         return 1
 
@@ -220,7 +214,6 @@ class User32(api.ApiHandler):
         int Y
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("CloseDesktop", argc=1)
@@ -230,7 +223,6 @@ class User32(api.ApiHandler):
         HDESK hDesktop
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("CloseWindowStation", argc=1)
@@ -240,7 +232,6 @@ class User32(api.ApiHandler):
         HWINSTA hWinSta
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetThreadDesktop", argc=1)
@@ -250,7 +241,6 @@ class User32(api.ApiHandler):
         DWORD dwThreadId
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("OpenWindowStation", argc=3)
@@ -262,7 +252,6 @@ class User32(api.ApiHandler):
         ACCESS_MASK dwDesiredAccess
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("ChangeWindowMessageFilter", argc=2)
@@ -273,7 +262,6 @@ class User32(api.ApiHandler):
             DWORD dwFlag
         );
         """
-        ctx = ctx or {}
         msg, flag = argv
         emu.enable_code_hook()
         return True
@@ -285,7 +273,6 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        ctx = ctx or {}
         (hnd,) = argv
         window = self.sessman.get_window(hnd)
         if not window:
@@ -305,7 +292,6 @@ class User32(api.ApiHandler):
             int nExitCode
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("DestroyWindow", argc=1)
@@ -315,7 +301,6 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("DefWindowProc", argc=4)
@@ -328,7 +313,6 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CreateWindowEx", argc=12)
@@ -375,7 +359,6 @@ class User32(api.ApiHandler):
           [in] DWORD    dwFlags
         );
         """
-        ctx = ctx or {}
         hwnd, crKey, bAlpha, dwFlags = argv
         return 1
 
@@ -483,7 +466,6 @@ class User32(api.ApiHandler):
           LPPOINT lpPoint
         );
         """
-        ctx = ctx or {}
 
         (lpPoint,) = argv
 
@@ -497,7 +479,6 @@ class User32(api.ApiHandler):
           [in] int vKey
         );
         """
-        ctx = ctx or {}
 
         (vkey,) = argv
         return self.get_synthetic_async_key_state(vkey)
@@ -509,7 +490,6 @@ class User32(api.ApiHandler):
           int nTypeFlag
         );
         """
-        ctx = ctx or {}
         (_type,) = argv
         if _type == 0:
             return 4
@@ -526,7 +506,6 @@ class User32(api.ApiHandler):
           int nIndex
         );
         """
-        ctx = ctx or {}
 
         (nIndex,) = argv
 
@@ -541,7 +520,6 @@ class User32(api.ApiHandler):
             LPCSTR    lpBitmapName
         );
         """
-        ctx = ctx or {}
         hInstance, lpBitmapName = argv
         rv = self.get_handle()
         return rv
@@ -554,7 +532,6 @@ class User32(api.ApiHandler):
           [out] LPRECT lpRect
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("RegisterWindowMessage", argc=1)
@@ -616,7 +593,6 @@ class User32(api.ApiHandler):
             UINT  wRemoveMsg
         );
         """
-        ctx = ctx or {}
         return False
 
     @apihook("PostMessage", argc=4)
@@ -629,7 +605,6 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("SendMessage", argc=4)
@@ -642,7 +617,6 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         """
-        ctx = ctx or {}
         hWnd, Msg, wParam, lParam = argv
         if hWnd in self.wndprocs:
             emu.set_pc(self.wndprocs[hWnd])
@@ -659,7 +633,6 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         """
-        ctx = ctx or {}
         hhk, nCode, wParam, lParam = argv
         return 0
 
@@ -673,7 +646,6 @@ class User32(api.ApiHandler):
             DWORD     dwThreadId
         );
         """
-        ctx = ctx or {}
         idHook, lpfn, hmod, dwThreadId = argv
 
         hname = windefs.get_windowhook_flags(idHook)
@@ -692,7 +664,6 @@ class User32(api.ApiHandler):
             HHOOK hhk
         );
         """
-        ctx = ctx or {}
         (hhk,) = argv
 
         rv = False
@@ -712,7 +683,6 @@ class User32(api.ApiHandler):
             DWORD        dwWakeMask
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetMessage", argc=4)
@@ -725,7 +695,6 @@ class User32(api.ApiHandler):
             UINT  wMsgFilterMax
         );
         """
-        ctx = ctx or {}
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
 
         t = emu.get_current_thread()
@@ -764,7 +733,6 @@ class User32(api.ApiHandler):
             const MSG *lpMsg
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("DispatchMessage", argc=1)
@@ -774,7 +742,6 @@ class User32(api.ApiHandler):
             const MSG *lpMsg
         );
         """
-        ctx = ctx or {}
         (lpMsg,) = argv
 
         msg = windefs.MSG(emu.get_ptr_size())
@@ -787,7 +754,6 @@ class User32(api.ApiHandler):
         """
         HWND GetForegroundWindow();
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("LoadCursor", argc=2)
@@ -798,7 +764,6 @@ class User32(api.ApiHandler):
         LPCSTR    lpCursorName
         );
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("FindWindow", argc=2)
@@ -850,7 +815,6 @@ class User32(api.ApiHandler):
         HDC hdc
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("wvsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
@@ -877,7 +841,6 @@ class User32(api.ApiHandler):
           HDC  hDC
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CharNext", argc=1)
@@ -926,7 +889,6 @@ class User32(api.ApiHandler):
             LPARAM      lParam
         );
         """
-        ctx = ctx or {}
         lpEnumFunc, lParam = argv
         rv = 1
 
@@ -939,7 +901,6 @@ class User32(api.ApiHandler):
             int nIndex
         );
         """
-        ctx = ctx or {}
         (nIndex,) = argv
         rv = 1
 
@@ -952,7 +913,6 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("GetSysColorBrush", argc=1)
@@ -962,7 +922,6 @@ class User32(api.ApiHandler):
             int nIndex
         );
         """
-        ctx = ctx or {}
         (nIndex,) = argv
         rv = 1
 
@@ -976,7 +935,6 @@ class User32(api.ApiHandler):
             int  nIndex
         );
         """
-        ctx = ctx or {}
         (
             hWnd,
             nIndex,
@@ -994,7 +952,6 @@ class User32(api.ApiHandler):
           LONG dwNewLong
         );
         """
-        ctx = ctx or {}
         hWnd, nIndex, dwNewLong = argv
         if (self.get_ptr_size() == 4 and nIndex == 0xFFFFFFFC) or (
             self.get_ptr_size() == 8 and nIndex == 0xFFFFFFFFFFFFFFFC
@@ -1035,7 +992,6 @@ class User32(api.ApiHandler):
         LPARAM          dwInitParam
         );
         """
-        ctx = ctx or {}
 
         (
             hnd,
@@ -1057,7 +1013,6 @@ class User32(api.ApiHandler):
             LPMENUINFO
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetProcessWindowStation", argc=0)
@@ -1065,7 +1020,6 @@ class User32(api.ApiHandler):
         """
         HWINSTA GetProcessWindowStation();
         """
-        ctx = ctx or {}
         sta = self.sessman.get_current_station()
         return sta.get_handle()
 
@@ -1077,7 +1031,6 @@ class User32(api.ApiHandler):
         LPCSTR    lpTableName
         );
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("IsWindowVisible", argc=1)
@@ -1087,7 +1040,6 @@ class User32(api.ApiHandler):
         HWND hWnd
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("BeginPaint", argc=2)
@@ -1098,7 +1050,6 @@ class User32(api.ApiHandler):
         LPPAINTSTRUCT lpPaint
         );
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("LookupIconIdFromDirectory", argc=2)
@@ -1109,7 +1060,6 @@ class User32(api.ApiHandler):
         BOOL  fIcon
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetActiveWindow", argc=0)
@@ -1117,7 +1067,6 @@ class User32(api.ApiHandler):
         """
         HWND GetActiveWindow();
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("GetLastActivePopup", argc=1)
@@ -1127,7 +1076,6 @@ class User32(api.ApiHandler):
         HWND hWnd
         );
         """
-        ctx = ctx or {}
         (hWnd,) = argv
         return self.get_handle()
 
@@ -1142,7 +1090,6 @@ class User32(api.ApiHandler):
             LPDWORD lpnLengthNeeded
         );
         """
-        ctx = ctx or {}
         obj, index, info, length, needed = argv
 
         if index == UOI_FLAGS:
@@ -1163,7 +1110,6 @@ class User32(api.ApiHandler):
             LPCSTR    lpIconName
         );
         """
-        ctx = ctx or {}
         (
             inst,
             name,
@@ -1193,7 +1139,6 @@ class User32(api.ApiHandler):
           UINT                cbSize
         );
         """
-        ctx = ctx or {}
         pRawInputDeviceList, puiNumDevices, cbSize = argv
         num_devices = 4
         self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
@@ -1208,7 +1153,6 @@ class User32(api.ApiHandler):
           BOOL bPrevious
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetCaretPos", argc=1)
@@ -1218,7 +1162,6 @@ class User32(api.ApiHandler):
           LPPOINT lpPoint
         );
         """
-        ctx = ctx or {}
         lpPoint = argv[0]
         point = windef.POINT(emu.get_ptr_size())
         point.x = 0
@@ -1234,7 +1177,6 @@ class User32(api.ApiHandler):
           LPMONITORINFO lpmi
         );
         """
-        ctx = ctx or {}
         hMonitor, lpmi = argv
         mi = windef.MONITORINFO(emu.get_ptr_size())
         mi = self.mem_cast(mi, lpmi)
@@ -1250,7 +1192,6 @@ class User32(api.ApiHandler):
           const PAINTSTRUCT *lpPaint
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetDlgCtrlID", argc=1)
@@ -1260,7 +1201,6 @@ class User32(api.ApiHandler):
           HWND hWnd
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetUpdateRect", argc=3)
@@ -1272,7 +1212,6 @@ class User32(api.ApiHandler):
           BOOL   bErase
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetAltTabInfo", argc=5)
@@ -1286,7 +1225,6 @@ class User32(api.ApiHandler):
           UINT        cchItemText
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetUpdateRgn", argc=3)
@@ -1298,7 +1236,6 @@ class User32(api.ApiHandler):
           BOOL bErase
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("FlashWindow", argc=2)
@@ -1309,7 +1246,6 @@ class User32(api.ApiHandler):
           BOOL bInvert
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("IsClipboardFormatAvailable", argc=1)
@@ -1319,7 +1255,6 @@ class User32(api.ApiHandler):
           UINT format
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("IsWindow", argc=1)
@@ -1329,7 +1264,6 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        ctx = ctx or {}
         (hnd,) = argv
 
         return True
@@ -1342,7 +1276,6 @@ class User32(api.ApiHandler):
         BOOL bEnable
         );
         """
-        ctx = ctx or {}
         hnd, bEnable = argv
 
         return False
@@ -1435,7 +1368,6 @@ class User32(api.ApiHandler):
           TIMERPROC lpTimerFunc
         );
         """
-        ctx = ctx or {}
         self.timer_count += 1
 
         return self.get_handle()
@@ -1448,7 +1380,6 @@ class User32(api.ApiHandler):
           UINT_PTR uIDEvent
         );
         """
-        ctx = ctx or {}
         self.timer_count -= 1
 
         return True
@@ -1477,7 +1408,6 @@ class User32(api.ApiHandler):
             HDESK hDesktop
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetKeyboardLayoutList", argc=2)
@@ -1488,7 +1418,6 @@ class User32(api.ApiHandler):
           HKL *lpList
         );
         """
-        ctx = ctx or {}
         nBuff, lpList = argv
         if not nBuff:
             # number of items
@@ -1504,7 +1433,6 @@ class User32(api.ApiHandler):
         """
         INT GetKBCodePage();
         """
-        ctx = ctx or {}
         # >>> ctypes.windll.user32.GetKBCodePage()
         # 437
         # https://docs.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
@@ -1515,7 +1443,6 @@ class User32(api.ApiHandler):
         """
         HWND GetClipboardViewer();
         """
-        ctx = ctx or {}
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -1529,7 +1456,6 @@ class User32(api.ApiHandler):
         """
         HWND GetClipboardOwner();
         """
-        ctx = ctx or {}
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -1543,7 +1469,6 @@ class User32(api.ApiHandler):
         """
         LONG GetMenuCheckMarkDimensions();
         """
-        ctx = ctx or {}
         # >>> ctypes.windll.user32.GetMenuCheckMarkDimensions()
         # 983055
         return 983055
@@ -1553,7 +1478,6 @@ class User32(api.ApiHandler):
         """
         HWND GetOpenClipboardWindow();
         """
-        ctx = ctx or {}
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -1567,7 +1491,6 @@ class User32(api.ApiHandler):
         """
         HWND GetFocus();
         """
-        ctx = ctx or {}
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -1581,7 +1504,6 @@ class User32(api.ApiHandler):
         """
         HCURSOR GetCursor();
         """
-        ctx = ctx or {}
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -1595,7 +1517,6 @@ class User32(api.ApiHandler):
         """
         DWORD GetClipboardSequenceNumber();
         """
-        ctx = ctx or {}
         # >>> ctypes.windll.user32.GetClipboardSequenceNumber()
         # 295
         return 295
@@ -1605,7 +1526,6 @@ class User32(api.ApiHandler):
         """
         UINT GetCaretBlinkTime();
         """
-        ctx = ctx or {}
         # >>> ctypes.windll.user32.GetCaretBlinkTime()
         # 530
         return 530
@@ -1615,7 +1535,6 @@ class User32(api.ApiHandler):
         """
         UINT GetDoubleClickTime();
         """
-        ctx = ctx or {}
         # >>> ctypes.windll.user32.GetDoubleClickTime()
         # 500
         return 500
@@ -1627,7 +1546,6 @@ class User32(api.ApiHandler):
             LPCSTR lpszFormat
         );
         """
-        ctx = ctx or {}
         # Return a fake clipboard format ID.
         # Clipboard format IDs start at 0xC000 for custom formats.
         return 0xC000
@@ -1642,7 +1560,6 @@ class User32(api.ApiHandler):
             UINT  fWinIni
         );
         """
-        ctx = ctx or {}
         uiAction, uiParam, pvParam, fWinIni = argv
 
         # Many callers expect pvParam to be filled with something.
@@ -1656,7 +1573,6 @@ class User32(api.ApiHandler):
             DWORD idThread
         );
         """
-        ctx = ctx or {}
         # Return a fake HKL (keyboard layout handle).
         # Real HKLs are typically like 0x04090409 (LANG + device id).
         return 0x04090409
@@ -1671,7 +1587,6 @@ class User32(api.ApiHandler):
             LPARAM          dwData
         );
         """
-        ctx = ctx or {}
         hdc, lprcClip, lpfnEnum, dwData = argv
 
         # Most callers expect TRUE to indicate success.
@@ -1686,7 +1601,6 @@ class User32(api.ApiHandler):
             LPSTR  lpszDst
         );
         """
-        ctx = ctx or {}
         src, dst = argv
 
         # If destination buffer exists, copy source bytes into it.
@@ -1713,7 +1627,6 @@ class User32(api.ApiHandler):
             LPCWSTR lpszCurrent
         );
         """
-        ctx = ctx or {}
         start, current = argv
 
         # If current > start, return current - 2 (one WCHAR back)

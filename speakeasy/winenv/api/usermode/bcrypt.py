@@ -35,7 +35,6 @@ class Bcrypt(api.ApiHandler):
           ULONG             dwFlags
         );
         """
-        ctx = ctx or {}
         phAlgorithm, pszAlgId, pszImplementation, dwFlags = argv
 
         algid = self.read_wide_string(pszAlgId)
@@ -97,7 +96,6 @@ class Bcrypt(api.ApiHandler):
           ULONG             dwFlags
         );
         """
-        ctx = ctx or {}
         hAlgorithm, dwFlags = argv
 
         cm = emu.get_crypt_manager()
@@ -118,7 +116,6 @@ class Bcrypt(api.ApiHandler):
           ULONG         dwFlags
         );
         """
-        ctx = ctx or {}
         hObject, pszProperty, pbOutput, cbOutput, pcbResult, dwFlags = argv
 
         property = self.read_wide_string(pszProperty)

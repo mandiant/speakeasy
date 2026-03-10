@@ -35,5 +35,4 @@ class Msimg32(api.ApiHandler):
           UINT crTransparent
         );
         """
-        ctx = ctx or {}
         return 1

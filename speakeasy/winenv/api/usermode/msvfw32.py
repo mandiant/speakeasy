@@ -29,7 +29,6 @@ class Msvfw32(api.ApiHandler):
             UINT wMode
             );
         """
-        ctx = ctx or {}
         _fcc_type, _fcc_handler, _mode = argv
         return self.get_handle()
 
@@ -43,7 +42,6 @@ class Msvfw32(api.ApiHandler):
             DWORD_PTR dw2
             );
         """
-        ctx = ctx or {}
         _hic, _msg, _dw1, _dw2 = argv
         return 1
 
@@ -54,5 +52,4 @@ class Msvfw32(api.ApiHandler):
             HIC hic
             );
         """
-        ctx = ctx or {}
         return 1

@@ -55,7 +55,6 @@ class Secur32(api.ApiHandler):
         unsigned long  MessageSeqNo
         );
         """
-        ctx = ctx or {}
 
         PCtxtHandle, fQOP, pMessage, MessageSeqNo = argv
 

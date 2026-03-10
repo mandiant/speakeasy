@@ -197,7 +197,6 @@ class Wininet(api.ApiHandler):
           DWORD     dwBufferLength
         );
         """
-        ctx = ctx or {}
         hnd, option, buf, length = argv
 
         rv = 1
@@ -212,7 +211,6 @@ class Wininet(api.ApiHandler):
           DWORD   dwReserved
         );
         """
-        ctx = ctx or {}
         lpdwFlags, dwReserved = argv
 
         rv = True
@@ -272,7 +270,6 @@ class Wininet(api.ApiHandler):
           LPVOID    *lppvData
         );
         """
-        ctx = ctx or {}
         hWnd, req, error, flags, data = argv
 
         return
@@ -287,7 +284,6 @@ class Wininet(api.ApiHandler):
             LPDWORD   lpdwBufferLength
         );
         """
-        ctx = ctx or {}
         hInternet, dwOption, lpBuffer, lpdwBufferLength = argv
         rv = False
         opt = windefs.get_option_define(dwOption)
@@ -312,7 +308,6 @@ class Wininet(api.ApiHandler):
           LPDWORD   lpdwNumberOfBytesRead
         );
         """
-        ctx = ctx or {}
         hFile, buf, size, bytes_read = argv
 
         rv = 1
@@ -375,7 +370,6 @@ class Wininet(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
-        ctx = ctx or {}
         hFile, lpdwNumberOfBytesAvailable, dwFlags, dwContext = argv
         rv = False
 
@@ -395,7 +389,6 @@ class Wininet(api.ApiHandler):
             HINTERNET hInternet
         );
         """
-        ctx = ctx or {}
         (hInternet,) = argv
         rv = True
 

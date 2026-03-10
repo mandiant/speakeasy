@@ -36,7 +36,6 @@ class Usbd(api.ApiHandler):
           ULONG                         Tag
         );
         """
-        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
         ConfigDesc, BufferLength, Level, Offset, Tag = argv
 

@@ -22,5 +22,4 @@ class NetUtils(api.ApiHandler):
           _Frees_ptr_opt_ LPVOID Buffer
         );
         """
-        ctx = ctx or {}
         return netapi32defs.NERR_Success

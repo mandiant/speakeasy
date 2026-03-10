@@ -129,7 +129,6 @@ class Shell32(api.ApiHandler):
             LPCVOID dwItem2
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("IsUserAnAdmin", argc=0, ordinal=680)
@@ -137,7 +136,6 @@ class Shell32(api.ApiHandler):
         """
         BOOL IsUserAnAdmin();
         """
-        ctx = ctx or {}
         return emu.config.user.is_admin
 
     @apihook("SHGetMalloc", argc=1)
@@ -147,7 +145,6 @@ class Shell32(api.ApiHandler):
             IMalloc **ppMalloc
         );
         """
-        ctx = ctx or {}
         (ppMalloc,) = argv
 
         if ppMalloc:
@@ -209,7 +206,6 @@ class Shell32(api.ApiHandler):
           UINT      nIconIndex
         );
         """
-        ctx = ctx or {}
 
         return self.get_handle()
 

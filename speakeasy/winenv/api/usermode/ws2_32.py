@@ -47,7 +47,6 @@ class Ws2_32(api.ApiHandler):
           LPWSADATA lpWSAData
         );
         """
-        ctx = ctx or {}
         ver, lpWSAData = argv
 
         wsa = self.wstypes.WSAData(emu.get_ptr_size())
@@ -68,7 +67,6 @@ class Ws2_32(api.ApiHandler):
         """
         int WSACleanup();
         """
-        ctx = ctx or {}
 
         return 0
 
@@ -84,7 +82,6 @@ class Ws2_32(api.ApiHandler):
           DWORD               dwFlags
         );
         """
-        ctx = ctx or {}
         af, typ, protocol, lpProtocolInfo, g, dwFlags = argv
 
         fam_str = winsock.get_addr_family(af)
@@ -114,7 +111,6 @@ class Ws2_32(api.ApiHandler):
           LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
         );
         """
-        ctx = ctx or {}
 
         # TODO: Add actual function logic. However, for now, returning 0 (success) should cover most use cases.
 
@@ -148,7 +144,6 @@ class Ws2_32(api.ApiHandler):
           int protocol
         );
         """
-        ctx = ctx or {}
         af, typ, protocol = argv
 
         fam_str = winsock.get_addr_family(af)
@@ -170,7 +165,6 @@ class Ws2_32(api.ApiHandler):
           _In_ const char *cp
         );
         """
-        ctx = ctx or {}
         (a,) = argv
 
         if a:
@@ -191,7 +185,6 @@ class Ws2_32(api.ApiHandler):
           u_short hostshort
         );
         """
-        ctx = ctx or {}
         (hostshort,) = argv
 
         netshort = htons(hostshort)
@@ -205,7 +198,6 @@ class Ws2_32(api.ApiHandler):
             u_short netshort
         );
         """
-        ctx = ctx or {}
         (netshort,) = argv
 
         return ntohs(netshort)
@@ -217,7 +209,6 @@ class Ws2_32(api.ApiHandler):
             u_long netlong
         );
         """
-        ctx = ctx or {}
         (netlong,) = argv
 
         return ntohl(netlong)
@@ -233,7 +224,6 @@ class Ws2_32(api.ApiHandler):
           int        optlen
         );
         """
-        ctx = ctx or {}
         s, level, optname, optval, optlen = argv
         rv = 0
 
@@ -258,7 +248,6 @@ class Ws2_32(api.ApiHandler):
             int iError
         );
         """
-        ctx = ctx or {}
         (iError,) = argv
 
         self.last_error = iError
@@ -272,7 +261,6 @@ class Ws2_32(api.ApiHandler):
             int  namelen
         );
         """
-        ctx = ctx or {}
         (
             name,
             namelen,
@@ -293,7 +281,6 @@ class Ws2_32(api.ApiHandler):
         """
         struct hostent * gethostbyname(const char FAR * name);
         """
-        ctx = ctx or {}
         (name,) = argv
 
         name = self.read_mem_string(name, 1)
@@ -340,7 +327,6 @@ class Ws2_32(api.ApiHandler):
           int            namelen
         );
         """
-        ctx = ctx or {}
 
         s, pname, namelen = argv
 
@@ -381,7 +367,6 @@ class Ws2_32(api.ApiHandler):
             int            namelen
         );
         """
-        ctx = ctx or {}
         s, pname, namelen = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -415,7 +400,6 @@ class Ws2_32(api.ApiHandler):
             int    backlog
         );
         """
-        ctx = ctx or {}
         s, backlog = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -432,7 +416,6 @@ class Ws2_32(api.ApiHandler):
             const timeval *timeout
         );
         """
-        ctx = ctx or {}
         nfds, readfds, writefds, exceptfds, timeout = argv
         fd_count = 0
 
@@ -462,7 +445,6 @@ class Ws2_32(api.ApiHandler):
             int      *addrlen
         );
         """
-        ctx = ctx or {}
         s, addr, addrlen = argv
 
         socket = self.netman.get_socket(s)
@@ -502,7 +484,6 @@ class Ws2_32(api.ApiHandler):
         """
         char FAR* inet_ntoa(struct in_addr in);
         """
-        ctx = ctx or {}
         (in_addr,) = argv
 
         raddr = inet_ntoa(in_addr.to_bytes(4, "little"))
@@ -523,7 +504,6 @@ class Ws2_32(api.ApiHandler):
           [in]  size_t     StringBufSize
         );
         """
-        ctx = ctx or {}
         family, pAddr, pStringBuf, StringBufSize = argv
 
         fam_str = winsock.get_addr_family(family)
@@ -552,7 +532,6 @@ class Ws2_32(api.ApiHandler):
           [out] PVOID pAddrBuf
         );
         """
-        ctx = ctx or {}
 
         family, pszAddrString, pAddrBuf = argv
 
@@ -578,7 +557,6 @@ class Ws2_32(api.ApiHandler):
         """
         uint32_t htonl(uint32_t hostlong);
         """
-        ctx = ctx or {}
         (hostlong,) = argv
         return htonl(hostlong)
 
@@ -590,7 +568,6 @@ class Ws2_32(api.ApiHandler):
             fd_set *
         );
         """
-        ctx = ctx or {}
         sock, fd_set = argv
         return 1
 
@@ -602,7 +579,6 @@ class Ws2_32(api.ApiHandler):
             int    how
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("recv", argc=4, ordinal=16)
@@ -615,7 +591,6 @@ class Ws2_32(api.ApiHandler):
           int    flags
         );
         """
-        ctx = ctx or {}
 
         s, buf, blen, flags = argv
         rv = 0
@@ -652,7 +627,6 @@ class Ws2_32(api.ApiHandler):
           int        flags
         );
         """
-        ctx = ctx or {}
         s, buf, blen, flags = argv
         data = b""
 
@@ -681,7 +655,6 @@ class Ws2_32(api.ApiHandler):
           IN SOCKET s
         );
         """
-        ctx = ctx or {}
         (s,) = argv
 
         rv = 0
@@ -704,7 +677,6 @@ class Ws2_32(api.ApiHandler):
             u_long *argp
         );
         """
-        ctx = ctx or {}
         s, cmd, argp = argv
         rv = winsock.WSAENOTSOCK
 
@@ -724,7 +696,6 @@ class Ws2_32(api.ApiHandler):
           PADDRINFOA      *ppResult
         );
         """
-        ctx = ctx or {}
         pNodeName, pServiceName, pHints, ppResult = argv
         rv = 0
 
@@ -790,7 +761,6 @@ class Ws2_32(api.ApiHandler):
           PADDRINFOA pAddrInfo
         );
         """
-        ctx = ctx or {}
         self.mem_free(argv[0])
 
         return
@@ -806,7 +776,6 @@ class Ws2_32(api.ApiHandler):
           int    *optlen
         );
         """
-        ctx = ctx or {}
         s, level, optname, optval, optlen = argv
         rv = 0
 

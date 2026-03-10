@@ -92,7 +92,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = None):
         """Command line global CRT variable"""
-        ctx = ctx or {}
 
         cmdln = self._acmdln()
 
@@ -105,7 +104,6 @@ class Msvcrt(api.ApiHandler):
             _onexit_t function
         )
         """
-        ctx = ctx or {}
 
         (func,) = argv
         return func
@@ -121,7 +119,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         )
         """
-        ctx = ctx or {}
 
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
 
@@ -167,7 +164,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         )
         """
-        ctx = ctx or {}
 
         string1, string2, count = argv
         rv = 1
@@ -190,7 +186,6 @@ class Msvcrt(api.ApiHandler):
         static int _initterm_e(_PIFV * pfbegin,
                                  _PIFV * pfend)
         """
-        ctx = ctx or {}
 
         pfbegin, pfend = argv
 
@@ -201,7 +196,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("_initterm", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm(self, emu, argv, ctx: api.ApiContext = None):
         """static void _initterm (_PVFV * pfbegin, _PVFV * pfend)"""
-        ctx = ctx or {}
 
         pfbegin, pfend = argv
 
@@ -219,7 +213,6 @@ class Msvcrt(api.ApiHandler):
             int _DoWildCard,
             _startupinfo * _StartInfo);
         """
-        ctx = ctx or {}
 
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
         rv = 0
@@ -286,7 +279,6 @@ class Msvcrt(api.ApiHandler):
            int _DoWildCard,
            _startupinfo * _StartInfo);
         """
-        ctx = ctx or {}
 
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
         rv = 0
@@ -296,7 +288,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p___wargv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___wargv(self, emu, argv, ctx: api.ApiContext = None):
         """WCHAR *** __p___wargv ()"""
-        ctx = ctx or {}
 
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
@@ -328,7 +319,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p___argv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___argv(self, emu, argv, ctx: api.ApiContext = None):
         """char *** __p___argv ()"""
-        ctx = ctx or {}
 
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
@@ -360,7 +350,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p___argc", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___argc(self, emu, argv, ctx: api.ApiContext = None):
         """int * __p___argc ()"""
-        ctx = ctx or {}
 
         _argv = emu.get_argv()
 
@@ -371,7 +360,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p___initenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___initenv(self, emu, argv, ctx: api.ApiContext = None):
         """char *** __p___initenv ()"""
-        ctx = ctx or {}
         ptr_size = self.get_ptr_size()
         ptr = self.mem_alloc(size=ptr_size, tag="api.initenv")
         return ptr
@@ -379,7 +367,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = None):
         """char** _get_initial_narrow_environment ()"""
-        ctx = ctx or {}
 
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
@@ -410,7 +397,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("_get_initial_wide_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_wide_environment(self, emu, argv, ctx: api.ApiContext = None):
         """WCHAR** _get_initial_wide_environment ()"""
-        ctx = ctx or {}
 
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
@@ -445,7 +431,6 @@ class Msvcrt(api.ApiHandler):
            int const status
         );
         """
-        ctx = ctx or {}
 
         self.exit_process()
 
@@ -456,7 +441,6 @@ class Msvcrt(api.ApiHandler):
            int const status
         );
         """
-        ctx = ctx or {}
 
         self.exit_process()
 
@@ -468,7 +452,6 @@ class Msvcrt(api.ApiHandler):
             struct _EXCEPTION_POINTERS *pxcptinfoptrs
         );
         """
-        ctx = ctx or {}
         _xcptnum, _pxcptinfoptrs = argv
 
         return 0
@@ -481,13 +464,11 @@ class Msvcrt(api.ApiHandler):
             _ThrowInfo *pThrowInfo
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("__acrt_iob_func", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __acrt_iob_func(self, emu, argv, ctx: api.ApiContext = None):
         """FILE * __acrt_iob_func (fd)"""
-        ctx = ctx or {}
 
         (fd,) = argv
 
@@ -501,7 +482,6 @@ class Msvcrt(api.ApiHandler):
            double y
         );
         """
-        ctx = ctx or {}
         x, y = argv
 
         x = self.hex_to_double(x)
@@ -520,7 +500,6 @@ class Msvcrt(api.ApiHandler):
            double x
         );
         """
-        ctx = ctx or {}
         (x,) = argv
 
         y = self.hex_to_double(x)
@@ -536,7 +515,6 @@ class Msvcrt(api.ApiHandler):
            double x
         );
         """
-        ctx = ctx or {}
         (x,) = argv
 
         y = self.hex_to_double(x)
@@ -552,7 +530,6 @@ class Msvcrt(api.ApiHandler):
            int x
         );
         """
-        ctx = ctx or {}
         (x,) = argv
         y = abs(x)
         return y
@@ -565,7 +542,6 @@ class Msvcrt(api.ApiHandler):
            const char *strSearch
         );
         """
-        ctx = ctx or {}
         hay, needle = argv
 
         if hay:
@@ -592,7 +568,6 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *strSearch
         );
         """
-        ctx = ctx or {}
         hay, needle = argv
 
         if hay:
@@ -621,7 +596,6 @@ class Msvcrt(api.ApiHandler):
            size_t count
         );
         """
-        ctx = ctx or {}
         strDest, num, src, count = argv
         rv = 0
 
@@ -652,7 +626,6 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__stdio_common_vfprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vfprintf(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
 
         arch = emu.get_arch()
         if arch == e_arch.ARCH_AMD64:
@@ -682,7 +655,6 @@ class Msvcrt(api.ApiHandler):
             ...
             );
         """
-        ctx = ctx or {}
         stream, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -706,7 +678,6 @@ class Msvcrt(api.ApiHandler):
             ...
             );
         """
-        ctx = ctx or {}
         (fmt,) = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -729,7 +700,6 @@ class Msvcrt(api.ApiHandler):
                        int value,
                        size_t num );
         """
-        ctx = ctx or {}
 
         ptr, value, num = argv
 
@@ -743,7 +713,6 @@ class Msvcrt(api.ApiHandler):
         """
         time_t time( time_t *destTime );
         """
-        ctx = ctx or {}
 
         (destTime,) = argv
 
@@ -758,7 +727,6 @@ class Msvcrt(api.ApiHandler):
         """
         char *_strtime(char *buffer);
         """
-        ctx = ctx or {}
         (buffer,) = argv
         if not buffer:
             return 0
@@ -770,7 +738,6 @@ class Msvcrt(api.ApiHandler):
         """
         char *_strdate(char *buffer);
         """
-        ctx = ctx or {}
         (buffer,) = argv
         if not buffer:
             return 0
@@ -782,7 +749,6 @@ class Msvcrt(api.ApiHandler):
         """
         clock_t clock( void );
         """
-        ctx = ctx or {}
 
         self.tick_counter += 200
 
@@ -793,7 +759,6 @@ class Msvcrt(api.ApiHandler):
         """
         void srand (unsigned int seed);
         """
-        ctx = ctx or {}
 
         (seed,) = argv
 
@@ -808,7 +773,6 @@ class Msvcrt(api.ApiHandler):
             argument] ...
             );
         """
-        ctx = ctx or {}
         buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -834,7 +798,6 @@ class Msvcrt(api.ApiHandler):
         argument] ...
         );
         """
-        ctx = ctx or {}
         buf, count, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -857,7 +820,6 @@ class Msvcrt(api.ApiHandler):
             const char *str
         );
         """
-        ctx = ctx or {}
 
         (_str,) = argv
 
@@ -876,7 +838,6 @@ class Msvcrt(api.ApiHandler):
         """
         int rand( void );
         """
-        ctx = ctx or {}
 
         self.rand_int += 1
 
@@ -889,12 +850,10 @@ class Msvcrt(api.ApiHandler):
             int at
         )
         """
-        ctx = ctx or {}
         return
 
     @apihook("_set_app_type", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_app_type(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -902,7 +861,6 @@ class Msvcrt(api.ApiHandler):
         """
         int* __p__fmode();
         """
-        ctx = ctx or {}
         _O_TEXT = 0x4000
 
         ptr = self.mem_alloc(4, tag="api.fmode")
@@ -915,7 +873,6 @@ class Msvcrt(api.ApiHandler):
         """
         int* __p__commode();
         """
-        ctx = ctx or {}
         _IOCOMMIT = 0x4000
 
         ptr = self.mem_alloc(4, tag="api.commode")
@@ -929,7 +886,6 @@ class Msvcrt(api.ApiHandler):
         unsigned int _controlfp(unsigned int new,
                                 unsinged int mask)
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("strcpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -940,7 +896,6 @@ class Msvcrt(api.ApiHandler):
            const char *strSource
         );
         """
-        ctx = ctx or {}
         dest, src = argv
         s = self.read_string(src)
 
@@ -956,7 +911,6 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *strSource
         );
         """
-        ctx = ctx or {}
         dest, src = argv
         ws = self.read_wide_string(src)
         self.write_wide_string(ws, dest)
@@ -972,7 +926,6 @@ class Msvcrt(api.ApiHandler):
             size_t num
         );
         """
-        ctx = ctx or {}
         dest, src, length = argv
         s = self.read_string(src, max_chars=length)
         if len(s) < length:
@@ -990,7 +943,6 @@ class Msvcrt(api.ApiHandler):
            size_t count
         );
         """
-        ctx = ctx or {}
         dest, src, count = argv
         ws = self.read_wide_string(src, max_chars=count)
         if len(ws) < count:
@@ -1008,7 +960,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
             );
         """
-        ctx = ctx or {}
         dest, src, count = argv
         data = self.mem_read(src, count)
         self.mem_write(dest, data)
@@ -1023,7 +974,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-        ctx = ctx or {}
         dest, src, count = argv
         data = self.mem_read(src, count)
         self.mem_write(dest, data)
@@ -1038,7 +988,6 @@ class Msvcrt(api.ApiHandler):
            size_t count
         );
         """
-        ctx = ctx or {}
         diff = 0
         buff1, buff2, cnt = argv
         for i in range(cnt):
@@ -1063,7 +1012,6 @@ class Msvcrt(api.ApiHandler):
         _Inout_ struct _DISPATCHER_CONTEXT *DispatcherContext
         );
         """
-        ctx = ctx or {}
         # Inferred from the SEH teardowns described here:
         # https://bytepointer.com/resources/pietrek_crash_course_depths_of_win32_seh.htm
         # http://www.openrce.org/articles/full_view/21
@@ -1131,7 +1079,6 @@ class Msvcrt(api.ApiHandler):
            struct _EXCEPTION_POINTERS* _ExceptionPtr
         );
         """
-        ctx = ctx or {}
         except_num, exc_ptr = argv
         rv = 1
 
@@ -1147,7 +1094,6 @@ class Msvcrt(api.ApiHandler):
         PEXCEPTION_REGISTRATION dispatcher
         );
         """
-        ctx = ctx or {}
         rv = 1
         return rv
 
@@ -1159,7 +1105,6 @@ class Msvcrt(api.ApiHandler):
            struct _EXCEPTION_POINTERS* _ExceptionPtr
         );
         """
-        ctx = ctx or {}
         except_num, exc_ptr = argv
         rv = 1
 
@@ -1172,7 +1117,6 @@ class Msvcrt(api.ApiHandler):
            const char *str
         );
         """
-        ctx = ctx or {}
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
@@ -1188,7 +1132,6 @@ class Msvcrt(api.ApiHandler):
             _onexit_table_t* table
             );
         """
-        ctx = ctx or {}
         rv = 0
 
         return rv
@@ -1201,7 +1144,6 @@ class Msvcrt(api.ApiHandler):
             _onexit_t        function
             );
         """
-        ctx = ctx or {}
         rv = 0
 
         return rv
@@ -1213,7 +1155,6 @@ class Msvcrt(api.ApiHandler):
         size_t size
         );
         """
-        ctx = ctx or {}
         (size,) = argv
 
         chunk = self.heap_alloc(size, heap="HeapAlloc")
@@ -1227,7 +1168,6 @@ class Msvcrt(api.ApiHandler):
         size_t size
         );
         """
-        ctx = ctx or {}
         (
             num,
             size,
@@ -1247,7 +1187,6 @@ class Msvcrt(api.ApiHandler):
         void *memblock
         );
         """
-        ctx = ctx or {}
         (mem,) = argv
         self.mem_free(mem)
 
@@ -1263,7 +1202,6 @@ class Msvcrt(api.ApiHandler):
             unsigned *thrdaddr
         );
         """
-        ctx = ctx or {}
         security, stack_size, start_address, arglist, initflag, thrdaddr = argv
 
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
@@ -1282,7 +1220,6 @@ class Msvcrt(api.ApiHandler):
         void *arglist
         );
         """
-        ctx = ctx or {}
         start_address, stack_size, arglist = argv
 
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
@@ -1295,7 +1232,6 @@ class Msvcrt(api.ApiHandler):
            const char *command
         );
         """
-        ctx = ctx or {}
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
@@ -1311,7 +1247,6 @@ class Msvcrt(api.ApiHandler):
            int c
         );
         """
-        ctx = ctx or {}
         (c,) = argv
         argv[0] = c
         if 0x00 <= c <= 0x7F:
@@ -1327,7 +1262,6 @@ class Msvcrt(api.ApiHandler):
             const char *str
         );
         """
-        ctx = ctx or {}
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
@@ -1344,7 +1278,6 @@ class Msvcrt(api.ApiHandler):
             const char *strSource
         );
         """
-        ctx = ctx or {}
         _str1, _str2 = argv
         s1 = self.read_mem_string(_str1, 1)
         s2 = self.read_mem_string(_str2, 1)
@@ -1361,7 +1294,6 @@ class Msvcrt(api.ApiHandler):
             char *str
             );
         """
-        ctx = ctx or {}
         (string_ptr,) = argv
 
         if not string_ptr:
@@ -1381,7 +1313,6 @@ class Msvcrt(api.ApiHandler):
             size_t num
         );
         """
-        ctx = ctx or {}
         dest, src, count = argv
         s1 = self.read_mem_string(dest, 1)
         s2 = self.read_string(src, max_chars=count)
@@ -1399,7 +1330,6 @@ class Msvcrt(api.ApiHandler):
            const wchar_t *strSource
         );
         """
-        ctx = ctx or {}
         _str1, _str2 = argv
         s1 = self.read_mem_string(_str1, 2)
         s2 = self.read_mem_string(_str2, 2)
@@ -1416,7 +1346,6 @@ class Msvcrt(api.ApiHandler):
           const wchar_t* wcs
         );
         """
-        ctx = ctx or {}
         (s,) = argv
         string = self.read_wide_string(s)
         argv[0] = string
@@ -1431,7 +1360,6 @@ class Msvcrt(api.ApiHandler):
             int locknum
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("_unlock", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1441,7 +1369,6 @@ class Msvcrt(api.ApiHandler):
             int locknum
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("_ltoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -1453,7 +1380,6 @@ class Msvcrt(api.ApiHandler):
             int radix
         );
         """
-        ctx = ctx or {}
         (
             val,
             out_str,
@@ -1473,7 +1399,6 @@ class Msvcrt(api.ApiHandler):
             _PVFV **  pend
         )
         """
-        ctx = ctx or {}
         (
             func,
             pbegin,
@@ -1490,7 +1415,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-        ctx = ctx or {}
         s1, s2, c = argv
         rv = 1
 
@@ -1511,7 +1435,6 @@ class Msvcrt(api.ApiHandler):
             const char *string2,
         );
         """
-        ctx = ctx or {}
         s1, s2 = argv
         rv = 1
 
@@ -1532,7 +1455,6 @@ class Msvcrt(api.ApiHandler):
             int c
             );
         """
-        ctx = ctx or {}
         cstr, c = argv
         cs = self.read_string(cstr)
         hay = cs.encode("utf-8")
@@ -1554,7 +1476,6 @@ class Msvcrt(api.ApiHandler):
         """
         int _ftol(int);
         """
-        ctx = ctx or {}
         (f,) = argv
         return int(f)
 
@@ -1563,7 +1484,6 @@ class Msvcrt(api.ApiHandler):
         """
         void _adjust_fdiv(void)
         """
-        ctx = ctx or {}
         return
 
     @apihook("tolower", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1571,7 +1491,6 @@ class Msvcrt(api.ApiHandler):
         """
         int tolower ( int c );
         """
-        ctx = ctx or {}
         (c,) = argv
         return c | 0x20
 
@@ -1582,7 +1501,6 @@ class Msvcrt(api.ApiHandler):
             int c
             );
         """
-        ctx = ctx or {}
         (c,) = argv
         return int(48 <= c <= 57)
 
@@ -1591,7 +1509,6 @@ class Msvcrt(api.ApiHandler):
         """
         int sscanf ( const char * s, const char * format, ...);
         """
-        ctx = ctx or {}
         return
 
     @apihook("strchr", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -1602,7 +1519,6 @@ class Msvcrt(api.ApiHandler):
             int c
             );
         """
-        ctx = ctx or {}
         cstr, c = argv
         cs = self.read_string(cstr)
         hay = cs.encode("utf-8")
@@ -1626,7 +1542,6 @@ class Msvcrt(api.ApiHandler):
         _invalid_parameter_handler pNew
         );
         """
-        ctx = ctx or {}
         (pNew,) = argv
 
         return 0
@@ -1641,7 +1556,6 @@ class Msvcrt(api.ApiHandler):
             DispatcherContext  *pDC
         )
         """
-        ctx = ctx or {}
         (
             pExcept,
             pRN,
@@ -1660,7 +1574,6 @@ class Msvcrt(api.ApiHandler):
             va_list argptr
         );
         """
-        ctx = ctx or {}
         buffer, count, _format, argptr = argv
         rv = 0
 
@@ -1691,7 +1604,6 @@ class Msvcrt(api.ApiHandler):
             va_list argptr
         );
         """
-        ctx = ctx or {}
         options_lo, options_hi, buffer, count, _format, locale, argptr = argv
         rv = 0
         fmt_str = self.read_mem_string(_format, 1)
@@ -1717,7 +1629,6 @@ class Msvcrt(api.ApiHandler):
                 const char *string2
                 );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1743,7 +1654,6 @@ class Msvcrt(api.ApiHandler):
                 const wchar_t *string2
                 );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1763,7 +1673,6 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("??3@YAXPAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __3_YAXPAX_Z(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         (ptr,) = argv
         if ptr:
             self.mem_free(ptr)
@@ -1771,7 +1680,6 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("??2@YAPAXI@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __2_YAPAXI_Z(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         (size,) = argv
         if size <= 0:
             size = self.get_ptr_size()
@@ -1779,98 +1687,79 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__current_exception_context", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception_context(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("__current_exception", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_set_new_mode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_new_mode(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_configthreadlocale", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configthreadlocale(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_setusermatherr", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _setusermatherr(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("__setusermatherr", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __setusermatherr(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_cexit", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _cexit(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         # TODO: handle atexit flavor functions
         self.exit_process()
 
     @apihook("_c_exit", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _c_exit(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         self.exit_process()
 
     @apihook("_register_thread_local_exe_atexit_callback", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _register_thread_local_exe_atexit_callback(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _crt_atexit(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_controlfp_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp_s(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("terminate", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def terminate(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         self.exit_process()
 
     @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
     def _crt_atexit(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_initialize_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_narrow_environment(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_configure_narrow_argv", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configure_narrow_argv(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_set_fmode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_fmode(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_itoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itoa(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_itow", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itow(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("_EH_prolog", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _EH_prolog(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         # push    -1
         emu.push_stack(0xFFFFFFFF)
 
@@ -1907,7 +1796,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-        ctx = ctx or {}
         mbstr, wcstr, count = argv
 
         s = self.read_wide_string(wcstr, count)
@@ -1922,7 +1810,6 @@ class Msvcrt(api.ApiHandler):
                 const char *string2
                 );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1949,7 +1836,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-        ctx = ctx or {}
         string1, string2, count = argv
         rv = 1
 
@@ -1975,7 +1861,6 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *string2
             );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1998,7 +1883,6 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *string2,
         );
         """
-        ctx = ctx or {}
         s1, s2 = argv
         rv = 1
 
@@ -2021,7 +1905,6 @@ class Msvcrt(api.ApiHandler):
             argument] ...
             );
         """
-        ctx = ctx or {}
         buf, cnt, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
         # the internal printf implementation requires uppercase S for wide string formatting,
         # otherwise the function replaces a latin1 string into an utf-16 string
@@ -2044,7 +1927,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("_errno", argc=0)
     def _errno(self, emu, argv, ctx: api.ApiContext = None):
         """ """
-        ctx = ctx or {}
         _VAL = 0x0C
 
         if not self.errno_t:
@@ -2061,7 +1943,6 @@ class Msvcrt(api.ApiHandler):
             const char *mode
             );
         """
-        ctx = ctx or {}
         filename, mode = argv
 
         if not filename or not mode:
@@ -2093,7 +1974,6 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *mode
             );
         """
-        ctx = ctx or {}
         filename, mode = argv
 
         if not filename or not mode:
@@ -2124,7 +2004,6 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
             );
         """
-        ctx = ctx or {}
         (stream,) = argv
 
         if not stream:
@@ -2143,7 +2022,6 @@ class Msvcrt(api.ApiHandler):
             int origin
             );
         """
-        ctx = ctx or {}
         stream, offset, origin = argv
         hfile = self.file_streams.get(stream)
         argv[0] = hfile or 0
@@ -2166,7 +2044,6 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
             );
         """
-        ctx = ctx or {}
         (stream,) = argv
         hfile = self.file_streams.get(stream)
         argv[0] = hfile or 0
@@ -2192,7 +2069,6 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
             );
         """
-        ctx = ctx or {}
         ptr, size, count, stream = argv
         hfile = self.file_streams.get(stream)
         argv[3] = hfile or 0
@@ -2220,7 +2096,6 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
         );
         """
-        ctx = ctx or {}
         c, _ = argv
         return c
 
@@ -2232,7 +2107,6 @@ class Msvcrt(api.ApiHandler):
             int (*func)(int, int)
         );
         """
-        ctx = ctx or {}
         sig, _ = argv
 
         if sig in [SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT]:

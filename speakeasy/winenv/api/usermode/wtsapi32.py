@@ -85,7 +85,6 @@ class WtsApi32(api.ApiHandler):
           IN PVOID pMemory
         );
         """
-        ctx = ctx or {}
         (pMemory,) = argv
         rv = 1
 

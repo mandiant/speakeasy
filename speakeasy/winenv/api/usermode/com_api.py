@@ -32,7 +32,6 @@ class ComApi(api.ApiHandler):
             void   **ppvObject
         );
         """
-        ctx = ctx or {}
         # not implemented
         return comdefs.S_OK
 
@@ -41,7 +40,6 @@ class ComApi(api.ApiHandler):
         """
         ULONG AddRef();
         """
-        ctx = ctx or {}
         # not implemented
         return 1
 
@@ -50,7 +48,6 @@ class ComApi(api.ApiHandler):
         """
         ULONG Release();
         """
-        ctx = ctx or {}
         # not implemented
         return 0
 
@@ -68,7 +65,6 @@ class ComApi(api.ApiHandler):
             IWbemServices **ppNamespace
         );
         """
-        ctx = ctx or {}
         ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, pCtx, ppNamespace = argv
         argv[1] = self.read_wide_string(strNetworkResource)
 
@@ -91,7 +87,6 @@ class ComApi(api.ApiHandler):
             IEnumWbemClassObject **ppEnum
         );
         """
-        ctx = ctx or {}
         ptr, strQueryLanguage, strQuery, lFlags, pCtx, ppEnum = argv
         argv[1] = self.read_wide_string(strQueryLanguage)
         argv[2] = self.read_wide_string(strQuery)

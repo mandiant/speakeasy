@@ -57,7 +57,6 @@ class Ndis(api.ApiHandler):
         """
         UINT NdisGetVersion();
         """
-        ctx = ctx or {}
 
         ndis_major = 5
         ndis_minor = 0
@@ -83,7 +82,6 @@ class Ndis(api.ApiHandler):
             PNDIS_STRING NdisRoutineName
         );
         """
-        ctx = ctx or {}
         (NdisRoutineName,) = argv
         fn = self.read_unicode_string(NdisRoutineName)
 
@@ -102,7 +100,6 @@ class Ndis(api.ApiHandler):
             PNDIS_HANDLE NdisMiniportDriverHandle
         );
         """
-        ctx = ctx or {}
         drv, reg, drv_ctx, chars, phnd = argv
         rv = NDIS_STATUS_SUCCESS
 
@@ -121,7 +118,6 @@ class Ndis(api.ApiHandler):
             PVOID           SystemSpecific2,
             PVOID           SystemSpecific3)
         """
-        ctx = ctx or {}
         pHandle, ss1, ss2, ss3 = argv
 
         hnd = self.new_id()
@@ -136,7 +132,6 @@ class Ndis(api.ApiHandler):
         _In_ PVOID       SystemSpecific
         );
         """
-        ctx = ctx or {}
         hnd, ss = argv
 
     @apihook("NdisInitializeReadWriteLock", argc=1)
@@ -146,7 +141,6 @@ class Ndis(api.ApiHandler):
             PNDIS_RW_LOCK Lock
         );
         """
-        ctx = ctx or {}
         (lock,) = argv
 
     @apihook("NdisMRegisterUnloadHandler", argc=2)
@@ -157,7 +151,6 @@ class Ndis(api.ApiHandler):
         _In_ PDRIVER_UNLOAD UnloadHandler
         );
         """
-        ctx = ctx or {}
         hnd, unload = argv
 
     @apihook("NdisRegisterProtocol", argc=4)
@@ -170,7 +163,6 @@ class Ndis(api.ApiHandler):
         _In_  UINT                           CharacteristicsLength
         );
         """
-        ctx = ctx or {}
         pStatus, pProtoHandle, pChars, clen = argv
         rv = NDIS_STATUS_SUCCESS
         hnd = self.new_id()
@@ -194,7 +186,6 @@ class Ndis(api.ApiHandler):
         _Out_ PNDIS_HANDLE                   DriverHandle
         );
         """
-        ctx = ctx or {}
         hnd, mp_chars, clen, drv_hnd = argv
         rv = NDIS_STATUS_SUCCESS
 
@@ -218,7 +209,6 @@ class Ndis(api.ApiHandler):
         NDIS_HANDLE ProtocolHandle
         );
         """
-        ctx = ctx or {}
         drv_hnd, phnd = argv
 
     @apihook("NdisAllocateGenericObject", argc=3)
@@ -230,7 +220,6 @@ class Ndis(api.ApiHandler):
             USHORT         Size
         );
         """
-        ctx = ctx or {}
         drv, tag, size = argv
 
         ptr = 0
@@ -256,7 +245,6 @@ class Ndis(api.ApiHandler):
           _In_  ULONG Tag
         );
         """
-        ctx = ctx or {}
         va, size, tag = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -277,7 +265,6 @@ class Ndis(api.ApiHandler):
           PNET_BUFFER_LIST_POOL_PARAMETERS Parameters
         );
         """
-        ctx = ctx or {}
         NdisHandle, Parameters = argv
 
         params = self.mem_cast(self.ndis.NET_BUFFER_LIST_POOL_PARAMETERS(emu.get_ptr_size()), Parameters)
@@ -303,7 +290,6 @@ class Ndis(api.ApiHandler):
         NDIS_HANDLE PoolHandle
         );
         """
-        ctx = ctx or {}
         (handle,) = argv
 
         return
@@ -317,7 +303,6 @@ class Ndis(api.ApiHandler):
         UINT  MemoryFlags
         );
         """
-        ctx = ctx or {}
         va, length, flags = argv
 
         return
@@ -329,7 +314,6 @@ class Ndis(api.ApiHandler):
         PNDIS_GENERIC_OBJECT NdisObject
         );
         """
-        ctx = ctx or {}
         (pObj,) = argv
 
         return

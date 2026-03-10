@@ -31,7 +31,6 @@ class Ole32(api.ApiHandler):
             IN LPVOID pvReserved
         );
         """
-        ctx = ctx or {}
 
         rv = windefs.S_OK
 
@@ -44,7 +43,6 @@ class Ole32(api.ApiHandler):
           LPVOID pvReserved
         );
         """
-        ctx = ctx or {}
 
         rv = windefs.S_OK
 
@@ -58,7 +56,6 @@ class Ole32(api.ApiHandler):
           DWORD  dwCoInit
         );
         """
-        ctx = ctx or {}
 
         rv = windefs.S_OK
 
@@ -69,7 +66,6 @@ class Ole32(api.ApiHandler):
         """
         void CoUninitialize();
         """
-        ctx = ctx or {}
 
     @apihook("CoInitializeSecurity", argc=9)
     def CoInitializeSecurity(self, emu, argv, ctx: api.ApiContext = None):
@@ -86,7 +82,6 @@ class Ole32(api.ApiHandler):
           void                        *pReserved3
         );
         """
-        ctx = ctx or {}
 
         rv = windefs.S_OK
 
@@ -111,7 +106,6 @@ class Ole32(api.ApiHandler):
           LPVOID    *ppv
         );
         """
-        ctx = ctx or {}
         rclsid, pUnkOuter, dwClsContext, riid, ppv = argv
         rv = windefs.S_OK
 
@@ -151,7 +145,6 @@ class Ole32(api.ApiHandler):
             DWORD                    dwCapabilities
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("StringFromCLSID", argc=2)
@@ -162,7 +155,6 @@ class Ole32(api.ApiHandler):
         LPOLESTR *lplpsz
         );
         """
-        ctx = ctx or {}
 
         rclsid, lplpsz = argv
         rv = windefs.S_OK
@@ -181,7 +173,6 @@ class Ole32(api.ApiHandler):
 
     @apihook("CoCreateGuid", argc=1)
     def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         pguid = argv[0]
         guid_bytes = b"\xde\xad\xc0\xde\xbe\xef\xca\xfe\xba\xbe\x01\x23\x45\x67\x89\xab"
         if pguid:

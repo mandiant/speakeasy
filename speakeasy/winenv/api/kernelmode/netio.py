@@ -120,7 +120,6 @@ class Netio(api.ApiHandler):
           PWSK_REGISTRATION WskRegistration
         );
         """
-        ctx = ctx or {}
         WskClientNpi, WskRegistration = argv
         rv = 0
 
@@ -136,7 +135,6 @@ class Netio(api.ApiHandler):
           PWSK_PROVIDER_NPI WskProviderNpi
         );
         """
-        ctx = ctx or {}
         WskRegistration, WaitTimeout, WskProviderNpi = argv
         rv = 0
 
@@ -176,7 +174,6 @@ class Netio(api.ApiHandler):
           PSECURITY_DESCRIPTOR SecurityDescriptor,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         cli, af, stype, proto, flags, sctx, disp, proc, thr, secdesc, pIrp = argv  # noqa
         rv = ddk.STATUS_INVALID_PARAMETER
 
@@ -208,7 +205,6 @@ class Netio(api.ApiHandler):
           PSECURITY_DESCRIPTOR SecurityDescriptor,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         cli, stype, proto, laddr, raddr, flags, sctx, disp, proc, thr, secdesc, irp = argv  # noqa
 
         rv = 0
@@ -227,7 +223,6 @@ class Netio(api.ApiHandler):
           SIZE_T *OutputSizeReturned,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         cli, ctl, insiz, inbuf, osiz, obuf, oret, irp = argv
         rv = 0
 
@@ -247,7 +242,6 @@ class Netio(api.ApiHandler):
           PETHREAD OwningThread,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         cli, node, svc, namespace, prov, hints, res, proc, thr, irp = argv
         rv = 0
 
@@ -259,7 +253,6 @@ class Netio(api.ApiHandler):
           PWSK_CLIENT Client,
           PADDRINFOEXW AddrInfo
         )"""
-        ctx = ctx or {}
         cli, addr = argv
         rv = 0
 
@@ -278,7 +271,6 @@ class Netio(api.ApiHandler):
           PETHREAD OwningThread,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         cli, saddr, saddrlen, node, svc, flags, proc, thr, irp = argv
         rv = 0
 
@@ -298,7 +290,6 @@ class Netio(api.ApiHandler):
           SIZE_T *OutputSizeReturned,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, rtype, ctl, level, isize, ibuf, osize, obuf, oret, irp = argv
         rv = 0
 
@@ -310,7 +301,6 @@ class Netio(api.ApiHandler):
           PWSK_SOCKET Socket,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, irp = argv
         rv = 0
 
@@ -324,7 +314,6 @@ class Netio(api.ApiHandler):
           ULONG Flags,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, laddr, flags, irp = argv
         rv = 0
 
@@ -348,7 +337,6 @@ class Netio(api.ApiHandler):
           PCMSGHDR ControlInfo,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, buf, flags, raddr, infolen, ctlinfo, irp = argv
         rv = 0
 
@@ -366,7 +354,6 @@ class Netio(api.ApiHandler):
           PULONG ControlFlags,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, buf, flags, raddr, ctllen, ctlinfo, irp = argv
         rv = 0
 
@@ -378,7 +365,6 @@ class Netio(api.ApiHandler):
           _In_ PWSK_SOCKET          Socket,
           _In_ PWSK_DATA_INDICATION DataIndication
         )"""
-        ctx = ctx or {}
         sock, data_indic = argv
         rv = 0
 
@@ -391,7 +377,6 @@ class Netio(api.ApiHandler):
           PSOCKADDR LocalAddress,
           PIRP Irp
         )"""
-        ctx = ctx or {}
         sock, laddr = argv
         rv = 0
 
@@ -404,7 +389,6 @@ class Netio(api.ApiHandler):
         PWSK_REGISTRATION WskRegistration
         );
         """
-        ctx = ctx or {}
         (reg,) = argv
 
         return
@@ -414,7 +398,6 @@ class Netio(api.ApiHandler):
         """
         N/A
         """
-        ctx = ctx or {}
         return
 
     @apihook("WskDeregister", argc=1)
@@ -424,7 +407,6 @@ class Netio(api.ApiHandler):
         PWSK_REGISTRATION WskRegistration
         );
         """
-        ctx = ctx or {}
         (reg,) = argv
 
         return

@@ -54,7 +54,6 @@ class Psapi(api.ApiHandler):
 
     @apihook("EnumProcesses", argc=3)
     def EnumProcesses(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -75,7 +74,6 @@ class Psapi(api.ApiHandler):
 
     @apihook("EnumProcessModules", argc=4)
     def EnumProcessModules(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         hProcess, lphModule, cb, lpcbNeeded = argv
         proc = self.get_object_from_handle(hProcess)
         if not proc:

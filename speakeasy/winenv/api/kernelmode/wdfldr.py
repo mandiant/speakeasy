@@ -205,7 +205,6 @@ class Wdfldr(api.ApiHandler):
         __out PWDF_COMPONENT_GLOBALS* ComponentGlobals
         );
         """
-        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
         drv, reg_path, BindInfo, comp_globals = argv
 
@@ -240,7 +239,6 @@ class Wdfldr(api.ApiHandler):
           WDFDRIVER              *Driver
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DriverObject, RegistryPath, DriverAttributes, DriverConfig, Driver = argv
 
         driver = WdfDriver()
@@ -267,7 +265,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_PNPPOWER_EVENT_CALLBACKS PnpPowerEventCallbacks
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DeviceInit, PnpPowerEventCallbacks = argv
 
         return
@@ -280,7 +277,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_OBJECT_ATTRIBUTES RequestAttributes
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DeviceInit, RequestAttributes = argv
 
         return
@@ -294,7 +290,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_OBJECT_ATTRIBUTES FileObjectAttributes
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DeviceInit, FileObjectConfig, FileObjectAttributes = argv
 
         return
@@ -307,7 +302,6 @@ class Wdfldr(api.ApiHandler):
           WDF_DEVICE_IO_TYPE IoType
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DeviceInit, IoType = argv
 
         return
@@ -321,7 +315,6 @@ class Wdfldr(api.ApiHandler):
           WDFDEVICE              *Device
         );
         """
-        ctx = ctx or {}
         DriverGlobals, DeviceInit, DeviceAttributes, Device = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -350,7 +343,6 @@ class Wdfldr(api.ApiHandler):
           PCWDF_OBJECT_CONTEXT_TYPE_INFO TypeInfo
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Handle, TypeInfo = argv
 
         driver = self.wdf_drivers.get(DriverGlobals)
@@ -372,7 +364,6 @@ class Wdfldr(api.ApiHandler):
           WDFKEY                 *Key
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Driver, DesiredAccess, KeyAttributes, pKey = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -396,7 +387,6 @@ class Wdfldr(api.ApiHandler):
           PULONG           Value
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Key, ValueName, Value = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -419,7 +409,6 @@ class Wdfldr(api.ApiHandler):
           WDFKEY Key
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Key = argv
         return
 
@@ -431,7 +420,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_DEVICE_PNP_CAPABILITIES PnpCapabilities
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device, PnpCapabilities = argv
         return
 
@@ -444,7 +432,6 @@ class Wdfldr(api.ApiHandler):
           WDFCONTEXT             Context
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Queue, QueueReady, Context = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -459,7 +446,6 @@ class Wdfldr(api.ApiHandler):
           PCUNICODE_STRING ReferenceString
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device, InterfaceClassGUID, ReferenceString = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -484,7 +470,6 @@ class Wdfldr(api.ApiHandler):
           WDFQUEUE               *Queue
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device, Config, QueueAttributes, Queue = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -507,7 +492,6 @@ class Wdfldr(api.ApiHandler):
           WDFDEVICE Device
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device = argv
 
         if not self.pnp_device:
@@ -527,7 +511,6 @@ class Wdfldr(api.ApiHandler):
           WDFUSBDEVICE                  *UsbDevice
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device, Config, Attributes, UsbDevice = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -546,7 +529,6 @@ class Wdfldr(api.ApiHandler):
           WDFDEVICE Device
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Device = argv
         rv = 0
 
@@ -563,7 +545,6 @@ class Wdfldr(api.ApiHandler):
           PUSB_DEVICE_DESCRIPTOR UsbDeviceDescriptor
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = argv
 
         dev = self.usb_devices.get(UsbDevice)
@@ -584,7 +565,6 @@ class Wdfldr(api.ApiHandler):
           PVOID                  *Buffer
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Attributes, PoolType, PoolTag, BufferSize, Mem, Buf = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -607,7 +587,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_DEVICE_SELECT_CONFIG_PARAMS Params
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbDevice, PipeAttributes, Params = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -643,7 +622,6 @@ class Wdfldr(api.ApiHandler):
           PUSHORT      ConfigDescriptorLength
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbDevice, ConfigDescriptor, ConfigDescriptorLength = argv
         rv = ddk.STATUS_BUFFER_TOO_SMALL
 
@@ -677,7 +655,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_INTERFACE_SELECT_SETTING_PARAMS Params
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbInterface, PipesAttributes, Params = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
@@ -700,7 +677,6 @@ class Wdfldr(api.ApiHandler):
           WDFUSBDEVICE UsbDevice
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbDevice = argv
 
         rv = 0
@@ -717,7 +693,6 @@ class Wdfldr(api.ApiHandler):
           WDFUSBINTERFACE UsbInterface
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0
@@ -739,7 +714,6 @@ class Wdfldr(api.ApiHandler):
           WDFUSBINTERFACE UsbInterface
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0
@@ -761,7 +735,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_DEVICE_INFORMATION Information
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbDevice, Information = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
@@ -785,7 +758,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_PIPE_INFORMATION PipeInfo
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbInterface, PipeIndex, PipeInfo = argv
 
         rv = 0
@@ -831,7 +803,6 @@ class Wdfldr(api.ApiHandler):
           PWDF_USB_PIPE_INFORMATION PipeInformation
         );
         """
-        ctx = ctx or {}
         DriverGlobals, Pipe, PipeInfo = argv
 
         _pipe = self.usb_pipes.get(Pipe)
@@ -870,7 +841,6 @@ class Wdfldr(api.ApiHandler):
           WDFUSBINTERFACE UsbInterface
         );
         """
-        ctx = ctx or {}
         DriverGlobals, UsbInterface = argv
 
         rv = 0

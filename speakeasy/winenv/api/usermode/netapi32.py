@@ -28,7 +28,6 @@ class NetApi32(api.ApiHandler):
           PNETSETUP_JOIN_STATUS BufferType
         );
         """
-        ctx = ctx or {}
         lpServer, lpNameBuffer, BufferType = argv
 
         if lpServer:
@@ -56,7 +55,6 @@ class NetApi32(api.ApiHandler):
           LPBYTE *bufptr
         );
         """
-        ctx = ctx or {}
         servername, level, bufptr = argv
 
         if level not in [100, 101, 102]:
@@ -115,5 +113,4 @@ class NetApi32(api.ApiHandler):
           _Frees_ptr_opt_ LPVOID Buffer
         );
         """
-        ctx = ctx or {}
         return netapi32defs.NERR_Success

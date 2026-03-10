@@ -283,7 +283,6 @@ class AdvApi32(api.ApiHandler):
           HKEY hKey
         );
         """
-        ctx = ctx or {}
 
         (hKey,) = argv
         rv = windefs.ERROR_SUCCESS
@@ -470,7 +469,6 @@ class AdvApi32(api.ApiHandler):
 
     @apihook("RegQueryInfoKey", argc=12, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryInfoKey(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         # TODO: stub
         """
         LSTATUS RegQueryInfoKeyA(
@@ -525,7 +523,6 @@ class AdvApi32(api.ApiHandler):
           PHANDLE pTokenHandle
         );
         """
-        ctx = ctx or {}
 
         hProcess, DesiredAccess, pTokenHandle = argv
         rv = 0
@@ -559,7 +556,6 @@ class AdvApi32(api.ApiHandler):
             PHANDLE TokenHandle
         );
         """
-        ctx = ctx or {}
 
         ThreadHandle, DesiredAccess, OpenAsSelf, pTokenHandle = argv
         rv = 0
@@ -595,7 +591,6 @@ class AdvApi32(api.ApiHandler):
           PHANDLE                      phNewToken
         );
         """
-        ctx = ctx or {}
 
         (hExistingToken, access, token_attrs, imp_level, toktype, phNewToken) = argv
         rv = 0
@@ -626,7 +621,6 @@ class AdvApi32(api.ApiHandler):
           DWORD                   TokenInformationLength
         );
         """
-        ctx = ctx or {}
 
         handle, info_class, info, info_len = argv
 
@@ -689,7 +683,6 @@ class AdvApi32(api.ApiHandler):
             LPHANDLER_FUNCTION lpHandlerProc
             );
         """
-        ctx = ctx or {}
 
         lpServiceName, lpHandlerProc = argv
 
@@ -722,7 +715,6 @@ class AdvApi32(api.ApiHandler):
             LPSERVICE_STATUS      lpServiceStatus
             );
         """
-        ctx = ctx or {}
 
         hServiceStatus, lpServiceStatus = argv
 
@@ -735,7 +727,6 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL RevertToSelf();
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("ImpersonateLoggedOnUser", argc=1)
@@ -745,7 +736,6 @@ class AdvApi32(api.ApiHandler):
         HANDLE hToken
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("OpenSCManager", argc=3)
@@ -757,7 +747,6 @@ class AdvApi32(api.ApiHandler):
           DWORD  dwDesiredAccess
         );
         """
-        ctx = ctx or {}
         lpMachineName, lpDatabaseName, dwDesiredAccess = argv
 
         hScm = self.mem_alloc(size=8)
@@ -827,7 +816,6 @@ class AdvApi32(api.ApiHandler):
           LPCSTR    *lpServiceArgVectors
         );
         """
-        ctx = ctx or {}
         hService, dwNumServiceArgs, lpServiceArgVectors = argv
 
         rv = 1
@@ -850,7 +838,6 @@ class AdvApi32(api.ApiHandler):
           [out] LPSERVICE_STATUS lpServiceStatus
         );
         """
-        ctx = ctx or {}
         hService, dwControl, lpServiceStatus = argv
 
         rv = 1
@@ -867,7 +854,6 @@ class AdvApi32(api.ApiHandler):
           LPSERVICE_STATUS lpServiceStatus
         );
         """
-        ctx = ctx or {}
         hService, lpServiceStatus = argv
 
         if not hService:
@@ -901,7 +887,6 @@ class AdvApi32(api.ApiHandler):
           LPDWORD                 pcbBytesNeeded
         );
         """
-        ctx = ctx or {}
         hService, lpServiceConfig, cbBufSize, pcbBytesNeeded = argv
 
         if not hService:
@@ -940,7 +925,6 @@ class AdvApi32(api.ApiHandler):
           SC_HANDLE hSCObject
         );
         """
-        ctx = ctx or {}
         (CloseServiceHandle,) = argv
 
         self.mem_free(CloseServiceHandle)
@@ -1010,7 +994,6 @@ class AdvApi32(api.ApiHandler):
           LPVOID    lpInfo
         );
         """
-        ctx = ctx or {}
         hService, dwInfoLevel, lpInfo = argv
 
         rv = 1
@@ -1027,7 +1010,6 @@ class AdvApi32(api.ApiHandler):
             ULONG RandomBufferLength
         );
         """
-        ctx = ctx or {}
         RandomBuffer, RandomBufferLength = argv
 
         rv = False
@@ -1081,7 +1063,6 @@ class AdvApi32(api.ApiHandler):
             BYTE       *pbBuffer
         );
         """
-        ctx = ctx or {}
         hProv, dwLen, pbBuffer = argv
         rv = False
 
@@ -1109,7 +1090,6 @@ class AdvApi32(api.ApiHandler):
             PSID                      *pSid
         );
         """
-        ctx = ctx or {}
         auth, count, sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, pSid = argv
         rv = False
 
@@ -1129,7 +1109,6 @@ class AdvApi32(api.ApiHandler):
             PBOOL  IsMember
         );
         """
-        ctx = ctx or {}
         TokenHandle, SidToCheck, IsMember = argv
         rv = False
 
@@ -1145,7 +1124,6 @@ class AdvApi32(api.ApiHandler):
             PSID pSid
         );
         """
-        ctx = ctx or {}
         (pSid,) = argv
         rv = pSid
 
@@ -1162,7 +1140,6 @@ class AdvApi32(api.ApiHandler):
             DWORD      dwFlags
         );
         """
-        ctx = ctx or {}
         hProv, dwFlags = argv
         rv = True
 
@@ -1269,7 +1246,6 @@ class AdvApi32(api.ApiHandler):
             PDWORD            ReturnLength
         );
         """
-        ctx = ctx or {}
         rv = True
 
         return rv
@@ -1285,7 +1261,6 @@ class AdvApi32(api.ApiHandler):
             PDWORD                  ReturnLength
         );
         """
-        ctx = ctx or {}
         hnd, info_class, info, info_len, ret_len = argv
         rv = True
 
@@ -1308,7 +1283,6 @@ class AdvApi32(api.ApiHandler):
             PSID pSid2
         );
         """
-        ctx = ctx or {}
         sid1, sid2 = argv
         rv = False
 
@@ -1327,7 +1301,6 @@ class AdvApi32(api.ApiHandler):
           [in] PSID pSid
         );
         """
-        ctx = ctx or {}
         (sid,) = argv
 
         # IdentifierAuthority is at offset 0x02 in the SID structure
@@ -1340,7 +1313,6 @@ class AdvApi32(api.ApiHandler):
             PSID pSid
         );
         """
-        ctx = ctx or {}
         (sid,) = argv
         rv = 0
 
@@ -1357,7 +1329,6 @@ class AdvApi32(api.ApiHandler):
           [in] DWORD nSubAuthority
         );
         """
-        ctx = ctx or {}
         sid, nsub = argv
 
         # SubAuthorities begin at offset 0x8
@@ -1539,7 +1510,6 @@ class AdvApi32(api.ApiHandler):
           HCRYPTHASH *phHash
         );
         """
-        ctx = ctx or {}
 
         hash_algs = {
             0x00008004: ("CALG_SHA1", hashlib.sha1),
@@ -1574,7 +1544,6 @@ class AdvApi32(api.ApiHandler):
           DWORD      dwFlags
         );
         """
-        ctx = ctx or {}
 
         hHash, pbData, dwDataLen, dwFlags = argv
         hnd = self.hash_objects.get(hHash, None)
@@ -1600,7 +1569,6 @@ class AdvApi32(api.ApiHandler):
           DWORD      dwFlags
         );
         """
-        ctx = ctx or {}
         hHash, dwParam, pbData, pdwDataLen, dwFlags = argv
 
         param_enums = {1: "HP_ALGID", 2: "HP_HASHVAL", 4: "HP_HASHSIZE", 5: "HP_HMAC_INFO"}
@@ -1617,7 +1585,6 @@ class AdvApi32(api.ApiHandler):
           HCRYPTHASH hHash
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("CryptDeriveKey", argc=5)
@@ -1631,7 +1598,6 @@ class AdvApi32(api.ApiHandler):
           HCRYPTKEY  *phKey
         );
         """
-        ctx = ctx or {}
 
         hProv, Algid, hBaseData, dwFlags, phKey = argv
 
@@ -1678,7 +1644,6 @@ class AdvApi32(api.ApiHandler):
           DWORD      *pdwDataLen
         );
         """
-        ctx = ctx or {}
 
         hKey, hHash, Final, dwFlags, pbData, pdwDataLen = argv
 
@@ -1797,7 +1762,6 @@ class AdvApi32(api.ApiHandler):
           LPDWORD                lpResumeHandle
         );
         """
-        ctx = ctx or {}
         (
             hSCManager,
             dwServiceType,
@@ -1843,5 +1807,4 @@ class AdvApi32(api.ApiHandler):
           SC_HANDLE hService
         );
         """
-        ctx = ctx or {}
         return 1

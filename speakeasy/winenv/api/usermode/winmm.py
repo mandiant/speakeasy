@@ -22,5 +22,4 @@ class Winmm(api.ApiHandler):
         """
         DWORD timeGetTime(); // return the system time, in milliseconds
         """
-        ctx = ctx or {}
         return int(time.monotonic() * 1000) & 0xFFFFFFFF

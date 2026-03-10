@@ -27,7 +27,6 @@ class Wkscli(api.ApiHandler):
           PNETSETUP_JOIN_STATUS BufferType
         );
         """
-        ctx = ctx or {}
         lpServer, lpNameBuffer, BufferType = argv
 
         if lpServer:

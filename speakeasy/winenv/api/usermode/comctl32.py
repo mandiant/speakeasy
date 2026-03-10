@@ -25,7 +25,6 @@ class Comctl32(api.ApiHandler):
             const INITCOMMONCONTROLSEX *picce
         );
         """
-        ctx = ctx or {}
         (picce,) = argv
         rv = True
 
@@ -39,5 +38,4 @@ class Comctl32(api.ApiHandler):
         Under Comctl32.dll version 6.0 and later, InitCommonControls does nothing.
         Applications must explicitly register all common controls through InitCommonControlsEx.
         """
-        ctx = ctx or {}
         return

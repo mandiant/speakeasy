@@ -24,5 +24,4 @@ class Lz32(api.ApiHandler):
           INT  iOrigin
         );
         """
-        ctx = ctx or {}
         return -1

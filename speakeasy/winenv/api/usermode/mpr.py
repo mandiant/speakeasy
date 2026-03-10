@@ -27,7 +27,6 @@ class Mpr(api.ApiHandler):
           LPHANDLE       lphEnum
         );
         """
-        ctx = ctx or {}
         dwScope, dwType, dwUsage, lpNetResource, lphEnum = argv
 
         scope = mpr.get_define_int(dwScope, "RESOURCE_")
@@ -54,7 +53,6 @@ class Mpr(api.ApiHandler):
           LPDWORD lpBufferSize
         );
         """
-        ctx = ctx or {}
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetAddConnection2", argc=4, conv=_arch.CALL_CONV_STDCALL)
@@ -67,7 +65,6 @@ class Mpr(api.ApiHandler):
           DWORD          dwFlags
         );
         """
-        ctx = ctx or {}
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetGetConnection", argc=3, conv=_arch.CALL_CONV_STDCALL)

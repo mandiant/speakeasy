@@ -24,5 +24,4 @@ class Msi32(api.ApiHandler):
           LPCSTR    szTableName
         );
         """
-        ctx = ctx or {}
         return 0

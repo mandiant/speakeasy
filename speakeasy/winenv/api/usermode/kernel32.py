@@ -245,7 +245,6 @@ class Kernel32(api.ApiHandler):
         """
         LCID GetThreadLocale();
         """
-        ctx = ctx or {}
         return 0xC000
 
     @apihook("SetThreadLocale", argc=1)
@@ -255,7 +254,6 @@ class Kernel32(api.ApiHandler):
             LCID Locale
         );
         """
-        ctx = ctx or {}
 
         (lcid,) = argv
         return lcid
@@ -268,7 +266,6 @@ class Kernel32(api.ApiHandler):
             DWORD dwFlags
         );
         """
-        ctx = ctx or {}
 
         lcid, flags = argv
         return True
@@ -296,7 +293,6 @@ class Kernel32(api.ApiHandler):
             LPFILETIME lpUserTime
         );
         """
-        ctx = ctx or {}
         hnd, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
 
         if lpCreationTime:
@@ -308,7 +304,6 @@ class Kernel32(api.ApiHandler):
         """
         HANDLE GetProcessHeap();
         """
-        ctx = ctx or {}
 
         if not self.heaps:
             heap = self.create_heap(emu)
@@ -323,7 +318,6 @@ class Kernel32(api.ApiHandler):
             DWORD ProcessId
         );
         """
-        ctx = ctx or {}
 
         ver = self.emu.config.os_ver
         major = ver.major
@@ -340,7 +334,6 @@ class Kernel32(api.ApiHandler):
             HMODULE hLibModule
         );
         """
-        ctx = ctx or {}
 
         (hLibModule,) = argv
 
@@ -435,7 +428,6 @@ class Kernel32(api.ApiHandler):
             DWORD th32ProcessID
         );
         """
-        ctx = ctx or {}
 
         (
             dwFlags,
@@ -598,7 +590,6 @@ class Kernel32(api.ApiHandler):
         LPTHREADENTRY32 lpte
         );
         """
-        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -631,7 +622,6 @@ class Kernel32(api.ApiHandler):
         LPTHREADENTRY32 lpte
         );
         """
-        ctx = ctx or {}
 
         (
             hSnapshot,
@@ -762,7 +752,6 @@ class Kernel32(api.ApiHandler):
             DWORD dwProcessId
         );
         """
-        ctx = ctx or {}
 
         access, inherit, pid = argv
 
@@ -818,7 +807,6 @@ class Kernel32(api.ApiHandler):
             UINT   uExitCode
         );
         """
-        ctx = ctx or {}
 
         hProcess, uExitCode = argv
         rv = False
@@ -838,7 +826,6 @@ class Kernel32(api.ApiHandler):
             DWORD   dwExitCode
         );
         """
-        ctx = ctx or {}
         emu.exit_process()
         return
 
@@ -849,7 +836,6 @@ class Kernel32(api.ApiHandler):
             DWORD   dwExitCode
         );
         """
-        ctx = ctx or {}
         emu.exit_process()
         return
 
@@ -861,7 +847,6 @@ class Kernel32(api.ApiHandler):
             UINT   uCmdShow
         );
         """
-        ctx = ctx or {}
 
         lpCmdLine, uCmdShow = argv
         rv = 1
@@ -1008,7 +993,6 @@ class Kernel32(api.ApiHandler):
           _In_     DWORD  flAllocationType,
           _In_     DWORD  flProtect
         );"""
-        ctx = ctx or {}
 
         lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
@@ -1071,7 +1055,6 @@ class Kernel32(api.ApiHandler):
           DWORD  flProtect
         );
         """
-        ctx = ctx or {}
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
 
@@ -1134,7 +1117,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T  *lpNumberOfBytesWritten
         );
         """
-        ctx = ctx or {}
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
         rv = False
 
@@ -1173,7 +1155,6 @@ class Kernel32(api.ApiHandler):
             SIZE_T  *lpNumberOfBytesRead
         );
         """
-        ctx = ctx or {}
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead = argv
         rv = False
 
@@ -1218,7 +1199,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD                lpThreadId
         );
         """
-        ctx = ctx or {}
         (hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) = argv
 
         is_remote = False
@@ -1266,7 +1246,6 @@ class Kernel32(api.ApiHandler):
             LPDWORD                 lpThreadId
         );
         """
-        ctx = ctx or {}
         (lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) = argv
 
         proc_obj = emu.get_current_process()
@@ -1300,7 +1279,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hThread
         );
         """
-        ctx = ctx or {}
         (hThread,) = argv
         rv = -1
         obj = self.get_object_from_handle(hThread)
@@ -1340,7 +1318,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hThread
         );
         """
-        ctx = ctx or {}
         (hThread,) = argv
         rv = -1
         obj = self.get_object_from_handle(hThread)
@@ -1359,7 +1336,6 @@ class Kernel32(api.ApiHandler):
           [in]      DWORD  dwExitCode
         );
         """
-        ctx = ctx or {}
         hThread, dwExitCode = argv
         rv = 0
         obj = self.get_object_from_handle(hThread)
@@ -1378,7 +1354,6 @@ class Kernel32(api.ApiHandler):
           HANDLE Thread
         );
         """
-        ctx = ctx or {}
         (Thread,) = argv
 
         if not Thread:
@@ -1400,7 +1375,6 @@ class Kernel32(api.ApiHandler):
             SIZE_T                    dwLength
         );
         """
-        ctx = ctx or {}
         rv = 0
 
         lpAddress, lpBuffer, dwLength = argv
@@ -1436,7 +1410,6 @@ class Kernel32(api.ApiHandler):
           _In_  DWORD  flNewProtect,
           _Out_ PDWORD lpflOldProtect
         );"""
-        ctx = ctx or {}
         rv = 0
         mm = None
         new = 0
@@ -1512,7 +1485,6 @@ class Kernel32(api.ApiHandler):
           DWORD  dwFreeType
         );
         """
-        ctx = ctx or {}
         rv = 0
 
         lpAddress, dwSize, dwFreeType = argv
@@ -1532,7 +1504,6 @@ class Kernel32(api.ApiHandler):
         """
         HANDLE GetCurrentProcess();
         """
-        ctx = ctx or {}
 
         rv = self.get_max_int()
 
@@ -1541,7 +1512,6 @@ class Kernel32(api.ApiHandler):
     @apihook("GetVersion", argc=0)
     def GetVersion(self, emu, argv, ctx: api.ApiContext = None):
         """NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();"""
-        ctx = ctx or {}
 
         ver = self.emu.config.os_ver
         build = ver.build
@@ -1555,7 +1525,6 @@ class Kernel32(api.ApiHandler):
     @apihook("GetLastError", argc=0)
     def GetLastError(self, emu, argv, ctx: api.ApiContext = None):
         """DWORD WINAPI GetLastError(void);"""
-        ctx = ctx or {}
 
         rv = emu.get_last_error()
 
@@ -1571,7 +1540,6 @@ class Kernel32(api.ApiHandler):
           DWORD dwErrCode
         );
         """
-        ctx = ctx or {}
         (dwErrCode,) = argv
 
         emu.set_last_error(dwErrCode)
@@ -1587,7 +1555,6 @@ class Kernel32(api.ApiHandler):
           DWORD  dwFlags
         );
         """
-        ctx = ctx or {}
 
         # Non-zero value for success.
         rv = 1
@@ -1602,7 +1569,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpdwFlags
         );
         """
-        ctx = ctx or {}
 
         # Non-zero value for success.
         rv = 1
@@ -1614,7 +1580,6 @@ class Kernel32(api.ApiHandler):
         """void ExitProcess(
                 UINT uExitCode
         );"""
-        ctx = ctx or {}
 
         self.exit_process()
         return 0
@@ -1628,7 +1593,6 @@ class Kernel32(api.ApiHandler):
             LPSYSTEMTIME                lpLocalTime
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("FileTimeToSystemTime", argc=2)
@@ -1639,7 +1603,6 @@ class Kernel32(api.ApiHandler):
             LPSYSTEMTIME   lpSystemTime
         );
         """
-        ctx = ctx or {}
 
         lpFileTime, lpSystemTime = argv
 
@@ -1671,7 +1634,6 @@ class Kernel32(api.ApiHandler):
         """void GetSystemTimeAsFileTime(
           LPFILETIME lpSystemTimeAsFileTime
         );"""
-        ctx = ctx or {}
 
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -1707,7 +1669,6 @@ class Kernel32(api.ApiHandler):
             LPDWORD lpOldMode
         );
         """
-        ctx = ctx or {}
 
         dwNewMode, lpOldMode = argv
 
@@ -1720,7 +1681,6 @@ class Kernel32(api.ApiHandler):
             DWORD DirectoryFlags
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -1747,7 +1707,6 @@ class Kernel32(api.ApiHandler):
             LPSYSTEMTIME lpSystemTime
         );
         """
-        ctx = ctx or {}
         return self.GetSystemTime(emu, argv)
 
     @apihook("GetSystemTime", argc=1)
@@ -1756,7 +1715,6 @@ class Kernel32(api.ApiHandler):
         void GetSystemTime(
             LPSYSTEMTIME lpSystemTime
         );"""
-        ctx = ctx or {}
         (lpSystemTime,) = argv
         st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
 
@@ -1779,7 +1737,6 @@ class Kernel32(api.ApiHandler):
         """DWORD GetTimeZoneInformation(
             LPTIME_ZONE_INFORMATION lpTimeZoneInformation
         );"""
-        ctx = ctx or {}
 
         (lpTimeZoneInformation,) = argv
         if lpTimeZoneInformation:
@@ -1790,7 +1747,6 @@ class Kernel32(api.ApiHandler):
     @apihook("GetCurrentThreadId", argc=0)
     def GetCurrentThreadId(self, emu, argv, ctx: api.ApiContext = None):
         """DWORD GetCurrentThreadId();"""
-        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         rv = thread.id
@@ -1800,7 +1756,6 @@ class Kernel32(api.ApiHandler):
     @apihook("GetCurrentProcessId", argc=0)
     def GetCurrentProcessId(self, emu, argv, ctx: api.ApiContext = None):
         """DWORD GetCurrentProcessId();"""
-        ctx = ctx or {}
 
         proc = emu.get_current_process()
         rv = proc.id
@@ -1812,7 +1767,6 @@ class Kernel32(api.ApiHandler):
         """BOOL IsProcessorFeaturePresent(
               DWORD ProcessorFeature
         );"""
-        ctx = ctx or {}
 
         rv = 1
         """
@@ -1929,7 +1883,6 @@ class Kernel32(api.ApiHandler):
         """BOOL WINAPI QueryPerformanceCounter(
           _Out_ LARGE_INTEGER *lpPerformanceCount
         );"""
-        ctx = ctx or {}
         (lpPerformanceCount,) = argv
 
         rv = 1
@@ -2010,7 +1963,6 @@ class Kernel32(api.ApiHandler):
           HMODULE hModule,
           LPCSTR  lpProcName
         );"""
-        ctx = ctx or {}
 
         hmod, proc_name = argv
         rv = 0
@@ -2043,7 +1995,6 @@ class Kernel32(api.ApiHandler):
     @apihook("AllocConsole", argc=0)
     def AllocConsole(self, emu, argv, ctx: api.ApiContext = None):
         """BOOL WINAPI AllocConsole(void);"""
-        ctx = ctx or {}
 
         # On success, return != 0
         return 1
@@ -2051,7 +2002,6 @@ class Kernel32(api.ApiHandler):
     @apihook("GetConsoleWindow", argc=0)
     def GetConsoleWindow(self, emu, argv, ctx: api.ApiContext = None):
         """HWND WINAPI GetConsoleWindow(void);"""
-        ctx = ctx or {}
         hwnd = 0
 
         proc = emu.get_current_process()
@@ -2065,7 +2015,6 @@ class Kernel32(api.ApiHandler):
     @apihook("Sleep", argc=1)
     def Sleep(self, emu, argv, ctx: api.ApiContext = None):
         """void Sleep(DWORD dwMilliseconds);"""
-        ctx = ctx or {}
         (millisec,) = argv
 
         return
@@ -2073,7 +2022,6 @@ class Kernel32(api.ApiHandler):
     @apihook("SleepEx", argc=2)
     def SleepEx(self, emu, argv, ctx: api.ApiContext = None):
         """DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);"""
-        ctx = ctx or {}
         millisec, bAlertable = argv
 
         return
@@ -2086,7 +2034,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwBytes
         );
         """
-        ctx = ctx or {}
 
         uFlags, dwBytes = argv
 
@@ -2101,7 +2048,6 @@ class Kernel32(api.ApiHandler):
           [in] HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
 
         (hMem,) = argv
         size = 0
@@ -2123,7 +2069,6 @@ class Kernel32(api.ApiHandler):
         [in] HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
         (hMem,) = argv
         flags = 0
         for mmap in emu.get_mem_maps():
@@ -2145,7 +2090,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T uBytes
         );
         """
-        ctx = ctx or {}
 
         uFlags, dwBytes = argv
 
@@ -2162,7 +2106,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwBytes
         );
         """
-        ctx = ctx or {}
 
         hHeap, dwFlags, dwBytes = argv
 
@@ -2181,7 +2124,6 @@ class Kernel32(api.ApiHandler):
           LPCVOID lpMem
         );
         """
-        ctx = ctx or {}
 
         hHeap, dwFlags, lpMem = argv
 
@@ -2201,7 +2143,6 @@ class Kernel32(api.ApiHandler):
         """
         DWORD GetTickCount();
         """
-        ctx = ctx or {}
 
         self.tick_counter += 20
 
@@ -2212,7 +2153,6 @@ class Kernel32(api.ApiHandler):
         """
         ULONGLONG GetTickCount64();
         """
-        ctx = ctx or {}
 
         self.tick_counter += 20
 
@@ -2295,7 +2235,6 @@ class Kernel32(api.ApiHandler):
           UINT_PTR   ucb
         );
         """
-        ctx = ctx or {}
 
         lp, ucb = argv
 
@@ -2320,7 +2259,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T                 dwBytes
         );
         """
-        ctx = ctx or {}
 
         hHeap, dwFlags, lpMem, dwBytes = argv
 
@@ -2346,7 +2284,6 @@ class Kernel32(api.ApiHandler):
           UINT                   uFlags
         );
         """
-        ctx = ctx or {}
 
         hMem, uBytes, uFlags = argv
 
@@ -2372,7 +2309,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwMaximumSize
         );
         """
-        ctx = ctx or {}
 
         flOptions, dwInitialSize, dwMaximumSize = argv
 
@@ -2385,7 +2321,6 @@ class Kernel32(api.ApiHandler):
         """
         HANDLE GetCurrentThread();
         """
-        ctx = ctx or {}
         thread = emu.get_current_thread()
         obj = emu.om.get_object_from_addr(thread.address)
         return emu.get_object_handle(obj)
@@ -2395,7 +2330,6 @@ class Kernel32(api.ApiHandler):
         """
         DWORD TlsAlloc();
         """
-        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         tls = thread.tls
@@ -2414,7 +2348,6 @@ class Kernel32(api.ApiHandler):
           LPVOID lpTlsValue
         );
         """
-        ctx = ctx or {}
 
         dwTlsIndex, lpTlsValue = argv
         rv = 0
@@ -2439,7 +2372,6 @@ class Kernel32(api.ApiHandler):
           DWORD dwTlsIndex
         );
         """
-        ctx = ctx or {}
         (dwTlsIndex,) = argv
         dwTlsIndex &= 0xFFFFFFFF
         rv = 0
@@ -2462,7 +2394,6 @@ class Kernel32(api.ApiHandler):
           PFLS_CALLBACK_FUNCTION lpCallback
         );
         """
-        ctx = ctx or {}
 
         thread = emu.get_current_thread()
         fls = thread.fls
@@ -2481,7 +2412,6 @@ class Kernel32(api.ApiHandler):
           PVOID lpFlsData
         );
         """
-        ctx = ctx or {}
 
         dwFlsIndex, lpFlsData = argv
         rv = 0
@@ -2509,7 +2439,6 @@ class Kernel32(api.ApiHandler):
           DWORD dwFlsIndex
         );
         """
-        ctx = ctx or {}
         (dwFlsIndex,) = argv
         rv = 0
 
@@ -2531,7 +2460,6 @@ class Kernel32(api.ApiHandler):
           _In_ PVOID Ptr
         );
         """
-        ctx = ctx or {}
 
         (Ptr,) = argv
         # Just increment the pointer for now
@@ -2546,7 +2474,6 @@ class Kernel32(api.ApiHandler):
            PVOID Ptr
         );
         """
-        ctx = ctx or {}
 
         (Ptr,) = argv
         # Just decrement the pointer for now
@@ -2562,7 +2489,6 @@ class Kernel32(api.ApiHandler):
           DWORD              dwSpinCount
         );
         """
-        ctx = ctx or {}
 
         lpCriticalSection, dwSpinCount = argv
         rv = 1
@@ -2576,7 +2502,6 @@ class Kernel32(api.ApiHandler):
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -2587,7 +2512,6 @@ class Kernel32(api.ApiHandler):
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -2598,7 +2522,6 @@ class Kernel32(api.ApiHandler):
           LONG volatile *Addend
         );
         """
-        ctx = ctx or {}
 
         (Addend,) = argv
 
@@ -2617,7 +2540,6 @@ class Kernel32(api.ApiHandler):
           LONG volatile *Addend
         );
         """
-        ctx = ctx or {}
 
         (Addend,) = argv
 
@@ -2721,7 +2643,6 @@ class Kernel32(api.ApiHandler):
           LPCH penv
         );
         """
-        ctx = ctx or {}
 
         (penv,) = argv
 
@@ -2840,7 +2761,6 @@ class Kernel32(api.ApiHandler):
           _In_ DWORD nStdHandle
         );
         """
-        ctx = ctx or {}
 
         (nStdHandle,) = argv
 
@@ -2856,7 +2776,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hFile
         );
         """
-        ctx = ctx or {}
         FILE_TYPE_DISK = 1
 
         (hFile,) = argv
@@ -2870,7 +2789,6 @@ class Kernel32(api.ApiHandler):
           UINT uNumber
         );
         """
-        ctx = ctx or {}
         (uNumber,) = argv
 
         emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
@@ -2882,7 +2800,6 @@ class Kernel32(api.ApiHandler):
         """
         UINT GetACP();
         """
-        ctx = ctx or {}
 
         windows_1252 = 1252
 
@@ -2895,7 +2812,6 @@ class Kernel32(api.ApiHandler):
           UINT CodePage
         );
         """
-        ctx = ctx or {}
 
         (CodePage,) = argv
 
@@ -2909,7 +2825,6 @@ class Kernel32(api.ApiHandler):
           LPCPINFO lpCPInfo
         );
         """
-        ctx = ctx or {}
 
         CodePage, lpCPInfo = argv
 
@@ -2933,7 +2848,6 @@ class Kernel32(api.ApiHandler):
           LPBOOL                             lpUsedDefaultChar
         );
         """
-        ctx = ctx or {}
 
         rv = 0
 
@@ -2995,7 +2909,6 @@ class Kernel32(api.ApiHandler):
           int                               cchWideChar
         );
         """
-        ctx = ctx or {}
 
         (CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar) = argv
 
@@ -3168,7 +3081,6 @@ class Kernel32(api.ApiHandler):
           LPARAM           sortHandle
         );
         """
-        ctx = ctx or {}
 
         (lpLocaleName, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest, ver_info, res, sort_handle) = argv
 
@@ -3240,7 +3152,6 @@ class Kernel32(api.ApiHandler):
           _Frees_ptr_opt_ LPVOID lpMem
         );
         """
-        ctx = ctx or {}
         rv = 1
         hHeap, dwFlags, lpMem = argv
 
@@ -3255,7 +3166,6 @@ class Kernel32(api.ApiHandler):
             _Frees_ptr_opt_ HLOCAL hMem
         );
         """
-        ctx = ctx or {}
         rv = 0
         (hMem,) = argv
 
@@ -3273,7 +3183,6 @@ class Kernel32(api.ApiHandler):
             LPCVOID pMem
         );
         """
-        ctx = ctx or {}
         (pMem,) = argv
         return pMem
 
@@ -3284,7 +3193,6 @@ class Kernel32(api.ApiHandler):
             HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GlobalFree", argc=1)
@@ -3294,7 +3202,6 @@ class Kernel32(api.ApiHandler):
             _Frees_ptr_opt_ HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetSystemDirectory", argc=2)
@@ -3339,7 +3246,6 @@ class Kernel32(api.ApiHandler):
             BYTE TestChar
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("SetEnvironmentVariable", argc=2)
@@ -3428,7 +3334,6 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwNumberOfBytesToMap
         );
         """
-        ctx = ctx or {}
         hmap, access, offset_high, offset_low, bytes_to_map = argv
 
         fman = emu.get_file_manager()
@@ -3500,7 +3405,6 @@ class Kernel32(api.ApiHandler):
           LPCVOID lpBaseAddress
         );
         """
-        ctx = ctx or {}
         (lpBaseAddress,) = argv
         rv = False
 
@@ -3521,7 +3425,6 @@ class Kernel32(api.ApiHandler):
             LPSYSTEM_INFO lpSystemInfo
         );
         """
-        ctx = ctx or {}
         (lpSystemInfo,) = argv
         ptr_size = emu.get_ptr_size()
         si = self.k32types.SYSTEM_INFO(ptr_size)
@@ -3618,7 +3521,6 @@ class Kernel32(api.ApiHandler):
           LPFILETIME lpLastWriteTime
         );
         """
-        ctx = ctx or {}
         _hFile, lpCreationTime, lpLastAccessTime, lpLastWriteTime = argv
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -3647,7 +3549,6 @@ class Kernel32(api.ApiHandler):
           const FILETIME *lpLastWriteTime
         );
         """
-        ctx = ctx or {}
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
@@ -3912,7 +3813,6 @@ class Kernel32(api.ApiHandler):
           LPOVERLAPPED lpOverlapped
         );
         """
-        ctx = ctx or {}
 
         def _write_output(emu, data, pBuffer, pBytesRead):
             self.mem_write(pBuffer, data)
@@ -3961,7 +3861,6 @@ class Kernel32(api.ApiHandler):
           LPOVERLAPPED lpOverlapped
         );
         """
-        ctx = ctx or {}
         hFile, lpBuffer, num_bytes, bytes_written, lpOverlapped = argv
         rv = 0
 
@@ -4028,7 +3927,6 @@ class Kernel32(api.ApiHandler):
           DWORD  dwMoveMethod
         );
         """
-        ctx = ctx or {}
         hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod = argv
         rv = 0
 
@@ -4051,7 +3949,6 @@ class Kernel32(api.ApiHandler):
         [in]            DWORD          dwMoveMethod
         );
         """
-        ctx = ctx or {}
         hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv
         f = self.file_get(hFile)
         if f:
@@ -4070,7 +3967,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpFileSizeHigh
         );
         """
-        ctx = ctx or {}
         hFile, lpFileSizeHigh = argv
 
         f = self.file_get(hFile)
@@ -4099,7 +3995,6 @@ class Kernel32(api.ApiHandler):
           PLARGE_INTEGER lpFileSize
         );
         """
-        ctx = ctx or {}
         hFile, lpFileSize = argv
         f = self.file_get(hFile)
 
@@ -4120,7 +4015,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hObject
         );
         """
-        ctx = ctx or {}
         (hObject,) = argv
 
         reg_key = emu.reg_get_key(handle=hObject)
@@ -4144,7 +4038,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hFile
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("IsDebuggerPresent", argc=0)
@@ -4152,7 +4045,6 @@ class Kernel32(api.ApiHandler):
         """
         BOOL IsDebuggerPresent();
         """
-        ctx = ctx or {}
 
         return False
 
@@ -4309,7 +4201,6 @@ class Kernel32(api.ApiHandler):
             BOOL                 fResume
         );
         """
-        ctx = ctx or {}
         hTimer, _due_time, _period, _completion_routine, _completion_arg, _resume = argv
 
         obj = self.get_object_from_handle(hTimer)
@@ -4327,7 +4218,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hTimer
         );
         """
-        ctx = ctx or {}
         (hTimer,) = argv
 
         obj = self.get_object_from_handle(hTimer)
@@ -4374,7 +4264,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hEvent
         );
         """
-        ctx = ctx or {}
         (hEvent,) = argv
 
         obj = self.get_object_from_handle(hEvent)
@@ -4392,7 +4281,6 @@ class Kernel32(api.ApiHandler):
           LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter
         );
         """
-        ctx = ctx or {}
         (lpTopLevelExceptionFilter,) = argv
 
         emu.set_unhandled_exception_handler(lpTopLevelExceptionFilter)
@@ -4406,7 +4294,6 @@ class Kernel32(api.ApiHandler):
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
-        ctx = ctx or {}
 
         return None
 
@@ -4417,7 +4304,6 @@ class Kernel32(api.ApiHandler):
           DWORD dwFlsIndex
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4428,7 +4314,6 @@ class Kernel32(api.ApiHandler):
           DWORD dwTlsIndex
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4440,7 +4325,6 @@ class Kernel32(api.ApiHandler):
           DWORD *pSessionId
         );
         """
-        ctx = ctx or {}
         dwProcessId, pSessionId = argv
         rv = False
 
@@ -4465,7 +4349,6 @@ class Kernel32(api.ApiHandler):
           DWORD              Flags
         );
         """
-        ctx = ctx or {}
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
@@ -4477,7 +4360,6 @@ class Kernel32(api.ApiHandler):
           LPCRITICAL_SECTION lpCriticalSection
         );
         """
-        ctx = ctx or {}
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return None
@@ -4487,7 +4369,6 @@ class Kernel32(api.ApiHandler):
         """
         UINT GetOEMCP();
         """
-        ctx = ctx or {}
         return 1200
 
     @apihook("GlobalLock", argc=1)
@@ -4497,7 +4378,6 @@ class Kernel32(api.ApiHandler):
           HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
         (hMem,) = argv
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4510,7 +4390,6 @@ class Kernel32(api.ApiHandler):
           HGLOBAL hMem
         );
         """
-        ctx = ctx or {}
         (hMem,) = argv
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4523,7 +4402,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hHeap
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4534,7 +4412,6 @@ class Kernel32(api.ApiHandler):
           PSLIST_HEADER ListHead
         );
         """
-        ctx = ctx or {}
         (ListHead,) = argv
 
         self.mem_write(ListHead, b"\x00" * 8)
@@ -4548,7 +4425,6 @@ class Kernel32(api.ApiHandler):
           HMODULE hLibModule
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4560,7 +4436,6 @@ class Kernel32(api.ApiHandler):
         DWORD  dwMilliseconds
         );
         """
-        ctx = ctx or {}
         hHandle, dwMilliseconds = argv
 
         # TODO
@@ -4579,7 +4454,6 @@ class Kernel32(api.ApiHandler):
             _Out_ LPDWORD lpMode
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4593,7 +4467,6 @@ class Kernel32(api.ApiHandler):
             SIZE_T                 HeapInformationLength
         );
         """
-        ctx = ctx or {}
 
         return True
 
@@ -4604,7 +4477,6 @@ class Kernel32(api.ApiHandler):
             UINT uMode
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("InterlockedCompareExchange", argc=3)
@@ -4616,7 +4488,6 @@ class Kernel32(api.ApiHandler):
         LONG          Comperand
         );
         """
-        ctx = ctx or {}
         pDest, ExChange, Comperand = argv
 
         dest_bytes = self.mem_read(pDest, 4)
@@ -4635,7 +4506,6 @@ class Kernel32(api.ApiHandler):
         LONG          Value
         );
         """
-        ctx = ctx or {}
         Target, Value = argv
         tgt = self.mem_read(Target, 4)
         tgt = int.from_bytes(tgt, "little")
@@ -4694,7 +4564,6 @@ class Kernel32(api.ApiHandler):
         DWORD                 nSize
         );
         """
-        ctx = ctx or {}
         hReadPipe, hWritePipe, lpPipeAttributes, nSize = argv
 
         if not hReadPipe or not hWritePipe:
@@ -4723,7 +4592,6 @@ class Kernel32(api.ApiHandler):
         LPDWORD lpBytesLeftThisMessage
         );
         """
-        ctx = ctx or {}
         (hNamedPipe, lpBuffer, nBufferSize, lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage) = argv
         pipe = emu.pipe_get(hNamedPipe)
         if not pipe:
@@ -4748,7 +4616,6 @@ class Kernel32(api.ApiHandler):
             LPOVERLAPPED lpOverlapped
         );
         """
-        ctx = ctx or {}
         hNamedPipe, lpOverlapped = argv
         rv = False
         pipe = emu.pipe_get(hNamedPipe)
@@ -4763,7 +4630,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hNamedPipe
         );
         """
-        ctx = ctx or {}
         (hNamedPipe,) = argv
         rv = False
         pipe = emu.pipe_get(hNamedPipe)
@@ -4814,7 +4680,6 @@ class Kernel32(api.ApiHandler):
             PBOOL  Wow64Process
         );
         """
-        ctx = ctx or {}
         hProcess, Wow64Process = argv
         rv = False
 
@@ -4832,7 +4697,6 @@ class Kernel32(api.ApiHandler):
             PBOOL  pbDebuggerPresent
         );
         """
-        ctx = ctx or {}
         hProcess, pbDebuggerPresent = argv
         rv = False
 
@@ -4879,7 +4743,6 @@ class Kernel32(api.ApiHandler):
           LPOSVERSIONINFO lpVersionInformation
         );
         """
-        ctx = ctx or {}
         (lpVersionInformation,) = argv
 
         osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size())
@@ -4940,7 +4803,6 @@ class Kernel32(api.ApiHandler):
             BYTE   *buffer
         );
         """
-        ctx = ctx or {}
         return windefs.ERROR_SUCCESS
 
     @apihook("AreFileApisANSI", argc=0)
@@ -4948,7 +4810,6 @@ class Kernel32(api.ApiHandler):
         """
         BOOL AreFileApisANSI();
         """
-        ctx = ctx or {}
         return True
 
     @apihook("FindFirstFileEx", argc=6)
@@ -5073,7 +4934,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hFindFile
         );
         """
-        ctx = ctx or {}
 
         (hFindFile,) = argv
 
@@ -5093,7 +4953,6 @@ class Kernel32(api.ApiHandler):
             PFILETIME lpUserTime
         );
         """
-        ctx = ctx or {}
 
         lpIdleTime, lpKernelTime, lpUserTime = argv
 
@@ -5117,7 +4976,6 @@ class Kernel32(api.ApiHandler):
             LPCONTEXT lpContext
         );
         """
-        ctx = ctx or {}
 
         hThread, lpContext = argv
 
@@ -5139,7 +4997,6 @@ class Kernel32(api.ApiHandler):
             const CONTEXT *lpContext
         );
         """
-        ctx = ctx or {}
 
         hThread, lpContext = argv
 
@@ -5165,7 +5022,6 @@ class Kernel32(api.ApiHandler):
             const FILETIME *lpFileTime2
         );
         """
-        ctx = ctx or {}
 
         lpFileTime1, lpFileTime2 = argv
         rv = 0
@@ -5265,7 +5121,6 @@ class Kernel32(api.ApiHandler):
           HRSRC   hResInfo
         );
         """
-        ctx = ctx or {}
 
         hModule, hResInfo = argv
 
@@ -5292,7 +5147,6 @@ class Kernel32(api.ApiHandler):
           HGLOBAL hResData
         );
         """
-        ctx = ctx or {}
 
         (hResData,) = argv
 
@@ -5306,7 +5160,6 @@ class Kernel32(api.ApiHandler):
           HRSRC   hResInfo
         );
         """
-        ctx = ctx or {}
 
         hModule, hResInfo = argv
 
@@ -5327,7 +5180,6 @@ class Kernel32(api.ApiHandler):
           [in] HGLOBAL hResData
         );
         """
-        ctx = ctx or {}
 
         return 0
 
@@ -5377,7 +5229,6 @@ class Kernel32(api.ApiHandler):
           LPSYSTEM_INFO lpSystemInfo
         );
         """
-        ctx = ctx or {}
         (lpSystemInfo,) = argv
         return 0
 
@@ -5386,7 +5237,6 @@ class Kernel32(api.ApiHandler):
         """
         LANGID GetUserDefaultUILanguage();
         """
-        ctx = ctx or {}
         return 0xFFFF
 
     @apihook("SetCurrentDirectory", argc=1)
@@ -5416,7 +5266,6 @@ class Kernel32(api.ApiHandler):
             DWORD dwThreadId
         );
         """
-        ctx = ctx or {}
         access, bInheritHandle, dwThreadId = argv
         thread = emu.get_object_from_id(dwThreadId)
         hnd = emu.get_object_handle(thread)
@@ -5434,7 +5283,6 @@ class Kernel32(api.ApiHandler):
             const ULONG_PTR *lpArguments
         );
         """
-        ctx = ctx or {}
         # Stub
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
 
@@ -5449,7 +5297,6 @@ class Kernel32(api.ApiHandler):
             BYTE      Condition
         );
         """
-        ctx = ctx or {}
         # Stub
         con_mask, type_mask, cond = argv
 
@@ -5464,7 +5311,6 @@ class Kernel32(api.ApiHandler):
             DWORDLONG          dwlConditionMask
         );
         """
-        ctx = ctx or {}
         # Stub
         vinfo, type_mask, con_mask = argv
 
@@ -5475,7 +5321,6 @@ class Kernel32(api.ApiHandler):
         """
         BOOL WINAPI FreeConsole(void);
         """
-        ctx = ctx or {}
         return True
 
     @apihook("IsBadWritePtr", argc=2)
@@ -5486,7 +5331,6 @@ class Kernel32(api.ApiHandler):
             UINT_PTR ucb
         );
         """
-        ctx = ctx or {}
         lp, ucb = argv
 
         rv = True
@@ -5532,7 +5376,6 @@ class Kernel32(api.ApiHandler):
             DWORD BufferSize
         );
         """
-        ctx = ctx or {}
         # Stub
         sig, tid, firm_buf, buf_size = argv
 
@@ -5575,7 +5418,6 @@ class Kernel32(api.ApiHandler):
         DWORD  dwPriorityClass
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("SetProcessPriorityBoost", argc=2)
@@ -5586,7 +5428,6 @@ class Kernel32(api.ApiHandler):
           BOOL   bDisablePriorityBoost
         );
         """
-        ctx = ctx or {}
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
@@ -5622,7 +5463,6 @@ class Kernel32(api.ApiHandler):
         LPDWORD lpExitCode
         );
         """
-        ctx = ctx or {}
         hProcess, lpExitCode = argv
         if lpExitCode:
             self.mem_write(lpExitCode, b"\x00" * 4)
@@ -5636,7 +5476,6 @@ class Kernel32(api.ApiHandler):
         int    nPriority
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("ReleaseMutex", argc=1)
@@ -5646,7 +5485,6 @@ class Kernel32(api.ApiHandler):
             HANDLE hMutex
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetShortPathName", argc=3)
@@ -5730,7 +5568,6 @@ class Kernel32(api.ApiHandler):
         ULONG_PTR dwData
         );
         """
-        ctx = ctx or {}
         pfnAPC, hThread, dwData = argv
         run_type = f"apc_thread_{hThread:x}"
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
@@ -5748,7 +5585,6 @@ class Kernel32(api.ApiHandler):
           DWORD    dwOptions
         )
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetBinaryType", argc=2)
@@ -5759,7 +5595,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpBinaryType
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetThreadUILanguage", argc=0)
@@ -5767,7 +5602,6 @@ class Kernel32(api.ApiHandler):
         """
         LANGID GetThreadUILanguage();
         """
-        ctx = ctx or {}
         return 0xFFFF
 
     @apihook("SetConsoleHistoryInfo", argc=1)
@@ -5777,7 +5611,6 @@ class Kernel32(api.ApiHandler):
           _In_ PCONSOLE_HISTORY_INFO lpConsoleHistoryInfo
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetFileInformationByHandle", argc=2)
@@ -5788,7 +5621,6 @@ class Kernel32(api.ApiHandler):
           LPBY_HANDLE_FILE_INFORMATION lpFileInformation
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetCommProperties", argc=2)
@@ -5799,7 +5631,6 @@ class Kernel32(api.ApiHandler):
           LPCOMMPROP lpCommProp
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetCommTimeouts", argc=2)
@@ -5810,7 +5641,6 @@ class Kernel32(api.ApiHandler):
           LPCOMMTIMEOUTS lpCommTimeouts
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("AddAtom", argc=1)
@@ -5898,7 +5728,6 @@ class Kernel32(api.ApiHandler):
           ATOM nAtom
         );
         """
-        ctx = ctx or {}
         ATOM_RESERVED = 0xC000
         (nAtom,) = argv
 
@@ -5919,7 +5748,6 @@ class Kernel32(api.ApiHandler):
           PDWORD pdwHandleCount
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetMailslotInfo", argc=5)
@@ -5933,7 +5761,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpReadTimeout
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("RtlZeroMemory", argc=2)
@@ -5944,7 +5771,6 @@ class Kernel32(api.ApiHandler):
             size_t Length
         );
         """
-        ctx = ctx or {}
         dest, length = argv
         buf = b"\x00" * length
         self.mem_write(dest, buf)
@@ -5954,7 +5780,6 @@ class Kernel32(api.ApiHandler):
         """
         void RtlMoveMemory(void* pvDest, const void *pSrc, size_t Length);
         """
-        ctx = ctx or {}
         dest, source, length = argv
         buf = self.mem_read(source, length)
         self.mem_write(dest, buf)
@@ -5966,7 +5791,6 @@ class Kernel32(api.ApiHandler):
             LARGE_INTEGER *lpFrequency
         );
         """
-        ctx = ctx or {}
         lpFrequency = argv[0]
         self.mem_write(lpFrequency, (10000000).to_bytes(8, "little"))
         return 1
@@ -6038,7 +5862,6 @@ class Kernel32(api.ApiHandler):
           HANDLE hFindVolume
         );
         """
-        ctx = ctx or {}
         (hFindVolume,) = argv
 
         try:
@@ -6058,7 +5881,6 @@ class Kernel32(api.ApiHandler):
           _In_     DWORD     NumberOfConcurrentThreads
         );
         """
-        ctx = ctx or {}
         FileHandle, ExistingCompletionPort, CompletionKey, NumberOfConcurrentThreads = argv
 
         # TODO: Implement completion port creation
@@ -6112,7 +5934,6 @@ class Kernel32(api.ApiHandler):
         """
         DWORD GetLogicalDrives();
         """
-        ctx = ctx or {}
         dm = emu.get_drive_manager()
         rv = 0
         for i, dl in enumerate(string.ascii_uppercase):
@@ -6128,7 +5949,6 @@ class Kernel32(api.ApiHandler):
         LPMEMORYSTATUS lpBuffer
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("GlobalMemoryStatusEx", argc=1)
@@ -6150,7 +5970,6 @@ class Kernel32(api.ApiHandler):
             DWORDLONG ullAvailExtendedVirtual;
         } MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
         """
-        ctx = ctx or {}
         GB = 1024 * 1024 * 1024
         buf = struct.pack(
             "<IIQQQQQQQ",
@@ -6178,7 +5997,6 @@ class Kernel32(api.ApiHandler):
         PULARGE_INTEGER lpTotalNumberOfFreeBytes
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("GetSystemDefaultLangID", argc=0)
@@ -6186,7 +6004,6 @@ class Kernel32(api.ApiHandler):
         """
         LANGID GetSystemDefaultLangID();
         """
-        ctx = ctx or {}
         return True
 
     @apihook("ResetEvent", argc=1)
@@ -6196,7 +6013,6 @@ class Kernel32(api.ApiHandler):
         HANDLE hEvent
         );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("WaitForMultipleObjects", argc=4)
@@ -6209,7 +6025,6 @@ class Kernel32(api.ApiHandler):
         DWORD        dwMilliseconds
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetComputerNameEx", argc=3)
@@ -6306,7 +6121,6 @@ class Kernel32(api.ApiHandler):
             LPOVERLAPPED lpOverlapped
         );
         """
-        ctx = ctx or {}
         hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv  # noqa
         nts = ddk.STATUS_SUCCESS
         out_written = 0
@@ -6407,7 +6221,6 @@ class Kernel32(api.ApiHandler):
         """BOOL FlushFileBuffers(
         HANDLE hFile
         );"""
-        ctx = ctx or {}
 
         (hFile,) = argv
         rv = 1
@@ -6423,7 +6236,6 @@ class Kernel32(api.ApiHandler):
         LPDWORD lpExitCode
         );
         """
-        ctx = ctx or {}
 
         hThread, lpExitCode = argv
         if lpExitCode:
@@ -6437,7 +6249,6 @@ class Kernel32(api.ApiHandler):
         PCONDITION_VARIABLE ConditionVariable
         );
         """
-        ctx = ctx or {}
         (ConditionVariable,) = argv
         rv = 0
 
@@ -6450,7 +6261,6 @@ class Kernel32(api.ApiHandler):
           PCONDITION_VARIABLE ConditionVariable
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("Wow64DisableWow64FsRedirection", argc=1)
@@ -6460,7 +6270,6 @@ class Kernel32(api.ApiHandler):
           PVOID *OldValue
         );
         """
-        ctx = ctx or {}
         (OldValue,) = argv
         rv = 1
 
@@ -6473,7 +6282,6 @@ class Kernel32(api.ApiHandler):
           PVOID OlValue
         );
         """
-        ctx = ctx or {}
         (OlValue,) = argv
         rv = 1
 
@@ -6488,7 +6296,6 @@ class Kernel32(api.ApiHandler):
           LPDWORD lpcbNeeded
         );
         """
-        ctx = ctx or {}
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -6553,7 +6360,6 @@ class Kernel32(api.ApiHandler):
         """
         HANDLE hThread;
         """
-        ctx = ctx or {}
         return k32types.THREAD_PRIORITY_NORMAL
 
     @apihook("RtlUnwind", argc=4)
@@ -6566,7 +6372,6 @@ class Kernel32(api.ApiHandler):
           PVOID ReturnValue
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("UnhandledExceptionFilter", argc=1)
@@ -6574,7 +6379,6 @@ class Kernel32(api.ApiHandler):
         """
         _EXCEPTION_POINTERS *ExceptionInfo;
         """
-        ctx = ctx or {}
         return k32types.EXCEPTION_EXECUTE_HANDLER
 
     @apihook("GetSystemTimePreciseAsFileTime", argc=1)
@@ -6582,7 +6386,6 @@ class Kernel32(api.ApiHandler):
         """void GetSystemTimePreciseAsFileTime(
           LPFILETIME lpSystemTimeAsFileTime
         );"""
-        ctx = ctx or {}
 
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -6603,7 +6406,6 @@ class Kernel32(api.ApiHandler):
             PVECTORED_EXCEPTION_HANDLER Handler
         );
         """
-        ctx = ctx or {}
         First, Handler = argv
 
         emu.add_vectored_exception_handler(First, Handler)
@@ -6616,7 +6418,6 @@ class Kernel32(api.ApiHandler):
         ULONG RemoveVectoredExceptionHandler(
             PVOID Handle);
         """
-        ctx = ctx or {}
         Handler = argv
         emu.remove_vectored_exception_handler(Handler)
         return 1
@@ -6626,7 +6427,6 @@ class Kernel32(api.ApiHandler):
         """
         LANGID GetSystemDefaultUILanguage();
         """
-        ctx = ctx or {}
         return LANG_EN_US
 
     @apihook("GetUserDefaultLangID", argc=0)
@@ -6634,7 +6434,6 @@ class Kernel32(api.ApiHandler):
         """
         LANGID GetUserDefaultLangID();
         """
-        ctx = ctx or {}
         return LANG_EN_US
 
     @apihook("GetUserDefaultLCID", argc=0)
@@ -6642,7 +6441,6 @@ class Kernel32(api.ApiHandler):
         """
         LCID GetUserDefaultLCID();
         """
-        ctx = ctx or {}
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
 
@@ -6651,7 +6449,6 @@ class Kernel32(api.ApiHandler):
         """
         LCID GetUserDefaultLCID();
         """
-        ctx = ctx or {}
         # https://learn.microsoft.com/en-us/windows/win32/intl/locale-system-default
         return LOCALE_SYSTEM_DEFAULT
 
@@ -6692,7 +6489,6 @@ class Kernel32(api.ApiHandler):
             int   iOrigin
         );
         """
-        ctx = ctx or {}
         # _llseek is 16-bit variant of SetFilePointer
         # code replicates SetFilePointer()
         hFile, lOffset, iOrigin = argv
@@ -6728,7 +6524,6 @@ class Kernel32(api.ApiHandler):
             HFILE hFile
             );
         """
-        ctx = ctx or {}
         (hObject,) = argv
         obj = self.get_object_from_handle(hObject)
         if obj:
@@ -6775,7 +6570,6 @@ class Kernel32(api.ApiHandler):
           [out] PSRWLOCK SRWLock
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -6786,7 +6580,6 @@ class Kernel32(api.ApiHandler):
           [in, out] PSRWLOCK SRWLock
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -6797,7 +6590,6 @@ class Kernel32(api.ApiHandler):
           [in, out] PSRWLOCK SRWLock
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -6808,7 +6600,6 @@ class Kernel32(api.ApiHandler):
           [in, out] PSRWLOCK SRWLock
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -6819,7 +6610,6 @@ class Kernel32(api.ApiHandler):
           [in, out] PSRWLOCK SRWLock
         );
         """
-        ctx = ctx or {}
 
         return
 
@@ -6830,7 +6620,6 @@ class Kernel32(api.ApiHandler):
           [out] PULONGLONG TotalMemoryInKilobytes
         );
         """
-        ctx = ctx or {}
 
         (TotalMemoryInKilobytes,) = argv
 
@@ -6840,17 +6629,14 @@ class Kernel32(api.ApiHandler):
 
     @apihook("WTSGetActiveConsoleSessionId", argc=0)
     def WTSGetActiveConsoleSessionId(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return emu.get_current_process().session
 
     @apihook("WaitForSingleObjectEx", argc=3)
     def WaitForSingleObjectEx(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return 0  # = WAIT_OBJECT_0
 
     @apihook("GetProfileInt", argc=3)
     def GetProfileInt(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         _, _, nDefault = argv
         return nDefault
 
@@ -6864,7 +6650,6 @@ class Kernel32(api.ApiHandler):
             [in, optional] LPCWSTR               lpName
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("SetThreadStackGuarantee", argc=1)
@@ -6874,7 +6659,6 @@ class Kernel32(api.ApiHandler):
             [in, out] PULONG StackSizeInBytes
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("SetThreadDescription", argc=2)
@@ -6885,7 +6669,6 @@ class Kernel32(api.ApiHandler):
             [in] PCWSTR lpThreadDescription
         );
         """
-        ctx = ctx or {}
         return windefs.ERROR_SUCCESS
 
     @apihook("InitOnceBeginInitialize", argc=4)
@@ -6898,12 +6681,10 @@ class Kernel32(api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("FlsGetValue2", argc=1)
     def FlsGetValue2(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         fls_index = argv[0]
         try:
             val = emu.get_fls_value(fls_index)
@@ -6913,7 +6694,6 @@ class Kernel32(api.ApiHandler):
 
     @apihook("RtlCaptureContext", argc=1)
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         ptr = self.emu.reg_read("rcx")
         if ptr:
             try:
@@ -6930,7 +6710,6 @@ class Kernel32(api.ApiHandler):
 
     @apihook("RtlLookupFunctionEntry", argc=3)
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return 0
 
     @apihook("MulDiv", argc=3)
@@ -6942,7 +6721,6 @@ class Kernel32(api.ApiHandler):
             int nDenominator
         );
         """
-        ctx = ctx or {}
         nNumber, nNumerator, nDenominator = argv
         try:
             if nDenominator == 0:
@@ -6958,6 +6736,5 @@ class Kernel32(api.ApiHandler):
             LPCSTR lpString
         );
         """
-        ctx = ctx or {}
         # Return a fake ATOM value. ATOMs are 16-bit identifiers.
         return 0x1234

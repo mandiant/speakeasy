@@ -83,7 +83,6 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE                    *engineHandle
         );
         """
-        ctx = ctx or {}
 
         sname, asvc, authid, sess, eng = argv
 
@@ -104,7 +103,6 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE         *injectionHandle
         );
         """
-        ctx = ctx or {}
         family, flags, inj_handle = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -124,7 +122,6 @@ class Fwpkclnt(api.ApiHandler):
         PSECURITY_DESCRIPTOR sd
         );
         """
-        ctx = ctx or {}
         engineHandle, subLayer, sd = argv
 
         name = ""
@@ -167,7 +164,6 @@ class Fwpkclnt(api.ApiHandler):
           UINT32              *calloutId
         );
         """
-        ctx = ctx or {}
         deviceObject, pCallout, calloutId = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -212,7 +208,6 @@ class Fwpkclnt(api.ApiHandler):
           UINT32               *id
         );
         """
-        ctx = ctx or {}
         eng, pCallout, sd, pCid = argv
 
         name = ""
@@ -254,7 +249,6 @@ class Fwpkclnt(api.ApiHandler):
           UINT64               *id
         );
         """
-        ctx = ctx or {}
         eng, pFilter, sd, pId = argv
 
         self.mem_write(pId, b"\x41\x41")
@@ -293,7 +287,6 @@ class Fwpkclnt(api.ApiHandler):
         UINT64 id
         );
         """
-        ctx = ctx or {}
         eng, fid = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -308,7 +301,6 @@ class Fwpkclnt(api.ApiHandler):
         UINT32 id
         );
         """
-        ctx = ctx or {}
         eng, cid = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
@@ -324,7 +316,6 @@ class Fwpkclnt(api.ApiHandler):
         const UINT32 calloutId
         );
         """
-        ctx = ctx or {}
         (cid,) = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
@@ -341,7 +332,6 @@ class Fwpkclnt(api.ApiHandler):
         const GUID *key
         );
         """
-        ctx = ctx or {}
         eng, key = argv
 
         rv = FWP_E_SUBLAYER_NOT_FOUND
@@ -361,7 +351,6 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE engineHandle
         );
         """
-        ctx = ctx or {}
         (eng,) = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -374,7 +363,6 @@ class Fwpkclnt(api.ApiHandler):
         HANDLE injectionHandle
         );
         """
-        ctx = ctx or {}
         (handle,) = argv
 
         rv = ddk.STATUS_SUCCESS

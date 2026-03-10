@@ -32,7 +32,6 @@ class Hal(api.ApiHandler):
         """
         NTHALAPI KIRQL KeGetCurrentIrql();
         """
-        ctx = ctx or {}
         irql = emu.get_current_irql()
         return irql
 
@@ -43,7 +42,6 @@ class Hal(api.ApiHandler):
             _Inout_ PFAST_MUTEX FastMutex
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
@@ -53,5 +51,4 @@ class Hal(api.ApiHandler):
             _Inout_ PFAST_MUTEX FastMutex
         );
         """
-        ctx = ctx or {}
         return

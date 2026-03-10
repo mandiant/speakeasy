@@ -22,7 +22,6 @@ class OleAut32(api.ApiHandler):
             const OLECHAR *psz
         );
         """
-        ctx = ctx or {}
         (psz,) = argv
         alloc_str = self.read_mem_string(psz, 2)
         if alloc_str:
@@ -50,7 +49,6 @@ class OleAut32(api.ApiHandler):
           [in] UINT          ui
         );
         """
-        ctx = ctx or {}
         strin, ui = argv
 
         ws_len = (ui + 1) * 2
@@ -80,7 +78,6 @@ class OleAut32(api.ApiHandler):
             BSTR bstrString
         );
         """
-        ctx = ctx or {}
         argv[0] = self.read_wide_string(argv[0])
         return
 
@@ -91,7 +88,6 @@ class OleAut32(api.ApiHandler):
             VARIANTARG *pvarg
         );
         """
-        ctx = ctx or {}
         (pvarg,) = argv
         if pvarg:
             size = 0x18 if emu.get_ptr_size() == 8 else 0x10

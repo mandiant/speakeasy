@@ -235,7 +235,6 @@ class Shlwapi(api.ApiHandler):
             va_list arglist
         );
         """
-        ctx = ctx or {}
         buffer, count, _format, argptr = argv
         rv = 0
 
@@ -316,7 +315,6 @@ class Shlwapi(api.ApiHandler):
             [in]  LPCWSTR pszPath
         );
         """
-        ctx = ctx or {}
         pszBuf, pszPath = argv
         path = self.read_wide_string(pszPath)
         self.write_wide_string(path, pszBuf)

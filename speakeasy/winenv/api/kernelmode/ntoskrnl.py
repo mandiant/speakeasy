@@ -105,7 +105,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         void ObfDereferenceObject(a);
         """
-        ctx = ctx or {}
         Object = argv[0]
 
         obj = self.get_object_from_addr(Object)
@@ -119,7 +118,6 @@ class Ntoskrnl(api.ApiHandler):
         HANDLE Handle
         );
         """
-        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
 
         # For now, just leave the handle open so we can reference it later
@@ -133,7 +131,6 @@ class Ntoskrnl(api.ApiHandler):
         ...
         );
         """
-        ctx = ctx or {}
 
         fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 1)[0]
         fmt_str = self.read_string(fmt)
@@ -156,7 +153,6 @@ class Ntoskrnl(api.ApiHandler):
           ...
         );
         """
-        ctx = ctx or {}
 
         cid, level, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
 
@@ -184,7 +180,6 @@ class Ntoskrnl(api.ApiHandler):
             va_list argptr
         );
         """
-        ctx = ctx or {}
         buffer, count, _format, argptr = argv
         rv = 0
 
@@ -217,7 +212,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN         AllocateDestinationString
         );
         """
-        ctx = ctx or {}
 
         dest, src, do_alloc = argv
         nts = ddk.STATUS_SUCCESS
@@ -261,7 +255,6 @@ class Ntoskrnl(api.ApiHandler):
             PCSZ SourceString
         );
         """
-        ctx = ctx or {}
         ansi = self.win.STRING(emu.get_ptr_size())
 
         dest, src = argv
@@ -285,7 +278,6 @@ class Ntoskrnl(api.ApiHandler):
             PCWSTR SourceString
             );
         """
-        ctx = ctx or {}
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
         dest, src = argv
 
@@ -313,7 +305,6 @@ class Ntoskrnl(api.ApiHandler):
             PUNICODE_STRING UnicodeString
         );
         """
-        ctx = ctx or {}
         (UnicodeString,) = argv
 
         us_str = self.read_unicode_string(UnicodeString)
@@ -332,7 +323,6 @@ class Ntoskrnl(api.ApiHandler):
            ULONG Tag
         );
         """
-        ctx = ctx or {}
 
         PoolType, NumberOfBytes, Tag = argv
 
@@ -354,7 +344,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG Tag
             );
         """
-        ctx = ctx or {}
         P, Tag = argv
 
         if Tag:
@@ -373,7 +362,6 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T NumberOfBytes
             );
         """
-        ctx = ctx or {}
         PoolType, NumberOfBytes = argv
 
         chunk = self.pool_alloc(PoolType, NumberOfBytes, "None")
@@ -386,7 +374,6 @@ class Ntoskrnl(api.ApiHandler):
             addr
         );
         """
-        ctx = ctx or {}
         (addr,) = argv
         self.mem_free(addr)
 
@@ -399,7 +386,6 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
         );
         """
-        ctx = ctx or {}
         dest, src, count = argv
 
         data = self.mem_read(src, count)
@@ -411,7 +397,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         VOID IoDeleteDriver(PDRIVER_OBJECT DriverObject)
         """
-        ctx = ctx or {}
         (drv,) = argv
 
         return
@@ -429,7 +414,6 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT  *DeviceObject
             );
         """
-        ctx = ctx or {}
 
         nts = ddk.STATUS_SUCCESS
         drv, ext_size, name, devtype, chars, exclusive, out_addr = argv
@@ -463,7 +447,6 @@ class Ntoskrnl(api.ApiHandler):
             _Out_    PDEVICE_OBJECT   *DeviceObject
         );
         """
-        ctx = ctx or {}
 
         nts = ddk.STATUS_SUCCESS
         drv, ext_size, name, devtype, chars, exclusive, sddl, guid, out_addr = argv
@@ -488,7 +471,6 @@ class Ntoskrnl(api.ApiHandler):
             PUNICODE_STRING DeviceName
             );
         """
-        ctx = ctx or {}
         SymbolicLinkName, DeviceName = argv
         link_name = self.read_unicode_string(SymbolicLinkName).replace("\x00", "")
         dev_name = self.read_unicode_string(DeviceName).replace("\x00", "")
@@ -508,7 +490,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ CCHAR PriorityBoost
             );
         """
-        ctx = ctx or {}
         pIrp, boost = argv
 
         argv[1] = 0xFF & argv[1]
@@ -521,7 +502,6 @@ class Ntoskrnl(api.ApiHandler):
         PUNICODE_STRING SymbolicLinkName
         );
         """
-        ctx = ctx or {}
         nts = ddk.STATUS_SUCCESS
 
         SymbolicLinkName = argv[0]
@@ -531,7 +511,6 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("KeInitializeMutex", argc=2)
     def KeInitializeMutex(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
         return
 
     @apihook("IoDeleteDevice", argc=1)
@@ -541,7 +520,6 @@ class Ntoskrnl(api.ApiHandler):
             __drv_freesMem(Mem)PDEVICE_OBJECT DeviceObject
             );
         """
-        ctx = ctx or {}
         nts = ddk.STATUS_SUCCESS
         # devobj = argv[0]
 
@@ -554,7 +532,6 @@ class Ntoskrnl(api.ApiHandler):
         PVOID VirtualAddress
         );
         """
-        ctx = ctx or {}
         rv = 0
 
         (addr,) = argv
@@ -572,7 +549,6 @@ class Ntoskrnl(api.ApiHandler):
             _Out_opt_ PULONG                   ReturnLength
             );
         """
-        ctx = ctx or {}
         sysclass, sysinfo, syslen, retlen = argv
 
         size = 0
@@ -702,7 +678,6 @@ class Ntoskrnl(api.ApiHandler):
         LONG     b
         )
         """
-        ctx = ctx or {}
         a, b = argv
         rv = 0xFFFFFFFFFFFFFFFF & a << (0xFFFFFFFF & b)
 
@@ -716,7 +691,6 @@ class Ntoskrnl(api.ApiHandler):
                         const wchar_t *strSource
                         );
         """
-        ctx = ctx or {}
         dest, src = argv
         ws = self.read_wide_string(src)
 
@@ -734,7 +708,6 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
             );
         """
-        ctx = ctx or {}
         dest, src, count = argv
         ws = self.read_wide_string(src)
 
@@ -751,7 +724,6 @@ class Ntoskrnl(api.ApiHandler):
             size_t      Length
         );
         """
-        ctx = ctx or {}
         self.memcpy(emu, argv)
 
     @apihook("memcpy", argc=3, conv=_arch.CALL_CONV_CDECL)
@@ -763,7 +735,6 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
             );
         """
-        ctx = ctx or {}
         dest, src, count = argv
 
         data = self.mem_read(src, count)
@@ -779,7 +750,6 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
             );
         """
-        ctx = ctx or {}
         dest, c, count = argv
 
         data = c.to_bytes(1, "little")
@@ -795,7 +765,6 @@ class Ntoskrnl(api.ApiHandler):
             argument] ...
             );
         """
-        ctx = ctx or {}
         buf, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -821,7 +790,6 @@ class Ntoskrnl(api.ApiHandler):
             argument] ...
             );
         """
-        ctx = ctx or {}
         buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -844,7 +812,6 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *str
             );
         """
-        ctx = ctx or {}
 
         string = argv[0]
         ws = self.read_wide_string(string)
@@ -864,7 +831,6 @@ class Ntoskrnl(api.ApiHandler):
                 wchar_t c
                 );
         """
-        ctx = ctx or {}
         wstr, c = argv
         ws = self.read_wide_string(wstr)
         hay = ws.encode("utf-16le")
@@ -889,7 +855,6 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *strSource
             );
         """
-        ctx = ctx or {}
         dest, src = argv
         sws = self.read_wide_string(src)
         dws = self.read_wide_string(dest)
@@ -913,7 +878,6 @@ class Ntoskrnl(api.ApiHandler):
             int c
             );
         """
-        ctx = ctx or {}
         cstr, c = argv
         cs = self.read_string(cstr)
         hay = cs.encode("utf-8")
@@ -938,7 +902,6 @@ class Ntoskrnl(api.ApiHandler):
             int c
             );
         """
-        ctx = ctx or {}
         cstr, c = argv
         cs = self.read_string(cstr)
         hay = cs.encode("utf-8")
@@ -964,7 +927,6 @@ class Ntoskrnl(api.ApiHandler):
         size_t count
         );
         """
-        ctx = ctx or {}
         string1, string2, count = argv
         rv = 1
 
@@ -987,7 +949,6 @@ class Ntoskrnl(api.ApiHandler):
                 const char *string2
                 );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1013,7 +974,6 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *string2
             );
         """
-        ctx = ctx or {}
         string1, string2 = argv
         rv = 1
 
@@ -1041,7 +1001,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID              StartContext
             );
         """
-        ctx = ctx or {}
         hThrd, access, objattr, hProc, client_id, start, startctx = argv
 
         rv = ddk.STATUS_SUCCESS
@@ -1069,7 +1028,6 @@ class Ntoskrnl(api.ApiHandler):
             PCUNICODE_STRING SourceString
             );
         """
-        ctx = ctx or {}
         dest_str, src_str = argv
 
         dest = self.win.UNICODE_STRING(emu.get_ptr_size())
@@ -1104,7 +1062,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN          CaseInSensitive
             );
         """
-        ctx = ctx or {}
         str1, str2, ci = argv
 
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
@@ -1130,7 +1087,6 @@ class Ntoskrnl(api.ApiHandler):
           BOOLEAN ChargeQuota
         );
         """
-        ctx = ctx or {}
         StackSize, ChargeQuota = argv
 
         StackSize = StackSize & 0xFF
@@ -1149,7 +1105,6 @@ class Ntoskrnl(api.ApiHandler):
           PIRP Irp
         );
         """
-        ctx = ctx or {}
         (Irp,) = argv
 
         return
@@ -1162,7 +1117,6 @@ class Ntoskrnl(api.ApiHandler):
           NTSTATUS Iostatus
         );
         """
-        ctx = ctx or {}
 
         Irp, Iostatus = argv
         return
@@ -1178,7 +1132,6 @@ class Ntoskrnl(api.ApiHandler):
           PIRP                   Irp
         );
         """
-        ctx = ctx or {}
         va, length, sec_buf, quota, irp = argv
 
         mdl = self.win.MDL(emu.get_ptr_size())
@@ -1204,7 +1157,6 @@ class Ntoskrnl(api.ApiHandler):
           LOCK_OPERATION  Operation
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("KeDelayExecutionThread", argc=3)
@@ -1216,7 +1168,6 @@ class Ntoskrnl(api.ApiHandler):
               PLARGE_INTEGER  Interval
             );
         """
-        ctx = ctx or {}
         mode, alert, interval = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1231,7 +1182,6 @@ class Ntoskrnl(api.ApiHandler):
         BOOLEAN   Wait
         );
         """
-        ctx = ctx or {}
         Event, Increment, Wait = argv
         rv = 0
 
@@ -1245,7 +1195,6 @@ class Ntoskrnl(api.ApiHandler):
             PHANDLE         EventHandle
             );
         """
-        ctx = ctx or {}
         EventName, EventHandle = argv
 
         name = self.read_unicode_string(EventName)
@@ -1267,7 +1216,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN    State
             );
         """
-        ctx = ctx or {}
 
         return
 
@@ -1278,7 +1226,6 @@ class Ntoskrnl(api.ApiHandler):
             PRKEVENT Event
             );
         """
-        ctx = ctx or {}
         rv = 0
 
         return rv
@@ -1290,7 +1237,6 @@ class Ntoskrnl(api.ApiHandler):
             PRKEVENT Event
             );
         """
-        ctx = ctx or {}
         return
 
     @apihook("KeInitializeTimer", argc=1)
@@ -1300,7 +1246,6 @@ class Ntoskrnl(api.ApiHandler):
             PKTIMER Timer
             );
         """
-        ctx = ctx or {}
         return
 
     @apihook("KeSetTimer", argc=3)
@@ -1312,7 +1257,6 @@ class Ntoskrnl(api.ApiHandler):
             PKDPC         Dpc
             );
         """
-        ctx = ctx or {}
         return True
 
     @apihook("PsLookupProcessByProcessId", argc=2)
@@ -1323,7 +1267,6 @@ class Ntoskrnl(api.ApiHandler):
             PEPROCESS *Process
             );
         """
-        ctx = ctx or {}
         ProcessId, Process = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1355,7 +1298,6 @@ class Ntoskrnl(api.ApiHandler):
                 PHANDLE         Handle
                 );
         """
-        ctx = ctx or {}
         Object, HandleAttributes, pAccess, dAccess, ObjectType, AccessMode, Handle = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1374,7 +1316,6 @@ class Ntoskrnl(api.ApiHandler):
             PEPROCESS           Object,
         );
         """
-        ctx = ctx or {}
         Object = argv[0]
 
         proc = self.get_object_from_addr(Object)
@@ -1389,7 +1330,6 @@ class Ntoskrnl(api.ApiHandler):
             PRKAPC_STATE ApcState
             );
         """
-        ctx = ctx or {}
 
         Process, ApcState = argv
 
@@ -1403,7 +1343,6 @@ class Ntoskrnl(api.ApiHandler):
             PRKAPC_STATE ApcState
             );
         """
-        ctx = ctx or {}
         # ApcState = argv[0]
         return
 
@@ -1418,7 +1357,6 @@ class Ntoskrnl(api.ApiHandler):
             OUT PULONG OldAccessProtection
             )
         """
-        ctx = ctx or {}
         hnd, base, byte_len, new_prot, old_prot = argv
 
         if base:
@@ -1442,7 +1380,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG NumberOfBytesToWrite,
             PULONG NumberOfBytesWritten);
         """
-        ctx = ctx or {}
         rv = ddk.STATUS_SUCCESS
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
         rv = False
@@ -1481,7 +1418,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG     Protect
             );
         """
-        ctx = ctx or {}
         ProcessHandle, BaseAddress, ZeroBits, RegionSize, Type, Protect = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1510,7 +1446,6 @@ class Ntoskrnl(api.ApiHandler):
             PETHREAD *Thread
             );
         """
-        ctx = ctx or {}
         ThreadId, pThread = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
@@ -1532,7 +1467,6 @@ class Ntoskrnl(api.ApiHandler):
             PRTL_OSVERSIONINFOW lpVersionInformation
             );
         """
-        ctx = ctx or {}
         lpVersionInformation = argv[0]
 
         rv = ddk.STATUS_SUCCESS
@@ -1565,7 +1499,6 @@ class Ntoskrnl(api.ApiHandler):
             PLARGE_INTEGER Timeout
             );
         """
-        ctx = ctx or {}
         Object, WaitReason, WaitMode, Alertable, Timeout = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1612,7 +1545,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG Priority
             );
         """
-        ctx = ctx or {}
         p_mdl, am, ctype, addr, bugcheck, priority = argv
         rv = 0
 
@@ -1631,7 +1563,6 @@ class Ntoskrnl(api.ApiHandler):
                 PVOID SystemArgument2,
                 KPRIORITY PriorityBoost)
         """
-        ctx = ctx or {}
         Apc, SystemArgument1, SystemArgument2, PriorityBoost = argv
         rv = True
 
@@ -1646,7 +1577,6 @@ class Ntoskrnl(api.ApiHandler):
         __drv_aliasesMem PVOID  DeferredContext
         );
         """
-        ctx = ctx or {}
         Dpc, DeferredRoutine, DeferredContext = argv
 
         return
@@ -1667,7 +1597,6 @@ class Ntoskrnl(api.ApiHandler):
                 PVOID* ObjectPtr
                 );
         """
-        ctx = ctx or {}
         ObjectName, Attributes, Passed, DesiredAccess, objtype, Access, ParseContext, objptr = argv
         rv = ddk.STATUS_INVALID_PARAMETER
         obj = None
@@ -1702,7 +1631,6 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT  *DeviceObject
             );
         """
-        ctx = ctx or {}
         ObjectName, DesiredAccess, pFileObject, pDeviceObject = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
@@ -1725,7 +1653,6 @@ class Ntoskrnl(api.ApiHandler):
             NTSTATUS ExitStatus
             );
         """
-        ctx = ctx or {}
         # ExitStatus = argv[0]
 
         rv = ddk.STATUS_SUCCESS
@@ -1740,7 +1667,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID                Context
             );
         """
-        ctx = ctx or {}
 
         DriverObject, routine, context = argv
 
@@ -1751,7 +1677,6 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KdDisableDebugger", argc=0)
     def KdDisableDebugger(self, emu, argv, ctx: api.ApiContext = None):
         """NTKERNELAPI NTSTATUS KdDisableDebugger();"""
-        ctx = ctx or {}
 
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
@@ -1768,7 +1693,6 @@ class Ntoskrnl(api.ApiHandler):
           PULONG    OutBufferNeeded
         );
         """
-        ctx = ctx or {}
 
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
@@ -1780,7 +1704,6 @@ class Ntoskrnl(api.ApiHandler):
             PUNICODE_STRING SystemRoutineName
             );
         """
-        ctx = ctx or {}
         (SystemRoutineName,) = argv
         fn = self.read_unicode_string(SystemRoutineName)
 
@@ -1795,7 +1718,6 @@ class Ntoskrnl(api.ApiHandler):
             PLARGE_INTEGER CurrentTime
         );
         """
-        ctx = ctx or {}
         (CurrentTime,) = argv
         data = emu.get_system_time()
         data = data.to_bytes(8, "little")
@@ -1809,7 +1731,6 @@ class Ntoskrnl(api.ApiHandler):
             PTIME_FIELDS   TimeFields
         );
         """
-        ctx = ctx or {}
         Time, TimeFields = argv
 
         sys_time = self.mem_read(Time, 8)
@@ -1823,7 +1744,6 @@ class Ntoskrnl(api.ApiHandler):
             PLARGE_INTEGER LocalTime
         );
         """
-        ctx = ctx or {}
         SystemTime, LocalTime = argv
 
         sys_time = self.mem_read(SystemTime, 8)
@@ -1842,7 +1762,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID                 Reserved
         );
         """
-        ctx = ctx or {}
         # TODO: Emulate the callback routine
         rv = ddk.STATUS_SUCCESS
 
@@ -1857,7 +1776,6 @@ class Ntoskrnl(api.ApiHandler):
             PLARGE_INTEGER        Cookie
         );
         """
-        ctx = ctx or {}
         # TODO: Emulate the callback routine
         Function, Context, Cookie = argv
 
@@ -1872,7 +1790,6 @@ class Ntoskrnl(api.ApiHandler):
             LARGE_INTEGER Cookie
             );
         """
-        ctx = ctx or {}
         (Cookie,) = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1888,7 +1805,6 @@ class Ntoskrnl(api.ApiHandler):
             PREGHANDLE         RegHandle
             );
         """
-        ctx = ctx or {}
         ProviderId, EnableCallback, CallbackContext, RegHandle = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -1909,7 +1825,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG  Size
             );
         """
-        ctx = ctx or {}
         Base, MappedAsImage, DirectoryEntry, Size = argv
 
         MappedAsImage &= 0xFF
@@ -1930,7 +1845,6 @@ class Ntoskrnl(api.ApiHandler):
         POBJECT_ATTRIBUTES ObjectAttributes
         );
         """
-        ctx = ctx or {}
         EventHandle, DesiredAccess, ObjectAttributes = argv
 
         oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
@@ -1959,7 +1873,6 @@ class Ntoskrnl(api.ApiHandler):
         BOOLEAN            InitialState
         );
         """
-        ctx = ctx or {}
 
         EventHandle, access, objattr, evttype, state = argv
 
@@ -1984,7 +1897,6 @@ class Ntoskrnl(api.ApiHandler):
             PERESOURCE Resource
             );
         """
-        ctx = ctx or {}
         (Resource,) = argv
 
         return ddk.STATUS_SUCCESS
@@ -1992,7 +1904,6 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeEnterCriticalRegion", argc=0)
     def KeEnterCriticalRegion(self, emu, argv, ctx: api.ApiContext = None):
         """NTKERNELAPI VOID KeEnterCriticalRegion();"""
-        ctx = ctx or {}
 
         return
 
@@ -2004,7 +1915,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN    Wait
             );
         """
-        ctx = ctx or {}
         rv = True
         return rv
 
@@ -2016,7 +1926,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_    BOOLEAN    Wait
         );
         """
-        ctx = ctx or {}
         rv = True
         return rv
 
@@ -2027,7 +1936,6 @@ class Ntoskrnl(api.ApiHandler):
             _Inout_ PERESOURCE Resource
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("ExAcquireFastMutex", argc=1)
@@ -2037,7 +1945,6 @@ class Ntoskrnl(api.ApiHandler):
             _Inout_ PFAST_MUTEX FastMutex
             );
         """
-        ctx = ctx or {}
         (FastMutex,) = argv
 
         return
@@ -2049,7 +1956,6 @@ class Ntoskrnl(api.ApiHandler):
             _Inout_ PFAST_MUTEX FastMutex
             );
         """
-        ctx = ctx or {}
         (FastMutex,) = argv
 
         return
@@ -2061,7 +1967,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
             );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("RtlLengthRequiredSid", argc=1)
@@ -2071,7 +1976,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG SubAuthorityCount
         );
         """
-        ctx = ctx or {}
         (count,) = argv
         rv = count * 16
 
@@ -2086,7 +1990,6 @@ class Ntoskrnl(api.ApiHandler):
             UCHAR                     SubAuthorityCount
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         rv = ddk.STATUS_SUCCESS
 
@@ -2100,7 +2003,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG SubAuthority
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         sid, sub_auth = argv
 
@@ -2115,7 +2017,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG AclRevision
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         acl, acl_len, acl_rev = argv
         rv = ddk.STATUS_SUCCESS
@@ -2132,7 +2033,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN              DaclDefaulted
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         sec_desc, dacl_present, dacl, dacl_default = argv
         rv = ddk.STATUS_SUCCESS
@@ -2147,7 +2047,6 @@ class Ntoskrnl(api.ApiHandler):
                               IN PSECURITY_DESCRIPTOR SecurityDescriptor)
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         Object, SecurityInformation, SecurityDescriptor = argv
         rv = ddk.STATUS_SUCCESS
@@ -2162,7 +2061,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG                Revision
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         sec_desc, rev = argv
         rv = ddk.STATUS_SUCCESS
@@ -2179,7 +2077,6 @@ class Ntoskrnl(api.ApiHandler):
             PSID        Sid
         );
         """
-        ctx = ctx or {}
         # TODO, unimplemented
         acl, acl_rev, access, sid = argv
         rv = ddk.STATUS_SUCCESS
@@ -2193,7 +2090,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID PowerRequest
         );
         """
-        ctx = ctx or {}
         return
 
     @apihook("IoWMIRegistrationControl", argc=2)
@@ -2204,7 +2100,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG          Action
         );
         """
-        ctx = ctx or {}
         rv = ddk.STATUS_INVALID_PARAMETER
 
         dev, action = argv
@@ -2220,7 +2115,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
             );
         """
-        ctx = ctx or {}
         return None
 
     @apihook("RtlGetCompressionWorkSpaceSize", argc=3)
@@ -2232,7 +2126,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG CompressFragmentWorkSpaceSize
         );
         """
-        ctx = ctx or {}
         engine, buffer_workspace, frag_workspace = argv
         if buffer_workspace:
             self.mem_write(buffer_workspace, 0x1000.to_bytes(4, "little"))
@@ -2252,7 +2145,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG FinalUncompressedSize
             );
         """
-        ctx = ctx or {}
 
         fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, final_size = argv
 
@@ -2285,7 +2177,6 @@ class Ntoskrnl(api.ApiHandler):
             PoolType,
             NumberOfBytes);
         """
-        ctx = ctx or {}
         PoolType, NumberOfBytes = argv
 
         chunk = self.pool_alloc(PoolType, NumberOfBytes, "None")
@@ -2299,7 +2190,6 @@ class Ntoskrnl(api.ApiHandler):
           __drv_aliasesMem PIRP Irp
         );
         """
-        ctx = ctx or {}
         DeviceObject, pIrp = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -2324,7 +2214,6 @@ class Ntoskrnl(api.ApiHandler):
           BOOLEAN                InvokeOnCancel
         );
         """
-        ctx = ctx or {}
         DeviceObject, Irp, CompletionRoutine, Context, on_success, on_error, on_cancel = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -2338,7 +2227,6 @@ class Ntoskrnl(api.ApiHandler):
         WORK_QUEUE_TYPE                   QueueType
         );
         """
-        ctx = ctx or {}
         WorkItem, QueueType = argv
 
         return
@@ -2359,7 +2247,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG            OutputBufferLength
             );
         """
-        ctx = ctx or {}
 
         hnd, evt, apc_func, apc_ctx, isb, ioctl, InputBuffer, in_len, out_buf, out_len = argv  # noqa
         nts = ddk.STATUS_SUCCESS
@@ -2390,7 +2277,6 @@ class Ntoskrnl(api.ApiHandler):
             argument] ...
             );
         """
-        ctx = ctx or {}
         buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
         # the internal printf implementation requires uppercase S for wide string formatting,
         # otherwise the function replaces a latin1 string into an utf-16 string
@@ -2422,7 +2308,6 @@ class Ntoskrnl(api.ApiHandler):
             POBJECT_HANDLE_INFORMATION HandleInformation
             );
         """
-        ctx = ctx or {}
         hnd, access, obtype, mode, Object, ohi = argv
 
         nts = ddk.STATUS_SUCCESS
@@ -2445,7 +2330,6 @@ class Ntoskrnl(api.ApiHandler):
             VOID
             );
         """
-        ctx = ctx or {}
         return 256
 
     @apihook("ObRegisterCallbacks", argc=2)
@@ -2458,7 +2342,6 @@ class Ntoskrnl(api.ApiHandler):
             _Outptr_ PVOID *RegistrationHandle
             );
         """
-        ctx = ctx or {}
         CallbackRegistration, RegistrationHandle = argv
         nts = ddk.STATUS_SUCCESS
 
@@ -2471,7 +2354,6 @@ class Ntoskrnl(api.ApiHandler):
             HANDLE KeyHandle
             );
         """
-        ctx = ctx or {}
         (KeyHandle,) = argv
         nts = ddk.STATUS_SUCCESS
 
@@ -2488,7 +2370,6 @@ class Ntoskrnl(api.ApiHandler):
             OUT PULONG ReturnLength OPTIONAL
             );
         """
-        ctx = ctx or {}
         hnd, info_class, proc_info, proc_info_len, retlen = argv
 
         nts = ddk.STATUS_OBJECT_TYPE_MISMATCH
@@ -2522,7 +2403,6 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoGetCurrentProcess", argc=0)
     def IoGetCurrentProcess(self, emu, argv, ctx: api.ApiContext = None):
         """NTKERNELAPI PEPROCESS IoGetCurrentProcess();"""
-        ctx = ctx or {}
 
         p = emu.get_current_process()
         return p.address
@@ -2537,7 +2417,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG           ThreadInformationLength
         );
         """
-        ctx = ctx or {}
 
         nts = ddk.STATUS_SUCCESS
         return nts
@@ -2550,7 +2429,6 @@ class Ntoskrnl(api.ApiHandler):
            size_t numberOfElements
         );
         """
-        ctx = ctx or {}
 
         src, num_elements = argv
         ws = self.read_wide_string(src)
@@ -2566,7 +2444,6 @@ class Ntoskrnl(api.ApiHandler):
           PDEVICE_OBJECT DeviceObject
         );
         """
-        ctx = ctx or {}
         (DeviceObject,) = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -2579,7 +2456,6 @@ class Ntoskrnl(api.ApiHandler):
           PDEVICE_OBJECT DeviceObject
         );
         """
-        ctx = ctx or {}
         (DeviceObject,) = argv
         return ddk.STATUS_SUCCESS
 
@@ -2590,7 +2466,6 @@ class Ntoskrnl(api.ApiHandler):
         _Inout_ PKSPIN_LOCK SpinLock
         );
         """
-        ctx = ctx or {}
         (spinlock,) = argv
         irql = self.get_current_irql()
         self.set_current_irql(ddk.DISPATCH_LEVEL)
@@ -2603,7 +2478,6 @@ class Ntoskrnl(api.ApiHandler):
         PMDL MemoryDescriptorList
         );
         """
-        ctx = ctx or {}
         (mdl,) = argv
         return
 
@@ -2614,7 +2488,6 @@ class Ntoskrnl(api.ApiHandler):
         PMDL Mdl
         );
         """
-        ctx = ctx or {}
         (mdl,) = argv
         return
 
@@ -2625,7 +2498,6 @@ class Ntoskrnl(api.ApiHandler):
         PKTIMER Arg1
         );
         """
-        ctx = ctx or {}
         rv = 1
         return rv
 
@@ -2639,7 +2511,6 @@ class Ntoskrnl(api.ApiHandler):
             PUNICODE_STRING CSDVersion
         );
         """
-        ctx = ctx or {}
         pmaj, pmin, bn, csdv = argv
 
         ver = self.emu.config.os_ver
@@ -2666,7 +2537,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ BOOLEAN Remove
             );
         """
-        ctx = ctx or {}
         NotifyRoutine, Remove = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -2681,7 +2551,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        ctx = ctx or {}
         NotifyRoutine = argv  # noqa
         rv = ddk.STATUS_SUCCESS
 
@@ -2696,7 +2565,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        ctx = ctx or {}
         NotifyRoutine = argv  # noqa
         rv = ddk.STATUS_SUCCESS
 
@@ -2711,7 +2579,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        ctx = ctx or {}
         NotifyRoutine = argv  # noqa
         rv = ddk.STATUS_SUCCESS
 
@@ -2726,7 +2593,6 @@ class Ntoskrnl(api.ApiHandler):
             _In_ PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
             );
         """
-        ctx = ctx or {}
         NotifyRoutine = argv  # noqa
         rv = ddk.STATUS_SUCCESS
 
@@ -2741,7 +2607,6 @@ class Ntoskrnl(api.ApiHandler):
         size_t count
         );
         """
-        ctx = ctx or {}
         wcstr, mbstr, count = argv
 
         rv = 0
@@ -2766,7 +2631,6 @@ class Ntoskrnl(api.ApiHandler):
         POBJECT_ATTRIBUTES ObjectAttributes
         );
         """
-        ctx = ctx or {}
         phnd, access, objattr = argv
         rv = ddk.STATUS_SUCCESS
 
@@ -2797,7 +2661,6 @@ class Ntoskrnl(api.ApiHandler):
         PULONG                      ResultLength
         );
         """
-        ctx = ctx or {}
 
         hnd, val, info_class, val_info, length, ret_len = argv
         rv = ddk.STATUS_INVALID_HANDLE
@@ -2854,7 +2717,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG              EaLength
         );
         """
-        ctx = ctx or {}
         pHndl, access, objattr, statblock, alloc_size, file_attrs, share, create_disp, create_opts, ea_buf, ea_len = (
             argv
         )
@@ -2934,7 +2796,6 @@ class Ntoskrnl(api.ApiHandler):
           ULONG              OpenOptions
         );
         """
-        ctx = ctx or {}
         pHndl, access, objattr, statblock, share, open_opts = argv
 
         nts = ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -2981,7 +2842,6 @@ class Ntoskrnl(api.ApiHandler):
             FILE_INFORMATION_CLASS FileInformationClass
         );
         """
-        ctx = ctx or {}
         FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass = argv
 
         nts = ddk.STATUS_INVALID_PARAMETER
@@ -3010,7 +2870,6 @@ class Ntoskrnl(api.ApiHandler):
           SIZE_T     Length
         );
         """
-        ctx = ctx or {}
 
         s1, s2, Length = argv
 
@@ -3035,7 +2894,6 @@ class Ntoskrnl(api.ApiHandler):
           PVOID                     Environment
         );
         """
-        ctx = ctx or {}
 
         rv = ddk.STATUS_SUCCESS
         # TODO: complete this api handler
@@ -3069,7 +2927,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG           Key
         );
         """
-        ctx = ctx or {}
         FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
         length = length & 0xFFFFFFFF
 
@@ -3111,7 +2968,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG           Key
         );
         """
-        ctx = ctx or {}
         FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
 
         nts = ddk.STATUS_INVALID_PARAMETER
@@ -3140,7 +2996,6 @@ class Ntoskrnl(api.ApiHandler):
           _DRIVER_OBJECT *DriverObject
         );
         """
-        ctx = ctx or {}
 
         (DriverObject,) = argv
         rv = False
@@ -3160,7 +3015,6 @@ class Ntoskrnl(api.ApiHandler):
             HANDLE             FileHandle
         );
         """
-        ctx = ctx or {}
 
         (
             SectionHandle,
@@ -3203,7 +3057,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID  BaseAddress
         );
         """
-        ctx = ctx or {}
         ProcessHandle, BaseAddress = argv
         return 0
 
@@ -3223,7 +3076,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG           Win32Protect
         );
         """
-        ctx = ctx or {}
 
         (
             SectionHandle,
@@ -3317,7 +3169,6 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T Size
         );
         """
-        ctx = ctx or {}
         heap, flags, size = argv
 
         block = self.heap_alloc(size, heap="RtlAllocateHeap")
@@ -3332,7 +3183,6 @@ class Ntoskrnl(api.ApiHandler):
             LPCONTEXT lpContext
         );
         """
-        ctx = ctx or {}
         hThread, lpContext = argv
 
         obj = self.get_object_from_handle(hThread)
@@ -3353,7 +3203,6 @@ class Ntoskrnl(api.ApiHandler):
             LPCONTEXT lpContext
         );
         """
-        ctx = ctx or {}
         hThread, lpContext = argv
 
         obj = self.get_object_from_handle(hThread)
@@ -3376,7 +3225,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID BaseAddress
         );
         """
-        ctx = ctx or {}
         rv = 1
         hHeap, dwFlags, lpMem = argv
 

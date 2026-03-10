@@ -38,7 +38,6 @@ class GDI32(api.ApiHandler):
             const VOID *lpBits
         );
         """
-        ctx = ctx or {}
         return self.get_handle()
 
     @apihook("MoveToEx", argc=1)
@@ -51,7 +50,6 @@ class GDI32(api.ApiHandler):
           LPPOINT lppt
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("LineTo", argc=1)
@@ -63,7 +61,6 @@ class GDI32(api.ApiHandler):
           int y
         )
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetStockObject", argc=1)
@@ -73,7 +70,6 @@ class GDI32(api.ApiHandler):
             int i
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetMapMode", argc=1)
@@ -83,7 +79,6 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("GetDeviceCaps", argc=2)
@@ -94,7 +89,6 @@ class GDI32(api.ApiHandler):
             int index
         );
         """
-        ctx = ctx or {}
         return 16
 
     @apihook("GdiSetBatchLimit", argc=1)
@@ -104,7 +98,6 @@ class GDI32(api.ApiHandler):
           DWORD dw
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("MaskBlt", argc=12)
@@ -125,7 +118,6 @@ class GDI32(api.ApiHandler):
           DWORD   rop
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("BitBlt", argc=9)
@@ -142,7 +134,6 @@ class GDI32(api.ApiHandler):
         int   y1,
         DWORD rop
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("DeleteDC", argc=1)
@@ -152,7 +143,6 @@ class GDI32(api.ApiHandler):
         HDC hdc
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("SelectObject", argc=2)
@@ -163,7 +153,6 @@ class GDI32(api.ApiHandler):
           HGDIOBJ h
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("DeleteObject", argc=1)
@@ -173,7 +162,6 @@ class GDI32(api.ApiHandler):
         HGDIOBJ ho
         );
         """
-        ctx = ctx or {}
         return 1
 
     @apihook("CreateCompatibleBitmap", argc=3)
@@ -185,7 +173,6 @@ class GDI32(api.ApiHandler):
         int cy
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CreateCompatibleDC", argc=1)
@@ -195,7 +182,6 @@ class GDI32(api.ApiHandler):
         HDC hdc
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetDIBits", argc=7)
@@ -211,7 +197,6 @@ class GDI32(api.ApiHandler):
         UINT         usage
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CreateDIBSection", argc=6)
@@ -226,7 +211,6 @@ class GDI32(api.ApiHandler):
           [in]  DWORD            offset
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CreateDCA", argc=4)
@@ -239,7 +223,6 @@ class GDI32(api.ApiHandler):
         const DEVMODEA *pdm
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("GetTextCharacterExtra", argc=1)
@@ -249,7 +232,6 @@ class GDI32(api.ApiHandler):
           HDC hdc
         );
         """
-        ctx = ctx or {}
         return 0x8000000
 
     @apihook("StretchBlt", argc=11)
@@ -269,7 +251,6 @@ class GDI32(api.ApiHandler):
           DWORD rop
         );
         """
-        ctx = ctx or {}
         return 0
 
     @apihook("CreateFontIndirectA", argc=1)
@@ -279,7 +260,6 @@ class GDI32(api.ApiHandler):
             const LOGFONTA *lplf
         );
         """
-        ctx = ctx or {}
         # Return a fake HFONT handle.
         # Any non-zero value is treated as success.
         return 0x6000
@@ -293,7 +273,6 @@ class GDI32(api.ApiHandler):
             LPVOID pv
         );
         """
-        ctx = ctx or {}
         h, c, pv = argv
 
         # If caller provided a buffer, fill it with zeros.
@@ -319,6 +298,5 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        ctx = ctx or {}
         # We don't emulate actual path widening; just report success.
         return 1

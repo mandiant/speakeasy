@@ -27,7 +27,6 @@ class RPCRT4(api.ApiHandler):
           UUID *Uuid
         );
         """
-        ctx = ctx or {}
         (uuidp,) = argv
 
         if not uuidp:
@@ -51,7 +50,6 @@ class RPCRT4(api.ApiHandler):
           RPC_CSTR   *StringUuid
         );
         """
-        ctx = ctx or {}
         uuidp, stringp = argv
 
         if not uuidp or not stringp:
