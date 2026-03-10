@@ -5281,6 +5281,27 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook("IsBadStringPtr", argc=2)
+    def IsBadStringPtr(self, emu, argv, ctx={}):
+        """
+        BOOL IsBadStringPtrW(
+            LPCWSTR  lpsz,
+            UINT_PTR ucchMax
+        );
+        """
+        lpsz, ucchMax = argv
+        cw = self.get_char_width(ctx)
+        rv = True
+
+        if lpsz and ucchMax:
+            v1 = emu.is_address_valid(lpsz)
+            v2 = emu.is_address_valid(lpsz + (cw * ucchMax) - cw)
+
+            if v1 and v2:
+                rv = False
+
+        return rv
+
     @apihook("GetSystemFirmwareTable", argc=4)
     def GetSystemFirmwareTable(self, emu, argv, ctx={}):
         """
