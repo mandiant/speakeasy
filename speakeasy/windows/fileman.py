@@ -71,7 +71,7 @@ class File:
 
     curr_handle = 0x80
 
-    def __init__(self, path, config={}, data=b""):
+    def __init__(self, path, config=None, data=b""):
         self.path: str = path
         self.data: io.BytesIO | bytes | None = None
         self.bytes_written: int = 0
@@ -79,7 +79,7 @@ class File:
             self.data = io.BytesIO(data)
         self.curr_offset: int = 0
         self.is_dir: bool = False
-        self.config: Any = config
+        self.config: Any = config if config is not None else {}
 
     def duplicate(self):
         if not self.data and self.config:
@@ -195,7 +195,7 @@ class Pipe(File):
 
     curr_handle = 0x400
 
-    def __init__(self, name, mode, num_instances, out_size, in_size, config={}):
+    def __init__(self, name, mode, num_instances, out_size, in_size, config=None):
         super().__init__(path=name, config=config)
         self.name = name
         self.mode = mode
