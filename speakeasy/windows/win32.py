@@ -180,6 +180,9 @@ class Win32Emulator(WindowsEmulator):
         rtmod = self.load_image(image)
         self.set_func_args(self.stack_base, self.return_hook)
 
+        if self.input is not None:
+            self.input["image_base"] = rtmod.base
+
         return rtmod
 
     def _make_emu_path(self, path, data):
@@ -397,6 +400,7 @@ class Win32Emulator(WindowsEmulator):
                 "sha256": sc_hash,
                 "size": len(data),
                 "arch": sc_arch,
+                "image_base": sc_addr,
                 "mem_tag": sc_tag,
                 "emu_version": self.get_emu_version(),
                 "os_run": self.get_osver_string(),
