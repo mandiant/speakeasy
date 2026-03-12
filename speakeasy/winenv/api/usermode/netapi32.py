@@ -106,6 +106,24 @@ class NetApi32(api.ApiHandler):
 
         return netapi32defs.NERR_Success
 
+    @apihook("NetUserAdd", argc=4)
+    def NetUserAdd(self, emu, argv, ctx={}):
+        """
+        NET_API_STATUS NET_API_FUNCTION NetUserAdd(
+          LPCWSTR servername,
+          DWORD   level,
+          LPBYTE  buf,
+          LPDWORD parm_err
+        );
+        """
+        servername, level, buf, parm_err = argv
+
+        if servername:
+            server = self.read_wide_string(servername)
+            argv[0] = server
+
+        return netapi32defs.NERR_Success
+
     @apihook("NetApiBufferFree", argc=1)
     def NetApiBufferFree(self, emu, argv, ctx={}):
         """
