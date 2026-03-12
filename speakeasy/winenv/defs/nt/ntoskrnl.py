@@ -627,10 +627,40 @@ class LARGE_INTEGER(EmuStruct):
         self.HighPart = ct.c_uint32
 
 
+class CURDIR(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.DosPath = UNICODE_STRING
+        self.Handle = Ptr
+
+
 class RTL_USER_PROCESS_PARAMETERS(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Reserved1 = ct.c_uint8 * 16
-        self.Reserved2 = ct.c_uint32 * 10
+        self.MaximumLength = ct.c_uint32
+        self.Length = ct.c_uint32
+        self.Flags = ct.c_uint32
+        self.DebugFlags = ct.c_uint32
+        self.ConsoleHandle = Ptr
+        self.ConsoleFlags = ct.c_uint32
+        self.StandardInput = Ptr
+        self.StandardOutput = Ptr
+        self.StandardError = Ptr
+        self.CurrentDirectory = CURDIR
+        self.DllPath = UNICODE_STRING
         self.ImagePathName = UNICODE_STRING
         self.CommandLine = UNICODE_STRING
+        self.Environment = Ptr
+        self.StartingX = ct.c_uint32
+        self.StartingY = ct.c_uint32
+        self.CountX = ct.c_uint32
+        self.CountY = ct.c_uint32
+        self.CountCharsX = ct.c_uint32
+        self.CountCharsY = ct.c_uint32
+        self.FillAttribute = ct.c_uint32
+        self.WindowFlags = ct.c_uint32
+        self.ShowWindowFlags = ct.c_uint32
+        self.WindowTitle = UNICODE_STRING
+        self.DesktopInfo = UNICODE_STRING
+        self.ShellInfo = UNICODE_STRING
+        self.RuntimeData = UNICODE_STRING

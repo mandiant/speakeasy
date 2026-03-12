@@ -665,22 +665,62 @@ class RTL_USER_PROCESS_PARAMETERS(KernelObject):
         super().__init__(emu=emu)
 
         self.object = self.nt_types.RTL_USER_PROCESS_PARAMETERS(emu.get_ptr_size())
+
         proc_path = (proc.path + "\x00").encode("utf-16le")
         proc_cmdline = (proc.cmdline + "\x00").encode("utf-16le")
-        size = self.sizeof()
-        size += len(proc_path)
-        size += len(proc_cmdline)
+
+        cur_dir = ntpath.dirname(proc.path)
+        if not cur_dir.endswith("\\"):
+            cur_dir += "\\"
+        cur_dir_enc = (cur_dir + "\x00").encode("utf-16le")
+
+        desktop_name = "WinSta0\\Default\x00"
+        desktop_enc = desktop_name.encode("utf-16le")
+
+        string_data_size = len(proc_path) + len(proc_cmdline) + len(cur_dir_enc) + len(desktop_enc)
+        size = self.sizeof() + string_data_size
         self.address = emu.mem_map(size, tag=proc.get_mem_tag() + ".ProcessParameters")
-        emu.mem_write(self.address + self.sizeof(), proc_path)
-        emu.mem_write(self.address + self.sizeof() + len(proc_path), proc_cmdline)
+
+        offset = self.address + self.sizeof()
+        emu.mem_write(offset, proc_path)
+        path_addr = offset
+        offset += len(proc_path)
+
+        emu.mem_write(offset, proc_cmdline)
+        cmdline_addr = offset
+        offset += len(proc_cmdline)
+
+        emu.mem_write(offset, cur_dir_enc)
+        cur_dir_addr = offset
+        offset += len(cur_dir_enc)
+
+        emu.mem_write(offset, desktop_enc)
+        desktop_addr = offset
+
+        self.object.MaximumLength = size
+        self.object.Length = size
+        self.object.Flags = 1
+
+        self.object.StandardInput = proc.stdin
+        self.object.StandardOutput = proc.stdout
+        self.object.StandardError = proc.stderr
+
+        self.object.CurrentDirectory.DosPath.Length = len(cur_dir_enc) - 2
+        self.object.CurrentDirectory.DosPath.MaximumLength = len(cur_dir_enc)
+        self.object.CurrentDirectory.DosPath.Buffer = cur_dir_addr
 
         self.object.ImagePathName.Length = len(proc_path) - 2
-        self.object.ImagePathName.MaxLength = len(proc_path)
-        self.object.ImagePathName.Buffer = self.address + self.sizeof()
+        self.object.ImagePathName.MaximumLength = len(proc_path)
+        self.object.ImagePathName.Buffer = path_addr
 
         self.object.CommandLine.Length = len(proc_cmdline) - 2
-        self.object.CommandLine.MaxLength = len(proc_cmdline)
-        self.object.CommandLine.Buffer = self.address + self.sizeof() + len(proc_path)
+        self.object.CommandLine.MaximumLength = len(proc_cmdline)
+        self.object.CommandLine.Buffer = cmdline_addr
+
+        self.object.DesktopInfo.Length = len(desktop_enc) - 2
+        self.object.DesktopInfo.MaximumLength = len(desktop_enc)
+        self.object.DesktopInfo.Buffer = desktop_addr
+
         self.write_back()
 
 
