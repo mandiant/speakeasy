@@ -1091,7 +1091,8 @@ class WindowsEmulator(BinaryEmulator):
         self.modules.append(mod)
 
         if is_primary and not self.stack_base and image.stack_size:
-            self.stack_base, _stack_addr = self.alloc_stack(image.stack_size)
+            stack_size = self.config.stack_size or image.stack_size
+            self.stack_base, _stack_addr = self.alloc_stack(stack_size)
 
         if not self._setup_done:
             self._setup_done = True
