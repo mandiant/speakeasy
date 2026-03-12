@@ -37,6 +37,10 @@ DISASM_SIZE = 0x20
 logger = logging.getLogger(__name__)
 
 
+def _normalize_mod_name(name: str) -> str:
+    return os.path.splitext(name)[0].lower()
+
+
 class BootstrapPhase(IntEnum):
     INITIALIZED = 0
     ENGINE_API_READY = 1
@@ -894,7 +898,6 @@ class WindowsEmulator(BinaryEmulator):
             except Exception:
                 continue
             dll_name = dll_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
-            dll_name_no_ext = dll_name.rsplit(".", 1)[0] if "." in dll_name else dll_name
 
             thunk_rva = ilt_rva if ilt_rva else iat_rva
             idx = 0
@@ -934,7 +937,7 @@ class WindowsEmulator(BinaryEmulator):
                     func_name = name_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
 
                 sentinel = self._alloc_sentinel()
-                self.import_table[sentinel] = (dll_name_no_ext, func_name)
+                self.import_table[sentinel] = (_normalize_mod_name(dll_name), func_name)
                 try:
                     self.mem_write(iat_va, sentinel.to_bytes(ptr_size, "little"))
                     n_fixups += 1
@@ -1009,7 +1012,7 @@ class WindowsEmulator(BinaryEmulator):
         ptr_size = self.get_ptr_size()
         for imp in image.imports:
             sentinel = self._alloc_sentinel()
-            self.import_table[sentinel] = (imp.dll_name, imp.func_name)
+            self.import_table[sentinel] = (_normalize_mod_name(imp.dll_name), imp.func_name)
             offset = imp.iat_address
             try:
                 self.mem_write(offset, sentinel.to_bytes(ptr_size, "little"))
@@ -1050,7 +1053,7 @@ class WindowsEmulator(BinaryEmulator):
         is_primary = isinstance(image.loader, _PeLoaderType) or image.module_type == "shellcode"
 
         mod_base_name = ntpath.basename(image.emu_path)
-        mod_base_name_no_ext = os.path.splitext(mod_base_name)[0]
+        mod_base_name_no_ext = _normalize_mod_name(mod_base_name)
 
         has_api_exports = False
         if self.api:
@@ -1324,6 +1327,7 @@ class WindowsEmulator(BinaryEmulator):
         Get a pointer for a supplied function name, similar to how the
         "GetProcAddress" API functions.
         """
+        mod_name = _normalize_mod_name(mod_name)
         for addr, (mod, fn) in self.import_table.items():
             if mod_name == mod and func_name == fn:
                 return addr

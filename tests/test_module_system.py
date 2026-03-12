@@ -26,7 +26,7 @@ def test_getprocaddress_dynamic_resolution(config, load_test_bin):
         se.shutdown()
 
     events = report.entry_points[0].events or []
-    gpa_calls = [evt for evt in events if evt.event == "api" and evt.api_name == "KERNEL32.GetProcAddress"]
+    gpa_calls = [evt for evt in events if evt.event == "api" and evt.api_name == "kernel32.GetProcAddress"]
     assert gpa_calls
     assert any(call.ret_val != "0x0" for call in gpa_calls)
 

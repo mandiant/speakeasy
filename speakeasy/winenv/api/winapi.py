@@ -53,7 +53,8 @@ class WindowsApi:
         return None
 
     def get_data_export_handler(self, mod_name, exp_name):
-        mod = self.mods.get(mod_name)
+        key = mod_name.lower() if mod_name else mod_name
+        mod = self.mods.get(key)
         if not mod:
             mod = self.load_api_handler(mod_name)
         if not mod:
@@ -61,7 +62,8 @@ class WindowsApi:
         return (mod, mod.get_data_handler(exp_name))
 
     def get_export_func_handler(self, mod_name, exp_name):
-        mod = self.mods.get(mod_name)
+        key = mod_name.lower() if mod_name else mod_name
+        mod = self.mods.get(key)
         if not mod:
             mod = self.load_api_handler(mod_name)
         if not mod:

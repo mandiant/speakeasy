@@ -22,7 +22,7 @@ def test_dll_emu(config, load_test_bin, run_test, bin_file):
 
     dll_entry = eps[0]
 
-    msgbox = get_api_calls(dll_entry, "USER32.MessageBoxA")
+    msgbox = get_api_calls(dll_entry, "user32.MessageBoxA")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
     assert msgbox.args[1] == "Inside process attach"
@@ -30,7 +30,7 @@ def test_dll_emu(config, load_test_bin, run_test, bin_file):
     assert dll_entry.ret_val == 1
 
     ep = eps[1]
-    msgbox = get_api_calls(ep, "USER32.MessageBoxA")
+    msgbox = get_api_calls(ep, "user32.MessageBoxA")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
     assert msgbox.args[1] == "Inside emu_test_one"
@@ -38,7 +38,7 @@ def test_dll_emu(config, load_test_bin, run_test, bin_file):
     assert ep.ret_val == 0x41414141
 
     ep = eps[2]
-    msgbox = get_api_calls(ep, "USER32.MessageBoxW")
+    msgbox = get_api_calls(ep, "user32.MessageBoxW")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
     assert msgbox.args[1] == "Inside emu_test_two"
