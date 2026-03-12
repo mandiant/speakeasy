@@ -412,10 +412,27 @@ class WindowsEmulator(BinaryEmulator):
         run.args = params
 
         if not self.run_queue:
+            self._ensure_process_context()
             self.add_run(run)
             self.start()
         else:
             self.add_run(run)
+
+    def _ensure_process_context(self):
+        if self.curr_process:
+            return
+        p = objman.Process(self)
+        self.processes.append(p)
+        self.curr_process = p
+        self.om.objects.update({p.address: p})
+
+        t = objman.Thread(self, stack_base=self.stack_base)
+        self.om.objects.update({t.address: t})
+        self.curr_process.threads.append(t)
+        self.curr_thread = t
+
+        peb = self.alloc_peb(self.curr_process)
+        self.init_teb(t, peb)
 
     def _prepare_run_context(self, run):
         """
