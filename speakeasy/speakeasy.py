@@ -275,7 +275,7 @@ class Speakeasy:
         return self.emu.load_image(image)  # type: ignore[union-attr]
 
     @check_init
-    def run_module(self, module, all_entrypoints=False, emulate_children=False) -> None:
+    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
         Run a previously loaded module through the configured emulator
 
@@ -286,6 +286,8 @@ class Speakeasy:
             emulate_children: If true, any child processes created by this
             module will be emulated, otherwise, just this module is
             emulated.
+            entry_point: Optional RVA to use as entry point instead of the
+            PE's default entry point.
         return:
             None
         """
@@ -294,10 +296,13 @@ class Speakeasy:
 
         if isinstance(self.emu, Win32Emulator):
             return self.emu.run_module(  # type: ignore[no-any-return]
-                module=module, all_entrypoints=all_entrypoints, emulate_children=emulate_children
+                module=module,
+                all_entrypoints=all_entrypoints,
+                emulate_children=emulate_children,
+                entry_point=entry_point,
             )
         else:
-            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints)  # type: ignore[no-any-return, union-attr]
+            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)  # type: ignore[no-any-return, union-attr]
 
     def load_shellcode(self, fpath=None, arch=None, data=None) -> int:
         """
