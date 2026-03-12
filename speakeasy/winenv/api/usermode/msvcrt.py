@@ -179,6 +179,17 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    def _read_func_table(self, pfbegin, pfend):
+        ptrsize = self.get_ptr_size()
+        funcs = []
+        ptr = pfbegin
+        while ptr < pfend:
+            addr = int.from_bytes(self.mem_read(ptr, ptrsize), "little")
+            if addr:
+                funcs.append(addr)
+            ptr += ptrsize
+        return funcs
+
     # Reference: https://wiki.osdev.org/Visual_C%2B%2B_Runtime
     @apihook("_initterm_e", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm_e(self, emu, argv, ctx={}):
@@ -186,22 +197,20 @@ class Msvcrt(api.ApiHandler):
         static int _initterm_e(_PIFV * pfbegin,
                                  _PIFV * pfend)
         """
-
         pfbegin, pfend = argv
-
-        rv = 0
-
-        return rv
+        funcs = self._read_func_table(pfbegin, pfend)
+        if funcs:
+            argv.append(", ".join(f"0x{f:x}" for f in funcs))
+        return 0
 
     @apihook("_initterm", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm(self, emu, argv, ctx={}):
         """static void _initterm (_PVFV * pfbegin, _PVFV * pfend)"""
-
         pfbegin, pfend = argv
-
-        rv = 0
-
-        return rv
+        funcs = self._read_func_table(pfbegin, pfend)
+        if funcs:
+            argv.append(", ".join(f"0x{f:x}" for f in funcs))
+        return 0
 
     @apihook("__getmainargs", argc=5)
     def __getmainargs(self, emu, argv, ctx={}):
