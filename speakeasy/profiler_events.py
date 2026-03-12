@@ -552,6 +552,9 @@ class ExceptionEvent(Event):
     exception_code: str = Field(description="Exception code in hexadecimal string form.")
     handler_address: str = Field(description="Address of the selected exception handler.")
     registers: dict[str, str] = Field(description="Register snapshot captured at exception time.")
+    faulting_address: str | None = Field(default=None, description="Address that caused the fault, if applicable.")
+    pc_module: str | None = Field(default=None, description="Module name + offset containing the faulting PC.")
+    stack_trace: list[str] | None = Field(default=None, description="Stack trace at exception time.")
 
 
 AnyEvent = Annotated[

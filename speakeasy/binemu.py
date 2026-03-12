@@ -15,7 +15,7 @@ from speakeasy.engines import unicorn_eng
 from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
-from speakeasy.report import Report
+from speakeasy.report import ErrorInfo, Report
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +168,7 @@ class BinaryEmulator(MemoryManager, ABC):
             self.emu_eng.start(addr, timeout=self.config.timeout, count=self.config.max_instructions)
         except Exception:
             if self.profiler:
-                self.profiler.record_error_event(traceback.format_exc())
+                self.profiler.record_error_event(ErrorInfo(type="internal_error", traceback=traceback.format_exc()))
             self.on_emu_complete()
 
     def reg_write(self, reg, val):

@@ -119,6 +119,17 @@ class StringsReport(BaseModel):
     )
 
 
+class RegionInfo(BaseModel):
+    """Describes a memory region for exception context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tag: str = Field(description="Memory-map tag identifying the region.")
+    base: HexInt = Field(description="Base address of the region.")
+    size: HexInt = Field(description="Region size in bytes.")
+    prot: str | None = Field(default=None, description="Protection string (e.g. ``r-x``).")
+
+
 class ErrorInfo(BaseModel):
     """Captures failure context for top-level or per-entry-point errors.
 
@@ -151,6 +162,60 @@ class ErrorInfo(BaseModel):
             "Useful for quickly identifying invalid memory operations or bad control "
             "flow transitions."
         ),
+    )
+    address: HexIntOptional = Field(
+        default=None,
+        description="Faulting memory address that triggered the error.",
+    )
+    access_type: str | None = Field(
+        default=None,
+        description="Memory access type that faulted: read, write, or fetch.",
+    )
+    regs: dict[str, str] | None = Field(
+        default=None,
+        description="Register state snapshot at the time of the error.",
+    )
+    stack: list[str] | None = Field(
+        default=None,
+        description="Stack trace entries captured at the time of the error.",
+    )
+    pc_module: str | None = Field(
+        default=None,
+        description="Module name + offset containing the faulting PC (e.g. ``sample.exe+0x1234``).",
+    )
+    address_region: RegionInfo | None = Field(
+        default=None,
+        description="Memory region containing the faulting address, if mapped.",
+    )
+    nearby_regions: list[RegionInfo] | None = Field(
+        default=None,
+        description="Up to 2 nearest memory regions when the faulting address is unmapped.",
+    )
+    thread_id: int | None = Field(default=None, description="Thread ID at the time of the error.")
+    process_id: int | None = Field(default=None, description="Process ID at the time of the error.")
+    context_summary: str | None = Field(
+        default=None,
+        description="Human-readable one-line triage summary of the error.",
+    )
+    traceback: str | None = Field(
+        default=None,
+        description="Python traceback when the error originated from an internal exception.",
+    )
+    api_name: str | None = Field(
+        default=None,
+        description="API function name for unsupported-API errors.",
+    )
+    count: int | None = Field(
+        default=None,
+        description="API call count that triggered a max-API-count limit.",
+    )
+    last_api: str | None = Field(
+        default=None,
+        description="Last API name invoked before max-API-count termination.",
+    )
+    interrupt_num: int | None = Field(
+        default=None,
+        description="Interrupt number for unhandled-interrupt errors.",
     )
 
 
