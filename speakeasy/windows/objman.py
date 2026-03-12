@@ -190,6 +190,8 @@ class Driver(KernelObject):
         self.ldr_entries.append(ldte)
 
         ldte.object.DllBase = mod.base
+        ldte.object.EntryPoint = mod.base + mod.ep
+        ldte.object.SizeOfImage = mod.image_size
 
         dllname = mod.emu_path.encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
@@ -588,6 +590,8 @@ class Process(KernelObject):
         ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
 
         ldte.object.DllBase = module.base
+        ldte.object.EntryPoint = module.base + module.ep
+        ldte.object.SizeOfImage = module.image_size
         dllname = (module.emu_path + "\x00").encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
