@@ -16,7 +16,7 @@ class OleAut32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SysAllocString", argc=1, ordinal=2)
-    def SysAllocString(self, emu, argv, ctx={}):
+    def SysAllocString(self, emu, argv, ctx: api.ApiContext = None):
         """
         BSTR SysAllocString(
             const OLECHAR *psz
@@ -42,7 +42,7 @@ class OleAut32(api.ApiHandler):
         return 0
 
     @apihook("SysAllocStringLen", argc=2, ordinal=4)
-    def SysAllocStringLen(self, emu, argv, ctx={}):
+    def SysAllocStringLen(self, emu, argv, ctx: api.ApiContext = None):
         """
         BSTR SysAllocStringLen(
           [in] const OLECHAR *strIn,
@@ -72,7 +72,7 @@ class OleAut32(api.ApiHandler):
         return bstr + 4
 
     @apihook("SysFreeString", argc=1, ordinal=6)
-    def SysFreeString(self, emu, argv, ctx={}):
+    def SysFreeString(self, emu, argv, ctx: api.ApiContext = None):
         """
         void SysFreeString(
             BSTR bstrString
@@ -82,7 +82,7 @@ class OleAut32(api.ApiHandler):
         return
 
     @apihook("VariantInit", argc=1, ordinal=8)
-    def VariantInit(self, emu, argv, ctx={}):
+    def VariantInit(self, emu, argv, ctx: api.ApiContext = None):
         """
         void VariantInit(
             VARIANTARG *pvarg

@@ -18,7 +18,7 @@ class Winmm(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("timeGetTime", argc=0)
-    def timeGetTime(self, emu, argv, ctx={}):
+    def timeGetTime(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD timeGetTime(); // return the system time, in milliseconds
         """

@@ -53,7 +53,7 @@ class Psapi(api.ApiHandler):
         return proc.path or ""
 
     @apihook("EnumProcesses", argc=3)
-    def EnumProcesses(self, emu, argv, ctx={}):
+    def EnumProcesses(self, emu, argv, ctx: api.ApiContext = None):
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -73,7 +73,7 @@ class Psapi(api.ApiHandler):
         return 1
 
     @apihook("EnumProcessModules", argc=4)
-    def EnumProcessModules(self, emu, argv, ctx={}):
+    def EnumProcessModules(self, emu, argv, ctx: api.ApiContext = None):
         hProcess, lphModule, cb, lpcbNeeded = argv
         proc = self.get_object_from_handle(hProcess)
         if not proc:
@@ -99,7 +99,8 @@ class Psapi(api.ApiHandler):
     @apihook("GetModuleBaseName", argc=4)
     @apihook("GetModuleBaseNameA", argc=4)
     @apihook("GetModuleBaseNameW", argc=4)
-    def GetModuleBaseName(self, emu, argv, ctx={}):
+    def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = None):
+        ctx = ctx or {}
         hProcess, hModule, lpBaseName, nSize = argv
         if not lpBaseName or nSize == 0:
             return 0
@@ -129,7 +130,8 @@ class Psapi(api.ApiHandler):
     @apihook("GetModuleFileNameEx", argc=4)
     @apihook("GetModuleFileNameExA", argc=4)
     @apihook("GetModuleFileNameExW", argc=4)
-    def GetModuleFileNameEx(self, emu, argv, ctx={}):
+    def GetModuleFileNameEx(self, emu, argv, ctx: api.ApiContext = None):
+        ctx = ctx or {}
         hProcess, hModule, lpFilename, nSize = argv
         if not lpFilename or nSize == 0:
             return 0

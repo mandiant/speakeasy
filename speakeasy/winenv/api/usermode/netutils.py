@@ -16,7 +16,7 @@ class NetUtils(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NetApiBufferFree", argc=1)
-    def NetApiBufferFree(self, emu, argv, ctx={}):
+    def NetApiBufferFree(self, emu, argv, ctx: api.ApiContext = None):
         """
         NET_API_STATUS NET_API_FUNCTION NetApiBufferFree(
           _Frees_ptr_opt_ LPVOID Buffer

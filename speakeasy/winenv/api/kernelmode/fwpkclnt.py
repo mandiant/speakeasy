@@ -73,7 +73,7 @@ class Fwpkclnt(api.ApiHandler):
         return ret
 
     @apihook("FwpmEngineOpen0", argc=5)
-    def FwpmEngineOpen0(self, emu, argv, ctx={}):
+    def FwpmEngineOpen0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmEngineOpen0(
         const wchar_t             *serverName,
@@ -95,7 +95,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsInjectionHandleCreate0", argc=3)
-    def FwpsInjectionHandleCreate0(self, emu, argv, ctx={}):
+    def FwpsInjectionHandleCreate0(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS FwpsInjectionHandleCreate0(
         ADDRESS_FAMILY addressFamily,
@@ -114,7 +114,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerAdd0", argc=3)
-    def FwpmSubLayerAdd0(self, emu, argv, ctx={}):
+    def FwpmSubLayerAdd0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmSubLayerAdd0(
         HANDLE               engineHandle,
@@ -156,7 +156,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutRegister1", argc=3)
-    def FwpsCalloutRegister1(self, emu, argv, ctx={}):
+    def FwpsCalloutRegister1(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS FwpsCalloutRegister1(
           void                *deviceObject,
@@ -199,7 +199,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutAdd0", argc=4)
-    def FwpmCalloutAdd0(self, emu, argv, ctx={}):
+    def FwpmCalloutAdd0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmCalloutAdd0(
           HANDLE               engineHandle,
@@ -240,7 +240,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterAdd0", argc=4)
-    def FwpmFilterAdd0(self, emu, argv, ctx={}):
+    def FwpmFilterAdd0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmFilterAdd0(
           HANDLE               engineHandle,
@@ -280,7 +280,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterDeleteById0", argc=2)
-    def FwpmFilterDeleteById0(self, emu, argv, ctx={}):
+    def FwpmFilterDeleteById0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmFilterDeleteById0(
         HANDLE engineHandle,
@@ -294,7 +294,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutDeleteById0", argc=2)
-    def FwpmCalloutDeleteById0(self, emu, argv, ctx={}):
+    def FwpmCalloutDeleteById0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmCalloutDeleteById0(
         HANDLE engineHandle,
@@ -310,7 +310,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutUnregisterById0", argc=1)
-    def FwpsCalloutUnregisterById0(self, emu, argv, ctx={}):
+    def FwpsCalloutUnregisterById0(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS FwpsCalloutUnregisterById0(
         const UINT32 calloutId
@@ -325,7 +325,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerDeleteByKey0", argc=2)
-    def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx={}):
+    def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmSubLayerDeleteByKey0(
         HANDLE     engineHandle,
@@ -345,7 +345,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmEngineClose0", argc=1)
-    def FwpmEngineClose0(self, emu, argv, ctx={}):
+    def FwpmEngineClose0(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD FwpmEngineClose0(
         HANDLE engineHandle
@@ -357,7 +357,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsInjectionHandleDestroy0", argc=1)
-    def FwpsInjectionHandleDestroy0(self, emu, argv, ctx={}):
+    def FwpsInjectionHandleDestroy0(self, emu, argv, ctx: api.ApiContext = None):
         """
         NTSTATUS FwpsInjectionHandleDestroy0(
         HANDLE injectionHandle

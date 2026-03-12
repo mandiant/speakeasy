@@ -55,7 +55,7 @@ class Hook:
     Base class for all emulator hooks
     """
 
-    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=False):
+    def __init__(self, se_obj, emu_eng, cb, ctx=None, native_hook=False):
         """
         Arguments:
             se_obj: speakeasy emulator object
@@ -74,7 +74,7 @@ class Hook:
         self.native_hook = native_hook
         self.emu_eng = emu_eng
         self.se_obj = se_obj
-        self.ctx = ctx
+        self.ctx = ctx if ctx is not None else []
 
     def enable(self):
         self.enabled = True
@@ -148,7 +148,7 @@ class DynCodeHook(Hook):
     Currently, this will only fire once per dynamic code mapping. Could be useful for unpacking.
     """
 
-    def __init__(self, se_obj, emu_eng, cb, ctx=[]):
+    def __init__(self, se_obj, emu_eng, cb, ctx=None):
         super().__init__(se_obj, emu_eng, cb)
 
 
@@ -157,7 +157,7 @@ class CodeHook(Hook):
     This hook callback will fire for every CPU instruction
     """
 
-    def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, ctx=[], native_hook=True):
+    def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, ctx=None, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
         self.begin = begin
         self.end = end
@@ -242,7 +242,7 @@ class InterruptHook(Hook):
     This hook will fire each time a a software interrupt is triggered
     """
 
-    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
+    def __init__(self, se_obj, emu_eng, cb, ctx=None, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
 
     def add(self):
@@ -258,7 +258,7 @@ class InstructionHook(Hook):
     Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
     """
 
-    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True, insn=None):
+    def __init__(self, se_obj, emu_eng, cb, ctx=None, native_hook=True, insn=None):
         super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
         self.insn = insn
 
@@ -275,7 +275,7 @@ class InvalidInstructionHook(Hook):
     to be executed
     """
 
-    def __init__(self, se_obj, emu_eng, cb, ctx=[], native_hook=True):
+    def __init__(self, se_obj, emu_eng, cb, ctx=None, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, ctx=ctx, native_hook=native_hook)
 
     def add(self):

@@ -461,10 +461,9 @@ class Process(KernelObject):
     An EPROCESS object used by the Windows kernel to represent a process
     """
 
-    ldr_entries: list["LdrDataTableEntry"] = []
-
-    def __init__(self, emu, pe=None, user_modules=[], name="", path="", cmdline="", base=0, session=0):
+    def __init__(self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
+        self.ldr_entries: list[LdrDataTableEntry] = []
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
@@ -479,7 +478,7 @@ class Process(KernelObject):
         self.name: str = name
         self.base: int = base
         self.pid: int = self.id
-        self.modules: list[Any] = user_modules
+        self.modules: list[Any] = user_modules if user_modules is not None else []
         self.threads: list[Thread] = []
         self.console: Console | None = None
         self.curr_thread: Thread | None = None

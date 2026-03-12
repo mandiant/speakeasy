@@ -19,7 +19,7 @@ class Wkscli(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NetGetJoinInformation", argc=3)
-    def NetGetJoinInformation(self, emu, argv, ctx={}):
+    def NetGetJoinInformation(self, emu, argv, ctx: api.ApiContext = None):
         """
         NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
           LPCWSTR lpServer,

@@ -37,12 +37,13 @@ class Shlwapi(api.ApiHandler):
         return os.path.join(*args, **kwargs).replace("/", "\\")
 
     @apihook("PathIsRelative", argc=1)
-    def PathIsRelative(self, emu, argv, ctx={}):
+    def PathIsRelative(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathIsRelativeA(
             LPCSTR pszPath
         );
         """
+        ctx = ctx or {}
 
         (pszPath,) = argv
 
@@ -59,13 +60,14 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("StrStr", argc=2)
-    def StrStr(self, emu, argv, ctx={}):
+    def StrStr(self, emu, argv, ctx: api.ApiContext = None):
         """
         PCSTR StrStr(
             PCSTR pszFirst,
             PCSTR pszSrch
         );
         """
+        ctx = ctx or {}
 
         hay, needle = argv
 
@@ -88,13 +90,14 @@ class Shlwapi(api.ApiHandler):
         return ret
 
     @apihook("StrStrI", argc=2)
-    def StrStrI(self, emu, argv, ctx={}):
+    def StrStrI(self, emu, argv, ctx: api.ApiContext = None):
         """
         PCSTR StrStrI(
             PCSTR pszFirst,
             PCSTR pszSrch
         );
         """
+        ctx = ctx or {}
 
         hay, needle = argv
 
@@ -119,11 +122,12 @@ class Shlwapi(api.ApiHandler):
         return ret
 
     @apihook("PathFindExtension", argc=1)
-    def PathFindExtension(self, emu, argv, ctx={}):
+    def PathFindExtension(self, emu, argv, ctx: api.ApiContext = None):
         """LPCSTR PathFindExtensionA(
           LPCSTR pszPath
         );
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -138,13 +142,14 @@ class Shlwapi(api.ApiHandler):
         return pszPath + idx1 + 1 + idx2
 
     @apihook("StrCmpI", argc=2)
-    def StrCmpI(self, emu, argv, ctx={}):
+    def StrCmpI(self, emu, argv, ctx: api.ApiContext = None):
         """
         int StrCmpI(
         PCWSTR psz1,
         PCWSTR psz2
         );
         """
+        ctx = ctx or {}
         psz1, psz2 = argv
 
         cw = self.get_char_width(ctx)
@@ -161,12 +166,13 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("PathFindFileName", argc=1)
-    def PathFindFileName(self, emu, argv, ctx={}):
+    def PathFindFileName(self, emu, argv, ctx: api.ApiContext = None):
         """
         LPCSTR PathFindFileNameA(
           LPCSTR pszPath
         );
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -179,12 +185,13 @@ class Shlwapi(api.ApiHandler):
         return pszPath + idx + 1
 
     @apihook("PathRemoveExtension", argc=1)
-    def PathRemoveExtension(self, emu, argv, ctx={}):
+    def PathRemoveExtension(self, emu, argv, ctx: api.ApiContext = None):
         """
         void PathRemoveExtensionA(
           LPSTR pszPath
         );
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -201,12 +208,13 @@ class Shlwapi(api.ApiHandler):
         return pszPath
 
     @apihook("PathStripPath", argc=1)
-    def PathStripPath(self, emu, argv, ctx={}):
+    def PathStripPath(self, emu, argv, ctx: api.ApiContext = None):
         """
         void PathStripPath(
         LPSTR pszPath
         );
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -218,7 +226,7 @@ class Shlwapi(api.ApiHandler):
         self.mem_write(pszPath, mod_name)
 
     @apihook("wvnsprintfA", argc=4)
-    def wvnsprintfA(self, emu, argv, ctx={}):
+    def wvnsprintfA(self, emu, argv, ctx: api.ApiContext = None):
         """
         int wvnsprintfA(
             PSTR    pszDest,
@@ -246,7 +254,7 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("wnsprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
-    def wnsprintf(self, emu, argv, ctx={}):
+    def wnsprintf(self, emu, argv, ctx: api.ApiContext = None):
         """
         int wnsprintfA(
           PSTR  pszDest,
@@ -255,6 +263,7 @@ class Shlwapi(api.ApiHandler):
           ...
         );
         """
+        ctx = ctx or {}
         argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
         buf, max_buf_size, fmt = argv
 
@@ -279,13 +288,14 @@ class Shlwapi(api.ApiHandler):
             return -1
 
     @apihook("PathAppend", argc=2)
-    def PathAppend(self, emu, argv, ctx={}):
+    def PathAppend(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathAppendA(
           LPSTR  pszPath,
           LPCSTR pszMore
         );
         """
+        ctx = ctx or {}
         pszPath, pszMore = argv
         cw = self.get_char_width(ctx)
         path = self.read_mem_string(pszPath, cw)
@@ -298,7 +308,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathCanonicalize", argc=2)
-    def PathCanonicalize(self, emu, argv, ctx={}):
+    def PathCanonicalize(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathCanonicalizeW(
             [out] LPWSTR  pszBuf,
@@ -311,10 +321,11 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathRemoveFileSpec", argc=1)
-    def PathRemoveFileSpec(self, emu, argv, ctx={}):
+    def PathRemoveFileSpec(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathRemoveFileSpec(LPTSTR pszPath);
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -327,10 +338,11 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathAddBackslash", argc=1)
-    def PathAddBackslash(self, emu, argv, ctx={}):
+    def PathAddBackslash(self, emu, argv, ctx: api.ApiContext = None):
         """
         LPTSTR PathAddBackslash(LPTSTR pszPath);
         """
+        ctx = ctx or {}
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
@@ -343,13 +355,14 @@ class Shlwapi(api.ApiHandler):
         return pszPath
 
     @apihook("PathRenameExtension", argc=2)
-    def PathRenameExtension(self, emu, argv, ctx={}):
+    def PathRenameExtension(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL PathRenameExtension(
           [in, out] LPSTR  pszPath,
           [in]      LPCSTR pszExt
         );
         """
+        ctx = ctx or {}
         pszPath, pszExt = argv
 
         cw = self.get_char_width(ctx)

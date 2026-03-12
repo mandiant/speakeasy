@@ -16,7 +16,7 @@ class Msi32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("MsiDatabaseMergeA", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=29)
-    def MsiDatabaseMergeA(self, emu, argv, ctx={}):
+    def MsiDatabaseMergeA(self, emu, argv, ctx: api.ApiContext = None):
         """
         UINT MsiDatabaseMergeA(
           MSIHANDLE hDatabase,

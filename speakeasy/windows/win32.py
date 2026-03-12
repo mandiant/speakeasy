@@ -31,13 +31,13 @@ class Win32Emulator(WindowsEmulator):
     User Mode Windows Emulator Class
     """
 
-    def __init__(self, config, argv=[], debug=False, exit_event=None, gdb_port=None):
+    def __init__(self, config, argv=None, debug=False, exit_event=None, gdb_port=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port)
 
         self.last_error = 0
         self.peb_addr = 0
         self.heap_allocs = []
-        self.argv = argv
+        self.argv = argv if argv is not None else []
         self.sessman = SessionManager(config)
         self.com = COM(config)
 

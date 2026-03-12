@@ -25,7 +25,7 @@ class ComApi(api.ApiHandler):
 
     # First argument (self) is not reflected in method definitions; note this increases argc by 1
     @apihook("IUnknown.QueryInterface", argc=3)
-    def IUnknown_QueryInterface(self, emu, argv, ctx={}):
+    def IUnknown_QueryInterface(self, emu, argv, ctx: api.ApiContext = None):
         """
         HRESULT QueryInterface(
             REFIID riid,
@@ -36,7 +36,7 @@ class ComApi(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("IUnknown.AddRef", argc=1)
-    def IUnknown_AddRef(self, emu, argv, ctx={}):
+    def IUnknown_AddRef(self, emu, argv, ctx: api.ApiContext = None):
         """
         ULONG AddRef();
         """
@@ -44,7 +44,7 @@ class ComApi(api.ApiHandler):
         return 1
 
     @apihook("IUnknown.Release", argc=1)
-    def IUnknown_Release(self, emu, argv, ctx={}):
+    def IUnknown_Release(self, emu, argv, ctx: api.ApiContext = None):
         """
         ULONG Release();
         """
@@ -52,7 +52,7 @@ class ComApi(api.ApiHandler):
         return 0
 
     @apihook("IWbemLocator.ConnectServer", argc=9)
-    def IWbemLocator_ConnectServer(self, emu, argv, ctx={}):
+    def IWbemLocator_ConnectServer(self, emu, argv, ctx: api.ApiContext = None):
         """
         HRESULT ConnectServer(
             const BSTR    strNetworkResource,
@@ -77,7 +77,7 @@ class ComApi(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("IWbemServices.ExecQuery", argc=6)
-    def IWbemServices_ExecQuery(self, emu, argv, ctx={}):
+    def IWbemServices_ExecQuery(self, emu, argv, ctx: api.ApiContext = None):
         """
         HRESULT ExecQuery(
             const BSTR           strQueryLanguage,

@@ -19,7 +19,7 @@ class Comctl32(api.ApiHandler):
         self.names = {}
 
     @apihook("InitCommonControlsEx", argc=1)
-    def InitCommonControlsEx(self, emu, argv, ctx={}):
+    def InitCommonControlsEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL InitCommonControlsEx(
             const INITCOMMONCONTROLSEX *picce
@@ -31,7 +31,7 @@ class Comctl32(api.ApiHandler):
         return rv
 
     @apihook("InitCommonControls", argc=0)
-    def InitCommonControls(self, emu, argv, ctx={}):
+    def InitCommonControls(self, emu, argv, ctx: api.ApiContext = None):
         """
         void InitCommonControls();
 

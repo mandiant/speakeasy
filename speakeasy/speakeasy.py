@@ -37,7 +37,7 @@ class Speakeasy:
 
         return wrap
 
-    def __init__(self, config=None, argv=[], debug=False, exit_event=None, gdb_port=None, volumes=None):
+    def __init__(self, config=None, argv=None, debug=False, exit_event=None, gdb_port=None, volumes=None):
 
         if volumes:
             if isinstance(config, SpeakeasyConfig):
@@ -55,7 +55,7 @@ class Speakeasy:
         self.dyn_code_hooks: list[tuple[Callable, dict]] = []
         self.invalid_insn_hooks: list[tuple[Callable, list]] = []
         self.mem_read_hooks: list[tuple[Callable, int, int]] = []
-        self.argv = argv
+        self.argv = argv if argv is not None else []
         self.exit_event = exit_event
         self.debug = debug
         self.gdb_port = gdb_port

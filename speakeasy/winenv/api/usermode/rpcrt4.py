@@ -21,7 +21,7 @@ class RPCRT4(api.ApiHandler):
         super().__init__(emu)
 
     @apihook("UuidCreate", argc=1)
-    def UuidCreate(self, emu, argv, ctx={}):
+    def UuidCreate(self, emu, argv, ctx: api.ApiContext = None):
         """
         RPC_STATUS UuidCreate(
           UUID *Uuid
@@ -43,7 +43,7 @@ class RPCRT4(api.ApiHandler):
         return 0
 
     @apihook("UuidToStringA", argc=2)
-    def UuidToStringA(self, emu, argv, ctx={}):
+    def UuidToStringA(self, emu, argv, ctx: api.ApiContext = None):
         """
         RPC_STATUS UuidToStringA(
           const UUID *Uuid,

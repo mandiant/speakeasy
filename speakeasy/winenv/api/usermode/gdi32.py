@@ -28,7 +28,7 @@ class GDI32(api.ApiHandler):
         return hnd
 
     @apihook("CreateBitmap", argc=5)
-    def CreateBitmap(self, emu, argv, ctx={}):
+    def CreateBitmap(self, emu, argv, ctx: api.ApiContext = None):
         """
         HBITMAP CreateBitmap(
             int        nWidth,
@@ -41,7 +41,7 @@ class GDI32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("MoveToEx", argc=1)
-    def MoveToEx(self, emu, argv, ctx={}):
+    def MoveToEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL MoveToEx(
           HDC     hdc,
@@ -53,7 +53,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("LineTo", argc=1)
-    def LineTo(self, emu, argv, ctx={}):
+    def LineTo(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL LineTo(
           HDC hdc,
@@ -64,7 +64,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("GetStockObject", argc=1)
-    def GetStockObject(self, emu, argv, ctx={}):
+    def GetStockObject(self, emu, argv, ctx: api.ApiContext = None):
         """
         HGDIOBJ GetStockObject(
             int i
@@ -73,7 +73,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("GetMapMode", argc=1)
-    def GetMapMode(self, emu, argv, ctx={}):
+    def GetMapMode(self, emu, argv, ctx: api.ApiContext = None):
         """
         int GetMapMode(
             HDC hdc
@@ -82,7 +82,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("GetDeviceCaps", argc=2)
-    def GetDeviceCaps(self, emu, argv, ctx={}):
+    def GetDeviceCaps(self, emu, argv, ctx: api.ApiContext = None):
         """
         int GetDeviceCaps(
             HDC hdc,
@@ -92,7 +92,7 @@ class GDI32(api.ApiHandler):
         return 16
 
     @apihook("GdiSetBatchLimit", argc=1)
-    def GdiSetBatchLimit(self, emu, argv, ctx={}):
+    def GdiSetBatchLimit(self, emu, argv, ctx: api.ApiContext = None):
         """
         DWORD GdiSetBatchLimit(
           DWORD dw
@@ -101,7 +101,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("MaskBlt", argc=12)
-    def MaskBlt(self, emu, argv, ctx={}):
+    def MaskBlt(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL MaskBlt(
           HDC     hdcDest,
@@ -121,7 +121,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("BitBlt", argc=9)
-    def BitBlt(self, emu, argv, ctx={}):
+    def BitBlt(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL BitBlt(
         HDC   hdc,
@@ -137,7 +137,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("DeleteDC", argc=1)
-    def DeleteDC(self, emu, argv, ctx={}):
+    def DeleteDC(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL DeleteDC(
         HDC hdc
@@ -146,7 +146,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("SelectObject", argc=2)
-    def SelectObject(self, emu, argv, ctx={}):
+    def SelectObject(self, emu, argv, ctx: api.ApiContext = None):
         """
         HGDIOBJ SelectObject(
           HDC     hdc,
@@ -156,7 +156,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("DeleteObject", argc=1)
-    def DeleteObject(self, emu, argv, ctx={}):
+    def DeleteObject(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL DeleteObject(
         HGDIOBJ ho
@@ -165,7 +165,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("CreateCompatibleBitmap", argc=3)
-    def CreateCompatibleBitmap(self, emu, argv, ctx={}):
+    def CreateCompatibleBitmap(self, emu, argv, ctx: api.ApiContext = None):
         """
         HBITMAP CreateCompatibleBitmap(
         HDC hdc,
@@ -176,7 +176,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateCompatibleDC", argc=1)
-    def CreateCompatibleDC(self, emu, argv, ctx={}):
+    def CreateCompatibleDC(self, emu, argv, ctx: api.ApiContext = None):
         """
         HDC CreateCompatibleDC(
         HDC hdc
@@ -185,7 +185,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("GetDIBits", argc=7)
-    def GetDIBits(self, emu, argv, ctx={}):
+    def GetDIBits(self, emu, argv, ctx: api.ApiContext = None):
         """
         int GetDIBits(
         HDC          hdc,
@@ -200,7 +200,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateDIBSection", argc=6)
-    def CreateDIBSection(self, emu, argv, ctx={}):
+    def CreateDIBSection(self, emu, argv, ctx: api.ApiContext = None):
         """
         HBITMAP CreateDIBSection(
           [in]  HDC              hdc,
@@ -214,7 +214,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateDCA", argc=4)
-    def CreateDCA(self, emu, argv, ctx={}):
+    def CreateDCA(self, emu, argv, ctx: api.ApiContext = None):
         """
         HDC CreateDCA(
         LPCSTR         pwszDriver,
@@ -226,7 +226,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("GetTextCharacterExtra", argc=1)
-    def GetTextCharacterExtra(self, emu, argv, ctx={}):
+    def GetTextCharacterExtra(self, emu, argv, ctx: api.ApiContext = None):
         """
         int GetTextCharacterExtra(
           HDC hdc
@@ -235,7 +235,7 @@ class GDI32(api.ApiHandler):
         return 0x8000000
 
     @apihook("StretchBlt", argc=11)
-    def StretchBlt(self, emu, argv, ctx={}):
+    def StretchBlt(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL StretchBlt(
           HDC   hdcDest,
@@ -254,7 +254,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateFontIndirectA", argc=1)
-    def CreateFontIndirectA(self, emu, argv, ctx={}):
+    def CreateFontIndirectA(self, emu, argv, ctx: api.ApiContext = None):
         """
         HFONT CreateFontIndirectA(
             const LOGFONTA *lplf
@@ -265,7 +265,7 @@ class GDI32(api.ApiHandler):
         return 0x6000
 
     @apihook("GetObjectA", argc=3)
-    def GetObjectA(self, emu, argv, ctx={}):
+    def GetObjectA(self, emu, argv, ctx: api.ApiContext = None):
         """
         int GetObjectA(
             HANDLE h,
@@ -292,7 +292,7 @@ class GDI32(api.ApiHandler):
         return c
 
     @apihook("WidenPath", argc=1)
-    def WidenPath(self, emu, argv, ctx={}):
+    def WidenPath(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL WidenPath(
             HDC hdc
