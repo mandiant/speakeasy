@@ -498,6 +498,36 @@ class WindowsEmulator(BinaryEmulator):
         # This is a read-only address for KUSER_SHARED_DATA,
         # and this is the same address for 32-bit and 64-bit.
         self.mem_map(self.page_size, base=0x7FFE0000, tag="emu.struct.KUSER_SHARED_DATA")
+        self._populate_user_shared_data(0x7FFE0000)
+
+    def _populate_user_shared_data(self, base):
+        import struct
+        import time
+
+        now_100ns = int(time.time() * 10_000_000) + 116444736000000000
+        tick_ms = int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+        data = bytearray(0x400)
+
+        # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
+        interrupt_100ns = int(time.monotonic() * 10_000_000)
+        struct.pack_into(
+            "<IiI", data, 0x008, interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32
+        )
+        # SystemTime (offset 0x014): KSYSTEM_TIME
+        struct.pack_into("<IiI", data, 0x014, now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
+        # NtMajorVersion (offset 0x260)
+        struct.pack_into("<I", data, 0x260, 10)
+        # NtMinorVersion (offset 0x264)
+        struct.pack_into("<I", data, 0x264, 0)
+        # NtBuildNumber (offset 0x268)
+        struct.pack_into("<I", data, 0x268, 19041)
+        # TickCount (offset 0x320): KSYSTEM_TIME
+        struct.pack_into("<IiI", data, 0x320, tick_ms, 0, 0)
+        # QpcFrequency (offset 0x3B8)
+        struct.pack_into("<q", data, 0x3B8, 10_000_000)
+
+        self.mem_write(base, bytes(data))
 
     def resume(self, addr, count=-1):
         """

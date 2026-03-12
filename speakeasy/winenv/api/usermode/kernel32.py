@@ -1999,6 +1999,11 @@ class Kernel32(api.ApiHandler):
 
         return
 
+    @apihook("SwitchToThread", argc=0)
+    def SwitchToThread(self, emu, argv, ctx={}):
+        """BOOL SwitchToThread();"""
+        return 0
+
     @apihook("SleepEx", argc=2)
     def SleepEx(self, emu, argv, ctx={}):
         """DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);"""
@@ -4428,6 +4433,30 @@ class Kernel32(api.ApiHandler):
         """
         return 0
 
+    @apihook("GetErrorMode", argc=0)
+    def GetErrorMode(self, emu, argv, ctx={}):
+        """
+        UINT GetErrorMode();
+        """
+        return 0
+
+    @apihook("WerGetFlags", argc=2)
+    def WerGetFlags(self, emu, argv, ctx={}):
+        """
+        HRESULT WerGetFlags(HANDLE hProcess, DWORD *pdwFlags);
+        """
+        hProcess, pdwFlags = argv
+        if pdwFlags:
+            self.mem_write(pdwFlags, (0).to_bytes(4, "little"))
+        return 0  # S_OK
+
+    @apihook("WerSetFlags", argc=1)
+    def WerSetFlags(self, emu, argv, ctx={}):
+        """
+        HRESULT WerSetFlags(DWORD dwFlags);
+        """
+        return 0  # S_OK
+
     @apihook("InterlockedCompareExchange", argc=3)
     def InterlockedCompareExchange(self, emu, argv, ctx={}):
         """
@@ -6334,6 +6363,17 @@ class Kernel32(api.ApiHandler):
 
         return Handler
 
+    @apihook("AddVectoredContinueHandler", argc=2)
+    def AddVectoredContinueHandler(self, emu, argv, ctx={}):
+        """
+        PVOID AddVectoredContinueHandler(
+            ULONG                       First,
+            PVECTORED_EXCEPTION_HANDLER Handler
+        );
+        """
+        First, Handler = argv
+        return Handler
+
     @apihook("RemoveVectoredExceptionHandler", argc=1)
     def RemoveVectoredExceptionHandler(self, emu, argv, ctx={}):
         """
@@ -6544,6 +6584,62 @@ class Kernel32(api.ApiHandler):
 
         # 2GB
         self.mem_write(TotalMemoryInKilobytes, (0x200000).to_bytes(8, "little"))
+        return 1
+
+    @apihook("CreateWaitableTimerExW", argc=4)
+    def CreateWaitableTimerExW(self, emu, argv, ctx={}):
+        """
+        HANDLE CreateWaitableTimerExW(
+            LPSECURITY_ATTRIBUTES lpTimerAttributes,
+            LPCWSTR               lpTimerName,
+            DWORD                 dwFlags,
+            DWORD                 dwDesiredAccess
+        );
+        """
+        _attrs, name, _flags, _access = argv
+
+        timer_name = None
+        obj = None
+        if name:
+            timer_name = self.read_mem_string(name, 2)
+            argv[1] = timer_name
+            obj = self.get_object_from_name(timer_name)
+
+        if obj:
+            hnd = obj.get_handle()
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            hnd, _evt = emu.create_event(timer_name)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return hnd
+
+    @apihook("GetProcessAffinityMask", argc=3)
+    def GetProcessAffinityMask(self, emu, argv, ctx={}):
+        """
+        BOOL GetProcessAffinityMask(
+            HANDLE     hProcess,
+            PDWORD_PTR lpProcessAffinityMask,
+            PDWORD_PTR lpSystemAffinityMask
+        );
+        """
+        hProcess, lpProcessAffinityMask, lpSystemAffinityMask = argv
+        ptr_size = emu.get_ptr_size()
+        mask = 0x1
+        if lpProcessAffinityMask:
+            self.mem_write(lpProcessAffinityMask, mask.to_bytes(ptr_size, "little"))
+        if lpSystemAffinityMask:
+            self.mem_write(lpSystemAffinityMask, mask.to_bytes(ptr_size, "little"))
+        return 1
+
+    @apihook("SetConsoleCtrlHandler", argc=2)
+    def SetConsoleCtrlHandler(self, emu, argv, ctx={}):
+        """
+        BOOL SetConsoleCtrlHandler(
+            PHANDLER_ROUTINE HandlerRoutine,
+            BOOL             Add
+        );
+        """
         return 1
 
     @apihook("WTSGetActiveConsoleSessionId", argc=0)

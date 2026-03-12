@@ -17,6 +17,20 @@ class Winmm(api.ApiHandler):
         super().__init__(emu)
         super().__get_hook_attrs__(self)
 
+    @apihook("timeBeginPeriod", argc=1)
+    def timeBeginPeriod(self, emu, argv, ctx={}):
+        """
+        MMRESULT timeBeginPeriod(UINT uPeriod);
+        """
+        return 0  # TIMERR_NOERROR
+
+    @apihook("timeEndPeriod", argc=1)
+    def timeEndPeriod(self, emu, argv, ctx={}):
+        """
+        MMRESULT timeEndPeriod(UINT uPeriod);
+        """
+        return 0  # TIMERR_NOERROR
+
     @apihook("timeGetTime", argc=0)
     def timeGetTime(self, emu, argv, ctx={}):
         """

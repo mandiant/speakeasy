@@ -552,6 +552,8 @@ class Process(KernelObject):
         STD_OUTPUT_HANDLE = 0xFFFFFFF5
         STD_ERROR_HANDLE = 0xFFFFFFF4
 
+        dev = dev & 0xFFFFFFFF
+
         for k, v in (
             (STD_INPUT_HANDLE, self.stdin),
             (STD_OUTPUT_HANDLE, self.stdout),
