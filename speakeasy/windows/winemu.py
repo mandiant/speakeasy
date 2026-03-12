@@ -1628,9 +1628,9 @@ class WindowsEmulator(BinaryEmulator):
 
                 hooked_func = MethodType(func, mod)
                 orig = lambda args: hooked_func(self, args, default_ctx)  # noqa
+                # Hooks execute in FIFO order (first registered, first called).
+                # All hooks run; the last hook's return value is used.
                 for hook in hooks:
-                    # each hook is called with the arguments, and only the last return value is
-                    # considered
                     rv = hook.cb(self, imp_api, orig, argv)
             else:
                 try:
@@ -1657,11 +1657,20 @@ class WindowsEmulator(BinaryEmulator):
                 self.do_call_return(argc, ret, rv, conv=conv)
 
         else:
-            # See if a user defined a hook for this unsupported function
+            # Unsupported API: no speakeasy handler exists, so argc/call_conv
+            # must come from the hook itself. Only the last registered hook
+            # (FIFO-consistent: last = highest priority return value) is called
+            # because hooks may disagree on argc/call_conv.
             hooks = self.get_api_hooks(dll, name)
             if hooks:
-                # Since the function is unsupported, just call the most accurate defined hook
-                hook = hooks[0]
+                if len(hooks) > 1:
+                    logger.warning(
+                        "%d hooks registered for unsupported API %s.%s; only the last registered hook will be called",
+                        len(hooks),
+                        dll,
+                        name,
+                    )
+                hook = hooks[-1]
                 imp_api = f"{dll}.{name}"
 
                 if hook.call_conv is None:

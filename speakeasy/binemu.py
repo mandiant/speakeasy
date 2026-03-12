@@ -853,7 +853,12 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def add_api_hook(self, cb, module="", api_name="", argc=0, call_conv=None, emu=None) -> common.ApiHook:
         """
-        Add an API level hook (e.g. kernel32.CreateFile) here
+        Add an API level hook (e.g. kernel32.CreateFile) here.
+
+        When multiple hooks are registered for the same API, they execute in
+        FIFO order (first registered, first called). All hooks in the chain are
+        called, and the return value of the last hook is used. This ordering
+        convention applies to all hook types in speakeasy.
         """
         module = module.lower()
         api_name = api_name.lower()
@@ -906,7 +911,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -962,7 +967,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         return hook
 
@@ -983,7 +988,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1007,7 +1012,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1031,7 +1036,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1045,7 +1050,7 @@ class BinaryEmulator(MemoryManager, ABC):
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
 
         rv = True
-        for mem_access_hook in hl[:-1]:
+        for mem_access_hook in hl[1:]:
             if mem_access_hook.enabled:
                 rv = mem_access_hook.cb(emu, access, address, size, value, ctx)
                 if rv is False:
@@ -1065,9 +1070,9 @@ class BinaryEmulator(MemoryManager, ABC):
             if self.emu_eng:
                 dispatch_hook.add()
 
-            self.hooks.update({common.HOOK_MEM_INVALID: [hook, dispatch_hook]})
+            self.hooks.update({common.HOOK_MEM_INVALID: [dispatch_hook, hook]})
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1091,7 +1096,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1115,7 +1120,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
@@ -1138,7 +1143,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 }
             )
         else:
-            hl.insert(0, hook)
+            hl.append(hook)
 
         if self.emu_eng:
             hook.add()
