@@ -626,10 +626,10 @@ class Process(KernelObject):
         prev.write_back()
         ldte.write_back()
 
-        first.object.InLoadOrderLinks.Blink = prev.address
-        first.object.InMemoryOrderLinks.Blink = prev.address
+        first.object.InLoadOrderLinks.Blink = ldte.address
+        first.object.InMemoryOrderLinks.Blink = ldte.address + self.sizeof(list_type)
         if first is not ldte:
-            first.object.InInitializationOrderLinks.Blink = prev.address
+            first.object.InInitializationOrderLinks.Blink = ldte.address + self.sizeof(list_type) * 2
 
         first.write_back()
 
@@ -642,12 +642,10 @@ class Process(KernelObject):
 
         pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
 
-        pld.object.InLoadOrderModuleList.Blink = prev.address
-        pld.object.InMemoryOrderModuleList.Blink = pld.object.InLoadOrderModuleList.Blink + self.sizeof(list_type)
+        pld.object.InLoadOrderModuleList.Blink = ldte.address
+        pld.object.InMemoryOrderModuleList.Blink = ldte.address + self.sizeof(list_type)
 
-        pld.object.InInitializationOrderModuleList.Blink = pld.object.InMemoryOrderModuleList.Blink + self.sizeof(
-            list_type
-        )
+        pld.object.InInitializationOrderModuleList.Blink = ldte.address + self.sizeof(list_type) * 2
 
         pld.write_back()
 
