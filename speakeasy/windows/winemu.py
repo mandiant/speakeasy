@@ -1693,6 +1693,12 @@ class WindowsEmulator(BinaryEmulator):
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)
 
+            # Re-enable the code hook so the next instruction can unmap the
+            # sentinel range again. Otherwise adjacent sentinel calls may
+            # execute bytes in EMU_RESERVED instead of trapping as imports.
+            if not self.run_complete:
+                self.enable_code_hook()
+
         else:
             # Unsupported API: no speakeasy handler exists, so argc/call_conv
             # must come from the hook itself. Only the last registered hook
@@ -1719,6 +1725,8 @@ class WindowsEmulator(BinaryEmulator):
                 ret = self.get_ret_address()
                 self.log_api(call_pc, imp_api, rv, argv)
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
+                if not self.run_complete:
+                    self.enable_code_hook()
                 return
             elif self.config.modules.functions_always_exist:
                 imp_api = f"{dll}.{name}"
@@ -1729,6 +1737,8 @@ class WindowsEmulator(BinaryEmulator):
                 ret = self.get_ret_address()
                 self.log_api(call_pc, imp_api, rv, argv)
                 self.do_call_return(argc, ret, rv, conv=conv)
+                if not self.run_complete:
+                    self.enable_code_hook()
                 return
 
             run = self.get_current_run()
