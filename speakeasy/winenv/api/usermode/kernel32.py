@@ -2565,7 +2565,7 @@ class Kernel32(api.ApiHandler):
         """
         Addend, Value = argv
         old = int.from_bytes(self.mem_read(Addend, 4), "little")
-        new = (old + Value) & 0xFFFFFFFF
+        new = (old + (Value & 0xFFFFFFFF)) & 0xFFFFFFFF
         self.mem_write(Addend, new.to_bytes(4, "little"))
         return old
 
