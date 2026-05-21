@@ -2555,6 +2555,20 @@ class Kernel32(api.ApiHandler):
 
         return ival
 
+    @apihook("InterlockedExchangeAdd", argc=2)
+    def InterlockedExchangeAdd(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        LONG InterlockedExchangeAdd(
+            LONG volatile *Addend,
+            LONG          Value
+        );
+        """
+        Addend, Value = argv
+        old = int.from_bytes(self.mem_read(Addend, 4), "little")
+        new = (old + (Value & 0xFFFFFFFF)) & 0xFFFFFFFF
+        self.mem_write(Addend, new.to_bytes(4, "little"))
+        return old
+
     @apihook("GetCommandLine", argc=0)
     def GetCommandLine(self, emu, argv, ctx: api.ApiContext = None):
         """
