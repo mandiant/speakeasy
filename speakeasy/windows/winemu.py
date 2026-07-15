@@ -81,11 +81,12 @@ class WindowsEmulator(BinaryEmulator):
         """Initialize configured processes. Subclasses must implement."""
         ...
 
-    def __init__(self, config, exit_event=None, debug=False, gdb_port=None):
+    def __init__(self, config, exit_event=None, debug=False, gdb_port=None, gdb_host="127.0.0.1"):
         super().__init__(config)
 
         self.debug: bool = debug
         self.gdb_port: int | None = gdb_port
+        self.gdb_host: str = gdb_host
         self.arch: int = 0
         self.modules: list[Any] = []
         self._setup_done: bool = False
@@ -568,17 +569,24 @@ class WindowsEmulator(BinaryEmulator):
         # so the first stop reports a meaningful PC/SP/etc.
         self._prepare_run_context(run)
 
+        debugger = None
+        debug_action = None
+        detached_resume_addr = None
         if self.gdb_port is not None:
-            from udbserver import udbserver
+            from speakeasy.gdb import GdbServer
 
-            logger.info(
-                "GDB server listening on port %d, waiting for connection (initial PC: 0x%x)...",
-                self.gdb_port,
-                self.curr_run.start_addr,  # type: ignore[union-attr]
-            )
-            udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)  # type: ignore[union-attr]
+            debugger = GdbServer(self, self.gdb_port, self.gdb_host)
+            debugger.start()
+            debug_action = debugger.command_loop()
+            if debug_action.kill:
+                debugger.close()
+                self.on_emu_complete()
+                return
+            if debug_action.detach:
+                debugger.close()
+                debugger = None
 
-        timeout = 0 if self.gdb_port is not None else self.config.timeout
+        timeout = 0 if debugger is not None else self.config.timeout
 
         if self.profiler:
             self.profiler.set_start_time()
@@ -586,7 +594,29 @@ class WindowsEmulator(BinaryEmulator):
         while True:
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)  # type: ignore[union-attr]
-                self.emu_eng.start(self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions)  # type: ignore[union-attr]
+                if debugger is not None:
+                    resume_addr = self.get_pc()
+                else:
+                    resume_addr = detached_resume_addr or self.curr_run.start_addr  # type: ignore[union-attr]
+                    detached_resume_addr = None
+                instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
+                if debugger is not None:
+                    debugger.begin_run(debug_action)
+                self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
+                if debugger is not None:
+                    stop_reason = debugger.finish_run(debug_action)
+                    if stop_reason is not None:
+                        debug_action = debugger.command_loop(stop_reason)
+                        if debug_action.kill:
+                            debugger.close()
+                            self.on_emu_complete()
+                            return
+                        if debug_action.detach:
+                            detached_resume_addr = self.get_pc()
+                            debugger.close()
+                            debugger = None
+                            timeout = self.config.timeout
+                        continue
                 if self.profiler and timeout > 0:
                     if self.profiler.get_run_time() > timeout:
                         logger.error("* Timeout of %d sec(s) reached.", timeout)
@@ -615,6 +645,9 @@ class WindowsEmulator(BinaryEmulator):
                 continue
             break
 
+        if debugger is not None:
+            debugger.notify_exit(0)
+            debugger.close()
         self.on_emu_complete()
 
     def get_current_run(self):

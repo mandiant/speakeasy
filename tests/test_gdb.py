@@ -8,11 +8,6 @@ import time
 
 import pytest
 
-if os.environ.get("SPEAKEASY_ENABLE_GDB_TESTS") != "1":
-    pytest.skip("Set SPEAKEASY_ENABLE_GDB_TESTS=1 to run GDB integration tests", allow_module_level=True)
-
-pytest.importorskip("udbserver")
-
 TESTS_DIR = os.path.dirname(__file__)
 
 
@@ -82,6 +77,17 @@ class GdbRspClient:
     def step(self) -> str:
         return self.send("s")
 
+    def query(self, packet: str) -> str:
+        return self.send(packet)
+
+    def send_no_wait(self, data: str):
+        packet = f"${data}#{self._checksum(data)}"
+        self.sock.sendall(packet.encode())
+
+    def interrupt(self) -> str:
+        self.sock.sendall(b"\x03")
+        return self._recv()
+
 
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -114,6 +120,42 @@ def _wait_for_port(port: int, proc: subprocess.Popen, timeout: float = 15.0):
     pytest.fail(f"GDB server did not start within {timeout}s: {stderr.decode(errors='replace')}")
 
 
+_PAUSE_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\xeb\\xfe", arch="x86")
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
+_EXIT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\xc3", arch="x86")
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
 _SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import lzma
@@ -124,46 +166,58 @@ _SERVER_SCRIPT = textwrap.dedent("""\
     port = int(sys.argv[1])
     config_path = sys.argv[2]
     bin_path = sys.argv[3]
+    host = sys.argv[4]
 
     with open(config_path) as f:
         cfg = json.load(f)
     with lzma.open(bin_path) as f:
         data = f.read()
 
-    se = Speakeasy(config=cfg, gdb_port=port)
+    se = Speakeasy(config=cfg, gdb_port=port, gdb_host=host)
     module = se.load_module(data=data)
     se.run_module(module, all_entrypoints=True)
     se.shutdown()
 """)
 
 
-@pytest.fixture
-def gdb_emulator():
-    """Start speakeasy with GDB enabled in a subprocess.
-
-    Uses a subprocess instead of a thread because udbserver's Rust FFI layer
-    can abort the process on error, which would kill the entire pytest session.
-    """
+def _start_module_server(filename: str, host: str = "127.0.0.1") -> tuple[int, subprocess.Popen]:
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
-    bin_path = os.path.join(TESTS_DIR, "bins", "dll_test_x86.dll.xz")
-
+    bin_path = os.path.join(TESTS_DIR, "bins", filename)
     proc = subprocess.Popen(
-        [sys.executable, "-c", _SERVER_SCRIPT, str(port), config_path, bin_path],
+        [sys.executable, "-c", _SERVER_SCRIPT, str(port), config_path, bin_path, host],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-
     _wait_for_port(port, proc)
+    return port, proc
 
-    yield port
 
-    proc.terminate()
+def _stop_server(proc: subprocess.Popen):
+    if proc.poll() is None:
+        proc.terminate()
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait(timeout=5)
+
+
+@pytest.fixture
+def gdb_emulator():
+    """Start a 32-bit target with GDB enabled in an isolated subprocess."""
+    port, proc = _start_module_server("dll_test_x86.dll.xz")
+    yield port
+    _stop_server(proc)
+
+
+@pytest.fixture
+def gdb_x64_emulator():
+    # Exercise the explicit non-loopback override while clients still connect
+    # through loopback in the isolated test process.
+    port, proc = _start_module_server("dll_test_x64.dll.xz", host="0.0.0.0")
+    yield port
+    _stop_server(proc)
 
 
 def test_gdb_connect_and_read_registers(gdb_emulator):
@@ -207,21 +261,157 @@ def test_gdb_read_memory(gdb_emulator):
         client.close()
 
 
+def test_gdb_ida_process_metadata(gdb_emulator):
+    client = GdbRspClient(gdb_emulator)
+    try:
+        supported = client.query("qSupported:multiprocess+;xmlRegisters=i386")
+        assert "qXfer:libraries:read+" in supported
+        assert "qXfer:exec-file:read+" in supported
+        assert "qXfer:threads:read+" in supported
+
+        target = client.query("qXfer:features:read:target.xml:0,4000")
+        assert "<architecture>i386</architecture>" in target
+        assert 'name="eip" bitsize="32"' in target
+
+        libraries = client.query("qXfer:libraries:read::0,4000")
+        assert libraries.startswith("l<library-list")
+        assert "kernel32.dll" in libraries
+        assert '<segment address="0x' in libraries
+
+        executable = client.query("qXfer:exec-file:read::0,4000")
+        assert executable.startswith("lC:\\")
+        assert executable.endswith((".exe", ".dll", ".sys"))
+
+        threads = client.query("qXfer:threads:read::0,4000")
+        assert threads == 'l<threads><thread id="1" name="main"/></threads>'
+        assert client.query("qGetTIBAddr:1") != "0"
+
+        client.continue_()
+    finally:
+        client.close()
+
+
+@pytest.fixture
+def gdb_pause_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _PAUSE_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port
+    _stop_server(proc)
+
+
+@pytest.fixture
+def gdb_exit_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _EXIT_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port, proc
+    _stop_server(proc)
+
+
+def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
+    import capstone
+
+    client = GdbRspClient(gdb_emulator)
+    try:
+        client.query_halt_reason()
+        client.step()
+        registers = client.read_registers()
+        pc = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
+        code = bytes.fromhex(client.read_memory(pc, 16))
+        instruction = next(iter(capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32).disasm(code, pc)))
+        breakpoint = pc + instruction.size
+
+        assert client.query(f"Z0,{breakpoint:x},1") == "OK"
+        stop = client.continue_()
+        assert stop.startswith("T05")
+        assert "swbreak:;" in stop
+
+        # The old udbserver backend closed its socket immediately after the
+        # stop reply. A register query proves the native session remains live.
+        stopped_registers = client.read_registers()
+        stopped_pc = struct.unpack("<I", bytes.fromhex(stopped_registers[64:72]))[0]
+        assert stopped_pc == breakpoint
+
+        assert client.query(f"z0,{breakpoint:x},1") == "OK"
+        assert client.continue_().startswith(("T", "W"))
+    finally:
+        client.close()
+
+
+def test_gdb_ctrl_c_pauses_running_target(gdb_pause_emulator):
+    client = GdbRspClient(gdb_pause_emulator)
+    try:
+        client.query_halt_reason()
+        client.send_no_wait("c")
+        time.sleep(0.05)
+
+        stop = client.interrupt()
+        assert stop.startswith("T02")
+        assert client.read_registers()
+    finally:
+        client.close()
+
+
+def test_gdb_x64_target_description_and_registers(gdb_x64_emulator):
+    client = GdbRspClient(gdb_x64_emulator)
+    try:
+        target = client.query("qXfer:features:read:target.xml:0,4000")
+        assert target.startswith("l")
+        assert "<architecture>i386:x86-64</architecture>" in target
+        assert 'name="rip" bitsize="64"' in target
+        assert 'name="xmm15" bitsize="128"' in target
+        assert len(client.read_registers()) == 1072
+    finally:
+        client.close()
+
+
+def test_gdb_detach(gdb_pause_emulator):
+    client = GdbRspClient(gdb_pause_emulator)
+    try:
+        client.query_halt_reason()
+        assert client.query("D") == "OK"
+    finally:
+        client.close()
+
+
+def test_gdb_reports_clean_exit(gdb_exit_emulator):
+    port, proc = gdb_exit_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_() == "W00"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
 def test_gdb_single_step(gdb_emulator):
     port = gdb_emulator
     client = GdbRspClient(port)
     try:
         client.query_halt_reason()
 
-        regs_before = client.read_registers()
-        eip_before = struct.unpack("<I", bytes.fromhex(regs_before[64:72]))[0]
+        registers = client.read_registers()
+        previous_eip = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
 
-        response = client.step()
-        assert response.startswith("S") or response.startswith("T")
-
-        regs_after = client.read_registers()
-        eip_after = struct.unpack("<I", bytes.fromhex(regs_after[64:72]))[0]
-        assert eip_after != eip_before
+        for _ in range(3):
+            response = client.step()
+            assert response.startswith(("S", "T"))
+            registers = client.read_registers()
+            eip = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
+            assert eip != previous_eip
+            previous_eip = eip
 
         client.continue_()
     finally:

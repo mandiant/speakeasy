@@ -13,7 +13,8 @@ Captured from the current source tree to show the full runtime and schema-derive
 usage: cli.py [-h] [-t TARGET] [-o OUTPUT] [--argv ARGV] [-c CONFIG]
               [--dump-default-config] [--raw] [--raw-offset RAW_OFFSET]
               [--arch ARCH] [--dropped-files-path DROPPED_FILES_PATH] [-k] [--no-mp] [-v]
-              [--gdb] [--gdb-port GDB_PORT] [-V VOLUMES] [--timeout TIMEOUT]
+              [--gdb] [--gdb-host GDB_HOST] [--gdb-port GDB_PORT]
+              [-V VOLUMES] [--timeout TIMEOUT]
               [--max-api-count MAX_API_COUNT]
               [--max-instructions MAX_INSTRUCTIONS]
               [--analysis-memory-tracing | --no-analysis-memory-tracing]
@@ -66,6 +67,7 @@ options:
   -v, --verbose         Enable verbose (DEBUG) logging
   --gdb                 Enable GDB server stub (pauses before first
                         instruction)
+  --gdb-host GDB_HOST   GDB server bind host (default: 127.0.0.1)
   --gdb-port GDB_PORT   GDB server port (default: 1234)
   -V, --volume VOLUMES  Mount a host path into the emulated filesystem
                         (host_path:guest_path). May be repeated.

@@ -31,8 +31,8 @@ class Win32Emulator(WindowsEmulator):
     User Mode Windows Emulator Class
     """
 
-    def __init__(self, config, argv=None, debug=False, exit_event=None, gdb_port=None):
-        super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port)
+    def __init__(self, config, argv=None, debug=False, exit_event=None, gdb_port=None, gdb_host="127.0.0.1"):
+        super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
         self.last_error = 0
         self.peb_addr = 0

@@ -8,11 +8,7 @@ Speakeasy requires Python 3.10+.
 python3 -m pip install speakeasy-emulator
 ```
 
-Optional GDB support:
-
-```console
-python3 -m pip install "speakeasy-emulator[gdb]"
-```
+GDB remote debugging support is included in the standard package.
 
 Verify installation:
 
@@ -26,12 +22,6 @@ speakeasy -h
 git clone https://github.com/mandiant/speakeasy.git
 cd speakeasy
 python3 -m pip install -e ".[dev]"
-```
-
-Optional GDB support from source:
-
-```console
-python3 -m pip install -e ".[dev,gdb]"
 ```
 
 ## Run in Docker
