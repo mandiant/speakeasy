@@ -271,7 +271,13 @@ class EmuEngine:
             return hook.disable()
 
     def hook_remove(self, hid):
-        return self.emu.hook_del(hid)  # type: ignore[union-attr]
+        if hid not in self._callbacks:
+            return self.emu.hook_del(hid)  # type: ignore[union-attr]
+
+        status = _uc.uc_hook_del(self.emu._uch, uc_hook_h(hid))  # type: ignore[union-attr]
+        if status != uc.UC_ERR_OK:
+            raise uc.UcError(status)
+        self._callbacks.pop(hid, None)
 
     def close(self):
         if self.emu is None:

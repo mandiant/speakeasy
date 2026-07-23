@@ -77,7 +77,7 @@ class RegisterInfo:
 class GdbServer:
     """An all-stop RSP server backed directly by a WindowsEmulator."""
 
-    def __init__(self, emu: Any, port: int, host: str = "127.0.0.1"):
+    def __init__(self, emu: Any, port: int, host: str):
         self.emu = emu
         self.host = host
         self.port = port
@@ -97,8 +97,28 @@ class GdbServer:
         self._exec_breakpoints: dict[tuple[int, int], int] = {}
         self._read_watchpoints: dict[tuple[int, int], int] = {}
         self._write_watchpoints: dict[tuple[int, int], int] = {}
+        self._access_watchpoints: dict[tuple[int, int], int] = {}
         self._registers = self._make_registers()
         self._hooks: list[Any] = []
+        self._code_hook: Any | None = None
+        self._read_hook: Any | None = None
+        self._write_hook: Any | None = None
+
+    def __enter__(self) -> GdbServer:
+        try:
+            self.start()
+        except BaseException:
+            self.close()
+            raise
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: Any,
+    ) -> None:
+        self.close()
 
     # ------------------------------------------------------------------
     # Transport
@@ -126,6 +146,13 @@ class GdbServer:
             except OSError:
                 pass
 
+    def notify_signal(self, signal: int) -> None:
+        if not self._closed.is_set():
+            try:
+                self._reply(f"X{signal & 0xFF:02x}".encode("ascii"))
+            except OSError:
+                pass
+
     def close(self) -> None:
         self._closed.set()
         for sock in (self._client, self._listener):
@@ -140,9 +167,14 @@ class GdbServer:
                     pass
         for hook in self._hooks:
             try:
-                hook.disable()
+                self._remove_hook(hook)
             except Exception:
                 pass
+        # Prevent BinaryEmulator.set_hooks() from restoring debugger hooks if
+        # emulation is started again after this session closes.
+        for registered_hooks in getattr(self.emu, "hooks", {}).values():
+            if isinstance(registered_hooks, list):
+                registered_hooks[:] = [hook for hook in registered_hooks if hook not in self._hooks]
 
     @staticmethod
     def _extract_packet(buffer: bytearray) -> tuple[bytes, bytes, bool] | None:
@@ -233,17 +265,25 @@ class GdbServer:
                 return ResumeAction(detach=True)
             action = self._handle_command(payload)
             if action is not None:
+                if not action.detach and not action.kill:
+                    # Mark the resume transition so Ctrl-C arriving before
+                    # begin_run() becomes a pending interrupt, not a queued '?'.
+                    with self._state_lock:
+                        self._running = True
                 return action
         return ResumeAction(detach=True)
 
-    def begin_run(self, action: ResumeAction) -> None:
+    def begin_run(self, action: ResumeAction) -> bool:
         with self._state_lock:
             self._running = True
-            self._stop_pending = False
+            if self._stop_pending:
+                return False
             self._stop_reason = StopReason()
             pc = self.emu.get_pc()
             at_breakpoint = any(begin <= pc < begin + size for begin, size in self._exec_breakpoints)
             self._resume_from_breakpoint = pc if at_breakpoint else None
+        self._refresh_hooks()
+        return True
 
     def finish_run(self, action: ResumeAction) -> StopReason | None:
         with self._state_lock:
@@ -272,13 +312,38 @@ class GdbServer:
             self._commands.put(b"?")
 
     def _install_hooks(self) -> None:
-        self._hooks.extend(
-            (
-                self.emu.add_code_hook(self._on_code),
-                self.emu.add_mem_read_hook(self._on_read),
-                self.emu.add_mem_write_hook(self._on_write),
-            )
+        self._code_hook = self.emu.add_code_hook(self._on_code)
+        self._read_hook = self.emu.add_mem_read_hook(self._on_read)
+        self._write_hook = self.emu.add_mem_write_hook(self._on_write)
+        self._hooks.extend((self._code_hook, self._read_hook, self._write_hook))
+        self._refresh_hooks()
+
+    @staticmethod
+    def _remove_hook(hook: Any) -> None:
+        if hook.added and hook.native_hook:
+            hook.emu_eng.hook_remove(hook.handle)
+        hook.handle = 0
+        hook.added = False
+        hook.enabled = False
+
+    @classmethod
+    def _set_hook_enabled(cls, hook: Any | None, enabled: bool) -> None:
+        if hook is None:
+            return
+        if enabled and not hook.added:
+            hook.add()
+        elif not enabled and hook.added:
+            # Hook.disable() still enters Python for every native event. Remove
+            # the Unicorn hook entirely to avoid that callback overhead.
+            cls._remove_hook(hook)
+
+    def _refresh_hooks(self) -> None:
+        self._set_hook_enabled(
+            self._code_hook,
+            bool(self._exec_breakpoints) or self._resume_from_breakpoint is not None,
         )
+        self._set_hook_enabled(self._read_hook, bool(self._read_watchpoints or self._access_watchpoints))
+        self._set_hook_enabled(self._write_hook, bool(self._write_watchpoints or self._access_watchpoints))
 
     def _on_code(self, _emu: Any, address: int, _size: int) -> bool:
         if self._resume_from_breakpoint == address:
@@ -292,12 +357,16 @@ class GdbServer:
         return True
 
     def _on_read(self, _emu: Any, _access: int, address: int, size: int, _value: int) -> bool:
-        if self._overlaps_watchpoint(self._read_watchpoints, address, size):
+        if self._overlaps_watchpoint(self._access_watchpoints, address, size):
+            self._request_stop(StopReason(kind="awatch", address=address))
+        elif self._overlaps_watchpoint(self._read_watchpoints, address, size):
             self._request_stop(StopReason(kind="rwatch", address=address))
         return True
 
     def _on_write(self, _emu: Any, _access: int, address: int, size: int, _value: int) -> bool:
-        if self._overlaps_watchpoint(self._write_watchpoints, address, size):
+        if self._overlaps_watchpoint(self._access_watchpoints, address, size):
+            self._request_stop(StopReason(kind="awatch", address=address))
+        elif self._overlaps_watchpoint(self._write_watchpoints, address, size):
             self._request_stop(StopReason(kind="watch", address=address))
         return True
 
@@ -411,12 +480,7 @@ class GdbServer:
             elif bp_type == 3:
                 target = self._read_watchpoints
             elif bp_type == 4:
-                target = self._read_watchpoints
-                other = self._write_watchpoints
-                if set_breakpoint:
-                    other[key] = bp_type
-                else:
-                    other.pop(key, None)
+                target = self._access_watchpoints
             else:
                 self._reply(b"")
                 return
@@ -424,6 +488,7 @@ class GdbServer:
                 target[key] = bp_type
             else:
                 target.pop(key, None)
+            self._refresh_hooks()
             self._reply(b"OK")
         except ValueError:
             self._reply(b"E01")
@@ -470,7 +535,7 @@ class GdbServer:
                 ("gs", ux.UC_X86_REG_GS),
             )
         )
-        definitions.extend((f"st{i}", getattr(ux, f"UC_X86_REG_ST{i}"), 10, "float") for i in range(8))
+        definitions.extend((f"st{i}", getattr(ux, f"UC_X86_REG_FP{i}"), 10, "float") for i in range(8))
         # Unicorn does not expose all x87 environment fields independently.
         # Keep their standard RSP slots so clients retain the canonical layout.
         definitions.extend(
@@ -489,8 +554,11 @@ class GdbServer:
         register = self._registers[index]
         if register.unicorn_id is None:
             return bytes(register.size)
-        value = int(self._uc.reg_read(register.unicorn_id))
-        return value.to_bytes(register.size, "little")
+        value = self._uc.reg_read(register.unicorn_id)
+        if register.name.startswith("st"):
+            mantissa, exponent = value
+            return int(mantissa).to_bytes(8, "little") + int(exponent).to_bytes(2, "little")
+        return int(value).to_bytes(register.size, "little")
 
     def _read_registers(self) -> None:
         try:
@@ -504,17 +572,26 @@ class GdbServer:
             data = bytes.fromhex(encoded.decode("ascii"))
             offset = 0
             for register in self._registers:
-                value = int.from_bytes(data[offset : offset + register.size], "little")
-                if len(data[offset : offset + register.size]) != register.size:
+                register_data = data[offset : offset + register.size]
+                if len(register_data) != register.size:
                     raise ValueError
-                if register.unicorn_id is not None:
-                    self._uc.reg_write(register.unicorn_id, value)
+                self._write_register_value(register, register_data)
                 offset += register.size
             if offset != len(data):
                 raise ValueError
             self._reply(b"OK")
         except Exception:
             self._reply(b"E01")
+
+    def _write_register_value(self, register: RegisterInfo, value: bytes) -> None:
+        if register.unicorn_id is None:
+            return
+        if register.name.startswith("st"):
+            mantissa = int.from_bytes(value[:8], "little")
+            exponent = int.from_bytes(value[8:], "little")
+            self._uc.reg_write(register.unicorn_id, (mantissa, exponent))
+        else:
+            self._uc.reg_write(register.unicorn_id, int.from_bytes(value, "little"))
 
     def _read_register(self, encoded_index: bytes) -> None:
         try:
@@ -531,8 +608,7 @@ class GdbServer:
             value = bytes.fromhex(value_text.decode("ascii"))
             if len(value) != register.size:
                 raise ValueError
-            if register.unicorn_id is not None:
-                self._uc.reg_write(register.unicorn_id, int.from_bytes(value, "little"))
+            self._write_register_value(register, value)
             self._reply(b"OK")
         except (ValueError, IndexError, UnicodeDecodeError):
             self._reply(b"E01")
@@ -576,8 +652,13 @@ class GdbServer:
     # XML and process metadata
 
     def _handle_xfer(self, payload: bytes) -> bytes | None:
+        # qXfer packets have the form:
+        # qXfer:<object>:<operation>:<annex>:<offset>,<length>
+        qxfer_prefix = b"qXfer:"
         try:
-            object_name, operation, annex, position = payload[6:].split(b":", 3)
+            if not payload.startswith(qxfer_prefix):
+                raise ValueError
+            object_name, operation, annex, position = payload.removeprefix(qxfer_prefix).split(b":", 3)
             if operation != b"read":
                 return None
             offset_text, length_text = position.split(b",", 1)

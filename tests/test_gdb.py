@@ -5,10 +5,38 @@ import subprocess
 import sys
 import textwrap
 import time
+from dataclasses import dataclass
 
 import pytest
 
 TESTS_DIR = os.path.dirname(__file__)
+
+
+@dataclass(frozen=True)
+class X86Registers:
+    eax: int
+    ecx: int
+    edx: int
+    ebx: int
+    esp: int
+    ebp: int
+    esi: int
+    edi: int
+    eip: int
+    eflags: int
+    cs: int
+    ss: int
+    ds: int
+    es: int
+    fs: int
+    gs: int
+
+    @classmethod
+    def from_rsp(cls, encoded: str):
+        # The i386 core feature begins with these sixteen 32-bit registers in
+        # the same order as the dataclass fields above.
+        core_layout = struct.Struct("<16I")
+        return cls(*core_layout.unpack(bytes.fromhex(encoded)[: core_layout.size]))
 
 
 class GdbRspClient:
@@ -67,6 +95,9 @@ class GdbRspClient:
 
     def read_registers(self) -> str:
         return self.send("g")
+
+    def read_x86_registers(self) -> X86Registers:
+        return X86Registers.from_rsp(self.read_registers())
 
     def read_memory(self, addr: int, size: int) -> str:
         return self.send(f"m{addr:x},{size:x}")
@@ -133,6 +164,29 @@ _PAUSE_SERVER_SCRIPT = textwrap.dedent("""\
 
     se = Speakeasy(config=cfg, gdb_port=port)
     address = se.load_shellcode(data=b"\\xeb\\xfe", arch="x86")
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
+_FAULT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\x90\\xc3", arch="x86")
+
+    def fail_start(*args, **kwargs):
+        raise RuntimeError("forced execution failure")
+
+    se.emu.emu_eng.start = fail_start
     se.run_shellcode(address)
     se.shutdown()
 """)
@@ -213,9 +267,7 @@ def gdb_emulator():
 
 @pytest.fixture
 def gdb_x64_emulator():
-    # Exercise the explicit non-loopback override while clients still connect
-    # through loopback in the isolated test process.
-    port, proc = _start_module_server("dll_test_x64.dll.xz", host="0.0.0.0")
+    port, proc = _start_module_server("dll_test_x64.dll.xz")
     yield port
     _stop_server(proc)
 
@@ -231,11 +283,7 @@ def test_gdb_connect_and_read_registers(gdb_emulator):
         assert len(regs) > 0
         assert all(char in "0123456789abcdefxx" for char in regs.lower())
 
-        # x86 GDB register order: eax(0), ecx(8), edx(16), ebx(24),
-        # esp(32), ebp(40), esi(48), edi(56), eip(64)
-        # Each register is 4 bytes = 8 hex chars.
-        eip_hex = regs[64:72].lower()
-        assert eip_hex not in ("00000000", "xxxxxxxx")
+        assert client.read_x86_registers().eip != 0
 
         client.continue_()
     finally:
@@ -248,11 +296,8 @@ def test_gdb_read_memory(gdb_emulator):
     try:
         client.query_halt_reason()
 
-        regs_hex = client.read_registers()
-        sp_hex = regs_hex[32:40]  # esp is at offset 32 (register #4)
-        sp = struct.unpack("<I", bytes.fromhex(sp_hex))[0]
-
-        mem = client.read_memory(sp, 4)
+        registers = client.read_x86_registers()
+        mem = client.read_memory(registers.esp, 4)
         assert len(mem) == 8
         assert all(char in "0123456789abcdef" for char in mem.lower())
 
@@ -306,6 +351,20 @@ def gdb_pause_emulator():
 
 
 @pytest.fixture
+def gdb_fault_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _FAULT_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port, proc
+    _stop_server(proc)
+
+
+@pytest.fixture
 def gdb_exit_emulator():
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
@@ -326,8 +385,7 @@ def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
     try:
         client.query_halt_reason()
         client.step()
-        registers = client.read_registers()
-        pc = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
+        pc = client.read_x86_registers().eip
         code = bytes.fromhex(client.read_memory(pc, 16))
         instruction = next(iter(capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32).disasm(code, pc)))
         breakpoint = pc + instruction.size
@@ -337,11 +395,9 @@ def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
         assert stop.startswith("T05")
         assert "swbreak:;" in stop
 
-        # The old udbserver backend closed its socket immediately after the
-        # stop reply. A register query proves the native session remains live.
-        stopped_registers = client.read_registers()
-        stopped_pc = struct.unpack("<I", bytes.fromhex(stopped_registers[64:72]))[0]
-        assert stopped_pc == breakpoint
+        # A register query after the stop reply verifies that the native
+        # debugger session remains live.
+        assert client.read_x86_registers().eip == breakpoint
 
         assert client.query(f"z0,{breakpoint:x},1") == "OK"
         assert client.continue_().startswith(("T", "W"))
@@ -385,6 +441,19 @@ def test_gdb_detach(gdb_pause_emulator):
         client.close()
 
 
+def test_gdb_reports_target_fault_and_nonzero_termination(gdb_fault_emulator):
+    port, proc = gdb_fault_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip != 0
+        assert client.continue_() == "X0b"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
 def test_gdb_reports_clean_exit(gdb_exit_emulator):
     port, proc = gdb_exit_emulator
     client = GdbRspClient(port)
@@ -402,14 +471,12 @@ def test_gdb_single_step(gdb_emulator):
     try:
         client.query_halt_reason()
 
-        registers = client.read_registers()
-        previous_eip = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
+        previous_eip = client.read_x86_registers().eip
 
         for _ in range(3):
             response = client.step()
             assert response.startswith(("S", "T"))
-            registers = client.read_registers()
-            eip = struct.unpack("<I", bytes.fromhex(registers[64:72]))[0]
+            eip = client.read_x86_registers().eip
             assert eip != previous_eip
             previous_eip = eip
 

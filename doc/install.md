@@ -8,8 +8,6 @@ Speakeasy requires Python 3.10+.
 python3 -m pip install speakeasy-emulator
 ```
 
-GDB remote debugging support is included in the standard package.
-
 Verify installation:
 
 ```console

@@ -2,24 +2,6 @@
 
 Speakeasy supports interactive debugging of emulated binaries via the GDB Remote Serial Protocol. When enabled, the emulator pauses before the first instruction and waits for a GDB client to connect. You can then set breakpoints, inspect registers and memory, single-step, and continue execution — all through a standard GDB interface.
 
-The GDB server is implemented directly by Speakeasy and has no optional runtime dependencies.
-
----
-
-## Installation
-
-GDB support is included in a normal installation:
-
-```console
-pip install speakeasy-emulator
-```
-
-Or, when installing from source:
-
-```console
-pip install -e .
-```
-
 ---
 
 ## Quick Start

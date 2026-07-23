@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+from types import SimpleNamespace
 from xml.etree import ElementTree
 
-from speakeasy.gdb import GdbServer, _rsp_escape, _rsp_packet
+from unicorn import UC_ARCH_X86, UC_MODE_64, Uc
+
+from speakeasy.gdb import GdbServer, ResumeAction, _rsp_escape, _rsp_packet
 from speakeasy.winenv import arch
 
 
@@ -13,6 +16,20 @@ class DummyTeb:
 @dataclass
 class DummyThread:
     teb: DummyTeb
+
+
+class DummyHook:
+    def __init__(self):
+        self.enabled = True
+        self.added = True
+        self.native_hook = True
+        self.handle = 1
+        self.emu_eng = SimpleNamespace(hook_remove=lambda handle: None)
+
+    def add(self):
+        self.enabled = True
+        self.added = True
+        self.handle = 1
 
 
 class DummyModule:
@@ -32,12 +49,21 @@ class DummyEmulator:
     def get_arch(self):
         return arch.ARCH_AMD64
 
+    def add_code_hook(self, callback):
+        return DummyHook()
+
+    def add_mem_read_hook(self, callback):
+        return DummyHook()
+
+    def add_mem_write_hook(self, callback):
+        return DummyHook()
+
 
 def make_server():
-    return GdbServer(DummyEmulator(), 0)
+    return GdbServer(DummyEmulator(), 0, "127.0.0.1")
 
 
-def test_server_bind_host_defaults_to_loopback_and_can_be_overridden():
+def test_server_uses_provided_bind_host():
     assert make_server().host == "127.0.0.1"
     assert GdbServer(DummyEmulator(), 0, "0.0.0.0").host == "0.0.0.0"
 
@@ -110,6 +136,80 @@ def test_packet_extraction_validates_checksum_across_fragmented_input():
     oversized_payload = b"q" * (0x4000 + 1)
     oversized = _rsp_packet(oversized_payload)
     assert GdbServer._extract_packet(bytearray(oversized))[2] is False
+
+
+def test_interrupt_during_resume_transition_is_preserved():
+    server = make_server()
+    server.emu.emu_eng = SimpleNamespace(stop=lambda: None)
+    server._running = True
+
+    server._interrupt()
+
+    assert not server.begin_run(ResumeAction())
+    reason = server.finish_run(ResumeAction())
+    assert reason is not None
+    assert reason.signal == 2
+
+
+def test_instruction_and_memory_hooks_are_enabled_only_when_needed():
+    server = make_server()
+    server._reply = lambda payload: None
+    server._install_hooks()
+
+    assert not server._code_hook.enabled
+    assert not server._read_hook.enabled
+    assert not server._write_hook.enabled
+
+    server._change_breakpoint(b"Z0,1000,1")
+    assert server._code_hook.enabled
+    server._change_breakpoint(b"z0,1000,1")
+    assert not server._code_hook.enabled
+
+    server._change_breakpoint(b"Z4,2000,4")
+    assert server._read_hook.enabled
+    assert server._write_hook.enabled
+    server._change_breakpoint(b"z4,2000,4")
+    assert not server._read_hook.enabled
+    assert not server._write_hook.enabled
+
+
+def test_access_watchpoint_does_not_clobber_write_watchpoint():
+    server = make_server()
+    replies = []
+    server._reply = replies.append
+
+    server._change_breakpoint(b"Z4,1000,4")
+    server._change_breakpoint(b"Z2,1000,4")
+    server._change_breakpoint(b"z4,1000,4")
+
+    assert (0x1000, 4) not in server._access_watchpoints
+    assert (0x1000, 4) in server._write_watchpoints
+    assert replies == [b"OK", b"OK", b"OK"]
+
+
+def test_access_watchpoint_reports_awatch_stop_reason():
+    server = make_server()
+    reasons = []
+    server._access_watchpoints[(0x1000, 4)] = 4
+    server._request_stop = reasons.append
+
+    server._on_read(None, 0, 0x1001, 1, 0)
+
+    assert len(reasons) == 1
+    assert reasons[0].kind == "awatch"
+    assert b"awatch:1001;" in server._stop_reply(reasons[0])
+
+
+def test_x87_registers_use_full_80_bit_wire_format():
+    emulator = DummyEmulator()
+    emulator.emu_eng = SimpleNamespace(emu=Uc(UC_ARCH_X86, UC_MODE_64))
+    server = GdbServer(emulator, 0, "127.0.0.1")
+    st0_index = next(index for index, register in enumerate(server._registers) if register.name == "st0")
+    wire_value = (3).to_bytes(8, "little") + (0x7FFF).to_bytes(2, "little")
+
+    server._write_register_value(server._registers[st0_index], wire_value)
+
+    assert server._read_register_value(st0_index) == wire_value
 
 
 def test_xfer_escaping_respects_advertised_packet_size():
