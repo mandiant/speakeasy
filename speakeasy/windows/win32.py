@@ -178,7 +178,7 @@ class Win32Emulator(WindowsEmulator):
         image.emu_path = emu_path
 
         rtmod = self.load_image(image)
-        self.set_func_args(self.stack_base, self.return_hook)
+        self.set_func_args(self.stack_base, self.return_hook, conv=_arch.CALL_CONV_STDCALL)
 
         if self.input is not None:
             self.input["image_base"] = rtmod.base
@@ -431,7 +431,7 @@ class Win32Emulator(WindowsEmulator):
 
         effective_stack = self.config.stack_size or stack_commit
         self.stack_base, stack_addr = self.alloc_stack(effective_stack)
-        self.set_func_args(self.stack_base, self.return_hook, 0x7000)
+        self.set_func_args(self.stack_base, self.return_hook, 0x7000, conv=_arch.CALL_CONV_STDCALL)
 
         run = Run()
         run.type = "shellcode"

@@ -375,7 +375,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         Call a WDM driver dispatch function with a supplied IRP
         """
         stk_ptr = self.get_stack_ptr()
-        self.set_func_args(stk_ptr, self.return_hook, dev_addr, irp_addr)
+        self.set_func_args(stk_ptr, self.return_hook, dev_addr, irp_addr, conv=_arch.CALL_CONV_STDCALL)
         self.set_pc(func)
 
     def new_irp(self):
@@ -438,7 +438,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             return
 
         stk_ptr = self.get_stack_ptr()
-        self.set_func_args(stk_ptr, self.exit_hook, drv.address)
+        self.set_func_args(stk_ptr, self.exit_hook, drv.address, conv=_arch.CALL_CONV_STDCALL)
         self.set_pc(drv.on_unload)
 
         run = Run()
