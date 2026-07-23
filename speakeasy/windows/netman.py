@@ -86,17 +86,12 @@ class WininetComponent:
     Base class used for WinInet connections
     """
 
-    curr_handle = 0x20
     config: Any | None = None
 
-    def __init__(self):
+    def __init__(self, allocator):
         super().__init__()
-        self.handle = self.new_handle()
-
-    def new_handle(self):
-        tmp = WininetComponent.curr_handle
-        WininetComponent.curr_handle += 4
-        return tmp
+        self.allocator = allocator
+        self.handle = self.allocator.allocate_wininet_handle()
 
     def get_handle(self):
         return self.handle
@@ -107,8 +102,8 @@ class WininetRequest(WininetComponent):
     WinInet request object
     """
 
-    def __init__(self, session, verb, objname, ver, ref, accepts, flags, ctx):
-        super().__init__()
+    def __init__(self, allocator, session, verb, objname, ver, ref, accepts, flags, ctx):
+        super().__init__(allocator)
 
         # The WiniNet APIs default to a HTTP "GET" if no verb is specified
         if not verb:
@@ -230,8 +225,8 @@ class WininetRequest(WininetComponent):
 
 
 class WininetSession(WininetComponent):
-    def __init__(self, instance, server, port, user, password, service, flags, ctx):
-        super().__init__()
+    def __init__(self, allocator, instance, server, port, user, password, service, flags, ctx):
+        super().__init__(allocator)
         self.server = server
         self.port = port
         self.user = user
@@ -244,15 +239,15 @@ class WininetSession(WininetComponent):
         self.instance = instance
 
     def new_request(self, verb, objname, ver, ref, accepts, flags, ctx):
-        req = WininetRequest(self, verb, objname, ver, ref, accepts, flags, ctx)
+        req = WininetRequest(self.allocator, self, verb, objname, ver, ref, accepts, flags, ctx)
         hdl = req.get_handle()
         self.requests.update({hdl: req})
         return req
 
 
 class WininetInstance(WininetComponent):
-    def __init__(self, user_agent, access, proxy, bypass, flags):
-        super().__init__()
+    def __init__(self, allocator, user_agent, access, proxy, bypass, flags):
+        super().__init__(allocator)
         self.user_agent = user_agent
         self.access = access
         self.proxy = proxy
@@ -267,7 +262,7 @@ class WininetInstance(WininetComponent):
         self.sessions.update({handle: session})
 
     def new_session(self, server, port, user, password, service, flags, ctx):
-        sess = WininetSession(self, server, port, user, password, service, flags, ctx)
+        sess = WininetSession(self.allocator, self, server, port, user, password, service, flags, ctx)
         hdl = sess.get_handle()
         self.sessions.update({hdl: sess})
         return sess
@@ -278,12 +273,13 @@ class NetworkManager:
     Class that manages network connections during emulation
     """
 
-    def __init__(self, config):
+    def __init__(self, allocator, config):
         super().__init__()
         self.sockets: dict[int, Socket] = {}
         self.wininets: dict[int, WininetInstance] = {}
         self.curr_fd: int = 4
         self.curr_handle: int = 0x20
+        self.allocator = allocator
         self.config: Any = config
         self.dns: Any | None = None
 
@@ -350,7 +346,7 @@ class NetworkManager:
         return None
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
-        wini = WininetInstance(user_agent, access, proxy, bypass, flags)
+        wini = WininetInstance(self.allocator, user_agent, access, proxy, bypass, flags)
 
         self.wininets.update({wini.get_handle(): wini})
         return wini
