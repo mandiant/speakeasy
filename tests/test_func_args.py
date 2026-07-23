@@ -4,7 +4,6 @@ from speakeasy.config import SpeakeasyConfig
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 
-
 STACK_SIZE = 0x12000
 RET_ADDR = 0xDEADBEEF
 
