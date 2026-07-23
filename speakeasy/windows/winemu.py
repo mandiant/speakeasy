@@ -418,6 +418,9 @@ class WindowsEmulator(BinaryEmulator):
         self._seh_last_fault = None
         self._seh_repeat_count = 0
         self.reset_stack(self.stack_base)
+        self.reset_cpu_context()
+        mm = self.get_address_map(self.stack_base - 1)
+        self.mem_write(mm.base, b"\x00" * mm.size)
         return self._prepare_run_context(run)
 
     def call(self, addr, params=[]):
@@ -425,6 +428,9 @@ class WindowsEmulator(BinaryEmulator):
         Start emulating at the specified address
         """
         self.reset_stack(self.stack_base)
+        self.reset_cpu_context()
+        mm = self.get_address_map(self.stack_base - 1)
+        self.mem_write(mm.base, b"\x00" * mm.size)
         run = Run()
         run.type = f"call_0x{addr:x}"
         run.start_addr = addr
@@ -1193,9 +1199,7 @@ class WindowsEmulator(BinaryEmulator):
                 if not eh and alt_dll:
                     _api_mod, eh = self.api.get_data_export_handler(alt_dll, imp.func_name)
                 if eh:
-                    old_sentinel = int.from_bytes(
-                        self.mem_read(imp.iat_address, ptr_size), "little"
-                    )
+                    old_sentinel = int.from_bytes(self.mem_read(imp.iat_address, ptr_size), "little")
                     data_ptr = self.handle_import_data(dll_name, imp.func_name)
                     sym = f"{dll_name}.{imp.func_name}"
                     self.global_data[imp.iat_address] = [sym, data_ptr]
