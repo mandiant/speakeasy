@@ -35,6 +35,7 @@ These flags are not generated from the config schema.
 - `--no-mp`: run in current process instead of worker process
 - `-v, --verbose`: DEBUG logging
 - `--gdb`: enable GDB stub and pause before first instruction
+- `--gdb-host`: GDB stub bind host (default `127.0.0.1`)
 - `--gdb-port`: GDB stub port (default `1234`)
 - `-V, --volume`: host_path:guest_path mapping (repeatable)
 

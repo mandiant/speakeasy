@@ -34,6 +34,7 @@ speakeasy -t shellcode.bin \
 Primary flags:
 - `--verbose`: DEBUG logging
 - `--gdb`: start GDB stub and pause before first instruction
+- `--gdb-host`: GDB stub bind host (default `127.0.0.1`)
 - `--gdb-port`: GDB stub port
 
 Notes:

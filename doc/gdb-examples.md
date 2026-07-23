@@ -5,12 +5,6 @@
 
 Speakeasy supports interactive debugging via the GDB Remote Serial Protocol. When you pass `--gdb`, the emulator pauses before the first instruction and waits for a GDB client to connect. You can then set breakpoints, inspect registers and memory, single-step, and continue execution — all through a standard GDB interface.
 
-Install the optional GDB dependency:
-
-```
-pip install speakeasy-emulator[gdb]
-```
-
 ### Debugging a 32-bit DLL
 
 Start speakeasy with `--gdb` on a sample DLL. It will pause before the first instruction and wait for GDB to connect. In a second terminal, connect with `gdb` (or `gdb-multiarch`) and set the architecture to `i386`:
@@ -205,7 +199,7 @@ The GDB server can also be enabled when using speakeasy as a Python library. Pas
 ```python
 import speakeasy
 
-se = speakeasy.Speakeasy(gdb_port=1234)
+se = speakeasy.Speakeasy(gdb_port=1234, gdb_host="127.0.0.1")
 module = se.load_module("sample.dll")
 # Blocks here waiting for GDB to connect, then emulates under GDB control
 se.run_module(module)
