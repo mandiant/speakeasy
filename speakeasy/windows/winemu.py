@@ -17,6 +17,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
+from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import MemAccess, Run
 from speakeasy.profiler_events import TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
@@ -81,11 +82,12 @@ class WindowsEmulator(BinaryEmulator):
         """Initialize configured processes. Subclasses must implement."""
         ...
 
-    def __init__(self, config, exit_event=None, debug=False, gdb_port=None):
+    def __init__(self, config, exit_event=None, debug=False, gdb_port=None, gdb_host=None):
         super().__init__(config)
 
         self.debug: bool = debug
         self.gdb_port: int | None = gdb_port
+        self.gdb_host: str | None = gdb_host
         self.arch: int = 0
         self.modules: list[Any] = []
         self._setup_done: bool = False
@@ -545,8 +547,10 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_write(base, bytes(data))
 
     def resume(self, addr, count=-1):
-        """
-        Resume emulation at the specified address.
+        """Resume emulation directly at an address.
+
+        This low-level API bypasses the GDB command loop; callers that enable
+        GDB should drive execution through :meth:`start` instead.
         """
         timeout = 0 if self.gdb_port is not None else self.config.timeout
         self.emu_eng.start(addr, timeout=timeout, count=count)  # type: ignore[union-attr]
@@ -568,17 +572,36 @@ class WindowsEmulator(BinaryEmulator):
         # so the first stop reports a meaningful PC/SP/etc.
         self._prepare_run_context(run)
 
+        completed = True
         if self.gdb_port is not None:
-            from udbserver import udbserver
+            if self.gdb_host is None:
+                raise WindowsEmuError("A GDB bind host is required when gdb_port is set")
+            with GdbServer(self, self.gdb_port, self.gdb_host) as debugger:
+                debug_action = debugger.command_loop()
+                if debug_action.kill:
+                    completed = True
+                elif debug_action.detach:
+                    debugger.close()
+                    completed = self._execute_runs()
+                else:
+                    completed = self._execute_runs(debugger, debug_action)
+        else:
+            completed = self._execute_runs()
 
-            logger.info(
-                "GDB server listening on port %d, waiting for connection (initial PC: 0x%x)...",
-                self.gdb_port,
-                self.curr_run.start_addr,  # type: ignore[union-attr]
-            )
-            udbserver(self.emu_eng.emu, port=self.gdb_port, start_addr=0)  # type: ignore[union-attr]
+        if completed:
+            self.on_emu_complete()
 
-        timeout = 0 if self.gdb_port is not None else self.config.timeout
+    def _execute_runs(
+        self,
+        debugger: GdbServer | None = None,
+        debug_action: ResumeAction | None = None,
+    ) -> bool:
+        """Execute prepared runs, optionally under control of an active GDB session."""
+        if debugger is not None:
+            assert debug_action is not None
+        detached_resume_addr = None
+        terminal_signal = 0
+        timeout = 0 if debugger is not None else self.config.timeout
 
         if self.profiler:
             self.profiler.set_start_time()
@@ -586,16 +609,38 @@ class WindowsEmulator(BinaryEmulator):
         while True:
             try:
                 self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)  # type: ignore[union-attr]
-                self.emu_eng.start(self.curr_run.start_addr, timeout=timeout, count=self.config.max_instructions)  # type: ignore[union-attr]
+                if debugger is not None:
+                    resume_addr = self.get_pc()
+                else:
+                    resume_addr = detached_resume_addr or self.curr_run.start_addr  # type: ignore[union-attr]
+                    detached_resume_addr = None
+                instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
+                should_execute = debugger is None or debugger.begin_run(debug_action)
+                if should_execute:
+                    self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
+                if debugger is not None:
+                    stop_reason = debugger.finish_run(debug_action)
+                    if stop_reason is not None:
+                        debug_action = debugger.command_loop(stop_reason)
+                        if debug_action.kill:
+                            return True
+                        if debug_action.detach:
+                            detached_resume_addr = self.get_pc()
+                            debugger.close()
+                            debugger = None
+                            timeout = self.config.timeout
+                        continue
                 if self.profiler and timeout > 0:
                     if self.profiler.get_run_time() > timeout:
                         logger.error("* Timeout of %d sec(s) reached.", timeout)
             except KeyboardInterrupt:
                 logger.error("* User exited.")
-                return
+                if debugger is not None:
+                    debugger.notify_signal(2)
+                return False
             except Exception as e:
                 if self.exit_event and self.exit_event.is_set():
-                    return
+                    return False
                 stack_trace = traceback.format_exc()
 
                 try:
@@ -605,6 +650,21 @@ class WindowsEmulator(BinaryEmulator):
 
                 error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
                 self.curr_run.error = error  # type: ignore[union-attr]
+                terminal_signal = 11
+
+                if debugger is not None:
+                    # Ensure a pending Ctrl-C cannot be lost, then report the
+                    # target fault while its register state is still available.
+                    debugger.finish_run(debug_action)
+                    debug_action = debugger.command_loop(
+                        StopReason(signal=terminal_signal, kind="exception", address=self.get_pc())
+                    )
+                    if debug_action.kill:
+                        return True
+                    if debug_action.detach:
+                        debugger.close()
+                        debugger = None
+                        timeout = self.config.timeout
 
                 run = self.on_run_complete()
                 if not run:
@@ -615,7 +675,12 @@ class WindowsEmulator(BinaryEmulator):
                 continue
             break
 
-        self.on_emu_complete()
+        if debugger is not None:
+            if terminal_signal:
+                debugger.notify_signal(terminal_signal)
+            else:
+                debugger.notify_exit(0)
+        return True
 
     def get_current_run(self):
         """
