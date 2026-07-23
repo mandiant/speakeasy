@@ -1187,13 +1187,21 @@ class WindowsEmulator(BinaryEmulator):
                 self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
 
             for imp in image.imports:
-                _api_mod, eh = self.api.get_data_export_handler(imp.dll_name, imp.func_name)
+                dll_name = imp.dll_name
+                alt_dll = winemu.normalize_dll_name(dll_name)
+                _api_mod, eh = self.api.get_data_export_handler(dll_name, imp.func_name)
+                if not eh and alt_dll:
+                    _api_mod, eh = self.api.get_data_export_handler(alt_dll, imp.func_name)
                 if eh:
-                    data_ptr = self.handle_import_data(imp.dll_name, imp.func_name)
-                    sym = f"{imp.dll_name}.{imp.func_name}"
+                    old_sentinel = int.from_bytes(
+                        self.mem_read(imp.iat_address, ptr_size), "little"
+                    )
+                    data_ptr = self.handle_import_data(dll_name, imp.func_name)
+                    sym = f"{dll_name}.{imp.func_name}"
                     self.global_data[imp.iat_address] = [sym, data_ptr]
                     if data_ptr is not None:
                         self.mem_write(imp.iat_address, data_ptr.to_bytes(ptr_size, "little"))
+                    self.import_table.pop(old_sentinel, None)
 
         if is_primary and self.profiler and self.config.analysis.strings and image.regions:
             raw = image.regions[0].data
@@ -1454,7 +1462,13 @@ class WindowsEmulator(BinaryEmulator):
         """
         module, func = self.api.get_data_export_handler(mod_name, sym)  # type: ignore[union-attr]
         if not func:
+            alt_dll = winemu.normalize_dll_name(mod_name)
+            if alt_dll:
+                module, func = self.api.get_data_export_handler(alt_dll, sym)  # type: ignore[union-attr]
+        if not func:
             module, func = self.api.get_export_func_handler(mod_name, sym)  # type: ignore[union-attr]
+            if not func:
+                module, func = self.normalize_import_miss(mod_name, sym)
             if not func:
                 return None
 
@@ -1675,8 +1689,10 @@ class WindowsEmulator(BinaryEmulator):
 
         if alt_imp_api:
             mod, func_attrs = self.api.get_export_func_handler(dll, alt_imp_api)  # type: ignore[union-attr]
-        elif alt_imp_dll:
+        if not func_attrs and alt_imp_dll:
             mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
+        if not func_attrs and alt_imp_dll and alt_imp_api:
+            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
         return mod, func_attrs
 
     def read_unicode_string(self, addr):
