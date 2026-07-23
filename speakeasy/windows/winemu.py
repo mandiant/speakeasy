@@ -23,12 +23,12 @@ from speakeasy.profiler_events import TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows.cryptman import CryptoManager
-from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.loaders import get_prot_string
 from speakeasy.windows.netman import NetworkManager
+from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 
 # When disassembling, a minimum instruction size needs to be supplied
