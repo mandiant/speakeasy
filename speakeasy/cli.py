@@ -47,13 +47,20 @@ def emulate_binary(
     emulate_children=False,
     verbose=False,
     gdb_port=None,
+    gdb_host="127.0.0.1",
 ):
     setup_logging(verbose)
 
     report = None
     se = None
     try:
-        se = Speakeasy(config=cfg, argv=argv, exit_event=exit_event, gdb_port=gdb_port)
+        se = Speakeasy(
+            config=cfg,
+            argv=argv,
+            exit_event=exit_event,
+            gdb_port=gdb_port,
+            gdb_host=gdb_host,
+        )
         if do_raw:
             arch = arch.lower()
             if arch == "x86":
@@ -101,13 +108,13 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     argv = shlex.split(args.argv) if args.argv else []
     verbose = args.verbose
     gdb_port = args.gdb_port if args.gdb else None
+    gdb_host = args.gdb_host
 
     setup_logging(verbose)
 
     if args.gdb and not args.no_mp:
         args.no_mp = True
         logger.info("--gdb requires --no-mp mode; enabling automatically")
-
     cfg = get_default_config_dict()
 
     if config_path:
@@ -154,6 +161,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             emulate_children=emulate_children,
             verbose=verbose,
             gdb_port=gdb_port,
+            gdb_host=gdb_host,
         )
         report = q.get()
     else:
@@ -175,6 +183,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
                 "emulate_children": emulate_children,
                 "verbose": verbose,
                 "gdb_port": gdb_port,
+                "gdb_host": gdb_host,
             },
         )
         p.start()
@@ -308,6 +317,14 @@ def main():
         dest="gdb",
         required=False,
         help="Enable GDB server stub (pauses before first instruction)",
+    )
+    parser.add_argument(
+        "--gdb-host",
+        action="store",
+        dest="gdb_host",
+        default="127.0.0.1",
+        required=False,
+        help="GDB server bind host (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--gdb-port",

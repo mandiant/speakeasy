@@ -27,8 +27,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     Class used to emulate Windows drivers
     """
 
-    def __init__(self, config, debug=False, exit_event=None, gdb_port=None):
-        super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port)
+    def __init__(self, config, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
+        super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
         self.disasm_eng: object | None = None
         self.curr_mod: object | None = None

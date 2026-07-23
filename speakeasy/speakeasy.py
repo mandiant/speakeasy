@@ -37,7 +37,16 @@ class Speakeasy:
 
         return wrap
 
-    def __init__(self, config=None, argv=None, debug=False, exit_event=None, gdb_port=None, volumes=None):
+    def __init__(
+        self,
+        config=None,
+        argv=None,
+        debug=False,
+        exit_event=None,
+        gdb_port=None,
+        volumes=None,
+        gdb_host="127.0.0.1",
+    ):
 
         if volumes:
             if isinstance(config, SpeakeasyConfig):
@@ -59,6 +68,7 @@ class Speakeasy:
         self.exit_event = exit_event
         self.debug = debug
         self.gdb_port = gdb_port
+        self.gdb_host = gdb_host
         self.loaded_bins: list[str | None] = []
         self.mem_write_hooks: list[tuple[Callable, int, int]] = []
         self.mem_invalid_hooks: list[tuple[Callable]] = []
@@ -112,7 +122,11 @@ class Speakeasy:
 
             if pe.is_driver():
                 self.emu = WinKernelEmulator(
-                    config=self.config, debug=self.debug, exit_event=self.exit_event, gdb_port=self.gdb_port
+                    config=self.config,
+                    debug=self.debug,
+                    exit_event=self.exit_event,
+                    gdb_port=self.gdb_port,
+                    gdb_host=self.gdb_host,
                 )
             else:
                 self.emu = Win32Emulator(
@@ -121,6 +135,7 @@ class Speakeasy:
                     debug=self.debug,
                     exit_event=self.exit_event,
                     gdb_port=self.gdb_port,
+                    gdb_host=self.gdb_host,
                 )
         else:
             self.emu = Win32Emulator(
@@ -129,6 +144,7 @@ class Speakeasy:
                 debug=self.debug,
                 exit_event=self.exit_event,
                 gdb_port=self.gdb_port,
+                gdb_host=self.gdb_host,
             )
 
     def _init_hooks(self) -> None:

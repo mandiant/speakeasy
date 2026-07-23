@@ -36,7 +36,7 @@ se.shutdown()
 - pass `config=` to control environment and analysis
 - pass `argv=` to populate emulated process arguments
 - pass `volumes=` to mount host paths into emulated filesystem
-- pass `gdb_port=` to block for GDB attach before execution
+- pass `gdb_port=` to block for GDB attach before execution; `gdb_host=` controls the bind address and defaults to `127.0.0.1`
 
 For runnable scripts, see [../examples](../examples/).
 

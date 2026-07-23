@@ -235,7 +235,7 @@ How to read this: `tid` changes on each queued run (`1076 -> 1200 -> 1212`), whi
 
 ## Interactive debugging with --gdb
 
-Speakeasy now provides a built-in GDB remote stub via udbserver and can pause before first instruction until a client connects. The flow is available from both CLI and library usage, with explicit port selection. This enables interactive stepping, breakpoints, and memory/register inspection during emulation.
+Speakeasy provides a native GDB remote stub and can pause before the first instruction until a client connects. The flow is available from both CLI and library usage, with explicit port selection. This enables interactive pausing, stepping, breakpoints, watchpoints, and memory/register inspection during emulation.
 
 Quick way to use it: in terminal 1 run `speakeasy -t sample.dll --gdb --gdb-port 1234` and wait for the listener message; Speakeasy will force `--no-mp` automatically so the stub stays attached to the same Unicorn instance. In terminal 2 run `gdb-multiarch`, then `set architecture i386` (or `i386:x86-64` for 64-bit), and `target remote localhost:1234`; from there standard commands like `info registers`, `x/10i $pc`, `break *0x...`, `stepi`, and `continue` work as expected.
 
