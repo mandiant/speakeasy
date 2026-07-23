@@ -284,19 +284,27 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return self.disasm(self.mem_read(addr, size), addr, fast)
 
-    def set_func_args(self, stack_addr, ret_addr, *args, home_space=True):
+    def set_func_args(self, stack_addr, ret_addr, *args, home_space=True, conv=None):
         """
         Set the arguments before an emulated function call. This is how we pass
         arguments to a function when calling it through the emulator.
         """
-        curr_sp = stack_addr - self.ptr_size
         nargs = len(args)
+        curr_sp = stack_addr
 
         if self.get_arch() == e_arch.ARCH_X86:
-            sp = e_arch.X86_REG_ESP
+            sp_reg = e_arch.X86_REG_ESP
+
+            if conv == e_arch.CALL_CONV_FASTCALL:
+                for r in (e_arch.X86_REG_ECX, e_arch.X86_REG_EDX):
+                    if nargs == 0:
+                        break
+                    self.reg_write(r, args[len(args) - nargs])
+                    nargs -= 1
+
         elif self.get_arch() == e_arch.ARCH_AMD64:
-            sp = e_arch.AMD64_REG_RSP
-            i = 0
+            sp_reg = e_arch.AMD64_REG_RSP
+
             for i, r in enumerate(
                 (e_arch.AMD64_REG_RCX, e_arch.AMD64_REG_RDX, e_arch.AMD64_REG_R8, e_arch.AMD64_REG_R9)
             ):
@@ -304,25 +312,20 @@ class BinaryEmulator(MemoryManager, ABC):
                     break
                 self.reg_write(r, args[i])
                 nargs -= 1
-            # Set the stack home space
-            if home_space:
-                curr_sp -= 0x20
-            self.reg_write(sp, curr_sp)
         else:
             raise EmuException("Unsupported architecture")
 
         if nargs > 0:
             for arg in args[-nargs:][::-1]:
-                a = arg.to_bytes(self.ptr_size, byteorder="little")
-
-                self.mem_write(curr_sp, a)
-                self.reg_write(sp, curr_sp)
                 curr_sp -= self.ptr_size
+                self.mem_write(curr_sp, arg.to_bytes(self.ptr_size, byteorder="little"))
 
-        # Set the return address
-        r = ret_addr.to_bytes(self.ptr_size, byteorder="little")
-        self.mem_write(curr_sp, r)
-        self.reg_write(sp, curr_sp)
+        if self.get_arch() == e_arch.ARCH_AMD64 and home_space:
+            curr_sp -= 0x20
+
+        curr_sp -= self.ptr_size
+        self.mem_write(curr_sp, ret_addr.to_bytes(self.ptr_size, byteorder="little"))
+        self.reg_write(sp_reg, curr_sp)
 
     def get_func_argv(self, callconv, argc):
         """
