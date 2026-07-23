@@ -404,7 +404,7 @@ class ApiHandler:
             ret = self.emu.get_ret_address()
             sp = self.emu.get_stack_ptr()
 
-            self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args)
+            self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
             self.emu.set_pc(func)
             run.api_callbacks.append((ret, func, caller_argv))
         else:
