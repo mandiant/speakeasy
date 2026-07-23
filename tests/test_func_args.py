@@ -46,59 +46,51 @@ def _make_args(argc):
     return [0x1000 + i for i in range(argc)]
 
 
-@pytest.fixture(autouse=True)
-def _reset_stack(emu):
-    yield
-    emu.reset_stack(emu.stack_base)
-
-
-class TestSetGetFuncArgs:
-    @pytest.mark.parametrize("argc", ARG_COUNTS)
-    def test_round_trip(self, emu, argc):
-        for conv in _convs_for_arch(emu.arch):
-            args = _make_args(argc)
-            emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
-            got = emu.get_func_argv(conv, argc)
-            assert got == args, (
-                f"arch={emu.arch}, conv={_conv_name(conv)}, argc={argc}: "
-                f"expected {[hex(a) for a in args]}, got {[hex(a) for a in got]}"
-            )
-            emu.reset_stack(emu.stack_base)
-
-    @pytest.mark.parametrize("argc", ARG_COUNTS)
-    def test_ret_address(self, emu, argc):
-        for conv in _convs_for_arch(emu.arch):
-            args = _make_args(argc)
-            emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
-            got_ret = emu.get_ret_address()
-            assert got_ret == RET_ADDR, (
-                f"arch={emu.arch}, conv={_conv_name(conv)}: "
-                f"ret expected {hex(RET_ADDR)}, got {hex(got_ret)}"
-            )
-            emu.reset_stack(emu.stack_base)
-
-
-class TestDoCallReturn:
-    @pytest.mark.parametrize("argc", ARG_COUNTS)
-    def test_x86_stdcall_stack_restored(self, emu, argc):
-        if emu.arch != e_arch.ARCH_X86:
-            pytest.skip("x86 only")
-        conv = e_arch.CALL_CONV_STDCALL
+@pytest.mark.parametrize("argc", ARG_COUNTS)
+def test_round_trip(emu, argc):
+    for conv in _convs_for_arch(emu.arch):
         args = _make_args(argc)
-        sp_before = emu.get_stack_ptr()
         emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
-        emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
-        sp_after = emu.get_stack_ptr()
-        assert sp_after == sp_before
+        got = emu.get_func_argv(conv, argc)
+        assert got == args, (
+            f"arch={emu.arch}, conv={_conv_name(conv)}, argc={argc}: "
+            f"expected {[hex(a) for a in args]}, got {[hex(a) for a in got]}"
+        )
+        emu.reset_stack(emu.stack_base)
 
-    @pytest.mark.parametrize("argc", ARG_COUNTS)
-    def test_x86_fastcall_stack_restored(self, emu, argc):
-        if emu.arch != e_arch.ARCH_X86:
-            pytest.skip("x86 only")
-        conv = e_arch.CALL_CONV_FASTCALL
+
+@pytest.mark.parametrize("argc", ARG_COUNTS)
+def test_ret_address(emu, argc):
+    for conv in _convs_for_arch(emu.arch):
         args = _make_args(argc)
-        sp_before = emu.get_stack_ptr()
         emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
-        emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
-        sp_after = emu.get_stack_ptr()
-        assert sp_after == sp_before
+        got_ret = emu.get_ret_address()
+        assert got_ret == RET_ADDR, (
+            f"arch={emu.arch}, conv={_conv_name(conv)}: "
+            f"ret expected {hex(RET_ADDR)}, got {hex(got_ret)}"
+        )
+        emu.reset_stack(emu.stack_base)
+
+
+@pytest.mark.parametrize("argc", ARG_COUNTS)
+def test_x86_stdcall_stack_restored(emu, argc):
+    if emu.arch != e_arch.ARCH_X86:
+        pytest.skip("x86 only")
+    conv = e_arch.CALL_CONV_STDCALL
+    args = _make_args(argc)
+    sp_before = emu.get_stack_ptr()
+    emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
+    emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
+    assert emu.get_stack_ptr() == sp_before
+
+
+@pytest.mark.parametrize("argc", ARG_COUNTS)
+def test_x86_fastcall_stack_restored(emu, argc):
+    if emu.arch != e_arch.ARCH_X86:
+        pytest.skip("x86 only")
+    conv = e_arch.CALL_CONV_FASTCALL
+    args = _make_args(argc)
+    sp_before = emu.get_stack_ptr()
+    emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
+    emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
+    assert emu.get_stack_ptr() == sp_before

@@ -446,7 +446,7 @@ class WindowsEmulator(BinaryEmulator):
 
         stk_ptr = self.get_stack_ptr()
 
-        self.set_func_args(stk_ptr, self.return_hook, *run.args)
+        self.set_func_args(stk_ptr, self.return_hook, *run.args, conv=_arch.CALL_CONV_STDCALL)
         stk_ptr = self.get_stack_ptr()
         stk_map = self.get_address_map(stk_ptr)
 
@@ -2558,7 +2558,7 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(exception_list - ptr_size, p_exp_ptrs_bytes)
 
             args = [prec, exception_list, pctx, 0]
-            self.set_func_args(sp, winemu.SEH_RETURN_ADDR, *args)
+            self.set_func_args(sp, winemu.SEH_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
 
             run = self.get_current_run()
             regs = self.get_register_state()
@@ -2647,7 +2647,7 @@ class WindowsEmulator(BinaryEmulator):
                 seh.frame = frame
                 scope_record = frame.scope_records[0]
                 if not scope_record.filter_called and scope_record.record.FilterFunc:
-                    self.set_func_args(sp, winemu.SEH_RETURN_ADDR)
+                    self.set_func_args(sp, winemu.SEH_RETURN_ADDR, conv=_arch.CALL_CONV_STDCALL)
                     self.set_pc(scope_record.record.FilterFunc)
                     seh.last_func = scope_record.record.FilterFunc
                     scope_record.filter_called = True
@@ -2729,7 +2729,7 @@ class WindowsEmulator(BinaryEmulator):
 
             sp = self.get_stack_ptr()
             args = [p_exp_ptrs]
-            self.set_func_args(sp, winemu.EMU_RETURN_ADDR, *args)
+            self.set_func_args(sp, winemu.EMU_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
             self.set_pc(self.unhandled_exception_filter)
             self.unhandled_exception_filter = 0
             rv = True

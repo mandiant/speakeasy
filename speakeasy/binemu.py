@@ -284,10 +284,25 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return self.disasm(self.mem_read(addr, size), addr, fast)
 
-    def set_func_args(self, stack_addr, ret_addr, *args, home_space=True, conv=None):
+    def set_func_args(self, stack_addr, ret_addr, *args, conv, home_space=True):
         """
-        Set the arguments before an emulated function call. This is how we pass
-        arguments to a function when calling it through the emulator.
+        Set the arguments before an emulated function call.
+
+        Lays out *args* according to *conv* and the current architecture,
+        writes *ret_addr* at the top of the resulting stack frame, and
+        updates the stack-pointer register.
+
+        On x86 fastcall the first two arguments go into ECX/EDX; on x64
+        the first four go into RCX/RDX/R8/R9.  Remaining arguments are
+        pushed onto the stack.  On x64 a 32-byte shadow (home) space is
+        reserved above the return address when *home_space* is True.
+
+        Args:
+            stack_addr: Base address of the stack region.
+            ret_addr: Return address to place on the stack.
+            *args: Argument values to pass to the callee.
+            conv: Calling convention (e.g. ``CALL_CONV_STDCALL``).
+            home_space: Reserve 32-byte x64 shadow space (default True).
         """
         nargs = len(args)
         curr_sp = stack_addr
