@@ -47,7 +47,6 @@ class Speakeasy:
         volumes=None,
         gdb_host="127.0.0.1",
     ):
-
         if volumes:
             if isinstance(config, SpeakeasyConfig):
                 raise ConfigError(
@@ -71,6 +70,8 @@ class Speakeasy:
         self.gdb_host = gdb_host
         self.loaded_bins: list[str | None] = []
         self.mem_write_hooks: list[tuple[Callable, int, int]] = []
+        self.in_insn_hooks: list[tuple[Callable, int, int]] = []
+        self.syscall_insn_hooks: list[tuple[Callable, int, int]] = []
         self.mem_invalid_hooks: list[tuple[Callable]] = []
         self.interrupt_hooks: list[tuple[Callable]] = []
         self.mem_map_hooks: list[tuple[Callable, int, int]] = []
@@ -176,6 +177,14 @@ class Speakeasy:
             h = self.mem_write_hooks.pop(0)
             cb, begin, end = h
             self.add_mem_write_hook(cb, begin, end)
+        while self.in_insn_hooks:
+            h = self.in_insn_hooks.pop(0)
+            cb, begin, end = h
+            self.add_IN_instruction_hook(cb, begin, end)
+        while self.syscall_insn_hooks:
+            h = self.syscall_insn_hooks.pop(0)
+            cb, begin, end = h
+            self.add_SYSCALL_instruction_hook(cb, begin, end)
         while self.mem_invalid_hooks:
             h = self.mem_invalid_hooks.pop(0)
             (cb,) = h
@@ -519,7 +528,7 @@ class Speakeasy:
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.mem_write_hooks.append((cb, begin, end))
+            self.in_insn_hooks.append((cb, begin, end))
             return
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=218)
 
@@ -535,7 +544,7 @@ class Speakeasy:
             Hook object for newly registered hooks
         """
         if not self.emu:
-            self.mem_write_hooks.append((cb, begin, end))
+            self.syscall_insn_hooks.append((cb, begin, end))
             return
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
 
