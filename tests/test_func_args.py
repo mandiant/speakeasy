@@ -65,8 +65,7 @@ def test_ret_address(emu, argc):
         emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
         got_ret = emu.get_ret_address()
         assert got_ret == RET_ADDR, (
-            f"arch={emu.arch}, conv={_conv_name(conv)}: "
-            f"ret expected {hex(RET_ADDR)}, got {hex(got_ret)}"
+            f"arch={emu.arch}, conv={_conv_name(conv)}: ret expected {hex(RET_ADDR)}, got {hex(got_ret)}"
         )
         emu.reset_stack(emu.stack_base)
 
