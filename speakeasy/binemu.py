@@ -600,7 +600,7 @@ class BinaryEmulator(MemoryManager, ABC):
         # Stack grows down
         chunk = self.get_valid_ranges(size, addr=0x1200000)
         addr, block_size = chunk
-        self.mem_map(block_size, base=addr, tag="emu.stack")
+        self.mem_map(block_size, base=addr, tag="emu.stack", perms=common.PERM_MEM_RW)
 
         base = addr + block_size
         self.mem_reserve(size, base=base)
