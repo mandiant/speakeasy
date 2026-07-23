@@ -59,16 +59,13 @@ class RegKey:
     Represents a registry key
     """
 
-    curr_handle = 0x180
-
-    def __init__(self, path):
+    def __init__(self, allocator, path):
+        self.allocator = allocator
         self.path = path
         self.values = []
 
     def get_handle(self):
-        hkey = RegKey.curr_handle
-        RegKey.curr_handle += 4
-        return hkey
+        return self.allocator.allocate_reg_key_handle()
 
     def get_path(self):
         return self.path
@@ -94,12 +91,13 @@ class RegistryManager:
     Manages the emulation of the windows registry. This includes creating keys, subkeys and values
     """
 
-    def __init__(self, config=None):
+    def __init__(self, allocator, config=None):
         super().__init__()
         self.reg_handles = {}
         self.keys = []
         self.config = config
         self.reg_tree = []
+        self.allocator = allocator
 
         for hk in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):
             path = regdefs.get_hkey_type(hk)
@@ -164,7 +162,7 @@ class RegistryManager:
             return None
         for key in self.config.keys:
             if key.path.lower() == path.lower():
-                new_key = RegKey(path)
+                new_key = RegKey(self.allocator, path)
                 for value in key.values:
                     val_type = value.type
                     vts = regdefs.get_flag_value(val_type)  # noqa
@@ -191,7 +189,7 @@ class RegistryManager:
         if key:
             return key
 
-        key = RegKey(path)
+        key = RegKey(self.allocator, path)
         self.keys.append(key)
         return key
 
@@ -217,7 +215,7 @@ class RegistryManager:
 
         # If we are instructed to create the key, do so
         if create or self.is_key_a_parent_key(path):
-            key = RegKey(path)
+            key = RegKey(self.allocator, path)
             hnd = key.get_handle()
             self.reg_handles.update({hnd: key})
             self.keys.append(key)

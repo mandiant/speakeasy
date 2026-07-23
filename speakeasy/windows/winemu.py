@@ -23,6 +23,7 @@ from speakeasy.profiler_events import TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows.cryptman import CryptoManager
+from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
@@ -148,12 +149,13 @@ class WindowsEmulator(BinaryEmulator):
         self._parse_config(config)
 
         self.wintypes = windef
+        self.handle_allocator: HandleAllocator = HandleAllocator()
         # OS resource managers
-        self.regman: RegistryManager = RegistryManager(self.config.registry)
+        self.regman: RegistryManager = RegistryManager(self.handle_allocator, self.config.registry)
         self.fileman: FileManager = FileManager(config, self)
-        self.netman: NetworkManager = NetworkManager(config=self.config.network)
+        self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network)
         self.driveman: DriveManager = DriveManager(config=self.config.drives)
-        self.cryptman: CryptoManager = CryptoManager()
+        self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
         self.hammer: ApiHammer = ApiHammer(self)
         self._io_manager: Any | None = None
 

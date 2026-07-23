@@ -16,9 +16,8 @@ class CryptContext:
     Represents crypto context used by crypto functions
     """
 
-    curr_handle = 0x680
-
-    def __init__(self, cname, pname, ptype, flags):
+    def __init__(self, allocator, cname, pname, ptype, flags):
+        self.allocator = allocator
         self.container_name = cname
         self.provider_name = pname
         self.ptype = ptype
@@ -26,9 +25,7 @@ class CryptContext:
         self.keys = {}
 
     def get_handle(self):
-        hkey = CryptContext.curr_handle
-        CryptContext.curr_handle += 4
-        return hkey
+        return self.allocator.allocate_crypt_context_handle()
 
     def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None, param_list=None, flags=None):
         key = CryptKey(blob_type, blob, blob_len, hnd_import_key, param_list, flags)
@@ -49,13 +46,14 @@ class CryptoManager:
     Manages the emulation of crypto functions
     """
 
-    def __init__(self, config=None):
+    def __init__(self, allocator, config=None):
         super().__init__()
         self.ctx_handles = {}
         self.config = config
+        self.allocator = allocator
 
     def crypt_open(self, cname=None, pname=None, ptype=None, flags=None):
-        ctx = CryptContext(cname, pname, ptype, flags)
+        ctx = CryptContext(self.allocator, cname, pname, ptype, flags)
         hnd = ctx.get_handle()
 
         self.ctx_handles.update({hnd: ctx})

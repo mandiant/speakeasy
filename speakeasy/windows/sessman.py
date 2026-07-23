@@ -1,6 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from speakeasy.windows.objman import HandleAllocator
 
 
 class GuiObject:
@@ -8,15 +13,15 @@ class GuiObject:
     Base class for all GUI objects
     """
 
-    curr_handle = 0x120
+    def __init__(self, allocator: HandleAllocator):
+        self.allocator = allocator
+        self.handle = self._alloc_handle()
 
-    def __init__(self):
-        self.handle = self.get_handle()
+    def _alloc_handle(self):
+        return self.allocator.allocate_gui_object_handle()
 
     def get_handle(self):
-        tmp = GuiObject.curr_handle
-        GuiObject.curr_handle += 4
-        return tmp
+        return self.handle
 
 
 class Session(GuiObject):
@@ -24,13 +29,13 @@ class Session(GuiObject):
     Represents a windows Session
     """
 
-    def __init__(self, sess_id):
-        super().__init__()
+    def __init__(self, allocator: HandleAllocator, sess_id):
+        super().__init__(allocator)
         self.id: int = sess_id
         self.stations: dict[int, Station] = {}
 
     def new_station(self, name="WinSta0"):
-        stat = Station(name=name)
+        stat = Station(self.allocator, name=name)
         self.stations.update({stat.get_handle(): stat})
         return stat
 
@@ -40,13 +45,13 @@ class Station(GuiObject):
     Represents a window station
     """
 
-    def __init__(self, name=""):
-        super().__init__()
+    def __init__(self, allocator: HandleAllocator, name=""):
+        super().__init__(allocator)
         self.name: str = name
         self.desktops: dict[int, Desktop] = {}
 
     def new_desktop(self, name=""):
-        desk = Desktop(name=name)
+        desk = Desktop(self.allocator, name=name)
         self.desktops.update({desk.get_handle(): desk})
         return desk
 
@@ -56,15 +61,14 @@ class Desktop(GuiObject):
     Represents a Desktop object
     """
 
-    def __init__(self, name=""):
-        super().__init__()
+    def __init__(self, allocator: HandleAllocator, name=""):
+        super().__init__(allocator)
         self.windows: dict[int, Window] = {}
         self.desktop_window: Window = self.new_window()
         self.name: str = name
 
     def new_window(self):
-        # create the desktop window
-        window = Window()
+        window = Window(self.allocator)
         self.windows.update({window.get_handle(): window})
         return window
 
@@ -74,8 +78,8 @@ class Window(GuiObject):
     Represents a GUI window
     """
 
-    def __init__(self, name=None, class_name=None):
-        super().__init__()
+    def __init__(self, allocator: HandleAllocator, name=None, class_name=None):
+        super().__init__(allocator)
         self.name: str | None = name
         self.class_name: str | None = class_name
 
@@ -85,8 +89,8 @@ class WindowClass(GuiObject):
     Represents a GUI window class
     """
 
-    def __init__(self, wclass, name):
-        super().__init__()
+    def __init__(self, allocator: HandleAllocator, wclass, name):
+        super().__init__(allocator)
         self.wclass: Any = wclass
         self.name: str = name
 
@@ -97,7 +101,7 @@ class SessionManager:
     windows, and session isolation
     """
 
-    def __init__(self, config):
+    def __init__(self, config, allocator: HandleAllocator):
         super().__init__()
         self.sessions: dict[int, Session] = {}
         self.window_classes: dict[int | str, WindowClass] = {}
@@ -106,10 +110,11 @@ class SessionManager:
         self.curr_station: Station | None = None
         self.curr_desktop: Desktop | None = None
         self.config: Any = config
-        self.dev_ctx: int = GuiObject.curr_handle
+        self.allocator = allocator
+        self.dev_ctx: int = allocator.allocate_gui_object_handle()
 
         # create a session 0
-        self.curr_session = Session(sess_id=0)
+        self.curr_session = Session(allocator, sess_id=0)
 
         # create WinSta0
         self.curr_station = self.curr_session.new_station(name="WinSta0")
@@ -123,7 +128,7 @@ class SessionManager:
         self.curr_desktop = default
 
     def create_window_class(self, class_obj, class_name=None):
-        wc = WindowClass(class_obj, class_name)
+        wc = WindowClass(self.allocator, class_obj, class_name)
         atom = wc.get_handle()
         self.window_classes.update({atom: wc})
         if class_name:
@@ -131,7 +136,7 @@ class SessionManager:
         return atom
 
     def create_window(self, window_name=None, class_name=None):
-        wc = Window(window_name, class_name)
+        wc = Window(self.allocator, window_name, class_name)
         hnd = wc.get_handle()
         self.windows.update({hnd: wc})
         if window_name:

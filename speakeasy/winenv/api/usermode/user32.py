@@ -46,7 +46,7 @@ class User32(api.ApiHandler):
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
         self.timer_count: int = 0
-        self.sessman = sessman.SessionManager(config=None)
+        self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
         self.synthetic_async_keys = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index = 0
         self.synthetic_hook_keys = [0x41, 0x42, 0x43]

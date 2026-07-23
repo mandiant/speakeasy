@@ -38,7 +38,7 @@ class Win32Emulator(WindowsEmulator):
         self.peb_addr = 0
         self.heap_allocs = []
         self.argv = argv if argv is not None else []
-        self.sessman = SessionManager(config)
+        self.sessman = SessionManager(config, self.handle_allocator)
         self.com = COM(config)
 
     def get_argv(self):

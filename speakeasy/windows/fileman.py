@@ -45,9 +45,8 @@ class FileMap:
     Represents a memory mapped file
     """
 
-    curr_handle = 0x280
-
-    def __init__(self, name, size, prot, backed_file=None):
+    def __init__(self, allocator, name, size, prot, backed_file=None):
+        self.allocator = allocator
         self.name = name
         self.backed_file = backed_file
         self.views = {}
@@ -55,9 +54,7 @@ class FileMap:
         self.prot = prot
 
     def get_handle(self):
-        hmap = FileMap.curr_handle
-        FileMap.curr_handle += 4
-        return hmap
+        return self.allocator.allocate_file_map_handle()
 
     def add_view(self, base, offset, size, protect):
         view = MapView(base, offset, size, protect)
@@ -69,9 +66,8 @@ class File:
     Base class for an emulated file
     """
 
-    curr_handle = 0x80
-
-    def __init__(self, path, config=None, data=b""):
+    def __init__(self, allocator, path, config=None, data=b""):
+        self.allocator = allocator
         self.path: str = path
         self.data: io.BytesIO | bytes | None = None
         self.bytes_written: int = 0
@@ -92,14 +88,12 @@ class File:
         else:
             data = b""
 
-        new = File(self.path, config=self.config, data=data)
+        new = File(self.allocator, self.path, config=self.config, data=data)
         new.is_dir = self.is_dir
         return new
 
     def get_handle(self):
-        hfile = File.curr_handle
-        File.curr_handle += 4
-        return hfile
+        return self.allocator.allocate_file_handle()
 
     def get_hash(self):
         h = hashlib.sha256()
@@ -193,10 +187,8 @@ class Pipe(File):
     Emulated named pipe objects
     """
 
-    curr_handle = 0x400
-
-    def __init__(self, name, mode, num_instances, out_size, in_size, config=None):
-        super().__init__(path=name, config=config)
+    def __init__(self, allocator, name, mode, num_instances, out_size, in_size, config=None):
+        super().__init__(allocator, path=name, config=config)
         self.name = name
         self.mode = mode
         self.num_instances = num_instances
@@ -204,9 +196,7 @@ class Pipe(File):
         self.in_size = in_size
 
     def get_handle(self):
-        hpipe = Pipe.curr_handle
-        Pipe.curr_handle += 4
-        return hpipe
+        return self.allocator.allocate_pipe_handle()
 
 
 class FileManager:
@@ -243,12 +233,12 @@ class FileManager:
     def file_create_mapping(self, hfile, name, size, prot):
         if hfile not in (windefs.INVALID_HANDLE_VALUE, 0):
             f = self.get_file_from_handle(hfile)
-            fm = FileMap(name, size, prot, f)
+            fm = FileMap(self.emu.handle_allocator, name, size, prot, f)
             hnd = fm.get_handle()
             self.file_maps.update({hnd: fm})
             return hnd
         else:
-            fm = FileMap(name, size, prot, None)
+            fm = FileMap(self.emu.handle_allocator, name, size, prot, None)
             hnd = fm.get_handle()
             self.file_maps.update({hnd: fm})
             return hnd
@@ -347,7 +337,7 @@ class FileManager:
         Register an existing file already included in the emulation space
         (with data)
         """
-        f = File(path, data=data)
+        f = File(self.emu.handle_allocator, path, data=data)
         self.files.append(f)
         return f
 
@@ -355,7 +345,7 @@ class FileManager:
         f = self.get_file_from_path(path)
         if f:
             self.files.remove(f)
-        f = File(path)
+        f = File(self.emu.handle_allocator, path)
         self.files.append(f)
         return f
 
@@ -420,7 +410,7 @@ class FileManager:
         fconf = self.get_emu_file(path)
         if not fconf:
             fconf = {}
-        p = Pipe(path, mode, num_instances, out_size, in_size, config=fconf)
+        p = Pipe(self.emu.handle_allocator, path, mode, num_instances, out_size, in_size, config=fconf)
         hnd = p.get_handle()
         self.pipe_handles.update({hnd: p})
         return hnd
@@ -472,12 +462,12 @@ class FileManager:
             if not truncate:
                 if real_path and not os.path.exists(real_path):
                     raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(path, config=fconf)
+                f = File(self.emu.handle_allocator, path, config=fconf)
                 self.files.append(f)
             else:
                 if real_path and not os.path.exists(real_path):
                     raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(path, config=fconf)
+                f = File(self.emu.handle_allocator, path, config=fconf)
                 self.files.append(f)
             hnd = f.get_handle()
             self.file_handles.update({hnd: f})
