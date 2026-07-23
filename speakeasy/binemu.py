@@ -591,6 +591,43 @@ class BinaryEmulator(MemoryManager, ABC):
             raise EmuException("Unsupported architecture")
         return val
 
+    def reset_cpu_context(self):
+        """
+        Zero general-purpose registers and reset EFLAGS to the default value (0x2).
+
+        Does NOT touch SP, BP, or IP — those are managed by reset_stack / run setup.
+        """
+        arch = self.get_arch()
+        if arch == e_arch.ARCH_X86:
+            for reg in (
+                e_arch.X86_REG_EAX,
+                e_arch.X86_REG_EBX,
+                e_arch.X86_REG_ECX,
+                e_arch.X86_REG_EDX,
+                e_arch.X86_REG_ESI,
+                e_arch.X86_REG_EDI,
+            ):
+                self.reg_write(reg, 0)
+        elif arch == e_arch.ARCH_AMD64:
+            for reg in (
+                e_arch.AMD64_REG_RAX,
+                e_arch.AMD64_REG_RBX,
+                e_arch.AMD64_REG_RCX,
+                e_arch.AMD64_REG_RDX,
+                e_arch.AMD64_REG_RSI,
+                e_arch.AMD64_REG_RDI,
+                e_arch.AMD64_REG_R8,
+                e_arch.AMD64_REG_R9,
+                e_arch.AMD64_REG_R10,
+                e_arch.AMD64_REG_R11,
+                e_arch.AMD64_REG_R12,
+                e_arch.AMD64_REG_R13,
+                e_arch.AMD64_REG_R14,
+                e_arch.AMD64_REG_R15,
+            ):
+                self.reg_write(reg, 0)
+        self.reg_write(e_arch.X86_REG_EFLAGS, 0x2)
+
     def reset_stack(self, base):
         """
         Reset stack to the supplied base address
