@@ -93,7 +93,7 @@ class Netio(api.ApiHandler):
         self.win = wsk
         self.nt = nt
 
-        self.netman = netman.NetworkManager(config=emu.config.network)
+        self.netman = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
 
         super().__get_hook_attrs__(self)
 

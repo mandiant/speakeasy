@@ -35,7 +35,7 @@ class Wininet(api.ApiHandler):
         self.funcs: dict[str, Any] = {}
         self.data: dict[str, Any] = {}
         self.win: Any | None = None
-        self.netman = netman.NetworkManager(config=emu.config.network)
+        self.netman = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
         super().__get_hook_attrs__(self)
 
     @apihook("InternetOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)

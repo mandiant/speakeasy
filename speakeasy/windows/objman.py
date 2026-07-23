@@ -10,21 +10,67 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
 import speakeasy.winenv.defs.windows.windows as windef
 
 
+class HandleAllocator:
+    def __init__(self):
+        self._kernel_object_handle: int = 0x220
+        self._kernel_object_id: int = 0x400
+        self._console_handle: int = 0x340
+        self._gui_object_handle: int = 0x120
+        self._wininet_handle: int = 0x20
+        self._file_handle: int = 0x80
+        self._file_map_handle: int = 0x280
+        self._pipe_handle: int = 0x400
+        self._reg_key_handle: int = 0x180
+        self._crypt_context_handle: int = 0x680
+
+    def _next(self, attr: str) -> int:
+        val = getattr(self, attr)
+        setattr(self, attr, val + 4)
+        return val
+
+    def allocate_kernel_object_handle(self) -> int:
+        return self._next("_kernel_object_handle")
+
+    def allocate_kernel_object_id(self) -> int:
+        return self._next("_kernel_object_id")
+
+    def allocate_console_handle(self) -> int:
+        return self._next("_console_handle")
+
+    def allocate_gui_object_handle(self) -> int:
+        return self._next("_gui_object_handle")
+
+    def allocate_wininet_handle(self) -> int:
+        return self._next("_wininet_handle")
+
+    def allocate_file_handle(self) -> int:
+        return self._next("_file_handle")
+
+    def allocate_file_map_handle(self) -> int:
+        return self._next("_file_map_handle")
+
+    def allocate_pipe_handle(self) -> int:
+        return self._next("_pipe_handle")
+
+    def allocate_reg_key_handle(self) -> int:
+        return self._next("_reg_key_handle")
+
+    def allocate_crypt_context_handle(self) -> int:
+        return self._next("_crypt_context_handle")
+
+
 class Console:
     """
     Represents a console window object
     """
 
-    curr_handle = 0x340
-
-    def __init__(self):
-        self.handle = self.get_handle()
+    def __init__(self, allocator: HandleAllocator):
+        self.allocator = allocator
+        self.handle = self._alloc_handle()
         self.window = 0
 
-    def get_handle(self):
-        tmp = Console.curr_handle
-        Console.curr_handle += 4
-        return tmp
+    def _alloc_handle(self):
+        return self.allocator.allocate_console_handle()
 
 
 class SEH:
@@ -75,9 +121,6 @@ class KernelObject:
     Base class for Kernel objects managed by the object manager
     """
 
-    curr_handle = 0x220
-    curr_id = 0x400
-
     def __init__(self, emu):
         self.emu: Any = emu
         self.address: int | None = None
@@ -86,8 +129,7 @@ class KernelObject:
         self.ref_cnt: int = 0
         self.handles: list[int] = []
         self.arch: int = emu.get_arch()
-        self.id: int = KernelObject.curr_id
-        KernelObject.curr_id += 4
+        self.id: int = emu.handle_allocator.allocate_kernel_object_id()
 
         self.nt_types = ntoskrnl
         self.win_types = windef
@@ -120,8 +162,7 @@ class KernelObject:
         return f"emu.struct.{self.get_class_name()}"
 
     def get_handle(self):
-        tmp = KernelObject.curr_handle
-        KernelObject.curr_handle += 4
+        tmp = self.emu.handle_allocator.allocate_kernel_object_handle()
         self.handles.append(tmp)
         return tmp
 
@@ -532,7 +573,7 @@ class Process(KernelObject):
     def alloc_console(self):
 
         if not self.console:
-            self.console = Console()
+            self.console = Console(self.emu.handle_allocator)
         sm = self.emu.get_session_manager()
         desk = sm.get_current_desktop()
         self.console.window = desk.new_window()
@@ -891,15 +932,12 @@ class ObjectManager:
             return obj.ref_cnt
 
     def get_handle(self, obj):
-        tmp = KernelObject.curr_handle
-        KernelObject.curr_handle += 4
+        tmp = self.emu.handle_allocator.allocate_kernel_object_handle()
         obj.handles.append(tmp)
         return tmp
 
     def new_id(self):
-        _id = KernelObject.curr_id
-        KernelObject.curr_id += 4
-        return _id
+        return self.emu.handle_allocator.allocate_kernel_object_id()
 
     def get_object_from_addr(self, addr):
         return self.objects.get(addr)
