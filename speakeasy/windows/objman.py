@@ -24,7 +24,7 @@ class HandleAllocator:
         self._crypt_context_handle: int = 0x680
 
     def _next(self, attr: str) -> int:
-        val = getattr(self, attr)
+        val: int = getattr(self, attr)
         setattr(self, attr, val + 4)
         return val
 
