@@ -1968,17 +1968,17 @@ class Kernel32(api.ApiHandler):
 
         proc = ""
         if proc_name:
-            try:
-                proc = self.read_mem_string(proc_name, 1)
-                argv[1] = proc
-            except Exception:
-                if isinstance(proc_name, int) and proc_name < 0xFFFF:
-                    # Import is most likely an ordinal
-                    proc = f"ordinal_{proc_name}"
+            if isinstance(proc_name, int) and proc_name < 0x10000:
+                proc = f"ordinal_{proc_name}"
+            else:
+                try:
+                    proc = self.read_mem_string(proc_name, 1)
+                    argv[1] = proc
+                except Exception:
+                    pass
 
         if proc:
-            mods = emu.get_peb_modules()
-            for mod in mods:
+            for mod in emu.modules:
                 if mod.base == hmod:
                     bn = mod.get_base_name()
                     mname, _ = os.path.splitext(bn)
