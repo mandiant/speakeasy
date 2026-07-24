@@ -449,6 +449,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.info("* exec: %s", run.type)
 
         self.curr_run = run
+        self.curr_mod = self.get_module_from_addr(run.start_addr)
         if self.profiler:
             self.profiler.add_run(run)
 
@@ -616,7 +617,6 @@ class WindowsEmulator(BinaryEmulator):
 
         while True:
             try:
-                self.curr_mod = self.get_module_from_addr(self.curr_run.start_addr)  # type: ignore[union-attr]
                 if debugger is not None:
                     resume_addr = self.get_pc()
                 else:
