@@ -54,7 +54,6 @@ def hook_mem_write(emu, access, address, size, value):
 
 
 def main(args):
-
     # Init the speakeasy object
     se = speakeasy.Speakeasy()
     module = se.load_module(args.file)

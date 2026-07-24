@@ -56,7 +56,6 @@ class Wdfldr(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
 
         self.funcs: dict[str, Any] = {}
@@ -81,7 +80,6 @@ class Wdfldr(api.ApiHandler):
         return self.curr_handle
 
     def set_func_table(self, emu):
-
         addr = emu.add_callback(Wdfldr.name, self.WdfDriverCreate.__apihook__[0])
         self.func_table.pfnWdfDriverCreate = addr
 
@@ -172,7 +170,6 @@ class Wdfldr(api.ApiHandler):
         self.mem_write(self.func_table_ptr, self.func_table.get_bytes())
 
     def parse_usb_config(self, data):
-
         interfaces = []
 
         # Get the USB config descriptor

@@ -182,7 +182,6 @@ class _PeParser(pefile.PE):
     """
 
     def __init__(self, path=None, data=None, imp_id=IMPORT_HOOK_ADDR, imp_step=4, emu_path="", fast_load=False):
-
         super().__init__(name=path, data=data, fast_load=fast_load)
 
         if 0 == self.OPTIONAL_HEADER.ImageBase:
@@ -415,7 +414,6 @@ class JitPeFile:
     """
 
     def __init__(self, arch, base=0, *, mod_name="", exports=()):
-
         if arch == _arch.ARCH_X86:
             husk = EMPTY_PE_32
         else:

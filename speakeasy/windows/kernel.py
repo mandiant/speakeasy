@@ -385,7 +385,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         return objman.Irp(emu=self)
 
     def irp_mj_create(self, func, dev):
-
         # Generate an IRP for the create request
         irp = self.new_irp()
 
@@ -451,7 +450,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         drv.unload_called = True
 
     def next_driver_func(self, drv):
-
         func_addr = None
         func_handler = None
 
@@ -507,7 +505,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.add_run(run)
 
     def on_run_complete(self):
-
         self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
 
         for drv in self.drivers:
@@ -589,7 +586,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         return self.ssdt_ptr
 
     def setup_kernel_mode(self):
-
         idt = objman.IDT(self)
         idt.init_descriptors()
 

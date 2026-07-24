@@ -45,7 +45,6 @@ class Msvcrt(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
 
         self.stdin = 0
@@ -626,7 +625,6 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__stdio_common_vfprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vfprintf(self, emu, argv, ctx: api.ApiContext = None):
-
         arch = emu.get_arch()
         if arch == e_arch.ARCH_AMD64:
             opts, stream, fmt, _, va_list = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 5)[:5]

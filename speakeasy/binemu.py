@@ -57,7 +57,6 @@ class BinaryEmulator(MemoryManager, ABC):
         ...
 
     def __init__(self, config):
-
         super().__init__()
 
         self.stack_base: int = 0

@@ -12,7 +12,6 @@ class Secur32(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
         super().__get_hook_attrs__(self)
 

@@ -21,7 +21,6 @@ WSK_FLAG_DATAGRAM_SOCKET = 0x00000004
 
 class WskSocket(objman.KernelObject):
     def __init__(self, api, family, stype, protocol, flags):
-
         self.emu = api.emu
         super().__init__(self.emu)
         self.family: int = family
@@ -79,7 +78,6 @@ class Netio(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
 
         self.funcs: dict[str, Any] = {}

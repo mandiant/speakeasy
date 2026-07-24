@@ -35,7 +35,6 @@ class UpxUnpacker(speakeasy.Speakeasy):
 
 
 def main(args):
-
     unpacker = UpxUnpacker(args.outfile)
 
     # Load the module

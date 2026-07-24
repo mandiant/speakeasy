@@ -31,7 +31,6 @@ def hook_ntreadfile(emu, api_name, func, params):
 
 
 def main(args):
-
     # Init the speakeasy object
     se = speakeasy.Speakeasy()
 

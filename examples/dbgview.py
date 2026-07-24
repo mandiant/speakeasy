@@ -31,7 +31,6 @@ class DbgView(speakeasy.Speakeasy):
 
 
 def main(args):
-
     dbg = DbgView()
     module = dbg.load_module(args.file)
 

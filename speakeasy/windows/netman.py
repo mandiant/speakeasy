@@ -52,7 +52,6 @@ class Socket:
         return (self.connected_host, self.connected_port)
 
     def fill_recv_queue(self, responses):
-
         for resp in responses:
             mode = getattr(resp, "mode", "") or ""
             if mode.lower() == "default":
@@ -63,7 +62,6 @@ class Socket:
                         self.curr_packet = BytesIO(f.read())
 
     def get_recv_data(self, size, peek=False):
-
         data = self.curr_packet.read(size)
         if not peek:
             return data
@@ -288,7 +286,6 @@ class NetworkManager:
             self.dns = config.dns
 
     def new_socket(self, family, stype, protocol, flags):
-
         fd = self.curr_fd
 
         sock = Socket(fd, family, stype, protocol, flags)
@@ -303,7 +300,6 @@ class NetworkManager:
         return sock
 
     def name_lookup(self, domain):
-
         if not self.dns:
             return None
 
@@ -352,7 +348,6 @@ class NetworkManager:
         return wini
 
     def get_wininet_object(self, handle):
-
         for hinst, inst in self.wininets.items():
             if hinst == handle:
                 return inst

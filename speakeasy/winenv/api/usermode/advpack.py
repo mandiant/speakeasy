@@ -13,7 +13,6 @@ class Advpack(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
 
         self.funcs = {}

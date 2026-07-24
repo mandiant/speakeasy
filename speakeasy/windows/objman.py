@@ -571,7 +571,6 @@ class Process(KernelObject):
         self.peb.write_back()
 
     def alloc_console(self):
-
         if not self.console:
             self.console = Console(self.emu.handle_allocator)
         sm = self.emu.get_session_manager()
@@ -896,7 +895,6 @@ class ObjectManager:
         self.symlinks.append((link, dev))
 
     def new_object(self, obj_type):
-
         obj = obj_type(emu=self.emu)
         obj.id = self.new_id()
         return self.add_object(obj)
@@ -948,7 +946,6 @@ class ObjectManager:
                 return o
 
     def get_object_from_name(self, name, check_symlinks=True):
-
         if not name:
             return None
         name = name.rstrip("\\")

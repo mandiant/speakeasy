@@ -141,7 +141,6 @@ class File:
         return None
 
     def add_data(self, data):
-
         if not self.data:
             self.data = io.BytesIO()
         off = self.data.tell()

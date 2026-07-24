@@ -29,7 +29,6 @@ class Fwpkclnt(api.ApiHandler):
     impdata = api.ApiHandler.impdata
 
     def __init__(self, emu):
-
         super().__init__(emu)
 
         self.funcs = {}
@@ -53,7 +52,6 @@ class Fwpkclnt(api.ApiHandler):
         return tmp
 
     def new_session(self):
-
         # stub
         ret = self.new_id()
         self.sessions.update({ret: "sess"})

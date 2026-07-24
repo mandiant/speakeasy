@@ -61,7 +61,6 @@ class CMeta(type):
         return type.__new__(self, name, bases, classdict)
 
     def __call__(cls, *args, **kwargs):
-
         obj = type.__call__(cls, *args, **kwargs)
         obj.create_struct()
         return obj
@@ -87,7 +86,6 @@ class EmuStruct(metaclass=CMeta):
             return hash(repr(self))
 
     def __init__(self, ptr_size=0, pack=0):
-
         # Set __dict__ directly here to avoid __getattribute__ loops
         self.__dict__["__pack__"] = pack
         self.__dict__["__struct__"] = None
@@ -227,7 +225,6 @@ class EmuStruct(metaclass=CMeta):
         return ct.sizeof(self.__struct__)
 
     def _deep_cast(self, obj, bytez, offset):
-
         obj.__struct__ = type(obj.__struct__).from_buffer(bytearray(bytez[offset[0] :]))
         for fn, c in obj.__fields__:
             subobj = obj.__filtermap__.get(fn)

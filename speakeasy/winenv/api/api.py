@@ -24,7 +24,6 @@ class ApiHandler:
 
     @staticmethod
     def apihook(impname=None, argc=0, conv=_arch.CALL_CONV_STDCALL, ordinal=None):
-
         def apitemp(f):
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
@@ -35,7 +34,6 @@ class ApiHandler:
 
     @staticmethod
     def impdata(impname):
-
         def datatmp(f):
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
@@ -314,7 +312,6 @@ class ApiHandler:
         return enc
 
     def mem_write(self, addr, data):
-
         # If the data being written to a shared memory mapping, update all mappings
         # This will likely have to be made more robust to handle more complicated
         # scenarios with varying file offsets

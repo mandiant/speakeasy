@@ -1904,7 +1904,6 @@ class WindowsEmulator(BinaryEmulator):
             return False
 
     def _handle_prot_write(self, emu, address, size, value):
-
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
