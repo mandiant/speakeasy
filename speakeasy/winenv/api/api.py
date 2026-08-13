@@ -216,7 +216,12 @@ class ApiHandler:
         tick = run.instr_cnt if run else 0
         tid = thread.tid if thread else 0
         pid = proc.id if proc else 0
-        return TracePosition(tick=tick, tid=tid, pid=pid)
+        pc = None
+        try:
+            pc = self.emu.get_pc()
+        except Exception:
+            pc = None
+        return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
 
     def record_file_access_event(
         self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None

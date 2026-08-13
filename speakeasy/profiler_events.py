@@ -145,6 +145,12 @@ class ProcessCreateEvent(Event):
             "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments."
         )
     )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) creates this process; the target may differ."
+        ),
+    )
 
 
 class MemAllocEvent(Event):
@@ -162,6 +168,13 @@ class MemAllocEvent(Event):
     protect: str | None = Field(
         default=None,
         description="Requested memory protection flags, when provided by the API path.",
+    )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) allocates in this process; NULL when the "
+            "target is the actor itself."
+        ),
     )
 
 
@@ -182,6 +195,13 @@ class MemWriteEvent(Event):
         default=None,
         description=("Reference into the top-level report ``data`` store for the captured write preview bytes."),
     )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) writes into this process; NULL when the "
+            "target is the actor itself."
+        ),
+    )
 
 
 class MemReadEvent(Event):
@@ -200,6 +220,13 @@ class MemReadEvent(Event):
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured read preview bytes.",
+    )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) reads from this process; NULL when the "
+            "target is the actor itself."
+        ),
     )
 
 
@@ -222,6 +249,13 @@ class MemProtectEvent(Event):
         default=None,
         description="New protection value requested by the API call.",
     )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) changes protection in this process; NULL when "
+            "the target is the actor itself."
+        ),
+    )
 
 
 class MemFreeEvent(Event):
@@ -236,6 +270,13 @@ class MemFreeEvent(Event):
     path: str = Field(description="Target process path associated with the free event.")
     base: str = Field(description="Freed region base address in hexadecimal string form.")
     size: str = Field(description="Freed region size in hexadecimal string form.")
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) frees memory in this process; NULL when the "
+            "target is the actor itself."
+        ),
+    )
 
 
 class ModuleLoadEvent(Event):
@@ -269,6 +310,17 @@ class ThreadCreateEvent(Event):
     path: str = Field(description="Target process path where the thread is created.")
     start_addr: str = Field(description="Thread start address in hexadecimal string form.")
     param: str = Field(description="Thread parameter pointer/value in hexadecimal string form.")
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "Target process identifier.\n\nThe actor (event pos) creates the thread in this process; NULL when "
+            "the target is the actor itself."
+        ),
+    )
+    tid: int | None = Field(
+        default=None,
+        description="Target thread identifier of the newly created thread, when known.",
+    )
 
 
 class ThreadInjectEvent(Event):
@@ -286,6 +338,14 @@ class ThreadInjectEvent(Event):
     path: str = Field(description="Target process path receiving the injected thread.")
     start_addr: str = Field(description="Injected thread start address in hexadecimal string form.")
     param: str = Field(description="Injected thread parameter in hexadecimal string form.")
+    pid: int | None = Field(
+        default=None,
+        description="Target process identifier receiving the injected thread.",
+    )
+    tid: int | None = Field(
+        default=None,
+        description="Target thread identifier of the injected thread, when known.",
+    )
 
 
 class FileCreateEvent(Event):

@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 # Data format versioning
-__report_version__ = "3.0.0"
+__report_version__ = "4.0.0"
 
 import hashlib
 import time
@@ -420,43 +420,50 @@ class Profiler:
         Log events related to a process accessing another process. This includes:
         creating a child process, reading/writing to a process, or creating a thread
         within another process.
+
+        ``pos`` is the actor's execution position (the process/thread that performed
+        the operation); ``proc`` is the target. The target process id is carried as
+        event payload (``pid``) so the event stays in the actor's timeline.
         """
         pid = proc.id
         path = proc.path
-        proc_pos = TracePosition(tick=pos.tick, tid=pos.tid, pid=pid, pc=pos.pc)
 
         event: AnyEvent
         if event_type == PROC_CREATE:
             event = ProcessCreateEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 cmdline=proc.cmdline,
+                pid=pid,
             )
 
         elif event_type == MEM_ALLOC:
             event = MemAllocEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 base=hex(kwargs.get("base", 0)),
                 size=hex(kwargs.get("size", 0)),
                 protect=kwargs.get("protect"),
+                pid=pid,
             )
 
         elif event_type == MEM_PROTECT:
             event = MemProtectEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 base=hex(kwargs.get("base", 0)),
                 size=hex(kwargs.get("size", 0)),
                 protect=kwargs.get("protect"),
+                pid=pid,
             )
 
         elif event_type == MEM_FREE:
             event = MemFreeEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 base=hex(kwargs.get("base", 0)),
                 size=hex(kwargs.get("size", 0)),
+                pid=pid,
             )
 
         elif event_type == MEM_WRITE:
@@ -471,11 +478,12 @@ class Profiler:
                 self.last_data = [base, size]
                 return
             event = MemWriteEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 base=hex(base),
                 size=size,
                 data_ref=self.put_binary_data(data, limit=1024),
+                pid=pid,
             )
             self.last_data = [base, size]
 
@@ -491,28 +499,33 @@ class Profiler:
                 self.last_data = [base, size]
                 return
             event = MemReadEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 base=hex(base),
                 size=size,
                 data_ref=self.put_binary_data(data, limit=1024),
+                pid=pid,
             )
             self.last_data = [base, size]
 
         elif event_type == THREAD_INJECT:
             event = ThreadInjectEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 start_addr=hex(kwargs["start_addr"]),
                 param=hex(kwargs["param"]),
+                pid=pid,
+                tid=kwargs.get("tid"),
             )
 
         elif event_type == THREAD_CREATE:
             event = ThreadCreateEvent(
-                pos=proc_pos,
+                pos=pos,
                 path=path,
                 start_addr=hex(kwargs["start_addr"]),
                 param=hex(kwargs["param"]),
+                pid=pid,
+                tid=kwargs.get("tid"),
             )
 
         else:
