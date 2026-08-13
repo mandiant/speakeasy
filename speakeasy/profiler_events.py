@@ -340,7 +340,9 @@ class ThreadInjectEvent(Event):
     param: str = Field(description="Injected thread parameter in hexadecimal string form.")
     pid: int | None = Field(
         default=None,
-        description="Target process identifier receiving the injected thread.",
+        description=(
+            "Target process identifier receiving the injected thread.\n\nNULL when the target is the actor itself."
+        ),
     )
     tid: int | None = Field(
         default=None,

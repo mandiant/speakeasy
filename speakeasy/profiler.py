@@ -423,9 +423,11 @@ class Profiler:
 
         ``pos`` is the actor's execution position (the process/thread that performed
         the operation); ``proc`` is the target. The target process id is carried as
-        event payload (``pid``) so the event stays in the actor's timeline.
+        event payload (``pid``) so the event stays in the actor's timeline. When the
+        target is the actor's own process, the payload ``pid`` is left NULL, so a
+        populated ``pid`` always means the operation crossed a process boundary.
         """
-        pid = proc.id
+        pid = None if proc.id == pos.pid else proc.id
         path = proc.path
 
         event: AnyEvent
