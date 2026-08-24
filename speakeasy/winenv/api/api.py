@@ -425,6 +425,8 @@ class ApiHandler:
 
         # Very brittle format string parser, should improve later
         inside_fmt = False
+        # Characters spliced out of new so far; every positional edit below must subtract it
+        removed = 0
         for i, c in enumerate(string):
             if c == "%":
                 if inside_fmt:
@@ -436,13 +438,13 @@ class ApiHandler:
                 if c == "S":
                     s = self.read_wide_string(args.pop(0))
                     new_fmts.append(s)
-                    new[i] = "s"
+                    new[i - removed] = "s"
                     inside_fmt = False
 
                 elif c == "s":
                     if curr_fmt.startswith("w"):
                         s = self.read_wide_string(args.pop(0))
-                        new[i - 1] = "\xff"
+                        new[i - 1 - removed] = "\xff"
                         curr_fmt = ""
                         new_fmts.append(s)
                     else:
@@ -456,19 +458,32 @@ class ApiHandler:
                             low = args.pop(0)
                             high = args.pop(0)
                             new_fmts.append(high << 32 | low)
-                        new = new[: i - 2] + new[i:]
+                        start = i - removed
+                        new = new[: start - 2] + new[start:]
+                        removed += 2
+                        curr_fmt = ""
+                    elif curr_fmt.startswith(("z", "j", "t")):
+                        if self.get_ptr_size() == 8:
+                            new_fmts.append(args.pop(0))
+                        else:
+                            new_fmts.append(0xFFFFFFFF & args.pop(0))
+                        start = i - removed
+                        new = new[: start - 1] + new[start:]
+                        removed += 1
                         curr_fmt = ""
                     else:
                         new_fmts.append(0xFFFFFFFF & args.pop(0))
                 elif c == "c":
                     new_fmts.append(0xFF & args.pop(0))
                 elif c == "P":
-                    new[i] = "X"
+                    new[i - removed] = "X"
                     new_fmts.append(args.pop(0))
                 elif c == "p":
-                    new[i] = "x"
+                    new[i - removed] = "x"
                     new_fmts.append(args.pop(0))
                 elif c == "l":
+                    curr_fmt += c
+                elif c in ("z", "j", "t"):
                     curr_fmt += c
                 elif c == "w":
                     curr_fmt += c
