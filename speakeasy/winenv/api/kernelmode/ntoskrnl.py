@@ -366,6 +366,33 @@ class Ntoskrnl(api.ApiHandler):
         chunk = self.pool_alloc(PoolType, NumberOfBytes, "None")
         return chunk
 
+    @apihook("ExAllocatePool2", argc=3)
+    def ExAllocatePool2(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        NTKERNELAPI PVOID ExAllocatePool2(
+            FLAGS Flags,
+            SIZE_T Size,
+            ULONG Tag
+            );
+        """
+        Flags, Size, Tag = argv
+
+        if Tag:
+            try:
+                Tag = Tag.to_bytes(4, "little").decode("utf-8")
+            except Exception as e:
+                logger.exception(str(e))
+            argv[2] = Tag
+
+        if not Size:
+            return 0
+
+        pool_flag_paged = 0x100
+        pool_type = ddk.POOL_TYPE.PagedPool if Flags & pool_flag_paged else ddk.POOL_TYPE.NonPagedPool
+
+        chunk = self.pool_alloc(pool_type, Size, Tag)
+        return chunk
+
     @apihook("ExFreePool", argc=1)
     def ExFreePool(self, emu, argv, ctx: api.ApiContext = None):
         """
@@ -2406,6 +2433,18 @@ class Ntoskrnl(api.ApiHandler):
         p = emu.get_current_process()
         return p.address
 
+    @apihook("PsGetCurrentProcessId", argc=0)
+    def PsGetCurrentProcessId(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        HANDLE PsGetCurrentProcessId(
+            void
+        );
+        """
+
+        p = emu.get_current_process()
+        pid = getattr(p, "pid", None)
+        return pid if pid is not None else 4
+
     @apihook("NtSetInformationThread", argc=4)
     def NtSetInformationThread(self, emu, argv, ctx: api.ApiContext = None):
         """
@@ -2469,6 +2508,48 @@ class Ntoskrnl(api.ApiHandler):
         irql = self.get_current_irql()
         self.set_current_irql(ddk.DISPATCH_LEVEL)
         return irql
+
+    @apihook("KeInitializeSpinLock", argc=1)
+    def KeInitializeSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        VOID KeInitializeSpinLock(
+        _Out_ PKSPIN_LOCK SpinLock
+        );
+        """
+        (spinlock,) = argv
+        if spinlock:
+            self.mem_write(spinlock, b"\x00" * emu.get_ptr_size())
+        return
+
+    @apihook("KeAcquireSpinLock", argc=2)
+    def KeAcquireSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        VOID KeAcquireSpinLock(
+        _Inout_ PKSPIN_LOCK SpinLock,
+        _Out_   PKIRQL      OldIrql
+        );
+        """
+        spinlock, old_irql = argv
+        irql = self.get_current_irql()
+        if old_irql:
+            self.mem_write(old_irql, bytes([irql]))
+        self.set_current_irql(ddk.DISPATCH_LEVEL)
+        return
+
+    @apihook("KeReleaseSpinLock", argc=2)
+    def KeReleaseSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        VOID KeReleaseSpinLock(
+        _Inout_ PKSPIN_LOCK SpinLock,
+        _In_    KIRQL       NewIrql
+        );
+        """
+        spinlock, new_irql = argv
+        if new_irql:
+            self.set_current_irql(new_irql & 0xFF)
+        else:
+            self.set_current_irql(ddk.PASSIVE_LEVEL)
+        return
 
     @apihook("MmUnlockPages", argc=1)
     def MmUnlockPages(self, emu, argv, ctx: api.ApiContext = None):
