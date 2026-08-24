@@ -538,17 +538,21 @@ class WindowsEmulator(BinaryEmulator):
         # and this is the same address for 32-bit and 64-bit.
         bases = [0x7FFE0000] + aliases + list(mirrors)
 
+        kuser_tag = "emu.struct.KUSER_SHARED_DATA"
+
+        data = self._build_user_shared_data()
         for base in bases:
-            # Another mapping may already own one of these aliases; skip it
-            # rather than letting a duplicate map break every kernel-mode load.
-            if self.get_address_map(base):
+            mm = self.get_address_map(base)
+            if mm and not (mm.tag or "").startswith(kuser_tag):
+                # Another mapping already owns this alias: leave it completely
+                # alone rather than colliding with it while mapping (which
+                # breaks every kernel-mode load) or stomping its contents here.
                 continue
-            self.mem_map(self.page_size, base=base, tag="emu.struct.KUSER_SHARED_DATA")
+            if not mm:
+                self.mem_map(self.page_size, base=base, tag=kuser_tag)
+            self.mem_write(base, data)
 
-        for base in bases:
-            self._populate_user_shared_data(base)
-
-    def _populate_user_shared_data(self, base):
+    def _build_user_shared_data(self):
         import struct
         import time
 
@@ -575,7 +579,7 @@ class WindowsEmulator(BinaryEmulator):
         # QpcFrequency (offset 0x3B8)
         struct.pack_into("<q", data, 0x3B8, 10_000_000)
 
-        self.mem_write(base, bytes(data))
+        return bytes(data)
 
     def resume(self, addr, count=-1):
         """Resume emulation directly at an address.
@@ -1176,9 +1180,17 @@ class WindowsEmulator(BinaryEmulator):
                 for page_base in range(aligned_addr, aligned_end, self.page_size):
                     page_perms[page_base] = page_perms.get(page_base, 0) | sect.perms
 
-            for page_base, perms in page_perms.items():
+            runs = []
+            for page_base in sorted(page_perms):
+                perms = page_perms[page_base]
+                if runs and runs[-1][2] == perms and runs[-1][0] + runs[-1][1] * self.page_size == page_base:
+                    runs[-1][1] += 1
+                else:
+                    runs.append([page_base, 1, perms])
+
+            for page_base, num_pages, perms in runs:
                 try:
-                    self.mem_protect(page_base, self.page_size, perms)
+                    self.mem_protect(page_base, num_pages * self.page_size, perms)
                 except Exception:
                     pass
 

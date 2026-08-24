@@ -78,7 +78,7 @@ def test_kuser_shared_data_mapped_and_populated_at_all_aliases(kernel_session):
     assert len(set(chunks.values())) == 1
 
     chunk = next(iter(chunks.values()))
-    qpc_frequency = int.from_bytes(chunk[0x3B8 : 0x3C0], "little")
+    qpc_frequency = int.from_bytes(chunk[0x3B8:0x3C0], "little")
     assert qpc_frequency == 10_000_000
 
 
@@ -92,3 +92,40 @@ def test_setup_user_shared_data_skips_already_mapped_aliases(kernel_session):
     assert len(maps) == count_before
     for base in kuser_expected_bases(emu):
         assert covering_kuser_map(maps, base) is not None, f"no KUSER_SHARED_DATA map covers {hex(base)}"
+
+    # Mapping is skipped for pages we already own, but their contents must
+    # still be rewritten: trash one page and expect re-setup to restore it.
+    emu.mem_write(KUSER_LOW_BASE, b"\x00" * 0x400)
+    emu.setup_user_shared_data()
+
+    chunk = bytes(emu.mem_read(KUSER_LOW_BASE, 0x400))
+    assert int.from_bytes(chunk[0x3B8:0x3C0], "little") == 10_000_000
+
+
+@pytest.mark.parametrize(
+    ("arch", "bits"),
+    [(_arch.ARCH_X86, _arch.BITS_32), (_arch.ARCH_AMD64, _arch.BITS_64)],
+    ids=["x86", "x64"],
+)
+def test_setup_user_shared_data_leaves_foreign_maps_untouched(config, arch, bits):
+    emu = WinKernelEmulator(config=SpeakeasyConfig.model_validate(config))
+    emu.arch = arch
+    emu.emu_eng.init_engine(_arch.ARCH_X86, bits)
+
+    foreign_tag = "emu.test.collision"
+    sentinel = bytes(range(256)) * 16
+    emu.mem_map(emu.page_size, base=KUSER_LOW_BASE, tag=foreign_tag)
+    emu.mem_write(KUSER_LOW_BASE, sentinel)
+
+    emu.setup_user_shared_data()
+
+    mm = emu.get_address_map(KUSER_LOW_BASE)
+    assert mm.tag.startswith(foreign_tag)
+    assert bytes(emu.mem_read(KUSER_LOW_BASE, emu.page_size)) == sentinel
+    assert covering_kuser_map(kuser_maps(emu), KUSER_LOW_BASE) is None
+
+    served = kuser_expected_bases(emu) - {KUSER_LOW_BASE}
+    chunks = {base: bytes(emu.mem_read(base, 0x400)) for base in served}
+    assert len(set(chunks.values())) == 1
+    chunk = next(iter(chunks.values()))
+    assert int.from_bytes(chunk[0x3B8:0x3C0], "little") == 10_000_000
