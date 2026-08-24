@@ -72,6 +72,14 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr: Address of the Process Environment Block
     """
 
+    # Unicorn's vendored QEMU defines a 52-bit guest physical address space for
+    # x86-64 (qemu/target/i386/cpu-param.h: TARGET_PHYS_ADDR_SPACE_BITS under
+    # TARGET_X86_64), and accesses resolving above that width are truncated to
+    # it. Executed code therefore cannot reach the canonical high
+    # KUSER_SHARED_DATA alias even though the page is mapped, so the page is
+    # mirrored at the truncated address those accesses resolve to.
+    _X64_EXEC_ADDR_MASK = (1 << 52) - 1
+
     peb_addr: int
 
     @abstractmethod
@@ -518,15 +526,27 @@ class WindowsEmulator(BinaryEmulator):
         Setup the shared user data section that is often used to share data
         between user mode and kernel mode
         """
+        aliases = []
         if self.get_arch() == _arch.ARCH_X86:
-            self.mem_map(self.page_size, base=0xFFDF0000, tag="emu.struct.KUSER_SHARED_DATA")
+            aliases.append(0xFFDF0000)
         elif self.get_arch() == _arch.ARCH_AMD64:
-            self.mem_map(self.page_size, base=0xFFFFF78000000000, tag="emu.struct.KUSER_SHARED_DATA")
+            aliases.append(0xFFFFF78000000000)
+
+        mirrors = {a & self._X64_EXEC_ADDR_MASK for a in aliases if a & self._X64_EXEC_ADDR_MASK != a}
 
         # This is a read-only address for KUSER_SHARED_DATA,
         # and this is the same address for 32-bit and 64-bit.
-        self.mem_map(self.page_size, base=0x7FFE0000, tag="emu.struct.KUSER_SHARED_DATA")
-        self._populate_user_shared_data(0x7FFE0000)
+        bases = [0x7FFE0000] + aliases + list(mirrors)
+
+        for base in bases:
+            # Another mapping may already own one of these aliases; skip it
+            # rather than letting a duplicate map break every kernel-mode load.
+            if self.get_address_map(base):
+                continue
+            self.mem_map(self.page_size, base=base, tag="emu.struct.KUSER_SHARED_DATA")
+
+        for base in bases:
+            self._populate_user_shared_data(base)
 
     def _populate_user_shared_data(self, base):
         import struct
