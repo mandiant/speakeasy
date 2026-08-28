@@ -22,7 +22,7 @@ from speakeasy.winenv import arch
 
 logger = logging.getLogger(__name__)
 
-_PACKET_SIZE = 0x4000
+_PACKET_SIZE = 0x10000
 
 
 def _rsp_packet(payload: bytes) -> bytes:
@@ -263,7 +263,17 @@ class GdbServer:
             payload = self._commands.get()
             if payload is None:
                 return ResumeAction(detach=True)
-            action = self._handle_command(payload)
+            try:
+                action = self._handle_command(payload)
+            except OSError:
+                return ResumeAction(detach=True)
+            except Exception:
+                logger.warning("unhandled exception processing GDB command %r", payload, exc_info=True)
+                try:
+                    self._reply(b"E01")
+                except OSError:
+                    return ResumeAction(detach=True)
+                continue
             if action is not None:
                 if not action.detach and not action.kill:
                     # Mark the resume transition so Ctrl-C arriving before
@@ -381,7 +391,7 @@ class GdbServer:
     def _handle_command(self, payload: bytes) -> ResumeAction | None:
         if payload.startswith(b"qSupported"):
             self._reply(
-                b"PacketSize=4000;qXfer:features:read+;qXfer:libraries:read+;"
+                b"PacketSize=10000;qXfer:features:read+;qXfer:libraries:read+;"
                 b"qXfer:exec-file:read+;qXfer:threads:read+;qXfer:memory-map:read+;"
                 b"QStartNoAckMode+;vContSupported+;swbreak+;hwbreak+"
             )
@@ -491,6 +501,9 @@ class GdbServer:
             self._refresh_hooks()
             self._reply(b"OK")
         except ValueError:
+            self._reply(b"E01")
+        except Exception:
+            logger.warning("breakpoint command failed: %r", payload, exc_info=True)
             self._reply(b"E01")
 
     # ------------------------------------------------------------------
@@ -617,7 +630,7 @@ class GdbServer:
         try:
             address_text, size_text = payload.split(b",", 1)
             address, size = int(address_text, 16), int(size_text, 16)
-            if address < 0 or size < 0 or size > _PACKET_SIZE // 2:
+            if address < 0 or size < 0 or size > (_PACKET_SIZE - 1) // 2:
                 raise ValueError
             self._reply(bytes(self.emu.mem_read(address, size)).hex().encode("ascii"))
         except Exception:

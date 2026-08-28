@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 
 from unicorn import UC_ARCH_X86, UC_MODE_64, Uc
 
-from speakeasy.gdb import GdbServer, ResumeAction, _rsp_escape, _rsp_packet
+from speakeasy.gdb import _PACKET_SIZE, GdbServer, ResumeAction, _rsp_escape, _rsp_packet
 from speakeasy.winenv import arch
 
 
@@ -133,7 +133,7 @@ def test_packet_extraction_validates_checksum_across_fragmented_input():
     trailing_escape = _rsp_packet(b"qC}")
     assert GdbServer._extract_packet(bytearray(trailing_escape))[2] is False
 
-    oversized_payload = b"q" * (0x4000 + 1)
+    oversized_payload = b"q" * (_PACKET_SIZE + 1)
     oversized = _rsp_packet(oversized_payload)
     assert GdbServer._extract_packet(bytearray(oversized))[2] is False
 
@@ -214,11 +214,56 @@ def test_x87_registers_use_full_80_bit_wire_format():
 
 def test_xfer_escaping_respects_advertised_packet_size():
     server = make_server()
-    server._executable_path = lambda: "$#}*" * 5000
+    server._executable_path = lambda: "$#}*" * 50000
 
     response = server._handle_xfer(b"qXfer:exec-file:read::0,ffff")
     encoded = response[:1] + _rsp_escape(response[1:])
 
     assert response.startswith(b"m")
-    assert len(encoded) <= 0x4000
+    assert len(encoded) <= _PACKET_SIZE
     assert all(value not in encoded[1:] for value in b"$#*")
+
+
+def test_hardware_breakpoint_accepts_large_ranges():
+    server = make_server()
+    replies = []
+    server._reply = replies.append
+    server._install_hooks()
+
+    for size_hex in ("1c000", "28000", "2d000", "100000"):
+        server._change_breakpoint(f"Z1,401000,{size_hex}".encode())
+
+    assert replies == [b"OK"] * 4
+    assert len(server._exec_breakpoints) == 4
+    assert (0x401000, 0x2D000) in server._exec_breakpoints
+
+
+def test_hardware_breakpoint_range_hit_detection():
+    server = make_server()
+    reasons = []
+    server._request_stop = reasons.append
+    server._exec_breakpoints[(0x401000, 0x2D000)] = 1
+
+    server._on_code(None, 0x401000, 1)
+    server._on_code(None, 0x42DFFF, 1)
+    server._on_code(None, 0x415000, 1)
+    server._on_code(None, 0x42E000, 1)
+    server._on_code(None, 0x400FFF, 1)
+
+    assert len(reasons) == 3
+    assert all(r.kind == "hwbreak" for r in reasons)
+
+
+def test_change_breakpoint_survives_hook_error(caplog):
+    server = make_server()
+    replies = []
+    server._reply = replies.append
+
+    def failing_refresh():
+        raise RuntimeError("simulated Unicorn error")
+
+    server._refresh_hooks = failing_refresh
+    server._change_breakpoint(b"Z1,401000,2d000")
+
+    assert replies == [b"E01"]
+    assert any("breakpoint command failed" in r.message for r in caplog.records)

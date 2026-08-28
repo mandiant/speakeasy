@@ -483,3 +483,26 @@ def test_gdb_single_step(gdb_emulator):
         client.continue_()
     finally:
         client.close()
+
+
+def test_gdb_hardware_breakpoint_large_range(gdb_emulator):
+    client = GdbRspClient(gdb_emulator)
+    try:
+        client.query_halt_reason()
+        eip = client.read_x86_registers().eip
+
+        for size in (0x1C000, 0x28000, 0x2D000):
+            assert client.query(f"Z1,{eip:x},{size:x}") == "OK"
+            assert client.query(f"z1,{eip:x},{size:x}") == "OK"
+
+        assert client.query(f"Z1,{eip:x},2d000") == "OK"
+        stop = client.continue_()
+        assert stop.startswith("T05")
+        assert "hwbreak:;" in stop
+
+        assert client.read_registers()
+
+        assert client.query(f"z1,{eip:x},2d000") == "OK"
+        assert client.continue_().startswith(("T", "W"))
+    finally:
+        client.close()
