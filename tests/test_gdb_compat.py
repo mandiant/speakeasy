@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 
 from unicorn import UC_ARCH_X86, UC_MODE_64, Uc
 
-from speakeasy.gdb import _PACKET_SIZE, GdbServer, ResumeAction, _rsp_escape, _rsp_packet
+from speakeasy.gdb import _PACKET_SIZE, GdbServer, ResumeAction, StopReason, _rsp_escape, _rsp_packet
 from speakeasy.winenv import arch
 
 
@@ -45,6 +45,7 @@ class DummyEmulator:
             DummyModule(r"C:\Windows\System32\weird&name.dll", 0x70000000),
         ]
         self.curr_thread = DummyThread(DummyTeb(0x7FFDE000))
+        self.module_change_listeners = []
 
     def get_arch(self):
         return arch.ARCH_AMD64
@@ -198,6 +199,49 @@ def test_access_watchpoint_reports_awatch_stop_reason():
     assert len(reasons) == 1
     assert reasons[0].kind == "awatch"
     assert b"awatch:1001;" in server._stop_reply(reasons[0])
+
+
+def test_library_stop_reason_reports_library_change():
+    server = make_server()
+
+    reply = server._stop_reply(StopReason(kind="library"))
+
+    assert reply.startswith(b"T05")
+    assert b"library:;" in reply
+
+
+def test_library_change_flag_piggybacks_on_next_stop_reply_and_clears():
+    server = make_server()
+    server._library_list_changed = True
+
+    breakpoint_reason = StopReason(kind="swbreak")
+    first = server._stop_reply(breakpoint_reason)
+    second = server._stop_reply(breakpoint_reason)
+
+    assert b"swbreak:;" in first
+    assert b"library:;" in first
+    assert b"library:;" not in second
+
+
+def test_module_change_while_running_requests_library_stop():
+    server = make_server()
+    reasons = []
+    server._request_stop = reasons.append
+
+    server._on_module_change()
+
+    assert server._library_list_changed
+    assert len(reasons) == 1
+    assert reasons[0].kind == "library"
+
+
+def test_module_change_listener_registration_follows_session_lifetime():
+    server = make_server()
+    server.emu.module_change_listeners.append(server._on_module_change)
+
+    server.close()
+
+    assert server._on_module_change not in server.emu.module_change_listeners
 
 
 def test_x87_registers_use_full_80_bit_wire_format():

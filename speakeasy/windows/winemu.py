@@ -6,6 +6,7 @@ import os
 import shlex
 import traceback
 from abc import abstractmethod
+from collections.abc import Callable
 from enum import IntEnum
 from typing import Any
 
@@ -91,6 +92,7 @@ class WindowsEmulator(BinaryEmulator):
         self.gdb_host: str | None = gdb_host
         self.arch: int = 0
         self.modules: list[Any] = []
+        self.module_change_listeners: list[Callable[[], None]] = []
         self._setup_done: bool = False
         self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
         self.curr_run: Run | None = None
@@ -1214,6 +1216,11 @@ class WindowsEmulator(BinaryEmulator):
                 self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
 
         self.modules.append(mod)
+        for listener in tuple(self.module_change_listeners):
+            try:
+                listener()
+            except Exception:
+                logger.warning("module change listener failed", exc_info=True)
 
         if is_primary and not self.stack_base and image.stack_size:
             stack_size = self.config.stack_size or image.stack_size

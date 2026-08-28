@@ -210,6 +210,33 @@ _EXIT_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_LIBRARY_LOAD_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\x90\\xeb\\xfe", arch="x86")
+
+    loaded = []
+
+    def load_once(emu, addr, size):
+        if not loaded:
+            loaded.append(True)
+            se.emu.load_module_by_name("gdbtest319")
+
+    se.emu.add_code_hook(cb=load_once)
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
 _SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import lzma
@@ -401,6 +428,46 @@ def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
 
         assert client.query(f"z0,{breakpoint:x},1") == "OK"
         assert client.continue_().startswith(("T", "W"))
+    finally:
+        client.close()
+
+
+@pytest.fixture
+def gdb_library_load_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _LIBRARY_LOAD_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port
+    _stop_server(proc)
+
+
+def test_gdb_reports_runtime_library_load(gdb_library_load_emulator):
+    client = GdbRspClient(gdb_library_load_emulator)
+    try:
+        client.query_halt_reason()
+
+        libraries = client.query("qXfer:libraries:read::0,4000")
+        assert libraries.startswith("l<library-list")
+        assert "gdbtest319" not in libraries
+
+        stop = client.continue_()
+        assert stop.startswith("T05")
+        assert "library:;" in stop
+
+        libraries = client.query("qXfer:libraries:read::0,4000")
+        assert "gdbtest319.dll" in libraries
+
+        # The library change was reported; the next stop must not repeat it.
+        client.send_no_wait("c")
+        time.sleep(0.05)
+        stop = client.interrupt()
+        assert stop.startswith("T02")
+        assert "library:;" not in stop
     finally:
         client.close()
 

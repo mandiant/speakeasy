@@ -93,6 +93,7 @@ class GdbServer:
         self._running = False
         self._stop_reason = StopReason()
         self._stop_pending = False
+        self._library_list_changed = False
         self._resume_from_breakpoint: int | None = None
         self._exec_breakpoints: dict[tuple[int, int], int] = {}
         self._read_watchpoints: dict[tuple[int, int], int] = {}
@@ -136,6 +137,9 @@ class GdbServer:
         self._client = client
         logger.info("GDB client connected from %s:%d", *address[:2])
         self._install_hooks()
+        listeners = getattr(self.emu, "module_change_listeners", None)
+        if listeners is not None:
+            listeners.append(self._on_module_change)
         self._reader = threading.Thread(target=self._read_loop, name="speakeasy-gdb-reader", daemon=True)
         self._reader.start()
 
@@ -165,6 +169,9 @@ class GdbServer:
                     sock.close()
                 except OSError:
                     pass
+        listeners = getattr(self.emu, "module_change_listeners", None)
+        if listeners is not None and self._on_module_change in listeners:
+            listeners.remove(self._on_module_change)
         for hook in self._hooks:
             try:
                 self._remove_hook(hook)
@@ -312,6 +319,11 @@ class GdbServer:
             self._stop_pending = True
         if self.emu.emu_eng is not None:
             self.emu.emu_eng.stop()
+
+    def _on_module_change(self) -> None:
+        with self._state_lock:
+            self._library_list_changed = True
+        self._request_stop(StopReason(kind="library"))
 
     def _interrupt(self) -> None:
         with self._state_lock:
@@ -779,11 +791,15 @@ class GdbServer:
         teb = getattr(thread, "teb", None)
         return int(getattr(teb, "address", 0) or 0)
 
-    @staticmethod
-    def _stop_reply(reason: StopReason) -> bytes:
+    def _stop_reply(self, reason: StopReason) -> bytes:
         reply = f"T{reason.signal:02x}thread:1;".encode("ascii")
         if reason.kind in ("swbreak", "hwbreak"):
             reply += reason.kind.encode("ascii") + b":;"
         elif reason.kind in ("watch", "rwatch", "awatch") and reason.address is not None:
             reply += f"{reason.kind}:{reason.address:x};".encode("ascii")
+        with self._state_lock:
+            library_list_changed = self._library_list_changed
+            self._library_list_changed = False
+        if library_list_changed or reason.kind == "library":
+            reply += b"library:;"
         return reply
