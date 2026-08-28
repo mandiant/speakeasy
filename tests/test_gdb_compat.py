@@ -201,16 +201,22 @@ def test_access_watchpoint_reports_awatch_stop_reason():
     assert b"awatch:1001;" in server._stop_reply(reasons[0])
 
 
-def test_library_stop_reason_reports_library_change():
+def test_module_change_requests_library_stop_reason():
     server = make_server()
+    reasons = []
+    server._request_stop = reasons.append
 
-    reply = server._stop_reply(StopReason(kind="library"))
+    server._on_module_change()
 
+    assert len(reasons) == 1
+    assert reasons[0].kind == "library"
+
+    reply = server._stop_reply(reasons[0])
     assert reply.startswith(b"T05")
     assert b"library:;" in reply
 
 
-def test_library_change_flag_piggybacks_on_next_stop_reply_and_clears():
+def test_library_change_piggybacks_on_next_stop_reply_and_is_reported_once():
     server = make_server()
     server._library_list_changed = True
 
@@ -223,25 +229,13 @@ def test_library_change_flag_piggybacks_on_next_stop_reply_and_clears():
     assert b"library:;" not in second
 
 
-def test_module_change_while_running_requests_library_stop():
-    server = make_server()
-    reasons = []
-    server._request_stop = reasons.append
-
-    server._on_module_change()
-
-    assert server._library_list_changed
-    assert len(reasons) == 1
-    assert reasons[0].kind == "library"
-
-
-def test_module_change_listener_registration_follows_session_lifetime():
+def test_module_change_listener_is_removed_when_session_closes():
     server = make_server()
     server.emu.module_change_listeners.append(server._on_module_change)
 
     server.close()
 
-    assert server._on_module_change not in server.emu.module_change_listeners
+    assert server.emu.module_change_listeners == []
 
 
 def test_x87_registers_use_full_80_bit_wire_format():
