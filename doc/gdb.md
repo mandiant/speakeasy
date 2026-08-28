@@ -149,7 +149,7 @@ se.run_module(module)
 
 Speakeasy implements the all-stop GDB Remote Serial Protocol directly. The server provides register and memory access, software and hardware breakpoints, watchpoints, single-step, asynchronous Ctrl-C pause, and the Windows process metadata used by IDA:
 
-- `qXfer:libraries:read` returns all mapped Speakeasy PE modules
+- `qXfer:libraries:read` returns all mapped Speakeasy PE modules; mapping one while the target runs (for example through `LoadLibrary`) halts it with the `library` stop reason so the client re-reads the list
 - `qXfer:exec-file:read` returns the emulated executable path
 - `qXfer:threads:read`, `qfThreadInfo`, and `qGetTIBAddr` describe the active emulated thread
 - `qXfer:features:read` reports a register layout matching the emulated architecture
@@ -173,7 +173,7 @@ The server implements the all-stop RSP subset exercised by GDB and IDA:
 | Registers | `g`, `G`, `p`, `P` |
 | Memory | `m`, `M`, `X` |
 | Breakpoints | `Z0`/`z0`, `Z1`/`z1`, and read/write/access watchpoints |
-| Execution | `c`, `s`, `vCont`, asynchronous Ctrl-C, `?` |
+| Execution | `c`, `s`, `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
 | Lifecycle | `D`, `k`, and `Wxx` exit replies |
 
 Unsupported optional packets receive an empty response as required by RSP. Non-stop mode, multiprocess mode, reverse execution, and remote file I/O are not advertised.
@@ -183,6 +183,7 @@ Unsupported optional packets receive an empty response as required by RSP. Non-s
 - one debugger client can connect to a Speakeasy instance
 - Speakeasy models Windows thread objects but executes one Unicorn CPU context at a time; the server therefore presents the currently active execution context as one synthetic GDB thread
 - breakpoints persist across runs: Speakeasy executes multiple runs (for example TLS callbacks, the module entry point, and exports)
+- modules stay mapped for the life of the emulation, so the server reports library loads but never unloads
 - reverse execution, non-stop mode, and multiprocess RSP are not implemented
 
 ## Related docs

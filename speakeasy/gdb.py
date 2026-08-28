@@ -137,9 +137,7 @@ class GdbServer:
         self._client = client
         logger.info("GDB client connected from %s:%d", *address[:2])
         self._install_hooks()
-        listeners = getattr(self.emu, "module_change_listeners", None)
-        if listeners is not None:
-            listeners.append(self._on_module_change)
+        self.emu.module_change_listeners.append(self._on_module_change)
         self._reader = threading.Thread(target=self._read_loop, name="speakeasy-gdb-reader", daemon=True)
         self._reader.start()
 
@@ -169,9 +167,8 @@ class GdbServer:
                     sock.close()
                 except OSError:
                     pass
-        listeners = getattr(self.emu, "module_change_listeners", None)
-        if listeners is not None and self._on_module_change in listeners:
-            listeners.remove(self._on_module_change)
+        if self._on_module_change in self.emu.module_change_listeners:
+            self.emu.module_change_listeners.remove(self._on_module_change)
         for hook in self._hooks:
             try:
                 self._remove_hook(hook)
@@ -797,9 +794,11 @@ class GdbServer:
             reply += reason.kind.encode("ascii") + b":;"
         elif reason.kind in ("watch", "rwatch", "awatch") and reason.address is not None:
             reply += f"{reason.kind}:{reason.address:x};".encode("ascii")
+        # A library change is a flag rather than a stop kind, so it can coalesce
+        # with another pending stop reason or with a whole dependency chain.
         with self._state_lock:
             library_list_changed = self._library_list_changed
             self._library_list_changed = False
-        if library_list_changed or reason.kind == "library":
+        if library_list_changed:
             reply += b"library:;"
         return reply

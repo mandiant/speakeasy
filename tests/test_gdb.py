@@ -226,10 +226,10 @@ _LIBRARY_LOAD_SERVER_SCRIPT = textwrap.dedent("""\
 
     loaded = []
 
-    def load_once(emu, addr, size):
+    def load_once(*args, **kwargs):
         if not loaded:
             loaded.append(True)
-            se.emu.load_module_by_name("gdbtest319")
+            se.emu.load_module_by_name("gdbtestlib")
 
     se.emu.add_code_hook(cb=load_once)
     se.run_shellcode(address)
@@ -405,6 +405,20 @@ def gdb_exit_emulator():
     _stop_server(proc)
 
 
+@pytest.fixture
+def gdb_library_load_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _LIBRARY_LOAD_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port
+    _stop_server(proc)
+
+
 def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
     import capstone
 
@@ -432,20 +446,6 @@ def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
         client.close()
 
 
-@pytest.fixture
-def gdb_library_load_emulator():
-    port = _find_free_port()
-    config_path = os.path.join(TESTS_DIR, "test.json")
-    proc = subprocess.Popen(
-        [sys.executable, "-c", _LIBRARY_LOAD_SERVER_SCRIPT, str(port), config_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    _wait_for_port(port, proc)
-    yield port
-    _stop_server(proc)
-
-
 def test_gdb_reports_runtime_library_load(gdb_library_load_emulator):
     client = GdbRspClient(gdb_library_load_emulator)
     try:
@@ -453,14 +453,14 @@ def test_gdb_reports_runtime_library_load(gdb_library_load_emulator):
 
         libraries = client.query("qXfer:libraries:read::0,4000")
         assert libraries.startswith("l<library-list")
-        assert "gdbtest319" not in libraries
+        assert "gdbtestlib.dll" not in libraries
 
         stop = client.continue_()
         assert stop.startswith("T05")
         assert "library:;" in stop
 
         libraries = client.query("qXfer:libraries:read::0,4000")
-        assert "gdbtest319.dll" in libraries
+        assert "gdbtestlib.dll" in libraries
 
         # The library change was reported; the next stop must not repeat it.
         client.send_no_wait("c")
