@@ -1266,9 +1266,7 @@ class Kernel32(api.ApiHandler):
         if lpThreadId:
             self.mem_write(lpThreadId, obj.id.to_bytes(4, "little"))
 
-        self.record_process_event(
-            proc_obj, THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id
-        )
+        self.record_process_event(proc_obj, THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
