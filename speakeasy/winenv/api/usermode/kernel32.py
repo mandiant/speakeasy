@@ -1878,6 +1878,32 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook("QueryDosDevice", argc=3)
+    def QueryDosDevice(self, emu, argv, ctx: api.ApiContext = None):
+        """Return synthetic DOS device mappings as an ANSI or wide MULTI_SZ."""
+        device, output, capacity = argv
+        width = self.get_char_width(ctx)
+        mappings = {"C:": "\\Device\\HarddiskVolume1"}
+        if not output:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        if device:
+            name = self.read_mem_string(device, width).upper()
+            if name not in mappings:
+                emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+                return 0
+            values = [mappings[name]]
+        else:
+            values = list(mappings)
+        text = "\0".join(values) + "\0\0"
+        encoded = text.encode("utf-16le" if width == 2 else "ascii")
+        characters = len(encoded) // width
+        if capacity < characters:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+        self.mem_write(output, encoded)
+        return characters
+
     @apihook("QueryPerformanceCounter", argc=1)
     def QueryPerformanceCounter(self, emu, argv, ctx: api.ApiContext = None):
         """BOOL WINAPI QueryPerformanceCounter(
