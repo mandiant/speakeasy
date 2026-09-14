@@ -72,12 +72,6 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr: Address of the Process Environment Block
     """
 
-    # Unicorn's vendored QEMU defines a 52-bit guest physical address space for
-    # x86-64 (qemu/target/i386/cpu-param.h: TARGET_PHYS_ADDR_SPACE_BITS under
-    # TARGET_X86_64), and accesses resolving above that width are truncated to
-    # it. Executed code therefore cannot reach the canonical high
-    # KUSER_SHARED_DATA alias even though the page is mapped, so the page is
-    # mirrored at the truncated address those accesses resolve to.
     _X64_EXEC_ADDR_MASK = (1 << 52) - 1
 
     peb_addr: int
