@@ -124,6 +124,8 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr: Address of the Process Environment Block
     """
 
+    _X64_EXEC_ADDR_MASK = (1 << 52) - 1
+
     _execution_budget: _ExecutionBudget | None = None
     peb_addr: int
 
@@ -612,17 +614,33 @@ class WindowsEmulator(BinaryEmulator):
         Setup the shared user data section that is often used to share data
         between user mode and kernel mode
         """
+        aliases = []
         if self.get_arch() == _arch.ARCH_X86:
-            self.mem_map(self.page_size, base=0xFFDF0000, tag="emu.struct.KUSER_SHARED_DATA")
+            aliases.append(0xFFDF0000)
         elif self.get_arch() == _arch.ARCH_AMD64:
-            self.mem_map(self.page_size, base=0xFFFFF78000000000, tag="emu.struct.KUSER_SHARED_DATA")
+            aliases.append(0xFFFFF78000000000)
+
+        mirrors = {a & self._X64_EXEC_ADDR_MASK for a in aliases if a & self._X64_EXEC_ADDR_MASK != a}
 
         # This is a read-only address for KUSER_SHARED_DATA,
         # and this is the same address for 32-bit and 64-bit.
-        self.mem_map(self.page_size, base=0x7FFE0000, tag="emu.struct.KUSER_SHARED_DATA")
-        self._populate_user_shared_data(0x7FFE0000)
+        bases = [0x7FFE0000] + aliases + list(mirrors)
 
-    def _populate_user_shared_data(self, base):
+        kuser_tag = "emu.struct.KUSER_SHARED_DATA"
+
+        data = self._build_user_shared_data()
+        for base in bases:
+            mm = self.get_address_map(base)
+            if mm and not (mm.tag or "").startswith(kuser_tag):
+                # Another mapping already owns this alias: leave it completely
+                # alone rather than colliding with it while mapping (which
+                # breaks every kernel-mode load) or stomping its contents here.
+                continue
+            if not mm:
+                self.mem_map(self.page_size, base=base, tag=kuser_tag)
+            self.mem_write(base, data)
+
+    def _build_user_shared_data(self):
         now_100ns = int(time.time() * 10_000_000) + 116444736000000000
         tick_ms = int(time.monotonic() * 1000) & 0xFFFFFFFF
 
@@ -646,7 +664,7 @@ class WindowsEmulator(BinaryEmulator):
         # QpcFrequency (offset 0x3B8)
         struct.pack_into("<q", data, 0x3B8, 10_000_000)
 
-        self.mem_write(base, bytes(data))
+        return bytes(data)
 
     def _run_api_engine(self, address, timeout=0, count=-1, debugger=None):
         """Keep one logical execution action across private API trap yields."""
