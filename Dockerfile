@@ -1,45 +1,25 @@
-# Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+FROM python:3.13-slim AS builder
 
-FROM python:3.8-alpine as base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc libc-dev git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Use this base to build and install everything (this will bloat the size of this build image)
-FROM base as builder
-RUN apk add --no-cache gcc python3-dev make bash postgresql-dev libc-dev linux-headers
+WORKDIR /build
+COPY . .
+RUN git submodule update --init deps/win32json deps/phnt \
+    || true
+RUN pip install --no-cache-dir build \
+    && python -m build --wheel \
+    && pip install --no-cache-dir dist/*.whl
 
-RUN which python3.8
+FROM python:3.13-slim
 
-RUN ln -sf /usr/local/bin/python3.8 /usr/local/bin/python
-ADD ./requirements.txt /
-RUN python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN mkdir /sandbox && chown appuser:appgroup /sandbox
 
-FROM base
-COPY --from=builder /usr/local/lib/python3.8/site-packages/ /usr/local/lib/python3.8/site-packages/
+COPY --from=builder /usr/local/lib/python3.13/site-packages/ /usr/local/lib/python3.13/site-packages/
+COPY --from=builder /usr/local/bin/speakeasy /usr/local/bin/speakeasy
 
-# Create an app user so we don't run as root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# make the sandbox directory
-RUN mkdir /sandbox
-
-# Create the home directory
-ENV APP_HOME=/app
-RUN mkdir ${APP_HOME}
-WORKDIR ${APP_HOME}
-
-COPY ./speakeasy/ ${APP_HOME}/speakeasy
-COPY ./setup.py ${APP_HOME}
-COPY ./requirements.txt ${APP_HOME}
-COPY ./README.md ${APP_HOME}
-COPY ./MANIFEST.in ${APP_HOME}
-COPY ./examples/ ${APP_HOME}/examples
-
-# Chown all the files to the app user
-RUN chown -R appuser:appgroup ${APP_HOME}
-RUN chown -R appuser:appgroup /sandbox
-
-RUN python ./setup.py install
-
-# Change to the app user
 USER appuser
-
-CMD /bin/sh
+WORKDIR /sandbox
+ENTRYPOINT ["speakeasy"]
