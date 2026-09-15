@@ -452,6 +452,26 @@ def test_database_empty():
     assert db.lookup("kernel32", "CreateFileW", "x86") is None
 
 
+def test_default_database_has_both_sources():
+    db = sigdb.SignatureDatabase()
+    assert [type(s) for s in db.sources] == [sigdb.Win32MetadataSource, sigdb.PhntSource]
+    assert db.sources[0].path == sigdb.DEFAULT_PATH
+    assert db.sources[1].path == sigdb.DEFAULT_PHNT_PATH
+
+
+def test_missing_file_warns_once_per_source(tmp_path, caplog):
+    sigdb.Win32MetadataSource._missing_warned = False
+    sigdb.PhntSource._missing_warned = False
+    with caplog.at_level("WARNING", logger="speakeasy.winenv.api.sigdb"):
+        for _ in range(2):
+            assert not sigdb.Win32MetadataSource(str(tmp_path / "a.json.gz")).available
+            assert not sigdb.PhntSource(str(tmp_path / "b.json.gz")).available
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert "win32metadata" in messages[0] and "gen_win32_signatures" in messages[0]
+    assert "phnt" in messages[1] and "gen_phnt_signatures" in messages[1]
+
+
 # -- bundled database -------------------------------------------------------
 
 
@@ -483,8 +503,46 @@ def test_bundled_database_known_signatures():
     assert db.lookup("wldap32", "ldap_bind_sA", "x86").conv == sigdb.CONV_CDECL
     # 64-bit scalars take two slots on x86
     assert db.lookup("winhvplatform", "WHvMapGpaRange", "x86").slot_count(4) == 7
-    # undocumented natives are not covered by win32metadata
-    assert db.lookup("ntdll", "LdrLoadDll", "x86") is None
+    # undocumented natives are not covered by win32metadata, but phnt has them
+    assert db.sources[0].lookup("ntdll", "LdrLoadDll", "x86") is None
+    ldr = db.lookup("ntdll", "LdrLoadDll", "x86")
+    assert ldr is not None and ldr.source == "phnt"
+
+
+def test_bundled_phnt_database():
+    db = _bundled()
+    phnt = [s for s in db.sources if isinstance(s, sigdb.PhntSource)]
+    assert phnt and phnt[0].available
+    # win32metadata declares NtCreateFile too and wins; phnt's copy agrees on the slot count
+    nt_create_file = phnt[0].lookup("ntdll", "NtCreateFile", "x64")
+    assert nt_create_file.source == "phnt" and nt_create_file.dll == "ntdll"
+    assert db.lookup("ntdll", "NtCreateFile", "x64").slot_count(8) == nt_create_file.slot_count(8)
+    assert [p.code for p in nt_create_file.params] == [
+        "p:h",
+        "u32",
+        "ps:OBJECT_ATTRIBUTES",
+        "ps:IO_STATUS_BLOCK",
+        "ps:LARGE_INTEGER",
+        "u32",
+        "u32",
+        "u32",
+        "u32",
+        "p",
+        "u32",
+    ]
+    assert nt_create_file.params[9].buffer_len == ("n", 10)
+    assert nt_create_file.slot_count(4) == 11
+    # Zw aliases, Rtl and Ldr families
+    assert db.lookup("ntdll", "ZwClose", "x86").slot_count(4) == 1
+    assert db.lookup("ntdll", "RtlAllocateHeap", "x86").ret == "p"
+    assert db.lookup("ntoskrnl", "ZwCreateFile", "x64") is not None
+    # enums parsed from the headers, with counted-string structs shared from win32metadata
+    query = db.lookup("ntdll", "NtQuerySystemInformation", "x86")
+    assert query.params[0].enum == "SYSTEM_INFORMATION_CLASS"
+    assert db.lookup_enum("SYSTEM_INFORMATION_CLASS").decode(5) == "SystemProcessInformation"
+    assert db.lookup_struct("OBJECT_ATTRIBUTES") is not None
+    dbg = db.lookup("ntdll", "DbgPrint", "x86")
+    assert dbg.variadic and dbg.conv == sigdb.CONV_CDECL
 
 
 def test_bundled_database_enums():

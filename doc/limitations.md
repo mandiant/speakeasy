@@ -18,7 +18,7 @@ What the fallback does **not** do: it has no real side effects. `Out`-only point
 
 ### Unknown APIs
 
-If neither a handler nor a signature exists (undocumented natives such as most of `ntdll`, the C runtime, third-party DLLs), the current run stops and records an error.
+If neither a handler nor a signature exists (the C runtime, third-party DLLs, natives that neither win32metadata nor phnt declares), the current run stops and records an error.
 
 Expected error pattern:
 

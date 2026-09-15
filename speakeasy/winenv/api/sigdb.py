@@ -7,12 +7,19 @@ supplies just enough information about an import to keep emulation coherent:
 how many argument slots the call consumed, which calling convention cleans
 them up, the name and basic type of each parameter, and the return type.
 
-Signatures come from pluggable :class:`SignatureSource` backends. The bundled
-backend, :class:`Win32MetadataSource`, reads ``resources/win32/signatures.json.gz``
-which is generated from Microsoft's win32metadata (via the ``deps/win32json``
-submodule) by ``scripts/gen_win32_signatures.py``. That file is a build
-artifact and may be absent from a source checkout; the database degrades to
-"no signatures" and logs a single warning in that case.
+Signatures come from pluggable :class:`SignatureSource` backends. Two are
+bundled, both reading the same compact JSON table format:
+
+* :class:`Win32MetadataSource` reads ``resources/win32/signatures.json.gz``,
+  generated from Microsoft's win32metadata (via the ``deps/win32json``
+  submodule) by ``scripts/gen_win32_signatures.py``: the documented Win32 API.
+* :class:`PhntSource` reads ``resources/win32/phnt_signatures.json.gz``,
+  generated from the phnt native API headers (``deps/phnt``) by
+  ``scripts/gen_phnt_signatures.py``: ``Nt*``/``Zw*``/``Rtl*``/``Ldr*`` and
+  other ntdll exports win32metadata leaves undocumented.
+
+Both files are build artifacts and may be absent from a source checkout; a
+source with no file degrades to "no signatures" and logs a single warning.
 """
 
 from __future__ import annotations
@@ -29,12 +36,11 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_FORMAT = 2
 
-DEFAULT_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "resources",
-    "win32",
-    "signatures.json.gz",
+_RESOURCES = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "resources", "win32"
 )
+DEFAULT_PATH = os.path.join(_RESOURCES, "signatures.json.gz")
+DEFAULT_PHNT_PATH = os.path.join(_RESOURCES, "phnt_signatures.json.gz")
 
 CONV_STDCALL = "stdcall"
 CONV_CDECL = "cdecl"
@@ -397,11 +403,13 @@ class Win32MetadataSource(SignatureSource):
     """
 
     name = "win32metadata"
+    default_path = DEFAULT_PATH
+    generator = "scripts/gen_win32_signatures.py"
 
     _missing_warned = False
 
     def __init__(self, path: str | None = None):
-        self.path = path or DEFAULT_PATH
+        self.path = path or self.default_path
         self._lock = threading.Lock()
         self._loaded = False
         self._functions: dict[str, list[dict]] = {}
@@ -423,12 +431,15 @@ class Win32MetadataSource(SignatureSource):
                 return
             self._loaded = True
             if not os.path.exists(self.path):
-                if not Win32MetadataSource._missing_warned:
-                    Win32MetadataSource._missing_warned = True
+                cls = type(self)
+                if not cls.__dict__.get("_missing_warned"):
+                    cls._missing_warned = True
                     logger.warning(
-                        "Win32 API signature database not found at %s; unhooked imports will not be "
-                        "decoded (run scripts/gen_win32_signatures.py or `just gen-signatures`)",
+                        "%s signature database not found at %s; unhooked imports it covers will not be "
+                        "decoded (run %s or `just gen-signatures`)",
+                        self.name,
                         self.path,
+                        self.generator,
                     )
                 return
             try:
@@ -453,10 +464,7 @@ class Win32MetadataSource(SignatureSource):
             self.version = doc.get("version")
             self.commit = doc.get("commit")
             logger.debug(
-                "Loaded %d Win32 API signatures (win32metadata %s) from %s",
-                len(self._functions),
-                self.version,
-                self.path,
+                "Loaded %d API signatures (%s %s) from %s", len(self._functions), self.name, self.version, self.path
             )
 
     @property
@@ -554,11 +562,30 @@ def _to_param(raw: list) -> ParamSig:
     return ParamSig(raw[0], raw[1], raw[2] if len(raw) > 2 else "", buffer_len)
 
 
+class PhntSource(Win32MetadataSource):
+    """
+    Signatures generated from the phnt native API headers.
+
+    Same table format as :class:`Win32MetadataSource`. Everything it declares
+    is exported by ``ntdll`` (and, for ``Nt*``/``Zw*`` services, ``ntoskrnl``);
+    struct layouts are not included, so ``ps:`` codes resolve against the
+    other sources in the database.
+    """
+
+    name = "phnt"
+    default_path = DEFAULT_PHNT_PATH
+    generator = "scripts/gen_phnt_signatures.py"
+
+    _missing_warned = False
+
+
 class SignatureDatabase:
     """Ordered collection of signature sources; the first source with an answer wins."""
 
     def __init__(self, sources: list[SignatureSource] | None = None):
-        self.sources: list[SignatureSource] = list(sources) if sources is not None else [Win32MetadataSource()]
+        if sources is None:
+            sources = [Win32MetadataSource(), PhntSource()]
+        self.sources: list[SignatureSource] = list(sources)
 
     def add_source(self, source: SignatureSource, first: bool = False) -> None:
         if first:
@@ -597,7 +624,7 @@ _default_lock = threading.Lock()
 
 
 def get_default_database() -> SignatureDatabase:
-    """Process-wide database backed by the bundled win32metadata signatures."""
+    """Process-wide database backed by the bundled win32metadata and phnt signatures."""
     global _default_db
     if _default_db is None:
         with _default_lock:

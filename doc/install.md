@@ -21,9 +21,10 @@ git clone --recurse-submodules https://github.com/mandiant/speakeasy.git
 cd speakeasy
 python3 -m pip install -e ".[dev]"
 python3 scripts/gen_win32_signatures.py
+python3 scripts/gen_phnt_signatures.py
 ```
 
-The last step builds the Win32 API signature database from the `deps/win32json` submodule (see [Adding API handlers](api-handlers.md)). Wheels built with `python -m build` include it automatically; an editable install needs it generated once, and again after updating the submodule.
+The last two steps build the API signature databases from the `deps/win32json` and `deps/phnt` submodules (see [Adding API handlers](api-handlers.md)). Wheels built with `python -m build` include them automatically; an editable install needs them generated once, and again after updating the submodules.
 
 Optional GDB support from source:
 

@@ -31,18 +31,21 @@ Imports that have no `@apihook` are not necessarily fatal. Speakeasy ships a sig
 
 Hand-written handlers always take precedence, and are still required whenever a sample depends on the *behavior* of an API (output parameters, objects, files, network). The fallback only keeps emulation coherent and the trace informative.
 
-### Regenerating the signature database
+Undocumented native APIs (`Nt*`/`Zw*`, `Rtl*`, `Ldr*`, `Csr*`, `Dbg*` ...) come from a second source generated from the [phnt](https://github.com/winsiderss/phnt) headers (MIT, vendored as `deps/phnt`) by `scripts/gen_phnt_signatures.py`: about 2,500 prototypes with SAL-derived direction and buffer-size annotations and the information-class enums (`SystemInformationClass: SystemProcessInformation`). phnt struct layouts are not parsed; a `ps:` pointer resolves against every loaded source, so structs win32metadata also declares (`OBJECT_ATTRIBUTES`, `UNICODE_STRING`, `LARGE_INTEGER`, `CLIENT_ID`) still render and phnt-only structs show as pointers. The win32metadata source is consulted first.
 
-The database lives at `speakeasy/resources/win32/signatures.json.gz`. It is a build artifact, not committed: `python -m build` regenerates it (see `setup.py`), and for a source checkout run
+### Regenerating the signature databases
+
+The databases live at `speakeasy/resources/win32/signatures.json.gz` (win32metadata) and `speakeasy/resources/win32/phnt_signatures.json.gz` (phnt). They are build artifacts, not committed: `python -m build` regenerates them (see `setup.py`), and for a source checkout run
 
 ```console
 just gen-signatures
 # or
-git submodule update --init deps/win32json
+git submodule update --init deps/win32json deps/phnt
 python scripts/gen_win32_signatures.py --stats
+python scripts/gen_phnt_signatures.py --stats
 ```
 
-Without it Speakeasy still works; it just logs a warning and falls back to the previous `Unsupported API` behavior.
+Without them Speakeasy still works; it logs a warning per missing database and falls back to the previous `Unsupported API` behavior for the imports that database would have covered.
 
 win32metadata records neither calling conventions nor variadic parameters, so those are supplied by hand in `scripts/win32_overrides.json` (`cdecl_dlls`, `cdecl`, `variadic`, plus `dll_aliases`/`name_prefixes` for forwarders such as `psapi!EnumProcesses` -> `kernel32!K32EnumProcesses`). Edit that file and regenerate to correct a declaration; never patch the generated file.
 

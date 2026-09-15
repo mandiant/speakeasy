@@ -2,10 +2,10 @@
 Build hooks for speakeasy.
 
 All project metadata lives in ``pyproject.toml``; this file only exists to
-regenerate the Win32 API signature database from the ``deps/win32json``
-submodule whenever a wheel or sdist is built, so that the generated
-``speakeasy/resources/win32/signatures.json.gz`` ships in every distribution
-without being committed to the repository.
+regenerate the API signature databases from the ``deps/win32json`` and
+``deps/phnt`` submodules whenever a wheel or sdist is built, so that the
+generated ``speakeasy/resources/win32/*.json.gz`` files ship in every
+distribution without being committed to the repository.
 """
 
 import os
@@ -16,9 +16,21 @@ from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GENERATOR = os.path.join(HERE, "scripts", "gen_win32_signatures.py")
-WIN32JSON = os.path.join(HERE, "deps", "win32json", "api")
-OUTPUT = os.path.join(HERE, "speakeasy", "resources", "win32", "signatures.json.gz")
+RESOURCES = os.path.join(HERE, "speakeasy", "resources", "win32")
+
+# (generator script, submodule marker path, output file)
+DATABASES = [
+    (
+        os.path.join(HERE, "scripts", "gen_win32_signatures.py"),
+        os.path.join(HERE, "deps", "win32json", "api"),
+        os.path.join(RESOURCES, "signatures.json.gz"),
+    ),
+    (
+        os.path.join(HERE, "scripts", "gen_phnt_signatures.py"),
+        os.path.join(HERE, "deps", "phnt", "ntpsapi.h"),
+        os.path.join(RESOURCES, "phnt_signatures.json.gz"),
+    ),
+]
 
 
 class build_py(_build_py):
@@ -29,19 +41,19 @@ class build_py(_build_py):
         super().run()
 
     def generate_signatures(self):
-        if not os.path.isdir(WIN32JSON):
-            if os.path.exists(OUTPUT):
-                self.announce(
-                    f"deps/win32json missing; reusing existing {os.path.relpath(OUTPUT, HERE)}",
-                    level=2,
+        for generator, marker, output in DATABASES:
+            submodule = os.path.relpath(os.path.dirname(marker) if marker.endswith(".h") else marker, HERE)
+            submodule = submodule.split(os.sep + "api")[0]
+            if not os.path.exists(marker):
+                if os.path.exists(output):
+                    self.announce(f"{submodule} missing; reusing existing {os.path.relpath(output, HERE)}", level=2)
+                    continue
+                raise SystemExit(
+                    f"{submodule} is not checked out and no signature database exists; "
+                    f"run `git submodule update --init {submodule}` before building"
                 )
-                return
-            raise SystemExit(
-                "deps/win32json is not checked out and no signature database exists; "
-                "run `git submodule update --init deps/win32json` before building"
-            )
-        self.announce("generating Win32 API signature database from deps/win32json", level=2)
-        subprocess.check_call([sys.executable, GENERATOR, "--output", OUTPUT])
+            self.announce(f"generating API signature database from {submodule}", level=2)
+            subprocess.check_call([sys.executable, generator, "--output", output])
 
 
 setup(cmdclass={"build_py": build_py})
