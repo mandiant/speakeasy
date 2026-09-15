@@ -36,6 +36,8 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
+from typing import Any
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PHNT = os.path.join(REPO_ROOT, "deps", "phnt")
@@ -334,7 +336,9 @@ def strip_comments(text: str) -> str:
 
 def split_top_level(text: str, sep: str = ",") -> list[str]:
     """Split on ``sep`` outside parentheses/brackets/braces."""
-    parts, depth, cur = [], 0, []
+    parts: list[str] = []
+    depth = 0
+    cur: list[str] = []
     for ch in text:
         if ch in "([{":
             depth += 1
@@ -369,7 +373,7 @@ def match_brace(text: str, open_pos: int) -> int:
 class TypeTable:
     """Struct names, enum definitions and typedef aliases gathered from the headers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.structs: set[str] = set()
         self.enums: dict[str, list[tuple[str, int]]] = {}
         self.aliases: dict[str, str] = {}  # typedef name -> C type text it stands for
@@ -665,8 +669,8 @@ def _param_name(text: str) -> str:
 PROTOTYPE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\s*$", re.M)
 
 
-def iter_prototypes(text: str):
-    """Yield (prefix_lines, name, params_text, terminator) for each ``Name(\\n...)`` block."""
+def iter_prototypes(text: str) -> Iterator[tuple[list[str], str, str]]:
+    """Yield (prefix_lines, name, params_text) for each ``Name(\\n...)`` block."""
     for m in PROTOTYPE.finditer(text):
         name = m.group(1)
         close = text.find(");", m.end())
@@ -677,7 +681,7 @@ def iter_prototypes(text: str):
         if "{" in params or ";" in params:
             continue
         # walk back over the preceding non-blank lines
-        prefix = []
+        prefix: list[str] = []
         pos = m.start()
         while pos > 0:
             prev_end = pos - 1
@@ -730,7 +734,7 @@ def parse_prototype(prefix: list[str], name: str, params_text: str, types: TypeT
     variadic = any(p.strip() == "..." for p in raw_params)
     raw_params = [p for p in raw_params if p.strip() != "..."]
     names = [_param_name(p) for p in raw_params]
-    params = []
+    params: list[list[Any]] = []
     for raw in raw_params:
         try:
             pname, ctype, flags, length = parse_param(raw, names)
@@ -746,7 +750,7 @@ def parse_prototype(prefix: list[str], name: str, params_text: str, types: TypeT
             skip = skip or f"param {pname}: {e}"
         if code.startswith("st:") and code.endswith(":?"):
             skip = skip or f"param {pname}: by-value struct {ctype} of unknown size"
-        param = [pname or f"param{len(params)}", code, flags]
+        param: list[Any] = [pname or f"param{len(params)}", code, flags]
         if length:
             param.append(length)
         params.append(param)

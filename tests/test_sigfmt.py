@@ -10,15 +10,15 @@ from speakeasy.winenv.api import sigdb, sigfmt
 class _Memory:
     """Sparse byte-addressable memory; reads touching unmapped bytes raise."""
 
-    def __init__(self):
-        self.bytes = {}
+    def __init__(self) -> None:
+        self.bytes: dict[int, int] = {}
 
-    def put(self, addr, data):
+    def put(self, addr: int, data: bytes) -> int:
         for i, b in enumerate(data):
             self.bytes[addr + i] = b
         return addr
 
-    def read(self, addr, size):
+    def read(self, addr: int, size: int) -> bytes:
         out = bytearray()
         for i in range(size):
             if addr + i not in self.bytes:
@@ -30,25 +30,25 @@ class _Memory:
 class _Source(sigdb.SignatureSource):
     name = "test"
 
-    def __init__(self, structs, enums):
+    def __init__(self, structs: dict[str, sigdb.StructDef], enums: dict[str, sigdb.EnumDef]) -> None:
         self.structs = structs
         self.enums = enums
 
     @property
-    def available(self):
+    def available(self) -> bool:
         return True
 
-    def lookup(self, dll, func, arch):
+    def lookup(self, dll: str, func: str, arch: str) -> sigdb.FuncSig | None:
         return None
 
-    def lookup_struct(self, name):
+    def lookup_struct(self, name: str) -> sigdb.StructDef | None:
         return self.structs.get(name)
 
-    def lookup_enum(self, name):
+    def lookup_enum(self, name: str) -> sigdb.EnumDef | None:
         return self.enums.get(name)
 
 
-def _fields(*specs):
+def _fields(*specs: tuple[str, str, int, int]) -> tuple[sigdb.FieldDef, ...]:
     return tuple(sigdb.FieldDef(name, code, off32, off64) for name, code, off32, off64 in specs)
 
 
@@ -94,23 +94,23 @@ ENUMS = {"INFO_FLAGS": sigdb.EnumDef("INFO_FLAGS", (("F_ONE", 1), ("F_TWO", 2)),
 
 
 @pytest.fixture
-def mem():
+def mem() -> _Memory:
     return _Memory()
 
 
-def _formatter(mem, ptr_size=4, read_xmm=None):
+def _formatter(mem: _Memory, ptr_size: int = 4, read_xmm: sigfmt.ReadXmm | None = None) -> sigfmt.ArgFormatter:
     return sigfmt.ArgFormatter(sigdb.SignatureDatabase([_Source(STRUCTS, ENUMS)]), ptr_size, mem.read, read_xmm)
 
 
-def _wstr(text):
+def _wstr(text: str) -> bytes:
     return text.encode("utf-16le") + b"\x00\x00"
 
 
-def _param(code, flags="i"):
+def _param(code: str, flags: str = "i") -> sigdb.ParamSig:
     return sigdb.ParamSig("arg", code, flags)
 
 
-def test_struct_pointer_x86(mem):
+def test_struct_pointer_x86(mem: _Memory) -> None:
     title = mem.put(0x2000, _wstr("hello"))
     mem.put(0x1000, struct.pack("<IIIII", 20, title, 3, 1, 0))
     assert (
@@ -119,7 +119,7 @@ def test_struct_pointer_x86(mem):
     )
 
 
-def test_struct_pointer_x64_uses_64_bit_offsets(mem):
+def test_struct_pointer_x64_uses_64_bit_offsets(mem: _Memory) -> None:
     title = mem.put(0x2000, _wstr("x"))
     mem.put(0x1000, struct.pack("<I4xQI4xI4xQ", 40, title, 1, 0, 0))
     assert (
@@ -128,7 +128,7 @@ def test_struct_pointer_x64_uses_64_bit_offsets(mem):
     )
 
 
-def test_nested_pointer_depth_is_bounded(mem):
+def test_nested_pointer_depth_is_bounded(mem: _Memory) -> None:
     # a -> b -> c: b is expanded (one dereference), c is left as a pointer
     mem.put(0x3000, struct.pack("<IIIII", 20, 0, 0, 0, 0))
     mem.put(0x2000, struct.pack("<IIIII", 20, 0, 0, 0, 0x3000))
@@ -140,7 +140,7 @@ def test_nested_pointer_depth_is_bounded(mem):
     )
 
 
-def test_counted_string_and_integer_structs(mem):
+def test_counted_string_and_integer_structs(mem: _Memory) -> None:
     buf = mem.put(0x3000, "\\??\\C:\\x".encode("utf-16le") + b"junk")
     us = mem.put(0x2000, struct.pack("<HHI", 16, 20, buf))
     mem.put(0x1000, struct.pack("<II", 8, us))
@@ -151,7 +151,7 @@ def test_counted_string_and_integer_structs(mem):
     assert f.format_param(_param("ps:LARGE_INTEGER"), li, 0) == "0xffffffffffffffff"
 
 
-def test_arrays(mem):
+def test_arrays(mem: _Memory) -> None:
     data = (
         _wstr("abc").ljust(16, b"\x00")
         + b"name\x00\x00\x00\x00"
@@ -165,7 +165,7 @@ def test_arrays(mem):
     )
 
 
-def test_long_arrays_and_blobs_are_truncated(mem):
+def test_long_arrays_and_blobs_are_truncated(mem: _Memory) -> None:
     f = _formatter(mem)
     assert f._format_field("arr:10:u32", struct.pack("<10I", *range(10)), 0) == (
         "[0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, ...]"
@@ -174,7 +174,7 @@ def test_long_arrays_and_blobs_are_truncated(mem):
     assert f._format_field("arr:0:u32", b"", 0) == "[]"
 
 
-def test_unmapped_null_and_out_pointers(mem):
+def test_unmapped_null_and_out_pointers(mem: _Memory) -> None:
     f = _formatter(mem)
     assert f.format_param(_param("ps:INFO"), 0, 0) == "0x0"
     assert f.format_param(_param("ps:INFO"), 0xDEAD0000, 0) == "0xdead0000"
@@ -191,7 +191,7 @@ def test_unmapped_null_and_out_pointers(mem):
     assert f.format_param(_param("S", "o"), end, 0) == hex(end)
 
 
-def test_scalars_enums_bools_floats(mem):
+def test_scalars_enums_bools_floats(mem: _Memory) -> None:
     f = _formatter(mem)
     assert f.format_param(_param("u32:INFO_FLAGS"), 3, 0) == "F_TWO|F_ONE"
     assert f.format_param(_param("u32:NOPE"), 3, 0) == "0x3"
@@ -203,7 +203,7 @@ def test_scalars_enums_bools_floats(mem):
     assert f.format_param(_param("f32"), struct.unpack("<I", struct.pack("<f", 2.0))[0], 0) == "2.0"
 
 
-def test_x64_floats_come_from_xmm(mem):
+def test_x64_floats_come_from_xmm(mem: _Memory) -> None:
     xmm = {1: struct.unpack("<Q", struct.pack("<d", 0.25))[0]}
     f = _formatter(mem, 8, read_xmm=lambda i: xmm[i])
     assert f.format_param(_param("f64"), 0, 1) == "0.25"
@@ -211,7 +211,7 @@ def test_x64_floats_come_from_xmm(mem):
     assert f.format_param(_param("f64"), struct.unpack("<Q", struct.pack("<d", 4.0))[0], 4) == "4.0"
 
 
-def test_guids_and_by_value_structs(mem):
+def test_guids_and_by_value_structs(mem: _Memory) -> None:
     f32 = _formatter(mem)
     guid = b"\x10\x0f\x0e\x0d\x0c\x0b\x0a\x09\x08\x07\x06\x05\x04\x03\x02\x01"
     # x86: 16 bytes in four slots, folded little-endian
@@ -234,7 +234,7 @@ def test_guids_and_by_value_structs(mem):
     assert _formatter(mem, 8).format_param(_param("st:INFO:20/40"), 0x3000, 0).startswith("{cb: 0x28")
 
 
-def test_render_is_truncated(mem):
+def test_render_is_truncated(mem: _Memory) -> None:
     f = _formatter(mem)
     f.MAX_RENDER_CHARS = 30
     mem.put(0x1000, struct.pack("<IIIII", 20, 0, 0, 0, 0))
@@ -242,5 +242,5 @@ def test_render_is_truncated(mem):
     assert text.endswith("...") and len(text) == 33
 
 
-def test_quote_string():
+def test_quote_string() -> None:
     assert sigfmt.quote_string("a\nb") == '"a\\nb"'

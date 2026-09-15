@@ -36,11 +36,11 @@ DATABASES = [
 class build_py(_build_py):
     """Regenerate the signature database before collecting package data."""
 
-    def run(self):
+    def run(self) -> None:
         self.generate_signatures()
         super().run()
 
-    def generate_signatures(self):
+    def generate_signatures(self) -> None:
         for generator, marker, output in DATABASES:
             submodule = os.path.relpath(os.path.dirname(marker) if marker.endswith(".h") else marker, HERE)
             submodule = submodule.split(os.sep + "api")[0]

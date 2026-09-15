@@ -4,6 +4,8 @@ signature database. A mismatch in ``argc`` corrupts the emulated stack on x86,
 so hooks and metadata must agree wherever both exist.
 """
 
+from collections.abc import Iterator
+
 import pytest
 
 import speakeasy.winenv.arch as _arch
@@ -14,7 +16,7 @@ from speakeasy.winenv.api import sigdb, winapi
 KNOWN_DEVIATIONS: dict[tuple[str, str], str] = {}
 
 
-def _hooked_functions():
+def _hooked_functions() -> Iterator[tuple[str, str, int, int]]:
     for mod_name, cls in winapi.API_HANDLERS:
         for attr in dir(cls):
             func = getattr(cls, attr, None)
@@ -25,7 +27,7 @@ def _hooked_functions():
                     yield mod_name, name, argc, conv
 
 
-def _lookup(db, mod_name, name):
+def _lookup(db: sigdb.SignatureDatabase, mod_name: str, name: str) -> sigdb.FuncSig | None:
     for candidate in (name, name + "W", name + "A"):
         sig = db.lookup(mod_name, candidate, sigdb.ARCH_X86)
         if sig is not None:
@@ -33,7 +35,7 @@ def _lookup(db, mod_name, name):
     return None
 
 
-def test_apihook_argc_matches_metadata():
+def test_apihook_argc_matches_metadata() -> None:
     db = sigdb.get_default_database()
     if not db.available:
         pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")

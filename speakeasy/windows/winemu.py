@@ -1720,7 +1720,7 @@ class WindowsEmulator(BinaryEmulator):
         return string
 
     @staticmethod
-    def format_api_arg(arg):
+    def format_api_arg(arg: Any) -> str:
         """
         Render a single API argument the way it appears in the API trace
         """
@@ -1732,7 +1732,7 @@ class WindowsEmulator(BinaryEmulator):
             return f'"{arg}"'  # type: ignore[str-bytes-safe]
         return ""
 
-    def log_api(self, pc, imp_api, rv, argv, display=None):
+    def log_api(self, pc: int, imp_api: str, rv: int | None, argv: list[Any], display: list[str] | None = None) -> None:
         """
         Log an API call and record it with the profiler. ``display`` optionally
         supplies a pre-rendered string per argument (used when parameter names
@@ -1741,12 +1741,10 @@ class WindowsEmulator(BinaryEmulator):
         rendered = display if display is not None else [self.format_api_arg(arg) for arg in argv]
         call_str = f"{imp_api}({', '.join(rendered)})"
 
-        _rv = rv
-        if _rv is not None:
-            _rv = hex(rv)
-        logger.info("%s: %s -> %s", hex(pc), repr(call_str), _rv)
-        if self.profiler:
-            tick = self.curr_run.instr_cnt if self.curr_run else 0
+        rv_str = hex(rv) if rv is not None else None
+        logger.info("%s: %s -> %s", hex(pc), repr(call_str), rv_str)
+        if self.profiler and self.curr_run:
+            tick = self.curr_run.instr_cnt
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
@@ -1763,7 +1761,7 @@ class WindowsEmulator(BinaryEmulator):
     def _get_signature_arch(self) -> str:
         return sigdb.ARCH_X86 if self.get_arch() == _arch.ARCH_X86 else sigdb.ARCH_X64
 
-    def lookup_api_signature(self, dll, name) -> sigdb.FuncSig | None:
+    def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
         """
         Find a usable signature for an import that has no speakeasy handler.
         Returns None when the function is unknown or its declaration is marked
@@ -1781,7 +1779,7 @@ class WindowsEmulator(BinaryEmulator):
             return None
         return sig
 
-    def has_api_signature(self, dll, name) -> bool:
+    def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
 
     def get_signature_formatter(self) -> sigfmt.ArgFormatter:
@@ -1812,13 +1810,13 @@ class WindowsEmulator(BinaryEmulator):
     # Upper bound on how much memory a single Out parameter is zero-filled with
     MAX_OUT_ZERO_FILL = 0x10000
 
-    def _read_uint_for_signature(self, addr, size):
+    def _read_uint_for_signature(self, addr: int, size: int) -> int | None:
         try:
             return int.from_bytes(self.mem_read(addr, size), "little")
         except Exception:
             return None
 
-    def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list, ptr_size: int) -> None:
+    def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list[int], ptr_size: int) -> None:
         """
         Give Out-only pointer parameters deterministic contents. A call we
         only know the signature of reports success without producing any
@@ -1840,7 +1838,7 @@ class WindowsEmulator(BinaryEmulator):
                     "%s: could not zero %d bytes at %s for Out param %s", sig.name, size, hex(value), param.name
                 )
 
-    def _default_return_for_signature(self, sig: sigdb.FuncSig):
+    def _default_return_for_signature(self, sig: sigdb.FuncSig) -> int | None:
         """
         Pick a plausible "success" return value for a call we only know the signature of
         """
@@ -1857,7 +1855,7 @@ class WindowsEmulator(BinaryEmulator):
         # read as "nothing happened" at zero.
         return 0
 
-    def emulate_api_from_signature(self, dll, name, sig: sigdb.FuncSig, call_pc):
+    def emulate_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
         """
         Emulate an import that has no handler using only its declared signature:
         consume the right number of argument slots, log the call with decoded

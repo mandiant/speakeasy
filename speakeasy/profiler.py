@@ -224,7 +224,15 @@ class Profiler:
             entry = {"path": f.path, "size": len(data), "sha256": _hash, "data_ref": data_ref}
             run.dropped_files.append(entry)
 
-    def record_api_event(self, run, pos: TracePosition, name, ret, argv, display=None):
+    def record_api_event(
+        self,
+        run: Run,
+        pos: TracePosition,
+        name: str,
+        ret: int | None,
+        argv: list[Any],
+        display: list[str] | None = None,
+    ) -> None:
         """
         Log a call to an OS API. This includes arguments, return address, and return value.
 

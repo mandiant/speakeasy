@@ -152,7 +152,7 @@ class UnsupportedType(Exception):
 class TypeResolver:
     """Resolves win32metadata type references to compact type codes."""
 
-    def __init__(self, namespaces: dict[str, dict[str, dict]]):
+    def __init__(self, namespaces: dict[str, dict[str, dict]]) -> None:
         # namespaces: api namespace -> type name -> type definition
         self.namespaces = namespaces
         self._layout_cache: dict[tuple, tuple[int, int]] = {}
@@ -247,7 +247,7 @@ class TypeResolver:
             if td["Kind"] == "NativeTypedef":
                 return self._layout_field(td["Def"], target_api, ptr_size, seen, nested)
             if td["Kind"] == "Enum":
-                _, size = NATIVE_TYPES[td.get("IntegerBase") or "Int32"]
+                size = _enum_size(td)
                 return size, size
             if td["Kind"] in ("Struct", "Union"):
                 return self._layout_struct(td, target_api, ptr_size, seen)
@@ -404,12 +404,19 @@ def _align_up(value: int, align: int) -> int:
     return (value + align - 1) // align * align
 
 
+def _enum_size(td: dict) -> int:
+    """Byte size of an enum's underlying integer (win32metadata defaults to Int32)."""
+    _, size = NATIVE_TYPES[td.get("IntegerBase") or "Int32"]
+    assert size is not None
+    return size
+
+
 def _is_handle_typedef(td: dict) -> bool:
     """Heuristic: a pointer-sized typedef that behaves like a kernel/USER handle."""
     if td.get("FreeFunc") or td.get("InvalidHandleValue") is not None:
         return True
     name = td["Name"]
-    return name.startswith("H") and name[1:2].isupper()
+    return bool(name.startswith("H") and name[1:2].isupper())
 
 
 def normalize_dll(dll: str) -> str:
@@ -448,7 +455,7 @@ def load_win32json(root: str) -> tuple[dict[str, dict[str, dict]], list[dict], d
 
 def load_overrides(path: str) -> dict:
     with open(path, encoding="utf-8") as f:
-        doc = json.load(f)
+        doc: dict = json.load(f)
     for key in ("cdecl_dlls", "cdecl", "variadic", "skip"):
         doc[key] = set(doc.get(key, []))
     doc.setdefault("dll_aliases", {})
@@ -529,8 +536,7 @@ def build_enum_table(resolver: TypeResolver, constants: dict[str, int], override
     """
     enums: dict[str, dict] = {}
     for name, td in sorted(resolver.used_enums.items()):
-        _, size = NATIVE_TYPES[td.get("IntegerBase") or "Int32"]
-        mask = (1 << (size * 8)) - 1
+        mask = (1 << (_enum_size(td) * 8)) - 1
         values = [[v["Name"], v["Value"] & mask] for v in td["Values"]]
         seen = {v[0] for v in values}
         for extra in overrides["enum_extra"].get(name, ()):

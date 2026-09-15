@@ -4,6 +4,7 @@ import gzip
 import importlib.util
 import json
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -135,15 +136,16 @@ typedef VOID (NTAPI *PCALLBACK)(
 
 
 @pytest.fixture(scope="module")
-def gen():
+def gen() -> ModuleType:
     spec = importlib.util.spec_from_file_location("gen_phnt_signatures", GENERATOR)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 @pytest.fixture
-def mini_phnt(tmp_path):
+def mini_phnt(tmp_path: Path) -> Path:
     root = tmp_path / "phnt"
     root.mkdir()
     (root / "ntmini.h").write_text(HEADER.replace("\n", "\r\n"), newline="")
@@ -151,7 +153,7 @@ def mini_phnt(tmp_path):
     return root
 
 
-def test_generate_prototypes(gen, mini_phnt):
+def test_generate_prototypes(gen: ModuleType, mini_phnt: Path) -> None:
     doc, stats = gen.generate(str(mini_phnt))
     assert doc["format"] == gen.FORMAT_VERSION
     assert doc["source"] == "phnt"
@@ -215,7 +217,7 @@ def test_generate_prototypes(gen, mini_phnt):
     assert stats["variadic"] == 1
 
 
-def test_generate_enums(gen, mini_phnt):
+def test_generate_enums(gen: ModuleType, mini_phnt: Path) -> None:
     doc, _ = gen.generate(str(mini_phnt))
     assert doc["enums"]["KEY_INFORMATION_CLASS"] == {
         "v": [
@@ -231,7 +233,7 @@ def test_generate_enums(gen, mini_phnt):
     assert doc["enums"]["FLAGGY"] == {"v": [["FlagA", 1], ["FlagB", 2], ["FlagC", 4]], "f": True}
 
 
-def test_eval_const(gen):
+def test_eval_const(gen: ModuleType) -> None:
     assert gen.eval_const("0x10 | (1 << 2)", {}) == 0x14
     assert gen.eval_const("A + 1", {"A": 41}) == 42
     assert gen.eval_const("~0", {}) == -1
@@ -242,7 +244,7 @@ def test_eval_const(gen):
         gen.eval_const("Missing", {})
 
 
-def test_type_resolution(gen, mini_phnt):
+def test_type_resolution(gen: ModuleType, mini_phnt: Path) -> None:
     headers = gen.load_headers(str(mini_phnt))
     types = gen.TypeTable()
     for text in headers.values():
@@ -267,7 +269,7 @@ def test_type_resolution(gen, mini_phnt):
         types.resolve("Mystery")
 
 
-def test_write_output_is_reproducible(gen, mini_phnt, tmp_path):
+def test_write_output_is_reproducible(gen: ModuleType, mini_phnt: Path, tmp_path: Path) -> None:
     doc, _ = gen.generate(str(mini_phnt))
     out1 = tmp_path / "a.json.gz"
     out2 = tmp_path / "b.json.gz"
@@ -278,6 +280,6 @@ def test_write_output_is_reproducible(gen, mini_phnt, tmp_path):
         assert json.load(f)["functions"]["DbgPrint"][0]["variadic"] is True
 
 
-def test_main_reports_missing_submodule(gen, tmp_path):
+def test_main_reports_missing_submodule(gen: ModuleType, tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="git submodule update"):
         gen.generate(str(tmp_path / "empty"))

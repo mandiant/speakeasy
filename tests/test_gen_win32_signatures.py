@@ -4,6 +4,8 @@ import gzip
 import importlib.util
 import json
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -13,27 +15,28 @@ OVERRIDES = REPO_ROOT / "scripts" / "win32_overrides.json"
 
 
 @pytest.fixture(scope="module")
-def gen():
+def gen() -> ModuleType:
     spec = importlib.util.spec_from_file_location("gen_win32_signatures", GENERATOR)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _native(name):
+def _native(name: str) -> dict[str, Any]:
     return {"Kind": "Native", "Name": name}
 
 
-def _ref(api, name, target="Default"):
+def _ref(api: str, name: str, target: str = "Default") -> dict[str, Any]:
     return {"Kind": "ApiRef", "Name": name, "TargetKind": target, "Api": api, "Parents": []}
 
 
-def _ptr(child):
+def _ptr(child: dict[str, Any]) -> dict[str, Any]:
     return {"Kind": "PointerTo", "Child": child}
 
 
-def _typedef(name, definition, **extra):
-    td = {
+def _typedef(name: str, definition: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    td: dict[str, Any] = {
         "Name": name,
         "Architectures": [],
         "Platform": None,
@@ -47,7 +50,9 @@ def _typedef(name, definition, **extra):
     return td
 
 
-def _struct(name, fields, kind="Struct", packing=0):
+def _struct(
+    name: str, fields: list[tuple[str, dict[str, Any]]], kind: str = "Struct", packing: int = 0
+) -> dict[str, Any]:
     return {
         "Name": name,
         "Architectures": [],
@@ -61,7 +66,7 @@ def _struct(name, fields, kind="Struct", packing=0):
     }
 
 
-def _with_anonymous_union():
+def _with_anonymous_union() -> dict[str, Any]:
     """
     struct WITH_ANON { UINT32 tag; union { UINT64 q; struct { UINT32 lo, hi; } s; } u; }
     as win32metadata emits it: the union is an anonymous NestedType referenced
@@ -82,7 +87,7 @@ def _with_anonymous_union():
     return outer
 
 
-def _enum(name, values, flags=False, base="UInt32"):
+def _enum(name: str, values: list[tuple[str, int]], flags: bool = False, base: str = "UInt32") -> dict[str, Any]:
     return {
         "Name": name,
         "Architectures": [],
@@ -95,7 +100,9 @@ def _enum(name, values, flags=False, base="UInt32"):
     }
 
 
-def _func(name, dll, ret, params, **extra):
+def _func(
+    name: str, dll: str, ret: dict[str, Any], params: list[tuple[str, dict[str, Any], list[Any]]], **extra: Any
+) -> dict[str, Any]:
     fn = {
         "Name": name,
         "SetLastError": False,
@@ -112,7 +119,7 @@ def _func(name, dll, ret, params, **extra):
 
 
 @pytest.fixture
-def mini_win32json(tmp_path):
+def mini_win32json(tmp_path: Path) -> Path:
     api = tmp_path / "win32json" / "api"
     api.mkdir(parents=True)
     (tmp_path / "win32json" / "version.txt").write_text("0.0.1-test")
@@ -274,7 +281,7 @@ def mini_win32json(tmp_path):
     return tmp_path / "win32json"
 
 
-def test_generate_resolves_types(gen, mini_win32json):
+def test_generate_resolves_types(gen: ModuleType, mini_win32json: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
     assert doc["format"] == gen.FORMAT_VERSION
     assert doc["version"] == "0.0.1-test"
@@ -317,7 +324,7 @@ def test_generate_resolves_types(gen, mini_win32json):
     assert "MIXED" not in doc["structs"]  # only referenced by value, never pointed at
 
 
-def test_generate_enum_table(gen, mini_win32json, tmp_path):
+def test_generate_enum_table(gen: ModuleType, mini_win32json: Path, tmp_path: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
     # only enums some function references are carried; negative members are masked
     assert set(doc["enums"]) == {"FLAGS", "DISPOSITION"}
@@ -339,7 +346,7 @@ def test_generate_enum_table(gen, mini_win32json, tmp_path):
         gen.generate(str(mini_win32json), str(path))
 
 
-def test_generate_by_value_struct_sizes(gen, mini_win32json):
+def test_generate_by_value_struct_sizes(gen: ModuleType, mini_win32json: Path) -> None:
     doc, _ = gen.generate(str(mini_win32json), str(OVERRIDES))
     (bv,) = doc["functions"]["ByValue"]
     assert bv["ret"] == "st:FILETIME:8"
@@ -379,7 +386,7 @@ def test_generate_by_value_struct_sizes(gen, mini_win32json):
     }
 
 
-def test_generate_applies_overrides(gen, mini_win32json):
+def test_generate_applies_overrides(gen: ModuleType, mini_win32json: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
     (ws,) = doc["functions"]["wsprintfA"]
     assert ws["variadic"] is True and ws["conv"] == "cdecl"
@@ -389,7 +396,7 @@ def test_generate_applies_overrides(gen, mini_win32json):
     assert stats["cdecl"] == 2
 
 
-def test_generate_arch_skip_and_duplicates(gen, mini_win32json):
+def test_generate_arch_skip_and_duplicates(gen: ModuleType, mini_win32json: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
     (x86,) = doc["functions"]["OnlyX86"]
     assert x86["arch"] == ["x86"]
@@ -403,7 +410,7 @@ def test_generate_arch_skip_and_duplicates(gen, mini_win32json):
     assert stats["duplicates"] == 1
 
 
-def test_write_output_is_reproducible(gen, mini_win32json, tmp_path):
+def test_write_output_is_reproducible(gen: ModuleType, mini_win32json: Path, tmp_path: Path) -> None:
     doc, _ = gen.generate(str(mini_win32json), str(OVERRIDES))
     out1 = tmp_path / "a.json.gz"
     out2 = tmp_path / "b.json.gz"
@@ -414,12 +421,12 @@ def test_write_output_is_reproducible(gen, mini_win32json, tmp_path):
         assert json.load(f)["functions"]["CreateFileW"][0]["ret"] == "h"
 
 
-def test_main_reports_missing_submodule(gen, tmp_path):
+def test_main_reports_missing_submodule(gen: ModuleType, tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="git submodule update"):
         gen.generate(str(tmp_path / "empty"), str(OVERRIDES))
 
 
-def test_overrides_file_is_well_formed(gen):
+def test_overrides_file_is_well_formed(gen: ModuleType) -> None:
     overrides = gen.load_overrides(str(OVERRIDES))
     assert "wsprintfA" in overrides["variadic"]
     assert "icu" in overrides["cdecl_dlls"]

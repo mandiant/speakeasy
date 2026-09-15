@@ -30,6 +30,7 @@ import logging
 import os
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -322,7 +323,13 @@ class FuncSig:
         return values
 
 
-def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, read_uint) -> int | None:
+# ``read_uint(addr, size)`` reads a little-endian unsigned integer from emulated
+# memory, None when the address is unmapped.
+ReadUInt = Callable[[int, int], "int | None"]
+LookupStruct = Callable[[str], "StructDef | None"]
+
+
+def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, read_uint: ReadUInt) -> int | None:
     """
     Value of the count/size parameter ``index`` of a call with argument
     ``values``. Counts passed by pointer (``PDWORD pcbSize``) are read through
@@ -342,7 +349,9 @@ def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, rea
     return None
 
 
-def out_buffer_size(sig: FuncSig, index: int, values: list[int], ptr_size: int, lookup_struct, read_uint) -> int | None:
+def out_buffer_size(
+    sig: FuncSig, index: int, values: list[int], ptr_size: int, lookup_struct: LookupStruct, read_uint: ReadUInt
+) -> int | None:
     """
     How many bytes an ``Out`` pointer parameter is declared to receive, or None
     when the signature does not say (``void*`` with no size, arrays with no
@@ -408,7 +417,7 @@ class Win32MetadataSource(SignatureSource):
 
     _missing_warned = False
 
-    def __init__(self, path: str | None = None):
+    def __init__(self, path: str | None = None) -> None:
         self.path = path or self.default_path
         self._lock = threading.Lock()
         self._loaded = False
@@ -582,7 +591,7 @@ class PhntSource(Win32MetadataSource):
 class SignatureDatabase:
     """Ordered collection of signature sources; the first source with an answer wins."""
 
-    def __init__(self, sources: list[SignatureSource] | None = None):
+    def __init__(self, sources: list[SignatureSource] | None = None) -> None:
         if sources is None:
             sources = [Win32MetadataSource(), PhntSource()]
         self.sources: list[SignatureSource] = list(sources)

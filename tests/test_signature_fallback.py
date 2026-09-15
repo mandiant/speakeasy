@@ -10,10 +10,13 @@ the fallback cleaned up exactly the right number of stack slots.
 """
 
 import struct
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.profiler_events import ApiEvent
+from speakeasy.report import Report
 from speakeasy.winenv.api import sigdb
 
 OLD_NAME = "C:\\old.txt"
@@ -22,11 +25,11 @@ EXIT_CODE = 0x1234
 MOVEFILE_REPLACE_EXISTING = 0x1
 
 
-def _wstr(s):
+def _wstr(s: str) -> bytes:
     return s.encode("utf-16le") + b"\x00\x00"
 
 
-def _build_x86():
+def _build_x86() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
     call $+5 / pop ebx            ; ebx = blob + 5
     push EXIT_CODE                ; argument for ExitProcess, must survive the stdcall cleanup
@@ -65,7 +68,7 @@ def _build_x86():
     return bytes(code), {"MoveFileExW": (move_off, 4), "ExitProcess": (exit_off, 4)}
 
 
-def _build_x64():
+def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
     call $+5 / pop rbx            ; rbx = blob + 5
     lea rcx, [rbx + old]
@@ -105,7 +108,7 @@ def _build_x64():
     return bytes(code), {"MoveFileExW": (move_off, 8), "ExitProcess": (exit_off, 8)}
 
 
-def _build_x86_call(api, args):
+def _build_x86_call(api: str, args: list[int | bytes]) -> tuple[bytes, dict[str, tuple[int, int]], dict[int, int]]:
     """
     Generic x86 shellcode: ``api(*args)`` followed by ExitProcess(EXIT_CODE),
     whose argument is pushed *before* the call so it survives only if the
@@ -141,7 +144,7 @@ def _build_x86_call(api, args):
     return bytes(code), {api: (api_off, 4), "ExitProcess": (exit_off, 4)}, offsets
 
 
-def _run_x86_call(config, api, args):
+def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> tuple[Report, dict[int, bytes]]:
     """Run ``api(*args)`` on x86 and return (report, memory reader for blob arguments)."""
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated")
@@ -149,12 +152,18 @@ def _run_x86_call(config, api, args):
     se = Speakeasy(config=config)
     try:
         sc_addr = se.load_shellcode(data=code, arch="x86")
+        emu = se.emu
+        assert emu is not None
         for name, (offset, width) in patches.items():
-            stub = se.emu.get_proc("kernel32", name)
-            se.emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
+            stub = emu.get_proc("kernel32", name)
+            emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
         se.run_shellcode(sc_addr)
         report = se.get_report()
-        blobs = {index: se.emu.mem_read(sc_addr + off, len(args[index])) for index, off in offsets.items()}
+        blobs = {}
+        for index, off in offsets.items():
+            blob = args[index]
+            assert isinstance(blob, bytes)
+            blobs[index] = emu.mem_read(sc_addr + off, len(blob))
     finally:
         se.shutdown()
     return report, blobs
@@ -165,30 +174,33 @@ PROFILE_BUFFER_CHARS = 8
 BUILDERS = {"x86": _build_x86, "amd64": _build_x64}
 
 
-def _run(config, arch):
+def _run(config: dict[str, Any], arch: str) -> Report:
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")
     code, patches = BUILDERS[arch]()
     se = Speakeasy(config=config)
     try:
         sc_addr = se.load_shellcode(data=code, arch=arch)
+        emu = se.emu
+        assert emu is not None
         # Resolve import stubs the same way GetProcAddress would and patch the
         # absolute addresses into the blob.
         for name, (offset, width) in patches.items():
-            stub = se.emu.get_proc("kernel32", name)
-            se.emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
+            stub = emu.get_proc("kernel32", name)
+            emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
         se.run_shellcode(sc_addr)
-        return se.get_report()
+        report: Report = se.get_report()
+        return report
     finally:
         se.shutdown()
 
 
-def _api_events(report):
+def _api_events(report: Report) -> list[ApiEvent]:
     return [e for e in (report.entry_points[0].events or []) if e.event == "api"]
 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
-def test_unhooked_import_is_emulated_from_signature(config, arch):
+def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch: str) -> None:
     report = _run(config, arch)
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
@@ -210,10 +222,17 @@ def test_unhooked_import_is_emulated_from_signature(config, arch):
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
 
-def test_out_buffer_is_zero_filled(config):
+def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     """An Out buffer sized by a sibling parameter is zeroed; memory past it is untouched."""
     buffer = b"\xcc" * (PROFILE_BUFFER_CHARS * 2 + 4)  # buffer plus a sentinel that must survive
-    args = [_wstr("app"), _wstr("key"), _wstr("def"), buffer, PROFILE_BUFFER_CHARS, _wstr("C:\\x.ini")]
+    args: list[int | bytes] = [
+        _wstr("app"),
+        _wstr("key"),
+        _wstr("def"),
+        buffer,
+        PROFILE_BUFFER_CHARS,
+        _wstr("C:\\x.ini"),
+    ]
     report, blobs = _run_x86_call(config, "GetPrivateProfileStringW", args)
 
     ep = report.entry_points[0]
@@ -230,10 +249,10 @@ def test_out_buffer_is_zero_filled(config):
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
 
-def test_in_struct_pointer_is_decoded(config):
+def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     """A pointer to a known struct renders as {field: value, ...} with typed fields."""
     security_attributes = struct.pack("<III", 12, 0, 1)  # nLength, lpSecurityDescriptor, bInheritHandle
-    args = [_wstr("C:\\tmpl"), _wstr("C:\\new"), security_attributes]
+    args: list[int | bytes] = [_wstr("C:\\tmpl"), _wstr("C:\\new"), security_attributes]
     report, _ = _run_x86_call(config, "CreateDirectoryExW", args)
 
     ep = report.entry_points[0]
@@ -249,7 +268,7 @@ def test_in_struct_pointer_is_decoded(config):
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
 
-def test_functions_always_exist_still_applies_to_unknown_names(config):
+def test_functions_always_exist_still_applies_to_unknown_names(config: dict[str, Any]) -> None:
     # An import that is in neither the handlers nor the metadata stays fatal
     # unless functions_always_exist is set, exactly as before.
     if not sigdb.get_default_database().available:
@@ -258,8 +277,10 @@ def test_functions_always_exist_still_applies_to_unknown_names(config):
     try:
         code = b"\xb8\x00\x00\x00\x00\xff\xd0"  # mov eax, imm32 ; call eax
         sc_addr = se.load_shellcode(data=code, arch="x86")
-        stub = se.emu.get_proc("kernel32", "ThisApiDoesNotExistAnywhere")
-        se.emu.mem_write(sc_addr + 1, stub.to_bytes(4, "little"))
+        emu = se.emu
+        assert emu is not None
+        stub = emu.get_proc("kernel32", "ThisApiDoesNotExistAnywhere")
+        emu.mem_write(sc_addr + 1, stub.to_bytes(4, "little"))
         se.run_shellcode(sc_addr)
         report = se.get_report()
     finally:
@@ -268,7 +289,7 @@ def test_functions_always_exist_still_applies_to_unknown_names(config):
     assert ep.error is not None and ep.error.type == "unsupported_api"
 
 
-def test_get_proc_address_resolves_signature_only_exports(config):
+def test_get_proc_address_resolves_signature_only_exports(config: dict[str, Any]) -> None:
     """GetProcAddress succeeds for functions known only through their signature."""
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated")
@@ -277,6 +298,7 @@ def test_get_proc_address_resolves_signature_only_exports(config):
         sc_addr = se.load_shellcode(data=b"\x90\xc3", arch="x86")
         se.run_shellcode(sc_addr)
         emu = se.emu
+        assert emu is not None
         assert emu.has_api_signature("kernel32", "MoveFileExW")
         assert not emu.has_api_signature("kernel32", "ThisApiDoesNotExistAnywhere")
         # skip-marked declarations are not offered

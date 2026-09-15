@@ -44,7 +44,9 @@ class ArgFormatter:
     MAX_BLOB_BYTES = 16
     MAX_RENDER_CHARS = 1024
 
-    def __init__(self, db: sigdb.SignatureDatabase, ptr_size: int, read_mem: ReadMem, read_xmm: ReadXmm | None = None):
+    def __init__(
+        self, db: sigdb.SignatureDatabase, ptr_size: int, read_mem: ReadMem, read_xmm: ReadXmm | None = None
+    ) -> None:
         self.db = db
         self.ptr_size = ptr_size
         self.read_mem = read_mem
@@ -226,8 +228,8 @@ class ArgFormatter:
         return self._format_scalar(code, int.from_bytes(raw, "little"), depth)
 
     def _format_array(self, code: str, raw: bytes, depth: int) -> str:
-        count, elem = code.split(":", 2)[1:]
-        count = int(count)
+        count_text, elem = code.split(":", 2)[1:]
+        count = int(count_text)
         elem_kind = elem.split(":", 1)[0]
         if elem_kind == "u16":
             # WCHAR name[N]: NUL-terminated text within the array
@@ -263,7 +265,7 @@ def _struct_key(param: sigdb.ParamSig) -> str | None:
     return qualifier or None
 
 
-def _find_terminator(raw: bytes, width: int) -> int:
+def _find_terminator(raw: bytes | bytearray, width: int) -> int:
     """Offset of the (aligned) NUL terminator in ``raw``, or -1."""
     if width == 2:
         end = raw.find(b"\x00\x00")
