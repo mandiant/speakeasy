@@ -1766,11 +1766,9 @@ class WindowsEmulator(BinaryEmulator):
     def lookup_api_signature(self, dll, name) -> sigdb.FuncSig | None:
         """
         Find a usable signature for an import that has no speakeasy handler.
-        Returns None when signature emulation is disabled, the function is
-        unknown, or its declaration is marked as unsupported.
+        Returns None when the function is unknown or its declaration is marked
+        as unsupported.
         """
-        if not self.config.modules.signature_fallback:
-            return None
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         sig = db.lookup(dll, name, arch)

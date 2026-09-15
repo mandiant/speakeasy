@@ -249,16 +249,6 @@ def test_in_struct_pointer_is_decoded(config):
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
 
-def test_fallback_can_be_disabled(config):
-    config["modules"]["signature_fallback"] = False
-    config["modules"]["functions_always_exist"] = False
-    report = _run(config, "x86")
-    ep = report.entry_points[0]
-    assert ep.error is not None
-    assert ep.error.type == "unsupported_api"
-    assert ep.error.api_name == "kernel32.MoveFileExW"
-
-
 def test_functions_always_exist_still_applies_to_unknown_names(config):
     # An import that is in neither the handlers nor the metadata stays fatal
     # unless functions_always_exist is set, exactly as before.

@@ -319,16 +319,11 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // If true, unknown module loads synthesize decoys instead of failing.
     "modules_always_exist": false,
 
-    // If true, unresolved API imports are treated as existing stubs
-    // (4 stdcall arguments, return value 1) even when nothing is known about them.
+    // If true, unresolved API imports that are in neither the handlers nor the
+    // bundled signature database are treated as existing stubs (4 stdcall
+    // arguments, return value 1). Imports with a known signature are always
+    // emulated from it, see doc/api-handlers.md.
     "functions_always_exist": false,
-
-    // If true (default), imports without a handler are emulated from the bundled
-    // Win32 API signature database (derived from Microsoft's win32metadata):
-    // argument count, calling convention and basic argument decoding come from
-    // the declaration. Takes precedence over functions_always_exist when the
-    // function is known. See doc/api-handlers.md.
-    "signature_fallback": true,
 
     // Decoy search roots by architecture.
     "module_directory_x86": "$ROOT$/winenv/decoys/x86",
