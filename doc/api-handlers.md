@@ -53,7 +53,7 @@ win32metadata records neither calling conventions nor variadic parameters, so th
 
 The rendering logic lives in `speakeasy.winenv.api.sigfmt.ArgFormatter`; it caps nesting depth, array length and total output size so a trace line stays readable.
 
-Additional signature sources (for example undocumented `ntdll` natives) can be plugged in by implementing `speakeasy.winenv.api.sigdb.SignatureSource` and adding it to `emu.get_signature_db()`.
+Additional signature sources (for example vendor-specific DLLs) can be plugged in by implementing `speakeasy.winenv.api.sigdb.SignatureSource` and adding it to `emu.get_signature_db()`.
 
 ## Related docs
 

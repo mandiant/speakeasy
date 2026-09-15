@@ -1797,10 +1797,7 @@ class WindowsEmulator(BinaryEmulator):
             )
         return self._sigfmt
 
-    def _format_signature_arg(self, param: sigdb.ParamSig, value: int, index: int, ptr_size: int) -> str:
-        """
-        Render one argument of a signature-emulated call as human readable text
-        """
+    def _format_signature_arg(self, param: sigdb.ParamSig, value: int, index: int) -> str:
         try:
             return self.get_signature_formatter().format_param(param, value, index)
         except Exception:
@@ -1870,7 +1867,7 @@ class WindowsEmulator(BinaryEmulator):
         argv = self.get_func_argv(conv, argc)
         values = sig.values_from_slots(argv, ptr_size)
         display = [
-            f"{param.name}: {self._format_signature_arg(param, value, i, ptr_size)}"
+            f"{param.name}: {self._format_signature_arg(param, value, i)}"
             for i, (param, value) in enumerate(zip(sig.params, values))
         ]
         if sig.variadic:
