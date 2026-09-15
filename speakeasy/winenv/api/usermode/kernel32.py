@@ -2012,7 +2012,7 @@ class Kernel32(api.ApiHandler):
                     entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
                     if entry:
                         rv = emu.get_proc(mname, proc)
-                    elif emu.config.modules.functions_always_exist:
+                    elif emu.config.modules.functions_always_exist or emu.has_api_signature(mname, proc):
                         rv = emu.get_proc(mname, proc)
                     break
 
@@ -5811,7 +5811,7 @@ class Kernel32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
         return nAtom
 
-    @apihook("GetProcessHandleCount", argc=1)
+    @apihook("GetProcessHandleCount", argc=2)
     def GetProcessHandleCount(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL GetProcessHandleCount(

@@ -162,6 +162,7 @@ DEFAULT_CONFIG_DATA = {
     "modules": {
         "modules_always_exist": False,
         "functions_always_exist": False,
+        "signature_fallback": True,
         "module_directory_x86": "$ROOT$/winenv/decoys/x86",
         "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
         "system_modules": [
@@ -498,6 +499,14 @@ class ModulesConfig(BaseModel):
         default=False, description="Synthesize unknown modules instead of failing loads."
     )
     functions_always_exist: bool = Field(default=False, description="Treat unresolved imports as existing stubs.")
+    signature_fallback: bool = Field(
+        default=True,
+        description=(
+            "Emulate imports that have no speakeasy handler using the bundled Win32 API signature "
+            "database (argument count, calling convention, and basic argument decoding derived from "
+            "win32metadata). Takes precedence over functions_always_exist when a signature is known."
+        ),
+    )
     module_directory_x86: str | None = Field(default=None, description="Search path for x86 decoy modules.")
     module_directory_x64: str | None = Field(default=None, description="Search path for x64 decoy modules.")
     user_modules: list[UserModuleConfig] = Field(

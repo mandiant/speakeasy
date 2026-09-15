@@ -39,7 +39,7 @@ class GDI32(api.ApiHandler):
         """
         return self.get_handle()
 
-    @apihook("MoveToEx", argc=1)
+    @apihook("MoveToEx", argc=4)
     def MoveToEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL MoveToEx(
@@ -51,7 +51,7 @@ class GDI32(api.ApiHandler):
         """
         return 1
 
-    @apihook("LineTo", argc=1)
+    @apihook("LineTo", argc=3)
     def LineTo(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL LineTo(

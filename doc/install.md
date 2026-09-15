@@ -17,9 +17,18 @@ speakeasy -h
 ## Install from source
 
 ```console
-git clone https://github.com/mandiant/speakeasy.git
+git clone --recurse-submodules https://github.com/mandiant/speakeasy.git
 cd speakeasy
 python3 -m pip install -e ".[dev]"
+python3 scripts/gen_win32_signatures.py
+```
+
+The last step builds the Win32 API signature database from the `deps/win32json` submodule (see [Adding API handlers](api-handlers.md)). Wheels built with `python -m build` include it automatically; an editable install needs it generated once, and again after updating the submodule.
+
+Optional GDB support from source:
+
+```console
+python3 -m pip install -e ".[dev,gdb]"
 ```
 
 ## Run in Docker

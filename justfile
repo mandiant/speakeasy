@@ -14,6 +14,11 @@ ruff:
 
 lint: format ruff
 
+# regenerate the Win32 API signature database from the deps/win32json submodule
+gen-signatures:
+    git submodule update --init deps/win32json
+    ./.venv/bin/python scripts/gen_win32_signatures.py --stats
+
 test:
     ./.venv/bin/pytest -x -q --no-header tests/
 

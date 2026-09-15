@@ -1,3 +1,6 @@
 [submodule "tests/capa-testfiles"]
 	path = tests/capa-testfiles
 	url = https://github.com/mandiant/capa-testfiles
+[submodule "deps/win32json"]
+	path = deps/win32json
+	url = https://github.com/marlersoft/win32json.git

@@ -930,8 +930,15 @@ class ObjectManager:
             return obj.ref_cnt
 
     def get_handle(self, obj):
-        tmp = self.emu.handle_allocator.allocate_kernel_object_handle()
+        tmp = self.new_handle()
         obj.handles.append(tmp)
+        return tmp
+
+    def new_handle(self):
+        """
+        Allocate a fresh handle value that is not attached to any object
+        """
+        tmp = self.emu.handle_allocator.allocate_kernel_object_handle()
         return tmp
 
     def new_id(self):

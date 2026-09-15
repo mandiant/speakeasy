@@ -31,6 +31,7 @@ from speakeasy.windows.loaders import get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
+from speakeasy.winenv.api import sigdb
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -116,6 +117,7 @@ class WindowsEmulator(BinaryEmulator):
         self.api: Any | None = None
         self.curr_process: Any | None = None
         self.om: objman.ObjectManager | None = None
+        self._sigdb: sigdb.SignatureDatabase | None = None
         self.import_table: dict[int, tuple[str, str]] = {}
         self._next_sentinel: int = winemu.IMPORT_HOOK_ADDR
         self.callbacks: list[tuple[int, str, str]] = []
@@ -1716,19 +1718,27 @@ class WindowsEmulator(BinaryEmulator):
         string = self.read_mem_string(us.Buffer, width=2)
         return string
 
-    def log_api(self, pc, imp_api, rv, argv):
-        call_str = f"{imp_api}("
-        for arg in argv:
-            if isinstance(arg, int):
-                call_str += f"0x{arg:x}"
-            elif isinstance(arg, str):
-                call_str += '"{}"'.format(arg.replace("\n", "\\n"))
-            elif isinstance(arg, bytes):
-                call_str += f'"{arg}"'  # type: ignore[str-bytes-safe]
-            call_str += ", "
-        if call_str.endswith(", "):
-            call_str = call_str[:-2]
-        call_str += ")"
+    @staticmethod
+    def format_api_arg(arg):
+        """
+        Render a single API argument the way it appears in the API trace
+        """
+        if isinstance(arg, int):
+            return f"0x{arg:x}"
+        elif isinstance(arg, str):
+            return '"{}"'.format(arg.replace("\n", "\\n"))
+        elif isinstance(arg, bytes):
+            return f'"{arg}"'  # type: ignore[str-bytes-safe]
+        return ""
+
+    def log_api(self, pc, imp_api, rv, argv, display=None):
+        """
+        Log an API call and record it with the profiler. ``display`` optionally
+        supplies a pre-rendered string per argument (used when parameter names
+        and types are known) that replaces the default formatting of ``argv``.
+        """
+        rendered = display if display is not None else [self.format_api_arg(arg) for arg in argv]
+        call_str = f"{imp_api}({', '.join(rendered)})"
 
         _rv = rv
         if _rv is not None:
@@ -1739,7 +1749,139 @@ class WindowsEmulator(BinaryEmulator):
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv)
+            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, display=display)
+
+    def get_signature_db(self) -> sigdb.SignatureDatabase:
+        """
+        Get the API signature database used to emulate imports without a handler
+        """
+        if self._sigdb is None:
+            self._sigdb = sigdb.get_default_database()
+        return self._sigdb
+
+    def _get_signature_arch(self) -> str:
+        return sigdb.ARCH_X86 if self.get_arch() == _arch.ARCH_X86 else sigdb.ARCH_X64
+
+    def lookup_api_signature(self, dll, name) -> sigdb.FuncSig | None:
+        """
+        Find a usable signature for an import that has no speakeasy handler.
+        Returns None when signature emulation is disabled, the function is
+        unknown, or its declaration is marked as unsupported.
+        """
+        if not self.config.modules.signature_fallback:
+            return None
+        db = self.get_signature_db()
+        arch = self._get_signature_arch()
+        sig = db.lookup(dll, name, arch)
+        if sig is None:
+            alt_dll = winemu.normalize_dll_name(dll)
+            if alt_dll.lower() != dll.lower():
+                sig = db.lookup(alt_dll, name, arch)
+        if sig is not None and sig.skip:
+            logger.debug("signature for %s.%s is unsupported: %s", dll, name, sig.skip)
+            return None
+        return sig
+
+    def has_api_signature(self, dll, name) -> bool:
+        return self.lookup_api_signature(dll, name) is not None
+
+    def _format_signature_arg(self, param: sigdb.ParamSig, value: int, index: int, ptr_size: int) -> str:
+        """
+        Render one argument of a signature-emulated call as human readable text
+        """
+        kind = param.kind
+        if kind in sigdb.STRING_KINDS and param.is_in and value:
+            width = 1 if kind == "s" else 2
+            try:
+                string = self.read_mem_string(value, width=width, max_chars=0x1000)
+            except Exception:
+                return hex(value)
+            return self.format_api_arg(string)
+        if kind in sigdb.BOOL_KINDS:
+            if value == 0:
+                return "FALSE"
+            if value == 1:
+                return "TRUE"
+            return hex(value)
+        if kind in sigdb.FLOAT_KINDS:
+            return self._format_float_arg(kind, value, index, ptr_size)
+        return hex(value)
+
+    def _format_float_arg(self, kind: str, value: int, index: int, ptr_size: int) -> str:
+        import struct
+
+        try:
+            if ptr_size == 8 and index < 4:
+                # Win64 passes the first four floating point arguments in XMM0-3
+                xmm = (_arch.X86_REG_XMM0, _arch.X86_REG_XMM1, _arch.X86_REG_XMM2, _arch.X86_REG_XMM3)[index]
+                value = self.reg_read(xmm)
+            if kind == "f32":
+                return repr(struct.unpack("<f", (value & 0xFFFFFFFF).to_bytes(4, "little"))[0])
+            return repr(struct.unpack("<d", (value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little"))[0])
+        except Exception:
+            return hex(value)
+
+    def _default_return_for_signature(self, sig: sigdb.FuncSig):
+        """
+        Pick a plausible "success" return value for a call we only know the signature of
+        """
+        kind = sig.ret_kind
+        if kind == "v":
+            return None
+        if kind in sigdb.BOOL_KINDS:
+            return 1
+        if kind == "h":
+            if self.om is not None:
+                return self.om.new_handle()
+            return 4
+        # Status codes (HRESULT, NTSTATUS, WIN32_ERROR), counts and pointers all
+        # read as "nothing happened" at zero.
+        return 0
+
+    def emulate_api_from_signature(self, dll, name, sig: sigdb.FuncSig, call_pc):
+        """
+        Emulate an import that has no handler using only its declared signature:
+        consume the right number of argument slots, log the call with decoded
+        arguments, return a type-appropriate success value and clean up the
+        stack according to the calling convention.
+        """
+        imp_api = f"{dll}.{name}"
+        ptr_size = self.get_ptr_size()
+        conv = _arch.CALL_CONV_CDECL if sig.conv == sigdb.CONV_CDECL else _arch.CALL_CONV_STDCALL
+        argc = sig.slot_count(ptr_size)
+
+        argv = self.get_func_argv(conv, argc)
+        values = sig.values_from_slots(argv, ptr_size)
+        display = [
+            f"{param.name}: {self._format_signature_arg(param, value, i, ptr_size)}"
+            for i, (param, value) in enumerate(zip(sig.params, values))
+        ]
+        if sig.variadic:
+            display.append("...")
+
+        rv = self._default_return_for_signature(sig)
+        logger.debug(
+            "%s: no handler for %s; emulating from %s signature (%d params, %s, argc=%d)",
+            hex(call_pc),
+            imp_api,
+            sig.source,
+            len(sig.params),
+            sig.conv,
+            argc,
+        )
+
+        self.hammer.handle_import_func(imp_api, conv, argc)
+        if sig.set_last_error:
+            set_last_error = getattr(self, "set_last_error", None)
+            if set_last_error:
+                set_last_error(0)
+
+        ret = self.get_ret_address()
+        self.log_api(call_pc, imp_api, rv, argv, display=display)
+        self.do_call_return(argc, ret, rv, conv=conv)
+        if not self.run_complete:
+            self.enable_code_hook()
+        return rv
 
     def handle_import_func(self, dll, name):
         """
@@ -1833,6 +1975,12 @@ class WindowsEmulator(BinaryEmulator):
                 if not self.run_complete:
                     self.enable_code_hook()
                 return
+
+            # No handler and no user hook: fall back to the declared signature
+            # so the call is at least traced and cleaned up correctly.
+            sig = self.lookup_api_signature(dll, name)
+            if sig is not None:
+                self.emulate_api_from_signature(dll, name, sig, call_pc)
             elif self.config.modules.functions_always_exist:
                 imp_api = f"{dll}.{name}"
                 conv = _arch.CALL_CONV_STDCALL
@@ -1845,13 +1993,13 @@ class WindowsEmulator(BinaryEmulator):
                 if not self.run_complete:
                     self.enable_code_hook()
                 return
-
-            run = self.get_current_run()
-            error = self.get_error_info("unsupported_api", self.get_pc())
-            logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
-            error.api_name = imp_api
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_run_complete()
+            else:
+                run = self.get_current_run()
+                error = self.get_error_info("unsupported_api", self.get_pc())
+                logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
+                error.api_name = imp_api
+                self.curr_run.error = error  # type: ignore[union-attr]
+                self.on_run_complete()
 
         run = self.get_current_run()
         if run and run.get_api_count() > self.config.max_api_count:

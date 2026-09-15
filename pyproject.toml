@@ -48,6 +48,7 @@ version = {attr = "speakeasy.version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["speakeasy*"]
 
 [tool.setuptools.package-data]
 speakeasy = [
@@ -59,7 +60,7 @@ speakeasy = [
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-exclude = ["deps/"]
+exclude = ["deps/", "tests/capa-testfiles/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
