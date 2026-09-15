@@ -34,7 +34,11 @@ Output format (``format`` = 2)::
         ...
       },
       "structs": {
-        "<NAME>": {"s": [<size on x86>, <size on x64>]},
+        "<NAME>": {                          # anonymous nested types: "OUTER.INNER"
+          "s": [<size on x86>, <size on x64>],
+          "u": true,                         # only for unions
+          "f": [["<field>", "<type code>", <offset on x86>, <offset on x64>], ...]
+        },                                   # "f" absent when a field cannot be resolved
         ...
       },
       "functions": {
@@ -65,6 +69,7 @@ Type codes (``kind`` or ``kind:qualifier``):
     ps:NAME           pointer to struct/union NAME (see ``structs``)
     a:CODE            array/buffer of CODE elements; its length, if declared, is in
                       the parameter's 4th element (see below)
+    arr:N:CODE        inline array of N CODE elements (struct fields only)
     s                 pointer to NUL-terminated narrow string (PSTR)
     S                 pointer to NUL-terminated wide string (PWSTR)
     b                 BOOL (4 bytes)
@@ -151,6 +156,7 @@ class TypeResolver:
         # namespaces: api namespace -> type name -> type definition
         self.namespaces = namespaces
         self._layout_cache: dict[tuple, tuple[int, int]] = {}
+        self._offset_cache: dict[tuple, list[int]] = {}
         # enum name -> definition, for every enum referenced by a resolved type
         self.used_enums: dict[str, dict] = {}
         # struct name -> (api, definition), for every struct some pointer targets
@@ -185,18 +191,28 @@ class TypeResolver:
         pack = td.get("PackingSize") or 0
         size = 0
         align = 1
+        offsets = []
         for field in td["Fields"]:
             fsize, falign = self._layout_field(field["Type"], api, ptr_size, seen + (key,), nested)
             if pack:
                 falign = min(falign, pack)
             align = max(align, falign)
             if td["Kind"] == "Union":
+                offsets.append(0)
                 size = max(size, fsize)
             else:
-                size = _align_up(size, falign) + fsize
+                size = _align_up(size, falign)
+                offsets.append(size)
+                size += fsize
         result = (_align_up(size, align), align)
         self._layout_cache[key] = result
+        self._offset_cache[key] = offsets
         return result
+
+    def field_offsets(self, td: dict, api: str, ptr_size: int) -> list[int]:
+        """Byte offset of every field of a Struct/Union definition."""
+        self._layout_struct(td, api, ptr_size, ())
+        return self._offset_cache[(api, td["Name"], ptr_size, id(td))]
 
     def _layout_field(self, t: dict, api: str, ptr_size: int, seen: tuple, nested: dict) -> tuple[int, int]:
         """Return (size, alignment) of a struct field type."""
@@ -302,6 +318,76 @@ class TypeResolver:
             if td["Kind"] in ("Com", "FunctionPointer", "ComClassID"):
                 return "p"
         raise UnsupportedType(f"type kind {kind}")
+
+    # -- struct fields ----------------------------------------------------
+
+    def resolve_field(self, t: dict, api: str, nested: dict, scope: str, wanted: list) -> str:
+        """
+        Resolve a struct field type to a type code. Anonymous nested types are
+        keyed as ``OUTER.INNER`` in the struct table; ``wanted`` collects
+        (key, api, definition) of every struct the field refers to so callers
+        can emit those too.
+        """
+        kind = t["Kind"]
+        if kind == "Array":
+            count = t["Shape"]["Size"] if t.get("Shape") else 0
+            return f"arr:{count}:{self.resolve_field(t['Child'], api, nested, scope, wanted)}"
+        if kind == "PointerTo":
+            child = t["Child"]
+            if child["Kind"] == "ApiRef" and child["TargetKind"] == "Default":
+                td = nested.get(child["Name"])
+                if td is not None and td["Kind"] in ("Struct", "Union"):
+                    key = f"{scope}.{child['Name']}"
+                    wanted.append((key, api, td))
+                    return f"ps:{key}"
+                td = self.lookup(child["Api"], child["Name"])
+                if td is not None and td["Kind"] in ("Struct", "Union"):
+                    wanted.append((child["Name"], child["Api"], td))
+                    return f"ps:{child['Name']}"
+            return self.resolve(t)
+        if kind == "ApiRef" and t["TargetKind"] == "Default":
+            td = nested.get(t["Name"])
+            if td is not None:
+                key = f"{scope}.{t['Name']}"
+                target_api = api
+            else:
+                td = self.lookup(t["Api"], t["Name"])
+                key = t["Name"]
+                target_api = t["Api"]
+            if td is not None and td["Kind"] in ("Struct", "Union"):
+                size32, _ = self._layout_struct(td, target_api, 4, ())
+                size64, _ = self._layout_struct(td, target_api, 8, ())
+                wanted.append((key, target_api, td))
+                if size32 != size64:
+                    return f"st:{key}:{size32}/{size64}"
+                return f"st:{key}:{size32}"
+        return self.resolve(t)
+
+    def struct_entry(self, key: str, api: str, td: dict, wanted: list) -> dict:
+        """
+        Build the struct table entry for ``td``: sizes for both pointer sizes
+        and, when every field resolves, ``[name, code, offset32, offset64]``
+        per field. Raises UnsupportedType when the struct cannot be laid out.
+        """
+        size32, _ = self._layout_struct(td, api, 4, ())
+        size64, _ = self._layout_struct(td, api, 8, ())
+        entry: dict = {"s": [size32, size64]}
+        if td["Kind"] == "Union":
+            entry["u"] = True
+        nested = {t["Name"]: t for t in td.get("NestedTypes", [])}
+        off32 = self.field_offsets(td, api, 4)
+        off64 = self.field_offsets(td, api, 8)
+        fields = []
+        pending: list = []
+        try:
+            for field, o32, o64 in zip(td["Fields"], off32, off64):
+                code = self.resolve_field(field["Type"], api, nested, key, pending)
+                fields.append([field["Name"], code, o32, o64])
+        except UnsupportedType:
+            return entry
+        entry["f"] = fields
+        wanted.extend(pending)
+        return entry
 
     def _enum_code(self, td: dict) -> str:
         base = td.get("IntegerBase") or "Int32"
@@ -461,17 +547,26 @@ def build_enum_table(resolver: TypeResolver, constants: dict[str, int], override
 
 
 def build_struct_table(resolver: TypeResolver, stats: collections.Counter) -> dict[str, dict]:
-    """Sizes of every struct some parameter points at, for both pointer sizes."""
+    """
+    Layout of every struct some parameter points at, plus (transitively) every
+    struct their fields embed or point at, for both pointer sizes.
+    """
     structs: dict[str, dict] = {}
-    for name, (api, _td) in sorted(resolver.used_structs.items()):
+    worklist = [(name, api, td) for name, (api, td) in sorted(resolver.used_structs.items())]
+    while worklist:
+        key, api, td = worklist.pop()
+        if key in structs:
+            continue
         try:
-            sizes = [resolver.struct_size(api, name, 4), resolver.struct_size(api, name, 8)]
+            entry = resolver.struct_entry(key, api, td, worklist)
         except UnsupportedType as e:
             stats["structs:unsupported"] += 1
-            logger_debug(f"struct {name}: {e}")
+            logger_debug(f"struct {key}: {e}")
             continue
-        structs[name] = {"s": sizes}
-    return structs
+        structs[key] = entry
+        if "f" not in entry:
+            stats["structs:opaque"] += 1
+    return dict(sorted(structs.items()))
 
 
 def logger_debug(msg: str) -> None:
@@ -507,10 +602,11 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
             if len(param) > 3:
                 stats["param:sized-buffer"] += 1
 
-    enums = build_enum_table(resolver, constants, overrides)
-    stats["enums"] = len(enums)
+    # structs first: resolving their fields can reference further enums
     structs = build_struct_table(resolver, stats)
     stats["structs"] = len(structs)
+    enums = build_enum_table(resolver, constants, overrides)
+    stats["enums"] = len(enums)
 
     version = "unknown"
     version_path = os.path.join(win32json_root, "version.txt")

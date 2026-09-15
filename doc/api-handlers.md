@@ -27,7 +27,7 @@ def HeapAlloc(self, emu, argv, ctx={}):
 
 ## What happens without a handler
 
-Imports that have no `@apihook` are not necessarily fatal. Speakeasy ships a signature database generated from Microsoft's [win32metadata](https://github.com/microsoft/win32metadata) (via the [win32json](https://github.com/marlersoft/win32json) export, vendored as the `deps/win32json` submodule). When an import misses every handler, `Win32Emulator.handle_import_func` looks the function up there and, if it is declared, emulates the call from its prototype: it reads the right number of argument slots, decodes `PSTR`/`PWSTR`/`BOOL` arguments for the trace, renders enum and flag parameters symbolically (`dwCreationDisposition: CREATE_ALWAYS`, `dwShareMode: FILE_SHARE_WRITE|FILE_SHARE_READ`), zero-fills `Out` buffers whose size the prototype declares, returns a type-appropriate success value, and cleans up the stack according to the calling convention. Such calls are logged with parameter names (`lpFileName: "C:\\x"`) so they are easy to tell apart from handled APIs in a report.
+Imports that have no `@apihook` are not necessarily fatal. Speakeasy ships a signature database generated from Microsoft's [win32metadata](https://github.com/microsoft/win32metadata) (via the [win32json](https://github.com/marlersoft/win32json) export, vendored as the `deps/win32json` submodule). When an import misses every handler, `Win32Emulator.handle_import_func` looks the function up there and, if it is declared, emulates the call from its prototype: it reads the right number of argument slots, decodes `PSTR`/`PWSTR`/`BOOL` arguments for the trace, renders enum and flag parameters symbolically (`dwCreationDisposition: CREATE_ALWAYS`, `dwShareMode: FILE_SHARE_WRITE|FILE_SHARE_READ`), expands pointers to known structs into a JSON-like rendering with typed fields (`lpSecurityAttributes: {nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}`, following nested pointers one level so `OBJECT_ATTRIBUTES.ObjectName` shows its string), zero-fills `Out` buffers whose size the prototype declares, returns a type-appropriate success value, and cleans up the stack according to the calling convention. Such calls are logged with parameter names (`lpFileName: "C:\\x"`) so they are easy to tell apart from handled APIs in a report.
 
 Hand-written handlers always take precedence, and are still required whenever a sample depends on the *behavior* of an API (output parameters, objects, files, network). The fallback only keeps emulation coherent and the trace informative.
 
@@ -47,6 +47,8 @@ Without it Speakeasy still works; it just logs a warning and falls back to the p
 win32metadata records neither calling conventions nor variadic parameters, so those are supplied by hand in `scripts/win32_overrides.json` (`cdecl_dlls`, `cdecl`, `variadic`, plus `dll_aliases`/`name_prefixes` for forwarders such as `psapi!EnumProcesses` -> `kernel32!K32EnumProcesses`). Edit that file and regenerate to correct a declaration; never patch the generated file.
 
 `tests/test_apihook_signatures.py` cross-checks every `@apihook`'s `argc` against the database, so a hook that disagrees with the documented prototype fails CI.
+
+The rendering logic lives in `speakeasy.winenv.api.sigfmt.ArgFormatter`; it caps nesting depth, array length and total output size so a trace line stays readable.
 
 Additional signature sources (for example undocumented `ntdll` natives) can be plugged in by implementing `speakeasy.winenv.api.sigdb.SignatureSource` and adding it to `emu.get_signature_db()`.
 

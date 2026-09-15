@@ -31,7 +31,7 @@ from speakeasy.windows.loaders import get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
-from speakeasy.winenv.api import sigdb
+from speakeasy.winenv.api import sigdb, sigfmt
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -118,6 +118,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_process: Any | None = None
         self.om: objman.ObjectManager | None = None
         self._sigdb: sigdb.SignatureDatabase | None = None
+        self._sigfmt: sigfmt.ArgFormatter | None = None
         self.import_table: dict[int, tuple[str, str]] = {}
         self._next_sentinel: int = winemu.IMPORT_HOOK_ADDR
         self.callbacks: list[tuple[int, str, str]] = []
@@ -1726,7 +1727,7 @@ class WindowsEmulator(BinaryEmulator):
         if isinstance(arg, int):
             return f"0x{arg:x}"
         elif isinstance(arg, str):
-            return '"{}"'.format(arg.replace("\n", "\\n"))
+            return sigfmt.quote_string(arg)
         elif isinstance(arg, bytes):
             return f'"{arg}"'  # type: ignore[str-bytes-safe]
         return ""
@@ -1785,44 +1786,29 @@ class WindowsEmulator(BinaryEmulator):
     def has_api_signature(self, dll, name) -> bool:
         return self.lookup_api_signature(dll, name) is not None
 
+    def get_signature_formatter(self) -> sigfmt.ArgFormatter:
+        """
+        Get the formatter that renders arguments of signature-emulated calls
+        (strings, enums, flags and struct contents) for the API trace
+        """
+        if self._sigfmt is None:
+            xmm = (_arch.X86_REG_XMM0, _arch.X86_REG_XMM1, _arch.X86_REG_XMM2, _arch.X86_REG_XMM3)
+            self._sigfmt = sigfmt.ArgFormatter(
+                self.get_signature_db(),
+                self.get_ptr_size(),
+                self.mem_read,
+                read_xmm=lambda index: self.reg_read(xmm[index]),
+            )
+        return self._sigfmt
+
     def _format_signature_arg(self, param: sigdb.ParamSig, value: int, index: int, ptr_size: int) -> str:
         """
         Render one argument of a signature-emulated call as human readable text
         """
-        kind = param.kind
-        if kind in sigdb.STRING_KINDS and param.is_in and value:
-            width = 1 if kind == "s" else 2
-            try:
-                string = self.read_mem_string(value, width=width, max_chars=0x1000)
-            except Exception:
-                return hex(value)
-            return self.format_api_arg(string)
-        if kind in sigdb.BOOL_KINDS:
-            if value == 0:
-                return "FALSE"
-            if value == 1:
-                return "TRUE"
-            return hex(value)
-        if kind in sigdb.FLOAT_KINDS:
-            return self._format_float_arg(kind, value, index, ptr_size)
-        if param.enum:
-            enum = self.get_signature_db().lookup_enum(param.enum)
-            if enum is not None:
-                return enum.decode(value)
-        return hex(value)
-
-    def _format_float_arg(self, kind: str, value: int, index: int, ptr_size: int) -> str:
-        import struct
-
         try:
-            if ptr_size == 8 and index < 4:
-                # Win64 passes the first four floating point arguments in XMM0-3
-                xmm = (_arch.X86_REG_XMM0, _arch.X86_REG_XMM1, _arch.X86_REG_XMM2, _arch.X86_REG_XMM3)[index]
-                value = self.reg_read(xmm)
-            if kind == "f32":
-                return repr(struct.unpack("<f", (value & 0xFFFFFFFF).to_bytes(4, "little"))[0])
-            return repr(struct.unpack("<d", (value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little"))[0])
+            return self.get_signature_formatter().format_param(param, value, index)
         except Exception:
+            logger.debug("failed to render %s (%s)", param.name, param.code, exc_info=True)
             return hex(value)
 
     # Upper bound on how much memory a single Out parameter is zero-filled with

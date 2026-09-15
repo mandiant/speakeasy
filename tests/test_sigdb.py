@@ -59,6 +59,15 @@ def test_param_slots(code, ptr_size, expected_slots):
     assert sigdb.ParamSig("x", code).slots(ptr_size) == expected_slots
 
 
+def test_inline_array_and_field_sizes():
+    assert sigdb.ParamSig("x", "arr:260:u16").size(4) == 520
+    assert sigdb.ParamSig("x", "arr:3:p").size(8) == 24
+    assert sigdb.ParamSig("x", "arr:2:st:FILETIME:8").size(4) == 16
+    field = sigdb.FieldDef("hStd", "h", 12, 24)
+    assert field.kind == "h" and field.offset(4) == 12 and field.offset(8) == 24
+    assert field.size(4) == 4 and field.size(8) == 8
+
+
 @pytest.mark.parametrize(
     "code,pointee,elem32,elem64",
     [
@@ -292,7 +301,11 @@ def small_db(tmp_path):
     enums = {
         "MOVE_FILE_FLAGS": {"f": True, "v": [["MOVEFILE_REPLACE_EXISTING", 1], ["MOVEFILE_COPY_ALLOWED", 2]]},
     }
-    structs = {"SYSTEM_INFO": {"s": [36, 48]}}
+    structs = {
+        "SYSTEM_INFO": {"s": [36, 48]},
+        "FILETIME": {"s": [8, 8], "f": [["dwLowDateTime", "u32", 0, 0], ["dwHighDateTime", "u32", 4, 4]]},
+        "U": {"s": [8, 8], "u": True, "f": [["q", "u64", 0, 0], ["ft", "st:FILETIME:8", 0, 0]]},
+    }
     path = _write_db(
         tmp_path / "sigs.json.gz",
         functions,
@@ -370,8 +383,15 @@ def test_source_enum_lookup(small_db):
 def test_source_struct_and_buffer_length(small_db):
     struct = small_db.lookup_struct("SYSTEM_INFO")
     assert struct is not None and struct.size(4) == 36 and struct.size(8) == 48
+    assert struct.fields == () and not struct.is_union
     assert small_db.lookup_struct("SYSTEM_INFO") is struct
     assert small_db.lookup_struct("NOPE") is None
+    ft = small_db.lookup_struct("FILETIME")
+    assert [(f.name, f.code, f.offset(4)) for f in ft.fields] == [
+        ("dwLowDateTime", "u32", 0),
+        ("dwHighDateTime", "u32", 4),
+    ]
+    assert small_db.lookup_struct("U").is_union
     sig = small_db.lookup("kernel32", "GetPrivateProfileStringW", "x86")
     assert sig.params[0].buffer_len == ("c", 1)
     assert sig.params[1].buffer_len is None
@@ -496,3 +516,17 @@ def test_bundled_database_structs_and_buffers():
     # every function is now laid out; nothing is skipped
     src = db.sources[0]
     assert not any(e.get("skip") for entries in src._functions.values() for e in entries)
+    # field layouts, including anonymous nested types and arrays
+    si = db.lookup_struct("STARTUPINFOW")
+    fields = {f.name: f for f in si.fields}
+    assert fields["lpTitle"].code == "S" and fields["lpTitle"].offset(8) == 24
+    assert fields["dwFlags"].code == "u32:STARTUPINFOW_FLAGS"
+    assert fields["hStdError"].offset(4) == 64 and fields["hStdError"].offset(8) == 96
+    overlapped = db.lookup_struct("OVERLAPPED")
+    assert overlapped.fields[2].code == "st:OVERLAPPED._Anonymous_e__Union:8"
+    assert db.lookup_struct("OVERLAPPED._Anonymous_e__Union").is_union
+    find_data = {f.name: f for f in db.lookup_struct("WIN32_FIND_DATAW").fields}
+    assert find_data["cFileName"].code == "arr:260:u16" and find_data["cFileName"].offset(4) == 44
+    assert db.lookup_struct("OBJECT_ATTRIBUTES").fields[2].code == "ps:UNICODE_STRING"
+    # enums referenced only from struct fields are in the table too
+    assert db.lookup_enum("STARTUPINFOW_FLAGS").decode(0x1) == "STARTF_USESHOWWINDOW"

@@ -126,12 +126,37 @@ class EnumDef:
 
 
 @dataclass(frozen=True)
+class FieldDef:
+    """One field of a struct: name, type code and byte offset per pointer size."""
+
+    name: str
+    code: str
+    offset32: int
+    offset64: int
+
+    def offset(self, ptr_size: int) -> int:
+        return self.offset64 if ptr_size == 8 else self.offset32
+
+    @property
+    def kind(self) -> str:
+        return self.code.split(":", 1)[0]
+
+    def size(self, ptr_size: int) -> int:
+        return ParamSig("", self.code).size(ptr_size)
+
+
+@dataclass(frozen=True)
 class StructDef:
-    """Layout summary of a struct or union."""
+    """
+    Layout of a struct or union. ``fields`` is empty when the generator could
+    not resolve every field; the size is still reliable then.
+    """
 
     name: str
     size32: int
     size64: int
+    fields: tuple[FieldDef, ...] = ()
+    is_union: bool = False
 
     def size(self, ptr_size: int) -> int:
         return self.size64 if ptr_size == 8 else self.size32
@@ -211,6 +236,10 @@ class ParamSig:
                 s32, s64 = size_spec.split("/", 1)
                 return int(s64 if ptr_size == 8 else s32)
             return int(size_spec or 0)
+        if kind == "arr":
+            # arr:COUNT:ELEMCODE (inline array in a struct)
+            count, elem = (self.qualifier or "0:u8").split(":", 1)
+            return int(count) * ParamSig("", elem).size(ptr_size)
         size = TYPE_SIZES.get(kind)
         if size is None:
             return ptr_size
@@ -487,7 +516,13 @@ class Win32MetadataSource(SignatureSource):
             if raw is None:
                 return None
             sizes = raw.get("s") or [0, 0]
-            struct = StructDef(name=name, size32=sizes[0], size64=sizes[-1])
+            struct = StructDef(
+                name=name,
+                size32=sizes[0],
+                size64=sizes[-1],
+                fields=tuple(FieldDef(f[0], f[1], f[2], f[3]) for f in raw.get("f", [])),
+                is_union=bool(raw.get("u")),
+            )
             self._struct_cache[name] = struct
         return struct
 

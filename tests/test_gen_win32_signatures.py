@@ -153,6 +153,15 @@ def mini_win32json(tmp_path):
             ),
             _struct("U", [("x", _native("UInt32")), ("ft", _ref("Foundation", "FILETIME"))], kind="Union"),
             _with_anonymous_union(),
+            _struct(
+                "POINTY",
+                [
+                    ("a", _native("Byte")),
+                    ("p", _ptr(_native("Void"))),
+                    ("b", _native("UInt16")),
+                    ("name", {"Kind": "Array", "Shape": {"Size": 3}, "Child": _native("Char")}),
+                ],
+            ),
             _enum("FLAGS", [("A", 1), ("B", 2)], flags=True),
             _enum("DISPOSITION", [("FIRST", 1), ("NEGATIVE", -1)], base="Int32"),
             _enum("UNREFERENCED", [("X", 1)]),
@@ -226,6 +235,7 @@ def mini_win32json(tmp_path):
                     ("q", _native("UInt64"), ["In"]),
                     ("anon", _ref("Foundation", "WITH_ANON"), ["In"]),
                     ("panon", _ptr(_ref("Foundation", "WITH_ANON")), ["Out"]),
+                    ("ppointy", _ptr(_ref("Foundation", "POINTY")), ["In"]),
                 ],
             ),
             _func(
@@ -299,9 +309,12 @@ def test_generate_resolves_types(gen, mini_win32json):
         ["wide", "a:u16", "o", {"c": 1}],
         ["fixed", "a:st:FILETIME:8", "o", {"k": 3}],
     ]
-    # structs some parameter points at are laid out for both pointer sizes
-    assert doc["structs"]["FILETIME"] == {"s": [8, 8]}
-    assert "MIXED" not in doc["structs"]  # only referenced by value
+    # structs some parameter points at are laid out for both pointer sizes, with field offsets
+    assert doc["structs"]["FILETIME"] == {
+        "s": [8, 8],
+        "f": [["dwLowDateTime", "u32", 0, 0], ["dwHighDateTime", "u32", 4, 4]],
+    }
+    assert "MIXED" not in doc["structs"]  # only referenced by value, never pointed at
 
 
 def test_generate_enum_table(gen, mini_win32json, tmp_path):
@@ -347,7 +360,23 @@ def test_generate_by_value_struct_sizes(gen, mini_win32json):
     # anonymous nested union: 4 (tag) + pad to 8 + 8 = 16
     assert codes["anon"] == "st:WITH_ANON:16"
     assert codes["panon"] == "ps:WITH_ANON"
-    assert doc["structs"]["WITH_ANON"] == {"s": [16, 16]}
+    structs = doc["structs"]
+    assert structs["WITH_ANON"] == {
+        "s": [16, 16],
+        "f": [["tag", "u32", 0, 0], ["u", "st:WITH_ANON._u_e__Union:8", 8, 8]],
+    }
+    # nested types are keyed by their path and emitted transitively
+    assert structs["WITH_ANON._u_e__Union"] == {
+        "s": [8, 8],
+        "u": True,
+        "f": [["q", "u64", 0, 0], ["s", "st:WITH_ANON._u_e__Union._s_e__Struct:8", 0, 0]],
+    }
+    assert structs["WITH_ANON._u_e__Union._s_e__Struct"]["f"] == [["lo", "u32", 0, 0], ["hi", "u32", 4, 4]]
+    # pointer-bearing struct: offsets differ per pointer size
+    assert structs["POINTY"] == {
+        "s": [16, 24],
+        "f": [["a", "u8", 0, 0], ["p", "p", 4, 8], ["b", "u16", 8, 16], ["name", "arr:3:u16", 10, 18]],
+    }
 
 
 def test_generate_applies_overrides(gen, mini_win32json):
