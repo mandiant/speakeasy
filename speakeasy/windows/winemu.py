@@ -1805,6 +1805,10 @@ class WindowsEmulator(BinaryEmulator):
             return hex(value)
         if kind in sigdb.FLOAT_KINDS:
             return self._format_float_arg(kind, value, index, ptr_size)
+        if param.enum:
+            enum = self.get_signature_db().lookup_enum(param.enum)
+            if enum is not None:
+                return enum.decode(value)
         return hex(value)
 
     def _format_float_arg(self, kind: str, value: int, index: int, ptr_size: int) -> str:

@@ -9,7 +9,9 @@
     "skip (never synthesize a handler for these), dll_aliases (import-time",
     "DLL name -> DllImport name used by win32metadata), name_prefixes",
     "(prefixes that may be prepended to an import name to find its metadata",
-    "entry, e.g. psapi's EnumProcesses is recorded as KERNEL32!K32EnumProcesses)."
+    "entry, e.g. psapi's EnumProcesses is recorded as KERNEL32!K32EnumProcesses).",
+    "enum_extra (enum name -> list of win32json constant names appended to",
+    "that enum's members, for values win32metadata does not attach to it)."
   ],
   "cdecl_dlls": [
     "icu",
@@ -69,7 +71,21 @@
     "security": "secur32"
   },
   "name_prefixes": {
-    "psapi": ["K32"],
-    "kernel32": ["K32"]
+    "psapi": [
+      "K32"
+    ],
+    "kernel32": [
+      "K32"
+    ]
+  },
+  "enum_extra": {
+    "FILE_ACCESS_FLAGS": [
+      "GENERIC_READ",
+      "GENERIC_WRITE",
+      "GENERIC_EXECUTE",
+      "GENERIC_ALL",
+      "MAXIMUM_ALLOWED",
+      "ACCESS_SYSTEM_SECURITY"
+    ]
   }
 }

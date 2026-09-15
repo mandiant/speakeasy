@@ -8,7 +8,7 @@ import pytest
 from speakeasy.winenv.api import sigdb
 
 
-def _write_db(path, functions, dll_aliases=None, name_prefixes=None, fmt=sigdb.SUPPORTED_FORMAT):
+def _write_db(path, functions, dll_aliases=None, name_prefixes=None, enums=None, fmt=sigdb.SUPPORTED_FORMAT):
     doc = {
         "format": fmt,
         "source": "test",
@@ -16,6 +16,7 @@ def _write_db(path, functions, dll_aliases=None, name_prefixes=None, fmt=sigdb.S
         "commit": None,
         "dll_aliases": dll_aliases or {},
         "name_prefixes": name_prefixes or {},
+        "enums": enums or {},
         "functions": functions,
     }
     with gzip.open(path, "wb") as f:
@@ -64,6 +65,54 @@ def test_param_kind_and_flags():
 
     # missing direction annotation is treated as input
     assert sigdb.ParamSig("x", "u32").is_in
+
+    # only integer kinds carry an enum qualifier
+    assert sigdb.ParamSig("dwShareMode", "u32:FILE_SHARE_MODE").enum == "FILE_SHARE_MODE"
+    assert sigdb.ParamSig("dwShareMode", "u32:FILE_SHARE_MODE").kind == "u32"
+    assert sigdb.ParamSig("x", "u32").enum is None
+    assert p.enum is None
+
+
+ACCESS = sigdb.EnumDef(
+    "ACCESS",
+    (
+        ("READ_DATA", 0x1),
+        ("LIST_DIRECTORY", 0x1),  # alias declared later loses
+        ("WRITE_DATA", 0x2),
+        ("READ_EA", 0x8),
+        ("READ_ATTRIBUTES", 0x80),
+        ("READ_CONTROL", 0x20000),
+        ("SYNCHRONIZE", 0x100000),
+        ("GENERIC_READ_LIKE", 0x120089),  # READ_DATA|READ_EA|READ_ATTRIBUTES|READ_CONTROL|SYNCHRONIZE
+        ("GENERIC_WRITE", 0x40000000),
+    ),
+    flags=True,
+)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (0x1, "READ_DATA"),
+        (0x120089, "GENERIC_READ_LIKE"),
+        (0x3, "WRITE_DATA|READ_DATA"),
+        (0x40000001, "GENERIC_WRITE|READ_DATA"),
+        (0x12008B, "GENERIC_READ_LIKE|WRITE_DATA"),
+        (0x1000, "0x1000"),
+        (0x1001, "READ_DATA|0x1000"),
+        (0x0, "0x0"),
+    ],
+)
+def test_enum_decode_flags(value, expected):
+    assert ACCESS.decode(value) == expected
+
+
+def test_enum_decode_plain():
+    disposition = sigdb.EnumDef("D", (("CREATE_NEW", 1), ("CREATE_ALWAYS", 2), ("NONE", 0)))
+    assert disposition.decode(2) == "CREATE_ALWAYS"
+    assert disposition.decode(0) == "NONE"
+    # a plain enum is never decomposed
+    assert disposition.decode(3) == "0x3"
 
 
 def test_values_from_slots_x86_joins_and_masks():
@@ -139,19 +188,30 @@ def small_db(tmp_path):
             {"dll": "odbc32", "ret": "i16", "params": [["BufferLength", "i32", "i"]], "arch": ["x86"]},
         ],
         "Broken": [{"dll": "foo", "ret": "p", "params": [], "skip": "param x: unknown type"}],
+        "MoveFileExW": [
+            {
+                "dll": "kernel32",
+                "ret": "b",
+                "params": [["lpExistingFileName", "S", "ic"], ["dwFlags", "u32:MOVE_FILE_FLAGS", "i"]],
+            }
+        ],
+    }
+    enums = {
+        "MOVE_FILE_FLAGS": {"f": True, "v": [["MOVEFILE_REPLACE_EXISTING", 1], ["MOVEFILE_COPY_ALLOWED", 2]]},
     }
     path = _write_db(
         tmp_path / "sigs.json.gz",
         functions,
         dll_aliases={"psapi": "kernel32"},
         name_prefixes={"kernel32": ["K32"]},
+        enums=enums,
     )
     return sigdb.Win32MetadataSource(path)
 
 
 def test_source_basic_lookup(small_db):
     assert small_db.available
-    assert len(small_db) == 5
+    assert len(small_db) == 6
     sig = small_db.lookup("KERNEL32.dll", "CreateFileW", "x86")
     assert sig is not None
     assert sig.dll == "kernel32"
@@ -202,6 +262,16 @@ def test_source_skip_marker_preserved(small_db):
     assert sig is not None and sig.skip
 
 
+def test_source_enum_lookup(small_db):
+    sig = small_db.lookup("kernel32", "MoveFileExW", "x86")
+    assert sig.params[1].enum == "MOVE_FILE_FLAGS"
+    enum = small_db.lookup_enum("MOVE_FILE_FLAGS")
+    assert enum is not None and enum.flags
+    assert enum.decode(3) == "MOVEFILE_COPY_ALLOWED|MOVEFILE_REPLACE_EXISTING"
+    assert small_db.lookup_enum("MOVE_FILE_FLAGS") is enum
+    assert small_db.lookup_enum("NOPE") is None
+
+
 def test_source_missing_file(tmp_path, caplog):
     src = sigdb.Win32MetadataSource(str(tmp_path / "nope.json.gz"))
     assert not src.available
@@ -244,6 +314,9 @@ def test_database_is_pluggable_and_ordered(small_db):
     db.add_source(_StaticSource({"LdrLoadDll": custom}))
     assert db.lookup("ntdll", "LdrLoadDll", "x86") is custom
     assert db.available
+    # enums are looked up across sources too; a source without enums answers None
+    assert db.lookup_enum("MOVE_FILE_FLAGS").name == "MOVE_FILE_FLAGS"
+    assert sigdb.SignatureDatabase([]).lookup_enum("MOVE_FILE_FLAGS") is None
 
 
 def test_database_empty():
@@ -285,3 +358,17 @@ def test_bundled_database_known_signatures():
     assert db.lookup("winhvplatform", "WHvMapGpaRange", "x86").slot_count(4) == 7
     # undocumented natives are not covered by win32metadata
     assert db.lookup("ntdll", "LdrLoadDll", "x86") is None
+
+
+def test_bundled_database_enums():
+    db = _bundled()
+    create_file = db.lookup("kernel32", "CreateFileW", "x86")
+    assert create_file.params[1].enum == "FILE_ACCESS_FLAGS"
+    assert create_file.params[4].enum == "FILE_CREATION_DISPOSITION"
+    assert db.lookup_enum("FILE_CREATION_DISPOSITION").decode(2) == "CREATE_ALWAYS"
+    assert db.lookup_enum("FILE_SHARE_MODE").decode(0) == "FILE_SHARE_NONE"
+    assert db.lookup_enum("FILE_SHARE_MODE").decode(3) == "FILE_SHARE_WRITE|FILE_SHARE_READ"
+    # GENERIC_* come from enum_extra in the overrides
+    assert db.lookup_enum("FILE_ACCESS_FLAGS").decode(0xC0000000) == "GENERIC_READ|GENERIC_WRITE"
+    assert db.lookup_enum("PAGE_PROTECTION_FLAGS").decode(0x40) == "PAGE_EXECUTE_READWRITE"
+    assert db.lookup_enum("VIRTUAL_ALLOCATION_TYPE").decode(0x3000) == "MEM_RESERVE|MEM_COMMIT"

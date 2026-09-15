@@ -17,15 +17,22 @@ Usage::
     python scripts/gen_win32_signatures.py [--win32json DIR] [--overrides FILE]
                                            [--output FILE] [--stats]
 
-Output format (``format`` = 1)::
+Output format (``format`` = 2)::
 
     {
-      "format": 1,
+      "format": 2,
       "source": "win32json",
       "version": "<deps/win32json/version.txt>",
       "commit": "<submodule commit, when available>",
       "dll_aliases": {"psapi": "kernel32", ...},
       "name_prefixes": {"kernel32": ["K32"], ...},
+      "enums": {
+        "<NAME>": {
+          "f": true,                       # only for [Flags] enums
+          "v": [["<member>", <value>], ...]  # values masked to the enum's size
+        },
+        ...
+      },
       "functions": {
         "<Name>": [
           {
@@ -47,6 +54,7 @@ Type codes (``kind`` or ``kind:qualifier``):
 
     v                 void (return only)
     i8 u8 i16 u16 i32 u32 i64 u64   sized integers
+    u32:NAME          (any integer kind) value drawn from enum NAME in ``enums``
     f32 f64           floating point
     p                 pointer-sized opaque value (IntPtr, void*, COM, callbacks, T**)
     ps:NAME           pointer to struct/union NAME
@@ -78,7 +86,7 @@ DEFAULT_WIN32JSON = os.path.join(REPO_ROOT, "deps", "win32json")
 DEFAULT_OVERRIDES = os.path.join(REPO_ROOT, "scripts", "win32_overrides.json")
 DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "speakeasy", "resources", "win32", "signatures.json.gz")
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 # win32metadata "Native" type names -> (type code, size in bytes). A size of
 # None means pointer-sized.
@@ -132,6 +140,8 @@ class TypeResolver:
         # namespaces: api namespace -> type name -> type definition
         self.namespaces = namespaces
         self._layout_cache: dict[tuple, tuple[int, int]] = {}
+        # enum name -> definition, for every enum referenced by a resolved type
+        self.used_enums: dict[str, dict] = {}
 
     def lookup(self, api: str, name: str) -> dict | None:
         return self.namespaces.get(api, {}).get(name)
@@ -257,8 +267,7 @@ class TypeResolver:
                     return "h"
                 return base
             if td["Kind"] == "Enum":
-                code, _ = NATIVE_TYPES[td["IntegerBase"]]
-                return code
+                return self._enum_code(td)
             if td["Kind"] in ("Struct", "Union"):
                 size32 = self.struct_size(t["Api"], t["Name"], 4)
                 size64 = self.struct_size(t["Api"], t["Name"], 8)
@@ -269,6 +278,14 @@ class TypeResolver:
             if td["Kind"] in ("Com", "FunctionPointer", "ComClassID"):
                 return "p"
         raise UnsupportedType(f"type kind {kind}")
+
+    def _enum_code(self, td: dict) -> str:
+        base = td.get("IntegerBase") or "Int32"
+        code, _ = NATIVE_TYPES[base]
+        if not td["Values"]:
+            return code
+        self.used_enums.setdefault(td["Name"], td)
+        return f"{code}:{td['Name']}"
 
 
 def _align_up(value: int, align: int) -> int:
@@ -294,7 +311,8 @@ def normalize_dll(dll: str) -> str:
     return dll
 
 
-def load_win32json(root: str) -> tuple[dict[str, dict[str, dict]], list[dict]]:
+def load_win32json(root: str) -> tuple[dict[str, dict[str, dict]], list[dict], dict[str, int]]:
+    """Return (namespaces, functions, integer constants) from a win32json checkout."""
     api_dir = os.path.join(root, "api")
     files = sorted(glob.glob(os.path.join(api_dir, "*.json")))
     if not files:
@@ -303,6 +321,7 @@ def load_win32json(root: str) -> tuple[dict[str, dict[str, dict]], list[dict]]:
         )
     namespaces: dict[str, dict[str, dict]] = {}
     functions: list[dict] = []
+    constants: dict[str, int] = {}
     for path in files:
         ns = os.path.basename(path)[: -len(".json")]
         with open(path, encoding="utf-8") as f:
@@ -311,7 +330,10 @@ def load_win32json(root: str) -> tuple[dict[str, dict[str, dict]], list[dict]]:
         for fn in doc.get("Functions", []):
             fn["_namespace"] = ns
             functions.append(fn)
-    return namespaces, functions
+        for const in doc.get("Constants", []):
+            if isinstance(const.get("Value"), int) and not isinstance(const["Value"], bool):
+                constants.setdefault(const["Name"], const["Value"])
+    return namespaces, functions, constants
 
 
 def load_overrides(path: str) -> dict:
@@ -321,6 +343,7 @@ def load_overrides(path: str) -> dict:
         doc[key] = set(doc.get(key, []))
     doc.setdefault("dll_aliases", {})
     doc.setdefault("name_prefixes", {})
+    doc.setdefault("enum_extra", {})
     return doc
 
 
@@ -364,8 +387,35 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
     return entry
 
 
+def build_enum_table(resolver: TypeResolver, constants: dict[str, int], overrides: dict) -> dict[str, dict]:
+    """
+    Flatten every enum some resolved type referenced. Values are masked to the
+    enum's integer size so negative members compare equal to the unsigned
+    argument slots the emulator reads. ``overrides["enum_extra"]`` appends
+    named constants that win32metadata keeps outside the enum (e.g.
+    ``GENERIC_READ`` for ``FILE_ACCESS_FLAGS``).
+    """
+    enums: dict[str, dict] = {}
+    for name, td in sorted(resolver.used_enums.items()):
+        _, size = NATIVE_TYPES[td.get("IntegerBase") or "Int32"]
+        mask = (1 << (size * 8)) - 1
+        values = [[v["Name"], v["Value"] & mask] for v in td["Values"]]
+        seen = {v[0] for v in values}
+        for extra in overrides["enum_extra"].get(name, ()):
+            if extra in seen:
+                continue
+            if extra not in constants:
+                raise SystemExit(f"enum_extra: constant {extra!r} for enum {name} not found in win32json")
+            values.append([extra, constants[extra] & mask])
+        entry: dict = {"v": values}
+        if td.get("Flags"):
+            entry["f"] = True
+        enums[name] = entry
+    return enums
+
+
 def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collections.Counter]:
-    namespaces, functions = load_win32json(win32json_root)
+    namespaces, functions, constants = load_win32json(win32json_root)
     overrides = load_overrides(overrides_path)
     resolver = TypeResolver(namespaces)
 
@@ -386,6 +436,11 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
             stats["variadic"] += 1
         for _, code, _ in entry["params"]:
             stats[f"param:{code.split(':', 1)[0]}"] += 1
+            if code.split(":", 1)[0] in ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64") and ":" in code:
+                stats["param:enum"] += 1
+
+    enums = build_enum_table(resolver, constants, overrides)
+    stats["enums"] = len(enums)
 
     version = "unknown"
     version_path = os.path.join(win32json_root, "version.txt")
@@ -409,6 +464,7 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
         "generated_by": "scripts/gen_win32_signatures.py",
         "dll_aliases": {normalize_dll(k): normalize_dll(v) for k, v in overrides["dll_aliases"].items()},
         "name_prefixes": {normalize_dll(k): v for k, v in overrides["name_prefixes"].items()},
+        "enums": enums,
         "functions": dict(sorted(table.items())),
     }
     return doc, stats
@@ -436,7 +492,7 @@ def main(argv: list[str] | None = None) -> int:
     raw_size = write_output(doc, args.output)
     print(
         f"wrote {args.output}: {stats['functions']} functions "
-        f"({stats['supported']} supported, {stats['skipped']} skipped), "
+        f"({stats['supported']} supported, {stats['skipped']} skipped), {stats['enums']} enums, "
         f"{raw_size} bytes raw, {os.path.getsize(args.output)} bytes gzipped, "
         f"win32json {doc['version']}"
     )

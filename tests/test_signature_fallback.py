@@ -144,7 +144,7 @@ def test_unhooked_import_is_emulated_from_signature(config, arch):
     assert move.args == [
         f'lpExistingFileName: "{OLD_NAME}"',
         f'lpNewFileName: "{NEW_NAME}"',
-        f"dwFlags: {MOVEFILE_REPLACE_EXISTING:#x}",
+        "dwFlags: MOVEFILE_REPLACE_EXISTING",
     ]
     # BOOL return: fake success
     assert move.ret_val == "0x1"

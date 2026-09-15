@@ -61,6 +61,19 @@ def _struct(name, fields, kind="Struct", packing=0):
     }
 
 
+def _enum(name, values, flags=False, base="UInt32"):
+    return {
+        "Name": name,
+        "Architectures": [],
+        "Platform": None,
+        "Kind": "Enum",
+        "Flags": flags,
+        "Scoped": False,
+        "IntegerBase": base,
+        "Values": [{"Name": n, "Value": v} for n, v in values],
+    }
+
+
 def _func(name, dll, ret, params, **extra):
     fn = {
         "Name": name,
@@ -118,18 +131,15 @@ def mini_win32json(tmp_path):
                 ],
             ),
             _struct("U", [("x", _native("UInt32")), ("ft", _ref("Foundation", "FILETIME"))], kind="Union"),
-            {
-                "Name": "FLAGS",
-                "Architectures": [],
-                "Platform": None,
-                "Kind": "Enum",
-                "Flags": True,
-                "Scoped": False,
-                "IntegerBase": "UInt32",
-                "Values": [{"Name": "A", "Value": 1}],
-            },
+            _enum("FLAGS", [("A", 1), ("B", 2)], flags=True),
+            _enum("DISPOSITION", [("FIRST", 1), ("NEGATIVE", -1)], base="Int32"),
+            _enum("UNREFERENCED", [("X", 1)]),
         ],
     }
+    foundation["Constants"] = [
+        {"Name": "EXTRA", "Type": _native("UInt32"), "Value": 16, "ValueType": "Int", "Attrs": []},
+        {"Name": "NOT_AN_INT", "Type": _ref("Foundation", "PWSTR"), "Value": "x", "ValueType": "String", "Attrs": []},
+    ]
     test_ns = {
         "Constants": [],
         "UnicodeAliases": [],
@@ -144,6 +154,7 @@ def mini_win32json(tmp_path):
                     ("dwDesiredAccess", _native("UInt32"), ["In"]),
                     ("lpSecurityAttributes", _ptr(_ref("Foundation", "FILETIME")), ["In", "Optional"]),
                     ("dwFlags", _ref("Foundation", "FLAGS"), ["In"]),
+                    ("disposition", _ref("Foundation", "DISPOSITION"), ["In"]),
                     ("hTemplateFile", _ref("Foundation", "HANDLE"), ["In", "Optional"]),
                     ("hwnd", _ref("Foundation", "HWND"), ["In"]),
                     ("lParam", _ref("Foundation", "LPARAM"), ["In"]),
@@ -226,7 +237,8 @@ def test_generate_resolves_types(gen, mini_win32json):
         ["lpFileName", "S", "ic"],
         ["dwDesiredAccess", "u32", "i"],
         ["lpSecurityAttributes", "ps:FILETIME", "i?"],
-        ["dwFlags", "u32", "i"],
+        ["dwFlags", "u32:FLAGS", "i"],
+        ["disposition", "i32:DISPOSITION", "i"],
         ["hTemplateFile", "h", "i?"],
         ["hwnd", "h", "i"],
         ["lParam", "p", "i"],
@@ -238,6 +250,28 @@ def test_generate_resolves_types(gen, mini_win32json):
         ["buffer", "p", "o"],
         ["name", "s", "o"],
     ]
+
+
+def test_generate_enum_table(gen, mini_win32json, tmp_path):
+    doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
+    # only enums some function references are carried; negative members are masked
+    assert set(doc["enums"]) == {"FLAGS", "DISPOSITION"}
+    assert doc["enums"]["FLAGS"] == {"v": [["A", 1], ["B", 2]], "f": True}
+    assert doc["enums"]["DISPOSITION"] == {"v": [["FIRST", 1], ["NEGATIVE", 0xFFFFFFFF]]}
+    assert stats["enums"] == 2
+
+    # enum_extra appends named constants to an enum
+    overrides = json.loads(OVERRIDES.read_text())
+    overrides["enum_extra"] = {"FLAGS": ["EXTRA", "A"], "UNREFERENCED": ["EXTRA"]}
+    path = tmp_path / "overrides.json"
+    path.write_text(json.dumps(overrides))
+    doc, _ = gen.generate(str(mini_win32json), str(path))
+    assert doc["enums"]["FLAGS"]["v"] == [["A", 1], ["B", 2], ["EXTRA", 16]]
+
+    overrides["enum_extra"] = {"FLAGS": ["NOT_AN_INT"]}
+    path.write_text(json.dumps(overrides))
+    with pytest.raises(SystemExit, match="NOT_AN_INT"):
+        gen.generate(str(mini_win32json), str(path))
 
 
 def test_generate_by_value_struct_sizes(gen, mini_win32json):
@@ -307,3 +341,4 @@ def test_overrides_file_is_well_formed(gen):
     assert overrides["dll_aliases"]["psapi"] == "kernel32"
     for key in ("cdecl_dlls", "cdecl", "variadic", "skip"):
         assert all(isinstance(v, str) for v in overrides[key])
+    assert "GENERIC_READ" in overrides["enum_extra"]["FILE_ACCESS_FLAGS"]

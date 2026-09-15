@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_FORMAT = 1
+SUPPORTED_FORMAT = 2
 
 DEFAULT_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -70,6 +70,7 @@ STRING_KINDS = ("s", "S")
 BOOL_KINDS = ("b", "B")
 FLOAT_KINDS = ("f32", "f64")
 AGGREGATE_KINDS = ("st", "g")
+INT_KINDS = ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64")
 
 
 def normalize_dll(name: str) -> str:
@@ -79,6 +80,46 @@ def normalize_dll(name: str) -> str:
         if name.endswith(ext):
             return name[: -len(ext)]
     return name
+
+
+@dataclass(frozen=True)
+class EnumDef:
+    """A named set of integer constants, optionally combinable as flags."""
+
+    name: str
+    values: tuple[tuple[str, int], ...]
+    flags: bool = False
+
+    def decode(self, value: int) -> str:
+        """
+        Render ``value`` symbolically: the member name for an exact match, a
+        ``|``-joined list of members for a flags enum, or hex when unknown.
+        Any bits no member accounts for are appended as hex.
+        """
+        for name, member in self.values:
+            if member == value:
+                return name
+        if not self.flags or value == 0:
+            return hex(value)
+        # Greedy decomposition, widest members first, so composite names
+        # (FILE_GENERIC_READ) take precedence over their constituent bits.
+        remaining = value
+        parts = []
+        for name, member in self._flags_by_width():
+            if member and remaining & member == member:
+                parts.append(name)
+                remaining &= ~member
+                if not remaining:
+                    break
+        if remaining or not parts:
+            parts.append(hex(remaining))
+        return "|".join(parts)
+
+    def _flags_by_width(self) -> list[tuple[str, int]]:
+        # High bits first among equally wide members; the stable sort keeps
+        # declaration order for aliases of the same value, so the primary
+        # name wins.
+        return sorted(self.values, key=lambda nv: (-bin(nv[1]).count("1"), -nv[1]))
 
 
 @dataclass(frozen=True)
@@ -97,6 +138,13 @@ class ParamSig:
     def qualifier(self) -> str | None:
         parts = self.code.split(":", 1)
         return parts[1] if len(parts) > 1 else None
+
+    @property
+    def enum(self) -> str | None:
+        """Name of the enum an integer parameter draws its value from, if any."""
+        if self.kind in INT_KINDS:
+            return self.qualifier
+        return None
 
     @property
     def is_in(self) -> bool:
@@ -211,6 +259,10 @@ class SignatureSource(ABC):
     def lookup(self, dll: str, func: str, arch: str) -> FuncSig | None:
         """Return the signature for ``dll!func`` on ``arch`` ("x86" or "x64"), if known."""
 
+    def lookup_enum(self, name: str) -> EnumDef | None:
+        """Return the enum definition a type code qualifier refers to, if this source has it."""
+        return None
+
 
 class Win32MetadataSource(SignatureSource):
     """
@@ -231,9 +283,11 @@ class Win32MetadataSource(SignatureSource):
         self._lock = threading.Lock()
         self._loaded = False
         self._functions: dict[str, list[dict]] = {}
+        self._enums: dict[str, dict] = {}
         self._dll_aliases: dict[str, str] = {}
         self._name_prefixes: dict[str, list[str]] = {}
         self._sig_cache: dict[tuple[str, int], FuncSig] = {}
+        self._enum_cache: dict[str, EnumDef] = {}
         self.version: str | None = None
         self.commit: str | None = None
 
@@ -268,6 +322,7 @@ class Win32MetadataSource(SignatureSource):
                 )
                 return
             self._functions = doc.get("functions", {})
+            self._enums = doc.get("enums", {})
             self._dll_aliases = doc.get("dll_aliases", {})
             self._name_prefixes = doc.get("name_prefixes", {})
             self.version = doc.get("version")
@@ -317,6 +372,17 @@ class Win32MetadataSource(SignatureSource):
             logger.debug("signature for %s.%s taken from %s (name-only match)", dll, func, entry["dll"])
         return self._to_sig(name, idx, entry)
 
+    def lookup_enum(self, name: str) -> EnumDef | None:
+        self._load()
+        enum = self._enum_cache.get(name)
+        if enum is None:
+            raw = self._enums.get(name)
+            if raw is None:
+                return None
+            enum = EnumDef(name=name, values=tuple((v[0], v[1]) for v in raw.get("v", [])), flags=bool(raw.get("f")))
+            self._enum_cache[name] = enum
+        return enum
+
     def _to_sig(self, name: str, idx: int, entry: dict) -> FuncSig:
         key = (name, idx)
         sig = self._sig_cache.get(key)
@@ -358,6 +424,13 @@ class SignatureDatabase:
             sig = source.lookup(dll, func, arch)
             if sig is not None:
                 return sig
+        return None
+
+    def lookup_enum(self, name: str) -> EnumDef | None:
+        for source in self.sources:
+            enum = source.lookup_enum(name)
+            if enum is not None:
+                return enum
         return None
 
 
