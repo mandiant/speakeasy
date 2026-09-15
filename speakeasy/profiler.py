@@ -224,9 +224,21 @@ class Profiler:
             entry = {"path": f.path, "size": len(data), "sha256": _hash, "data_ref": data_ref}
             run.dropped_files.append(entry)
 
-    def record_api_event(self, run, pos: TracePosition, name, ret, argv):
+    def record_api_event(
+        self,
+        run: Run,
+        pos: TracePosition,
+        name: str,
+        ret: int | None,
+        argv: list[Any],
+        display: list[str] | None = None,
+    ) -> None:
         """
-        Log a call to an OS API. This includes arguments, return address, and return value
+        Log a call to an OS API. This includes arguments, return address, and return value.
+
+        ``display``, when given, is a pre-rendered human readable representation of
+        each argument (e.g. ``"lpFileName: \\"C:\\\\x\\""``) that is recorded verbatim in
+        place of the raw ``argv`` formatting.
         """
         run.num_apis += 1
 
@@ -236,10 +248,13 @@ class Profiler:
 
         ret_str = hex(ret) if ret is not None else None
 
-        args = argv.copy()
-        for i, arg in enumerate(args):
-            if isinstance(arg, int):
-                args[i] = hex(arg)
+        if display is not None:
+            args = list(display)
+        else:
+            args = argv.copy()
+            for i, arg in enumerate(args):
+                if isinstance(arg, int):
+                    args[i] = hex(arg)
 
         event = ApiEvent(
             pos=pos,

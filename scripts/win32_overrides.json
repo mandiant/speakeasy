@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "Hand-maintained corrections layered over win32json when generating",
+    "speakeasy/resources/win32/signatures.json.gz. win32metadata records no",
+    "calling convention and no varargs marker, so both are supplied here.",
+    "Keys: cdecl_dlls (entire DLLs whose exports are __cdecl), cdecl",
+    "(individual __cdecl functions), variadic (functions taking '...'; these",
+    "are implicitly __cdecl and only their fixed parameters are decoded),",
+    "skip (never synthesize a handler for these), dll_aliases (import-time",
+    "DLL name -> DllImport name used by win32metadata), name_prefixes",
+    "(prefixes that may be prepended to an import name to find its metadata",
+    "entry, e.g. psapi's EnumProcesses is recorded as KERNEL32!K32EnumProcesses).",
+    "enum_extra (enum name -> list of win32json constant names appended to",
+    "that enum's members, for values win32metadata does not attach to it)."
+  ],
+  "cdecl_dlls": [
+    "icu",
+    "wldap32",
+    "cabinet"
+  ],
+  "cdecl": [
+    "MI_Application_InitializeV1",
+    "ber_printf",
+    "ber_scanf"
+  ],
+  "variadic": [
+    "wsprintfA",
+    "wsprintfW",
+    "wnsprintfA",
+    "wnsprintfW",
+    "ShellMessageBoxA",
+    "ShellMessageBoxW",
+    "TraceMessage",
+    "TracePrintfA",
+    "TracePrintfW",
+    "TracePrintfExA",
+    "TracePrintfExW",
+    "ber_printf",
+    "ber_scanf",
+    "u_formatMessage",
+    "u_formatMessageWithError",
+    "u_snprintf",
+    "u_snprintf_u",
+    "u_sprintf",
+    "u_sprintf_u",
+    "u_fprintf",
+    "u_fprintf_u",
+    "u_sscanf",
+    "u_sscanf_u",
+    "u_snscanf",
+    "u_snscanf_u",
+    "u_fscanf",
+    "u_fscanf_u",
+    "alljoyn_msgarg_set",
+    "alljoyn_msgarg_get",
+    "alljoyn_msgarg_array_set",
+    "alljoyn_msgarg_array_get",
+    "alljoyn_msgarg_set_and_stabilize",
+    "alljoyn_msgarg_array_set_offset",
+    "alljoyn_message_parseargs"
+  ],
+  "skip": [],
+  "dll_aliases": {
+    "psapi": "kernel32",
+    "kernelbase": "kernel32",
+    "winsock": "ws2_32",
+    "wsock32": "ws2_32",
+    "ntdllk": "ntdll",
+    "shcore": "shell32",
+    "sspicli": "secur32",
+    "security": "secur32"
+  },
+  "name_prefixes": {
+    "psapi": [
+      "K32"
+    ],
+    "kernel32": [
+      "K32"
+    ]
+  },
+  "enum_extra": {
+    "FILE_ACCESS_FLAGS": [
+      "GENERIC_READ",
+      "GENERIC_WRITE",
+      "GENERIC_EXECUTE",
+      "GENERIC_ALL",
+      "MAXIMUM_ALLOWED",
+      "ACCESS_SYSTEM_SECURITY"
+    ]
+  }
+}

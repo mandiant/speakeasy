@@ -2012,7 +2012,7 @@ class Kernel32(api.ApiHandler):
                     entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
                     if entry:
                         rv = emu.get_proc(mname, proc)
-                    elif emu.config.modules.functions_always_exist:
+                    elif emu.config.modules.functions_always_exist or emu.has_api_signature(mname, proc):
                         rv = emu.get_proc(mname, proc)
                     break
 
@@ -3984,7 +3984,7 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
-    @apihook("SetFilePointerEx", argc=4)
+    @apihook("SetFilePointerEx", argc=5)
     def SetFilePointerEx(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL SetFilePointerEx(
@@ -3993,13 +3993,24 @@ class Kernel32(api.ApiHandler):
         [out, optional] PLARGE_INTEGER lpNewFilePointer,
         [in]            DWORD          dwMoveMethod
         );
+
+        liDistanceToMove is passed by value: two stack slots on x86, one
+        register on x64. argc=5 covers the x86 layout; on x64 the fifth slot
+        is unused (the caller owns the stack there, so nothing is over-cleaned).
         """
-        hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv
+        if emu.get_ptr_size() == 4:
+            hFile, lo, hi, lpNewFilePointer, dwMoveMethod = argv
+            lDistanceToMove = (hi << 32) | lo
+        else:
+            hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv[:4]
+        if lDistanceToMove >= 1 << 63:
+            lDistanceToMove -= 1 << 64
         f = self.file_get(hFile)
         if f:
             f.seek(lDistanceToMove, dwMoveMethod)
             rv = f.tell()
-            self.mem_write(lpNewFilePointer, rv.to_bytes(8, "little"))
+            if lpNewFilePointer:
+                self.mem_write(lpNewFilePointer, rv.to_bytes(8, "little"))
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return True
         return False
@@ -5811,7 +5822,7 @@ class Kernel32(api.ApiHandler):
         emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
         return nAtom
 
-    @apihook("GetProcessHandleCount", argc=1)
+    @apihook("GetProcessHandleCount", argc=2)
     def GetProcessHandleCount(self, emu, argv, ctx: api.ApiContext = None):
         """
         BOOL GetProcessHandleCount(
