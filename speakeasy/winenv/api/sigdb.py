@@ -44,6 +44,8 @@ ARCH_X64 = "x64"
 
 # Byte size of each type code kind; None means pointer-sized. Kinds that carry
 # a qualifier (``ps:NAME``, ``st:NAME:SIZE``) are handled in ParamSig.size().
+# Pointer kinds may qualify their target: ``p:u32`` (DWORD*), ``a:u16``
+# (WCHAR buffer), ``ps:NAME`` (struct pointer).
 TYPE_SIZES: dict[str, int | None] = {
     "v": 0,
     "i8": 1,
@@ -61,6 +63,7 @@ TYPE_SIZES: dict[str, int | None] = {
     "g": 16,
     "p": None,
     "ps": None,
+    "a": None,
     "s": None,
     "S": None,
     "h": None,
@@ -123,12 +126,32 @@ class EnumDef:
 
 
 @dataclass(frozen=True)
+class StructDef:
+    """Layout summary of a struct or union."""
+
+    name: str
+    size32: int
+    size64: int
+
+    def size(self, ptr_size: int) -> int:
+        return self.size64 if ptr_size == 8 else self.size32
+
+
+@dataclass(frozen=True)
 class ParamSig:
-    """One parameter of an API signature."""
+    """
+    One parameter of an API signature.
+
+    ``buffer_len`` describes how long the buffer a pointer parameter refers to
+    is, when the declaration says: ``("n", i)`` parameter *i* holds the byte
+    count, ``("c", i)`` parameter *i* holds the element count, ``("k", n)``
+    a fixed count of *n* elements.
+    """
 
     name: str
     code: str
     flags: str = ""
+    buffer_len: tuple[str, int] | None = None
 
     @property
     def kind(self) -> str:
@@ -145,6 +168,25 @@ class ParamSig:
         if self.kind in INT_KINDS:
             return self.qualifier
         return None
+
+    @property
+    def pointee(self) -> str | None:
+        """Type code of what a pointer/buffer parameter points at, if known."""
+        kind = self.kind
+        if kind in ("p", "a"):
+            return self.qualifier
+        if kind == "s":
+            return "u8"
+        if kind == "S":
+            return "u16"
+        return None
+
+    def elem_size(self, ptr_size: int) -> int | None:
+        """Size in bytes of one pointed-at element, or None when opaque (void*)."""
+        pointee = self.pointee
+        if pointee is None:
+            return None
+        return ParamSig("", pointee).size(ptr_size)
 
     @property
     def is_in(self) -> bool:
@@ -245,6 +287,53 @@ class FuncSig:
         return values
 
 
+def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, read_uint) -> int | None:
+    """
+    Value of the count/size parameter ``index`` of a call with argument
+    ``values``. Counts passed by pointer (``PDWORD pcbSize``) are read through
+    ``read_uint(addr, size) -> int | None``; unknown shapes give None.
+    """
+    param = sig.params[index]
+    value = values[index]
+    kind = param.kind
+    if kind in INT_KINDS or (kind == "p" and param.qualifier is None):
+        return value
+    if kind == "p" and param.qualifier is not None:
+        # count lives behind a pointer; only meaningful if it is an input
+        if not value or not param.is_in:
+            return None
+        size = param.elem_size(ptr_size) or ptr_size
+        return read_uint(value, size)
+    return None
+
+
+def out_buffer_size(sig: FuncSig, index: int, values: list[int], ptr_size: int, lookup_struct, read_uint) -> int | None:
+    """
+    How many bytes an ``Out`` pointer parameter is declared to receive, or None
+    when the signature does not say (``void*`` with no size, arrays with no
+    count). Strings without a declared size count only their terminator.
+    """
+    param = sig.params[index]
+    if param.buffer_len is not None:
+        how, n = param.buffer_len
+        count = n if how == "k" else buffer_count(sig, n, values, ptr_size, read_uint)
+        if count is None:
+            return None
+        if how == "n":
+            return count
+        elem = param.elem_size(ptr_size)
+        return None if elem is None else count * elem
+    kind = param.kind
+    if kind in STRING_KINDS:
+        return 1 if kind == "s" else 2
+    if kind == "ps":
+        struct = lookup_struct(param.qualifier) if param.qualifier else None
+        return struct.size(ptr_size) if struct is not None else None
+    if kind == "p":
+        return param.elem_size(ptr_size)
+    return None
+
+
 class SignatureSource(ABC):
     """A provider of API signatures."""
 
@@ -261,6 +350,10 @@ class SignatureSource(ABC):
 
     def lookup_enum(self, name: str) -> EnumDef | None:
         """Return the enum definition a type code qualifier refers to, if this source has it."""
+        return None
+
+    def lookup_struct(self, name: str) -> StructDef | None:
+        """Return the layout of struct ``name`` (the qualifier of a ``ps:`` code), if known."""
         return None
 
 
@@ -284,10 +377,12 @@ class Win32MetadataSource(SignatureSource):
         self._loaded = False
         self._functions: dict[str, list[dict]] = {}
         self._enums: dict[str, dict] = {}
+        self._structs: dict[str, dict] = {}
         self._dll_aliases: dict[str, str] = {}
         self._name_prefixes: dict[str, list[str]] = {}
         self._sig_cache: dict[tuple[str, int], FuncSig] = {}
         self._enum_cache: dict[str, EnumDef] = {}
+        self._struct_cache: dict[str, StructDef] = {}
         self.version: str | None = None
         self.commit: str | None = None
 
@@ -323,6 +418,7 @@ class Win32MetadataSource(SignatureSource):
                 return
             self._functions = doc.get("functions", {})
             self._enums = doc.get("enums", {})
+            self._structs = doc.get("structs", {})
             self._dll_aliases = doc.get("dll_aliases", {})
             self._name_prefixes = doc.get("name_prefixes", {})
             self.version = doc.get("version")
@@ -383,6 +479,18 @@ class Win32MetadataSource(SignatureSource):
             self._enum_cache[name] = enum
         return enum
 
+    def lookup_struct(self, name: str) -> StructDef | None:
+        self._load()
+        struct = self._struct_cache.get(name)
+        if struct is None:
+            raw = self._structs.get(name)
+            if raw is None:
+                return None
+            sizes = raw.get("s") or [0, 0]
+            struct = StructDef(name=name, size32=sizes[0], size64=sizes[-1])
+            self._struct_cache[name] = struct
+        return struct
+
     def _to_sig(self, name: str, idx: int, entry: dict) -> FuncSig:
         key = (name, idx)
         sig = self._sig_cache.get(key)
@@ -391,7 +499,7 @@ class Win32MetadataSource(SignatureSource):
                 name=name,
                 dll=entry["dll"],
                 ret=entry.get("ret", "p"),
-                params=tuple(ParamSig(p[0], p[1], p[2] if len(p) > 2 else "") for p in entry.get("params", [])),
+                params=tuple(_to_param(p) for p in entry.get("params", [])),
                 conv=entry.get("conv", CONV_STDCALL),
                 variadic=bool(entry.get("variadic")),
                 arch=tuple(entry["arch"]) if entry.get("arch") else None,
@@ -401,6 +509,14 @@ class Win32MetadataSource(SignatureSource):
             )
             self._sig_cache[key] = sig
         return sig
+
+
+def _to_param(raw: list) -> ParamSig:
+    buffer_len = None
+    if len(raw) > 3 and isinstance(raw[3], dict) and raw[3]:
+        how, n = next(iter(raw[3].items()))
+        buffer_len = (how, int(n))
+    return ParamSig(raw[0], raw[1], raw[2] if len(raw) > 2 else "", buffer_len)
 
 
 class SignatureDatabase:
@@ -431,6 +547,13 @@ class SignatureDatabase:
             enum = source.lookup_enum(name)
             if enum is not None:
                 return enum
+        return None
+
+    def lookup_struct(self, name: str) -> StructDef | None:
+        for source in self.sources:
+            struct = source.lookup_struct(name)
+            if struct is not None:
+                return struct
         return None
 
 

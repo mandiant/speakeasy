@@ -105,6 +105,41 @@ def _build_x64():
     return bytes(code), {"MoveFileExW": (move_off, 8), "ExitProcess": (exit_off, 8)}
 
 
+def _build_x86_profile_string():
+    """
+    x86 shellcode calling kernel32!GetPrivateProfileStringW (no handler) with
+    an Out buffer of PROFILE_BUFFER_CHARS WCHARs pre-filled with 0xCC, then
+    ExitProcess(EXIT_CODE). Returns (code, patches, buffer offset).
+    """
+    code = bytearray()
+    code += b"\xe8\x00\x00\x00\x00"  # call $+5
+    code += b"\x5b"  # pop ebx
+    code += b"\x68" + struct.pack("<I", EXIT_CODE)  # push EXIT_CODE (for ExitProcess)
+    fixups = []  # (offset of disp32, symbol)
+    for symbol in ("file", None, "buf", "default", "key", "app"):  # pushed right-to-left
+        if symbol is None:
+            code += b"\x68" + struct.pack("<I", PROFILE_BUFFER_CHARS)  # push nSize
+        else:
+            fixups.append((len(code) + 2, symbol))
+            code += b"\x8d\x83" + b"\x00\x00\x00\x00"  # lea eax, [ebx+disp]
+            code += b"\x50"  # push eax
+    gpps_off = len(code) + 1
+    code += b"\xb8" + b"\x00\x00\x00\x00" + b"\xff\xd0"  # mov eax, imm32 ; call eax
+    exit_off = len(code) + 1
+    code += b"\xb8" + b"\x00\x00\x00\x00" + b"\xff\xd0"
+    offsets = {}
+    for symbol, text in (("app", "app"), ("key", "key"), ("default", "def"), ("file", "C:\\x.ini")):
+        offsets[symbol] = len(code)
+        code += _wstr(text)
+    offsets["buf"] = len(code)
+    code += b"\xcc" * (PROFILE_BUFFER_CHARS * 2 + 4)  # buffer plus a sentinel that must survive
+    for off, symbol in fixups:
+        code[off : off + 4] = struct.pack("<i", offsets[symbol] - 5)
+    return bytes(code), {"GetPrivateProfileStringW": (gpps_off, 4), "ExitProcess": (exit_off, 4)}, offsets["buf"]
+
+
+PROFILE_BUFFER_CHARS = 8
+
 BUILDERS = {"x86": _build_x86, "amd64": _build_x64}
 
 
@@ -150,6 +185,37 @@ def test_unhooked_import_is_emulated_from_signature(config, arch):
     assert move.ret_val == "0x1"
 
     # The stack (x86) / registers (x64) were left exactly as the caller expects
+    assert events[1].args == [f"{EXIT_CODE:#x}"]
+
+
+def test_out_buffer_is_zero_filled(config):
+    """An Out buffer sized by a sibling parameter is zeroed; memory past it is untouched."""
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated")
+    code, patches, buf_off = _build_x86_profile_string()
+    se = Speakeasy(config=config)
+    try:
+        sc_addr = se.load_shellcode(data=code, arch="x86")
+        for name, (offset, width) in patches.items():
+            stub = se.emu.get_proc("kernel32", name)
+            se.emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
+        se.run_shellcode(sc_addr)
+        report = se.get_report()
+        after = se.emu.mem_read(sc_addr + buf_off, PROFILE_BUFFER_CHARS * 2 + 4)
+    finally:
+        se.shutdown()
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    events = _api_events(report)
+    assert [e.api_name for e in events] == ["kernel32.GetPrivateProfileStringW", "kernel32.ExitProcess"]
+    call = events[0]
+    assert call.args[:3] == ['lpAppName: "app"', 'lpKeyName: "key"', 'lpDefault: "def"']
+    assert call.args[3].startswith("lpReturnedString: 0x")
+    assert call.args[4:] == [f"nSize: {PROFILE_BUFFER_CHARS:#x}", 'lpFileName: "C:\\x.ini"']
+    # "0 characters copied" and an empty string in the buffer agree with each other
+    assert call.ret_val == "0x0"
+    assert after == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
 

@@ -61,6 +61,27 @@ def _struct(name, fields, kind="Struct", packing=0):
     }
 
 
+def _with_anonymous_union():
+    """
+    struct WITH_ANON { UINT32 tag; union { UINT64 q; struct { UINT32 lo, hi; } s; } u; }
+    as win32metadata emits it: the union is an anonymous NestedType referenced
+    with an empty Parents chain, and its inner struct with Parents=[union].
+    """
+    inner = _struct("_s_e__Struct", [("lo", _native("UInt32")), ("hi", _native("UInt32"))])
+    union = _struct(
+        "_u_e__Union",
+        [
+            ("q", _native("UInt64")),
+            ("s", {**_ref("Foundation", "_s_e__Struct"), "Parents": ["_u_e__Union"]}),
+        ],
+        kind="Union",
+    )
+    union["NestedTypes"] = [inner]
+    outer = _struct("WITH_ANON", [("tag", _native("UInt32")), ("u", _ref("Foundation", "_u_e__Union"))])
+    outer["NestedTypes"] = [union]
+    return outer
+
+
 def _enum(name, values, flags=False, base="UInt32"):
     return {
         "Name": name,
@@ -131,6 +152,7 @@ def mini_win32json(tmp_path):
                 ],
             ),
             _struct("U", [("x", _native("UInt32")), ("ft", _ref("Foundation", "FILETIME"))], kind="Union"),
+            _with_anonymous_union(),
             _enum("FLAGS", [("A", 1), ("B", 2)], flags=True),
             _enum("DISPOSITION", [("FIRST", 1), ("NEGATIVE", -1)], base="Int32"),
             _enum("UNREFERENCED", [("X", 1)]),
@@ -165,6 +187,25 @@ def mini_win32json(tmp_path):
                     ("ppOut", _ptr(_ptr(_native("Void"))), ["Out"]),
                     ("buffer", {"Kind": "LPArray", "Child": _native("Byte")}, ["Out"]),
                     ("name", _ref("Foundation", "PSTR"), ["Out"]),
+                    ("lpdwSize", _ptr(_native("UInt32")), ["Out"]),
+                    ("phHandle", _ptr(_ref("Foundation", "HANDLE")), ["Out"]),
+                    ("pFlags", _ptr(_ref("Foundation", "FLAGS")), ["Out"]),
+                    ("pv", _ptr(_native("Void")), ["Out", {"Kind": "MemorySize", "BytesParamIndex": 1}]),
+                    (
+                        "wide",
+                        {"Kind": "LPArray", "Child": _native("Char"), "CountParamIndex": 1, "CountConst": -1},
+                        ["Out"],
+                    ),
+                    (
+                        "fixed",
+                        {
+                            "Kind": "LPArray",
+                            "Child": _ref("Foundation", "FILETIME"),
+                            "CountParamIndex": -1,
+                            "CountConst": 3,
+                        },
+                        ["Out"],
+                    ),
                 ],
                 SetLastError=True,
             ),
@@ -183,6 +224,8 @@ def mini_win32json(tmp_path):
                     ("d", _native("Double"), ["In"]),
                     ("f", _native("Single"), ["In"]),
                     ("q", _native("UInt64"), ["In"]),
+                    ("anon", _ref("Foundation", "WITH_ANON"), ["In"]),
+                    ("panon", _ptr(_ref("Foundation", "WITH_ANON")), ["Out"]),
                 ],
             ),
             _func(
@@ -246,10 +289,19 @@ def test_generate_resolves_types(gen, mini_win32json):
         ["okay", "B", "i"],
         ["cb", "p", "i"],
         ["pUnk", "p", "i"],
-        ["ppOut", "p", "o"],
-        ["buffer", "p", "o"],
+        ["ppOut", "p:p", "o"],
+        ["buffer", "a:u8", "o"],
         ["name", "s", "o"],
+        ["lpdwSize", "p:u32", "o"],
+        ["phHandle", "p:h", "o"],
+        ["pFlags", "p:u32:FLAGS", "o"],
+        ["pv", "p", "o", {"n": 1}],
+        ["wide", "a:u16", "o", {"c": 1}],
+        ["fixed", "a:st:FILETIME:8", "o", {"k": 3}],
     ]
+    # structs some parameter points at are laid out for both pointer sizes
+    assert doc["structs"]["FILETIME"] == {"s": [8, 8]}
+    assert "MIXED" not in doc["structs"]  # only referenced by value
 
 
 def test_generate_enum_table(gen, mini_win32json, tmp_path):
@@ -292,6 +344,10 @@ def test_generate_by_value_struct_sizes(gen, mini_win32json):
     assert codes["d"] == "f64"
     assert codes["f"] == "f32"
     assert codes["q"] == "u64"
+    # anonymous nested union: 4 (tag) + pad to 8 + 8 = 16
+    assert codes["anon"] == "st:WITH_ANON:16"
+    assert codes["panon"] == "ps:WITH_ANON"
+    assert doc["structs"]["WITH_ANON"] == {"s": [16, 16]}
 
 
 def test_generate_applies_overrides(gen, mini_win32json):

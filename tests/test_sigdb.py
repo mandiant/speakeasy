@@ -8,7 +8,9 @@ import pytest
 from speakeasy.winenv.api import sigdb
 
 
-def _write_db(path, functions, dll_aliases=None, name_prefixes=None, enums=None, fmt=sigdb.SUPPORTED_FORMAT):
+def _write_db(
+    path, functions, dll_aliases=None, name_prefixes=None, enums=None, structs=None, fmt=sigdb.SUPPORTED_FORMAT
+):
     doc = {
         "format": fmt,
         "source": "test",
@@ -17,6 +19,7 @@ def _write_db(path, functions, dll_aliases=None, name_prefixes=None, enums=None,
         "dll_aliases": dll_aliases or {},
         "name_prefixes": name_prefixes or {},
         "enums": enums or {},
+        "structs": structs or {},
         "functions": functions,
     }
     with gzip.open(path, "wb") as f:
@@ -48,10 +51,36 @@ def _write_db(path, functions, dll_aliases=None, name_prefixes=None, enums=None,
         ("st:RECT:16", 4, 4),
         ("st:X:12/24", 4, 3),
         ("st:X:12/24", 8, 1),
+        ("p:u64", 4, 1),
+        ("a:u16", 8, 1),
     ],
 )
 def test_param_slots(code, ptr_size, expected_slots):
     assert sigdb.ParamSig("x", code).slots(ptr_size) == expected_slots
+
+
+@pytest.mark.parametrize(
+    "code,pointee,elem32,elem64",
+    [
+        ("p", None, None, None),
+        ("p:u32", "u32", 4, 4),
+        ("p:h", "h", 4, 8),
+        ("p:p", "p", 4, 8),
+        ("p:u32:FLAGS", "u32:FLAGS", 4, 4),
+        ("a:u16", "u16", 2, 2),
+        ("a:st:FILETIME:8", "st:FILETIME:8", 8, 8),
+        ("a", None, None, None),
+        ("s", "u8", 1, 1),
+        ("S", "u16", 2, 2),
+        ("ps:X", None, None, None),
+        ("u32", None, None, None),
+    ],
+)
+def test_param_pointee(code, pointee, elem32, elem64):
+    p = sigdb.ParamSig("x", code)
+    assert p.pointee == pointee
+    assert p.elem_size(4) == elem32
+    assert p.elem_size(8) == elem64
 
 
 def test_param_kind_and_flags():
@@ -157,6 +186,62 @@ def test_normalize_dll():
     assert sigdb.normalize_dll("ntdll") == "ntdll"
 
 
+# -- Out buffer sizing ------------------------------------------------------
+
+STRUCTS = {"SYSTEM_INFO": sigdb.StructDef("SYSTEM_INFO", 36, 48)}
+
+
+def _out_sig(*params):
+    return sigdb.FuncSig(name="f", dll="d", ret="v", params=tuple(params))
+
+
+def _size(sig, index, values, ptr_size=4, memory=None):
+    memory = memory or {}
+    return sigdb.out_buffer_size(sig, index, values, ptr_size, STRUCTS.get, lambda addr, n: memory.get(addr))
+
+
+def test_out_buffer_size_scalars_and_structs():
+    sig = _out_sig(
+        sigdb.ParamSig("lpdw", "p:u32", "o"),
+        sigdb.ParamSig("ph", "p:h", "o"),
+        sigdb.ParamSig("pv", "p", "o"),
+        sigdb.ParamSig("info", "ps:SYSTEM_INFO", "o"),
+        sigdb.ParamSig("unknown", "ps:NOPE", "o"),
+        sigdb.ParamSig("sz", "s", "o"),
+        sigdb.ParamSig("wsz", "S", "o"),
+        sigdb.ParamSig("arr", "a:u16", "o"),
+    )
+    values = [0x1000] * len(sig.params)
+    assert [_size(sig, i, values, 4) for i in range(len(sig.params))] == [4, 4, None, 36, None, 1, 2, None]
+    assert [_size(sig, i, values, 8) for i in range(len(sig.params))] == [4, 8, None, 48, None, 1, 2, None]
+
+
+def test_out_buffer_size_from_count_params():
+    sig = _out_sig(
+        sigdb.ParamSig("wide", "a:u16", "o", ("c", 1)),
+        sigdb.ParamSig("nSize", "u32", "i"),
+        sigdb.ParamSig("pv", "p", "o", ("n", 3)),
+        sigdb.ParamSig("cb", "p", "i"),  # SIZE_T
+        sigdb.ParamSig("fixed", "a:st:FILETIME:8", "o", ("k", 3)),
+        sigdb.ParamSig("bytes", "a:u8", "o", ("n", 6)),
+        sigdb.ParamSig("pcb", "p:u32", "i"),  # count behind a pointer
+        sigdb.ParamSig("blob", "a", "o", ("c", 1)),  # element size unknown
+        sigdb.ParamSig("bytes2", "a:u8", "o", ("n", 9)),
+        sigdb.ParamSig("pcbOut", "p:u32", "o"),  # count is an output: unknown
+    )
+    values = [0x1000, 8, 0x2000, 0x30, 0x3000, 0x4000, 0x5000, 0x6000, 0x7000, 0x8000]
+    memory = {0x5000: 12}
+    assert _size(sig, 0, values, 4, memory) == 16
+    assert _size(sig, 2, values, 4, memory) == 0x30
+    assert _size(sig, 4, values, 4, memory) == 24
+    assert _size(sig, 5, values, 4, memory) == 12
+    assert _size(sig, 7, values, 4, memory) is None
+    assert _size(sig, 8, values, 4, memory) is None
+    # NULL count pointer
+    values[6] = 0
+    assert _size(sig, 5, values, 4, memory) is None
+
+
 # -- Win32MetadataSource ----------------------------------------------------
 
 
@@ -196,22 +281,32 @@ def small_db(tmp_path):
             }
         ],
     }
+    functions["GetSystemInfo"] = [{"dll": "kernel32", "ret": "v", "params": [["lpSystemInfo", "ps:SYSTEM_INFO", "o"]]}]
+    functions["GetPrivateProfileStringW"] = [
+        {
+            "dll": "kernel32",
+            "ret": "u32",
+            "params": [["lpReturnedString", "a:u16", "o?", {"c": 1}], ["nSize", "u32", "i"]],
+        }
+    ]
     enums = {
         "MOVE_FILE_FLAGS": {"f": True, "v": [["MOVEFILE_REPLACE_EXISTING", 1], ["MOVEFILE_COPY_ALLOWED", 2]]},
     }
+    structs = {"SYSTEM_INFO": {"s": [36, 48]}}
     path = _write_db(
         tmp_path / "sigs.json.gz",
         functions,
         dll_aliases={"psapi": "kernel32"},
         name_prefixes={"kernel32": ["K32"]},
         enums=enums,
+        structs=structs,
     )
     return sigdb.Win32MetadataSource(path)
 
 
 def test_source_basic_lookup(small_db):
     assert small_db.available
-    assert len(small_db) == 6
+    assert len(small_db) == 8
     sig = small_db.lookup("KERNEL32.dll", "CreateFileW", "x86")
     assert sig is not None
     assert sig.dll == "kernel32"
@@ -272,6 +367,16 @@ def test_source_enum_lookup(small_db):
     assert small_db.lookup_enum("NOPE") is None
 
 
+def test_source_struct_and_buffer_length(small_db):
+    struct = small_db.lookup_struct("SYSTEM_INFO")
+    assert struct is not None and struct.size(4) == 36 and struct.size(8) == 48
+    assert small_db.lookup_struct("SYSTEM_INFO") is struct
+    assert small_db.lookup_struct("NOPE") is None
+    sig = small_db.lookup("kernel32", "GetPrivateProfileStringW", "x86")
+    assert sig.params[0].buffer_len == ("c", 1)
+    assert sig.params[1].buffer_len is None
+
+
 def test_source_missing_file(tmp_path, caplog):
     src = sigdb.Win32MetadataSource(str(tmp_path / "nope.json.gz"))
     assert not src.available
@@ -314,9 +419,11 @@ def test_database_is_pluggable_and_ordered(small_db):
     db.add_source(_StaticSource({"LdrLoadDll": custom}))
     assert db.lookup("ntdll", "LdrLoadDll", "x86") is custom
     assert db.available
-    # enums are looked up across sources too; a source without enums answers None
+    # enums and structs are looked up across sources too; a source without them answers None
     assert db.lookup_enum("MOVE_FILE_FLAGS").name == "MOVE_FILE_FLAGS"
+    assert db.lookup_struct("SYSTEM_INFO").size32 == 36
     assert sigdb.SignatureDatabase([]).lookup_enum("MOVE_FILE_FLAGS") is None
+    assert sigdb.SignatureDatabase([]).lookup_struct("SYSTEM_INFO") is None
 
 
 def test_database_empty():
@@ -372,3 +479,20 @@ def test_bundled_database_enums():
     assert db.lookup_enum("FILE_ACCESS_FLAGS").decode(0xC0000000) == "GENERIC_READ|GENERIC_WRITE"
     assert db.lookup_enum("PAGE_PROTECTION_FLAGS").decode(0x40) == "PAGE_EXECUTE_READWRITE"
     assert db.lookup_enum("VIRTUAL_ALLOCATION_TYPE").decode(0x3000) == "MEM_RESERVE|MEM_COMMIT"
+
+
+def test_bundled_database_structs_and_buffers():
+    db = _bundled()
+    assert db.lookup_struct("SYSTEM_INFO").size(4) == 36
+    assert db.lookup_struct("SYSTEM_INFO").size(8) == 48
+    assert db.lookup_struct("OVERLAPPED").size(4) == 20
+    assert db.lookup_struct("OVERLAPPED").size(8) == 32
+    # anonymous nested unions lay out too
+    assert db.lookup_struct("LARGE_INTEGER").size(8) == 8
+    assert db.lookup_struct("IN_ADDR").size(4) == 4
+    sig = db.lookup("kernel32", "GetPrivateProfileStringW", "x86")
+    assert sig.params[3].code == "a:u16" and sig.params[3].buffer_len == ("c", 4)
+    assert db.lookup("kernel32", "GetVolumeInformationW", "x86").params[3].code == "p:u32"
+    # every function is now laid out; nothing is skipped
+    src = db.sources[0]
+    assert not any(e.get("skip") for entries in src._functions.values() for e in entries)

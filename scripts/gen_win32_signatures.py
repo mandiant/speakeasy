@@ -33,6 +33,10 @@ Output format (``format`` = 2)::
         },
         ...
       },
+      "structs": {
+        "<NAME>": {"s": [<size on x86>, <size on x64>]},
+        ...
+      },
       "functions": {
         "<Name>": [
           {
@@ -56,8 +60,11 @@ Type codes (``kind`` or ``kind:qualifier``):
     i8 u8 i16 u16 i32 u32 i64 u64   sized integers
     u32:NAME          (any integer kind) value drawn from enum NAME in ``enums``
     f32 f64           floating point
-    p                 pointer-sized opaque value (IntPtr, void*, COM, callbacks, T**)
-    ps:NAME           pointer to struct/union NAME
+    p                 pointer-sized opaque value (IntPtr, void*, COM, callbacks)
+    p:CODE            pointer to a value of type CODE (p:u32, p:h, p:p, p:S)
+    ps:NAME           pointer to struct/union NAME (see ``structs``)
+    a:CODE            array/buffer of CODE elements; its length, if declared, is in
+                      the parameter's 4th element (see below)
     s                 pointer to NUL-terminated narrow string (PSTR)
     S                 pointer to NUL-terminated wide string (PWSTR)
     b                 BOOL (4 bytes)
@@ -68,6 +75,10 @@ Type codes (``kind`` or ``kind:qualifier``):
 
 Attr flags are a string drawn from ``i`` (In), ``o`` (Out), ``?`` (Optional),
 ``c`` (Const), ``r`` (Reserved).
+
+A parameter may carry a 4th element describing the size of the buffer it
+points at: ``{"n": IDX}`` (parameter IDX holds the byte count), ``{"c": IDX}``
+(parameter IDX holds the element count) or ``{"k": N}`` (fixed element count).
 """
 
 from __future__ import annotations
@@ -142,6 +153,8 @@ class TypeResolver:
         self._layout_cache: dict[tuple, tuple[int, int]] = {}
         # enum name -> definition, for every enum referenced by a resolved type
         self.used_enums: dict[str, dict] = {}
+        # struct name -> (api, definition), for every struct some pointer targets
+        self.used_structs: dict[str, tuple[str, dict]] = {}
 
     def lookup(self, api: str, name: str) -> dict | None:
         return self.namespaces.get(api, {}).get(name)
@@ -208,9 +221,9 @@ class TypeResolver:
                 return ptr_size, ptr_size
             target_api = t["Api"]
             target_name = t["Name"]
-            # Anonymous nested types are referenced with a Parents chain and
-            # live in the enclosing type's NestedTypes rather than the namespace.
-            td = nested.get(target_name) if t.get("Parents") else None
+            # Anonymous nested types (_Anonymous_e__Union) live in the
+            # enclosing type's NestedTypes rather than the namespace.
+            td = nested.get(target_name)
             if td is None:
                 td = self.lookup(target_api, target_name)
             if td is None:
@@ -218,7 +231,7 @@ class TypeResolver:
             if td["Kind"] == "NativeTypedef":
                 return self._layout_field(td["Def"], target_api, ptr_size, seen, nested)
             if td["Kind"] == "Enum":
-                _, size = NATIVE_TYPES[td["IntegerBase"]]
+                _, size = NATIVE_TYPES[td.get("IntegerBase") or "Int32"]
                 return size, size
             if td["Kind"] in ("Struct", "Union"):
                 return self._layout_struct(td, target_api, ptr_size, seen)
@@ -232,8 +245,12 @@ class TypeResolver:
         """Resolve a parameter or return type to a type code."""
         kind = t["Kind"]
         if kind == "LPArray":
-            # Sized buffers (even LPArray<Byte>) are not C strings.
-            return "p"
+            # Sized buffers (even LPArray<Byte>) are not C strings; the element
+            # type rides along so buffers can be sized from their count.
+            try:
+                return f"a:{self.resolve(t['Child'])}"
+            except UnsupportedType:
+                return "a"
         if kind == "PointerTo":
             child = t["Child"]
             if child["Kind"] == "Native":
@@ -241,12 +258,19 @@ class TypeResolver:
                     return "s"
                 if child["Name"] == "Char":
                     return "S"
-                return "p"
+                if child["Name"] == "Void":
+                    return "p"
             if child["Kind"] == "ApiRef" and child["TargetKind"] == "Default":
                 td = self.lookup(child["Api"], child["Name"])
                 if td and td["Kind"] in ("Struct", "Union"):
+                    self.used_structs.setdefault(child["Name"], (child["Api"], td))
                     return f"ps:{child['Name']}"
-            return "p"
+            # Pointer to anything else: keep the pointee's code as qualifier
+            # (p:u32, p:h, p:p, p:S) so the emulator knows how big it is.
+            try:
+                return f"p:{self.resolve(child)}"
+            except UnsupportedType:
+                return "p"
         if kind == "Native":
             code, _ = NATIVE_TYPES.get(t["Name"], (None, None))
             if code is None:
@@ -347,6 +371,24 @@ def load_overrides(path: str) -> dict:
     return doc
 
 
+def _buffer_length(pm: dict, nparams: int) -> dict | None:
+    """Describe how long the buffer a pointer parameter refers to is, if declared."""
+    for attr in pm["Attrs"]:
+        if isinstance(attr, dict) and attr.get("Kind") == "MemorySize":
+            idx = attr.get("BytesParamIndex", -1)
+            if 0 <= idx < nparams:
+                return {"n": idx}
+    t = pm["Type"]
+    if t["Kind"] == "LPArray":
+        idx = t.get("CountParamIndex", -1)
+        if 0 <= idx < nparams:
+            return {"c": idx}
+        const = t.get("CountConst", -1)
+        if const > 0:
+            return {"k": const}
+    return None
+
+
 def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
     dll = normalize_dll(fn["DllImport"])
     entry: dict = {"dll": dll}
@@ -366,7 +408,11 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
         except UnsupportedType as e:
             code = "p"
             skip_reason = skip_reason or f"param {pm['Name']}: {e}"
-        params.append([pm["Name"], code, flags])
+        param = [pm["Name"], code, flags]
+        length = _buffer_length(pm, len(fn["Params"]))
+        if length:
+            param.append(length)
+        params.append(param)
     entry["params"] = params
 
     name = fn["Name"]
@@ -414,6 +460,25 @@ def build_enum_table(resolver: TypeResolver, constants: dict[str, int], override
     return enums
 
 
+def build_struct_table(resolver: TypeResolver, stats: collections.Counter) -> dict[str, dict]:
+    """Sizes of every struct some parameter points at, for both pointer sizes."""
+    structs: dict[str, dict] = {}
+    for name, (api, _td) in sorted(resolver.used_structs.items()):
+        try:
+            sizes = [resolver.struct_size(api, name, 4), resolver.struct_size(api, name, 8)]
+        except UnsupportedType as e:
+            stats["structs:unsupported"] += 1
+            logger_debug(f"struct {name}: {e}")
+            continue
+        structs[name] = {"s": sizes}
+    return structs
+
+
+def logger_debug(msg: str) -> None:
+    if os.environ.get("GEN_WIN32_SIGNATURES_DEBUG"):
+        print(msg, file=sys.stderr)
+
+
 def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collections.Counter]:
     namespaces, functions, constants = load_win32json(win32json_root)
     overrides = load_overrides(overrides_path)
@@ -434,13 +499,18 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
             stats["cdecl"] += 1
         if entry.get("variadic"):
             stats["variadic"] += 1
-        for _, code, _ in entry["params"]:
+        for param in entry["params"]:
+            code = param[1]
             stats[f"param:{code.split(':', 1)[0]}"] += 1
             if code.split(":", 1)[0] in ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64") and ":" in code:
                 stats["param:enum"] += 1
+            if len(param) > 3:
+                stats["param:sized-buffer"] += 1
 
     enums = build_enum_table(resolver, constants, overrides)
     stats["enums"] = len(enums)
+    structs = build_struct_table(resolver, stats)
+    stats["structs"] = len(structs)
 
     version = "unknown"
     version_path = os.path.join(win32json_root, "version.txt")
@@ -465,6 +535,7 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
         "dll_aliases": {normalize_dll(k): normalize_dll(v) for k, v in overrides["dll_aliases"].items()},
         "name_prefixes": {normalize_dll(k): v for k, v in overrides["name_prefixes"].items()},
         "enums": enums,
+        "structs": structs,
         "functions": dict(sorted(table.items())),
     }
     return doc, stats
@@ -492,7 +563,8 @@ def main(argv: list[str] | None = None) -> int:
     raw_size = write_output(doc, args.output)
     print(
         f"wrote {args.output}: {stats['functions']} functions "
-        f"({stats['supported']} supported, {stats['skipped']} skipped), {stats['enums']} enums, "
+        f"({stats['supported']} supported, {stats['skipped']} skipped), "
+        f"{stats['enums']} enums, {stats['structs']} structs, "
         f"{raw_size} bytes raw, {os.path.getsize(args.output)} bytes gzipped, "
         f"win32json {doc['version']}"
     )

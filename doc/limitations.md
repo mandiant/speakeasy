@@ -14,7 +14,7 @@ If the import is declared in the bundled Win32 API signature database (generated
 - the call is traced with parameter names and decoded strings/booleans, e.g. `kernel32.MoveFileExW(lpExistingFileName: "C:\old.txt", lpNewFileName: "C:\new.txt", dwFlags: 0x1)`
 - a type-appropriate success value is returned (`TRUE`, `S_OK`, a fresh handle, ...)
 
-What the fallback does **not** do: it has no side effects and never writes output parameters, so a sample that relies on an `Out` buffer being filled will read whatever was there before. Runs that were previously stopped by `Unsupported API` now continue; treat calls in the trace that have parameter names (`name: value`) as unimplemented stubs when interpreting a report. Set `modules.signature_fallback` to `false` to restore the old behavior.
+What the fallback does **not** do: it has no real side effects. `Out`-only pointer parameters are zero-filled for as many bytes as the prototype declares (the pointed-to scalar or struct, a buffer sized by a sibling count parameter, or just the terminator of an unsized string), so a sample that reads them back sees empty strings, NULL handles and zero counts rather than stale stack contents; but no genuine data is ever produced. Runs that were previously stopped by `Unsupported API` now continue; treat calls in the trace that have parameter names (`name: value`) as unimplemented stubs when interpreting a report. Set `modules.signature_fallback` to `false` to restore the old behavior.
 
 ### Unknown APIs
 

@@ -1825,6 +1825,37 @@ class WindowsEmulator(BinaryEmulator):
         except Exception:
             return hex(value)
 
+    # Upper bound on how much memory a single Out parameter is zero-filled with
+    MAX_OUT_ZERO_FILL = 0x10000
+
+    def _read_uint_for_signature(self, addr, size):
+        try:
+            return int.from_bytes(self.mem_read(addr, size), "little")
+        except Exception:
+            return None
+
+    def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list, ptr_size: int) -> None:
+        """
+        Give Out-only pointer parameters deterministic contents. A call we
+        only know the signature of reports success without producing any
+        data, so the memory the caller reads back is zeroed (empty strings,
+        NULL handles, zero counts) rather than left as uninitialized stack.
+        """
+        db = self.get_signature_db()
+        for index, (param, value) in enumerate(zip(sig.params, values)):
+            if not param.is_out or param.is_in or not value:
+                continue
+            size = sigdb.out_buffer_size(sig, index, values, ptr_size, db.lookup_struct, self._read_uint_for_signature)
+            if not size or size < 0:
+                continue
+            size = min(size, self.MAX_OUT_ZERO_FILL)
+            try:
+                self.mem_write(value, b"\x00" * size)
+            except Exception:
+                logger.debug(
+                    "%s: could not zero %d bytes at %s for Out param %s", sig.name, size, hex(value), param.name
+                )
+
     def _default_return_for_signature(self, sig: sigdb.FuncSig):
         """
         Pick a plausible "success" return value for a call we only know the signature of
@@ -1875,6 +1906,7 @@ class WindowsEmulator(BinaryEmulator):
         )
 
         self.hammer.handle_import_func(imp_api, conv, argc)
+        self._zero_fill_out_params(sig, values, ptr_size)
         if sig.set_last_error:
             set_last_error = getattr(self, "set_last_error", None)
             if set_last_error:
