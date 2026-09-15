@@ -1,0 +1,2 @@
+include speakeasy/resources/win32/signatures.json.gz
+include speakeasy/resources/win32/phnt_signatures.json.gz

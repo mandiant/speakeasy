@@ -14,6 +14,7 @@ import sys
 
 from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
+from setuptools.command.sdist import sdist as _sdist
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESOURCES = os.path.join(HERE, "speakeasy", "resources", "win32")
@@ -33,27 +34,38 @@ DATABASES = [
 ]
 
 
+def _generate_signatures(announce=None):
+    for generator, marker, output in DATABASES:
+        submodule = os.path.relpath(os.path.dirname(marker) if marker.endswith(".h") else marker, HERE)
+        submodule = submodule.split(os.sep + "api")[0]
+        if not os.path.exists(marker):
+            if os.path.exists(output):
+                if announce:
+                    announce(f"{submodule} missing; reusing existing {os.path.relpath(output, HERE)}", level=2)
+                continue
+            raise SystemExit(
+                f"{submodule} is not checked out and no signature database exists; "
+                f"run `git submodule update --init {submodule}` before building"
+            )
+        if announce:
+            announce(f"generating API signature database from {submodule}", level=2)
+        subprocess.check_call([sys.executable, generator, "--output", output])
+
+
 class build_py(_build_py):
     """Regenerate the signature database before collecting package data."""
 
     def run(self) -> None:
-        self.generate_signatures()
+        _generate_signatures(self.announce)
         super().run()
 
-    def generate_signatures(self) -> None:
-        for generator, marker, output in DATABASES:
-            submodule = os.path.relpath(os.path.dirname(marker) if marker.endswith(".h") else marker, HERE)
-            submodule = submodule.split(os.sep + "api")[0]
-            if not os.path.exists(marker):
-                if os.path.exists(output):
-                    self.announce(f"{submodule} missing; reusing existing {os.path.relpath(output, HERE)}", level=2)
-                    continue
-                raise SystemExit(
-                    f"{submodule} is not checked out and no signature database exists; "
-                    f"run `git submodule update --init {submodule}` before building"
-                )
-            self.announce(f"generating API signature database from {submodule}", level=2)
-            subprocess.check_call([sys.executable, generator, "--output", output])
+
+class sdist(_sdist):
+    """Regenerate the signature database so the generated files are included in the sdist."""
+
+    def run(self) -> None:
+        _generate_signatures(self.announce)
+        super().run()
 
 
-setup(cmdclass={"build_py": build_py})
+setup(cmdclass={"build_py": build_py, "sdist": sdist})
