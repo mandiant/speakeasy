@@ -239,6 +239,7 @@ DEFAULT_CONFIG_DATA = {
                 "base_addr": "0x60000000",
                 "path": "C:\\Windows\\system32\\bcryptprimitives.dll",
             },
+            {"name": "version", "base_addr": "0x60100000", "path": "C:\\Windows\\system32\\version.dll"},
         ],
     },
 }
