@@ -155,6 +155,7 @@ Speakeasy implements the all-stop GDB Remote Serial Protocol directly. The serve
 - `qXfer:features:read` reports a register layout matching the emulated architecture
 - `qXfer:memory-map:read` reports Unicorn's mapped memory regions
 - `vCont`, legacy resume packets, register/memory writes, detach, and process exit are supported
+- when emulation ends without a fault, the server halts the target with a `T05` stop reply before it sends `W00`. The client can then read the final memory, for example to dump an unpacked image after `ExitProcess`.
 
 A socket reader handles RSP framing and can stop Unicorn asynchronously when it receives Ctrl-C. Breakpoint and watchpoint hooks only record a stop reason and stop Unicorn; protocol processing happens after `emu_start()` returns, rather than from inside a Unicorn callback.
 
@@ -174,7 +175,7 @@ The server implements the all-stop RSP subset exercised by GDB and IDA:
 | Memory | `m`, `M`, `X` |
 | Breakpoints | `Z0`/`z0`, `Z1`/`z1`, and read/write/access watchpoints |
 | Execution | `c`, `s`, `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
-| Lifecycle | `D`, `k`, and `Wxx` exit replies |
+| Lifecycle | `D`, `k`, a final `T05` stop before exit, and `Wxx` exit replies |
 
 Unsupported optional packets receive an empty response as required by RSP. Non-stop mode, multiprocess mode, reverse execution, and remote file I/O are not advertised.
 
