@@ -37,6 +37,7 @@ class Win32Emulator(WindowsEmulator):
         self.last_error = 0
         self.peb_addr = 0
         self.heap_allocs = []
+        self.container_image = None
         self.argv = argv if argv is not None else []
         self.sessman = SessionManager(config, self.handle_allocator)
         self.com = COM(config)
@@ -582,6 +583,8 @@ class Win32Emulator(WindowsEmulator):
                 base = p.base_addr or 0
                 if isinstance(base, str):
                     base = int(base, 0)
+                if self.container_image:
+                    base = self.container_image.base
                 cmd_line = p.command_line or ""
 
                 proc = objman.Process(self, name=name, path=emu_path, base=base, cmdline=cmd_line)
@@ -595,12 +598,19 @@ class Win32Emulator(WindowsEmulator):
                 proc_mod = p
                 break
 
+        # Setup runs while the input module loads, so it is the only module so far.
+        # An EXE input is its own process image and needs no container image.
+        if self.modules and self.modules[0].is_exe():
+            proc_mod = None
+
         if proc_mod:
             all_user_mods = [proc_mod] + list(self.config.modules.user_modules)
         else:
             all_user_mods = list(self.config.modules.user_modules)
 
-        self.init_user_modules(all_user_mods)
+        rtmods = self.init_user_modules(all_user_mods)
+        if proc_mod:
+            self.container_image = rtmods[0]
 
     def exit_process(self):
         """
