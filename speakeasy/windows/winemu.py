@@ -38,6 +38,9 @@ from speakeasy.winenv.api import sigdb, sigfmt
 # the size of the current disasm target
 DISASM_SIZE = 0x20
 
+# GDB signal number reported for memory faults
+SIGSEGV = 11
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +101,8 @@ class WindowsEmulator(BinaryEmulator):
         self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
         self.curr_run: Run | None = None
         self.restart_curr_run: bool = False
+        self._stop_on_faults: bool = False
+        self._pending_fault_stop: StopReason | None = None
         self.curr_mod: Any | None = None
         self.runs: list[Run] = []
         self.input: dict[str, Any] | None = None
@@ -215,6 +220,21 @@ class WindowsEmulator(BinaryEmulator):
         """
         # Implemented by a subclass (e.g. kernel/user mode emulators)
         raise NotImplementedError()
+
+    def end_run_on_fault(self):
+        """
+        End the current run after a handled memory fault. With a debugger attached,
+        stop the engine at the fault instead, and end the run after the debugger resumes.
+        Faults at a PC in the reserved emulator range, such as the return hook, are not
+        sample faults, so they do not stop the debugger.
+        """
+        pc = self.get_pc()
+        in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
+        if not self._stop_on_faults or in_reserved:
+            self.on_run_complete()
+            return
+        self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
+        self.emu_eng.stop()  # type: ignore[union-attr]
 
     def enable_code_hook(self):
         if not self.tmp_code_hook:
@@ -616,6 +636,8 @@ class WindowsEmulator(BinaryEmulator):
         detached_resume_addr = None
         terminal_signal = 0
         timeout = 0 if debugger is not None else self.config.timeout
+        self._stop_on_faults = debugger is not None
+        self._pending_fault_stop = None
 
         if self.profiler:
             self.profiler.set_start_time()
@@ -633,15 +655,23 @@ class WindowsEmulator(BinaryEmulator):
                     self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
+                    fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
+                    if fault_stop is not None:
+                        stop_reason = fault_stop
+                        terminal_signal = fault_stop.signal
                     if stop_reason is not None:
                         debug_action = debugger.command_loop(stop_reason)
                         if debug_action.kill:
                             return True
                         if debug_action.detach:
-                            detached_resume_addr = self.get_pc()
                             debugger.close()
                             debugger = None
+                            self._stop_on_faults = False
                             timeout = self.config.timeout
+                        if fault_stop is not None and not self.on_run_complete():
+                            break
+                        if debugger is None:
+                            detached_resume_addr = self.get_pc()
                         continue
                 if self.profiler and timeout > 0:
                     if self.profiler.get_run_time() > timeout:
@@ -663,7 +693,7 @@ class WindowsEmulator(BinaryEmulator):
 
                 error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
                 self.curr_run.error = error  # type: ignore[union-attr]
-                terminal_signal = 11
+                terminal_signal = SIGSEGV
 
                 if debugger is not None:
                     # Ensure a pending Ctrl-C cannot be lost, then report the
@@ -677,6 +707,7 @@ class WindowsEmulator(BinaryEmulator):
                     if debug_action.detach:
                         debugger.close()
                         debugger = None
+                        self._stop_on_faults = False
                         timeout = self.config.timeout
 
                 run = self.on_run_complete()
@@ -1539,7 +1570,7 @@ class WindowsEmulator(BinaryEmulator):
         error = self.get_error_info("invalid_fetch", address, access_type="fetch")
         self.curr_run.error = error  # type: ignore[union-attr]
         self.tmp_maps.append((fakeout, self.page_size))
-        self.on_run_complete()
+        self.end_run_on_fault()
         return True
 
     def _resolve_module_offset(self, addr: int) -> str | None:
@@ -2085,7 +2116,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
-        self.on_run_complete()
+        self.end_run_on_fault()
         return True
 
     def restart_run(self, run):
@@ -2259,7 +2290,7 @@ class WindowsEmulator(BinaryEmulator):
         # Let the next run know to remove this map since its
         # technically invalid
         self.tmp_maps.append((fakeout, self.page_size))
-        self.on_run_complete()
+        self.end_run_on_fault()
         return True
 
     def _handle_prot_fetch(self, emu, address, size, value):
@@ -2302,7 +2333,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.error = error  # type: ignore[union-attr]
 
         self.tmp_maps.append((fakeout, self.page_size))
-        self.on_run_complete()
+        self.end_run_on_fault()
         return True
 
     def _hook_code_core(self, emu, addr, size):
