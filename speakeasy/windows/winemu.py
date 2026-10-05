@@ -1178,7 +1178,9 @@ class WindowsEmulator(BinaryEmulator):
                 base = self.mem_map(size, tag=f"emu.module.{image.name}")
                 image.image_base = base
             else:
-                self.mem_map(size, base=base, tag=f"emu.module.{image.name}")
+                mapped = self.mem_map(size, base=base, tag=f"emu.module.{image.name}")
+                if mapped != base:
+                    raise WindowsEmuError(f"cannot map module {image.name} at {base:#x}: address range is in use")
             self.mem_write(base, region.data)
 
         ptr_size = self.get_ptr_size()
@@ -2564,6 +2566,20 @@ class WindowsEmulator(BinaryEmulator):
 
         return mod.base
 
+    def _make_image_at_free_base(self, make_loader: Callable[[int | None], Any], base: int | None):
+        """
+        Build a module image at the requested base, or at the next free range when
+        another mapping already occupies part of it.
+        """
+        image = make_loader(base).make_image()
+        if not image.image_base:
+            return image
+        free_base, _ = self.get_valid_ranges(image.image_size, addr=image.image_base)
+        if free_base != image.image_base:
+            logger.debug("module %s: base %#x is in use, loading at %#x", image.name, image.image_base, free_base)
+            image = make_loader(free_base).make_image()
+        return image
+
     def load_module_by_name(self, name, emu_path=None, base=None):
         """
         Load a module by name using the appropriate loader.
@@ -2579,31 +2595,27 @@ class WindowsEmulator(BinaryEmulator):
 
         native_path = self.get_native_module_path(mod_name=name)
 
-        loader: PeLoader | ApiModuleLoader | DecoyLoader
-        if native_path:
-            loader = PeLoader(path=native_path, base_override=base, emu_path=emu_path)
-        else:
+        handler = None
+        fallback_path = None
+        if not native_path:
             handler = self.api.load_api_handler(name) if self.api else None
-            if handler:
-                if name == "ntdll":
-                    nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
-                    if nt_handler:
-                        handler._nt_handler = nt_handler
-                loader = ApiModuleLoader(
-                    name=name,
-                    api=handler,
-                    arch=self.get_arch(),
-                    base=base,
-                    emu_path=emu_path,
-                )
-            else:
+            if handler and name == "ntdll":
+                nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
+                if nt_handler:
+                    handler._nt_handler = nt_handler
+            if not handler:
                 fallback_path = self.get_native_module_path(mod_name="default_exe")
-                if fallback_path:
-                    loader = PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
-                else:
-                    loader = DecoyLoader(name=name, base=base, emu_path=emu_path, image_size=0x1000)
 
-        image = loader.make_image()
+        def make_loader(base):
+            if native_path:
+                return PeLoader(path=native_path, base_override=base, emu_path=emu_path)
+            if handler:
+                return ApiModuleLoader(name=name, api=handler, arch=self.get_arch(), base=base, emu_path=emu_path)
+            if fallback_path:
+                return PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
+            return DecoyLoader(name=name, base=base, emu_path=emu_path, image_size=0x1000)
+
+        image = self._make_image_at_free_base(make_loader, base)
         image.name = name
         image.module_type = _module_type_from_path(emu_path)
         return self.load_image(image)
@@ -2664,14 +2676,9 @@ class WindowsEmulator(BinaryEmulator):
 
             module_type = _module_type_from_path(emu_path)
 
-            loader: PeLoader | ApiModuleLoader | DecoyLoader
-            if path:
-                loader = PeLoader(
-                    path=path,
-                    base_override=base_addr,
-                    emu_path=emu_path,
-                )
-            else:
+            handler = None
+            fallback_path = None
+            if not path:
                 handler = self.api.load_api_handler(modname) if self.api else None
 
                 if handler and modname == "ntdll":
@@ -2679,32 +2686,28 @@ class WindowsEmulator(BinaryEmulator):
                     if nt_handler:
                         handler._nt_handler = nt_handler
 
+                if not handler:
+                    fallback_name = "default_driver" if module_type == "driver" else "default_exe"
+                    fallback_path = self.get_native_module_path(mod_name=fallback_name)
+
+            def make_loader(
+                base, path=path, handler=handler, fallback_path=fallback_path, modname=modname, emu_path=emu_path
+            ):
+                if path:
+                    return PeLoader(path=path, base_override=base, emu_path=emu_path)
                 if handler:
-                    loader = ApiModuleLoader(
+                    return ApiModuleLoader(
                         name=modname,
                         api=handler,
                         arch=self.get_arch(),
-                        base=base_addr or 0,
+                        base=base or 0,
                         emu_path=emu_path,
                     )
-                else:
-                    fallback_name = "default_driver" if module_type == "driver" else "default_exe"
-                    fallback_path = self.get_native_module_path(mod_name=fallback_name)
-                    if fallback_path:
-                        loader = PeLoader(
-                            path=fallback_path,
-                            base_override=base_addr,
-                            emu_path=emu_path,
-                        )
-                    else:
-                        loader = DecoyLoader(
-                            name=modname,
-                            base=base_addr or 0,
-                            emu_path=emu_path,
-                            image_size=0x1000,
-                        )
+                if fallback_path:
+                    return PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
+                return DecoyLoader(name=modname, base=base or 0, emu_path=emu_path, image_size=0x1000)
 
-            image = loader.make_image()
+            image = self._make_image_at_free_base(make_loader, base_addr)
             image.name = modname
             image.module_type = module_type
             rtmod = self.load_image(image)
