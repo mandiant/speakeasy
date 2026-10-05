@@ -56,6 +56,20 @@ def _module_type_from_path(path: str, default: str = "dll") -> str:
     return default
 
 
+def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list[tuple[int, int, int]]:
+    """Merge per-page permissions into (base, size, perms) runs of contiguous pages with equal permissions."""
+    runs: list[tuple[int, int, int]] = []
+    for page_base in sorted(page_perms):
+        perms = page_perms[page_base]
+        if runs:
+            run_base, run_size, run_perms = runs[-1]
+            if run_perms == perms and run_base + run_size == page_base:
+                runs[-1] = (run_base, run_size + page_size, perms)
+                continue
+        runs.append((page_base, page_size, perms))
+    return runs
+
+
 class BootstrapPhase(IntEnum):
     INITIALIZED = 0
     ENGINE_API_READY = 1
@@ -1159,11 +1173,17 @@ class WindowsEmulator(BinaryEmulator):
                 for page_base in range(aligned_addr, aligned_end, self.page_size):
                     page_perms[page_base] = page_perms.get(page_base, 0) | sect.perms
 
-            for page_base, perms in page_perms.items():
+            # Each unicorn mem_protect call splits a region, and the cost grows with the region
+            # count, so protect runs of contiguous same-permission pages with one call each.
+            for run_base, run_size, perms in get_page_protection_runs(page_perms, self.page_size):
                 try:
-                    self.mem_protect(page_base, self.page_size, perms)
+                    self.mem_protect(run_base, run_size, perms)
                 except Exception:
-                    pass
+                    for page_base in range(run_base, run_base + run_size, self.page_size):
+                        try:
+                            self.mem_protect(page_base, self.page_size, perms)
+                        except Exception:
+                            pass
 
         mod = RuntimeModule(image)
         if image.image_base != 0 and mod.base != image.image_base:
