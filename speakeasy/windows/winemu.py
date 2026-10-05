@@ -692,6 +692,14 @@ class WindowsEmulator(BinaryEmulator):
             if terminal_signal:
                 debugger.notify_signal(terminal_signal)
             else:
+                # Stop once more while memory is still mapped, so the client
+                # can inspect the final state before the exit reply.
+                debug_action = debugger.command_loop(StopReason(kind="exit"))
+                if debug_action.kill:
+                    return True
+                if debug_action.detach:
+                    debugger.close()
+                    return True
                 debugger.notify_exit(0)
         return True
 

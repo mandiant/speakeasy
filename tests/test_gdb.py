@@ -210,6 +210,28 @@ _EXIT_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_EXIT_PROCESS_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import struct
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    # push 0; mov eax, ExitProcess; call eax; jmp $
+    address = se.load_shellcode(data=b"\\x6a\\x00\\xb8\\x00\\x00\\x00\\x00\\xff\\xd0\\xeb\\xfe", arch="x86")
+    exit_process = se.emu.get_proc("kernel32", "ExitProcess")
+    se.mem_write(address + 3, struct.pack("<I", exit_process))
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
 _LIBRARY_LOAD_SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import sys
@@ -406,6 +428,20 @@ def gdb_exit_emulator():
 
 
 @pytest.fixture
+def gdb_exit_process_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _EXIT_PROCESS_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    yield port, proc
+    _stop_server(proc)
+
+
+@pytest.fixture
 def gdb_library_load_emulator():
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
@@ -526,6 +562,33 @@ def test_gdb_reports_clean_exit(gdb_exit_emulator):
     client = GdbRspClient(port)
     try:
         client.query_halt_reason()
+        stop = client.continue_()
+        assert stop.startswith("T05")
+        assert client.read_memory(client.read_x86_registers().esp, 4)
+        assert client.continue_() == "W00"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
+def test_gdb_stops_after_exit_process_before_exit_reply(gdb_exit_process_emulator):
+    port, proc = gdb_exit_process_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        start = client.read_x86_registers().eip
+
+        stop = client.continue_()
+        assert stop.startswith("T05")
+        assert "swbreak:;" not in stop
+        assert "hwbreak:;" not in stop
+
+        # The final stop keeps the state left by ExitProcess: the stack still
+        # holds the return address of the call.
+        esp = client.read_x86_registers().esp
+        assert struct.unpack("<I", bytes.fromhex(client.read_memory(esp, 4)))[0] == start + 9
+        assert client.read_memory(start, 2) == "6a00"
+
         assert client.continue_() == "W00"
         assert proc.wait(timeout=10) == 0
     finally:
