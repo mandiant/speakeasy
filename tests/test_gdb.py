@@ -192,6 +192,26 @@ _FAULT_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_MEMORY_FAULT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    shellcode = bytes.fromhex(sys.argv[3])
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=shellcode, arch="x86")
+    print(hex(address), flush=True)
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
 _EXIT_SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import sys
@@ -414,6 +434,22 @@ def gdb_fault_emulator():
 
 
 @pytest.fixture
+def gdb_memory_fault_emulator(request):
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _MEMORY_FAULT_SERVER_SCRIPT, str(port), config_path, request.param],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    assert proc.stdout is not None
+    address = int(proc.stdout.readline(), 16)
+    yield port, proc, address
+    _stop_server(proc)
+
+
+@pytest.fixture
 def gdb_exit_emulator():
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
@@ -551,6 +587,29 @@ def test_gdb_reports_target_fault_and_nonzero_termination(gdb_fault_emulator):
         client.query_halt_reason()
         assert client.continue_().startswith("T0b")
         assert client.read_x86_registers().eip != 0
+        assert client.continue_() == "X0b"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    ("gdb_memory_fault_emulator", "fault_offset"),
+    [
+        pytest.param("a110000000c3", 0, id="invalid_read"),
+        pytest.param("a310000000c3", 0, id="invalid_write"),
+        pytest.param("b810000000ffe0", None, id="invalid_fetch"),
+    ],
+    indirect=["gdb_memory_fault_emulator"],
+)
+def test_gdb_stops_at_handled_memory_fault(gdb_memory_fault_emulator, fault_offset):
+    port, proc, address = gdb_memory_fault_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
+        expected_pc = 0x10 if fault_offset is None else address + fault_offset
+        assert client.read_x86_registers().eip == expected_pc
         assert client.continue_() == "X0b"
         assert proc.wait(timeout=10) == 0
     finally:
