@@ -291,3 +291,17 @@ def test_get_string_type_reads_a_nul_terminated_source(dll_emu: Speakeasy, api: 
     rv, _ = call(dll_emu, "kernel32", api, argv)
     assert rv == 1
     assert dll_emu.mem_read(out, 8) == struct.pack("<HHH", 0x382, 0x284, 0x20) + b"\xcc\xcc"
+
+
+GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x4
+GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x2
+
+
+def test_get_module_handle_ex_from_address_finds_the_image(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    base = dll_emu.emu.modules[0].base
+    out = alloc(dll_emu, b"\x00" * 4)
+    flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
+    rv, _ = call(dll_emu, "kernel32", "GetModuleHandleExA", [flags, base + 0x1000, out])
+    assert rv
+    assert dll_emu.mem_read(out, 4) == struct.pack("<I", base)
