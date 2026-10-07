@@ -774,12 +774,10 @@ class User32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         win_text = "speakeasy window"
-        if pstr:
-            if cw == 2:
-                wt = (win_text).encode("utf-16le")
-            else:
-                wt = (win_text).encode("utf-8")
-            self.mem_write(pstr, wt)
+        if not pstr or not 0 < maxc <= 0x7FFFFFFF:
+            return 0
+        win_text = win_text[: maxc - 1]
+        self.write_mem_string(win_text, pstr, cw)
 
         return len(win_text)
 
