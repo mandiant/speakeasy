@@ -258,6 +258,7 @@ class Shell32(api.ApiHandler):
         LPWSTR pszPath
         """
         hwnd, csidl, hToken, dwFlags, pszPath = argv
+        csidl &= ~shell32_defs.CSIDL_FLAG_MASK
         if csidl in shell32_defs.CSIDL:
             ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
         if csidl == 0x1A:
