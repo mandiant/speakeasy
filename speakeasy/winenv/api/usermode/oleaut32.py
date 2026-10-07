@@ -70,6 +70,30 @@ class OleAut32(api.ApiHandler):
 
         return bstr + 4
 
+    @apihook("SysReAllocStringLen", argc=3, ordinal=5)
+    def SysReAllocStringLen(self, emu, argv, ctx: api.ApiContext = None):
+        """
+        INT SysReAllocStringLen(
+          [in, out]      BSTR          *pbstr,
+          [in, optional] const OLECHAR *psz,
+          [in]           unsigned int  len
+        );
+        """
+        pbstr, psz, ui = argv
+        if not pbstr:
+            return 0
+
+        ws = b"\x00" * (ui * 2)
+        if psz:
+            ws = self.mem_read(psz, ui * 2)
+            argv[1] = ws.decode("utf-16le", errors="replace")
+
+        bstr = self.mem_alloc(4 + ui * 2 + 2)
+        self.mem_write(bstr, struct.pack("<I", ui * 2) + ws + b"\x00\x00")
+        self.mem_write(pbstr, (bstr + 4).to_bytes(self.get_ptr_size(), "little"))
+
+        return 1
+
     @apihook("SysFreeString", argc=1, ordinal=6)
     def SysFreeString(self, emu, argv, ctx: api.ApiContext = None):
         """
