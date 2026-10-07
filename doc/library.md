@@ -38,6 +38,17 @@ se.shutdown()
 - pass `volumes=` to mount host paths into emulated filesystem
 - pass `gdb_port=` to block for GDB attach before execution; `gdb_host=` controls the bind address and defaults to `127.0.0.1`
 
+## API hooks
+
+`se.add_api_hook(cb, "user32", "MessageBox*")` calls `cb(emu, api_name, func, params)` in place of the handler. `params` holds the raw argument slots, and `func(params)` runs the handler. After that call, `emu.get_api_args()` returns the arguments as the report shows them, with the values the handler decoded:
+
+```python
+def hook_messagebox(emu, api_name, func, params):
+    rv = func(params)
+    print(emu.get_api_args()[1].display)  # the lpText string
+    return rv
+```
+
 For runnable scripts, see [../examples](../examples/).
 
 ## Related docs

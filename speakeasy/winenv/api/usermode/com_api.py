@@ -65,7 +65,7 @@ class ComApi(api.ApiHandler):
         );
         """
         ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, pCtx, ppNamespace = argv
-        argv[1] = self.read_wide_string(strNetworkResource)
+        ctx.args[1].display = self.read_wide_string(strNetworkResource)
 
         if ppNamespace:
             ci = emu.com.get_interface(emu, emu.get_ptr_size(), "IWbemServices")
@@ -87,8 +87,8 @@ class ComApi(api.ApiHandler):
         );
         """
         ptr, strQueryLanguage, strQuery, lFlags, pCtx, ppEnum = argv
-        argv[1] = self.read_wide_string(strQueryLanguage)
-        argv[2] = self.read_wide_string(strQuery)
+        ctx.args[1].display = self.read_wide_string(strQueryLanguage)
+        ctx.args[2].display = self.read_wide_string(strQuery)
 
         # not implemented so returning -1
         return -1

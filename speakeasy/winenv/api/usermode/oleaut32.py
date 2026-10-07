@@ -24,7 +24,7 @@ class OleAut32(api.ApiHandler):
         (psz,) = argv
         alloc_str = self.read_mem_string(psz, 2)
         if alloc_str:
-            argv[0] = alloc_str
+            ctx.args["psz"].display = alloc_str
             alloc_str += "\x00"
             ws = alloc_str.encode("utf-16le")
             ws_len = len(ws)
@@ -58,7 +58,7 @@ class OleAut32(api.ApiHandler):
         else:
             alloc_str = self.read_mem_string(strin, 2)
             if alloc_str:
-                argv[0] = alloc_str
+                ctx.args["strIn"].display = alloc_str
                 alloc_str = alloc_str[:ui]
                 alloc_str += "\x00"
                 ws = alloc_str.encode("utf-16le")
@@ -86,7 +86,7 @@ class OleAut32(api.ApiHandler):
         ws = b"\x00" * (ui * 2)
         if psz:
             ws = self.mem_read(psz, ui * 2)
-            argv[1] = ws.decode("utf-16le", errors="replace")
+            ctx.args["psz"].display = ws.decode("utf-16le", errors="replace")
 
         bstr = self.mem_alloc(4 + ui * 2 + 2)
         self.mem_write(bstr, struct.pack("<I", ui * 2) + ws + b"\x00\x00")
@@ -101,7 +101,7 @@ class OleAut32(api.ApiHandler):
             BSTR bstrString
         );
         """
-        argv[0] = self.read_wide_string(argv[0])
+        ctx.args["bstrString"].display = self.read_wide_string(argv[0])
         return
 
     @apihook("VariantInit", argc=1, ordinal=8)

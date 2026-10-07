@@ -135,7 +135,7 @@ class Msvcrt(api.ApiHandler):
         else:
             # Convert the string
             mbs = self.read_mem_string(mbstr, 1)
-            argv[3] = mbs
+            ctx.args[3].display = mbs
             mbs += "\x00"
             ws = mbs.encode("utf-16le")
 
@@ -170,8 +170,8 @@ class Msvcrt(api.ApiHandler):
         ws1 = self.read_wide_string(string1, max_chars=count)
         ws2 = self.read_wide_string(string2, max_chars=count)
 
-        argv[0] = ws1
-        argv[1] = ws2
+        ctx.args[0].display = ws1
+        ctx.args[1].display = ws2
 
         if ws1.lower() == ws2.lower():
             rv = 0
@@ -545,11 +545,11 @@ class Msvcrt(api.ApiHandler):
 
         if hay:
             _hay = self.read_mem_string(hay, 1)
-            argv[0] = _hay
+            ctx.args[0].display = _hay
 
         if needle:
             needle = self.read_mem_string(needle, 1)
-            argv[1] = needle
+            ctx.args[1].display = needle
 
         ret = _hay.find(needle)
         if ret != -1:
@@ -571,11 +571,11 @@ class Msvcrt(api.ApiHandler):
 
         if hay:
             _hay = self.read_mem_string(hay, 2)
-            argv[0] = _hay
+            ctx.args[0].display = _hay
 
         if needle:
             needle = self.read_mem_string(needle, 2)
-            argv[1] = needle
+            ctx.args[1].display = needle
 
         ret = _hay.find(needle)
         if ret != -1:
@@ -604,8 +604,8 @@ class Msvcrt(api.ApiHandler):
         else:
             is_truncated = False
 
-        argv[0] = self.read_mem_string(strDest, 1)
-        argv[2] = self.read_mem_string(src, 1)
+        ctx.args[0].display = self.read_mem_string(strDest, 1)
+        ctx.args[2].display = self.read_mem_string(src, 1)
 
         slen1 = self.mem_string_len(strDest, 1)
         rem = num - slen1
@@ -639,7 +639,10 @@ class Msvcrt(api.ApiHandler):
         vargs = self.va_args(va_list, fmt_cnt)
         fin = self.do_str_format(fmt_str, vargs)
 
-        argv[:] = [opts, stream, fin]
+        ctx.args.clear()
+        ctx.args.append(hex(opts))
+        ctx.args.append(hex(stream))
+        ctx.args.append(fin)
 
         rv = len(fin)
         return rv
@@ -658,14 +661,16 @@ class Msvcrt(api.ApiHandler):
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         if not fmt_cnt:
-            argv.clear()
-            argv.extend([stream, fmt_str])
+            ctx.args.clear()
+            ctx.args.append(hex(stream))
+            ctx.args.append(fmt_str)
             return len(fmt_str)
 
         _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
         fin = self.do_str_format(fmt_str, _argv)
-        argv.clear()
-        argv.extend([stream, fin])
+        ctx.args.clear()
+        ctx.args.append(hex(stream))
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("printf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -681,14 +686,14 @@ class Msvcrt(api.ApiHandler):
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         if not fmt_cnt:
-            argv.clear()
-            argv.extend([fmt_str])
+            ctx.args.clear()
+            ctx.args.append(fmt_str)
             return len(fmt_str)
 
         fmt_argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1 + fmt_cnt)[1:]
         fin = self.do_str_format(fmt_str, fmt_argv)
-        argv.clear()
-        argv.extend([fin])
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("memset", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -782,8 +787,8 @@ class Msvcrt(api.ApiHandler):
         fin = self.do_str_format(fmt_str, _argv)
 
         self.write_string(fin, buf)
-        argv.clear()
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("_snprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -807,8 +812,8 @@ class Msvcrt(api.ApiHandler):
         fin = self.do_str_format(fmt_str, _argv)
 
         self.write_string(fin, buf)
-        argv.clear()
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("atoi", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -822,7 +827,7 @@ class Msvcrt(api.ApiHandler):
         (_str,) = argv
 
         i = self.read_string(_str)
-        argv[0] = i
+        ctx.args[0].display = i
 
         try:
             rv = int(i)
@@ -898,7 +903,7 @@ class Msvcrt(api.ApiHandler):
         s = self.read_string(src)
 
         self.write_string(s, dest)
-        argv[1] = s
+        ctx.args[1].display = s
         return dest
 
     @apihook("wcscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -912,7 +917,7 @@ class Msvcrt(api.ApiHandler):
         dest, src = argv
         ws = self.read_wide_string(src)
         self.write_wide_string(ws, dest)
-        argv[1] = ws
+        ctx.args[1].display = ws
         return dest
 
     @apihook("strncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -929,7 +934,7 @@ class Msvcrt(api.ApiHandler):
         if len(s) < length:
             s += "\x00" * (length - len(s))
         self.write_string(s, dest)
-        argv[1] = s
+        ctx.args[1].display = s
         return dest
 
     @apihook("wcsncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -946,7 +951,7 @@ class Msvcrt(api.ApiHandler):
         if len(ws) < count:
             ws += "\x00" * (count - len(ws))
         self.write_wide_string(ws, dest)
-        argv[1] = ws
+        ctx.args[1].display = ws
         return dest
 
     @apihook("memcpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -1118,7 +1123,7 @@ class Msvcrt(api.ApiHandler):
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
-        argv[0] = string
+        ctx.args[0].display = string
         rv = len(string)
 
         return rv
@@ -1233,7 +1238,7 @@ class Msvcrt(api.ApiHandler):
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
-        argv[0] = string
+        ctx.args[0].display = string
         rv = len(string)
 
         return rv
@@ -1246,7 +1251,6 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (c,) = argv
-        argv[0] = c
         if 0x00 <= c <= 0x7F:
             c = ord(chr(c).upper())
         else:
@@ -1263,7 +1267,7 @@ class Msvcrt(api.ApiHandler):
         (s,) = argv
 
         string = self.read_mem_string(s, 1)
-        argv[0] = string
+        ctx.args[0].display = string
         rv = len(string)
 
         return rv
@@ -1279,8 +1283,8 @@ class Msvcrt(api.ApiHandler):
         _str1, _str2 = argv
         s1 = self.read_mem_string(_str1, 1)
         s2 = self.read_mem_string(_str2, 1)
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args[0].display = s1
+        ctx.args[1].display = s2
         new = (s1 + s2).encode("utf-8")
         self.mem_write(_str1, new + b"\x00")
         return _str1
@@ -1298,7 +1302,7 @@ class Msvcrt(api.ApiHandler):
             return 0
 
         string = self.read_string(string_ptr)
-        argv[0] = string
+        ctx.args[0].display = string
         self.write_string(string.lower(), string_ptr)
         return string_ptr
 
@@ -1314,8 +1318,8 @@ class Msvcrt(api.ApiHandler):
         dest, src, count = argv
         s1 = self.read_mem_string(dest, 1)
         s2 = self.read_string(src, max_chars=count)
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args[0].display = s1
+        ctx.args[1].display = s2
         new = (s1 + s2).encode("utf-8")
         self.mem_write(dest, new + b"\x00")
         return dest
@@ -1331,8 +1335,8 @@ class Msvcrt(api.ApiHandler):
         _str1, _str2 = argv
         s1 = self.read_mem_string(_str1, 2)
         s2 = self.read_mem_string(_str2, 2)
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args[0].display = s1
+        ctx.args[1].display = s2
         new = (s1 + s2).encode("utf-16le")
         self.mem_write(_str1, new + b"\x00\x00")
         return _str1
@@ -1346,7 +1350,7 @@ class Msvcrt(api.ApiHandler):
         """
         (s,) = argv
         string = self.read_wide_string(s)
-        argv[0] = string
+        ctx.args[0].display = string
         rv = len(string)
 
         return rv
@@ -1420,8 +1424,8 @@ class Msvcrt(api.ApiHandler):
         string2 = self.read_mem_string(s2, 1)
         if string1 == string2:
             rv = 0
-        argv[0] = string1
-        argv[1] = string2
+        ctx.args[0].display = string1
+        ctx.args[1].display = string2
 
         return rv
 
@@ -1440,8 +1444,8 @@ class Msvcrt(api.ApiHandler):
         string2 = self.read_mem_string(s2, 1)
         if string1 == string2:
             rv = 0
-        argv[0] = string1
-        argv[1] = string2
+        ctx.args[0].display = string1
+        ctx.args[1].display = string2
 
         return rv
 
@@ -1464,8 +1468,8 @@ class Msvcrt(api.ApiHandler):
         else:
             rv = cstr + offset
 
-        argv[0] = cs
-        argv[1] = needle.decode("utf-8")
+        ctx.args[0].display = cs
+        ctx.args[1].display = needle.decode("utf-8")
 
         return rv
 
@@ -1528,8 +1532,8 @@ class Msvcrt(api.ApiHandler):
         else:
             rv = cstr + offset
 
-        argv[0] = cs
-        argv[1] = needle.decode("utf-8")
+        ctx.args[0].display = cs
+        ctx.args[1].display = needle.decode("utf-8")
 
         return rv
 
@@ -1585,8 +1589,8 @@ class Msvcrt(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        argv[0] = fin.replace("\x00", "")
-        argv[1] = fmt_str
+        ctx.args[0].display = fin.replace("\x00", "")
+        ctx.args[1].display = fmt_str
 
         return rv
 
@@ -1614,8 +1618,8 @@ class Msvcrt(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        argv[0] = fin.replace("\x00", "")
-        argv[1] = fmt_str
+        ctx.args[0].display = fin.replace("\x00", "")
+        ctx.args[1].display = fmt_str
 
         return rv
 
@@ -1636,8 +1640,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_string(string1)
         cs2 = self.read_string(string2)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
         if cs1.lower() == cs2.lower():
             rv = 0
@@ -1661,8 +1665,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_wide_string(string1)
         cs2 = self.read_wide_string(string2)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
         if cs1.lower() == cs2.lower():
             rv = 0
@@ -1817,8 +1821,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_string(string1)
         cs2 = self.read_string(string2)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
         if cs1.lower() == cs2.lower():
             rv = 0
@@ -1843,8 +1847,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_string(string1)
         cs2 = self.read_string(string2)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
         if cs1[:count].lower() == cs2[:count].lower():
             rv = 0
@@ -1865,8 +1869,8 @@ class Msvcrt(api.ApiHandler):
         ws1 = self.read_wide_string(string1)
         ws2 = self.read_wide_string(string2)
 
-        argv[0] = ws1
-        argv[1] = ws2
+        ctx.args[0].display = ws1
+        ctx.args[1].display = ws2
 
         if ws1.lower() == ws2.lower():
             rv = 0
@@ -1888,8 +1892,8 @@ class Msvcrt(api.ApiHandler):
         string2 = self.read_wide_string(s2)
         if string1 == string2:
             rv = 0
-        argv[0] = string1
-        argv[1] = string2
+        ctx.args[0].display = string1
+        ctx.args[1].display = string2
 
         return rv
 
@@ -1917,9 +1921,6 @@ class Msvcrt(api.ApiHandler):
         fin = self.do_str_format(fmt_str, argv)
 
         self.write_wide_string(fin, buf)
-
-        argv = [buf, cnt, fmt] + argv
-        argv[2] = fmt_str
         return len(fin)
 
     @apihook("_errno", argc=0)
@@ -1949,8 +1950,8 @@ class Msvcrt(api.ApiHandler):
         path = self.read_string(filename)
         mode_str = self.read_string(mode)
 
-        argv[0] = path
-        argv[1] = mode_str
+        ctx.args[0].display = path
+        ctx.args[1].display = mode_str
 
         create = any(flag in mode_str for flag in ("w", "a", "+"))
         truncate = "w" in mode_str and "a" not in mode_str
@@ -1980,8 +1981,8 @@ class Msvcrt(api.ApiHandler):
         path = self.read_wide_string(filename)
         mode_str = self.read_wide_string(mode)
 
-        argv[0] = path
-        argv[1] = mode_str
+        ctx.args[0].display = path
+        ctx.args[1].display = mode_str
 
         create = any(flag in mode_str for flag in ("w", "a", "+"))
         truncate = "w" in mode_str and "a" not in mode_str
@@ -2022,9 +2023,7 @@ class Msvcrt(api.ApiHandler):
         """
         stream, offset, origin = argv
         hfile = self.file_streams.get(stream)
-        argv[0] = hfile or 0
-        argv[1] = offset
-        argv[2] = origin
+        ctx.args[0].display = hex(hfile or 0)
         if hfile is None:
             return -1
 
@@ -2044,7 +2043,7 @@ class Msvcrt(api.ApiHandler):
         """
         (stream,) = argv
         hfile = self.file_streams.get(stream)
-        argv[0] = hfile or 0
+        ctx.args[0].display = hex(hfile or 0)
         if hfile is None:
             return -1
 
@@ -2069,7 +2068,7 @@ class Msvcrt(api.ApiHandler):
         """
         ptr, size, count, stream = argv
         hfile = self.file_streams.get(stream)
-        argv[3] = hfile or 0
+        ctx.args[3].display = hex(hfile or 0)
 
         if not ptr or size == 0 or count == 0 or hfile is None:
             return 0

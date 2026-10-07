@@ -69,7 +69,7 @@ class DnsApi(api.ApiHandler):
             rec.pName = pszName
             rec.wType = wType
             if wType == DNS_TYPE_TEXT:
-                argv[1] = "DNS_TYPE_TEXT"
+                ctx.args["wType"].display = "DNS_TYPE_TEXT"
 
                 text = self.netman.get_dns_txt(name)
                 if not text:

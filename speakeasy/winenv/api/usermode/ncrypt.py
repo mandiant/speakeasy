@@ -36,7 +36,7 @@ class Ncrypt(api.ApiHandler):
         phProvider, pszProviderName, dwFlags = argv
         if pszProviderName:
             prov_str = self.read_wide_string(pszProviderName)
-            argv[1] = prov_str
+            ctx.args["pszProviderName"].display = prov_str
 
             cm = emu.get_crypt_manager()
             hnd = cm.crypt_open(pname=prov_str, flags=dwFlags)
@@ -61,15 +61,15 @@ class Ncrypt(api.ApiHandler):
         """
         hProvider, hImportKey, pszBlobType, pParameterList, phKey, pbData, cbData, dwFlags = argv
         blob_type = self.read_wide_string(pszBlobType)
-        argv[2] = blob_type
+        ctx.args["pszBlobType"].display = blob_type
 
         blob = self.mem_read(pbData, cbData)
-        argv[5] = base64.b64encode(blob).decode("utf-8")
+        ctx.args["pbData"].display = base64.b64encode(blob).decode("utf-8")
 
         cm = emu.get_crypt_manager()
         if hProvider and phKey:
-            ctx = cm.crypt_get(hProvider)
-            hnd = ctx.import_key(
+            prov_ctx = cm.crypt_get(hProvider)
+            hnd = prov_ctx.import_key(
                 blob_type=blob_type,
                 blob=blob,
                 blob_len=cbData,
@@ -92,10 +92,10 @@ class Ncrypt(api.ApiHandler):
         """
         hKey, dwFlags = argv
         cm = emu.get_crypt_manager()
-        for hnd, ctx in cm.ctx_handles.items():
-            hnd_key = ctx.get_key(hKey)
+        for hnd, crypt_ctx in cm.ctx_handles.items():
+            hnd_key = crypt_ctx.get_key(hKey)
             if hnd_key:
-                ctx.delete_key(hKey)
+                crypt_ctx.delete_key(hKey)
                 break
 
         return windefs.ERROR_SUCCESS
@@ -111,12 +111,12 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
 
         # hObject can be a handle to a provider or key
-        for hnd, ctx in cm.ctx_handles.items():
+        for hnd, crypt_ctx in cm.ctx_handles.items():
             if hnd == hObject:
                 cm.crypt_close(hObject)
                 break
-            elif ctx.get_key(hObject):
-                ctx.delete_key(hObject)
+            elif crypt_ctx.get_key(hObject):
+                crypt_ctx.delete_key(hObject)
                 break
 
         return windefs.ERROR_SUCCESS

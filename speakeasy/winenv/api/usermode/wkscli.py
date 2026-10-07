@@ -31,16 +31,16 @@ class Wkscli(api.ApiHandler):
 
         if lpServer:
             server = self.read_wide_string(lpServer)
-            argv[0] = server
+            ctx.args["lpServer"].display = server
 
         # Assumes the server being queried is the local computer
         domain = emu.config.domain
-        argv[1] = domain
+        ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc(emu.get_ptr_size())
         self.write_wide_string(domain, namebuf)
         self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), "little"))
 
-        argv[2] = netapi32defs.NetSetupDomainName
+        ctx.args["BufferType"].display = hex(netapi32defs.NetSetupDomainName)
         self.mem_write(BufferType, netapi32defs.NetSetupDomainName.to_bytes(4, "little"))
 
         return netapi32defs.NERR_Success

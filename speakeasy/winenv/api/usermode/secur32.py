@@ -30,13 +30,13 @@ class Secur32(api.ApiHandler):
 
         name_format = sec32defs.get_define(NameFormat, prefix="Name")
         if name_format:
-            argv[0] = name_format
+            ctx.args["NameFormat"].display = name_format
 
         user_name = emu.config.user.name
         user_name_len = len(user_name)
 
-        argv[1] = user_name
-        argv[2] = user_name_len
+        ctx.args["lpNameBuffer"].display = user_name
+        ctx.args["nSize"].display = hex(user_name_len)
 
         self.write_mem_string(user_name, lpNameBuffer, cw)
         self.mem_write(nSize, user_name_len.to_bytes(4, "little"))

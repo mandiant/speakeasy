@@ -277,7 +277,7 @@ class Kernel32(api.ApiHandler):
         """
         (_str,) = argv
         cw = self.get_char_width(ctx)
-        argv[0] = self.read_mem_string(_str, cw)
+        ctx.args["lpOutputString"].display = self.read_mem_string(_str, cw)
 
     @apihook("GetThreadTimes", argc=5)
     def GetThreadTimes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -363,7 +363,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             hnd, evt = emu.create_mutant(name)
 
-        argv[2] = name
+        ctx.args["lpName"].display = name
         return hnd
 
     @apihook("CreateMutexEx", argc=4)
@@ -393,7 +393,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             hnd, evt = emu.create_mutant(name)
 
-        argv[1] = name
+        ctx.args["lpName"].display = name
         return hnd
 
     @apihook("LoadLibrary", argc=1)
@@ -410,7 +410,7 @@ class Kernel32(api.ApiHandler):
         lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
-        argv[0] = req_lib
+        ctx.args["lpLibFileName"].display = req_lib
 
         return hmod
 
@@ -488,7 +488,7 @@ class Kernel32(api.ApiHandler):
         cap_def = k32types.get_flag_defines(dwFlags, "TH32CS")
         if cap_def:
             cap_def = "|".join(cap_def)
-            argv[0] = cap_def
+            ctx.args["dwFlags"].display = cap_def
 
         return hnd
 
@@ -777,7 +777,7 @@ class Kernel32(api.ApiHandler):
 
         if name:
             obj_name = self.read_mem_string(name, cw)
-            argv[2] = obj_name
+            ctx.args["lpName"].display = obj_name
 
         obj = self.get_object_from_name(obj_name)
 
@@ -842,7 +842,7 @@ class Kernel32(api.ApiHandler):
 
         if lpCmdLine:
             cmd = self.read_mem_string(lpCmdLine, 1)
-            argv[0] = cmd
+            ctx.args["lpCmdLine"].display = cmd
             app = cmd.split()[0]
             proc = emu.create_process(path=app, cmdline=cmd)
             self.record_process_event(proc, PROC_CREATE)
@@ -884,9 +884,8 @@ class Kernel32(api.ApiHandler):
 
         pretty_flags = " | ".join([name for bit, name in flags.items() if dwFlags & bit])
 
-        argv[0] = req_lib
-        argv[1] = argv[1]
-        argv[2] = pretty_flags
+        ctx.args["lpLibFileName"].display = req_lib
+        ctx.args["dwFlags"].display = pretty_flags
 
         if not hmod:
             emu.set_last_error(windefs.ERROR_MOD_NOT_FOUND)
@@ -914,7 +913,15 @@ class Kernel32(api.ApiHandler):
         # Args are the same as CreateProcess except for argv[0] and argv[-1]
         _argv = argv[1:-1]
         rv = self.CreateProcess(emu, _argv, ctx)
-        argv[1:-1] = _argv
+        app, cmd, flags = _argv[0], _argv[1], _argv[5]
+        cw = self.get_char_width(ctx)
+        if app:
+            ctx.args[1].display = self.read_mem_string(app, cw)
+        if cmd:
+            ctx.args[2].display = self.read_mem_string(cmd, cw)
+        def_flags = windefs.get_creation_flags(flags)
+        if def_flags:
+            ctx.args[6].display = " | ".join(def_flags)
         return rv
 
     @apihook("CreateProcess", argc=10)
@@ -938,15 +945,15 @@ class Kernel32(api.ApiHandler):
         appstr = ""
         if app:
             appstr = self.read_mem_string(app, cw)
-            argv[0] = appstr
+            ctx.args["lpApplicationName"].display = appstr
         if cmd:
             cmdstr = self.read_mem_string(cmd, cw)
-            argv[1] = cmdstr
+            ctx.args["lpCommandLine"].display = cmdstr
 
         def_flags = windefs.get_creation_flags(flags)
         if def_flags:
             def_flags = " | ".join(def_flags)
-            argv[5] = def_flags
+            ctx.args["dwCreationFlags"].display = def_flags
 
         proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
         proc_hnd = self.get_object_handle(proc)
@@ -984,10 +991,12 @@ class Kernel32(api.ApiHandler):
         buf = 0
         tag_prefix = "api.VirtualAlloc"
 
+        protect = flProtect
         prot_def = windefs.get_page_rights(flProtect)
         if prot_def:
             prot_def = "|".join(prot_def)
-            argv[3] = prot_def
+            ctx.args["flProtect"].display = prot_def
+            protect = prot_def
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1013,7 +1022,7 @@ class Kernel32(api.ApiHandler):
                 proc = emu.get_current_process()
                 if proc:
                     self.record_process_event(
-                        proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[3]
+                        proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
                     )
 
                 emu._set_dyn_code_hook(buf, size)
@@ -1053,16 +1062,18 @@ class Kernel32(api.ApiHandler):
             return windefs.NULL
 
         proc_path = obj.path
-        argv[0] = proc_path
+        ctx.args["hProcess"].display = proc_path
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace(".", "_")
 
         tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
 
+        protect = flProtect
         prot_def = windefs.get_page_rights(flProtect)
         if prot_def:
             prot_def = "|".join(prot_def)
-            argv[4] = prot_def
+            ctx.args["flProtect"].display = prot_def
+            protect = prot_def
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1086,7 +1097,7 @@ class Kernel32(api.ApiHandler):
                 )
                 mm = emu.get_address_map(buf)
 
-                self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=argv[4])
+                self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect)
 
                 emu._set_dyn_code_hook(buf, size)
 
@@ -1112,7 +1123,7 @@ class Kernel32(api.ApiHandler):
             obj = self.get_object_from_handle(hProcess)
 
         proc_path = obj.path
-        argv[0] = proc_path
+        ctx.args["hProcess"].display = proc_path
 
         data = b""
         if lpBuffer and lpBaseAddress:
@@ -1150,7 +1161,7 @@ class Kernel32(api.ApiHandler):
             obj = self.get_object_from_handle(hProcess)
 
         proc_path = obj.path
-        argv[0] = proc_path
+        ctx.args["hProcess"].display = proc_path
 
         data = b""
         if lpBuffer and lpBaseAddress:
@@ -1195,7 +1206,7 @@ class Kernel32(api.ApiHandler):
             proc_obj = self.get_object_from_handle(hProcess)
 
         proc_path = proc_obj.path
-        argv[0] = proc_path
+        ctx.args["hProcess"].display = proc_path
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace(".", "_")
 
@@ -1238,7 +1249,7 @@ class Kernel32(api.ApiHandler):
         def_flags = windefs.get_creation_flags(dwCreationFlags)
         if def_flags:
             def_flags = " | ".join(def_flags)
-            argv[4] = def_flags
+            ctx.args["dwCreationFlags"].display = def_flags
 
         is_suspended = False
         if dwCreationFlags & windefs.CREATE_SUSPENDED:
@@ -1457,7 +1468,7 @@ class Kernel32(api.ApiHandler):
         prot_def = windefs.get_page_rights(flNewProtect)
         if prot_def:
             prot_def = " | ".join(prot_def)
-            argv[3] = prot_def
+            ctx.args["flNewProtect"].display = prot_def
 
         self.record_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def)
 
@@ -1682,7 +1693,7 @@ class Kernel32(api.ApiHandler):
         if lpConsoleTitle:
             cw = self.get_char_width(ctx)
             cs1 = self.read_mem_string(lpConsoleTitle, cw)
-            argv[0] = cs1
+            ctx.args["lpConsoleTitle"].display = cs1
         return True
 
     @apihook("GetLocalTime", argc=1)
@@ -1813,7 +1824,7 @@ class Kernel32(api.ApiHandler):
         }
 
         rv = lookup[argv[0]]["return"]
-        argv[0] = lookup[argv[0]]["name"]
+        ctx.args["ProcessorFeature"].display = lookup[argv[0]]["name"]
 
         return rv
 
@@ -1831,8 +1842,8 @@ class Kernel32(api.ApiHandler):
         cs1 = self.read_mem_string(string1, cw)
         cs2 = self.read_mem_string(string2, cw)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args["lpString1"].display = cs1
+        ctx.args["lpString2"].display = cs2
 
         if cs1.lower() == cs2.lower():
             rv = 0
@@ -1853,8 +1864,8 @@ class Kernel32(api.ApiHandler):
         cs1 = self.read_mem_string(string1, cw)
         cs2 = self.read_mem_string(string2, cw)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args["lpString1"].display = cs1
+        ctx.args["lpString2"].display = cs2
 
         if cs1 == cs2:
             rv = 0
@@ -1913,7 +1924,7 @@ class Kernel32(api.ApiHandler):
             cw = 1
         s = self.read_mem_string(src, cw)
 
-        argv[0] = s
+        ctx.args["lpString"].display = s
 
         return len(s)
 
@@ -1950,7 +1961,7 @@ class Kernel32(api.ApiHandler):
             rv = proc.base
         else:
             lib = self.read_mem_string(mod_name, cw)
-            argv[0] = lib
+            ctx.args["lpModuleName"].display = lib
             sname, _ = os.path.splitext(lib)
             sname = winemu.normalize_dll_name(sname)
             mods = emu.get_peb_modules()
@@ -1980,7 +1991,7 @@ class Kernel32(api.ApiHandler):
             else:
                 try:
                     proc = self.read_mem_string(proc_name, 1)
-                    argv[1] = proc
+                    ctx.args["lpProcName"].display = proc
                 except Exception:
                     pass
 
@@ -2183,8 +2194,8 @@ class Kernel32(api.ApiHandler):
         s1 = self.read_mem_string(lpString1, cw)
         s2 = self.read_mem_string(lpString2, cw)
 
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args["lpString1"].display = s1
+        ctx.args["lpString2"].display = s2
 
         if cw == 2:
             new = (s1 + s2).encode("utf-16le")
@@ -2209,7 +2220,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(src, cw)
-        argv[1] = s
+        ctx.args["lpString2"].display = s
         s = s[: iMaxLength - 1]
         s += "\x00"
 
@@ -2229,7 +2240,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(src, cw)
-        argv[1] = s
+        ctx.args["lpString2"].display = s
         s += "\x00"
 
         self.write_mem_string(s, dest, cw)
@@ -2615,7 +2626,7 @@ class Kernel32(api.ApiHandler):
         if lpSrc:
             src = self.read_mem_string(lpSrc, cw)
             dst = src
-            argv[0] = src
+            ctx.args["lpSrc"].display = src
             for k, v in emu.get_env().items():
                 ev = f"%{k.lower()}%"
                 if ev in dst.lower():
@@ -2626,7 +2637,7 @@ class Kernel32(api.ApiHandler):
             if lpDst:
                 self.write_mem_string(dst, lpDst, cw)
                 rv = len(dst)
-                argv[1] = dst
+                ctx.args["lpDst"].display = dst
 
         return rv
 
@@ -2936,11 +2947,11 @@ class Kernel32(api.ApiHandler):
         if cchWideChar == 0:
             if cbMultiByte == 0xFFFFFFFF:
                 mbs = self.read_mem_string(lpMultiByteStr, 1)
-                argv[2] = mbs
+                ctx.args["lpMultiByteStr"].display = mbs
                 rv = len(mbs) + 1
             else:
                 mbs = self.read_mem_string(lpMultiByteStr, 1)
-                argv[2] = mbs
+                ctx.args["lpMultiByteStr"].display = mbs
                 rv = len(mbs) + 1
         elif lpMultiByteStr == 0 or cbMultiByte == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -2948,7 +2959,7 @@ class Kernel32(api.ApiHandler):
         elif lpWideCharStr != 0:
             if cbMultiByte == 0xFFFFFFFF:
                 mbs = self.read_mem_string(lpMultiByteStr, 1)
-                argv[2] = mbs
+                ctx.args["lpMultiByteStr"].display = mbs
                 mbs += "\x00"
                 ws = mbs.encode("utf-16le")
 
@@ -3140,7 +3151,7 @@ class Kernel32(api.ApiHandler):
                         filename = mod.emu_path
 
         if filename:
-            argv[1] = filename
+            ctx.args["lpFilename"].display = filename
             if cw == 2:
                 out = filename.encode("utf-16le")
             elif cw == 1:
@@ -3235,7 +3246,7 @@ class Kernel32(api.ApiHandler):
         else:
             sysroot = "C:\\Windows\\system32"
 
-        argv[0] = sysroot
+        ctx.args["lpBuffer"].display = sysroot
         sysroot += "\x00"
         if cw == 2:
             out = sysroot.encode("utf-16le")
@@ -3273,8 +3284,8 @@ class Kernel32(api.ApiHandler):
         if lpName and lpValue:
             name = self.read_mem_string(lpName, cw)
             val = self.read_mem_string(lpValue, cw)
-            argv[0] = name
-            argv[1] = val
+            ctx.args["lpName"].display = name
+            ctx.args["lpValue"].display = val
             emu.set_env(name, val)
         return True
 
@@ -3290,7 +3301,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if path:
             path = self.read_mem_string(path, cw)
-            argv[0] = path
+            ctx.args["lpPathName"].display = path
         return True
 
     @apihook("GetWindowsDirectory", argc=2)
@@ -3325,7 +3336,7 @@ class Kernel32(api.ApiHandler):
         name = ""
         if map_name:
             name = self.read_mem_string(map_name, cw)
-            argv[5] = name
+            ctx.args["lpName"].display = name
 
         hmap = self.file_create_mapping(hfile, name, size, prot)
 
@@ -3457,7 +3468,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         rv = windefs.INVALID_FILE_ATTRIBUTES
         target = self.read_mem_string(fn, cw)
-        argv[0] = target
+        ctx.args["lpFileName"].display = target
         if self.does_file_exist(target):
             rv = windefs.FILE_ATTRIBUTE_NORMAL
         return rv
@@ -3476,13 +3487,13 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         filename = self.read_mem_string(lpFileName, cw)
-        argv[0] = filename
+        ctx.args["lpFileName"].display = filename
 
         level_id = k32types.get_define(fInfoLevelId, "GetFileExInfo")
         if not level_id:
             return False
 
-        argv[1] = level_id
+        ctx.args["fInfoLevelId"].display = level_id
 
         file_data = k32types.WIN32_FILE_ATTRIBUTE_DATA(emu.get_ptr_size())
 
@@ -3571,7 +3582,7 @@ class Kernel32(api.ApiHandler):
 
         if pn:
             target = self.read_mem_string(pn, cw)
-            argv[0] = target
+            ctx.args["lpPathName"].display = target
         return True
 
     @apihook("RemoveDirectory", argc=1)
@@ -3586,7 +3597,7 @@ class Kernel32(api.ApiHandler):
 
         if pn:
             target = self.read_mem_string(pn, cw)
-            argv[0] = target
+            ctx.args["lpPathName"].display = target
 
         return True
 
@@ -3604,10 +3615,10 @@ class Kernel32(api.ApiHandler):
 
         if src:
             src = self.read_mem_string(src, cw)
-            argv[0] = src
+            ctx.args["lpExistingFileName"].display = src
         if dst:
             dst = self.read_mem_string(dst, cw)
-            argv[1] = dst
+            ctx.args["lpNewFileName"].display = dst
 
         if not src or not dst:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -3656,10 +3667,10 @@ class Kernel32(api.ApiHandler):
 
         if src:
             src = self.read_mem_string(src, cw)
-            argv[0] = src
+            ctx.args["lpExistingFileName"].display = src
         if dst:
             dst = self.read_mem_string(dst, cw)
-            argv[1] = dst
+            ctx.args["lpNewFileName"].display = dst
 
         if not src or not dst:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -3721,17 +3732,17 @@ class Kernel32(api.ApiHandler):
             return hnd
 
         target = self.read_mem_string(fname, cw)
-        argv[0] = target
+        ctx.args["lpFileName"].display = target
 
         ad = ddk.get_access_defines(access)
         if ad:
-            argv[1] = " | ".join(ad)
+            ctx.args["dwDesiredAccess"].display = " | ".join(ad)
 
         disp_bytes = disp.to_bytes(8, "little")
         disp = int(int.from_bytes(disp_bytes[0:4], "little"))
         cd = windefs.get_create_disposition(disp)
         if cd:
-            argv[4] = cd
+            ctx.args["dwCreationDisposition"].display = cd
 
         obj = self.get_object_from_name(target)
         if obj:
@@ -3792,7 +3803,7 @@ class Kernel32(api.ApiHandler):
             return 0
 
         target = self.read_mem_string(lpFileName, cw)
-        argv[0] = target
+        ctx.args["lpFileName"].display = target
 
         if emu.does_file_exist(target):
             # FIXME : does not handle read-only attribute
@@ -3879,7 +3890,7 @@ class Kernel32(api.ApiHandler):
                 self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
                 data_hex = data.hex()
-                argv[1] = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
+                ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
 
             if bytes_written:
                 self.mem_write(bytes_written, len(data).to_bytes(4, "little"))
@@ -4078,7 +4089,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if root:
             root_name = self.read_mem_string(root, cw)
-            argv[0] = root_name
+            ctx.args["lpRootPathName"].display = root_name
 
         return True
 
@@ -4099,7 +4110,7 @@ class Kernel32(api.ApiHandler):
         obj = None
         if name:
             evt_name = self.read_mem_string(name, cw)
-            argv[3] = evt_name
+            ctx.args["lpName"].display = evt_name
             obj = self.get_object_from_name(evt_name)
 
         if obj:
@@ -4126,7 +4137,7 @@ class Kernel32(api.ApiHandler):
         obj = None
         if name:
             timer_name = self.read_mem_string(name, cw)
-            argv[2] = timer_name
+            ctx.args["lpTimerName"].display = timer_name
             obj = self.get_object_from_name(timer_name)
 
         if obj:
@@ -4155,7 +4166,7 @@ class Kernel32(api.ApiHandler):
         obj = None
         if name:
             timer_name = self.read_mem_string(name, cw)
-            argv[1] = timer_name
+            ctx.args["lpTimerName"].display = timer_name
             obj = self.get_object_from_name(timer_name)
 
         if obj:
@@ -4183,7 +4194,7 @@ class Kernel32(api.ApiHandler):
         hnd = 0
         if name:
             timer_name = self.read_mem_string(name, cw)
-            argv[2] = timer_name
+            ctx.args["lpTimerName"].display = timer_name
 
         obj = self.get_object_from_name(timer_name)
 
@@ -4250,7 +4261,7 @@ class Kernel32(api.ApiHandler):
         hnd = 0
         if name:
             evt_name = self.read_mem_string(name, cw)
-            argv[2] = evt_name
+            ctx.args["lpName"].display = evt_name
 
         obj = self.get_object_from_name(evt_name)
 
@@ -4575,7 +4586,7 @@ class Kernel32(api.ApiHandler):
         pipe_name = ""
         if lpName:
             pipe_name = self.read_mem_string(lpName, cw)
-            argv[0] = pipe_name
+            ctx.args["lpName"].display = pipe_name
 
         hnd = emu.pipe_open(pipe_name, dwOpenMode, nMaxInstances, nOutBufferSize, nInBufferSize)
         if not hnd:
@@ -4682,11 +4693,11 @@ class Kernel32(api.ApiHandler):
 
         lcid = k32types.get_define(Locale, "LOCALE_")
         if lcid:
-            argv[0] = lcid
+            ctx.args["Locale"].display = lcid
 
         lctype = k32types.get_define(LCType, "LOCALE_")
         if lctype:
-            argv[1] = lctype
+            ctx.args["LCType"].display = lctype
             locale_data = ""
             if lctype == "LOCALE_SENGLISHCOUNTRYNAME":
                 locale_data = "United States"
@@ -4747,8 +4758,8 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         host = emu.config.hostname
-        argv[0] = host
-        argv[1] = len(host)
+        ctx.args["lpBuffer"].display = host
+        ctx.args["nSize"].display = hex(len(host))
 
         if lpBuffer and host:
             if cw == 2:
@@ -4805,7 +4816,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         name = self.read_mem_string(lpName, cw)
-        argv[0] = name
+        ctx.args["lpName"].display = name
         env = emu.get_env()
 
         var = env.get(name.lower())
@@ -4860,7 +4871,6 @@ class Kernel32(api.ApiHandler):
 
         _argv = [lpFileName, lpFindFileData]
         rv = self.FindFirstFile(emu, _argv, ctx)
-        argv[0] = _argv[0]
 
         return rv
 
@@ -4881,7 +4891,7 @@ class Kernel32(api.ApiHandler):
             return windefs.INVALID_HANDLE_VALUE
 
         srch = self.read_mem_string(lpFileName, cw)
-        argv[0] = srch
+        ctx.args["lpFileName"].display = srch
         if srch.startswith("\\\\?\\"):
             srch = srch.replace("\\\\?\\", "")
 
@@ -4934,7 +4944,7 @@ class Kernel32(api.ApiHandler):
         except StopIteration:
             return 0
 
-        argv[1] = name
+        ctx.args["lpFindFileData"].display = name
 
         if cw == 2:
             cfn = name.encode("utf-16le")
@@ -5090,9 +5100,11 @@ class Kernel32(api.ApiHandler):
             return 0
 
         name = self.normalize_res_identifier(emu, cw, lpName)
-        argv[1] = name
+        if name != lpName:
+            ctx.args["lpName"].display = name if isinstance(name, str) else hex(name)
         type_ = self.normalize_res_identifier(emu, cw, lpType)
-        argv[2] = type_
+        if type_ != lpType:
+            ctx.args["lpType"].display = type_ if isinstance(type_, str) else hex(type_)
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
@@ -5126,9 +5138,11 @@ class Kernel32(api.ApiHandler):
             return 0
 
         name = self.normalize_res_identifier(emu, cw, lpName)
-        argv[1] = name
+        if name != lpName:
+            ctx.args["lpType"].display = name if isinstance(name, str) else hex(name)
         type_ = self.normalize_res_identifier(emu, cw, lpType)
-        argv[2] = type_
+        if type_ != lpType:
+            ctx.args["lpName"].display = type_ if isinstance(type_, str) else hex(type_)
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
@@ -5271,7 +5285,7 @@ class Kernel32(api.ApiHandler):
         if path:
             cw = self.get_char_width(ctx)
             path_str = self.read_mem_string(path, cw)
-            argv[0] = path_str
+            ctx.args["lpPathName"].display = path_str
             emu.set_cd(path_str)
 
         return True
@@ -5423,7 +5437,7 @@ class Kernel32(api.ApiHandler):
             new = (tempdir).encode("utf-8") + b"\x00"
         rv = len(tempdir)
         if lpBuffer:
-            argv[1] = tempdir
+            ctx.args["lpBuffer"].display = tempdir
             self.mem_write(lpBuffer, new)
         return rv
 
@@ -5460,7 +5474,7 @@ class Kernel32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         name = self.read_mem_string(lpRootPathName, cw)
         if name:
-            argv[0] = name
+            ctx.args["lpRootPathName"].display = name
 
         if name.startswith("\\\\?\\"):
             name = name.replace("\\\\?\\", "")
@@ -5516,7 +5530,7 @@ class Kernel32(api.ApiHandler):
         lpszLongPath, lpszShortPath, cchBuffer = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(lpszLongPath, cw)
-        argv[0] = s
+        ctx.args["lpszLongPath"].display = s
         files = s.split("\\")
         out = files[0] + "\\"
         for i, file in enumerate(files):
@@ -5547,7 +5561,7 @@ class Kernel32(api.ApiHandler):
                 out += "\\"
 
         if lpszShortPath and len(out) + 1 <= cchBuffer:
-            argv[1] = out
+            ctx.args["lpszShortPath"].display = out
             self.write_mem_string(out, lpszShortPath, cw)
 
         return len(out) + 1
@@ -5566,10 +5580,10 @@ class Kernel32(api.ApiHandler):
         # Not an accurate implementation, just a placeholder for now
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(lpszShortPath, cw)
-        argv[0] = s
+        ctx.args["lpszShortPath"].display = s
 
         self.write_mem_string(s, lpszLongPath, cw)
-        argv[1] = s
+        ctx.args["lpszLongPath"].display = s
 
         return len(s) * cw + 1
 
@@ -5672,7 +5686,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        argv[0] = s
+        ctx.args["lpString"].display = s
         if s[0] == "#" and int(s[1:]) < ATOM_RESERVED:
             return int(s[1:])
 
@@ -5693,7 +5707,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        argv[0] = s
+        ctx.args["lpString"].display = s
         if s[0] == "#" and int(s[1:]) < ATOM_RESERVED:
             return int(s[1:])
 
@@ -5724,7 +5738,7 @@ class Kernel32(api.ApiHandler):
         else:
             s = self.get_local_atom_name(nAtom)
 
-        argv[1] = s
+        ctx.args["lpBuffer"].display = s
         s += "\0"
         if len(s) > nSize:
             s = s[: nSize - 1] + "\0"
@@ -5827,7 +5841,7 @@ class Kernel32(api.ApiHandler):
         curr_drive = next(dw)
         if curr_drive:
             volume_guid_path = curr_drive.get("volume_guid_path")
-            argv[0] = volume_guid_path
+            ctx.args["lpszVolumeName"].display = volume_guid_path
 
             self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
@@ -5859,7 +5873,7 @@ class Kernel32(api.ApiHandler):
             return 0
 
         volume_guid_path = next_drive.get("volume_guid_path")
-        argv[1] = volume_guid_path
+        ctx.args["lpszVolumeName"].display = volume_guid_path
         self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
         return 1
@@ -5913,7 +5927,7 @@ class Kernel32(api.ApiHandler):
 
         volume_guid_path = self.read_mem_string(lpszVolumeName, cw)
         if volume_guid_path:
-            argv[0] = volume_guid_path
+            ctx.args["lpszVolumeName"].display = volume_guid_path
 
         ERROR_MORE_DATA = 234
 
@@ -5922,11 +5936,11 @@ class Kernel32(api.ApiHandler):
         drive = dm.get_drive(volume_guid_path=volume_guid_path)
         if drive:
             root_path = drive.get("root_path")
-            argv[1] = root_path
+            ctx.args["lpszVolumePathNames"].display = root_path
             root_path += "\x00\x00"  # additional NULL to terminate list
 
             root_path_len = len(root_path)
-            argv[3] = root_path_len
+            ctx.args["lpcchReturnLength"].display = hex(root_path_len)
 
             if lpszVolumePathNames and cchBufferLength >= root_path_len:
                 self.write_mem_string(root_path, lpszVolumePathNames, cw)
@@ -6050,13 +6064,13 @@ class Kernel32(api.ApiHandler):
 
         name_type = k32types.get_define(NameType, prefix="ComputerName")
         if name_type:
-            argv[0] = name_type
+            ctx.args["NameType"].display = name_type
 
         hostname = emu.config.hostname
-        argv[1] = hostname
+        ctx.args["lpBuffer"].display = hostname
 
         hostname_len = len(hostname)
-        argv[2] = hostname_len
+        ctx.args["nSize"].display = hex(hostname_len)
 
         self.write_mem_string(hostname, lpBuffer, cw)
         self.mem_write(nSize, hostname_len.to_bytes(4, "little"))
@@ -6081,7 +6095,7 @@ class Kernel32(api.ApiHandler):
 
         locale = k32types.get_define(Locale, prefix="LOCALE_")
         if locale:
-            argv[0] = locale
+            ctx.args["Locale"].display = locale
 
         if lpDate == 0:
             self.GetSystemTimeAsFileTime(emu, [lpDate], ctx)
@@ -6091,7 +6105,7 @@ class Kernel32(api.ApiHandler):
 
         date_format = self.read_mem_string(lpFormat, cw)
         if date_format:
-            argv[3] = date_format
+            ctx.args["lpFormat"].display = date_format
 
         # Working from example "ddd, dd MMM yyyy "; TODO: expand this
         date = datetime.date(sys_time.wYear, sys_time.wMonth, sys_time.wDay)
@@ -6109,7 +6123,7 @@ class Kernel32(api.ApiHandler):
                 return len(date_str) + 1
 
             self.write_mem_string(date_str + "\x00" * cw, lpDateStr, cw)
-            argv[4] = date_str
+            ctx.args["lpDateStr"].display = date_str
 
         return 1
 
@@ -6185,7 +6199,7 @@ class Kernel32(api.ApiHandler):
 
         locale = k32types.get_define(Locale, prefix="LOCALE_")
         if locale:
-            argv[0] = locale
+            ctx.args["Locale"].display = locale
 
         if lpTime == 0:
             self.GetSystemTimeAsFileTime(emu, [lpTime], ctx)
@@ -6196,7 +6210,7 @@ class Kernel32(api.ApiHandler):
         if lpFormat:
             time_format = self.read_mem_string(lpFormat, cw)
             if time_format:
-                argv[3] = time_format
+                ctx.args["lpFormat"].display = time_format
         else:
             # Using this as default; TODO: use proper string based on locale
             time_format = "hh:mm:ss"
@@ -6217,7 +6231,7 @@ class Kernel32(api.ApiHandler):
                 return len(time_str) + 1
 
             self.write_mem_string(time_str + "\x00" * cw, lpTimeStr, cw)
-            argv[4] = time_str
+            ctx.args["lpTimeStr"].display = time_str
 
         return 1
 
@@ -6489,7 +6503,7 @@ class Kernel32(api.ApiHandler):
             out = path + f"\\{prefix}_{int(time.time_ns())}.tmp"
         else:
             out = path + f"{int(time.time_ns())}.tmp"
-        argv[1] = out
+        ctx.args["lpPrefixString"].display = out
         self.write_mem_string(out, lpTempFileName, cw)
 
         return len(out) + 1
@@ -6564,8 +6578,8 @@ class Kernel32(api.ApiHandler):
         else:
             temp_title = temp_title.encode("utf-8") + b"\x00"
 
-        argv[0] = temp_title
-        argv[1] = len(temp_title)
+        ctx.args["lpConsoleTitle"].display = str(temp_title)
+        ctx.args["nSize"].display = hex(len(temp_title))
 
         if lpConsoleTitle and temp_title:
             self.mem_write(lpConsoleTitle, temp_title)
@@ -6655,7 +6669,7 @@ class Kernel32(api.ApiHandler):
         obj = None
         if name:
             timer_name = self.read_mem_string(name, 2)
-            argv[1] = timer_name
+            ctx.args["lpTimerName"].display = timer_name
             obj = self.get_object_from_name(timer_name)
 
         if obj:

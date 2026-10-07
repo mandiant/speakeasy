@@ -56,7 +56,7 @@ class Crypt32(api.ApiHandler):
         if not isinstance(s, str):
             s = s.decode("utf8")
 
-        argv[0] = s
+        ctx.args["pszString"].display = s
 
         try:
             decoded = base64.b64decode(s)

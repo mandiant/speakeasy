@@ -15,7 +15,7 @@ class DbgView(speakeasy.Speakeasy):
         # Call the DbgPrint* function and print the formatted string to the console
         rv = func(params)
 
-        formatted_str = params[0]
+        formatted_str = emu.get_api_args()[-1].display
         print(formatted_str)
 
         return rv
@@ -24,7 +24,7 @@ class DbgView(speakeasy.Speakeasy):
         # Call the DbgPrintEx function and print the formatted string to the console
         rv = func(params)
 
-        formatted_str = params[2]
+        formatted_str = emu.get_api_args()[-1].display
         print(formatted_str)
 
         return rv

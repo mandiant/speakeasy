@@ -53,7 +53,7 @@ class Shlwapi(api.ApiHandler):
             if ".." in pn:
                 rv = True
 
-            argv[0] = pn
+            ctx.args["pszPath"].display = pn
 
         return rv
 
@@ -72,11 +72,11 @@ class Shlwapi(api.ApiHandler):
 
         if hay:
             _hay = self.read_mem_string(hay, cw)
-            argv[0] = _hay
+            ctx.args["pszFirst"].display = _hay
 
         if needle:
             needle = self.read_mem_string(needle, cw)
-            argv[1] = needle
+            ctx.args["pszSrch"].display = needle
 
         ret = _hay.find(needle)
         if ret != -1:
@@ -101,12 +101,12 @@ class Shlwapi(api.ApiHandler):
 
         if hay:
             _hay = self.read_mem_string(hay, cw)
-            argv[0] = _hay
+            ctx.args["pszFirst"].display = _hay
             _hay = _hay.lower()
 
         if needle:
             needle = self.read_mem_string(needle, cw)
-            argv[1] = needle
+            ctx.args["pszSrch"].display = needle
             needle = needle.lower()
 
         ret = _hay.find(needle)
@@ -126,14 +126,14 @@ class Shlwapi(api.ApiHandler):
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
-        argv[0] = s
+        ctx.args["pszPath"].display = s
         idx1 = s.rfind("\\")
         t = s[idx1 + 1 :]
         idx2 = t.rfind(".")
         if idx2 == -1:
             return pszPath + len(s)
 
-        argv[0] = t[idx2:]
+        ctx.args["pszPath"].display = t[idx2:]
         return pszPath + idx1 + 1 + idx2
 
     @apihook("StrCmpI", argc=2)
@@ -151,8 +151,8 @@ class Shlwapi(api.ApiHandler):
         s2 = self.read_mem_string(psz2, cw)
         rv = 1
 
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args["psz1"].display = s1
+        ctx.args["psz2"].display = s2
 
         if s1.lower() == s2.lower():
             rv = 0
@@ -169,12 +169,12 @@ class Shlwapi(api.ApiHandler):
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
-        argv[0] = s
+        ctx.args["pszPath"].display = s
         idx = s.rfind("\\")
         if idx == -1:
             return pszPath + len(s)
 
-        argv[0] = s[idx + 1 :]
+        ctx.args["pszPath"].display = s[idx + 1 :]
         return pszPath + idx + 1
 
     @apihook("PathRemoveExtension", argc=1)
@@ -187,7 +187,7 @@ class Shlwapi(api.ApiHandler):
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
-        argv[0] = s
+        ctx.args["pszPath"].display = s
         idx1 = s.rfind("\\")
         t = s[idx1 + 1 :]
         idx2 = t.rfind(".")
@@ -195,7 +195,7 @@ class Shlwapi(api.ApiHandler):
             return pszPath
 
         s = s[: idx1 + 1 + idx2]
-        argv[0] = s
+        ctx.args["pszPath"].display = s
         self.write_mem_string(s, pszPath, cw)
         return pszPath
 
@@ -209,7 +209,7 @@ class Shlwapi(api.ApiHandler):
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
-        argv[0] = s
+        ctx.args["pszPath"].display = s
         mod_name = ntpath.basename(s) + "\x00"
 
         enc = self.get_encoding(cw)
@@ -239,8 +239,8 @@ class Shlwapi(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        argv[0] = fin.replace("\x00", "")
-        argv[1] = fmt_str
+        ctx.args["pszDest"].display = fin.replace("\x00", "")
+        ctx.args["cchDest"].display = fmt_str
 
         return rv
 
@@ -271,8 +271,6 @@ class Shlwapi(api.ApiHandler):
 
         if rv <= max_buf_size:
             self.write_mem_string(fin, buf, cw)
-            argv[0] = fin
-            argv[2] = fmt_str
             return rv
         else:
             return -1
@@ -289,8 +287,8 @@ class Shlwapi(api.ApiHandler):
         cw = self.get_char_width(ctx)
         path = self.read_mem_string(pszPath, cw)
         more = self.read_mem_string(pszMore, cw)
-        argv[0] = path
-        argv[1] = more
+        ctx.args["pszPath"].display = path
+        ctx.args["pszMore"].display = more
         out = self.join_windows_path(path, more)
         out += "\0"
         self.write_mem_string(out, pszPath, cw)

@@ -32,7 +32,7 @@ from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.api import sigdb, sigfmt
-from speakeasy.winenv.api.api import ApiContext, HandlerArgs
+from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -115,6 +115,7 @@ class WindowsEmulator(BinaryEmulator):
         self._setup_done: bool = False
         self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
         self.curr_run: Run | None = None
+        self.api_ctx: ApiContext = NO_CONTEXT
         self.restart_curr_run: bool = False
         self._stop_on_faults: bool = False
         self._pending_fault_stop: StopReason | None = None
@@ -1964,27 +1965,15 @@ class WindowsEmulator(BinaryEmulator):
             self.enable_code_hook()
         return rv
 
-    def _apply_argv_writes(self, ctx: ApiContext, sig: sigdb.FuncSig | None, before: list[int], after: list) -> None:
-        """Show the values that a handler wrote into argv in place of the rendering of their arguments."""
-        if sig is not None and len(before) == len(after):
-            pos = 0
-            for index, count in enumerate(sig.slot_layout(self.get_ptr_size())):
-                changed = [after[i] for i in range(pos, pos + count) if after[i] != before[i]]
-                pos += count
-                if changed:
-                    arg = ctx.args[index]
-                    if isinstance(changed[0], int):
-                        arg.display, arg.type = hex(changed[0]), arg.type
-                    else:
-                        arg.display = str(changed[0])
-            return
-        if sig is not None:
-            ctx.args = HandlerArgs.from_slots(before)
-        for i, slot in enumerate(after):
-            if i >= len(before):
-                ctx.args.append(hex(slot) if isinstance(slot, int) else str(slot))
-            elif slot != before[i]:
-                ctx.args[i].display = hex(slot) if isinstance(slot, int) else str(slot)
+    def get_api_args(self) -> list[ApiArg]:
+        """
+        Get the arguments of the hooked API call in progress, as the report shows them.
+
+        An API hook calls this after it calls the original handler to see the
+        values the handler decoded, such as the strings behind pointer arguments.
+        Outside an API hook the list is empty.
+        """
+        return self.api_ctx.args.get_report_args()
 
     def handle_import_func(self, dll, name):
         """
@@ -2016,7 +2005,6 @@ class WindowsEmulator(BinaryEmulator):
             else:
                 args = HandlerArgs.from_slots(argv)
             ctx = ApiContext(func_name=imp_api, args=args)
-            raw_argv = list(argv)
 
             self.hammer.handle_import_func(imp_api, conv, argc)
             hooks = self.get_api_hooks(dll, name)
@@ -2027,8 +2015,12 @@ class WindowsEmulator(BinaryEmulator):
                 orig = lambda args: hooked_func(self, args, ctx)  # noqa
                 # Hooks execute in FIFO order (first registered, first called).
                 # All hooks run; the last hook's return value is used.
-                for hook in hooks:
-                    rv = hook.cb(self, imp_api, orig, argv)
+                prev_ctx, self.api_ctx = self.api_ctx, ctx
+                try:
+                    for hook in hooks:
+                        rv = hook.cb(self, imp_api, orig, argv)
+                finally:
+                    self.api_ctx = prev_ctx
             else:
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=ctx)  # type: ignore[union-attr]
@@ -2048,7 +2040,6 @@ class WindowsEmulator(BinaryEmulator):
                 self._fire_dyn_code_hooks(ret)
 
             # Log the API args and return value
-            self._apply_argv_writes(ctx, sig, raw_argv, argv)
             self.log_api(call_pc, imp_api, rv, ctx.args.get_report_args())
 
             if not self.run_complete and ret == oret and pc == opc:

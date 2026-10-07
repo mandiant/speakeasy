@@ -48,14 +48,16 @@ class HandlerArg:
         return self._arg.display
 
     @display.setter
-    def display(self, text: str) -> None:
+    def display(self, text: object) -> None:
         """
         Show ``text`` for this argument. The type becomes ``str`` on a
         parameter declared as a string, and ``text`` otherwise. A parameter
         that the signature renders as an enum or flags keeps that rendering,
-        so all such values have one format.
+        so all such values have one format. A value that is not a string,
+        such as ``None`` from a failed lookup or a NULL pointer the handler
+        did not decode, keeps the current display.
         """
-        if self._param is not None and self._arg.type in ("enum", "flags"):
+        if not isinstance(text, str) or (self._param is not None and self._arg.type in ("enum", "flags")):
             return
         self._arg.display = text
         self._arg.type = "str" if self._param is not None and self._param.kind in sigdb.STRING_KINDS else "text"

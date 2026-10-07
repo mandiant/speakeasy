@@ -50,7 +50,7 @@ class Shell32(api.ApiHandler):
         dn = ""
         if pszPath:
             dn = self.read_mem_string(pszPath, cw)
-            argv[1] = dn
+            ctx.args["pszPath"].display = dn
 
             self.record_file_access_event(dn, "directory_create")
 
@@ -78,16 +78,16 @@ class Shell32(api.ApiHandler):
         dn = ""
         if lpOperation:
             op = self.read_mem_string(lpOperation, cw)
-            argv[1] = op
+            ctx.args["lpOperation"].display = op
         if lpFile:
             fn = self.read_mem_string(lpFile, cw)
-            argv[2] = fn
+            ctx.args["lpFile"].display = fn
         if lpParameters:
             param = self.read_mem_string(lpParameters, cw)
-            argv[3] = param
+            ctx.args["lpParameters"].display = param
         if lpDirectory:
             dn = self.read_mem_string(lpDirectory, cw)
-            argv[4] = dn
+            ctx.args["lpDirectory"].display = dn
 
         if dn and fn:
             fn = f"{dn}\\{fn}"
@@ -215,7 +215,7 @@ class Shell32(api.ApiHandler):
         """
         hwnd, csidl, hToken, dwFlags, pszPath = argv
         if csidl in shell32_defs.CSIDL:
-            argv[1] = shell32_defs.CSIDL[csidl]
+            ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
         if csidl == 0x1A:
             # CSIDL_APPDATA
             path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming"

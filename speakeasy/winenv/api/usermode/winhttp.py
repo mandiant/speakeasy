@@ -53,13 +53,13 @@ class WinHttp(api.ApiHandler):
 
         if ua:
             ua = self.read_mem_string(ua, 2)
-            argv[0] = ua
+            ctx.args["pszAgentW"].display = ua
         if proxy:
             proxy = self.read_mem_string(proxy, 2)
-            argv[2] = proxy
+            ctx.args["pszProxyW"].display = proxy
         if bypass:
             bypass = self.read_mem_string(bypass, 2)
-            argv[3] = bypass
+            ctx.args["pszProxyBypassW"].display = bypass
 
         conn = self.netman.new_wininet_inst(ua, access, proxy, bypass, flags)
         hnd = conn.get_handle()
@@ -79,7 +79,7 @@ class WinHttp(api.ApiHandler):
 
         if server:
             server = self.read_mem_string(server, 2)
-            argv[1] = server
+            ctx.args["pswzServerName"].display = server
 
         wini = self.netman.get_wininet_object(hnd)
 
@@ -107,22 +107,22 @@ class WinHttp(api.ApiHandler):
 
         if verb:
             verb = self.read_mem_string(verb, 2)
-            argv[1] = verb
+            ctx.args["pwszVerb"].display = verb
         if objname:
             objname = self.read_mem_string(objname, 2)
-            argv[2] = objname
+            ctx.args["pwszObjectName"].display = objname
         if ver:
             ver = self.read_mem_string(ver, 2)
-            argv[3] = ver
+            ctx.args["pwszVersion"].display = ver
         if ref:
             ref = self.read_mem_string(ref, 2)
-            argv[4] = ref
+            ctx.args["pwszReferrer"].display = ref
         if accepts:
             accepts = self.read_mem_string(accepts, 2)
-            argv[5] = accepts
+            ctx.args["ppwszAcceptTypes"].display = accepts
 
         defs = windefs.get_flag_defines(flags)
-        argv[6] = " | ".join(defs)
+        ctx.args["dwFlags"].display = " | ".join(defs)
 
         sess = self.netman.get_wininet_object(hnd)
         req = sess.new_request(verb, objname, ver, ref, accepts, defs, None)
@@ -160,7 +160,7 @@ class WinHttp(api.ApiHandler):
 
         if url:
             url = self.read_mem_string(url, 2)
-            argv[1] = url
+            ctx.args["lpcwszUrl"].display = url
 
         return True
 
@@ -200,7 +200,7 @@ class WinHttp(api.ApiHandler):
 
         if headers:
             headers = self.read_mem_string(headers, 2)
-            argv[1] = headers
+            ctx.args["lpszHeaders"].display = headers
 
         if lpOptional and dwOptionalLength:
             body = self.mem_read(lpOptional, dwOptionalLength)
@@ -273,7 +273,7 @@ class WinHttp(api.ApiHandler):
         # url = self.read_mem_string(pwszUrl, dwUrlLength)
         if pwszUrl and lpUrlComponents:
             url = self.read_mem_string(pwszUrl, cw)
-            argv[0] = url
+            ctx.args["pwszUrl"].display = url
             rv = True
 
             uc = windefs.URL_COMPONENTS(emu.get_ptr_size())
@@ -312,9 +312,9 @@ class WinHttp(api.ApiHandler):
         hnd, headers, dwHeaderlen, dwModfier = argv
 
         headers = self.read_wide_string(headers, dwHeaderlen)
-        argv[1] = headers
+        ctx.args["lpszHeaders"].display = headers
         flags = windefs.get_header_info_winhttp(dwModfier)
-        argv[3] = " | ".join(flags)
+        ctx.args["dwModifiers"].display = " | ".join(flags)
         rv = 1
 
         return rv
@@ -334,7 +334,8 @@ class WinHttp(api.ApiHandler):
         hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
 
         header_query = windefs.get_header_query(dwInfoLevel)
-        argv[2] = header_query
+        if header_query:
+            ctx.args["pwszName"].display = header_query
 
         if buffer == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -343,11 +344,9 @@ class WinHttp(api.ApiHandler):
         # If program checks for WINHTTP_QUERY_STATUS_CODE and the buffer is set, write '200' to buffer
         if (header_query == windefs.WINHTTP_QUERY_STATUS_CODE) and (buffer != 0):
             self.mem_write(buffer, b"\x32\x00\x30\x00\x30\x00\x00\x00")
-            argv[3] = buffer
             self.mem_write(bufferLen, 8)
-            argv[4] = bufferLen
 
-        argv[5] = 0
+        ctx.args["lpdwIndex"].display = hex(0)
         rv = 1
 
         return rv

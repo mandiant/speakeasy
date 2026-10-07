@@ -390,7 +390,7 @@ class Wdfldr(api.ApiHandler):
         wkey = emu.reg_get_key(Key)
         if wkey:
             val_name = self.read_unicode_string(ValueName)
-            argv[2] = val_name
+            ctx.args[2].display = val_name
             value = wkey.get_value(val_name)
             if value:
                 ulong = value.get_data()
@@ -449,11 +449,11 @@ class Wdfldr(api.ApiHandler):
         if InterfaceClassGUID:
             guid = self.mem_read(InterfaceClassGUID, 16)
             guid = uuid.UUID(bytes_le=guid)
-            argv[2] = str(guid)
+            ctx.args[2].display = str(guid)
 
         if ReferenceString:
             ref = self.read_unicode_string(ReferenceString)
-            argv[3] = ref
+            ctx.args[3].display = ref
 
         return rv
 
