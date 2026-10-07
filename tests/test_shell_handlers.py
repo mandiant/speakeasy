@@ -16,6 +16,13 @@ def wstr(text: str, width: int) -> bytes:
     return (text + "\x00").encode("utf-16le" if width == 2 else "utf-8")
 
 
+def read_wstr(se: Speakeasy, addr: int) -> str:
+    data = b""
+    while not data.endswith(b"\x00\x00") or len(data) % 2:
+        data += se.mem_read(addr + len(data), 1)
+    return data[:-2].decode("utf-16le")
+
+
 def test_sys_free_string_accepts_null(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "oleaut32", "SysFreeString", [0])
     assert rv is None
@@ -62,3 +69,22 @@ def test_path_find_returns_byte_address(dll_emu: Speakeasy, api: str, path: str,
     p = alloc(dll_emu, wstr(path, width))
     rv, _ = call(dll_emu, "shlwapi", api + ("W" if width == 2 else "A"), [p])
     assert rv == p + index * width
+
+
+@pytest.mark.parametrize(
+    "cmdline, expected",
+    [
+        ('C:\\dir\\a.exe "x y" a\\\\\\"b', ["C:\\dir\\a.exe", "x y", 'a\\"b']),
+        ('"C:\\Program Files\\a.exe" b\\\\"c d" e\\f', ["C:\\Program Files\\a.exe", "b\\c d", "e\\f"]),
+        ('C:\\a\\"b c\\\\', ['C:\\a\\"b', "c\\\\"]),
+        ('a.exe "" \t x', ["a.exe", "", "x"]),
+        ('a.exe "b c', ["a.exe", "b c"]),
+    ],
+)
+def test_command_line_to_argv_uses_windows_rules(dll_emu: Speakeasy, cmdline: str, expected: list[str]) -> None:
+    cl = alloc(dll_emu, wstr(cmdline, 2))
+    nargs = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "CommandLineToArgvW", [cl, nargs])
+    assert struct.unpack("<I", dll_emu.mem_read(nargs, 4))[0] == len(expected)
+    ptrs = struct.unpack(f"<{len(expected)}I", dll_emu.mem_read(rv, 4 * len(expected)))
+    assert [read_wstr(dll_emu, p) for p in ptrs] == expected

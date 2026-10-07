@@ -1,5 +1,4 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
-import shlex
 from typing import Any
 
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
@@ -7,6 +6,53 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler_events import PROC_CREATE
 
 from .. import api
+
+
+def split_command_line(cmdline: str) -> list[str]:
+    """
+    Split a command line with the rules of CommandLineToArgvW. The program
+    name ends at the next quote or whitespace, without escapes. In later
+    arguments, 2n backslashes and a quote give n backslashes and toggle
+    quoting, 2n+1 backslashes and a quote give n backslashes and a literal
+    quote, and other backslashes are literal.
+    """
+    blank = " \t"
+    if cmdline.startswith('"'):
+        end = cmdline.find('"', 1)
+        end = len(cmdline) if end == -1 else end
+        args = [cmdline[1:end]]
+        end += 1
+    else:
+        end = next((i for i, c in enumerate(cmdline) if c in blank), len(cmdline))
+        args = [cmdline[:end]]
+
+    arg: list[str] = []
+    started = quoted = False
+    backslashes = 0
+    for c in cmdline[end:]:
+        if c == "\\":
+            backslashes += 1
+            started = True
+            continue
+        if c == '"':
+            arg.append("\\" * (backslashes // 2))
+            if backslashes % 2:
+                arg.append('"')
+            else:
+                quoted = not quoted
+            started = True
+        elif c in blank and not quoted:
+            arg.append("\\" * backslashes)
+            if started:
+                args.append("".join(arg))
+            arg, started = [], False
+        else:
+            arg.append("\\" * backslashes + c)
+            started = True
+        backslashes = 0
+    if started:
+        args.append("".join(arg) + "\\" * backslashes)
+    return args
 
 
 class Shell32(api.ApiHandler):
@@ -162,7 +208,7 @@ class Shell32(api.ApiHandler):
 
         ptrsize = emu.get_ptr_size()
 
-        split = shlex.split(cl)
+        split = split_command_line(cl)
         nargs = len(split)
 
         # Get the total size we need
