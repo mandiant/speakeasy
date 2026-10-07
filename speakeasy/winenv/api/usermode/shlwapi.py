@@ -337,7 +337,7 @@ class Shlwapi(api.ApiHandler):
                 return 0
 
         self.write_mem_string(s, pszPath, cw)
-        return pszPath
+        return pszPath + len(s) * cw
 
     @apihook("PathRenameExtension", argc=2)
     def PathRenameExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

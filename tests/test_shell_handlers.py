@@ -189,3 +189,12 @@ def test_rtl_compute_crc32_continues_from_the_initial_value(dll_emu: Speakeasy) 
     first, _ = call(dll_emu, "ntdll", "RtlComputeCrc32", [0, hello, 5])
     rv, _ = call(dll_emu, "ntdll", "RtlComputeCrc32", [first, world, 6])
     assert rv == zlib.crc32(b"hello world")
+
+
+@pytest.mark.parametrize("path", ["C:\\dir", "C:\\dir\\"])
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_add_backslash_returns_the_terminator(dll_emu: Speakeasy, path: str, width: int) -> None:
+    p = alloc(dll_emu, wstr(path, width) + b"\xcc" * 8)
+    rv, _ = call(dll_emu, "shlwapi", "PathAddBackslash" + ("W" if width == 2 else "A"), [p])
+    assert rv == p + 7 * width
+    assert dll_emu.mem_read(p, 8 * width) == wstr("C:\\dir\\", width)
