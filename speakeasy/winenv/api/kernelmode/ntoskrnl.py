@@ -274,7 +274,6 @@ class Ntoskrnl(api.ApiHandler):
         size = len(ansi_str) * 2
 
         if do_alloc:
-            us.Length = size
             us.MaximumLength = size
             ptr = self.mem_alloc(size, tag=f"api.struct.STRING.{ansi_str}")
             us.Buffer = ptr
@@ -284,7 +283,6 @@ class Ntoskrnl(api.ApiHandler):
 
         if nts == ddk.STATUS_SUCCESS:
             us.Length = size
-            us.MaximumLength = size
             self.mem_write(us.Buffer, ansi_str.encode("utf-16le"))
 
             data = self.get_bytes(us)
