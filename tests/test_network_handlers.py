@@ -314,3 +314,24 @@ def test_win_http_get_proxy_for_url_reports_no_proxy(
     assert struct.unpack_from("<I", data, 0)[0] == 1
     assert data[ptr_size:size] == b"\x00" * (size - ptr_size)
     assert data[size:] == b"\xcc" * (32 - size)
+
+
+@pytest.mark.parametrize(
+    "name, level, size, rv, out, length",
+    [
+        ("HttpQueryInfoA", 19, 16, 1, b"200\x00", 3),
+        ("HttpQueryInfoW", 19, 16, 1, "200\x00".encode("utf-16le"), 6),
+        ("HttpQueryInfoA", 19 | 0x20000000, 16, 1, struct.pack("<I", 200), 4),
+        ("HttpQueryInfoA", 19, 2, 0, b"\xcc" * 4, 4),
+        ("HttpQueryInfoW", 19, 4, 0, b"\xcc" * 4, 8),
+    ],
+)
+def test_http_query_info_status_code(
+    dll_emu: Speakeasy, name: str, level: int, size: int, rv: int, out: bytes, length: int
+) -> None:
+    req = _wininet_request(dll_emu, b"GET", b"/a")
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    buf_len = alloc(dll_emu, struct.pack("<I", size))
+    assert call(dll_emu, "wininet", name, [req, level, buf, buf_len, 0])[0] == rv
+    assert dll_emu.mem_read(buf, len(out)) == out
+    assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == length
