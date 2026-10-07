@@ -429,6 +429,9 @@ def test_system_time_to_file_time_rejects_a_bad_date(dll_emu: Speakeasy, fields:
     [
         (Y2K_FILETIME, (2000, 1, 6, 1, 0, 0, 0, 0)),
         (133536879302500000, (2024, 2, 4, 29, 13, 45, 30, 250)),
+        (Y2K_FILETIME + 9_999_999, (2000, 1, 6, 1, 0, 0, 0, 999)),
+        (Y2K_FILETIME + 599_999_999, (2000, 1, 6, 1, 0, 0, 59, 999)),
+        (0, (1601, 1, 1, 1, 0, 0, 0, 0)),
     ],
 )
 def test_file_time_to_system_time_counts_weekdays_from_sunday(
