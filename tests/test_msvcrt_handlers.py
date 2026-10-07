@@ -287,3 +287,10 @@ def test_strlwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
 def test_wcsnicmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count: int, rv: int) -> None:
     args = [alloc(dll_emu, f"{s}\0".encode("utf-16le")) for s in (a, b)]
     assert call(dll_emu, "msvcrt", "_wcsnicmp", [*args, count])[0] == rv
+
+
+def test_snprintf_reads_no_argument_for_percent_escape(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    fmt = alloc(dll_emu, b"%d%%\0")
+    assert call(dll_emu, "msvcrt", "_snprintf", [buf, 16, fmt, 5])[0] == 2
+    assert dll_emu.mem_read(buf, 3) == b"5%\0"

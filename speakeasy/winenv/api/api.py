@@ -495,7 +495,7 @@ class ApiHandler:
 
         if self.get_ptr_size() != 8:
             c += fmt.count("%ll")
-        return c - i
+        return c - 2 * i
 
     def va_args(self, va_list, num_args):
         """
