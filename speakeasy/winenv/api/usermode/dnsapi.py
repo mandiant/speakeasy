@@ -1,12 +1,14 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from socket import inet_aton
 
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.struct import EmuStruct, Ptr
 
 from .. import api
 
+DNS_TYPE_A = 0x0001
 DNS_TYPE_TEXT = 0x0010
 
 
@@ -84,6 +86,12 @@ class DnsApi(api.ApiHandler):
 
                 self.mem_write(rr, rec.get_bytes() + ts.get_bytes())
                 self.mem_write(ts.pStringArray, text)
+            elif wType == DNS_TYPE_A and ip:
+                ctx.args["wType"].display = "DNS_TYPE_A"
+
+                rr = self.mem_alloc(rec.sizeof() + 4, tag="api.DnsQuery._DnsRecord")
+                rec.wDataLength = 4
+                self.mem_write(rr, rec.get_bytes() + inet_aton(ip))
 
             if ppQueryResults and rr:
                 out = rr.to_bytes(self.get_ptr_size(), "little")

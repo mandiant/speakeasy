@@ -362,3 +362,16 @@ def test_accept_fills_the_peer_address(dll_emu: Speakeasy) -> None:
     assert struct.unpack("<H", data[:2])[0] == 2
     assert struct.unpack(">H", data[2:4])[0] == 4444
     assert data[4:8] == bytes([10, 1, 2, 3])
+
+
+@pytest.mark.parametrize("emu_fixture, ptr_size", [("dll_emu", 4), ("dll64_emu", 8)])
+def test_dns_query_a_record(request: pytest.FixtureRequest, emu_fixture: str, ptr_size: int) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    name = alloc(se, b"google.com\x00")
+    results = alloc(se, b"\x00" * 8)
+    rv, _ = call(se, "dnsapi", "DnsQuery_A", [name, 1, 0, 0, results, 0])
+    assert rv == 0
+    rec = _read_ptr(se, results)
+    assert _read_ptr(se, rec) == 0
+    assert struct.unpack("<HH", se.mem_read(rec + 2 * ptr_size, 4)) == (1, 4)
+    assert se.mem_read(rec + 2 * ptr_size + 16, 4) == bytes([8, 8, 8, 8])
