@@ -322,3 +322,35 @@ def test_crypt_derive_key_rc4(
     plaintext = b"hello world!"
     ciphertext = ARC4.new(key(hasher(b"secret").digest())).encrypt(plaintext)
     assert _derive_and_decrypt(dll_emu, algid, flags, ciphertext) == plaintext
+
+
+def _hash(se: Speakeasy, algid: int, data: bytes) -> int:
+    phprov = alloc(se, b"\x00" * 4)
+    assert call(se, "advapi32", "CryptAcquireContextA", [phprov, 0, 0, 1, 0xF0000000])[0]
+    phhash = alloc(se, b"\x00" * 4)
+    assert call(se, "advapi32", "CryptCreateHash", [_dword(se, phprov), algid, 0, 0, phhash])[0]
+    hhash = _dword(se, phhash)
+    assert call(se, "advapi32", "CryptHashData", [hhash, alloc(se, data or b"\x00"), len(data), 0])[0]
+    return hhash
+
+
+@pytest.mark.parametrize("algid, hasher", [(0x8003, hashlib.md5), (0x8004, hashlib.sha1)])
+def test_crypt_get_hash_param_returns_the_hash(dll_emu: Speakeasy, algid: int, hasher: Callable[[bytes], Any]) -> None:
+    start_process(dll_emu)
+    digest = hasher(b"abc").digest()
+    hhash = _hash(dll_emu, algid, b"abc")
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    assert call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, 0, size, 0])[0]
+    assert _dword(dll_emu, size) == len(digest)
+
+    buf = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 4, buf, size, 0])
+    assert (rv, _dword(dll_emu, buf), _dword(dll_emu, size)) == (1, len(digest), 4)
+
+    buf = alloc(dll_emu, b"\xcc" * len(digest))
+    size = alloc(dll_emu, struct.pack("<I", len(digest) - 1))
+    rv, _ = call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, buf, size, 0])
+    assert (rv, _last_error(dll_emu), _dword(dll_emu, size)) == (0, windefs.ERROR_MORE_DATA, len(digest))
+    size = alloc(dll_emu, struct.pack("<I", len(digest)))
+    assert call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, buf, size, 0])[0]
+    assert dll_emu.mem_read(buf, len(digest)) == digest
