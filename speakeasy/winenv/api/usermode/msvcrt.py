@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import io
 import math
 import struct
 from typing import Any
@@ -2077,7 +2078,21 @@ class Msvcrt(api.ApiHandler):
         if not fobj:
             return -1
 
-        fobj.seek(offset, origin)
+        offset &= 0xFFFFFFFF
+        offset -= (offset & 0x80000000) << 1
+        size = fobj.get_size()
+        if origin == io.SEEK_SET:
+            pos = offset
+        elif origin == io.SEEK_CUR:
+            pos = (fobj.tell() or 0) + offset
+        elif origin == io.SEEK_END:
+            pos = size + offset
+        else:
+            return -1
+        if pos < 0:
+            return -1
+
+        fobj.seek(pos, io.SEEK_SET)
         return 0
 
     @apihook("ftell", argc=1, conv=e_arch.CALL_CONV_CDECL)
