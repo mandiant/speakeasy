@@ -784,6 +784,7 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
+        obj_name = ""
         if name:
             obj_name = self.read_mem_string(name, cw)
             ctx.args["lpName"].display = obj_name

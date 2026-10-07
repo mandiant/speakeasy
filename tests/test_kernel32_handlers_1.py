@@ -456,3 +456,12 @@ def test_unknown_process_handle_is_invalid(dll_emu: Speakeasy, api: str, argv: C
     assert not rv
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("api", ["OpenMutexA", "OpenMutexW"])
+def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
+    start_process(dll_emu)
+    rv, _ = call(dll_emu, "kernel32", api, [0x1F0001, 0, 0])
+    assert rv == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
