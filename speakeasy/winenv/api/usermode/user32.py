@@ -408,7 +408,6 @@ class User32(api.ApiHandler):
         """
         hInstance, uID, lpBuffer, ccBufferMax = argv
         cw = self.get_char_width(ctx)
-        size = 0
 
         if hInstance == 0:
             pe = emu.modules[0] if emu.modules else None
@@ -425,14 +424,7 @@ class User32(api.ApiHandler):
             # self.logger.info("unable to find resource string id %04X" % uID)
             return 0
 
-        if cw == 2:
-            encoded = s.encode("utf-16le")
-        elif cw == 1:
-            encoded = s.encode("utf-8")
-
-        size = int(len(encoded) / cw)
-
-        if size == 0:
+        if not s:
             # self.logger.debug("resource id %04X not found" % uID)
             return 0
 
@@ -440,13 +432,11 @@ class User32(api.ApiHandler):
             # Returning a pointer to the resource string is not supported without raw access
             return 0
 
-        if len(encoded) > ccBufferMax:
-            encoded = encoded[: ccBufferMax * cw]
-
-        emu.mem_write(lpBuffer, encoded)
+        s = s[: ccBufferMax - 1]
+        self.write_mem_string(s, lpBuffer, cw)
         ctx.args["lpBuffer"].display = s
 
-        return len(encoded)
+        return len(s)
 
     @apihook("GetCursorPos", argc=1)
     def GetCursorPos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
