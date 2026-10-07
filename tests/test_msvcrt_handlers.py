@@ -302,3 +302,26 @@ def test_snprintf_reads_no_argument_for_percent_escape(dll_emu: Speakeasy) -> No
     fmt = alloc(dll_emu, b"%d%%\0")
     assert call(dll_emu, "msvcrt", "_snprintf", [buf, 16, fmt, 5])[0] == 2
     assert dll_emu.mem_read(buf, 3) == b"5%\0"
+
+
+@pytest.mark.parametrize(
+    "api, head",
+    [("sprintf", []), ("_snprintf", [16])],
+)
+def test_sprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Speakeasy, api: str, head: list[int]) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    fmt = alloc(dll_emu, b"100%%\0")
+    assert call(dll_emu, "msvcrt", api, [buf, *head, fmt])[0] == 4
+    assert dll_emu.mem_read(buf, 5) == b"100%\0"
+
+
+def test_snwprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    fmt = alloc(dll_emu, "100%%\0".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "_snwprintf", [buf, 8, fmt])[0] == 4
+    assert dll_emu.mem_read(buf, 10) == "100%\0".encode("utf-16le")
+
+
+def test_printf_counts_one_character_for_percent_escape(dll_emu: Speakeasy) -> None:
+    fmt = alloc(dll_emu, b"100%%\n\0")
+    assert call(dll_emu, "msvcrt", "printf", [fmt])[0] == 5

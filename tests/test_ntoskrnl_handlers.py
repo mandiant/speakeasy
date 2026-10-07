@@ -463,3 +463,19 @@ def test_snwprintf_reads_s_as_wide_and_S_as_ansi(driver_emu: Speakeasy) -> None:
     args = [alloc(driver_emu, "ab\0".encode("utf-16le")), alloc(driver_emu, b"cd\0")]
     assert call(driver_emu, "ntoskrnl", "_snwprintf", [buf, 20, fmt, *args])[0] == 8
     assert driver_emu.mem_read(buf, 18) == "ab|cd|%s\0".encode("utf-16le")
+
+
+@pytest.mark.parametrize(
+    "api, head, fmt, out",
+    [
+        ("sprintf", [], b"100%%\0", b"100%\0"),
+        ("_snprintf", [16], b"100%%\0", b"100%\0"),
+        ("_snwprintf", [8], "100%%\0".encode("utf-16le"), "100%\0".encode("utf-16le")),
+    ],
+)
+def test_sprintf_writes_one_percent_for_escape_without_arguments(
+    driver_emu: Speakeasy, api: str, head: list[int], fmt: bytes, out: bytes
+) -> None:
+    buf = alloc(driver_emu, b"\xcc" * 16)
+    assert call(driver_emu, "ntoskrnl", api, [buf, *head, alloc(driver_emu, fmt)])[0] == 4
+    assert driver_emu.mem_read(buf, len(out)) == out

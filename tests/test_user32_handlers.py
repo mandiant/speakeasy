@@ -118,6 +118,14 @@ def test_wsprintf_string_width(dll_emu: Speakeasy, name: str, fmt: str, arg: str
     assert dll_emu.mem_read(buf, len(data)) == data
 
 
+@pytest.mark.parametrize("name, enc", [("wsprintfA", "utf-8"), ("wsprintfW", "utf-16le")])
+def test_wsprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Speakeasy, name: str, enc: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    fmt = alloc(dll_emu, "100%%\0".encode(enc))
+    assert call(dll_emu, "user32", name, [buf, fmt])[0] == 4
+    assert dll_emu.mem_read(buf, len("100%\0".encode(enc))) == "100%\0".encode(enc)
+
+
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_create_dialog_indirect_param_passes_init_param_in_lparam(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
