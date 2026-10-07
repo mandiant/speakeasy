@@ -408,6 +408,7 @@ def test_context_thread_calls_return_ntstatus(driver_emu: Speakeasy, name: str) 
     hnd = emu.get_object_handle(emu.get_current_thread())
     context = alloc(driver_emu, b"\x00" * 0x2CC)
     assert call(driver_emu, "ntoskrnl", name, [hnd, context])[0] == ddk.STATUS_SUCCESS
+    assert call(driver_emu, "ntoskrnl", name, [0xFFFFFFFE, context])[0] == ddk.STATUS_SUCCESS
     assert call(driver_emu, "ntoskrnl", name, [0x1234, context])[0] == ddk.STATUS_INVALID_HANDLE
 
 
