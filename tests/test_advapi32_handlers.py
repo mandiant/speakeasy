@@ -82,3 +82,41 @@ def test_reg_create_key_without_a_subkey_returns_the_key(dll_emu: Speakeasy) -> 
     phk = alloc(dll_emu, b"\x00" * 4)
     rv, _ = call(dll_emu, "advapi32", "RegCreateKeyA", [HKEY_CURRENT_USER, 0, phk])
     assert (rv, _dword(dll_emu, phk)) == (windefs.ERROR_SUCCESS, HKEY_CURRENT_USER)
+
+
+def _open_key(se: Speakeasy, api: str, hkey: int, subkey: int) -> tuple[int, str | None]:
+    """Open ``subkey`` below ``hkey`` and return the status and the path of the new handle."""
+    assert se.emu is not None
+    phk = alloc(se, b"\x00" * 4)
+    argv = [hkey, subkey, phk] if api == "RegOpenKeyA" else [hkey, subkey, 0, 0xF003F, phk]
+    rv, _ = call(se, "advapi32", api, argv)
+    key = se.emu.regman.get_key_from_handle(_dword(se, phk))
+    return rv, key.get_path() if key else None
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+def test_reg_open_key_below_an_open_key(dll_emu: Speakeasy, api: str) -> None:
+    _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bar")
+    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    rv, path = _open_key(dll_emu, api, hfoo, alloc(dll_emu, b"Bar\x00"))
+    assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER\\Software\\Foo\\Bar")
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+def test_reg_open_missing_key_is_file_not_found(dll_emu: Speakeasy, api: str) -> None:
+    rv, path = _open_key(dll_emu, api, HKEY_CURRENT_USER, alloc(dll_emu, b"Software\\NoSuchKey\x00"))
+    assert (rv, path) == (windefs.ERROR_FILE_NOT_FOUND, None)
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+def test_reg_open_unknown_handle_is_invalid(dll_emu: Speakeasy, api: str) -> None:
+    rv, _ = _open_key(dll_emu, api, 0x1234, alloc(dll_emu, b"Bar\x00"))
+    assert rv == windefs.ERROR_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+@pytest.mark.parametrize("subkey", [None, b"\x00"])
+def test_reg_open_key_without_a_subkey_opens_the_key(dll_emu: Speakeasy, api: str, subkey: bytes | None) -> None:
+    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    rv, path = _open_key(dll_emu, api, hfoo, alloc(dll_emu, subkey) if subkey else 0)
+    assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER\\Software\\Foo")
