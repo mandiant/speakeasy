@@ -979,9 +979,10 @@ class User32(api.ApiHandler):
             param,
         ) = argv
 
-        cb_args = (hnd_parent, windefs.WM_INITDIALOG, param, 0)
+        hdlg = self.get_handle()
+        cb_args = (hdlg, windefs.WM_INITDIALOG, 0, param)
         self.setup_callback(func, cb_args, caller_argv=argv)
-        return self.get_handle()
+        return hdlg
 
     @apihook("GetMenuInfo", argc=2)
     def GetMenuInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

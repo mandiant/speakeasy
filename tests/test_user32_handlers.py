@@ -114,3 +114,15 @@ def test_wsprintf_string_width(dll_emu: Speakeasy, name: str, fmt: str, arg: str
     assert rv == len(expected)
     data = (expected + "\0").encode(enc)
     assert dll_emu.mem_read(buf, len(data)) == data
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_create_dialog_indirect_param_passes_init_param_in_lparam(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    parent = 0x1234
+    rv, _ = call(se, "user32", "CreateDialogIndirectParamA", [0, alloc(se, b"\x00" * 32), parent, 0x401000, 0xBEEF])
+    assert se.emu.get_pc() == 0x401000
+    hdlg, msg, wparam, lparam = se.emu.get_func_argv(e_arch.CALL_CONV_STDCALL, 4)
+    assert (hdlg, msg, wparam, lparam) == (rv, 0x110, 0, 0xBEEF)
+    assert hdlg != parent
