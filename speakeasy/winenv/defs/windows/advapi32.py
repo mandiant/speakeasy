@@ -7,6 +7,8 @@ from speakeasy.struct import EmuStruct, Ptr
 NTE_BAD_ALGID = 0x80090008
 NTE_INVALID_HANDLE = 0x80090026
 
+CRYPT_NO_SALT = 0x10
+
 SERVICE_WIN32 = 0x30
 
 SERVICE_ACTIVE = 0x1
