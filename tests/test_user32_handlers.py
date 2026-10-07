@@ -176,3 +176,16 @@ def test_get_window_text_with_no_room(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "user32", "GetWindowTextA", [0x1234, buf, 0])
     assert rv == 0
     assert dll_emu.mem_read(buf, 4) == b"\xcc" * 4
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_get_keyboard_layout_list_writes_one_hkl(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    ps = se.emu.get_ptr_size()
+    n, _ = call(se, "user32", "GetKeyboardLayoutList", [0, 0])
+    assert n == 1
+    buf = alloc(se, b"\xcc" * 16)
+    rv, _ = call(se, "user32", "GetKeyboardLayoutList", [n, buf])
+    assert rv == 1
+    assert se.mem_read(buf, 16) == (0x04090409).to_bytes(ps, "little") + b"\xcc" * (16 - ps)
