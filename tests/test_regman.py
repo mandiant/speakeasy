@@ -26,6 +26,8 @@ def test_config_values_have_type_codes(config: dict[str, Any]) -> None:
         (regdefs.REG_MULTI_SZ, "a\x00b", 1, b"a\x00b\x00\x00"),
         (regdefs.REG_DWORD, "0x3", 1, b"\x03\x00\x00\x00"),
         (regdefs.REG_QWORD, 5, 1, b"\x05" + b"\x00" * 7),
+        (regdefs.REG_DWORD, "-1", 1, b"\xff" * 4),
+        (regdefs.REG_QWORD, -1, 1, b"\xff" * 8),
         (regdefs.REG_BINARY, b"\x01\x02", 1, b"\x01\x02"),
     ],
 )
