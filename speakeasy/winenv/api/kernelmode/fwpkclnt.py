@@ -276,15 +276,20 @@ class Fwpkclnt(api.ApiHandler):
 
         return rv
 
-    @apihook("FwpmFilterDeleteById0", argc=2)
+    @apihook("FwpmFilterDeleteById0", argc=3)
     def FwpmFilterDeleteById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmFilterDeleteById0(
         HANDLE engineHandle,
         UINT64 id
         );
+
+        id is passed by value: two stack slots on x86, one register on x64.
         """
-        eng, fid = argv
+        if emu.get_ptr_size() == 4:
+            eng, fid = argv[0], (argv[2] << 32) | argv[1]
+        else:
+            eng, fid = argv[:2]
 
         rv = ddk.STATUS_SUCCESS
 

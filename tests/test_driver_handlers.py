@@ -5,7 +5,7 @@ Kernel driver framework handlers (NDIS, WFP, WSK, KMDF) return what callers read
 import uuid
 
 from speakeasy import Speakeasy
-from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND
+from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND, Fwpkclnt
 from speakeasy.winenv.api.kernelmode.netio import Netio
 from tests.handler_harness import alloc, call
 
@@ -51,3 +51,9 @@ def test_fwpm_sublayer_delete_by_key_finds_an_added_sublayer(driver_emu: Speakea
     key_addr = alloc(driver_emu, key.bytes_le)
     assert call(driver_emu, "fwpkclnt", "FwpmSubLayerDeleteByKey0", [4, key_addr])[0] == 0
     assert call(driver_emu, "fwpkclnt", "FwpmSubLayerDeleteByKey0", [4, key_addr])[0] == FWP_E_SUBLAYER_NOT_FOUND
+
+
+def test_fwpm_filter_delete_by_id_pops_the_64_bit_id(driver_emu: Speakeasy) -> None:
+    assert Fwpkclnt.FwpmFilterDeleteById0.__apihook__[2] == 3
+    rv, _ = call(driver_emu, "fwpkclnt", "FwpmFilterDeleteById0", [4, 8, 0])
+    assert rv == 0
