@@ -1628,11 +1628,12 @@ class Kernel32(api.ApiHandler):
         if dt:
             st.wYear = dt.year
             st.wMonth = dt.month
-            st.wDayOfWeek = dt.weekday()
+            st.wDayOfWeek = dt.isoweekday() % 7
             st.wDay = dt.day
             st.wHour = dt.hour
             st.wMinute = dt.minute
             st.wSecond = dt.second
+            st.wMilliseconds = quad // 10000 % 1000
             if lpSystemTime:
                 self.mem_write(lpSystemTime, st.get_bytes())
 
