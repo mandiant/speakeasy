@@ -4753,24 +4753,19 @@ class Kernel32(api.ApiHandler):
         """
 
         lpBuffer, nSize = argv
-        rv = False
         cw = self.get_char_width(ctx)
 
         host = emu.config.hostname
+        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        if not lpBuffer or size <= len(host):
+            self.mem_write(nSize, (len(host) + 1).to_bytes(4, "little"))
+            emu.set_last_error(windefs.ERROR_BUFFER_OVERFLOW)
+            return False
+
+        self.write_mem_string(host, lpBuffer, cw)
+        self.mem_write(nSize, len(host).to_bytes(4, "little"))
         ctx.args["lpBuffer"].display = host
-        ctx.args["nSize"].display = hex(len(host))
-
-        if lpBuffer and host:
-            if cw == 2:
-                out = host.encode("utf-16le")
-            elif cw == 1:
-                out = host.encode("utf-8")
-            self.mem_write(lpBuffer, out)
-            rv = True
-        if nSize:
-            self.mem_write(nSize, (len(host)).to_bytes(4, "little"))
-
-        return rv
+        return True
 
     @apihook("GetVersionEx", argc=1)
     def GetVersionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6066,14 +6061,15 @@ class Kernel32(api.ApiHandler):
             ctx.args["NameType"].display = name_type
 
         hostname = emu.config.hostname
-        ctx.args["lpBuffer"].display = hostname
-
-        hostname_len = len(hostname)
-        ctx.args["nSize"].display = hex(hostname_len)
+        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        if not lpBuffer or size <= len(hostname):
+            self.mem_write(nSize, (len(hostname) + 1).to_bytes(4, "little"))
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
+            return 0
 
         self.write_mem_string(hostname, lpBuffer, cw)
-        self.mem_write(nSize, hostname_len.to_bytes(4, "little"))
-
+        self.mem_write(nSize, len(hostname).to_bytes(4, "little"))
+        ctx.args["lpBuffer"].display = hostname
         return 1
 
     @apihook("GetDateFormat", argc=6)

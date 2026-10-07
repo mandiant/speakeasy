@@ -593,3 +593,42 @@ def test_reg_get_value_missing_subkey(dll_emu: Speakeasy) -> None:
     name = _alloc(dll_emu, b"Start\x00")
     rv, _ = _call(dll_emu, "advapi32", "RegGetValueA", [0x80000002, subkey, name, 0xFFFF, 0, 0, 0])
     assert rv == 2
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("GetComputerNameA", []),
+        ("GetComputerNameExA", [1]),
+    ],
+)
+def test_get_computer_name_copies_the_host(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    assert dll_emu.emu is not None
+    host = dll_emu.emu.config.hostname
+    buf = _alloc(dll_emu, b"\xcc" * 64)
+    size = _alloc(dll_emu, (64).to_bytes(4, "little"))
+    rv, displays = _call(dll_emu, "kernel32", api, [*argv, buf, size])
+    assert rv
+    assert dll_emu.mem_read(buf, len(host) + 1) == host.encode() + b"\x00"
+    assert dll_emu.mem_read(size, 4) == len(host).to_bytes(4, "little")
+    assert displays["lpBuffer"] == host
+    assert displays["nSize"] == hex(size)
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("GetComputerNameA", []),
+        ("GetComputerNameExA", [1]),
+    ],
+)
+def test_get_computer_name_small_buffer(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    assert dll_emu.emu is not None
+    host = dll_emu.emu.config.hostname
+    buf = _alloc(dll_emu, b"\xcc" * 4)
+    size = _alloc(dll_emu, len(host).to_bytes(4, "little"))
+    rv, displays = _call(dll_emu, "kernel32", api, [*argv, buf, size])
+    assert not rv
+    assert dll_emu.mem_read(buf, 4) == b"\xcc" * 4
+    assert dll_emu.mem_read(size, 4) == (len(host) + 1).to_bytes(4, "little")
+    assert displays["lpBuffer"] == hex(buf)
