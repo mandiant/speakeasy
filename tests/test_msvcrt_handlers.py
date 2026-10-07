@@ -28,3 +28,9 @@ def test_memset_fills_low_byte(dll_emu: Speakeasy, value: int, byte: bytes) -> N
     buf = alloc(dll_emu, b"\xcc" * 5)
     assert call(dll_emu, "msvcrt", "memset", [buf, value, 4])[0] == buf
     assert dll_emu.mem_read(buf, 5) == byte * 4 + b"\xcc"
+
+
+def test_time_writes_a_pointer_sized_time_t_on_x64(dll64_emu: Speakeasy) -> None:
+    out = alloc(dll64_emu, b"\xcc" * 9)
+    rv, _ = call(dll64_emu, "msvcrt", "time", [out])
+    assert dll64_emu.mem_read(out, 9) == rv.to_bytes(8, "little") + b"\xcc"
