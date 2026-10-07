@@ -300,3 +300,13 @@ def test_reg_enum_key_ex_shows_the_key_path(dll_emu: Speakeasy) -> None:
     rv, displays = _call(dll_emu, "advapi32", "RegEnumKeyExA", [hkey, 99, 0, 0, 0, 0, 0, 0])
     assert rv == 259
     assert displays["hKey"].endswith("\\usbsamp")
+
+
+@pytest.mark.parametrize("dll", ["netapi32", "wkscli"])
+def test_net_get_join_information_shows_the_join_status(dll_emu: Speakeasy, dll: str) -> None:
+    name_buf = _alloc(dll_emu, b"\x00" * 4)
+    status = _alloc(dll_emu, b"\x00" * 4)
+    rv, displays = _call(dll_emu, dll, "NetGetJoinInformation", [0, name_buf, status])
+    assert rv == 0
+    assert dll_emu.mem_read(status, 4) == struct.pack("<I", 3)
+    assert displays["BufferType"] == "NetSetupDomainName"
