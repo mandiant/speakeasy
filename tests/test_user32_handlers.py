@@ -240,3 +240,34 @@ def test_char_case_buff_maps_exactly_cch_chars(
     rv, _ = call(dll_emu, "user32", name, [buf, cch])
     assert rv == cch
     assert dll_emu.mem_read(buf, len(data) + 4) == expected + b"\xcc" * 4
+
+
+@pytest.mark.parametrize(
+    "name, ch, expected",
+    [
+        ("CharUpperA", ord("a"), ord("A")),
+        ("CharUpperA", 0xE4, 0xE4),
+        ("CharLowerA", 0xC4, 0xC4),
+        ("CharUpperW", 0xE4, 0xC4),
+        ("CharUpperW", 0xDF, 0xDF),
+        ("CharLowerW", 0x130, 0x130),
+    ],
+)
+def test_char_case_of_a_single_char(dll_emu: Speakeasy, name: str, ch: int, expected: int) -> None:
+    rv, _ = call(dll_emu, "user32", name, [ch])
+    assert rv == expected
+
+
+@pytest.mark.parametrize(
+    "name, data, expected",
+    [
+        ("CharUpperA", b"a\xe4b\x00", b"A\xe4B\x00"),
+        ("CharUpperW", "aßb\0".encode("utf-16le"), "AßB\0".encode("utf-16le")),
+        ("CharLowerW", b"\x00\x00", b"\x00\x00"),
+    ],
+)
+def test_char_case_of_a_string_keeps_its_length(dll_emu: Speakeasy, name: str, data: bytes, expected: bytes) -> None:
+    buf = alloc(dll_emu, data + b"\xcc" * 4)
+    rv, _ = call(dll_emu, "user32", name, [buf])
+    assert rv == buf
+    assert dll_emu.mem_read(buf, len(data) + 4) == expected + b"\xcc" * 4
