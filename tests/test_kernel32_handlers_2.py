@@ -164,3 +164,15 @@ def test_lopen_and_lclose(strict_fs_emu: Speakeasy) -> None:
 
     missing = alloc(se, b"c:\\no\\such\\file.bin\x00")
     assert call(se, "kernel32", "_lopen", [missing, 0])[0] == windefs.HFILE_ERROR
+
+
+FILE_BEGIN, FILE_CURRENT, FILE_END = 0, 1, 2
+CREATE_ALWAYS = 2
+
+
+def test_set_file_pointer_on_first_open(strict_fs_emu: Speakeasy) -> None:
+    hnd = open_file(strict_fs_emu, BYTE_FILL_PATH)
+    assert call(strict_fs_emu, "kernel32", "SetFilePointer", [hnd, 0, 0, FILE_END])[0] == 512
+
+    new = open_file(strict_fs_emu, "c:\\new.txt", CREATE_ALWAYS)
+    assert call(strict_fs_emu, "kernel32", "SetFilePointer", [new, 0, 0, FILE_CURRENT])[0] == 0

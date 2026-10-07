@@ -132,13 +132,16 @@ class File:
     def seek(self, offset, whence):
         if whence not in [io.SEEK_CUR, io.SEEK_SET, io.SEEK_END]:
             return
-        if self.data:
-            self.data.seek(offset, whence)
+        if not self.data and self.config:
+            self.data = self.handle_file_data()
+        if not self.data:
+            self.data = io.BytesIO()
+        self.data.seek(offset, whence)
 
     def tell(self):
         if self.data:
             return self.data.tell()
-        return None
+        return 0
 
     def add_data(self, data):
         if not self.data:
