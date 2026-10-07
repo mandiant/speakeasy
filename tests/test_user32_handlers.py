@@ -126,3 +126,11 @@ def test_create_dialog_indirect_param_passes_init_param_in_lparam(request: pytes
     hdlg, msg, wparam, lparam = se.emu.get_func_argv(e_arch.CALL_CONV_STDCALL, 4)
     assert (hdlg, msg, wparam, lparam) == (rv, 0x110, 0, 0xBEEF)
     assert hdlg != parent
+
+
+def test_oem_to_char_copies_the_string_and_its_nul(dll_emu: Speakeasy) -> None:
+    src = alloc(dll_emu, b"hi\x80\x00")
+    dst = alloc(dll_emu, b"\xcc" * 300)
+    rv, _ = call(dll_emu, "user32", "OemToCharA", [src, dst])
+    assert rv == 1
+    assert dll_emu.mem_read(dst, 8) == b"hi\x80\x00" + b"\xcc" * 4
