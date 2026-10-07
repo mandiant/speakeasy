@@ -430,3 +430,48 @@ def test_get_system_info_fills_the_struct(request: pytest.FixtureRequest, fixtur
     assert cpus >= 2
     assert mask == (1 << cpus) - 1
     assert granularity == 0x10000
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", "I"), ("dll64_emu", "Q")])
+def test_global_memory_status_fills_the_struct(request: pytest.FixtureRequest, fixture: str, ptr: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    layout = f"<II{ptr * 6}"
+    status = alloc(se, b"\x00" * struct.calcsize(layout))
+    call(se, "kernel32", "GlobalMemoryStatus", [status])
+    length, load, total_phys, avail_phys, total_page, avail_page, total_virt, avail_virt = struct.unpack(
+        layout, se.mem_read(status, struct.calcsize(layout))
+    )
+    assert length == struct.calcsize(layout)
+    assert 0 < load <= 100
+    assert 0 < avail_phys <= total_phys
+    assert 0 < avail_page <= total_page
+    assert 0 < avail_virt <= total_virt
+
+
+def test_get_disk_free_space_ex_writes_the_sizes(emu: Speakeasy) -> None:
+    root = alloc(emu, b"C:\\\x00")
+    caller, total, free = (alloc(emu, b"\x00" * 8) for _ in range(3))
+    assert call(emu, "kernel32", "GetDiskFreeSpaceExA", [root, caller, total, free])[0]
+    avail = int.from_bytes(emu.mem_read(caller, 8), "little")
+    size = int.from_bytes(emu.mem_read(total, 8), "little")
+    assert 0 < avail <= int.from_bytes(emu.mem_read(free, 8), "little") <= size
+
+    assert call(emu, "kernel32", "GetDiskFreeSpaceExA", [root, 0, total, 0])[0]
+
+
+@pytest.mark.parametrize("name, width", [("GetVolumeInformationA", 1), ("GetVolumeInformationW", 2)])
+def test_get_volume_information_writes_the_out_params(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    root = alloc(emu, "C:\\\x00".encode(enc))
+    label = alloc(emu, b"\xcc" * 32 * width)
+    serial, comp_len, flags = (alloc(emu, b"\x00" * 4) for _ in range(3))
+    fs_name = alloc(emu, b"\xcc" * 32 * width)
+    argv = [root, label, 32, serial, comp_len, flags, fs_name, 32]
+    assert call(emu, "kernel32", name, argv)[0]
+    assert emu.mem_read(label, width) == b"\x00" * width
+    assert int.from_bytes(emu.mem_read(serial, 4), "little") != 0
+    assert int.from_bytes(emu.mem_read(comp_len, 4), "little") == 255
+    assert int.from_bytes(emu.mem_read(flags, 4), "little") != 0
+    assert emu.mem_read(fs_name, 5 * width) == "NTFS\x00".encode(enc)
+
+    assert call(emu, "kernel32", name, [root, 0, 0, serial, 0, 0, 0, 0])[0]

@@ -4218,6 +4218,17 @@ class Kernel32(api.ApiHandler):
             root_name = self.read_mem_string(root, cw)
             ctx.args["lpRootPathName"].display = root_name
 
+        if vol_buf and vol_size:
+            self.write_mem_string("", vol_buf, cw)
+        if serial:
+            self.mem_write(serial, (0x6C2E1F4A).to_bytes(4, "little"))
+        if comp_len:
+            self.mem_write(comp_len, (255).to_bytes(4, "little"))
+        if fs_flags:
+            self.mem_write(fs_flags, (0x03E706FF).to_bytes(4, "little"))
+        if fs_name and fs_name_len > len("NTFS"):
+            self.write_mem_string("NTFS", fs_name, cw)
+
         return True
 
     @apihook("CreateEvent", argc=4)
@@ -6119,6 +6130,13 @@ class Kernel32(api.ApiHandler):
         LPMEMORYSTATUS lpBuffer
         );
         """
+        (lpBuffer,) = argv
+        GB = 1024 * 1024 * 1024
+        total_virtual = 0x7FFE0000 if emu.get_ptr_size() == 4 else 0x7FFFFFFE0000
+        sizes = [8 * GB, 5 * GB, 8 * GB, 4 * GB, total_virtual, total_virtual - 0x10000000]
+        fmt = "<II" + ("I" if emu.get_ptr_size() == 4 else "Q") * len(sizes)
+        buf = struct.pack(fmt, struct.calcsize(fmt), 80, *(min(n, self.get_max_int()) for n in sizes))
+        emu.mem_write(lpBuffer, buf)
         return
 
     @apihook("GlobalMemoryStatusEx", argc=1)
@@ -6167,6 +6185,11 @@ class Kernel32(api.ApiHandler):
         PULARGE_INTEGER lpTotalNumberOfFreeBytes
         );
         """
+        _, avail, total, free = argv
+        GB = 1024 * 1024 * 1024
+        for ptr, size in ((avail, 40 * GB), (total, 100 * GB), (free, 40 * GB)):
+            if ptr:
+                self.mem_write(ptr, size.to_bytes(8, "little"))
         return True
 
     @apihook("GetSystemDefaultLangID", argc=0)
