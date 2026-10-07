@@ -52,7 +52,7 @@ python scripts/gen_phnt_signatures.py --stats
 
 Without them Speakeasy still works; it logs a warning per missing database and falls back to the previous `Unsupported API` behavior for the imports that database would have covered.
 
-win32metadata records neither calling conventions nor variadic parameters, so those are supplied by hand in `scripts/win32_overrides.json` (`cdecl_dlls`, `cdecl`, `variadic`, plus `dll_aliases`/`name_prefixes` for forwarders such as `psapi!EnumProcesses` -> `kernel32!K32EnumProcesses`). Edit that file and regenerate to correct a declaration; never patch the generated file.
+win32metadata records neither calling conventions nor variadic parameters, so those are supplied by hand in `scripts/win32_overrides.json` (`cdecl_dlls`, `cdecl`, `variadic`, plus `dll_aliases`/`name_prefixes` for forwarders such as `psapi!EnumProcesses` -> `kernel32!K32EnumProcesses`). For prototypes whose header declares no parameter names, win32metadata records `param0`, `param1`, and so on; `param_names` gives the names from the documentation. Edit that file and regenerate to correct a declaration; never patch the generated file.
 
 `tests/test_apihook_signatures.py` cross-checks every `@apihook`'s `argc` against the database, so a hook that disagrees with the documented prototype fails CI.
 

@@ -396,6 +396,21 @@ def test_generate_applies_overrides(gen: ModuleType, mini_win32json: Path) -> No
     assert stats["cdecl"] == 2
 
 
+def test_generate_param_names(gen: ModuleType, mini_win32json: Path, tmp_path: Path) -> None:
+    overrides = json.loads(OVERRIDES.read_text())
+    overrides["param_names"] = {"wsprintfA": ["lpOut", "lpFmt"]}
+    path = tmp_path / "overrides.json"
+    path.write_text(json.dumps(overrides))
+    doc, _ = gen.generate(str(mini_win32json), str(path))
+    (ws,) = doc["functions"]["wsprintfA"]
+    assert [p[0] for p in ws["params"]] == ["lpOut", "lpFmt"]
+
+    overrides["param_names"] = {"wsprintfA": ["lpOut"]}
+    path.write_text(json.dumps(overrides))
+    with pytest.raises(SystemExit, match="wsprintfA has 2 parameters"):
+        gen.generate(str(mini_win32json), str(path))
+
+
 def test_generate_arch_skip_and_duplicates(gen: ModuleType, mini_win32json: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
     (x86,) = doc["functions"]["OnlyX86"]

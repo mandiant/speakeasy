@@ -216,3 +216,12 @@ def test_win_http_query_status_code_small_buffer(dll_emu: Speakeasy) -> None:
     assert rv == 0
     assert buf == b"\xcc" * 16
     assert length == 8
+
+
+def test_url_download_to_cache_file_names_its_params(dll_emu: Speakeasy) -> None:
+    url = _alloc(dll_emu, b"http://example.com/a.bin\x00")
+    out = _alloc(dll_emu, b"\x00" * 260)
+    _, displays = _call(dll_emu, "urlmon", "URLDownloadToCacheFileA", [0, url, out, 260, 0, 0])
+    assert list(displays) == ["lpUnkcaller", "szURL", "szFileName", "cchFileName", "dwReserved", "pBSC"]
+    assert displays["szURL"] == "http://example.com/a.bin"
+    assert displays["szFileName"] == "C:\\Windows\\Temp\\a.bin"
