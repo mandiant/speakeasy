@@ -3009,13 +3009,11 @@ class Ntoskrnl(api.ApiHandler):
 
         s1 = self.mem_read(s1, Length)
         s2 = self.mem_read(s2, Length)
-        i = 0
         for i in range(Length):
             if s1[i] != s2[i]:
-                break
-        i += 1
+                return i
 
-        return i
+        return Length
 
     @apihook("RtlQueryRegistryValuesEx", argc=5)
     def RtlQueryRegistryValuesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

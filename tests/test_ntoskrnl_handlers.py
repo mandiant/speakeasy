@@ -95,3 +95,19 @@ def test_zw_open_key_reports_a_missing_key(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])
     assert rv == ddk.STATUS_OBJECT_NAME_NOT_FOUND
     assert driver_emu.mem_read(phnd, 4) == b"\xcc" * 4
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "length", "expected"),
+    [
+        (b"abcd", b"abcd", 4, 4),
+        (b"abcd", b"abcx", 4, 3),
+        (b"abcd", b"xbcd", 4, 0),
+        (b"abcd", b"abcd", 0, 0),
+    ],
+)
+def test_rtl_compare_memory_counts_matching_bytes(
+    driver_emu: Speakeasy, a: bytes, b: bytes, length: int, expected: int
+) -> None:
+    rv, _ = call(driver_emu, "ntoskrnl", "RtlCompareMemory", [alloc(driver_emu, a), alloc(driver_emu, b), length])
+    assert rv == expected
