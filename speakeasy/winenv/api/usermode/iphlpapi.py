@@ -30,23 +30,22 @@ class Iphlpapi(api.ApiHandler):
         adapters = emu.config.network.adapters
         adapter_count = len(adapters)
 
-        if not ptr_adapter_info:
-            adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
-            size = adapter_info.sizeof()
+        size = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size()).sizeof()
+        if not ptr_adapter_info or int.from_bytes(self.mem_read(size_ptr, 4), "little") < size:
             self.mem_write(size_ptr, size.to_bytes(4, "little"))
             return windefs.ERROR_BUFFER_OVERFLOW
 
         for index, adapter in enumerate(adapters):
             adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
 
-            adapter_info.AdapterName = adapter.get("name").encode("utf-8")
-            adapter_info.Description = adapter.get("description").encode("utf-8")
+            adapter_info.AdapterName = (adapter.name or "").encode("utf-8")
+            adapter_info.Description = (adapter.description or "").encode("utf-8")
             adapter_info.AddressLength = 6
-            adapter_info.Address = binascii.unhexlify(adapter.get("mac_address").replace("-", ""))
-            adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.get("type"))
-            adapter_info.IpAddressList.IpAddress = adapter.get("ip_address").encode("utf-8")
-            adapter_info.IpAddressList.IpMask = adapter.get("subnet_mask").encode("utf-8")
-            adapter_info.DhcpEnabled = adapter.get("dhcp_enabled")
+            adapter_info.Address = binascii.unhexlify((adapter.mac_address or "00-00-00-00-00-00").replace("-", ""))
+            adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.type)
+            adapter_info.IpAddressList.IpAddress = (adapter.ip_address or "").encode("utf-8")
+            adapter_info.IpAddressList.IpMask = (adapter.subnet_mask or "").encode("utf-8")
+            adapter_info.DhcpEnabled = bool(adapter.dhcp_enabled)
 
             if index < adapter_count - 1:
                 ptr_next = self.mem_alloc(adapter_info.sizeof(), tag="api.struct.IP_ADAPTER_INFO")
