@@ -235,3 +235,26 @@ def test_snprintf_writes_at_most_count_characters(
     assert result == rv
     data = written.encode(enc)
     assert driver_emu.mem_read(out, len(data) + width) == data + b"\xee" * width
+
+
+@pytest.mark.parametrize(
+    ("count", "written"),
+    [
+        (2, "ab"),
+        (4, "abc\0"),
+        (6, "abc\0\0\0"),
+    ],
+)
+def test_wcsncpy_copies_count_characters(driver_emu: Speakeasy, count: int, written: str) -> None:
+    out = alloc(driver_emu, b"\xee" * 32)
+    rv, _ = call(driver_emu, "ntoskrnl", "wcsncpy", [out, alloc(driver_emu, "abc\0".encode("utf-16le")), count])
+    assert rv == out
+    data = written.encode("utf-16le")
+    assert driver_emu.mem_read(out, len(data) + 2) == data + b"\xee\xee"
+
+
+def test_wcscpy_returns_the_destination(driver_emu: Speakeasy) -> None:
+    out = alloc(driver_emu, b"\xee" * 32)
+    rv, _ = call(driver_emu, "ntoskrnl", "wcscpy", [out, alloc(driver_emu, "abc\0".encode("utf-16le"))])
+    assert rv == out
+    assert driver_emu.mem_read(out, 8) == "abc\0".encode("utf-16le")

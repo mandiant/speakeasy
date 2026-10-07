@@ -773,7 +773,7 @@ class Ntoskrnl(api.ApiHandler):
         self.write_wide_string(ws, dest)
         ctx.args[1].display = ws
 
-        return len(ws)
+        return dest
 
     @apihook("wcsncpy", argc=3, conv=_arch.CALL_CONV_CDECL)
     def wcsncpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -785,11 +785,12 @@ class Ntoskrnl(api.ApiHandler):
             );
         """
         dest, src, count = argv
-        ws = self.read_wide_string(src)
+        ws = self.read_wide_string(src, max_chars=count)
 
-        self.write_wide_string(ws, dest)
+        data = self.mem_read(src, min(self.mem_string_len(src, 2), count) * 2)
+        self.mem_write(dest, data + b"\x00" * (count * 2 - len(data)))
         ctx.args[1].display = ws
-        return len(ws)
+        return dest
 
     @apihook("RtlMoveMemory", argc=3)
     def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
