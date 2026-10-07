@@ -186,7 +186,7 @@ class User32(api.ApiHandler):
 
         cn = None
         cw = self.get_char_width(ctx)
-        if wclass.lpszClassName:
+        if wclass.lpszClassName > 0xFFFF:
             cn = self.read_mem_string(wclass.lpszClassName, cw)
 
         atom = self.sessman.create_window_class(wclass, cn)
@@ -333,10 +333,10 @@ class User32(api.ApiHandler):
         """
         cw = self.get_char_width(ctx)
         _, cn, wn, _, x, y, width, height, parent, menu, inst, param = argv
-        if cn:
+        if cn > 0xFFFF:
             cn = self.read_mem_string(cn, cw)
             ctx.args["lpClassName"].display = cn
-        else:
+        elif not cn:
             cn = None
         if wn:
             wn = self.read_mem_string(wn, cw)
@@ -753,7 +753,7 @@ class User32(api.ApiHandler):
         """
         lpClassName, lpWindowName = argv
         cw = self.get_char_width(ctx)
-        if lpClassName:
+        if lpClassName > 0xFFFF:
             cn = self.read_mem_string(lpClassName, cw)
             ctx.args["lpClassName"].display = cn
         if lpWindowName:
@@ -946,7 +946,7 @@ class User32(api.ApiHandler):
         hInstance, lpTemplateName, hWndParent, lpDialogFunc, dwInitParam = argv
         rv = self.get_handle()
         cw = self.get_char_width(ctx)
-        if lpTemplateName:
+        if lpTemplateName > 0xFFFF:
             tname = self.read_mem_string(lpTemplateName, cw)
             ctx.args["lpTemplateName"].display = tname
 
