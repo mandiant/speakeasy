@@ -64,6 +64,7 @@ class Ncrypt(api.ApiHandler):
         blob_type = self.read_wide_string(pszBlobType)
         ctx.args["pszBlobType"].display = blob_type
 
+        cbData = cbData & 0xFFFFFFFF
         blob = self.mem_read(pbData, cbData)
         ctx.args["pbData"].display = base64.b64encode(blob).decode("utf-8")
 
