@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.windows import objman
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
@@ -229,3 +230,29 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
         entry = alloc(dll_emu, b"\x00" * 0x400)
         rv, _ = call(dll_emu, "kernel32", walk, [hsnap, entry])
         assert rv, walk
+
+
+def switch_to_new_thread(se: Speakeasy) -> None:
+    emu = se.emu
+    assert emu is not None and emu.curr_process is not None
+    t = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=0x1000)
+    emu.om.objects.update({t.address: t})  # type: ignore[union-attr]
+    emu.curr_process.threads.append(t)
+    emu.curr_thread = t
+
+
+def test_tls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    first, _ = call(dll_emu, "kernel32", "TlsAlloc", [])
+    switch_to_new_thread(dll_emu)
+    second, _ = call(dll_emu, "kernel32", "TlsAlloc", [])
+    assert second != first
+    rv, _ = call(dll_emu, "kernel32", "TlsSetValue", [first, 0x1234])
+    assert rv == 1
+    value, _ = call(dll_emu, "kernel32", "TlsGetValue", [first])
+    assert value == 0x1234
+    switch_to_new_thread(dll_emu)
+    value, _ = call(dll_emu, "kernel32", "TlsGetValue", [second])
+    assert value == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
