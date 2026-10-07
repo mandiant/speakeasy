@@ -2248,7 +2248,7 @@ class Ntoskrnl(api.ApiHandler):
 
         try:
             dec = lznt1.decompress(data)
-        except (ValueError, struct.error):
+        except (ValueError, ZeroDivisionError, struct.error):
             return ddk.STATUS_BAD_COMPRESSION_BUFFER
 
         if uncomp_buf_size < len(dec):
