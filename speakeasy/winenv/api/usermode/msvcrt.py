@@ -204,7 +204,7 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook("__getmainargs", argc=5)
+    @apihook("__getmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def __getmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __getmainargs(
@@ -270,7 +270,7 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook("__wgetmainargs", argc=5)
+    @apihook("__wgetmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def __wgetmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __wgetmainargs (
@@ -2100,7 +2100,7 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(ptr, data)
         return len(data) // size
 
-    @apihook("fputc", argc=2)
+    @apihook("fputc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fputc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int fputc(
@@ -2111,7 +2111,7 @@ class Msvcrt(api.ApiHandler):
         c, _ = argv
         return c
 
-    @apihook("signal", argc=2)
+    @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void __cdecl *signal(
