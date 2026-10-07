@@ -3350,7 +3350,10 @@ class Ntoskrnl(api.ApiHandler):
         """
         hThread, lpContext = argv
 
-        obj = self.get_object_from_handle(hThread)
+        if hThread == self.get_max_int() - 1:
+            obj = emu.get_current_thread()
+        else:
+            obj = self.get_object_from_handle(hThread)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
@@ -3370,7 +3373,10 @@ class Ntoskrnl(api.ApiHandler):
         """
         hThread, lpContext = argv
 
-        obj = self.get_object_from_handle(hThread)
+        if hThread == self.get_max_int() - 1:
+            obj = emu.get_current_thread()
+        else:
+            obj = self.get_object_from_handle(hThread)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
