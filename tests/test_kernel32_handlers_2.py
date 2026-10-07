@@ -412,3 +412,21 @@ def test_queue_user_apc_returns_success(emu: Speakeasy) -> None:
     assert emu.emu is not None
     thread = emu.emu.get_object_handle(emu.emu.curr_thread)
     assert call(emu, "kernel32", "QueueUserAPC", [0x401000, thread, 0])[0]
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", "I"), ("dll64_emu", "Q")])
+@pytest.mark.parametrize("name", ["GetSystemInfo", "GetNativeSystemInfo"])
+def test_get_system_info_fills_the_struct(request: pytest.FixtureRequest, fixture: str, ptr: str, name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    layout = f"<HHI{ptr}{ptr}{ptr}IIIHH"
+    info = alloc(se, b"\x00" * struct.calcsize(layout))
+    call(se, "kernel32", name, [info])
+    fields = struct.unpack(layout, se.mem_read(info, struct.calcsize(layout)))
+    arch, _, page_size, min_addr, max_addr, mask, cpus, _, granularity, _, _ = fields
+    assert arch == (0 if ptr == "I" else 9)
+    assert page_size == 0x1000
+    assert min_addr == 0x10000
+    assert max_addr > 0x7FFE0000
+    assert cpus >= 2
+    assert mask == (1 << cpus) - 1
+    assert granularity == 0x10000
