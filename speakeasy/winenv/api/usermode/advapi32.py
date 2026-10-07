@@ -1690,20 +1690,20 @@ class AdvApi32(api.ApiHandler):
             val = key.get_value(lpValue)
             if val:
                 self.write_value_type(val, lpType, ctx.args["pdwType"])
-                output = b""
-
+                output = val.get_bytes(cw)
                 if lpcbData:
                     self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
-
-                if len(output) > length:
-                    rv = windefs.ERROR_INSUFFICIENT_BUFFER
-                else:
-                    self.mem_write(lpData, output)
+                if lpData:
+                    if len(output) > length:
+                        rv = windefs.ERROR_MORE_DATA
+                    else:
+                        self.mem_write(lpData, output)
 
             # For now, return an empty buffer
             else:
                 output = b"\x00" * length
-                self.mem_write(lpData, output)
+                if lpData:
+                    self.mem_write(lpData, output)
                 rv = windefs.ERROR_SUCCESS
 
             kp = key.get_path()
