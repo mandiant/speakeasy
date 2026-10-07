@@ -2647,13 +2647,13 @@ class Kernel32(api.ApiHandler):
 
         out = ""
         fn = ctx.func_name
-        cw = self.get_char_width(ctx)
+        cw = 2 if fn.endswith("W") else 1
         for k, v in emu.get_env().items():
-            out += f"{k} {v} "
+            out += f"{k}={v}\x00"
 
-        out = out.strip()
+        out += "\x00"
 
-        env_ptr = self.mem_alloc((len(out) + 1) * cw, tag=f"api.environment.{fn}")
+        env_ptr = self.mem_alloc(len(out) * cw, tag=f"api.environment.{fn}")
 
         if cw == 2:
             ev = out.encode("utf-16le")

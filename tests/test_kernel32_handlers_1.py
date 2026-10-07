@@ -175,3 +175,15 @@ def test_expand_environment_strings_returns_size_with_nul(
     assert rv == need
     assert displays["lpDst"] == expanded
     assert dll_emu.mem_read(dst, need * cw + 1) == encode(expanded + "\0", cw) + b"\xcc"
+
+
+@pytest.mark.parametrize(
+    "api, cw",
+    [("GetEnvironmentStrings", 1), ("GetEnvironmentStringsA", 1), ("GetEnvironmentStringsW", 2)],
+)
+def test_environment_strings_is_a_double_nul_terminated_block(dll_emu: Speakeasy, api: str, cw: int) -> None:
+    assert dll_emu.emu is not None
+    env = dll_emu.emu.get_env()
+    block = encode("".join(f"{k}={v}\0" for k, v in env.items()) + "\0", cw)
+    ptr, _ = call(dll_emu, "kernel32", api, [])
+    assert dll_emu.mem_read(ptr, len(block)) == block
