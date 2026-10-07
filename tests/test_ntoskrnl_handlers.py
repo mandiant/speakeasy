@@ -210,3 +210,28 @@ def test_rtl_copy_unicode_string_empties_the_destination_for_a_null_source(drive
     call(driver_emu, "ntoskrnl", "RtlCopyUnicodeString", [dest, unicode_string(driver_emu, "old")])
     call(driver_emu, "ntoskrnl", "RtlCopyUnicodeString", [dest, 0])
     assert read_unicode_string_x86(driver_emu, dest)[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("count", "fmt", "args", "rv", "written"),
+    [
+        (4, "%s-%s", ["AAAAAAAA", "BBBBBBBB"], -1, "AAAA"),
+        (16, "%s-%d", ["ab", 42], 5, "ab-42\0"),
+        (5, "%d", [12345], 5, "12345"),
+        (0, "hello", [], -1, ""),
+        (5, "hello", [], 5, "hello"),
+        (16, "hello", [], 5, "hello\0"),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_snprintf_writes_at_most_count_characters(
+    driver_emu: Speakeasy, width: int, count: int, fmt: str, args: list, rv: int, written: str
+) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    name = "_snprintf" if width == 1 else "_snwprintf"
+    argv = [alloc(driver_emu, (a + "\0").encode(enc)) if isinstance(a, str) else a for a in args]
+    out = alloc(driver_emu, b"\xee" * 64)
+    result, _ = call(driver_emu, "ntoskrnl", name, [out, count, alloc(driver_emu, (fmt + "\0").encode(enc)), *argv])
+    assert result == rv
+    data = written.encode(enc)
+    assert driver_emu.mem_read(out, len(data) + width) == data + b"\xee" * width
