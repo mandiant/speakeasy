@@ -318,12 +318,18 @@ class Shlwapi(api.ApiHandler):
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
         s = self.read_mem_string(pszPath, cw)
-        idx = s.rfind("\\")
-        if idx == -1:
+        i = cut = len(s[:2]) - len(s[:2].lstrip("\\"))
+        while i < len(s):
+            if s[i] == "\\":
+                cut = i
+            elif s[i] == ":":
+                i += 1
+                cut = i + 1 if s[i : i + 1] == "\\" else i
+            i += 1
+        if cut >= len(s):
             return 0
 
-        s = s[:idx]
-        self.write_mem_string(s, pszPath, cw)
+        self.write_mem_string(s[:cut], pszPath, cw)
         return 1
 
     @apihook("PathAddBackslash", argc=1)

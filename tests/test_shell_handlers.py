@@ -280,3 +280,22 @@ def test_path_rename_extension_changes_the_file_name_only(
     assert rv == 1
     assert dll_emu.mem_read(p, (len(expected) + 1) * width) == wstr(expected, width)
 
+
+@pytest.mark.parametrize(
+    "path, expected, rv",
+    [
+        ("C:\\dir\\file.txt", "C:\\dir", 1),
+        ("C:\\file.txt", "C:\\", 1),
+        ("file.txt", "", 1),
+        ("\\file.txt", "\\", 1),
+        ("C:\\dir\\", "C:\\dir", 1),
+        ("C:\\", "C:\\", 0),
+        ("\\\\srv\\share", "\\\\srv", 1),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_remove_file_spec(dll_emu: Speakeasy, path: str, expected: str, rv: int, width: int) -> None:
+    p = alloc(dll_emu, wstr(path, width))
+    result, _ = call(dll_emu, "shlwapi", "PathRemoveFileSpec" + ("W" if width == 2 else "A"), [p])
+    assert result == rv
+    assert dll_emu.mem_read(p, (len(expected) + 1) * width) == wstr(expected, width)
