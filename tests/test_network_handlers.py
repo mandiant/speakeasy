@@ -344,3 +344,7 @@ def test_gethostbyname_ignores_case(dll_emu: Speakeasy) -> None:
     addr_list = struct.unpack("<I", dll_emu.mem_read(hostent + 12, 4))[0]
     addr = struct.unpack("<I", dll_emu.mem_read(addr_list, 4))[0]
     assert dll_emu.mem_read(addr, 4) == bytes([8, 8, 8, 8])
+
+
+def test_inet_addr_null(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "ws2_32", "inet_addr", [0])[0] == 0xFFFFFFFF
