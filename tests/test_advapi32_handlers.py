@@ -242,3 +242,13 @@ def test_ncrypt_open_storage_provider_returns_a_handle(dll_emu: Speakeasy, name:
     hprov = _open_storage_provider(dll_emu, name)
     assert dll_emu.emu.get_crypt_manager().crypt_get(hprov) is not None
 
+
+def test_ncrypt_import_key_ignores_the_high_bits_of_the_size(dll64_emu: Speakeasy) -> None:
+    hprov = _open_storage_provider(dll64_emu, None)
+    phkey = alloc(dll64_emu, b"\x00" * 8)
+    blob_type = alloc(dll64_emu, "RSAPUBLICBLOB\x00".encode("utf-16le"))
+    data = alloc(dll64_emu, b"\x01" * 16)
+    argv = [hprov, 0, blob_type, 0, phkey, data, 0xDEADBEEF00000010, 0]
+    rv, _ = call(dll64_emu, "ncrypt", "NCryptImportKey", argv)
+    assert rv == 0
+    assert int.from_bytes(dll64_emu.mem_read(phkey, 8), "little") != 0
