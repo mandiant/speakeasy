@@ -6952,7 +6952,10 @@ class Kernel32(api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         """
-        fPending = argv[2]
+        dwFlags, fPending = argv[1:3]
+        if dwFlags & k32types.INIT_ONCE_CHECK_ONLY:
+            emu.set_last_error(windefs.ERROR_GEN_FAILURE)
+            return 0
         if fPending:
             self.mem_write(fPending, (1).to_bytes(4, "little"))
         return 1
