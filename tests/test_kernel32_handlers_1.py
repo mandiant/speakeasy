@@ -187,3 +187,13 @@ def test_environment_strings_is_a_double_nul_terminated_block(dll_emu: Speakeasy
     block = encode("".join(f"{k}={v}\0" for k, v in env.items()) + "\0", cw)
     ptr, _ = call(dll_emu, "kernel32", api, [])
     assert dll_emu.mem_read(ptr, len(block)) == block
+
+
+@pytest.mark.parametrize("cw", [1, 2])
+def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
+    api = "lstrcatW" if cw == 2 else "lstrcatA"
+    dst = alloc(dll_emu, encode("A\0", cw) + b"\xcc" * 16)
+    src = alloc(dll_emu, encode("BC\0", cw))
+    rv, _ = call(dll_emu, "kernel32", api, [dst, src])
+    assert rv == dst
+    assert dll_emu.mem_read(dst, 4 * cw + 1) == encode("ABC\0", cw) + b"\xcc"

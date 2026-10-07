@@ -2201,7 +2201,7 @@ class Kernel32(api.ApiHandler):
         else:
             new = (s1 + s2).encode("utf-8")
 
-        self.mem_write(lpString1, new + b"\x00")
+        self.mem_write(lpString1, new + b"\x00" * cw)
 
         return lpString1
 
