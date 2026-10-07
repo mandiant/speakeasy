@@ -310,3 +310,24 @@ def test_net_get_join_information_shows_the_join_status(dll_emu: Speakeasy, dll:
     assert rv == 0
     assert dll_emu.mem_read(status, 4) == struct.pack("<I", 3)
     assert displays["BufferType"] == "NetSetupDomainName"
+
+
+@pytest.mark.parametrize(
+    "api, width, encoding",
+    [("GetConsoleTitleA", 1, "utf-8"), ("GetConsoleTitleW", 2, "utf-16le")],
+)
+def test_get_console_title_shows_the_title(dll_emu: Speakeasy, api: str, width: int, encoding: str) -> None:
+    buf = _alloc(dll_emu, b"\xcc" * 64)
+    rv, displays = _call(dll_emu, "kernel32", api, [buf, 32])
+    assert rv == len("explorer.exe")
+    assert dll_emu.mem_read(buf, 13 * width) == "explorer.exe\x00".encode(encoding)
+    assert displays["lpConsoleTitle"] == "explorer.exe"
+    assert displays["nSize"] == "0x20"
+
+
+def test_get_console_title_truncates_to_the_buffer(dll_emu: Speakeasy) -> None:
+    buf = _alloc(dll_emu, b"\xcc" * 16)
+    rv, displays = _call(dll_emu, "kernel32", "GetConsoleTitleA", [buf, 4])
+    assert rv == len("explorer.exe")
+    assert dll_emu.mem_read(buf, 5) == b"exp\x00\xcc"
+    assert displays["lpConsoleTitle"] == "exp"

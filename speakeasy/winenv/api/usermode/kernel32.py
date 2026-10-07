@@ -6569,26 +6569,16 @@ class Kernel32(api.ApiHandler):
         """
         lpConsoleTitle, nSize = argv
         cw = self.get_char_width(ctx)
-        rv = False
 
         # TODO: consider enumeration logic
-        temp_title = "explorer.exe"
+        title = "explorer.exe"
 
-        if cw == 2:
-            temp_title = temp_title.encode("utf-16le") + b"\x00\x00"
-        else:
-            temp_title = temp_title.encode("utf-8") + b"\x00"
+        if lpConsoleTitle and nSize:
+            out = title[: nSize - 1]
+            self.write_mem_string(out, lpConsoleTitle, cw)
+            ctx.args["lpConsoleTitle"].display = out
 
-        ctx.args["lpConsoleTitle"].display = str(temp_title)
-        ctx.args["nSize"].display = hex(len(temp_title))
-
-        if lpConsoleTitle and temp_title:
-            self.mem_write(lpConsoleTitle, temp_title)
-            rv = True
-        if nSize:
-            self.mem_write(nSize, (len(temp_title)).to_bytes(4, "little"))
-
-        return rv
+        return len(title)
 
     @apihook("InitializeSRWLock", argc=1)
     def InitializeSRWLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
