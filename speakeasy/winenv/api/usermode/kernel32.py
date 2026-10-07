@@ -6647,9 +6647,10 @@ class Kernel32(api.ApiHandler):
         );
         """
         lpFileName, iRedWrite = argv
-        cw = self.get_char_width(ctx)
-        filename = self.read_mem_string(lpFileName, cw)
+        filename = self.read_mem_string(lpFileName, 1)
         fHandle = self.file_open(filename)
+        if not fHandle:
+            return windefs.HFILE_ERROR
         return fHandle
 
     @apihook("_lclose", argc=1)
@@ -6663,8 +6664,8 @@ class Kernel32(api.ApiHandler):
         obj = self.get_object_from_handle(hObject)
         if obj:
             emu.dec_ref(obj)
-            return True
-        return False
+            return 0
+        return windefs.HFILE_ERROR
 
     @apihook("GetConsoleTitle", argc=2)
     def GetConsoleTitle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

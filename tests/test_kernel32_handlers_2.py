@@ -4,18 +4,30 @@ kernel32 handlers return what Windows returns and write what Windows writes.
 
 import datetime
 import struct
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, start_process
+from tests.handler_harness import alloc, call, load_emu, start_process
 
 
 @pytest.fixture
 def emu(dll_emu: Speakeasy) -> Speakeasy:
     start_process(dll_emu)
     return dll_emu
+
+
+@pytest.fixture
+def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    """An emulator where only the configured full paths exist."""
+    files = config["filesystem"]["files"]
+    config["filesystem"]["files"] = [f for f in files if f["mode"] == "full_path"]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        yield se
 
 
 def last_error(se: Speakeasy) -> int:
@@ -141,3 +153,14 @@ def test_get_module_file_name_ex(emu: Speakeasy) -> None:
 
     assert call(emu, "kernel32", "GetModuleFileNameExA", [0x7FF0, 0, buf, 260])[0] == 0
     assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
+
+
+def test_lopen_and_lclose(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    hnd, _ = call(se, "kernel32", "_lopen", [alloc(se, BYTE_FILL_PATH.encode() + b"\x00"), 0])
+    assert hnd not in (0, windefs.HFILE_ERROR)
+    assert call(se, "kernel32", "_lclose", [hnd])[0] == 0
+    assert call(se, "kernel32", "_lclose", [0x7FF0])[0] == windefs.HFILE_ERROR
+
+    missing = alloc(se, b"c:\\no\\such\\file.bin\x00")
+    assert call(se, "kernel32", "_lopen", [missing, 0])[0] == windefs.HFILE_ERROR
