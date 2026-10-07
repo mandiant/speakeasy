@@ -305,3 +305,12 @@ def test_ldr_get_procedure_address_without_name_or_ordinal(dll_emu: Speakeasy) -
     out = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "ntdll", "LdrGetProcedureAddress", [0x10000000, 0, 0, out])
     assert rv == ddk.STATUS_PROCEDURE_NOT_FOUND
+
+
+@pytest.mark.parametrize("a, b, sign", [("abc", "ABD", -1), ("ABC", "abc", 0), ("abd", "ABC", 1)])
+@pytest.mark.parametrize("width", [1, 2])
+def test_str_cmp_i_orders_strings(dll_emu: Speakeasy, a: str, b: str, sign: int, width: int) -> None:
+    pa, pb = alloc(dll_emu, wstr(a, width)), alloc(dll_emu, wstr(b, width))
+    rv, _ = call(dll_emu, "shlwapi", "StrCmpI" + ("W" if width == 2 else "A"), [pa, pb])
+    rv = rv - (1 << 32) if rv >= 1 << 31 else rv
+    assert (rv > 0) - (rv < 0) == sign
