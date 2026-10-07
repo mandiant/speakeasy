@@ -1578,7 +1578,7 @@ class User32(api.ApiHandler):
         # If destination buffer exists, copy source bytes into it.
         if src and dst:
             try:
-                data = emu.mem_read(src, 256)
+                data = emu.mem_read(src, self.mem_string_len(src, 1) + 1)
                 try:
                     emu.mem_write(dst, data)
                 except Exception:
