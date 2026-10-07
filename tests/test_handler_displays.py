@@ -691,3 +691,13 @@ def test_register_service_ctrl_handler_ex_returns_a_handle(dll_emu: Speakeasy) -
     name = _alloc(dll_emu, b"svc\x00")
     rv, _ = _call(dll_emu, "advapi32", "RegisterServiceCtrlHandlerExA", [name, 0x401000, 0])
     assert rv != 0
+
+
+def test_ldr_get_procedure_address_by_ordinal(dll_emu: Speakeasy) -> None:
+    emu = dll_emu.emu
+    assert emu is not None
+    mod = next(m for m in emu.get_peb_modules() if m.get_base_name().lower() == "kernel32.dll")
+    out = _alloc(dll_emu, b"\x00" * 4)
+    rv, _ = _call(dll_emu, "ntdll", "LdrGetProcedureAddress", [mod.base, 0, 5, out])
+    assert rv == 0
+    assert int.from_bytes(dll_emu.mem_read(out, 4), "little") == emu.get_proc("kernel32", "ordinal_5")

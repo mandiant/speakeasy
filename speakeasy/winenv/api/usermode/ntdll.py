@@ -152,7 +152,7 @@ class Ntdll(api.ApiHandler):
             ctx.args["ProcedureName"].display = proc
 
         elif ordinal:
-            proc = f"ordinal_{proc_name}"
+            proc = f"ordinal_{ordinal}"
 
         mods = emu.get_peb_modules()
         for mod in mods:
