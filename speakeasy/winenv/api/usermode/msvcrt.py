@@ -70,15 +70,15 @@ class Msvcrt(api.ApiHandler):
         x = struct.unpack("d", x)[0]
         return x
 
-    def read_cstr(self, addr, max_chars=0):
+    def read_cstr(self, addr, max_chars=0, width=1):
         """
         Read the bytes of a NUL-terminated string, without the NUL. The CRT
-        byte-string functions work on bytes, which a decoded string can drop.
+        string functions work on raw characters, which a decoded string can drop.
         """
         data = b""
-        while not max_chars or len(data) < max_chars:
-            char = self.mem_read(addr + len(data), 1)
-            if char == b"\x00":
+        while not max_chars or len(data) < max_chars * width:
+            char = self.mem_read(addr + len(data), width)
+            if char == b"\x00" * width:
                 break
             data += char
         return data
@@ -937,11 +937,10 @@ class Msvcrt(api.ApiHandler):
         );
         """
         dest, src, length = argv
-        s = self.read_string(src, max_chars=length)
-        if len(s) < length:
-            s += "\x00" * (length - len(s))
-        self.write_string(s, dest)
-        ctx.args[1].display = s
+        if length:
+            s = self.read_cstr(src, max_chars=length)
+            self.mem_write(dest, s.ljust(length, b"\x00"))
+            ctx.args[1].display = s.decode("utf-8", "ignore")
         return dest
 
     @apihook("wcsncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -954,11 +953,10 @@ class Msvcrt(api.ApiHandler):
         );
         """
         dest, src, count = argv
-        ws = self.read_wide_string(src, max_chars=count)
-        if len(ws) < count:
-            ws += "\x00" * (count - len(ws))
-        self.write_wide_string(ws, dest)
-        ctx.args[1].display = ws
+        if count:
+            ws = self.read_cstr(src, max_chars=count, width=2)
+            self.mem_write(dest, ws.ljust(count * 2, b"\x00"))
+            ctx.args[1].display = ws.decode("utf-16le", "ignore")
         return dest
 
     @apihook("memcpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
