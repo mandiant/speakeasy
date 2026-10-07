@@ -427,3 +427,12 @@ def test_mm_map_locked_pages_maps_the_mdl_memory(driver_emu: Speakeasy) -> None:
     assert driver_emu.mem_read(mapped, 8) == b"original"
     driver_emu.mem_write(mapped, b"patched!")
     assert driver_emu.mem_read(buf, 8) == b"patched!"
+
+
+def test_rtl_decompress_buffer_rejects_xpress(driver_emu: Speakeasy) -> None:
+    comp = alloc(driver_emu, bytes.fromhex("ffffffff") + b"abc")
+    out = alloc(driver_emu, b"\x00" * 0x100)
+    final = alloc(driver_emu, b"\xcc" * 4)
+    argv = [ddk.COMPRESSION_FORMAT_XPRESS, out, 0x100, comp, 7, final]
+    rv, _ = call(driver_emu, "ntoskrnl", "RtlDecompressBuffer", argv)
+    assert rv == ddk.STATUS_UNSUPPORTED_COMPRESSION

@@ -2236,7 +2236,7 @@ class Ntoskrnl(api.ApiHandler):
         fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, final_size = argv
 
         algorithm = fmt & 0xFF
-        if algorithm not in (ddk.COMPRESSION_FORMAT_LZNT1, ddk.COMPRESSION_FORMAT_XPRESS):
+        if algorithm != ddk.COMPRESSION_FORMAT_LZNT1:
             nts = ddk.STATUS_UNSUPPORTED_COMPRESSION
             return nts
 
