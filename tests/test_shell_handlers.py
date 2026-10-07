@@ -88,3 +88,12 @@ def test_command_line_to_argv_uses_windows_rules(dll_emu: Speakeasy, cmdline: st
     assert struct.unpack("<I", dll_emu.mem_read(nargs, 4))[0] == len(expected)
     ptrs = struct.unpack(f"<{len(expected)}I", dll_emu.mem_read(rv, 4 * len(expected)))
     assert [read_wstr(dll_emu, p) for p in ptrs] == expected
+
+
+@pytest.mark.parametrize("csidl", [0x1A, 0x801A, 0x401A])
+def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) -> None:
+    assert dll_emu.emu is not None
+    out = alloc(dll_emu, b"\x00" * 520)
+    rv, _ = call(dll_emu, "shell32", "SHGetFolderPathW", [0, csidl, 0, 0, out])
+    assert rv == 0
+    assert read_wstr(dll_emu, out) == f"C:\\Users\\{dll_emu.emu.config.user.name}\\AppData\\Roaming"
