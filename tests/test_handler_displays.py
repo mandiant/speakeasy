@@ -12,6 +12,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiContext, HandlerArgs
+from speakeasy.winenv.defs.nt import ddk
 
 
 @pytest.fixture
@@ -155,3 +156,11 @@ def test_wvnsprintf_format_is_on_psz_fmt(dll_emu: Speakeasy) -> None:
     assert displays["pszDest"] == "n=7"
     assert displays["cchDest"] == "0x40"
     assert displays["pszFmt"] == "n=%d"
+
+
+def test_zw_query_value_key_accepts_a_null_value_name(driver_emu: Speakeasy) -> None:
+    info = _alloc(driver_emu, b"\x00" * 64)
+    ret_len = _alloc(driver_emu, b"\x00" * 4)
+    rv, displays = _call(driver_emu, "ntoskrnl", "ZwQueryValueKey", [0, 0, 2, info, 64, ret_len])
+    assert rv == ddk.STATUS_INVALID_HANDLE
+    assert displays["ValueName"] == "0x0"
