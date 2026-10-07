@@ -1220,8 +1220,8 @@ class Ntoskrnl(api.ApiHandler):
         size = self.sizeof(mdl)
 
         mdl.Size = 0x56
-        mdl.Flags = 0x8
-        mdl.StartVa = va & 0xFFFFFFFFFFFF000
+        mdl.MdlFlags = 0x8
+        mdl.StartVa = va & ~0xFFF
         mdl.ByteCount = length
         mdl.ByteOffset = va - mdl.StartVa
 
@@ -1635,13 +1635,11 @@ class Ntoskrnl(api.ApiHandler):
             );
         """
         p_mdl, am, ctype, addr, bugcheck, priority = argv
-        rv = 0
 
         mdl = self.win.MDL(emu.get_ptr_size())
         mdl = self.mem_cast(mdl, p_mdl)
 
-        rv = self.mem_alloc(mdl.ByteCount, tag=f"api.mapped_pages.0x{mdl.StartVa:x}")
-        return rv
+        return mdl.StartVa + mdl.ByteOffset
 
     @apihook("KeInsertQueueApc", argc=4)
     def KeInsertQueueApc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
