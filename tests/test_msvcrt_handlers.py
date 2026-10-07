@@ -150,3 +150,25 @@ def test_itoa_uses_32_bit_value_on_x64(dll64_emu: Speakeasy) -> None:
     buf = alloc(dll64_emu, b"\xcc" * 16)
     call(dll64_emu, "msvcrt", "_itoa", [0xFFFFFFFFFFFFFFFB, buf, 10])
     assert dll64_emu.mem_read(buf, 3) == b"-5\x00"
+
+
+@pytest.mark.parametrize(
+    "text, count, rv, written",
+    [
+        ("hi", 8, 2, b"hi\x00"),
+        ("hello", 3, 3, b"hel"),
+        ("hello", 5, 5, b"hello"),
+        ("caf\xe9", 8, 4, b"caf\xe9\x00"),
+        ("中", 8, 0xFFFFFFFF, b""),
+    ],
+)
+def test_wcstombs_converts_at_most_count_bytes(
+    dll_emu: Speakeasy, text: str, count: int, rv: int, written: bytes
+) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    assert call(dll_emu, "msvcrt", "wcstombs", [buf, alloc(dll_emu, f"{text}\0".encode("utf-16le")), count])[0] == rv
+    assert dll_emu.mem_read(buf, len(written) + 1) == written + b"\xcc"
+
+
+def test_wcstombs_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "wcstombs", [0, alloc(dll_emu, "hello\0".encode("utf-16le")), 0])[0] == 5

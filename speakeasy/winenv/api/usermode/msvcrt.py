@@ -1830,9 +1830,20 @@ class Msvcrt(api.ApiHandler):
         """
         mbstr, wcstr, count = argv
 
-        s = self.read_wide_string(wcstr, count)
-        self.write_string(s, mbstr)
-        return len(s.encode("ascii"))
+        ws = self.read_cstr(wcstr, max_chars=count if mbstr else 0, width=2).decode("utf-16le", "surrogatepass")
+        ctx.args[1].display = ws
+        try:
+            s = ws.encode("latin-1")
+        except UnicodeEncodeError:
+            return self.get_max_int()
+
+        if not mbstr:
+            return len(s)
+        if len(s) < count:
+            self.mem_write(mbstr, s + b"\x00")
+        else:
+            self.mem_write(mbstr, s[:count])
+        return min(len(s), count)
 
     @apihook("_stricmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _stricmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
