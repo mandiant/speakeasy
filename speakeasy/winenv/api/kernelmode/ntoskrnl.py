@@ -2398,7 +2398,13 @@ class Ntoskrnl(api.ApiHandler):
 
         nts = ddk.STATUS_SUCCESS
 
-        obj = self.get_object_from_handle(hnd)
+        # NtCurrentProcess() and NtCurrentThread()
+        if hnd == self.get_max_int():
+            obj = emu.get_current_process()
+        elif hnd == self.get_max_int() - 1:
+            obj = emu.get_current_thread()
+        else:
+            obj = self.get_object_from_handle(hnd)
         if obj:
             if Object:
                 self.mem_write(Object, obj.address.to_bytes(self.get_ptr_size(), "little"))  # noqa
