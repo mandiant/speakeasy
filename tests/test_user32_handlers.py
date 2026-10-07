@@ -271,3 +271,12 @@ def test_char_case_of_a_string_keeps_its_length(dll_emu: Speakeasy, name: str, d
     rv, _ = call(dll_emu, "user32", name, [buf])
     assert rv == buf
     assert dll_emu.mem_read(buf, len(data) + 4) == expected + b"\xcc" * 4
+
+
+@pytest.mark.parametrize("name, cw", [("CharNextA", 1), ("CharNextW", 2)])
+def test_char_next_stops_at_the_nul(dll_emu: Speakeasy, name: str, cw: int) -> None:
+    s = alloc(dll_emu, "a\0".encode("utf-8" if cw == 1 else "utf-16le"))
+    rv, _ = call(dll_emu, "user32", name, [s])
+    assert rv == s + cw
+    rv, _ = call(dll_emu, "user32", name, [rv])
+    assert rv == s + cw
