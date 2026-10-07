@@ -787,11 +787,11 @@ class Wdfldr(api.ApiHandler):
             return rv
 
         interfaces = self.parse_usb_config(uif.config_desc)
-        if PipeInfo:
-            for i, eps in interfaces:
-                if uif.iface_index == i.bInterfaceNumber:
-                    if PipeIndex > len(eps):
-                        break
+        for i, eps in interfaces:
+            if uif.iface_index == i.bInterfaceNumber:
+                if PipeIndex >= len(eps):
+                    return rv
+                if PipeInfo:
                     ep = eps[PipeIndex]
                     info = self.types.WDF_USB_PIPE_INFORMATION(emu.get_ptr_size())
                     info = self.mem_cast(info, PipeInfo)
@@ -802,13 +802,12 @@ class Wdfldr(api.ApiHandler):
                     info.PipeType = self.get_pipe_type(ep)
                     self.mem_write(PipeInfo, info.get_bytes())
 
-        if uif:
-            hnd = self.get_handle()
-            up = WdfUsbPipe()
-            up.interface = uif
-            up.index = PipeIndex
-            self.usb_pipes.update({hnd: up})
-            rv = hnd
+        hnd = self.get_handle()
+        up = WdfUsbPipe()
+        up.interface = uif
+        up.index = PipeIndex
+        self.usb_pipes.update({hnd: up})
+        rv = hnd
 
         return rv
 
@@ -831,7 +830,7 @@ class Wdfldr(api.ApiHandler):
             if PipeInfo:
                 for i, eps in interfaces:
                     if uif.iface_index == i.bInterfaceNumber:
-                        if _pipe.index > len(eps):
+                        if _pipe.index >= len(eps):
                             break
                         ep = eps[_pipe.index]
                         info = self.types.WDF_USB_PIPE_INFORMATION(emu.get_ptr_size())

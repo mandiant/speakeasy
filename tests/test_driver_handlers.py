@@ -268,3 +268,14 @@ def test_wdf_usb_pipe_information(any_driver_emu: Speakeasy, index: int, expecte
     info = alloc(any_driver_emu, b"\x00" * 0x20)
     call(any_driver_emu, "wdfldr", "WdfUsbTargetPipeGetInformation", [driver_globals, pipe, info])
     assert _pipe_information(any_driver_emu, info) == expected
+
+
+@pytest.mark.parametrize("with_info", [True, False])
+def test_wdf_usb_configured_pipe_out_of_range(any_driver_emu: Speakeasy, with_info: bool) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    usb_interface = _configured_usb_interface(any_driver_emu, driver_globals)
+    info = alloc(any_driver_emu, b"\xcc" * 0x20) if with_info else 0
+    rv, _ = call(any_driver_emu, "wdfldr", "WdfUsbInterfaceGetConfiguredPipe", [driver_globals, usb_interface, 2, info])
+    assert rv == 0
+    if with_info:
+        assert any_driver_emu.mem_read(info, 0x20) == b"\xcc" * 0x20
