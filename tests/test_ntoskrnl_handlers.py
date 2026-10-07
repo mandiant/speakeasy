@@ -5,6 +5,7 @@ import pytest
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
+from speakeasy.windows import objman
 from tests.handler_harness import alloc, call, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
@@ -324,3 +325,27 @@ def test_unknown_objects_fail_with_a_status(driver_emu: Speakeasy, name: str, ar
     slots = {"out": alloc(driver_emu, b"\x00" * 8), "size": alloc(driver_emu, (0x1000).to_bytes(4, "little"))}
     rv, _ = call(driver_emu, "ntoskrnl", name, [slots.get(a, a) if isinstance(a, str) else a for a in argv])
     assert rv == status
+
+
+def set_current_system_thread(se: Speakeasy) -> None:
+    emu = se.emu
+    emu.get_current_process()
+    proc = emu.get_system_process()
+    emu.set_current_process(proc)
+    thread = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=0x1000)
+    emu.om.objects.update({thread.address: thread})
+    proc.threads.append(thread)
+    emu.set_current_thread(thread)
+
+
+@pytest.mark.parametrize("pseudo", ["process", "thread"])
+def test_ob_reference_object_by_handle_resolves_pseudo_handles(driver_emu: Speakeasy, pseudo: str) -> None:
+    set_current_system_thread(driver_emu)
+    emu = driver_emu.emu
+    hnd, expected = (
+        (0xFFFFFFFF, emu.get_current_process()) if pseudo == "process" else (0xFFFFFFFE, emu.get_current_thread())
+    )
+    out = alloc(driver_emu, b"\x00" * 4)
+    rv, _ = call(driver_emu, "ntoskrnl", "ObReferenceObjectByHandle", [hnd, 0x1FFFFF, 0, 0, out, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert int.from_bytes(driver_emu.mem_read(out, 4), "little") == expected.address
