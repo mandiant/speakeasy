@@ -1571,6 +1571,26 @@ class AdvApi32(api.ApiHandler):
         if dwParam in param_enums.keys():
             ctx.args["dwParam"].display = param_enums[dwParam]
 
+        hnd = self.hash_objects.get(hHash, None)
+        if hnd is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        if dwParam == adv32.HP_HASHVAL:
+            value = hnd.digest()
+        elif dwParam == adv32.HP_HASHSIZE:
+            value = hnd.digest_size.to_bytes(4, "little")
+        else:
+            return 1
+
+        size = int.from_bytes(self.mem_read(pdwDataLen, 4), "little")
+        self.mem_write(pdwDataLen, len(value).to_bytes(4, "little"))
+        if not pbData:
+            return 1
+        if size < len(value):
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
+            return 0
+        self.mem_write(pbData, value)
         return 1
 
     @apihook("CryptDestroyHash", argc=1)
