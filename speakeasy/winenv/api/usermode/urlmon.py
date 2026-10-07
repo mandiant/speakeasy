@@ -22,7 +22,7 @@ class Urlmon(api.ApiHandler):
         self.names = {}
 
     @apihook("URLDownloadToFile", argc=5)
-    def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = None):
+    def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToFile(
                     LPUNKNOWN            pCaller,
@@ -32,7 +32,6 @@ class Urlmon(api.ApiHandler):
                     LPBINDSTATUSCALLBACK lpfnCB
         );
         """
-        ctx = ctx or {}
 
         pCaller, szURL, szFileName, dwReserved, lpfnCB = argv
         rv = windefs.ERROR_SUCCESS
@@ -55,7 +54,7 @@ class Urlmon(api.ApiHandler):
         return rv
 
     @apihook("URLDownloadToCacheFile", argc=6)
-    def URLDownloadToCacheFile(self, emu, argv, ctx: api.ApiContext = None):
+    def URLDownloadToCacheFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToCacheFileA(
           LPUNKNOWN            pCaller,
@@ -66,7 +65,6 @@ class Urlmon(api.ApiHandler):
           LPBINDSTATUSCALLBACK lpfnCB
         );
         """
-        ctx = ctx or {}
         pCaller, szURL, szFileName, cchFileName, dwReserved, lpfnCB = argv
         rv = windefs.ERROR_SUCCESS
         cw = self.get_char_width(ctx)

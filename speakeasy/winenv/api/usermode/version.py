@@ -27,7 +27,7 @@ class Version(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("GetFileVersionInfoSize", argc=2)
-    def GetFileVersionInfoSize(self, emu, argv, ctx={}):
+    def GetFileVersionInfoSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileVersionInfoSize(LPCSTR lptstrFilename, LPDWORD lpdwHandle);
         """
@@ -38,7 +38,7 @@ class Version(api.ApiHandler):
         return 0
 
     @apihook("GetFileVersionInfoSizeEx", argc=3)
-    def GetFileVersionInfoSizeEx(self, emu, argv, ctx={}):
+    def GetFileVersionInfoSizeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileVersionInfoSizeEx(DWORD dwFlags, LPCSTR lpwstrFilename, LPDWORD lpdwHandle);
         """
@@ -49,7 +49,7 @@ class Version(api.ApiHandler):
         return 0
 
     @apihook("GetFileVersionInfo", argc=4)
-    def GetFileVersionInfo(self, emu, argv, ctx={}):
+    def GetFileVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileVersionInfo(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
         """
@@ -57,7 +57,7 @@ class Version(api.ApiHandler):
         return 0
 
     @apihook("GetFileVersionInfoEx", argc=5)
-    def GetFileVersionInfoEx(self, emu, argv, ctx={}):
+    def GetFileVersionInfoEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileVersionInfoEx(DWORD dwFlags, LPCSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
         """
@@ -65,7 +65,7 @@ class Version(api.ApiHandler):
         return 0
 
     @apihook("VerQueryValue", argc=4)
-    def VerQueryValue(self, emu, argv, ctx={}):
+    def VerQueryValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL VerQueryValue(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen);
         """

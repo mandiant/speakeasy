@@ -32,6 +32,7 @@ from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.api import sigdb, sigfmt
+from speakeasy.winenv.api.api import ApiContext, HandlerArgs
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -1963,6 +1964,28 @@ class WindowsEmulator(BinaryEmulator):
             self.enable_code_hook()
         return rv
 
+    def _apply_argv_writes(self, ctx: ApiContext, sig: sigdb.FuncSig | None, before: list[int], after: list) -> None:
+        """Show the values that a handler wrote into argv in place of the rendering of their arguments."""
+        if sig is not None and len(before) == len(after):
+            pos = 0
+            for index, count in enumerate(sig.slot_layout(self.get_ptr_size())):
+                changed = [after[i] for i in range(pos, pos + count) if after[i] != before[i]]
+                pos += count
+                if changed:
+                    arg = ctx.args[index]
+                    if isinstance(changed[0], int):
+                        arg.display, arg.type = hex(changed[0]), arg.type
+                    else:
+                        arg.display = str(changed[0])
+            return
+        if sig is not None:
+            ctx.args = HandlerArgs.from_slots(before)
+        for i, slot in enumerate(after):
+            if i >= len(before):
+                ctx.args.append(hex(slot) if isinstance(slot, int) else str(slot))
+            elif slot != before[i]:
+                ctx.args[i].display = hex(slot) if isinstance(slot, int) else str(slot)
+
     def handle_import_func(self, dll, name):
         """
         Forward imported functions to the corresponding handler (if any).
@@ -1983,13 +2006,17 @@ class WindowsEmulator(BinaryEmulator):
 
             argv = self.get_func_argv(conv, argc)
             imp_api = f"{dll}.{name}"
-            default_ctx = {"func_name": imp_api}
 
             # Render the arguments before the handler runs, while the memory
             # they point to still holds what the caller passed.
             sig = self.get_handler_signature(dll, name, argc)
+            if sig is not None:
+                rendered = self._render_signature_args(sig, argv)
+                args = HandlerArgs.from_signature(sig, self.get_ptr_size(), rendered, argv)
+            else:
+                args = HandlerArgs.from_slots(argv)
+            ctx = ApiContext(func_name=imp_api, args=args)
             raw_argv = list(argv)
-            rendered = self._render_signature_args(sig, argv) if sig is not None else None
 
             self.hammer.handle_import_func(imp_api, conv, argc)
             hooks = self.get_api_hooks(dll, name)
@@ -1997,14 +2024,14 @@ class WindowsEmulator(BinaryEmulator):
                 from types import MethodType
 
                 hooked_func = MethodType(func, mod)
-                orig = lambda args: hooked_func(self, args, default_ctx)  # noqa
+                orig = lambda args: hooked_func(self, args, ctx)  # noqa
                 # Hooks execute in FIFO order (first registered, first called).
                 # All hooks run; the last hook's return value is used.
                 for hook in hooks:
                     rv = hook.cb(self, imp_api, orig, argv)
             else:
                 try:
-                    rv = self.api.call_api_func(mod, func, argv, ctx=default_ctx)  # type: ignore[union-attr]
+                    rv = self.api.call_api_func(mod, func, argv, ctx=ctx)  # type: ignore[union-attr]
                 except Exception as e:
                     logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
@@ -2021,11 +2048,8 @@ class WindowsEmulator(BinaryEmulator):
                 self._fire_dyn_code_hooks(ret)
 
             # Log the API args and return value
-            if sig is not None and rendered is not None and len(argv) == len(raw_argv):
-                args = sigfmt.get_call_args(sig, self.get_ptr_size(), rendered, raw_argv, argv)
-            else:
-                args = sigfmt.get_slot_args(raw_argv, argv)
-            self.log_api(call_pc, imp_api, rv, args)
+            self._apply_argv_writes(ctx, sig, raw_argv, argv)
+            self.log_api(call_pc, imp_api, rv, ctx.args.get_report_args())
 
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)

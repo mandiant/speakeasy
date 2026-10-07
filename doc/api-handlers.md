@@ -6,8 +6,8 @@ Handler rules:
 
 - specify `argc` so stack cleanup is correct
 - if calling convention is omitted, stdcall is assumed
-- `argv` contains raw integer arguments
-- to show a decoded value in the report, write it back into `argv` (for example `argv[0] = path`)
+- `argv` contains the raw integer argument slots; handlers do not change it
+- to show a decoded value in the report, set the `display` of the argument in `ctx.args` (for example `ctx.args["lpFileName"].display = path`)
 - return the value expected by the sample path
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
@@ -16,7 +16,7 @@ For some APIs, returning a success code is enough to keep execution on a useful 
 
 ```python
 @apihook("HeapAlloc", argc=3)
-def HeapAlloc(self, emu, argv, ctx={}):
+def HeapAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
     hHeap, dwFlags, dwBytes = argv
 
     chunk = self.heap_alloc(dwBytes, heap="HeapAlloc")
@@ -30,7 +30,9 @@ def HeapAlloc(self, emu, argv, ctx={}):
 
 Imports that have no `@apihook` are not necessarily fatal. Speakeasy ships a signature database generated from Microsoft's [win32metadata](https://github.com/microsoft/win32metadata) (via the [win32json](https://github.com/marlersoft/win32json) export, vendored as the `deps/win32json` submodule). When an import misses every handler, `Win32Emulator.handle_import_func` looks the function up there and, if it is declared, emulates the call from its prototype: it reads the right number of argument slots, decodes `PSTR`/`PWSTR`/`BOOL` arguments for the trace, renders enum and flag parameters symbolically (`dwCreationDisposition: CREATE_ALWAYS`, `dwShareMode: FILE_SHARE_WRITE|FILE_SHARE_READ`), expands pointers to known structs into a JSON-like rendering with typed fields (`lpSecurityAttributes: {nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}`, following nested pointers one level so `OBJECT_ATTRIBUTES.ObjectName` shows its string), zero-fills `Out` buffers whose size the prototype declares, returns a type-appropriate success value, and cleans up the stack according to the calling convention. Each argument in the event of such a call has the parameter name, its type, the raw value, and the rendering (see [reporting](reporting.md)).
 
-Calls served by a handler use the same signature to name and render their arguments when its slot count equals the handler's `argc`. The arguments are rendered before the handler runs, and any `argv` entry the handler replaced takes the place of the rendering for that parameter, with type `text`. A handler's symbolic name for a value that the signature renders as an enum or flags does not replace that rendering, so all such values have one format. Handlers without a matching signature (the C runtime, kernel-mode APIs, COM methods) record unnamed arguments.
+Calls served by a handler use the same signature to name and render their arguments when its slot count equals the handler's `argc`. The arguments are rendered before the handler runs. `ctx.args` gives the handler one entry per parameter, by name (`ctx.args["hKey"]`) or by parameter index. A handler that sets `display` replaces the rendering of that parameter. The type of the argument becomes `str` if the parameter is declared as a string, and `text` otherwise. A display for a parameter that the signature renders as an enum or flags does not replace that rendering, so all such values have one format.
+
+Handlers without a matching signature (the C runtime, kernel-mode APIs, COM methods) record one unnamed argument per slot. These handlers use the slot index (`ctx.args[0]`), because a name finds no argument. A name or index that matches no argument gives a detached entry, and its changes are not recorded. Variadic handlers add entries with `ctx.args.append(text)` and remove all entries with `ctx.args.clear()`. `tests/test_handler_arg_access.py` checks that each name a handler uses is a parameter of every signature of that function, and that each index means the same parameter on x86 and x64.
 
 Hand-written handlers always take precedence, and are still required whenever a sample depends on the *behavior* of an API (output parameters, objects, files, network). The fallback only keeps emulation coherent and the trace informative.
 

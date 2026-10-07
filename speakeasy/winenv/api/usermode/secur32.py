@@ -16,7 +16,7 @@ class Secur32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("GetUserNameEx", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def GetUserNameEx(self, emu, argv, ctx: api.ApiContext = None):
+    def GetUserNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN SEC_ENTRY GetUserNameExA(
           EXTENDED_NAME_FORMAT NameFormat,
@@ -24,7 +24,6 @@ class Secur32(api.ApiHandler):
           PULONG               nSize
         );
         """
-        ctx = ctx or {}
         NameFormat, lpNameBuffer, nSize = argv
 
         cw = self.get_char_width(ctx)
@@ -45,7 +44,7 @@ class Secur32(api.ApiHandler):
         return 1
 
     @apihook("EncryptMessage", argc=4)
-    def EncryptMessage(self, emu, argv, ctx: api.ApiContext = None):
+    def EncryptMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS SEC_ENTRY EncryptMessage(
         PCtxtHandle    phContext,

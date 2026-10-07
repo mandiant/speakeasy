@@ -20,7 +20,7 @@ from __future__ import annotations
 import struct as _struct
 import uuid
 from collections.abc import Callable
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from speakeasy.profiler_events import ApiArg
 from speakeasy.winenv.api import sigdb
@@ -304,74 +304,28 @@ def get_call_args(
     sig: sigdb.FuncSig,
     ptr_size: int,
     rendered: list[RenderedArg],
-    before: list[int],
-    after: list[Any] | None = None,
+    slots: list[int],
 ) -> list[ApiArg]:
     """
     Assemble the named arguments of a call from the rendering of its
-    parameters. ``before`` holds the raw argument slots as read from the call
-    and gives each parameter's value. For a call served by a handler,
-    ``after`` is the same slot list once the handler returned: a parameter
-    whose slot the handler replaced shows the handler's value (it may know
-    more than the signature, such as the path behind a handle), and the
-    others keep their rendering. A handler's symbolic name for a value the
-    signature already decodes as an enum or flags does not replace the
-    signature rendering, so that one format applies to all of them.
+    parameters. ``slots`` holds the raw argument slots as read from the call
+    and gives each parameter's value.
 
     Raises:
-        ValueError: the slot lists do not match the slots the signature consumes.
+        ValueError: the slots do not match the slots the signature consumes.
     """
-    if after is None:
-        after = before
-    layout = sig.slot_layout(ptr_size)
-    if not (len(before) == len(after) == sum(layout)) or len(rendered) != len(layout):
+    if len(slots) != sig.slot_count(ptr_size) or len(rendered) != len(sig.params):
         raise ValueError(f"{sig.name}: argument slots do not match the signature")
-    args = []
-    pos = 0
-    for param, arg, count in zip(sig.params, rendered, layout):
-        changed = [after[i] for i in range(pos, pos + count) if after[i] != before[i]]
-        pos += count
-        if not changed or (isinstance(changed[0], str) and arg.kind in ("enum", "flags")):
-            args.append(arg)
-        else:
-            args.append(_render_handler_value(param, changed[0]))
-    values = sig.values_from_slots(before, ptr_size)
+    values = sig.values_from_slots(slots, ptr_size)
     return [
         ApiArg(name=param.name, type=arg.kind, value=value, display=arg.text)
-        for param, arg, value in zip(sig.params, args, values)
+        for param, arg, value in zip(sig.params, rendered, values)
     ]
 
 
-def get_slot_args(before: list[int], after: list[Any] | None = None) -> list[ApiArg]:
-    """
-    Arguments of a call without a usable signature, one entry per argument
-    slot. ``after`` is the slot list once a handler returned; a slot the
-    handler replaced with a string shows that string, and entries the handler
-    appended have no raw value.
-    """
-    if after is None:
-        after = before
-    args = []
-    for i, slot in enumerate(after):
-        value = before[i] if i < len(before) else None
-        if isinstance(slot, int):
-            args.append(ApiArg(type="int", value=value, display=hex(slot)))
-        else:
-            args.append(ApiArg(type="text", value=value, display=str(slot)))
-    return args
-
-
-def _render_handler_value(param: sigdb.ParamSig, value: Any) -> RenderedArg:
-    """Kind of a value a handler wrote into an argument slot, judged by the declared type."""
-    if isinstance(value, int):
-        if param.kind == "h":
-            return RenderedArg(hex(value), "handle")
-        if param.kind in ("p", "a", "ps", *sigdb.STRING_KINDS):
-            return RenderedArg(hex(value), "ptr")
-        return RenderedArg(hex(value), "int")
-    if isinstance(value, str) and param.kind in sigdb.STRING_KINDS:
-        return RenderedArg(value, "str")
-    return RenderedArg(str(value), "text")
+def get_slot_args(slots: list[int]) -> list[ApiArg]:
+    """Arguments of a call without a usable signature, one entry per argument slot."""
+    return [ApiArg(type="int", value=slot, display=hex(slot)) for slot in slots]
 
 
 def _struct_key(param: sigdb.ParamSig) -> str | None:
