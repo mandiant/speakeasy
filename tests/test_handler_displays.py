@@ -486,6 +486,20 @@ def test_reg_query_value_ex_small_buffer(dll_emu: Speakeasy) -> None:
     assert (rv, length) == (234, 19)
 
 
+@pytest.mark.parametrize("api", ["RegQueryValueExA", "RegGetValueA"])
+def test_reg_query_data_without_a_size(dll_emu: Speakeasy, api: str) -> None:
+    hkey = _open_usbsamp(dll_emu)
+    name = _alloc(dll_emu, b"DisplayName\x00")
+    data = _alloc(dll_emu, b"\xcc" * 64)
+    if api == "RegQueryValueExA":
+        argv = [hkey, name, 0, 0, data, 0]
+    else:
+        argv = [hkey, 0, name, 0xFFFF, 0, data, 0]
+    rv, _ = _call(dll_emu, "advapi32", api, argv)
+    assert rv == 87
+    assert dll_emu.mem_read(data, 64) == b"\xcc" * 64
+
+
 def test_reg_query_value_ex_returns_a_value_it_set(dll_emu: Speakeasy) -> None:
     hkey = _open_usbsamp(dll_emu)
     name = _alloc(dll_emu, b"Extra\x00")

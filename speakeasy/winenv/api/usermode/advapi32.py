@@ -177,7 +177,9 @@ class AdvApi32(api.ApiHandler):
                 if lpcbData:
                     self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
                 if lpData:
-                    if len(output) > length:
+                    if not lpcbData:
+                        rv = windefs.ERROR_INVALID_PARAMETER
+                    elif len(output) > length:
                         rv = windefs.ERROR_MORE_DATA
                     else:
                         self.mem_write(lpData, output)
@@ -1692,7 +1694,9 @@ class AdvApi32(api.ApiHandler):
                 if lpcbData:
                     self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
                 if lpData:
-                    if len(output) > length:
+                    if not lpcbData:
+                        rv = windefs.ERROR_INVALID_PARAMETER
+                    elif len(output) > length:
                         rv = windefs.ERROR_MORE_DATA
                     else:
                         self.mem_write(lpData, output)
