@@ -66,7 +66,7 @@ class Socket:
         if not peek:
             return data
         elif peek:
-            self.curr_packet.seek(-size, os.SEEK_CUR)
+            self.curr_packet.seek(-len(data), os.SEEK_CUR)
         return data
 
 
