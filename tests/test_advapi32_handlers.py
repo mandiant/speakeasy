@@ -5,7 +5,7 @@ results and out-params that Windows gives.
 
 import hashlib
 import struct
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -17,7 +17,7 @@ from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import advapi32 as adv32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, start_process
+from tests.handler_harness import alloc, call, load_emu, start_process
 
 HKEY_CURRENT_USER = 0x80000001
 
@@ -362,3 +362,51 @@ def test_crypt_hash_data_accepts_empty_data(dll_emu: Speakeasy) -> None:
     size = alloc(dll_emu, struct.pack("<I", 16))
     assert call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, buf, size, 0])[0]
     assert dll_emu.mem_read(buf, 16) == hashlib.md5(b"").digest()
+
+
+@pytest.fixture
+def sid_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    config["user"]["sid"] = "S-1-5-21-1-2-3-1001"
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+def test_lookup_account_name_reports_both_sizes(sid_emu: Speakeasy) -> None:
+    start_process(sid_emu)
+    assert sid_emu.emu is not None
+    domain = sid_emu.emu.config.domain
+    assert domain
+    account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
+    cb_sid = alloc(sid_emu, struct.pack("<I", 0))
+    cch_dom = alloc(sid_emu, struct.pack("<I", 0))
+    use = alloc(sid_emu, b"\xcc" * 4)
+    rv, _ = call(sid_emu, "advapi32", "LookupAccountNameA", [0, account, 0, cb_sid, 0, cch_dom, use])
+    assert (rv, _last_error(sid_emu)) == (0, windefs.ERROR_INSUFFICIENT_BUFFER)
+    assert (_dword(sid_emu, cb_sid), _dword(sid_emu, cch_dom)) == (28, len(domain) + 1)
+
+    sid = alloc(sid_emu, b"\xcc" * 28)
+    dom = alloc(sid_emu, b"\xcc" * (len(domain) + 1))
+    rv, _ = call(sid_emu, "advapi32", "LookupAccountNameA", [0, account, sid, cb_sid, dom, cch_dom, use])
+    assert rv == 1
+    assert sid_emu.mem_read(sid, 28) == _sid(21, 1, 2, 3, 1001)
+    assert sid_emu.mem_read(dom, len(domain) + 1) == domain.encode() + b"\x00"
+    assert (_dword(sid_emu, cch_dom), _dword(sid_emu, use)) == (len(domain), 1)
+
+
+def test_lookup_account_name_small_domain_buffer(sid_emu: Speakeasy) -> None:
+    start_process(sid_emu)
+    assert sid_emu.emu is not None
+    domain = sid_emu.emu.config.domain
+    assert domain
+    account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
+    sid = alloc(sid_emu, b"\xcc" * 28)
+    cb_sid = alloc(sid_emu, struct.pack("<I", 28))
+    dom = alloc(sid_emu, b"\xcc" * 4)
+    cch_dom = alloc(sid_emu, struct.pack("<I", 2))
+    use = alloc(sid_emu, b"\xcc" * 4)
+    rv, _ = call(sid_emu, "advapi32", "LookupAccountNameA", [0, account, sid, cb_sid, dom, cch_dom, use])
+    assert (rv, _last_error(sid_emu), _dword(sid_emu, cch_dom)) == (
+        0,
+        windefs.ERROR_INSUFFICIENT_BUFFER,
+        len(domain) + 1,
+    )
+    assert sid_emu.mem_read(dom, 4) == b"\xcc" * 4
