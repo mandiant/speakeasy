@@ -3548,11 +3548,20 @@ class Kernel32(api.ApiHandler):
         ptr_size = emu.get_ptr_size()
         si = self.k32types.SYSTEM_INFO(ptr_size)
         si.dwPageSize = 0x1000
+        si.lpMinimumApplicationAddress = 0x10000
+        si.dwActiveProcessorMask = 0x3
+        si.dwNumberOfProcessors = 2
+        si.dwAllocationGranularity = 0x10000
+        si.wProcessorLevel = 6
 
         if ptr_size == 4:
             si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_INTEL
+            si.lpMaximumApplicationAddress = 0x7FFEFFFF
+            si.dwProcessorType = k32types.PROCESSOR_INTEL_PENTIUM
         else:
             si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_AMD64
+            si.lpMaximumApplicationAddress = 0x7FFFFFFEFFFF
+            si.dwProcessorType = k32types.PROCESSOR_AMD_X8664
 
         self.mem_write(lpSystemInfo, si.get_bytes())
         return
@@ -5384,8 +5393,7 @@ class Kernel32(api.ApiHandler):
           LPSYSTEM_INFO lpSystemInfo
         );
         """
-        (lpSystemInfo,) = argv
-        return 0
+        return self.GetSystemInfo(emu, argv, ctx)
 
     @apihook("GetUserDefaultUILanguage", argc=0)
     def GetUserDefaultUILanguage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
