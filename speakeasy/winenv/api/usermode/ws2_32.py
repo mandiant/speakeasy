@@ -30,7 +30,7 @@ class Ws2_32(api.ApiHandler):
 
         self.funcs: dict[str, Any] = {}
         self.data: dict[str, Any] = {}
-        self.addr_bufs: dict[int, int] = {}
+        self.addr_bufs: dict[str, int] = {}
         self.last_error: int = 0
         self.win: Any | None = None
         self.netman = emu.get_network_manager()
@@ -484,10 +484,10 @@ class Ws2_32(api.ApiHandler):
         (in_addr,) = argv
 
         raddr = inet_ntoa(in_addr.to_bytes(4, "little"))
-        rv = self.addr_bufs.get(raddr)
-        if not rv:
-            buf = self.mem_alloc(len(raddr), tag=f"api.ws2_32.inet_ntoa.{raddr}")
-            self.mem_write(buf, raddr.encode("utf-8"))
+        buf = self.addr_bufs.get(raddr)
+        if not buf:
+            buf = self.mem_alloc(len(raddr) + 1, tag=f"api.ws2_32.inet_ntoa.{raddr}")
+            self.mem_write(buf, raddr.encode("utf-8") + b"\0")
             self.addr_bufs.update({raddr: buf})
         return buf
 
