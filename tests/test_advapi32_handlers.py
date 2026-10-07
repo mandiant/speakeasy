@@ -354,3 +354,11 @@ def test_crypt_get_hash_param_returns_the_hash(dll_emu: Speakeasy, algid: int, h
     size = alloc(dll_emu, struct.pack("<I", len(digest)))
     assert call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, buf, size, 0])[0]
     assert dll_emu.mem_read(buf, len(digest)) == digest
+
+
+def test_crypt_hash_data_accepts_empty_data(dll_emu: Speakeasy) -> None:
+    hhash = _hash(dll_emu, 0x8003, b"")
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    size = alloc(dll_emu, struct.pack("<I", 16))
+    assert call(dll_emu, "advapi32", "CryptGetHashParam", [hhash, 2, buf, size, 0])[0]
+    assert dll_emu.mem_read(buf, 16) == hashlib.md5(b"").digest()
