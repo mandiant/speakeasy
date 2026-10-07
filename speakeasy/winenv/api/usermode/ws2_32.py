@@ -48,13 +48,14 @@ class Ws2_32(api.ApiHandler):
         """
         ver, lpWSAData = argv
 
-        wsa = self.wstypes.WSAData(emu.get_ptr_size())
-        data = self.mem_cast(wsa, lpWSAData)
+        data = self.wstypes.WSAData(emu.get_ptr_size())
 
-        data.wVersion = 0x0101
+        data.wVersion = 0x0202 if (ver & 0xFF, (ver >> 8) & 0xFF) >= (2, 2) else ver
         data.wHighVersion = 0x0202
         data.iMaxSockets = 0x1000
         data.iMaxUdpDg = 0x1000
+        data.szDescription = b"WinSock 2.0"
+        data.szSystemStatus = b"Running"
 
         self.mem_write(lpWSAData, self.get_bytes(data))
 

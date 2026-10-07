@@ -12,12 +12,19 @@ class WSAData(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.wVersion = ct.c_uint16
-        self.wHighVersion = ct.c_uint32
-        self.iMaxSockets = ct.c_uint32
-        self.iMaxUdpDg = ct.c_uint32
-        self.lpVendorInfo = ct.c_uint16
-        self.szDescription = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
-        self.szSystemStatus = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
+        self.wHighVersion = ct.c_uint16
+        if ptr_size == 8:
+            self.iMaxSockets = ct.c_uint16
+            self.iMaxUdpDg = ct.c_uint16
+            self.lpVendorInfo = Ptr
+            self.szDescription = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
+            self.szSystemStatus = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
+        else:
+            self.szDescription = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
+            self.szSystemStatus = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
+            self.iMaxSockets = ct.c_uint16
+            self.iMaxUdpDg = ct.c_uint16
+            self.lpVendorInfo = Ptr
 
 
 class sockaddr(EmuStruct):
