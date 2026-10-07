@@ -275,3 +275,9 @@ def test_strcmp_compares_bytes(dll_emu: Speakeasy, api: str, a: bytes, b: bytes,
 def test_strnicmp_compares_count_bytes(dll_emu: Speakeasy, a: bytes, b: bytes, count: int, rv: int) -> None:
     result, _ = call(dll_emu, "msvcrt", "_strnicmp", [alloc(dll_emu, a + b"\x00"), alloc(dll_emu, b + b"\x00"), count])
     assert result == rv
+
+
+def test_strlwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, b"C:\\\x8f\xc9AB\x00\xcc")
+    assert call(dll_emu, "msvcrt", "_strlwr", [s])[0] == s
+    assert dll_emu.mem_read(s, 9) == b"c:\\\x8f\xc9ab\x00\xcc"
