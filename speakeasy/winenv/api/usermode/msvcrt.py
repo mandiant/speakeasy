@@ -12,7 +12,6 @@ from .. import api
 EINVAL = 22
 ERANGE = 34
 STRUNCATE = 80
-_TRUNCATE = 0xFFFFFFFF
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
 
@@ -155,10 +154,11 @@ class Msvcrt(api.ApiHandler):
         """
 
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
+        ptr_size = self.get_ptr_size()
 
         rv = 0
         if pReturnValue:
-            self.mem_write(pReturnValue, struct.pack("<I", 0))
+            self.mem_write(pReturnValue, (0).to_bytes(ptr_size, "little"))
 
         # Sanity checks
         if sizeInWords > 0 and not wcstr:
@@ -168,24 +168,25 @@ class Msvcrt(api.ApiHandler):
         elif sizeInWords == 0 and wcstr:
             rv = EINVAL
         else:
-            # Convert the string
-            mbs = self.read_mem_string(mbstr, 1)
-            ctx.args[3].display = mbs
-            mbs += "\x00"
-            ws = mbs.encode("utf-16le")
-
-            if (len(ws) / 2 > sizeInWords and count != _TRUNCATE) and (count >= sizeInWords):
-                # Buffer too small
-                rv = ERANGE
+            is_truncated = count == self.get_max_int()
+            if wcstr and not is_truncated:
+                mbs = self.read_cstr(mbstr, max_chars=count) if count else b""
             else:
-                if count == _TRUNCATE:
-                    self.mem_write(wcstr, ws[: (sizeInWords - 1) * 2])
-                    if pReturnValue:
-                        self.mem_write(pReturnValue, struct.pack("<I", sizeInWords))
-                else:
-                    self.mem_write(wcstr, ws[: count * 2])
-                    if pReturnValue:
-                        self.mem_write(pReturnValue, struct.pack("<I", count + 1))
+                mbs = self.read_cstr(mbstr)
+            text = mbs.decode("latin-1")
+            ctx.args[3].display = text
+
+            n = len(text) + 1
+            if wcstr:
+                if n > sizeInWords:
+                    if not is_truncated:
+                        self.mem_write(wcstr, b"\x00\x00")
+                        return ERANGE
+                    n = sizeInWords
+                    rv = STRUNCATE
+                self.mem_write(wcstr, (text[: n - 1] + "\x00").encode("utf-16le"))
+            if pReturnValue:
+                self.mem_write(pReturnValue, n.to_bytes(ptr_size, "little"))
 
         return rv
 
