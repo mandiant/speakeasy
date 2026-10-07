@@ -1,6 +1,7 @@
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.winenv.api.usermode.msvcrt import ERANGE, STRUNCATE
 from tests.handler_harness import alloc, call
 
 
@@ -78,3 +79,26 @@ def test_strncat_appends_at_most_count_bytes(dll_emu: Speakeasy, count: int, res
     dest = alloc(dll_emu, b"\xe9\x00" + b"\xcc" * 8)
     assert call(dll_emu, "msvcrt", "strncat", [dest, alloc(dll_emu, b"\x8fabc\x00"), count])[0] == dest
     assert dll_emu.mem_read(dest, len(result) + 1) == result + b"\x00"
+
+
+@pytest.mark.parametrize(
+    "size, src, count, rv, result",
+    [
+        (16, b"cdef", 2, 0, b"abcd"),
+        (16, b"cd", 5, 0, b"abcd"),
+        (16, b"cdef", None, 0, b"abcdef"),
+        (5, b"cdef", None, STRUNCATE, b"abcd"),
+        (5, b"cdef", 3, ERANGE, b""),
+    ],
+)
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_strncat_s_appends_within_buffer(
+    request: pytest.FixtureRequest, emu_name: str, size: int, src: bytes, count: int | None, rv: int, result: bytes
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    if count is None:
+        count = (1 << (8 * se.emu.get_ptr_size())) - 1
+    dest = alloc(se, b"ab\x00" + b"\xcc" * 13)
+    assert call(se, "msvcrt", "strncat_s", [dest, size, alloc(se, src + b"\x00"), count])[0] == rv
+    assert se.mem_read(dest, len(result) + 1) == result + b"\x00"
