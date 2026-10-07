@@ -299,3 +299,9 @@ def test_path_remove_file_spec(dll_emu: Speakeasy, path: str, expected: str, rv:
     result, _ = call(dll_emu, "shlwapi", "PathRemoveFileSpec" + ("W" if width == 2 else "A"), [p])
     assert result == rv
     assert dll_emu.mem_read(p, (len(expected) + 1) * width) == wstr(expected, width)
+
+
+def test_ldr_get_procedure_address_without_name_or_ordinal(dll_emu: Speakeasy) -> None:
+    out = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "ntdll", "LdrGetProcedureAddress", [0x10000000, 0, 0, out])
+    assert rv == ddk.STATUS_PROCEDURE_NOT_FOUND
