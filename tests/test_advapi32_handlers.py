@@ -3,9 +3,13 @@ advapi32, secur32, crypt32, bcrypt and ncrypt handlers give callers the
 results and out-params that Windows gives.
 """
 
+import hashlib
 import struct
+from collections.abc import Callable
+from typing import Any
 
 import pytest
+from Crypto.Cipher import ARC4
 
 from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
@@ -282,3 +286,39 @@ def _sid(*subauthorities: int) -> bytes:
 def test_equal_sid_compares_every_subauthority(dll_emu: Speakeasy, a: bytes, b: bytes, equal: bool) -> None:
     rv, _ = call(dll_emu, "advapi32", "EqualSid", [alloc(dll_emu, a), alloc(dll_emu, b)])
     assert bool(rv) == equal
+
+
+def _derive_and_decrypt(se: Speakeasy, algid: int, flags: int, ciphertext: bytes) -> bytes:
+    """Hash "secret", derive an RC4 key from the hash, and decrypt ``ciphertext`` with it."""
+    phprov = alloc(se, b"\x00" * 4)
+    assert call(se, "advapi32", "CryptAcquireContextA", [phprov, 0, 0, 1, 0xF0000000])[0]
+    hprov = _dword(se, phprov)
+    phhash = alloc(se, b"\x00" * 4)
+    assert call(se, "advapi32", "CryptCreateHash", [hprov, algid, 0, 0, phhash])[0]
+    hhash = _dword(se, phhash)
+    assert call(se, "advapi32", "CryptHashData", [hhash, alloc(se, b"secret"), 6, 0])[0]
+    phkey = alloc(se, b"\x00" * 4)
+    assert call(se, "advapi32", "CryptDeriveKey", [hprov, 0x6801, hhash, flags, phkey])[0]
+    buf = alloc(se, ciphertext)
+    size = alloc(se, struct.pack("<I", len(ciphertext)))
+    assert call(se, "advapi32", "CryptDecrypt", [_dword(se, phkey), 0, 1, 0, buf, size])[0]
+    return se.mem_read(buf, len(ciphertext))
+
+
+@pytest.mark.parametrize(
+    "algid, hasher, flags, key",
+    [
+        (0x8003, hashlib.md5, 0, lambda d: d[:5] + b"\x00" * 11),
+        (0x8004, hashlib.sha1, 0, lambda d: d[:5] + b"\x00" * 11),
+        (0x8004, hashlib.sha1, 0x00280010, lambda d: d[:5]),
+        (0x8004, hashlib.sha1, 0x00800000, lambda d: d[:16]),
+        (0x8003, hashlib.md5, 0x00800000, lambda d: d[:16]),
+    ],
+    ids=["md5", "sha1", "sha1-40-no-salt", "sha1-128", "md5-128"],
+)
+def test_crypt_derive_key_rc4(
+    dll_emu: Speakeasy, algid: int, hasher: Callable[[bytes], Any], flags: int, key: Callable[[bytes], bytes]
+) -> None:
+    plaintext = b"hello world!"
+    ciphertext = ARC4.new(key(hasher(b"secret").digest())).encrypt(plaintext)
+    assert _derive_and_decrypt(dll_emu, algid, flags, ciphertext) == plaintext

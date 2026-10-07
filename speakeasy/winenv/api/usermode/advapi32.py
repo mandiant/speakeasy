@@ -1606,16 +1606,23 @@ class AdvApi32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        # CryptDeriveKey zeroes out the last 11 bytes of the hash,
-        # so we gotta do the same before it is written to the
-        # phKey structure
-        fixed_digest = hnd.digest()[:5] + b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        # The upper 16 bits of dwFlags give the key length in bits. A 40-bit
+        # key, the default, gets 11 zero bytes of salt unless CRYPT_NO_SALT
+        # is set.
+        digest = hnd.digest()
+        key_bits = dwFlags >> 16
+        if 40 < key_bits <= len(digest) * 8:
+            fixed_digest = digest[: key_bits // 8]
+        elif dwFlags & adv32.CRYPT_NO_SALT:
+            fixed_digest = digest[:5]
+        else:
+            fixed_digest = digest[:5] + b"\x00" * 11
 
         ptrsz = emu.get_ptr_size()
 
         hKey = self.win.HCRYPTKEY(ptrsz)
         hKey.Algid = Algid
-        hKey.keylen = hnd.digest_size
+        hKey.keylen = len(fixed_digest)
         hKey.keyp = self.mem_alloc(hKey.keylen)
 
         hKeyp = self.mem_alloc(hKey.sizeof())
