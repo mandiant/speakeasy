@@ -206,3 +206,12 @@ def test_set_file_pointer_fails_before_the_start(emu: Speakeasy) -> None:
 
     assert call(emu, "kernel32", "SetFilePointer", [0x7FF0, 0, 0, FILE_BEGIN])[0] == 0xFFFFFFFF
     assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
+
+
+def test_llseek(emu: Speakeasy) -> None:
+    hnd = open_file(emu, BYTE_FILL_PATH)
+    assert call(emu, "kernel32", "_llseek", [hnd, 0, FILE_END])[0] == 512
+    assert call(emu, "kernel32", "_llseek", [hnd, 16, FILE_BEGIN])[0] == 16
+    assert call(emu, "kernel32", "_llseek", [hnd, -4 & 0xFFFFFFFF, FILE_CURRENT])[0] == 12
+    assert call(emu, "kernel32", "_llseek", [hnd, -1 & 0xFFFFFFFF, FILE_BEGIN])[0] == windefs.HFILE_ERROR
+    assert call(emu, "kernel32", "_llseek", [0x7FF0, 0, FILE_BEGIN])[0] == windefs.HFILE_ERROR

@@ -6652,15 +6652,24 @@ class Kernel32(api.ApiHandler):
         # _llseek is 16-bit variant of SetFilePointer
         # code replicates SetFilePointer()
         hFile, lOffset, iOrigin = argv
-        rv = 0
 
         f = self.file_get(hFile)
-        if f:
-            f.seek(lOffset, 1)  # io.SEEK_CUR == 1
-            rv = f.tell()
-            emu.set_last_error(windefs.ERROR_SUCCESS)
+        if not f:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return windefs.HFILE_ERROR
 
-        return rv
+        offset = ct.c_int32(lOffset).value
+        if iOrigin == windefs.FILE_CURRENT:
+            offset += f.tell()
+        elif iOrigin == windefs.FILE_END:
+            offset += f.get_size()
+        if offset < 0:
+            emu.set_last_error(windefs.ERROR_NEGATIVE_SEEK)
+            return windefs.HFILE_ERROR
+
+        f.seek(offset, windefs.FILE_BEGIN)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return f.tell() & 0xFFFFFFFF
 
     @apihook("_lopen", argc=2)
     def _lopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
