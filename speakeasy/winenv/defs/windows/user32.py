@@ -36,9 +36,8 @@ class MSG(EmuStruct):
         self.wParam = Ptr
         self.lParam = Ptr
         self.time = ct.c_uint32
-        self.pt_x = Ptr
-        self.pt_y = Ptr
-        self.lPrivate = ct.c_uint32
+        self.pt_x = ct.c_int32
+        self.pt_y = ct.c_int32
 
 
 class KBDLLHOOKSTRUCT(EmuStruct):
