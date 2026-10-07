@@ -6,6 +6,7 @@ from typing import Any
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.usb as usbdefs
 import speakeasy.winenv.defs.wdf as wdf
 
@@ -395,9 +396,11 @@ class Wdfldr(api.ApiHandler):
             ctx.args[2].display = val_name
             value = wkey.get_value(val_name)
             if value:
-                ulong = value.get_data()
-                self.mem_write(Value, (ulong).to_bytes(4, "little"))
-                rv = ddk.STATUS_SUCCESS
+                if value.get_type() != regdefs.REG_DWORD:
+                    rv = ddk.STATUS_OBJECT_TYPE_MISMATCH
+                else:
+                    self.mem_write(Value, value.get_bytes(2))
+                    rv = ddk.STATUS_SUCCESS
 
         return rv
 

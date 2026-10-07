@@ -140,3 +140,20 @@ def test_wdf_parameters_key_opens(config: dict[str, Any], load_test_bin: Any) ->
         rv, _ = call(se, "wdfldr", "WdfDriverOpenParametersRegistryKey", [driver_globals, 0, 0x20019, 0, key])
         assert rv == ddk.STATUS_SUCCESS
         assert _read_ptr(se, key) != 0
+
+
+@pytest.mark.parametrize(
+    "name, rv, value",
+    [
+        ("Start", ddk.STATUS_SUCCESS, struct.pack("<I", 3)),
+        ("DisplayName", ddk.STATUS_OBJECT_TYPE_MISMATCH, b"\xcc" * 4),
+        ("Missing", ddk.STATUS_OBJECT_NAME_NOT_FOUND, b"\xcc" * 4),
+    ],
+)
+def test_wdf_registry_query_ulong(any_driver_emu: Speakeasy, name: str, rv: int, value: bytes) -> None:
+    assert any_driver_emu.emu is not None
+    key = any_driver_emu.emu.reg_open_key(USBSAMP)
+    out = alloc(any_driver_emu, b"\xcc" * 4)
+    args = [0, key, _unicode_string(any_driver_emu, name), out]
+    assert call(any_driver_emu, "wdfldr", "WdfRegistryQueryULong", args)[0] == rv
+    assert any_driver_emu.mem_read(out, 4) == value
