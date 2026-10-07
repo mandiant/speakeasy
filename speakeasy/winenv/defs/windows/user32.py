@@ -27,6 +27,10 @@ WM_PAINT = 0x0F
 
 WM_INITDIALOG = 0x0110
 
+RIM_TYPEMOUSE = 0
+RIM_TYPEKEYBOARD = 1
+RIM_TYPEHID = 2
+
 
 class MSG(EmuStruct):
     def __init__(self, ptr_size):

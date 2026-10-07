@@ -189,3 +189,34 @@ def test_get_keyboard_layout_list_writes_one_hkl(request: pytest.FixtureRequest,
     rv, _ = call(se, "user32", "GetKeyboardLayoutList", [n, buf])
     assert rv == 1
     assert se.mem_read(buf, 16) == (0x04090409).to_bytes(ps, "little") + b"\xcc" * (16 - ps)
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_get_raw_input_device_list(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    start_process(se)
+    ps = se.emu.get_ptr_size()
+    cb = 2 * ps
+    pnum = alloc(se, b"\xcc" * 4)
+    rv, _ = call(se, "user32", "GetRawInputDeviceList", [0, pnum, cb])
+    assert rv == 0
+    n = int.from_bytes(se.mem_read(pnum, 4), "little")
+    assert n > 0
+
+    se.mem_write(pnum, (n - 1).to_bytes(4, "little"))
+    buf = alloc(se, b"\xcc" * (cb * (n + 1)))
+    rv, _ = call(se, "user32", "GetRawInputDeviceList", [buf, pnum, cb])
+    assert rv == 0xFFFFFFFF
+    assert se.emu.get_last_error() == 122
+    assert int.from_bytes(se.mem_read(pnum, 4), "little") == n
+    assert se.mem_read(buf, cb) == b"\xcc" * cb
+
+    rv, _ = call(se, "user32", "GetRawInputDeviceList", [buf, pnum, cb])
+    assert rv == n
+    data = se.mem_read(buf, cb * (n + 1))
+    entries = [data[i * cb : (i + 1) * cb] for i in range(n)]
+    handles = {int.from_bytes(e[:ps], "little") for e in entries}
+    assert len(handles) == n and 0 not in handles
+    assert all(int.from_bytes(e[ps : ps + 4], "little") in (0, 1, 2) for e in entries)
+    assert data[cb * n :] == b"\xcc" * cb

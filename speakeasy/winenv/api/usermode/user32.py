@@ -6,6 +6,7 @@ import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
 import speakeasy.winenv.defs.windows.windef as windef
+import speakeasy.winenv.defs.windows.windows as windows
 
 from .. import api
 
@@ -1117,8 +1118,21 @@ class User32(api.ApiHandler):
         );
         """
         pRawInputDeviceList, puiNumDevices, cbSize = argv
-        num_devices = 4
-        self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
+        types = (windefs.RIM_TYPEKEYBOARD, windefs.RIM_TYPEMOUSE, windefs.RIM_TYPEHID, windefs.RIM_TYPEHID)
+        num_devices = len(types)
+        if not pRawInputDeviceList:
+            self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
+            return 0
+
+        if int.from_bytes(self.mem_read(puiNumDevices, 4), "little") < num_devices:
+            self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
+            emu.set_last_error(windows.ERROR_INSUFFICIENT_BUFFER)
+            return 0xFFFFFFFF
+
+        ptr_size = self.get_ptr_size()
+        for i, dev_type in enumerate(types):
+            entry = self.get_handle().to_bytes(ptr_size, "little") + dev_type.to_bytes(ptr_size, "little")
+            self.mem_write(pRawInputDeviceList + i * 2 * ptr_size, entry)
         return num_devices
 
     @apihook("GetNextDlgTabItem", argc=3)
