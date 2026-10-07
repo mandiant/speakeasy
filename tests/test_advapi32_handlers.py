@@ -8,6 +8,8 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.windows.objman import HandleAllocator
+from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call
 
@@ -57,3 +59,11 @@ def test_reg_enum_key_uses_the_buffer_size(dll_emu: Speakeasy) -> None:
     assert (rv, dll_emu.mem_read(buf, 4)) == (windefs.ERROR_SUCCESS, b"Bar\x00")
     rv, _ = call(dll_emu, "advapi32", "RegEnumKeyA", [hfoo, 0, buf, 3])
     assert rv == windefs.ERROR_MORE_DATA
+
+
+def test_get_subkeys_lists_each_child_once() -> None:
+    regman = RegistryManager(HandleAllocator())
+    for path in ("HKEY_LOCAL_MACHINE\\T\\A\\x", "HKEY_LOCAL_MACHINE\\T\\A\\y", "HKEY_LOCAL_MACHINE\\TT"):
+        regman.create_key(path)
+    parent = regman.create_key("HKEY_LOCAL_MACHINE\\T")
+    assert regman.get_subkeys(parent) == ["A"]

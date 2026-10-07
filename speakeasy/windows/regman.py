@@ -152,20 +152,18 @@ class RegistryManager:
         # TODO: once we revamp the registry emulation,
         # make this better
 
-        parent_path = key.get_path()
+        parent_path = key.get_path().rstrip("\\") + "\\"
         subkeys = []
         for k in self.keys:
             test_path = k.get_path()
             if test_path.lower().startswith(parent_path.lower()):
                 sub = test_path[len(parent_path) :]
-                if sub.startswith("\\"):
-                    sub = sub[1:]
 
                 end_slash = sub.find("\\")
                 if end_slash >= 0:
                     sub = sub[:end_slash]
 
-                if not sub:
+                if not sub or sub.lower() in (s.lower() for s in subkeys):
                     continue
 
                 subkeys.append(sub)
