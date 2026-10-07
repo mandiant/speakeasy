@@ -2889,6 +2889,9 @@ class Kernel32(api.ApiHandler):
             lpUsedDefaultChar,
         ) = argv
 
+        cchWideChar = cchWideChar & 0xFFFFFFFF
+        cbMultiByte = cbMultiByte & 0xFFFFFFFF
+
         if not lpWideCharStr or not cchWideChar:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
         elif not lpMultiByteStr or cbMultiByte == 0:
@@ -2904,7 +2907,7 @@ class Kernel32(api.ApiHandler):
             else:
                 wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
             cs = wcs.decode("utf-16le", "ignore")
-            rv = len(cs)
+            rv = len(cs.encode("utf-8", "ignore"))
         else:
             emu.set_last_error(windefs.ERROR_SUCCESS)
             if cchWideChar == 0xFFFFFFFF:
@@ -2919,8 +2922,11 @@ class Kernel32(api.ApiHandler):
                 wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
             cs = wcs.decode("utf-16le", "ignore")
             cs = cs.encode("utf-8", "ignore")
-            rv = cbMultiByte
-            self.mem_write(lpMultiByteStr, cs)
+            if len(cs) > cbMultiByte:
+                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            else:
+                self.mem_write(lpMultiByteStr, cs)
+                rv = len(cs)
 
         return rv
 
