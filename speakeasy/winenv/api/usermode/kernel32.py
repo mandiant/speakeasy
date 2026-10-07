@@ -3357,17 +3357,19 @@ class Kernel32(api.ApiHandler):
         fman = emu.get_file_manager()
         mapping = fman.get_mapping_from_handle(hmap)
         tag_prefix = "api.MapViewOfFile"
+        buf = 0
 
         if mapping:
             f = mapping.backed_file
             full_offset = (offset_high << 32) | offset_low
-            buf = 0
             size = 0
             view_perms = self.map_view_access_to_emu_perms(access, mapping.prot)
             if f:
                 data = f.get_data()
                 if bytes_to_map != 0:
                     data = data[full_offset : full_offset + bytes_to_map]
+                else:
+                    data = data[full_offset:]
 
                 fname = ntpath.basename(f.path)
                 fname = fname.replace(".", "_")
@@ -3401,6 +3403,8 @@ class Kernel32(api.ApiHandler):
                     self.mem_write(buf, data)
                     emu.set_last_error(windefs.ERROR_SUCCESS)
             else:
+                if not bytes_to_map:
+                    bytes_to_map = mapping.size - full_offset
                 base, size = emu.get_valid_ranges(bytes_to_map)
                 buf = self.mem_alloc(base=base, size=size, perms=view_perms, tag=tag_prefix, shared=True)
                 emu.set_last_error(windefs.ERROR_SUCCESS)
