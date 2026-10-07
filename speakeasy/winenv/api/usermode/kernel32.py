@@ -5138,10 +5138,10 @@ class Kernel32(api.ApiHandler):
 
         name = self.normalize_res_identifier(emu, cw, lpName)
         if name != lpName:
-            ctx.args["lpType"].display = name if isinstance(name, str) else hex(name)
+            ctx.args["lpName"].display = name if isinstance(name, str) else hex(name)
         type_ = self.normalize_res_identifier(emu, cw, lpType)
         if type_ != lpType:
-            ctx.args["lpName"].display = type_ if isinstance(type_, str) else hex(type_)
+            ctx.args["lpType"].display = type_ if isinstance(type_, str) else hex(type_)
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
