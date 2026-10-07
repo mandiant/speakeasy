@@ -2241,6 +2241,10 @@ class Kernel32(api.ApiHandler):
 
         self.tick_counter += 20
 
+        if emu.get_arch() == e_arch.ARCH_X86:
+            emu.reg_write(e_arch.X86_REG_EDX, self.tick_counter >> 32)
+            return self.tick_counter & 0xFFFFFFFF
+
         return self.tick_counter
 
     @apihook("lstrcat", argc=2)
