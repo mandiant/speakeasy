@@ -308,7 +308,7 @@ def test_path_remove_file_spec(dll_emu: Speakeasy, path: str, expected: str, rv:
 def test_ldr_get_procedure_address_without_name_or_ordinal(dll_emu: Speakeasy) -> None:
     out = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "ntdll", "LdrGetProcedureAddress", [0x10000000, 0, 0, out])
-    assert rv == ddk.STATUS_PROCEDURE_NOT_FOUND
+    assert rv == ddk.STATUS_INVALID_PARAMETER
 
 
 @pytest.mark.parametrize("a, b, sign", [("abc", "ABD", -1), ("ABC", "abc", 0), ("abd", "ABC", 1)])
