@@ -252,6 +252,21 @@ def test_crack_url_copies_the_host(dll_emu: Speakeasy, dll: str, name: str, widt
     assert dll_emu.mem_read(host_buf, 12 * width) == "example.com\x00".encode(enc)
 
 
+@pytest.mark.parametrize(
+    "dll, name, width, path",
+    [("wininet", "InternetCrackUrlA", 1, "/gate.php?id=42#top"), ("winhttp", "WinHttpCrackUrl", 2, "/gate.php")],
+)
+def test_crack_url_without_extra_info(dll_emu: Speakeasy, dll: str, name: str, width: int, path: str) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    url_ptr = alloc(dll_emu, "http://c2.example.com/gate.php?id=42#top\x00".encode(enc))
+    comp = alloc(dll_emu, _url_components()[:-4] + b"\x00" * 4)
+    rv, _ = call(dll_emu, dll, name, [url_ptr, 0, 0, comp])
+    assert rv == 1
+    fields = struct.unpack("<15I", dll_emu.mem_read(comp, 60))
+    assert fields[12] == len(path)
+    assert dll_emu.mem_read(fields[11], len(path) * width).decode(enc) == path
+
+
 def test_recv_peek_keeps_the_read_position(dll_emu: Speakeasy) -> None:
     stager = (Path(speakeasy.__file__).parent / "resources" / "web" / "stager.bin").read_bytes()
     s, _ = call(dll_emu, "ws2_32", "socket", [2, 1, 6])
