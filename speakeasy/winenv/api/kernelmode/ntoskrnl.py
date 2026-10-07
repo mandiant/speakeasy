@@ -2740,10 +2740,10 @@ class Ntoskrnl(api.ApiHandler):
         hnd, val, info_class, val_info, length, ret_len = argv
         rv = ddk.STATUS_INVALID_HANDLE
 
+        name = ""
         if val:
             name = self.read_unicode_string(val)
-
-        ctx.args["ValueName"].display = name
+            ctx.args["ValueName"].display = name
 
         key = self.reg_get_key(hnd)
         if key:
