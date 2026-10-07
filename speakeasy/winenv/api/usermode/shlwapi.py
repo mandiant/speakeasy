@@ -256,21 +256,18 @@ class Shlwapi(api.ApiHandler):
 
         fmt_str = self.read_mem_string(fmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        if not fmt_cnt:
-            self.write_mem_string(fmt_str, buf, cw)
-            return len(fmt_str)
+        fin = fmt_str
+        if fmt_cnt:
+            _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+            fin = self.do_str_format(fmt_str, _argv)
 
-        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-        fin = self.do_str_format(fmt_str, _argv)
-        rv = len(fin)
+        out = fin[: max(max_buf_size - 1, 0)]
+        if max_buf_size > 0:
+            self.write_mem_string(out, buf, cw)
+        ctx.args.clear()
+        ctx.args.append(out)
 
-        if rv <= max_buf_size:
-            self.write_mem_string(fin, buf, cw)
-            ctx.args.clear()
-            ctx.args.append(fin)
-            return rv
-        else:
-            return -1
+        return len(fin) if len(fin) < max_buf_size else -1
 
     @apihook("PathAppend", argc=2)
     def PathAppend(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

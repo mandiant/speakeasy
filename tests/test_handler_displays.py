@@ -715,3 +715,25 @@ def test_ldr_get_procedure_address_by_ordinal(dll_emu: Speakeasy) -> None:
     rv, _ = _call(dll_emu, "ntdll", "LdrGetProcedureAddress", [mod.base, 0, 5, out])
     assert rv == 0
     assert int.from_bytes(dll_emu.mem_read(out, 4), "little") == emu.get_proc("kernel32", "ordinal_5")
+
+
+@pytest.mark.parametrize(
+    "count, rv, out",
+    [
+        (8, 3, b"n=7\x00\xcc"),
+        (3, -1, b"n=\x00\xcc\xcc"),
+    ],
+)
+def test_wnsprintf_truncation(dll_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
+    buf = _alloc(dll_emu, b"\xcc" * 8)
+    fmt = _alloc(dll_emu, b"n=%d\x00")
+    result, displays = _call(dll_emu, "shlwapi", "wnsprintfA", [buf, count, fmt, 7])
+    assert (result, dll_emu.mem_read(buf, 5)) == (rv, out)
+    assert displays == {0: out.split(b"\x00")[0].decode()}
+
+
+def test_wnsprintf_without_arguments_fits_the_buffer(dll_emu: Speakeasy) -> None:
+    buf = _alloc(dll_emu, b"\xcc" * 8)
+    fmt = _alloc(dll_emu, b"abcdef\x00")
+    rv, _ = _call(dll_emu, "shlwapi", "wnsprintfA", [buf, 4, fmt])
+    assert (rv, dll_emu.mem_read(buf, 5)) == (-1, b"abc\x00\xcc")
