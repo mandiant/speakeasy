@@ -5834,7 +5834,7 @@ class Kernel32(api.ApiHandler):
         # Each drive contains a single volume
         curr_drive = next(dw)
         if curr_drive:
-            volume_guid_path = curr_drive.get("volume_guid_path")
+            volume_guid_path = curr_drive.volume_guid_path
             ctx.args["lpszVolumeName"].display = volume_guid_path
 
             self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
@@ -5866,7 +5866,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return 0
 
-        volume_guid_path = next_drive.get("volume_guid_path")
+        volume_guid_path = next_drive.volume_guid_path
         ctx.args["lpszVolumeName"].display = volume_guid_path
         self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
@@ -5923,25 +5923,21 @@ class Kernel32(api.ApiHandler):
         if volume_guid_path:
             ctx.args["lpszVolumeName"].display = volume_guid_path
 
-        ERROR_MORE_DATA = 234
-
         rv = 1
         dm = emu.get_drive_manager()
         drive = dm.get_drive(volume_guid_path=volume_guid_path)
         if drive:
-            root_path = drive.get("root_path")
-            ctx.args["lpszVolumePathNames"].display = root_path
-            root_path += "\x00\x00"  # additional NULL to terminate list
+            root_path = drive.root_path
+            names = root_path + "\x00\x00"  # additional NULL to terminate list
 
-            root_path_len = len(root_path)
-            ctx.args["lpcchReturnLength"].display = hex(root_path_len)
-
-            if lpszVolumePathNames and cchBufferLength >= root_path_len:
-                self.write_mem_string(root_path, lpszVolumePathNames, cw)
+            if lpszVolumePathNames and cchBufferLength >= len(names):
+                self.write_mem_string(names, lpszVolumePathNames, cw)
+                ctx.args["lpszVolumePathNames"].display = root_path
             else:
-                emu.set_last_error(ERROR_MORE_DATA)
+                emu.set_last_error(windefs.ERROR_MORE_DATA)
                 rv = 0
-            self.mem_write(lpcchReturnLength, root_path_len.to_bytes(4, "little"))
+            if lpcchReturnLength:
+                self.mem_write(lpcchReturnLength, len(names).to_bytes(4, "little"))
 
         return rv
 

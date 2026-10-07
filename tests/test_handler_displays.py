@@ -632,3 +632,24 @@ def test_get_computer_name_small_buffer(dll_emu: Speakeasy, api: str, argv: list
     assert dll_emu.mem_read(buf, 4) == b"\xcc" * 4
     assert dll_emu.mem_read(size, 4) == (len(host) + 1).to_bytes(4, "little")
     assert displays["lpBuffer"] == hex(buf)
+
+
+def test_get_volume_path_names_shows_the_names(dll_emu: Speakeasy) -> None:
+    volume = _alloc(dll_emu, b"\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\\x00")
+    names = _alloc(dll_emu, b"\xcc" * 16)
+    length = _alloc(dll_emu, b"\x00" * 4)
+    rv, displays = _call(dll_emu, "kernel32", "GetVolumePathNamesForVolumeNameA", [volume, names, 16, length])
+    assert rv == 1
+    assert dll_emu.mem_read(names, 6) == b"C:\\\x00\x00\xcc"
+    assert dll_emu.mem_read(length, 4) == (5).to_bytes(4, "little")
+    assert displays["lpszVolumePathNames"] == "C:\\"
+    assert displays["lpcchReturnLength"] == hex(length)
+
+
+def test_find_volume_shows_the_volume_names(dll_emu: Speakeasy) -> None:
+    buf = _alloc(dll_emu, b"\x00" * 64)
+    hnd, displays = _call(dll_emu, "kernel32", "FindFirstVolumeA", [buf, 64])
+    assert displays["lpszVolumeName"] == "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\"
+    rv, displays = _call(dll_emu, "kernel32", "FindNextVolumeA", [hnd, buf, 64])
+    assert rv == 1
+    assert displays["lpszVolumeName"] == "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\"
