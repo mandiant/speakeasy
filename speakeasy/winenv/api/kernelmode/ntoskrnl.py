@@ -1985,7 +1985,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         return
 
-    @apihook("ExAcquireFastMutex", argc=1)
+    @apihook("ExAcquireFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ExAcquireFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExAcquireFastMutex(
@@ -1996,7 +1996,7 @@ class Ntoskrnl(api.ApiHandler):
 
         return
 
-    @apihook("ExReleaseFastMutex", argc=1)
+    @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseFastMutex(
@@ -2007,7 +2007,7 @@ class Ntoskrnl(api.ApiHandler):
 
         return
 
-    @apihook("ObfReferenceObject", argc=1)
+    @apihook("ObfReferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ObfReferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI LONG_PTR ObfReferenceObject(

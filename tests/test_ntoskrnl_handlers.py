@@ -35,6 +35,9 @@ BUF = -1
         ("memmove", [BUF, BUF, 4], CDECL),
         ("wcsnlen", [BUF, 4], CDECL),
         ("mbstowcs", [BUF, BUF, 4], CDECL),
+        ("ObfReferenceObject", [BUF], FASTCALL),
+        ("ExAcquireFastMutex", [BUF], FASTCALL),
+        ("ExReleaseFastMutex", [BUF], FASTCALL),
     ],
 )
 def test_x86_callee_cleans_the_stack_per_its_convention(
