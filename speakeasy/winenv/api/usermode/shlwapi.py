@@ -360,7 +360,7 @@ class Shlwapi(api.ApiHandler):
             return 0
 
         i = path.rfind(".")
-        if i == -1:
+        if i == -1 or i < path.rfind("\\"):
             path += ext
         else:
             path = path[:i] + ext
