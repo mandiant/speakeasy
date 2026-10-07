@@ -220,3 +220,23 @@ def test_get_raw_input_device_list(request: pytest.FixtureRequest, fixture: str)
     assert len(handles) == n and 0 not in handles
     assert all(int.from_bytes(e[ps : ps + 4], "little") in (0, 1, 2) for e in entries)
     assert data[cb * n :] == b"\xcc" * cb
+
+
+@pytest.mark.parametrize(
+    "name, data, cch, expected",
+    [
+        ("CharUpperBuffA", b"abcdef\x00", 3, b"ABCdef\x00"),
+        ("CharUpperBuffA", b"a\xe4b\x00", 3, b"A\xe4B\x00"),
+        ("CharUpperBuffA", b"abc\x00", 0, b"abc\x00"),
+        ("CharLowerBuffA", b"ABC\x00DE\x00", 6, b"abc\x00de\x00"),
+        ("CharUpperBuffW", "abßcd\0".encode("utf-16le"), 4, "ABßCd\0".encode("utf-16le")),
+        ("CharLowerBuffW", "ABİCD\0".encode("utf-16le"), 4, "abİcD\0".encode("utf-16le")),
+    ],
+)
+def test_char_case_buff_maps_exactly_cch_chars(
+    dll_emu: Speakeasy, name: str, data: bytes, cch: int, expected: bytes
+) -> None:
+    buf = alloc(dll_emu, data + b"\xcc" * 4)
+    rv, _ = call(dll_emu, "user32", name, [buf, cch])
+    assert rv == cch
+    assert dll_emu.mem_read(buf, len(data) + 4) == expected + b"\xcc" * 4
