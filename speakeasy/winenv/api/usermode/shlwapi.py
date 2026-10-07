@@ -240,7 +240,7 @@ class Shlwapi(api.ApiHandler):
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
         ctx.args["pszDest"].display = fin.replace("\x00", "")
-        ctx.args["cchDest"].display = fmt_str
+        ctx.args["pszFmt"].display = fmt_str
 
         return rv
 

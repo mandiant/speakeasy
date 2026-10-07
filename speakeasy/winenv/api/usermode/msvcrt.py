@@ -1590,7 +1590,7 @@ class Msvcrt(api.ApiHandler):
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
         ctx.args[0].display = fin.replace("\x00", "")
-        ctx.args[1].display = fmt_str
+        ctx.args[2].display = fmt_str
 
         return rv
 
@@ -1618,8 +1618,8 @@ class Msvcrt(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        ctx.args[0].display = fin.replace("\x00", "")
-        ctx.args[1].display = fmt_str
+        ctx.args[2].display = fin.replace("\x00", "")
+        ctx.args[4].display = fmt_str
 
         return rv
 

@@ -124,3 +124,34 @@ def test_zw_file_path_is_on_object_attributes(driver_emu: Speakeasy, api: str, a
     _, displays = _call(driver_emu, "ntoskrnl", api, argv)
     assert displays["ObjectAttributes"] == path
     assert displays["IoStatusBlock"] == hex(argv[3])
+
+
+def _format_args(se: Speakeasy) -> tuple[int, int, int]:
+    """Return (output buffer, format string, va_list) for "n=%d" with 7."""
+    return _alloc(se, b"\x00" * 64), _alloc(se, b"n=%d\x00"), _alloc(se, struct.pack("<I", 7))
+
+
+def test_vsnprintf_format_is_on_the_format_slot(dll_emu: Speakeasy) -> None:
+    buf, fmt, va = _format_args(dll_emu)
+    _, displays = _call(dll_emu, "msvcrt", "_vsnprintf", [buf, 64, fmt, va])
+    assert displays == {0: "n=7", 1: "0x40", 2: "n=%d", 3: hex(va)}
+
+
+def test_kernel_vsnprintf_format_is_on_the_format_slot(driver_emu: Speakeasy) -> None:
+    buf, fmt, va = _format_args(driver_emu)
+    _, displays = _call(driver_emu, "ntoskrnl", "_vsnprintf", [buf, 64, fmt, va])
+    assert displays == {0: "n=7", 1: "0x40", 2: "n=%d", 3: hex(va)}
+
+
+def test_stdio_common_vsprintf_output_and_format_are_on_their_slots(dll_emu: Speakeasy) -> None:
+    buf, fmt, va = _format_args(dll_emu)
+    _, displays = _call(dll_emu, "msvcrt", "__stdio_common_vsprintf", [0, 0, buf, 64, fmt, 0, va])
+    assert displays == {0: "0x0", 1: "0x0", 2: "n=7", 3: "0x40", 4: "n=%d", 5: "0x0", 6: hex(va)}
+
+
+def test_wvnsprintf_format_is_on_psz_fmt(dll_emu: Speakeasy) -> None:
+    buf, fmt, va = _format_args(dll_emu)
+    _, displays = _call(dll_emu, "shlwapi", "wvnsprintfA", [buf, 64, fmt, va])
+    assert displays["pszDest"] == "n=7"
+    assert displays["cchDest"] == "0x40"
+    assert displays["pszFmt"] == "n=%d"
