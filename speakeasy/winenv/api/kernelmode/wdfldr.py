@@ -645,6 +645,10 @@ class Wdfldr(api.ApiHandler):
                 rv = ddk.STATUS_SUCCESS
             else:
                 self.mem_write(ConfigDescriptorLength, (cd.sizeof()).to_bytes(2, "little"))
+        else:
+            dev = self.usb_devices.get(UsbDevice)
+            size = len(dev.config_desc) if dev and dev.config_desc else cd.sizeof()
+            self.mem_write(ConfigDescriptorLength, size.to_bytes(2, "little"))
 
         return rv
 
