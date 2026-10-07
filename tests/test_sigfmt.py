@@ -244,3 +244,33 @@ def test_render_is_truncated(mem: _Memory) -> None:
 
 def test_quote_string() -> None:
     assert sigfmt.quote_string("a\nb") == '"a\\nb"'
+
+
+def _sig(*codes: str) -> sigdb.FuncSig:
+    params = tuple(sigdb.ParamSig(f"p{i}", code, "i") for i, code in enumerate(codes))
+    return sigdb.FuncSig("Func", "test", "u32", params)
+
+
+def test_handler_values_replace_rendered_params() -> None:
+    sig = _sig("S", "u32", "u32", "u32")
+    before = [0x1000, 0x80000000, 3, 7]
+    after = ["C:\\x", 0x80000000, 4, "SYMBOLIC"]
+    rendered = ['"C:\\x"', "GENERIC_READ", "0x3", "0x7"]
+    assert sigfmt.get_handler_arg_values(sig, 4, before, after, rendered) == [
+        "C:\\x",
+        "GENERIC_READ",
+        "0x4",
+        "SYMBOLIC",
+    ]
+
+
+def test_handler_value_for_multi_slot_param() -> None:
+    sig = _sig("u64", "u32")
+    rendered = ["0x200000001", "0x3"]
+    assert sigfmt.get_handler_arg_values(sig, 4, [1, 2, 3], [1, "COND", 3], rendered) == ["COND", "0x3"]
+    assert sigfmt.get_handler_arg_values(sig, 8, [1, 3], [1, 3], ["0x1", "0x3"]) == ["0x1", "0x3"]
+
+
+def test_handler_values_require_matching_slots() -> None:
+    with pytest.raises(ValueError):
+        sigfmt.get_handler_arg_values(_sig("u32", "u32"), 4, [1, 2], [1, 2, 3], ["0x1", "0x2"])

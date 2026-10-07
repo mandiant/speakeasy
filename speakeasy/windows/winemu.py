@@ -1793,13 +1793,24 @@ class WindowsEmulator(BinaryEmulator):
             return f'"{arg}"'  # type: ignore[str-bytes-safe]
         return ""
 
-    def log_api(self, pc: int, imp_api: str, rv: int | None, argv: list[Any], display: list[str] | None = None) -> None:
+    def log_api(
+        self,
+        pc: int,
+        imp_api: str,
+        rv: int | None,
+        argv: list[Any],
+        display: list[str] | None = None,
+        arg_names: list[str] | None = None,
+    ) -> None:
         """
         Log an API call and record it with the profiler. ``display`` optionally
-        supplies a pre-rendered string per argument (used when parameter names
-        and types are known) that replaces the default formatting of ``argv``.
+        supplies a pre-rendered string per argument (used when parameter types
+        are known) that replaces the default formatting of ``argv``, and
+        ``arg_names`` the parameter name of each.
         """
         rendered = display if display is not None else [self.format_api_arg(arg) for arg in argv]
+        if arg_names is not None:
+            rendered = [f"{name}: {value}" for name, value in zip(arg_names, rendered)]
         call_str = f"{imp_api}({', '.join(rendered)})"
 
         rv_str = hex(rv) if rv is not None else None
@@ -1809,7 +1820,7 @@ class WindowsEmulator(BinaryEmulator):
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, display=display)
+            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, display=display, arg_names=arg_names)
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
         """
@@ -1843,6 +1854,17 @@ class WindowsEmulator(BinaryEmulator):
     def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
 
+    def get_handler_signature(self, dll: str, name: str, argc: int) -> sigdb.FuncSig | None:
+        """
+        Find the signature that names the arguments of a call served by a
+        handler. Returns None when the function is unknown, variadic, or its
+        declaration does not consume exactly the ``argc`` slots the handler reads.
+        """
+        sig = self.lookup_api_signature(dll, name)
+        if sig is None or sig.variadic or sig.slot_count(self.get_ptr_size()) != argc:
+            return None
+        return sig
+
     def get_signature_formatter(self) -> sigfmt.ArgFormatter:
         """
         Get the formatter that renders arguments of signature-emulated calls
@@ -1864,6 +1886,10 @@ class WindowsEmulator(BinaryEmulator):
         except Exception:
             logger.debug("failed to render %s (%s)", param.name, param.code, exc_info=True)
             return hex(value)
+
+    def _render_signature_args(self, sig: sigdb.FuncSig, argv: list[int]) -> list[str]:
+        values = sig.values_from_slots(argv, self.get_ptr_size())
+        return [self._format_signature_arg(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
 
     # Upper bound on how much memory a single Out parameter is zero-filled with
     MAX_OUT_ZERO_FILL = 0x10000
@@ -1927,12 +1953,7 @@ class WindowsEmulator(BinaryEmulator):
 
         argv = self.get_func_argv(conv, argc)
         values = sig.values_from_slots(argv, ptr_size)
-        display = [
-            f"{param.name}: {self._format_signature_arg(param, value, i)}"
-            for i, (param, value) in enumerate(zip(sig.params, values))
-        ]
-        if sig.variadic:
-            display.append("...")
+        display = self._render_signature_args(sig, argv)
 
         rv = self._default_return_for_signature(sig)
         logger.debug(
@@ -1953,7 +1974,7 @@ class WindowsEmulator(BinaryEmulator):
                 set_last_error(0)
 
         ret = self.get_ret_address()
-        self.log_api(call_pc, imp_api, rv, argv, display=display)
+        self.log_api(call_pc, imp_api, rv, argv, display=display, arg_names=[param.name for param in sig.params])
         self.do_call_return(argc, ret, rv, conv=conv)
         if not self.run_complete:
             self.enable_code_hook()
@@ -1980,6 +2001,12 @@ class WindowsEmulator(BinaryEmulator):
             argv = self.get_func_argv(conv, argc)
             imp_api = f"{dll}.{name}"
             default_ctx = {"func_name": imp_api}
+
+            # Render the arguments before the handler runs, while the memory
+            # they point to still holds what the caller passed.
+            sig = self.get_handler_signature(dll, name, argc)
+            raw_argv = list(argv)
+            rendered = self._render_signature_args(sig, argv) if sig is not None else None
 
             self.hammer.handle_import_func(imp_api, conv, argc)
             hooks = self.get_api_hooks(dll, name)
@@ -2011,7 +2038,11 @@ class WindowsEmulator(BinaryEmulator):
                 self._fire_dyn_code_hooks(ret)
 
             # Log the API args and return value
-            self.log_api(call_pc, imp_api, rv, argv)
+            if sig is not None and rendered is not None and len(argv) == len(raw_argv):
+                values = sigfmt.get_handler_arg_values(sig, self.get_ptr_size(), raw_argv, argv, rendered)
+                self.log_api(call_pc, imp_api, rv, argv, display=values, arg_names=[p.name for p in sig.params])
+            else:
+                self.log_api(call_pc, imp_api, rv, argv)
 
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)

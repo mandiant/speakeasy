@@ -210,11 +210,8 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch
     assert names == ["kernel32.MoveFileExW", "kernel32.ExitProcess"]
 
     move = events[0]
-    assert move.args == [
-        f'lpExistingFileName: "{OLD_NAME}"',
-        f'lpNewFileName: "{NEW_NAME}"',
-        "dwFlags: MOVEFILE_REPLACE_EXISTING",
-    ]
+    assert move.arg_names == ["lpExistingFileName", "lpNewFileName", "dwFlags"]
+    assert move.args == [f'"{OLD_NAME}"', f'"{NEW_NAME}"', "MOVEFILE_REPLACE_EXISTING"]
     # BOOL return: fake success
     assert move.ret_val == "0x1"
 
@@ -240,9 +237,10 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.GetPrivateProfileStringW", "kernel32.ExitProcess"]
     call = events[0]
-    assert call.args[:3] == ['lpAppName: "app"', 'lpKeyName: "key"', 'lpDefault: "def"']
-    assert call.args[3].startswith("lpReturnedString: 0x")
-    assert call.args[4:] == [f"nSize: {PROFILE_BUFFER_CHARS:#x}", 'lpFileName: "C:\\x.ini"']
+    assert call.arg_names == ["lpAppName", "lpKeyName", "lpDefault", "lpReturnedString", "nSize", "lpFileName"]
+    assert call.args[:3] == ['"app"', '"key"', '"def"']
+    assert call.args[3].startswith("0x")
+    assert call.args[4:] == [f"{PROFILE_BUFFER_CHARS:#x}", '"C:\\x.ini"']
     # "0 characters copied" and an empty string in the buffer agree with each other
     assert call.ret_val == "0x0"
     assert blobs[3] == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
@@ -259,13 +257,79 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.CreateDirectoryExW", "kernel32.ExitProcess"]
+    assert events[0].arg_names == ["lpTemplateDirectory", "lpNewDirectory", "lpSecurityAttributes"]
     assert events[0].args == [
-        'lpTemplateDirectory: "C:\\tmpl"',
-        'lpNewDirectory: "C:\\new"',
-        "lpSecurityAttributes: {nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}",
+        '"C:\\tmpl"',
+        '"C:\\new"',
+        "{nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}",
     ]
     assert events[0].ret_val == "0x1"
     assert events[1].args == [f"{EXIT_CODE:#x}"]
+
+
+GENERIC_READ = 0x80000000
+FILE_SHARE_READ = 0x1
+OPEN_EXISTING = 0x3
+FILE_ATTRIBUTE_NORMAL = 0x80
+
+
+def test_handled_api_args_are_named(config: dict[str, Any]) -> None:
+    """A call served by a Python handler is recorded with the parameter names of its signature."""
+    args: list[int | bytes] = [
+        _wstr("C:\\missing.txt"),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        0,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        0,
+    ]
+    report, _ = _run_x86_call(config, "CreateFileW", args)
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    events = _api_events(report)
+    assert [e.api_name for e in events] == ["kernel32.CreateFileW", "kernel32.ExitProcess"]
+    call = events[0]
+    assert call.arg_names == [
+        "lpFileName",
+        "dwDesiredAccess",
+        "dwShareMode",
+        "lpSecurityAttributes",
+        "dwCreationDisposition",
+        "dwFlagsAndAttributes",
+        "hTemplateFile",
+    ]
+    # the handler's own decoding of lpFileName is kept; the rest come from the signature
+    assert call.args == [
+        "C:\\missing.txt",
+        "GENERIC_READ",
+        "FILE_SHARE_READ",
+        "0x0",
+        "OPEN_EXISTING",
+        "FILE_ATTRIBUTE_NORMAL",
+        "0x0",
+    ]
+    assert events[1].arg_names == ["uExitCode"]
+    assert events[1].args == [f"{EXIT_CODE:#x}"]
+
+
+def test_handler_signature_requires_matching_argc(config: dict[str, Any]) -> None:
+    """A handler is only named from a signature that consumes the same argument slots."""
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated")
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch="x86")
+        emu = se.emu
+        assert emu is not None
+        sig = emu.get_handler_signature("kernel32", "CreateFileW", 7)
+        assert sig is not None and sig.name == "CreateFileW"
+        assert emu.get_handler_signature("kernel32", "CreateFileW", 6) is None
+        assert emu.get_handler_signature("kernel32", "wsprintfW", 3) is None
+        assert emu.get_handler_signature("msvcrt", "ThisApiDoesNotExistAnywhere", 1) is None
+    finally:
+        se.shutdown()
 
 
 def test_functions_always_exist_still_applies_to_unknown_names(config: dict[str, Any]) -> None:

@@ -26,6 +26,14 @@ Entry-point highlights:
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
 
+An `api` event records its arguments in `args`, one formatted string per argument. When the
+signature database declares the function and its prototype consumes the same argument slots
+as the call, `arg_names` holds the parameter name for each entry of `args` and the values are
+rendered from the declared types: strings are quoted, enums and flags are symbolic, and struct
+pointers are expanded. For a call served by a handler, a value the handler decoded itself
+(such as the key path behind a registry handle) replaces the rendering of that parameter.
+Without a usable signature, `arg_names` is absent and integers are hex-encoded.
+
 Every event carries `pos`, the position of the actor that performed the operation, so an
 event always sits in the timeline of the thread that caused it. Process-scoped events
 (`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`,
@@ -125,6 +133,8 @@ thread, even for a local create.
           "event": "api",
           "api_name": "kernel32.LoadLibraryA",
           "args": ["ws2_32"],
+          // Parameter names, when the API signature is known.
+          "arg_names": ["lpLibFileName"],
           "ret_val": "0x78c00000"
         },
         {
