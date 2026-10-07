@@ -138,3 +138,47 @@ def test_getaddrinfo_unknown_service(dll_emu: Speakeasy) -> None:
     result = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "ws2_32", "getaddrinfo", [node, service, 0, result])
     assert rv == 10109
+
+
+def _wininet_request(se: Speakeasy, verb: bytes, objname: bytes) -> int:
+    inet, _ = call(se, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
+    server = alloc(se, b"example.com\x00")
+    conn, _ = call(se, "wininet", "InternetConnectA", [inet, server, 80, 0, 0, 3, 0, 0])
+    verb_ptr = alloc(se, verb + b"\x00")
+    obj = alloc(se, objname + b"\x00")
+    req, _ = call(se, "wininet", "HttpOpenRequestA", [conn, verb_ptr, obj, 0, 0, 0, 0, 0])
+    assert req
+    return req
+
+
+def _winhttp_request(se: Speakeasy, verb: str, objname: str) -> int:
+    session, _ = call(se, "winhttp", "WinHttpOpen", [0, 0, 0, 0, 0])
+    server = alloc(se, "example.com\x00".encode("utf-16le"))
+    conn, _ = call(se, "winhttp", "WinHttpConnect", [session, server, 80, 0])
+    verb_ptr = alloc(se, (verb + "\x00").encode("utf-16le"))
+    obj = alloc(se, (objname + "\x00").encode("utf-16le"))
+    req, _ = call(se, "winhttp", "WinHttpOpenRequest", [conn, verb_ptr, obj, 0, 0, 0, 0])
+    assert req
+    return req
+
+
+def test_internet_read_file_without_a_configured_response(dll_emu: Speakeasy) -> None:
+    req = _wininet_request(dll_emu, b"POST", b"/gate.php")
+    avail = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "wininet", "InternetQueryDataAvailable", [req, avail, 0, 0])
+    assert rv == 1
+    assert dll_emu.mem_read(avail, 4) == b"\x00" * 4
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    read = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "wininet", "InternetReadFile", [req, buf, 16, read])
+    assert rv == 1
+    assert dll_emu.mem_read(read, 4) == b"\x00" * 4
+
+
+def test_win_http_read_data_without_a_configured_response(dll_emu: Speakeasy) -> None:
+    req = _winhttp_request(dll_emu, "POST", "/gate.php")
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    read = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "winhttp", "WinHttpReadData", [req, buf, 16, read])
+    assert rv == 1
+    assert dll_emu.mem_read(read, 4) == b"\x00" * 4
