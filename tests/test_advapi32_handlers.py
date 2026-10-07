@@ -184,3 +184,19 @@ def test_get_user_name_ex_reports_the_size(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "secur32", "GetUserNameExA", [2, buf, size])
     assert (rv, _dword(dll_emu, size)) == (1, len(user))
     assert dll_emu.mem_read(buf, len(user) + 1) == user.encode() + b"\x00"
+
+
+@pytest.mark.parametrize("api, encoding", [("GetUserNameA", "utf-8"), ("GetUserNameW", "utf-16le")])
+def test_get_user_name_reports_the_size(dll_emu: Speakeasy, api: str, encoding: str) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    expected = (dll_emu.emu.config.user.name + "\x00").encode(encoding)
+    need = len(dll_emu.emu.config.user.name) + 1
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = call(dll_emu, "advapi32", api, [0, size])
+    assert (rv, _last_error(dll_emu), _dword(dll_emu, size)) == (0, windefs.ERROR_INSUFFICIENT_BUFFER, need)
+
+    buf = alloc(dll_emu, b"\xcc" * 64)
+    rv, _ = call(dll_emu, "advapi32", api, [buf, size])
+    assert (rv, _dword(dll_emu, size)) == (1, need)
+    assert dll_emu.mem_read(buf, len(expected)) == expected
