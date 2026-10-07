@@ -438,3 +438,9 @@ def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> N
     size = alloc(dll_emu, struct.pack("<I", 0))
     rv, _ = call(dll_emu, "crypt32", "CryptStringToBinaryA", [alloc(dll_emu, b"YWJj\x00"), 0, 1, 0, size, 0, 0])
     assert (rv, _dword(dll_emu, size)) == (1, 3)
+
+
+def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
+    _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, alloc(dll_emu, b"Soft\x00"))
+    assert (rv, path) == (windefs.ERROR_FILE_NOT_FOUND, None)
