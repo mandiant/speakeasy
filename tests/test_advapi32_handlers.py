@@ -120,3 +120,20 @@ def test_reg_open_key_without_a_subkey_opens_the_key(dll_emu: Speakeasy, api: st
     hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     rv, path = _open_key(dll_emu, api, hfoo, alloc(dll_emu, subkey) if subkey else 0)
     assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER\\Software\\Foo")
+
+
+def test_reg_query_info_key_counts_subkeys_and_values(dll_emu: Speakeasy) -> None:
+    _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bar")
+    _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bazzz")
+    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    value = alloc(dll_emu, b"abc\x00")
+    rv, _ = call(dll_emu, "advapi32", "RegSetValueExA", [hfoo, alloc(dll_emu, b"Name\x00"), 0, 1, value, 4])
+    assert rv == windefs.ERROR_SUCCESS
+    outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(8)]
+    ft = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "advapi32", "RegQueryInfoKeyA", [hfoo, 0, outs[0], 0, *outs[1:], ft])
+    assert rv == windefs.ERROR_SUCCESS
+    cch_class, subkeys, max_subkey, max_class, values, max_name, max_value, sec = (_dword(dll_emu, a) for a in outs)
+    assert (subkeys, max_subkey, values, max_name, max_value) == (2, 5, 1, 4, 4)
+    assert (cch_class, max_class, sec) == (0, 0, 0)
+    assert dll_emu.mem_read(ft, 8) == b"\x00" * 8
