@@ -406,3 +406,9 @@ def test_init_once_begin_initialize_sets_pending(emu: Speakeasy) -> None:
     pending = alloc(emu, b"\xcc" * 4)
     assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0]
     assert emu.mem_read(pending, 4) == (1).to_bytes(4, "little")
+
+
+def test_queue_user_apc_returns_success(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    thread = emu.emu.get_object_handle(emu.emu.curr_thread)
+    assert call(emu, "kernel32", "QueueUserAPC", [0x401000, thread, 0])[0]
