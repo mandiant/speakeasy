@@ -1803,6 +1803,9 @@ class AdvApi32(api.ApiHandler):
             ctx.args["dwServiceState"].display = service_state_str
 
         # TODO: Populate service status output
+        for ptr in (pcbBytesNeeded, lpServicesReturned, lpResumeHandle):
+            if ptr:
+                self.mem_write(ptr, (0).to_bytes(4, "little"))
         return 1
 
     @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
