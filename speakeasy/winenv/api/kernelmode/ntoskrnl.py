@@ -3341,7 +3341,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ZwGetContextThread", argc=2)
     def ZwGetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ZwGetContextThread(
+        NTSTATUS ZwGetContextThread(
             HANDLE    hThread,
             LPCONTEXT lpContext
         );
@@ -3350,18 +3350,18 @@ class Ntoskrnl(api.ApiHandler):
 
         obj = self.get_object_from_handle(hThread)
         if not obj:
-            return False
+            return ddk.STATUS_INVALID_HANDLE
 
         context = obj.get_context()
 
         self.mem_write(lpContext, context.get_bytes())
 
-        return True
+        return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetContextThread", argc=2)
     def ZwSetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ZwSetContextThread(
+        NTSTATUS ZwSetContextThread(
             HANDLE    hThread,
             LPCONTEXT lpContext
         );
@@ -3370,14 +3370,14 @@ class Ntoskrnl(api.ApiHandler):
 
         obj = self.get_object_from_handle(hThread)
         if not obj:
-            return False
+            return ddk.STATUS_INVALID_HANDLE
 
         context = windefs.CONTEXT(emu.get_ptr_size())
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
 
-        return True
+        return ddk.STATUS_SUCCESS
 
     @apihook("RtlFreeHeap", argc=3)
     def RtlFreeHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
