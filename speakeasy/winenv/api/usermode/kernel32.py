@@ -2287,7 +2287,7 @@ class Kernel32(api.ApiHandler):
             mm = emu.get_address_map(lpMem)
             if mm and mm.tag.startswith(tag_prefix):
                 # Copy the existing data
-                data = self.mem_read(lpMem, mm.size)
+                data = self.mem_read(lpMem, min(mm.size, dwBytes))
                 new_buf = self.heap_alloc(dwBytes, heap="HeapReAlloc")
                 self.mem_write(new_buf, data)
 
@@ -2312,7 +2312,7 @@ class Kernel32(api.ApiHandler):
             mm = emu.get_address_map(hMem)
             if mm and mm.tag.startswith(tag_prefix):
                 # Copy the existing data
-                data = self.mem_read(hMem, mm.size)
+                data = self.mem_read(hMem, min(mm.size, uBytes))
                 new_buf = self.heap_alloc(uBytes, heap="LocalReAlloc")
                 self.mem_write(new_buf, data)
 
