@@ -78,3 +78,28 @@ def test_inet_ntoa_reuses_the_buffer_for_an_address(dll_emu: Speakeasy) -> None:
     second, _ = call(dll_emu, "ws2_32", "inet_ntoa", [addr])
     assert first == second
     assert dll_emu.mem_read(first, 9) == b"10.1.2.3\x00"
+
+
+@pytest.mark.parametrize(
+    "emu_fixture, max_sockets_offset, description_offset, size",
+    [("dll_emu", 390, 4, 400), ("dll64_emu", 4, 16, 408)],
+)
+@pytest.mark.parametrize("requested, version", [(0x0202, 0x0202), (0x0101, 0x0101), (0x0303, 0x0202)])
+def test_wsa_startup_fills_wsadata(
+    request: pytest.FixtureRequest,
+    emu_fixture: str,
+    max_sockets_offset: int,
+    description_offset: int,
+    size: int,
+    requested: int,
+    version: int,
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    data = alloc(se, b"\xcc" * 0x200)
+    rv, _ = call(se, "ws2_32", "WSAStartup", [requested, data])
+    assert rv == 0
+    wsadata = se.mem_read(data, 0x200)
+    assert struct.unpack_from("<HH", wsadata, 0) == (version, 0x0202)
+    assert struct.unpack_from("<H", wsadata, max_sockets_offset)[0] != 0xCCCC
+    assert wsadata[description_offset : description_offset + 12] == b"WinSock 2.0\x00"
+    assert wsadata[size:] == b"\xcc" * (0x200 - size)
