@@ -333,18 +333,31 @@ class WinHttp(api.ApiHandler):
         """
         hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
 
-        header_query = windefs.get_header_query(dwInfoLevel)
+        header_id = dwInfoLevel & windefs.HTTP_QUERY_HEADER_MASK
+        as_number = bool(dwInfoLevel & windefs.WINHTTP_QUERY_FLAG_NUMBER)
+        header_query = windefs.get_header_query(header_id)
         if header_query:
+            if as_number:
+                header_query += " | WINHTTP_QUERY_FLAG_NUMBER"
             ctx.args["dwInfoLevel"].display = header_query
 
         if buffer == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
 
-        # If program checks for WINHTTP_QUERY_STATUS_CODE and the buffer is set, write '200' to buffer
-        if (header_query == windefs.WINHTTP_QUERY_STATUS_CODE) and (buffer != 0):
-            self.mem_write(buffer, b"\x32\x00\x30\x00\x30\x00\x00\x00")
-            self.mem_write(bufferLen, 8)
+        if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
+            if as_number:
+                out = int(windefs.HTTP_STATUS_OK).to_bytes(4, "little")
+                out_len = len(out)
+            else:
+                out = (windefs.HTTP_STATUS_OK + "\x00").encode("utf-16le")
+                out_len = len(out) - 2
+            if int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
+                self.mem_write(bufferLen, len(out).to_bytes(4, "little"))
+                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                return 0
+            self.mem_write(buffer, out)
+            self.mem_write(bufferLen, out_len.to_bytes(4, "little"))
 
         rv = 1
 
