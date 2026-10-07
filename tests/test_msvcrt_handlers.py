@@ -34,3 +34,10 @@ def test_time_writes_a_pointer_sized_time_t_on_x64(dll64_emu: Speakeasy) -> None
     out = alloc(dll64_emu, b"\xcc" * 9)
     rv, _ = call(dll64_emu, "msvcrt", "time", [out])
     assert dll64_emu.mem_read(out, 9) == rv.to_bytes(8, "little") + b"\xcc"
+
+
+@pytest.mark.parametrize("needle, offset", [("XYZ", 3), ("abc", 0), ("Q", None)])
+def test_wcsstr_returns_pointer_to_match(dll_emu: Speakeasy, needle: str, offset: int | None) -> None:
+    hay = alloc(dll_emu, "abcXYZ\0".encode("utf-16le"))
+    rv, _ = call(dll_emu, "msvcrt", "wcsstr", [hay, alloc(dll_emu, f"{needle}\0".encode("utf-16le"))])
+    assert rv == (0 if offset is None else hay + offset * 2)

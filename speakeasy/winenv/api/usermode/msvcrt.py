@@ -586,7 +586,7 @@ class Msvcrt(api.ApiHandler):
 
         ret = _hay.find(needle)
         if ret != -1:
-            ret = hay + ret
+            ret = hay + ret * 2
         else:
             ret = 0
 
