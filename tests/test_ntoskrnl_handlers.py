@@ -118,3 +118,37 @@ def test_memset_fills_with_the_low_byte_of_c(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "memset", [buf, 0xFFFFFFFF, 4])
     assert rv == buf
     assert driver_emu.mem_read(buf, 8) == b"\xff" * 4 + b"\x00" * 4
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "c", "offset"),
+    [
+        ("strchr", b"caf\xe9!\xe9", 0xFFFFFFE9, 3),
+        ("strrchr", b"caf\xe9!\xe9", 0xE9, 5),
+        ("strchr", b"\xff\xfeab", ord("b"), 3),
+        ("strrchr", b"\xff\xfeab", ord("a"), 2),
+        ("strchr", b"abc", 0, 3),
+        ("strrchr", b"abc", 0, 3),
+        ("strchr", b"abc", ord("x"), None),
+    ],
+)
+def test_strchr_searches_the_raw_bytes(
+    driver_emu: Speakeasy, name: str, text: bytes, c: int, offset: int | None
+) -> None:
+    s = alloc(driver_emu, text + b"\x00")
+    rv, _ = call(driver_emu, "ntoskrnl", name, [s, c])
+    assert rv == (0 if offset is None else s + offset)
+
+
+@pytest.mark.parametrize(
+    ("text", "c", "index"),
+    [
+        ("abc", 0xABCD0062, 1),
+        ("䉁C", 0x4342, None),
+        ("abc", 0, 3),
+    ],
+)
+def test_wcschr_searches_whole_characters(driver_emu: Speakeasy, text: str, c: int, index: int | None) -> None:
+    s = alloc(driver_emu, text.encode("utf-16le") + b"\x00\x00")
+    rv, _ = call(driver_emu, "ntoskrnl", "wcschr", [s, c])
+    assert rv == (0 if index is None else s + 2 * index)
