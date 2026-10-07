@@ -368,14 +368,14 @@ class Netio(api.ApiHandler):
 
         return rv
 
-    @apihook("callback_WskGetLocalAddress", argc=2)
+    @apihook("callback_WskGetLocalAddress", argc=3)
     def WskGetLocalAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTSTATUS PfnWskGetLocalAddress(
           PWSK_SOCKET Socket,
           PSOCKADDR LocalAddress,
           PIRP Irp
         )"""
-        sock, laddr = argv
+        sock, laddr, irp = argv
         rv = 0
 
         return rv
