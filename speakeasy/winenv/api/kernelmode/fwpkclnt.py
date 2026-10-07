@@ -249,8 +249,6 @@ class Fwpkclnt(api.ApiHandler):
         """
         eng, pFilter, sd, pId = argv
 
-        self.mem_write(pId, b"\x41\x41")
-
         rv = ddk.STATUS_SUCCESS
 
         name = ""
@@ -273,7 +271,8 @@ class Fwpkclnt(api.ApiHandler):
         flt_key = str(flt_key)
 
         fid = self.new_filter(name, desc, flt_key)
-        self.mem_write(pId, fid.to_bytes(8, "little"))
+        if pId:
+            self.mem_write(pId, fid.to_bytes(8, "little"))
 
         return rv
 
