@@ -250,3 +250,33 @@ def test_url_download_to_cache_file_names_its_params(dll_emu: Speakeasy) -> None
     assert list(displays) == ["lpUnkcaller", "szURL", "szFileName", "cchFileName", "dwReserved", "pBSC"]
     assert displays["szURL"] == "http://example.com/a.bin"
     assert displays["szFileName"] == "C:\\Windows\\Temp\\a.bin"
+
+
+def _open_usbsamp(se: Speakeasy) -> int:
+    subkey = _alloc(se, b"System\\CurrentControlSet\\Services\\usbsamp\x00")
+    phk = _alloc(se, b"\x00" * 4)
+    rv, _ = _call(se, "advapi32", "RegOpenKeyExA", [0x80000002, subkey, 0, 0xF003F, phk])
+    assert rv == 0
+    return int.from_bytes(se.mem_read(phk, 4), "little")
+
+
+def test_reg_query_value_ex_writes_the_value_type(dll_emu: Speakeasy) -> None:
+    hkey = _open_usbsamp(dll_emu)
+    name = _alloc(dll_emu, b"Start\x00")
+    lp_type = _alloc(dll_emu, struct.pack("<I", 1))
+    rv, displays = _call(dll_emu, "advapi32", "RegQueryValueExA", [hkey, name, 0, lp_type, 0, 0])
+    assert rv == 0
+    assert dll_emu.mem_read(lp_type, 4) == struct.pack("<I", 4)
+    assert displays["lpType"] == "REG_DWORD"
+
+
+def test_reg_get_value_writes_the_value_type(dll_emu: Speakeasy) -> None:
+    hkey = _open_usbsamp(dll_emu)
+    name = _alloc(dll_emu, b"DisplayName\x00")
+    pdw_type = _alloc(dll_emu, struct.pack("<I", 4))
+    data = _alloc(dll_emu, b"\x00" * 64)
+    cb = _alloc(dll_emu, struct.pack("<I", 64))
+    rv, displays = _call(dll_emu, "advapi32", "RegGetValueA", [hkey, 0, name, 0xFFFF, pdw_type, data, cb])
+    assert rv == 0
+    assert dll_emu.mem_read(pdw_type, 4) == struct.pack("<I", 1)
+    assert displays["pdwType"] == "REG_SZ"
