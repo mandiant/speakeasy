@@ -334,3 +334,29 @@ def test_get_module_file_name_truncates_in_characters(dll_emu: Speakeasy, api: s
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(buf, n * cw + 1) == encode(path[: n - 1] + "\0", cw) + b"\xcc"
+
+
+@pytest.mark.parametrize("api, cw", [("GetFullPathNameA", 1), ("GetFullPathNameW", 2)])
+@pytest.mark.parametrize(
+    "path, part",
+    [("C:\\dir\\file.txt", "file.txt"), ("C:\\dir\\file", "file"), ("C:\\a\\a", "a"), ("C:\\dir\\", None)],
+)
+def test_get_full_path_name_sizes_and_file_part(
+    dll_emu: Speakeasy, api: str, cw: int, path: str, part: str | None
+) -> None:
+    src = alloc(dll_emu, encode(path + "\0", cw))
+    need, _ = call(dll_emu, "kernel32", api, [src, 0, 0, 0])
+    assert need == len(path) + 1
+    buf = alloc(dll_emu, b"\xcc" * 0x100)
+    file_part = alloc(dll_emu, b"\xef\xbe\xad\xde")
+    rv, _ = call(dll_emu, "kernel32", api, [src, len(path), buf, file_part])
+    assert rv == need
+    assert dll_emu.mem_read(buf, 0x100) == b"\xcc" * 0x100
+    rv, _ = call(dll_emu, "kernel32", api, [src, need, buf, file_part])
+    assert rv == len(path)
+    assert dll_emu.mem_read(buf, need * cw) == encode(path + "\0", cw)
+    ptr = struct.unpack("<I", dll_emu.mem_read(file_part, 4))[0]
+    if part is None:
+        assert ptr == 0
+    else:
+        assert ptr == buf + (len(path) - len(part)) * cw

@@ -2714,15 +2714,17 @@ class Kernel32(api.ApiHandler):
             fn = self.read_mem_string(lpFileName, cw)
             bn = ntpath.basename(fn)
 
-            offset = fn.find(bn)
-            if lpBuffer:
+            offset = len(fn) - len(bn)
+            if not lpBuffer or nBufferLength < len(fn) + 1:
+                rv = len(fn) + 1
+            else:
                 self.write_mem_string(fn, lpBuffer, cw)
 
-                if "." in bn and lpFilePart:
-                    ptr = (lpBuffer + offset).to_bytes(emu.get_ptr_size(), "little")
-                    self.mem_write(lpFilePart, ptr)
+                if lpFilePart:
+                    ptr = lpBuffer + offset * cw if bn else 0
+                    self.mem_write(lpFilePart, ptr.to_bytes(emu.get_ptr_size(), "little"))
 
-            rv = len(fn)
+                rv = len(fn)
 
         return rv
 
