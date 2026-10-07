@@ -142,9 +142,18 @@ class RegistryManager:
                 return key
         return None
 
+    def get_key_paths(self):
+        """
+        Get the paths of the open keys and of the keys in the config
+        """
+        paths = [key.get_path() for key in self.keys]
+        if self.config:
+            paths += [key.path for key in self.config.keys]
+        return paths
+
     def is_key_a_parent_key(self, path):
         prefix = path.lower().rstrip("\\") + "\\"
-        return any(key.get_path().lower().startswith(prefix) for key in self.keys)
+        return any(p.lower().startswith(prefix) for p in self.get_key_paths())
 
     def get_subkeys(self, key):
         # TODO: once we revamp the registry emulation,
@@ -152,8 +161,7 @@ class RegistryManager:
 
         parent_path = key.get_path().rstrip("\\") + "\\"
         subkeys = []
-        for k in self.keys:
-            test_path = k.get_path()
+        for test_path in self.get_key_paths():
             if test_path.lower().startswith(parent_path.lower()):
                 sub = test_path[len(parent_path) :]
 
@@ -197,6 +205,7 @@ class RegistryManager:
         # Does this key exist in our config
         key = self.get_key_from_config(path)
         if key:
+            self.keys.append(key)
             return key
 
         key = RegKey(self.allocator, path)
@@ -219,6 +228,7 @@ class RegistryManager:
         # Does this key exist in our config
         key = self.get_key_from_config(path)
         if key:
+            self.keys.append(key)
             hnd = key.get_handle()
             self.reg_handles.update({hnd: key})
             return hnd
