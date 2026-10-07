@@ -64,9 +64,9 @@ class RegValue:
         if self.type == regdefs.REG_MULTI_SZ:
             return (self.data + "\x00\x00").encode(enc)
         if self.type == regdefs.REG_DWORD and isinstance(self.data, int):
-            return self.data.to_bytes(4, "little")
+            return (self.data & 0xFFFFFFFF).to_bytes(4, "little")
         if self.type == regdefs.REG_QWORD and isinstance(self.data, int):
-            return self.data.to_bytes(8, "little")
+            return (self.data & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little")
         if self.type == regdefs.REG_BINARY:
             return base64.b64decode(self.data)
         return self.data if isinstance(self.data, bytes) else b""
