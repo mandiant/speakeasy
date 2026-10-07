@@ -481,7 +481,27 @@ class AdvApi32(api.ApiHandler):
 
         key = self.reg_get_key(hKey)
         if not key:
-            rv = windefs.ERROR_INVALID_HANDLE
+            return windefs.ERROR_INVALID_HANDLE
+
+        cw = self.get_char_width(ctx)
+        subkey_names = self.reg_get_subkeys(key)
+        key_values = key.get_values()
+        if lpClass:
+            self.write_mem_string("", lpClass, cw)
+        for ptr, val in (
+            (lpcchClass, 0),
+            (subkeys, len(subkey_names)),
+            (max_subkey_len, max((len(n) for n in subkey_names), default=0)),
+            (max_class_len, 0),
+            (values, len(key_values)),
+            (max_value_name_len, max((len(v.get_name()) for v in key_values), default=0)),
+            (max_value_len, max((len(v.get_bytes(cw)) for v in key_values), default=0)),
+            (sec_desc, 0),
+        ):
+            if ptr:
+                self.mem_write(ptr, val.to_bytes(4, "little"))
+        if last_write:
+            self.mem_write(last_write, b"\x00" * 8)
 
         return rv
 
