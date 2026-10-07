@@ -1639,7 +1639,7 @@ class AdvApi32(api.ApiHandler):
 
         hKey = self.win.HCRYPTKEY(ptrsz)
         hKey.Algid = Algid
-        hKey.keylen = len(fixed_digest)
+        hKey.keylen = len(fixed_digest)  # type: ignore[assignment]
         hKey.keyp = self.mem_alloc(hKey.keylen)
 
         hKeyp = self.mem_alloc(hKey.sizeof())
