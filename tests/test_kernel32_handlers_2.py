@@ -250,3 +250,16 @@ def test_path_name_sizes(emu: Speakeasy, name: str) -> None:
     exact = alloc(emu, b"\xcc" * (len(path) + 1) * width)
     assert call(emu, "kernel32", name, [src, exact, len(path) + 1])[0] == len(path)
     assert emu.mem_read(exact, (len(path) + 1) * width) == (path + "\x00").encode(enc)
+
+
+OPEN_ALWAYS = 4
+
+
+def test_create_file_open_always_reports_existing_files(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    set_last_error(se, windefs.ERROR_ALREADY_EXISTS)
+    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert last_error(se) == windefs.ERROR_SUCCESS
+
+    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert last_error(se) == windefs.ERROR_ALREADY_EXISTS
