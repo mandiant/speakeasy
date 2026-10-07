@@ -11,7 +11,7 @@ from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call
+from tests.handler_harness import alloc, call, start_process
 
 HKEY_CURRENT_USER = 0x80000001
 
@@ -144,3 +144,29 @@ def test_rtl_gen_random_fills_a_large_buffer(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "advapi32", "SystemFunction036", [buf, 0x400])
     assert rv
     assert dll_emu.mem_read(buf + 0x3FF, 2) == b"\xff\xcc"
+
+
+def _last_error(se: Speakeasy) -> int:
+    assert se.emu is not None
+    return se.emu.get_last_error()
+
+
+def test_lookup_account_sid_reports_the_sizes(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    sid = alloc(dll_emu, bytes([1, 1, 0, 0, 0, 0, 0, 5]) + struct.pack("<I", 18))
+    cch_name = alloc(dll_emu, struct.pack("<I", 0))
+    cch_dom = alloc(dll_emu, struct.pack("<I", 0))
+    use = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "advapi32", "LookupAccountSidA", [0, sid, 0, cch_name, 0, cch_dom, use])
+    assert not rv
+    assert _last_error(dll_emu) == windefs.ERROR_INSUFFICIENT_BUFFER
+    name_size, dom_size = _dword(dll_emu, cch_name), _dword(dll_emu, cch_dom)
+
+    name = alloc(dll_emu, b"\xcc" * name_size)
+    dom = alloc(dll_emu, b"\xcc" * dom_size)
+    rv, _ = call(dll_emu, "advapi32", "LookupAccountSidA", [0, sid, name, cch_name, dom, cch_dom, use])
+    assert rv
+    assert dll_emu.mem_read(name, name_size)[-1:] == b"\x00"
+    assert dll_emu.mem_read(dom, dom_size)[-1:] == b"\x00"
+    assert (_dword(dll_emu, cch_name), _dword(dll_emu, cch_dom)) == (name_size - 1, dom_size - 1)
+    assert _dword(dll_emu, use) == 1
