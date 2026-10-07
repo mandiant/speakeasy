@@ -6561,7 +6561,7 @@ class Kernel32(api.ApiHandler):
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        timestamp = 116444736000000000 + int(time.time_ns())
+        timestamp = 116444736000000000 + time.time_ns() // 100
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
 
