@@ -529,3 +529,21 @@ def test_net_get_join_information_fits_a_long_domain(
         assert rv == 0
         name = int.from_bytes(se.mem_read(name_buf, 4), "little")
         assert se.mem_read(name, 2 * len(domain) + 2) == (domain + "\x00").encode("utf-16le")
+
+
+def test_reg_get_value_opens_the_subkey(dll_emu: Speakeasy) -> None:
+    subkey = _alloc(dll_emu, b"System\\CurrentControlSet\\Services\\usbsamp\x00")
+    name = _alloc(dll_emu, b"Start\x00")
+    data = _alloc(dll_emu, b"\xcc" * 8)
+    cb = _alloc(dll_emu, struct.pack("<I", 8))
+    rv, displays = _call(dll_emu, "advapi32", "RegGetValueA", [0x80000002, subkey, name, 0xFFFF, 0, data, cb])
+    assert rv == 0
+    assert dll_emu.mem_read(data, 4) == struct.pack("<I", 3)
+    assert displays["lpSubKey"] == "System\\CurrentControlSet\\Services\\usbsamp"
+
+
+def test_reg_get_value_missing_subkey(dll_emu: Speakeasy) -> None:
+    subkey = _alloc(dll_emu, b"Software\\NoSuchKey\x00")
+    name = _alloc(dll_emu, b"Start\x00")
+    rv, _ = _call(dll_emu, "advapi32", "RegGetValueA", [0x80000002, subkey, name, 0xFFFF, 0, 0, 0])
+    assert rv == 2
