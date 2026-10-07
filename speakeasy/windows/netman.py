@@ -313,7 +313,7 @@ class NetworkManager:
             # use the default IP (if any)
             return names.get("default")
 
-        return names.get(domain)
+        return names.get(domain.lower())
 
     def get_dns_txt(self, domain):
         """
