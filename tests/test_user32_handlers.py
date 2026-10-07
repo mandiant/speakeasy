@@ -59,3 +59,9 @@ def test_create_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
     assert rv
     assert [cb[1] for cb in dll_emu.emu.get_current_run().api_callbacks] == [0x401000]
+
+
+def test_update_window_with_an_unknown_class(dll_emu: Speakeasy) -> None:
+    hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, alloc(dll_emu, b"EDIT\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
+    assert rv

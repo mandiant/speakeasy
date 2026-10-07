@@ -277,7 +277,7 @@ class User32(api.ApiHandler):
             return False
 
         wc = self.sessman.get_window_class(window.class_name)
-        if wc.wclass.lpfnWndProc:
+        if wc and wc.wclass.lpfnWndProc:
             cb_args = (hnd, windefs.WM_PAINT, 0, 0)
             self.setup_callback(wc.wclass.lpfnWndProc, cb_args, caller_argv=argv)
 
