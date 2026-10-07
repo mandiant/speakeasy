@@ -102,3 +102,25 @@ def test_strncat_s_appends_within_buffer(
     dest = alloc(se, b"ab\x00" + b"\xcc" * 13)
     assert call(se, "msvcrt", "strncat_s", [dest, size, alloc(se, src + b"\x00"), count])[0] == rv
     assert se.mem_read(dest, len(result) + 1) == result + b"\x00"
+
+
+@pytest.mark.parametrize(
+    "fmt, count, rv, written",
+    [
+        ("%s-%s", 4, -1, "AAAA"),
+        ("%s-%s", 17, 17, "AAAAAAAA-BBBBBBBB"),
+        ("%s-%s", 18, 17, "AAAAAAAA-BBBBBBBB\0"),
+        ("hello", 3, -1, "hel"),
+        ("hello", 8, 5, "hello\0"),
+    ],
+)
+@pytest.mark.parametrize("api, width", [("_snprintf", 1), ("_snwprintf", 2)])
+def test_snprintf_writes_at_most_count_chars(
+    dll_emu: Speakeasy, api: str, width: int, fmt: str, count: int, rv: int, written: str
+) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    buf = alloc(dll_emu, b"\xcc" * 40)
+    args = [alloc(dll_emu, f"{s}\0".encode(enc)) for s in (fmt, "AAAAAAAA", "BBBBBBBB")]
+    assert call(dll_emu, "msvcrt", api, [buf, count, *args])[0] == rv
+    data = written.encode(enc)
+    assert dll_emu.mem_read(buf, len(data) + width) == data + b"\xcc" * width
