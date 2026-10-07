@@ -3180,7 +3180,7 @@ class Kernel32(api.ApiHandler):
         else:
             mods = emu.get_peb_modules()
             cm = emu.get_current_module()
-            if cm.base == hModule:
+            if cm and cm.base == hModule:
                 filename = cm.emu_path
             else:
                 for mod in mods:
@@ -3195,13 +3195,15 @@ class Kernel32(api.ApiHandler):
                 out = filename.encode("utf-8")
 
             size = int(len(out) / cw)
-            if nSize < size + 1 * cw:  # null terminator
+            if nSize < size + 1:  # null terminator
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-                out = out[: nSize - 1 * cw] + b"\0" * cw
+                out = out[: (nSize - 1) * cw] + b"\0" * cw if nSize else b""
+                size = nSize
             else:
                 out += b"\0" * cw
 
-            self.mem_write(lpFilename, out)
+            if out:
+                self.mem_write(lpFilename, out)
         return size
 
     @apihook("HeapFree", argc=3)

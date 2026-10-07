@@ -305,3 +305,32 @@ def test_get_module_handle_ex_from_address_finds_the_image(dll_emu: Speakeasy) -
     rv, _ = call(dll_emu, "kernel32", "GetModuleHandleExA", [flags, base + 0x1000, out])
     assert rv
     assert dll_emu.mem_read(out, 4) == struct.pack("<I", base)
+
+
+@pytest.mark.parametrize("api, cw", [("GetModuleFileNameA", 1), ("GetModuleFileNameW", 2)])
+def test_get_module_file_name_without_a_current_module(dll_emu: Speakeasy, api: str, cw: int) -> None:
+    assert dll_emu.emu is not None and dll_emu.emu.get_current_module() is None
+    name = alloc(dll_emu, b"kernel32.dll\x00")
+    hmod, _ = call(dll_emu, "kernel32", "GetModuleHandleA", [name])
+    buf = alloc(dll_emu, b"\xcc" * 0x400)
+    rv, displays = call(dll_emu, "kernel32", api, [hmod, buf, 0x200])
+    path = displays["lpFilename"]
+    assert path.lower().endswith("kernel32.dll")
+    assert rv == len(path)
+    assert dll_emu.mem_read(buf, (rv + 1) * cw) == encode(path + "\0", cw)
+
+
+@pytest.mark.parametrize("api, cw", [("GetModuleFileNameA", 1), ("GetModuleFileNameW", 2)])
+@pytest.mark.parametrize("room", ["no_nul", "small"])
+def test_get_module_file_name_truncates_in_characters(dll_emu: Speakeasy, api: str, cw: int, room: str) -> None:
+    start_process(dll_emu)
+    buf = alloc(dll_emu, b"\xcc" * 0x400)
+    rv, displays = call(dll_emu, "kernel32", api, [0, buf, 0x200])
+    path = displays["lpFilename"]
+    n = len(path) if room == "no_nul" else 5
+    buf = alloc(dll_emu, b"\xcc" * 0x400)
+    rv, _ = call(dll_emu, "kernel32", api, [0, buf, n])
+    assert rv == n
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
+    assert dll_emu.mem_read(buf, n * cw + 1) == encode(path[: n - 1] + "\0", cw) + b"\xcc"
