@@ -1073,18 +1073,17 @@ class Ntoskrnl(api.ApiHandler):
 
         rv = ddk.STATUS_SUCCESS
 
-        cid = self.win.CLIENT_ID(emu.get_ptr_size())
+        ptr_size = emu.get_ptr_size()
         proc_obj = self.get_object_from_handle(hProc)
 
         handle, obj = self.create_thread(start, startctx, proc_obj, thread_type="system_thread")
 
-        self.mem_write(hThrd, handle.to_bytes(4, "little"))
+        self.mem_write(hThrd, handle.to_bytes(ptr_size, "little"))
 
         if client_id:
-            if not hProc:
-                cid.UniqueProcess = 4
-            cid.UniqueThread = obj.tid
-            self.mem_write(client_id, self.get_bytes(cid))
+            # CLIENT_ID holds two HANDLEs, wider than the 32-bit fields of the shared struct on x64
+            pid = 4 if not hProc else 0
+            self.mem_write(client_id, pid.to_bytes(ptr_size, "little") + obj.tid.to_bytes(ptr_size, "little"))
 
         return rv
 
@@ -1269,7 +1268,7 @@ class Ntoskrnl(api.ApiHandler):
         hnd, evt = emu.create_event(name)
 
         if EventHandle:
-            self.mem_write(EventHandle, hnd.to_bytes(4, "little"))
+            self.mem_write(EventHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         ctx.args[0].display = name
         return evt.address
