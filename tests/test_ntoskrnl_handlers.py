@@ -42,6 +42,7 @@ BUF = -1
         ("KeSetTimer", [BUF, 0, 0, 0], STDCALL),
         ("CmUnRegisterCallback", [0, 0], STDCALL),
         ("ExAllocatePool2", [0x40, 0, 0x10, 0x6B736154], STDCALL),
+        ("KdChangeOption", [0, 0, 0, 0, 0, 0], STDCALL),
     ],
 )
 def test_x86_callee_cleans_the_stack_per_its_convention(

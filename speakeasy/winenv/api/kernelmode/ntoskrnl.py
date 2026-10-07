@@ -1741,7 +1741,7 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
 
-    @apihook("KdChangeOption", argc=0)
+    @apihook("KdChangeOption", argc=6)
     def KdChangeOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KdChangeOption(
