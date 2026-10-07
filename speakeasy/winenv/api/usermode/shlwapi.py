@@ -305,8 +305,9 @@ class Shlwapi(api.ApiHandler):
         );
         """
         pszBuf, pszPath = argv
-        path = self.read_wide_string(pszPath)
-        self.write_wide_string(path, pszBuf)
+        cw = self.get_char_width(ctx)
+        path = self.read_mem_string(pszPath, cw)
+        self.write_mem_string(path, pszBuf, cw)
         return 1
 
     @apihook("PathRemoveFileSpec", argc=1)

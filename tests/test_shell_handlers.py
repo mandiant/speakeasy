@@ -250,3 +250,12 @@ def test_sys_alloc_string_len_copies_length_characters(dll_emu: Speakeasy, text:
     rv, _ = call(dll_emu, "oleaut32", "SysAllocStringLen", [alloc(dll_emu, wstr(text, 2)), length])
     assert rv != 0
     assert read_bstr(dll_emu, rv) == text[:length].encode("utf-16le")
+
+
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_canonicalize_uses_the_char_width(dll_emu: Speakeasy, width: int) -> None:
+    src = alloc(dll_emu, wstr("C:\\abc", width) + b"\x41" * 8)
+    out = alloc(dll_emu, b"\xcc" * 32)
+    rv, _ = call(dll_emu, "shlwapi", "PathCanonicalize" + ("W" if width == 2 else "A"), [out, src])
+    assert rv == 1
+    assert dll_emu.mem_read(out, 8 * width) == wstr("C:\\abc", width) + b"\xcc" * width
