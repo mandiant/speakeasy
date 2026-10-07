@@ -320,3 +320,18 @@ def test_get_system_time_precise_as_file_time(emu: Speakeasy) -> None:
     ticks = int.from_bytes(emu.mem_read(ft, 8), "little")
     when = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ticks // 10)
     assert abs(when - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)) < datetime.timedelta(minutes=1)
+
+
+def test_get_file_attributes_ex(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, BYTE_FILL_PATH.encode() + b"\x00")
+    data = alloc(se, b"\xcc" * 36)
+    assert call(se, "kernel32", "GetFileAttributesExA", [name, 0, data])[0]
+    attrs, created, accessed, written, high, low = struct.unpack("<IQQQII", se.mem_read(data, 36))
+    assert attrs == windefs.FILE_ATTRIBUTE_NORMAL
+    assert (high, low) == (0, 512)
+    assert created and accessed and written
+
+    missing = alloc(se, b"c:\\missing.txt\x00")
+    assert not call(se, "kernel32", "GetFileAttributesExA", [missing, 0, data])[0]
+    assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND

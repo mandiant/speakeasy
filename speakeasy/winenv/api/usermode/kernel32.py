@@ -3603,27 +3603,21 @@ class Kernel32(api.ApiHandler):
         # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime,
         # using current date time
         timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
-        file_data.ftCreationTime.dwLowDateTime = 0xFFFFFFFF & timestamp
-        file_data.ftCreationTime.dwHighDateTime = timestamp >> 32
+        for ft in (file_data.ftCreationTime, file_data.ftLastAccessTime, file_data.ftLastWriteTime):
+            ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+            ft.dwHighDateTime = timestamp >> 32
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
         fHandle = self.file_open(filename)
-        if fHandle:
-            f = self.get_object_from_handle(fHandle)
-            full_size = f.get_size()
-            high = 0xFFFFFFFF & (full_size >> 32)
-            low = 0xFFFFFFFF & full_size
-            high = high.to_bytes(4, "little")
+        if not fHandle:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return False
 
-            if file_data.nFileSizeHigh:  # type: ignore[truthy-function]  # struct field accessor
-                file_data.ftCreationTime.nFileSizeHigh = high
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-
-        else:
-            low = 0xFFFFFFFF
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-
-        file_data.ftCreationTime.nFileSizeLow = low
+        f = self.get_object_from_handle(fHandle)
+        full_size = f.get_size()
+        file_data.nFileSizeHigh = 0xFFFFFFFF & (full_size >> 32)
+        file_data.nFileSizeLow = 0xFFFFFFFF & full_size
+        emu.set_last_error(windefs.ERROR_SUCCESS)
 
         self.mem_write(lpFileInformation, file_data.get_bytes())
         return True
