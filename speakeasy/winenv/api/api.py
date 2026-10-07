@@ -39,10 +39,6 @@ class HandlerArg:
     def type(self) -> str:
         return self._arg.type
 
-    @type.setter
-    def type(self, type: str) -> None:
-        self._arg.type = type
-
     @property
     def display(self) -> str:
         return self._arg.display
@@ -105,12 +101,11 @@ class HandlerArgs:
                     return HandlerArg(self._args[index], param)
             logger.debug("no argument named %s", key)
             return _detached_arg()
-        if not -len(self._args) <= key < len(self._args):
+        if not 0 <= key < len(self._args):
             logger.debug("no argument at index %d", key)
             return _detached_arg()
         params = self._params or []
-        index = key % len(self._args)
-        return HandlerArg(self._args[index], params[index] if index < len(params) else None)
+        return HandlerArg(self._args[key], params[key] if key < len(params) else None)
 
     def append(self, display: str, type: str = "text") -> HandlerArg:
         """Add an argument without a raw value, such as the output of a printf call."""

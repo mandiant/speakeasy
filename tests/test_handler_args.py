@@ -65,13 +65,6 @@ def test_handler_display_non_string_keeps_rendering() -> None:
     ]
 
 
-def test_handler_type_is_settable() -> None:
-    args = api.HandlerArgs.from_slots([0x1000])
-    args[0].display = "C:\\x"
-    args[0].type = "str"
-    assert args.get_report_args() == [ApiArg(type="str", value=0x1000, display="C:\\x")]
-
-
 def test_unknown_name_or_index_is_detached() -> None:
     args = api.HandlerArgs.from_slots([1])
     args["lpFileName"].display = "lost"
