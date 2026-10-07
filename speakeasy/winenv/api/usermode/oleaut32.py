@@ -22,23 +22,23 @@ class OleAut32(api.ApiHandler):
         );
         """
         (psz,) = argv
+        if not psz:
+            return 0
+
         alloc_str = self.read_mem_string(psz, 2)
-        if alloc_str:
-            ctx.args["psz"].display = alloc_str
-            alloc_str += "\x00"
-            ws = alloc_str.encode("utf-16le")
-            ws_len = len(ws)
+        ctx.args["psz"].display = alloc_str
+        alloc_str += "\x00"
+        ws = alloc_str.encode("utf-16le")
+        ws_len = len(ws)
 
-            # https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr
-            bstr_len = 4 + ws_len
-            bstr = self.mem_alloc(bstr_len)
-            bstr_bytes = struct.pack("<I", ws_len - 2) + ws
+        # https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr
+        bstr_len = 4 + ws_len
+        bstr = self.mem_alloc(bstr_len)
+        bstr_bytes = struct.pack("<I", ws_len - 2) + ws
 
-            self.mem_write(bstr, bstr_bytes)
+        self.mem_write(bstr, bstr_bytes)
 
-            return bstr + 4
-
-        return 0
+        return bstr + 4
 
     @apihook("SysAllocStringLen", argc=2, ordinal=4)
     def SysAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -56,15 +56,9 @@ class OleAut32(api.ApiHandler):
         if not strin:
             bstr_bytes = struct.pack("<I", ui * 2)
         else:
-            alloc_str = self.read_mem_string(strin, 2)
-            if alloc_str:
-                ctx.args["strIn"].display = alloc_str
-                alloc_str = alloc_str[:ui]
-                alloc_str += "\x00"
-                ws = alloc_str.encode("utf-16le")
-                bstr_bytes = struct.pack("<I", ui * 2) + ws
-            else:
-                return 0
+            ws = self.mem_read(strin, ui * 2)
+            ctx.args["strIn"].display = ws.decode("utf-16le", errors="replace")
+            bstr_bytes = struct.pack("<I", ui * 2) + ws + b"\x00\x00"
 
         self.mem_write(bstr, bstr_bytes)
 
