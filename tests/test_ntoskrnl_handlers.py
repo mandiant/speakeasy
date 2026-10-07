@@ -383,3 +383,18 @@ def test_wcsnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected:
     s = alloc(driver_emu, "abcdefgh\0".encode("utf-16le"))
     rv, _ = call(driver_emu, "ntoskrnl", "wcsnlen", [s, limit])
     assert rv == expected
+
+
+@pytest.mark.parametrize(("length", "status"), [(8, ddk.STATUS_SUCCESS), (4, ddk.STATUS_INFO_LENGTH_MISMATCH)])
+def test_x64_zw_query_information_process_wow64(driver64_emu: Speakeasy, length: int, status: int) -> None:
+    driver64_emu.emu.get_current_process()
+    driver64_emu.emu.set_current_process(driver64_emu.emu.get_system_process())
+    info = alloc(driver64_emu, b"\xcc" * 8)
+    retlen = alloc(driver64_emu, b"\xcc" * 8)
+    wow64_information = ddk.PROCESSINFOCLASS.ProcessWow64Information
+    argv = [0xFFFFFFFF_FFFFFFFF, wow64_information, info, length, retlen]
+    rv, _ = call(driver64_emu, "ntoskrnl", "ZwQueryInformationProcess", argv)
+    assert rv == status
+    assert driver64_emu.mem_read(retlen, 8) == b"\x08\x00\x00\x00" + b"\xcc" * 4
+    if status == ddk.STATUS_SUCCESS:
+        assert driver64_emu.mem_read(info, 8) == b"\x00" * 8
