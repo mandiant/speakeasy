@@ -26,6 +26,21 @@ IDI_WINLOGO = 32517
 UOI_FLAGS = 1
 
 
+def map_char_case(raw: bytes, width: int, upper: bool) -> bytes:
+    """
+    Change the case of a buffer of characters without changing its length.
+    ANSI buffers change only ASCII letters. A wide character keeps its case
+    when the mapped form is more than one UTF-16 unit.
+    """
+    if width == 1:
+        return raw.upper() if upper else raw.lower()
+    out = []
+    for ch in raw.decode("utf-16le", "surrogatepass"):
+        mapped = ch.upper() if upper else ch.lower()
+        out.append(mapped if len(mapped) == 1 and ord(mapped) <= 0xFFFF else ch)
+    return "".join(out).encode("utf-16le", "surrogatepass")
+
+
 class User32(api.ApiHandler):
     """
     Implements exported functions from user32.dll
@@ -1281,9 +1296,11 @@ class User32(api.ApiHandler):
         """
         _str, cchLength = argv
         cw = self.get_char_width(ctx)
-        val = self.read_mem_string(_str, cw, max_chars=cchLength)
-        ctx.args["lpsz"].display = val
-        self.write_mem_string(val.lower(), _str, cw)
+        if not cchLength:
+            return 0
+        raw = self.mem_read(_str, cchLength * cw)
+        ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
+        self.mem_write(_str, map_char_case(raw, cw, upper=False))
         return cchLength
 
     @apihook("CharUpperBuff", argc=2)
@@ -1296,9 +1313,11 @@ class User32(api.ApiHandler):
         """
         _str, cchLength = argv
         cw = self.get_char_width(ctx)
-        val = self.read_mem_string(_str, cw, max_chars=cchLength)
-        ctx.args["lpsz"].display = val
-        self.write_mem_string(val.upper(), _str, cw)
+        if not cchLength:
+            return 0
+        raw = self.mem_read(_str, cchLength * cw)
+        ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
+        self.mem_write(_str, map_char_case(raw, cw, upper=True))
         return cchLength
 
     @apihook("CharLower", argc=1)
