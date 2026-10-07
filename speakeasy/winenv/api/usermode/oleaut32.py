@@ -101,7 +101,8 @@ class OleAut32(api.ApiHandler):
             BSTR bstrString
         );
         """
-        ctx.args["bstrString"].display = self.read_wide_string(argv[0])
+        if argv[0]:
+            ctx.args["bstrString"].display = self.read_wide_string(argv[0])
         return
 
     @apihook("VariantInit", argc=1, ordinal=8)
