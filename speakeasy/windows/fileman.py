@@ -129,6 +129,16 @@ class File:
 
         return self.data.read(size)
 
+    def get_contents(self):
+        """
+        Return all the file data and keep the file pointer.
+        """
+        off = self.tell()
+        self.seek(0, io.SEEK_SET)
+        data = self.get_data()
+        self.seek(off, io.SEEK_SET)
+        return data
+
     def seek(self, offset, whence):
         if whence not in [io.SEEK_CUR, io.SEEK_SET, io.SEEK_END]:
             return
