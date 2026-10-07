@@ -76,9 +76,12 @@ class Shlwapi(api.ApiHandler):
             needle = self.read_mem_string(needle, cw)
             ctx.args["pszSrch"].display = needle
 
+        if not hay or not needle:
+            return 0
+
         ret = _hay.find(needle)
         if ret != -1:
-            ret = hay + ret
+            ret = hay + ret * cw
         else:
             ret = 0
 
@@ -106,9 +109,12 @@ class Shlwapi(api.ApiHandler):
             ctx.args["pszSrch"].display = needle
             needle = needle.lower()
 
+        if not hay or not needle:
+            return 0
+
         ret = _hay.find(needle)
         if ret != -1:
-            ret = hay + ret
+            ret = hay + ret * cw
         else:
             ret = 0
 
