@@ -280,3 +280,23 @@ def test_reg_get_value_writes_the_value_type(dll_emu: Speakeasy) -> None:
     assert rv == 0
     assert dll_emu.mem_read(pdw_type, 4) == struct.pack("<I", 1)
     assert displays["pdwType"] == "REG_SZ"
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("RegEnumKeyExA", [0x1234, 0, 0, 0, 0, 0, 0, 0]),
+        ("RegCreateKeyA", [0x1234, 0, 0]),
+    ],
+)
+def test_reg_unknown_handle_is_invalid(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    rv, displays = _call(dll_emu, "advapi32", api, argv)
+    assert rv == 6
+    assert displays["hKey"] == "0x1234"
+
+
+def test_reg_enum_key_ex_shows_the_key_path(dll_emu: Speakeasy) -> None:
+    hkey = _open_usbsamp(dll_emu)
+    rv, displays = _call(dll_emu, "advapi32", "RegEnumKeyExA", [hkey, 99, 0, 0, 0, 0, 0, 0])
+    assert rv == 259
+    assert displays["hKey"].endswith("\\usbsamp")
