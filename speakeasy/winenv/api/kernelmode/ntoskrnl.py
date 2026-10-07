@@ -728,7 +728,7 @@ class Ntoskrnl(api.ApiHandler):
 
         return nts
 
-    @apihook("_allshl", argc=2, conv=_arch.CALL_CONV_CDECL)
+    @apihook("_allshl", argc=0, conv=_arch.CALL_CONV_CDECL)
     def _allshl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONGLONG _allshl
@@ -736,11 +736,16 @@ class Ntoskrnl(api.ApiHandler):
         LONGLONG a,
         LONG     b
         )
-        """
-        a, b = argv
-        rv = 0xFFFFFFFFFFFFFFFF & a << (0xFFFFFFFF & b)
 
-        return rv
+        The x86 compiler helper takes the value in EDX:EAX and the count in
+        CL, and returns the result in EDX:EAX.
+        """
+        a = emu.reg_read(_arch.X86_REG_EDX) << 32 | emu.reg_read(_arch.X86_REG_EAX)
+        b = emu.reg_read(_arch.X86_REG_ECX) & 0xFF
+        rv = 0xFFFFFFFFFFFFFFFF & a << b
+
+        emu.reg_write(_arch.X86_REG_EDX, rv >> 32)
+        return rv & 0xFFFFFFFF
 
     @apihook("wcscpy", argc=2, conv=_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
