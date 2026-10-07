@@ -335,3 +335,12 @@ def test_http_query_info_status_code(
     assert call(dll_emu, "wininet", name, [req, level, buf, buf_len, 0])[0] == rv
     assert dll_emu.mem_read(buf, len(out)) == out
     assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == length
+
+
+def test_gethostbyname_ignores_case(dll_emu: Speakeasy) -> None:
+    name = alloc(dll_emu, b"Google.COM\x00")
+    hostent, _ = call(dll_emu, "ws2_32", "gethostbyname", [name])
+    assert hostent
+    addr_list = struct.unpack("<I", dll_emu.mem_read(hostent + 12, 4))[0]
+    addr = struct.unpack("<I", dll_emu.mem_read(addr_list, 4))[0]
+    assert dll_emu.mem_read(addr, 4) == bytes([8, 8, 8, 8])
