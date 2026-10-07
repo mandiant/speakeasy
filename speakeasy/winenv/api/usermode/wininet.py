@@ -403,9 +403,11 @@ class Wininet(api.ApiHandler):
         """
         hInternet, lpszUrl, lpszHeaders, dwHeadersLength, dwFlags, dwContext = argv
         cw = self.get_char_width(ctx)
-        if lpszUrl:
-            url = self.read_mem_string(lpszUrl, cw)
-            ctx.args["lpszUrl"].display = url
+        if not lpszUrl:
+            return 0
+        url = self.read_mem_string(lpszUrl, cw)
+        ctx.args["lpszUrl"].display = url
+        headers = ""
         if lpszHeaders:
             headers = self.read_mem_string(lpszHeaders, cw)
             ctx.args["lpszHeaders"].display = headers
@@ -422,7 +424,7 @@ class Wininet(api.ApiHandler):
             port = 80
         else:
             port = 443
-        self.record_http_event(crack.netloc, port, headers=lpszHeaders)
+        self.record_http_event(crack.netloc, port, headers=headers)
         sess = wini.new_session(crack.netloc, port, "", "", "", defs, dwContext)
         if not sess:
             return 0
