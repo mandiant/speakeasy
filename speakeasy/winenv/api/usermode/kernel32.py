@@ -4915,13 +4915,12 @@ class Kernel32(api.ApiHandler):
         env = emu.get_env()
 
         var = env.get(name.lower())
-        if var:
-            var += "\x00"
-            if cw == 2:
-                new = (var).encode("utf-16le")
-            else:
-                new = (var).encode("utf-8")
-            self.mem_write(lpBuffer, new)
+        if var is None:
+            emu.set_last_error(windefs.ERROR_ENVVAR_NOT_FOUND)
+        elif not lpBuffer or nSize <= len(var):
+            rv = len(var) + 1
+        else:
+            self.write_mem_string(var, lpBuffer, cw)
             rv = len(var)
 
         return rv
