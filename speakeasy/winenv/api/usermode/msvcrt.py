@@ -1606,7 +1606,8 @@ class Msvcrt(api.ApiHandler):
             va_list argptr
         );
         """
-        options_lo, options_hi, buffer, count, _format, locale, argptr = argv
+        first = 1 if emu.get_arch() == e_arch.ARCH_AMD64 else 2
+        buffer, count, _format, _, argptr = argv[first : first + 5]
         rv = 0
         fmt_str = self.read_mem_string(_format, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -1618,8 +1619,8 @@ class Msvcrt(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        ctx.args[2].display = fin.replace("\x00", "")
-        ctx.args[4].display = fmt_str
+        ctx.args[first].display = fin.replace("\x00", "")
+        ctx.args[first + 2].display = fmt_str
 
         return rv
 
