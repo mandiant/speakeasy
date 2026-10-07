@@ -436,3 +436,13 @@ def test_rtl_decompress_buffer_rejects_xpress(driver_emu: Speakeasy) -> None:
     argv = [ddk.COMPRESSION_FORMAT_XPRESS, out, 0x100, comp, 7, final]
     rv, _ = call(driver_emu, "ntoskrnl", "RtlDecompressBuffer", argv)
     assert rv == ddk.STATUS_UNSUPPORTED_COMPRESSION
+
+
+@pytest.mark.parametrize("data", [b"\x00", b"\x05\xb0abc"])
+def test_rtl_decompress_buffer_reports_bad_lznt1_data(driver_emu: Speakeasy, data: bytes) -> None:
+    comp = alloc(driver_emu, data)
+    out = alloc(driver_emu, b"\x00" * 0x100)
+    final = alloc(driver_emu, b"\xcc" * 4)
+    argv = [ddk.COMPRESSION_FORMAT_LZNT1, out, 0x100, comp, len(data), final]
+    rv, _ = call(driver_emu, "ntoskrnl", "RtlDecompressBuffer", argv)
+    assert rv == ddk.STATUS_BAD_COMPRESSION_BUFFER

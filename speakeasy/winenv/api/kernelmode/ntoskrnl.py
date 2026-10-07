@@ -2,6 +2,7 @@
 
 import logging
 import ntpath
+import struct
 import uuid
 
 import lznt1
@@ -2245,7 +2246,10 @@ class Ntoskrnl(api.ApiHandler):
 
         data = self.mem_read(comp_buf, comp_buf_size)
 
-        dec = lznt1.decompress(data)
+        try:
+            dec = lznt1.decompress(data)
+        except (ValueError, struct.error):
+            return ddk.STATUS_BAD_COMPRESSION_BUFFER
 
         if uncomp_buf_size < len(dec):
             nts = ddk.STATUS_BAD_COMPRESSION_BUFFER
