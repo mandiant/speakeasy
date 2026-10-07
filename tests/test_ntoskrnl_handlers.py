@@ -4,6 +4,7 @@ import pytest
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from tests.handler_harness import alloc, call, object_attributes, unicode_string
@@ -408,3 +409,21 @@ def test_context_thread_calls_return_ntstatus(driver_emu: Speakeasy, name: str) 
     context = alloc(driver_emu, b"\x00" * 0x2CC)
     assert call(driver_emu, "ntoskrnl", name, [hnd, context])[0] == ddk.STATUS_SUCCESS
     assert call(driver_emu, "ntoskrnl", name, [0x1234, context])[0] == ddk.STATUS_INVALID_HANDLE
+
+
+def test_x64_io_allocate_mdl_splits_a_high_address(driver64_emu: Speakeasy) -> None:
+    va = 0xFFFFF80012345678
+    p_mdl, _ = call(driver64_emu, "ntoskrnl", "IoAllocateMdl", [va, 0x100, 0, 0, 0])
+    mdl = ntdefs.MDL(8)
+    mdl = mdl.cast(driver64_emu.mem_read(p_mdl, mdl.sizeof()))
+    assert (mdl.StartVa, mdl.ByteOffset, mdl.ByteCount) == (0xFFFFF80012345000, 0x678, 0x100)
+    assert mdl.MdlFlags == 0x8
+
+
+def test_mm_map_locked_pages_maps_the_mdl_memory(driver_emu: Speakeasy) -> None:
+    buf = alloc(driver_emu, b"original")
+    p_mdl, _ = call(driver_emu, "ntoskrnl", "IoAllocateMdl", [buf, 8, 0, 0, 0])
+    mapped, _ = call(driver_emu, "ntoskrnl", "MmMapLockedPagesSpecifyCache", [p_mdl, 0, 1, 0, 0, 0x10])
+    assert driver_emu.mem_read(mapped, 8) == b"original"
+    driver_emu.mem_write(mapped, b"patched!")
+    assert driver_emu.mem_read(buf, 8) == b"patched!"
