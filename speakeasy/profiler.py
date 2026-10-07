@@ -232,13 +232,14 @@ class Profiler:
         ret: int | None,
         argv: list[Any],
         display: list[str] | None = None,
+        arg_names: list[str] | None = None,
     ) -> None:
         """
         Log a call to an OS API. This includes arguments, return address, and return value.
 
         ``display``, when given, is a pre-rendered human readable representation of
-        each argument (e.g. ``"lpFileName: \\"C:\\\\x\\""``) that is recorded verbatim in
-        place of the raw ``argv`` formatting.
+        each argument (e.g. ``"\\"C:\\\\x\\""``) that is recorded verbatim in
+        place of the raw ``argv`` formatting. ``arg_names`` names each of them.
         """
         run.num_apis += 1
 
@@ -260,6 +261,7 @@ class Profiler:
             pos=pos,
             api_name=name,
             args=args,
+            arg_names=list(arg_names) if arg_names is not None else None,
             ret_val=ret_str,
         )
 
@@ -268,6 +270,7 @@ class Profiler:
             e.pos.pc == event.pos.pc
             and e.api_name == event.api_name
             and e.args == event.args
+            and e.arg_names == event.arg_names
             and e.ret_val == event.ret_val
             for e in recent_events
         ):

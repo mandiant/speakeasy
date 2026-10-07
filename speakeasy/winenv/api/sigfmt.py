@@ -257,6 +257,38 @@ class ArgFormatter:
         return text
 
 
+def get_handler_arg_values(
+    sig: sigdb.FuncSig, ptr_size: int, before: list[int], after: list, rendered: list[str]
+) -> list[str]:
+    """
+    Combine the signature rendering of a handled call's parameters with the
+    values its handler wrote back into the argument slots. ``before`` holds the
+    raw slots as read from the call, ``after`` the same list once the handler
+    returned, and ``rendered`` one formatted value per parameter. A parameter
+    whose slot the handler replaced shows the handler's value (it may know
+    more than the signature, such as the path behind a handle); the others
+    keep their rendering.
+
+    Raises:
+        ValueError: the slot lists do not match the slots the signature consumes.
+    """
+    layout = sig.slot_layout(ptr_size)
+    if not (len(before) == len(after) == sum(layout)) or len(rendered) != len(layout):
+        raise ValueError(f"{sig.name}: argument slots do not match the signature")
+    values = []
+    pos = 0
+    for text, count in zip(rendered, layout):
+        changed = [after[i] for i in range(pos, pos + count) if after[i] != before[i]]
+        pos += count
+        if not changed:
+            values.append(text)
+        elif isinstance(changed[0], int):
+            values.append(hex(changed[0]))
+        else:
+            values.append(str(changed[0]))
+    return values
+
+
 def _struct_key(param: sigdb.ParamSig) -> str | None:
     """Struct table key named by a ps:NAME or st:NAME:SIZE code."""
     qualifier = param.qualifier or ""

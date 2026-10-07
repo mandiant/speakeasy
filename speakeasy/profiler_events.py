@@ -114,6 +114,13 @@ class ApiEvent(Event):
             "Integers are typically represented in hexadecimal string form."
         )
     )
+    arg_names: list[str] | None = Field(
+        default=None,
+        description=(
+            "Parameter name for each entry of ``args``, when the API signature is known.\n\n"
+            "Present only when the signature accounts for every argument slot of the call."
+        ),
+    )
     ret_val: str | None = Field(
         default=None,
         description=(
