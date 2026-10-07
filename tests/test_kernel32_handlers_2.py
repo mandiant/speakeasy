@@ -118,3 +118,12 @@ def test_get_date_and_time_format_use_now_for_null_time(emu: Speakeasy) -> None:
 
     assert call(emu, "kernel32", "GetDateFormatA", [0x400, 0, 0, 0, buf, 64])[0] > 1
     assert call(emu, "kernel32", "GetTimeFormatA", [0x400, 0, 0, 0, buf, 64])[0] == 9
+
+
+def test_open_thread(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    tid = emu.emu.curr_thread.tid
+    assert call(emu, "kernel32", "OpenThread", [0x1F03FF, 0, tid])[0] != 0
+
+    assert call(emu, "kernel32", "OpenThread", [0x1F03FF, 0, 0x7FFF0])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
