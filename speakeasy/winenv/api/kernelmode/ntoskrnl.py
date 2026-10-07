@@ -2755,14 +2755,29 @@ class Ntoskrnl(api.ApiHandler):
                     vi.Type = val.get_type()
                     vi.DataLength = len(data)
                     output = self.get_bytes(vi) + data
-                elif info_class == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation:
+                elif info_class in (
+                    regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation,
+                    regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64,
+                ):
                     vi = regdefs.KEY_VALUE_FULL_INFORMATION(emu.get_ptr_size())
                     vi.Type = val.get_type()
-                    val_name = val.get_name().encode("utf-16le") + b"\x00\x00"
+                    val_name = val.get_name().encode("utf-16le")
                     vi.NameLength = len(val_name)
-                    vi.DataOffset = self.sizeof(vi) + vi.NameLength
                     vi.DataLength = len(data)
-                    output = self.get_bytes(vi) + val_name + data
+                    padding = b""
+                    if data:
+                        align = 4
+                        if (
+                            emu.get_ptr_size() == 8
+                            or info_class == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64
+                        ):
+                            align = 8
+                        name_end = self.sizeof(vi) + len(val_name)
+                        vi.DataOffset = (name_end + align - 1) & ~(align - 1)
+                        padding = b"\x00" * (vi.DataOffset - name_end)
+                    else:
+                        vi.DataOffset = 0xFFFFFFFF
+                    output = self.get_bytes(vi) + val_name + padding + data
                 else:
                     raise ApiEmuError(f"Unsupported information class: 0x{info_class:x}")
                 self.mem_write(ret_len, len(output).to_bytes(4, "little"))
