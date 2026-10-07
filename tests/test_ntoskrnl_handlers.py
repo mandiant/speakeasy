@@ -1,8 +1,9 @@
 import pytest
 
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
-from tests.handler_harness import alloc
+from tests.handler_harness import alloc, call
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -38,6 +39,9 @@ BUF = -1
         ("ObfReferenceObject", [BUF], FASTCALL),
         ("ExAcquireFastMutex", [BUF], FASTCALL),
         ("ExReleaseFastMutex", [BUF], FASTCALL),
+        ("KeSetTimer", [BUF, 0, 0, 0], STDCALL),
+        ("CmUnRegisterCallback", [0, 0], STDCALL),
+        ("ExAllocatePool2", [0x40, 0, 0x10, 0x6B736154], STDCALL),
     ],
 )
 def test_x86_callee_cleans_the_stack_per_its_convention(
@@ -47,3 +51,18 @@ def test_x86_callee_cleans_the_stack_per_its_convention(
     args = [buf if a == BUF else a for a in args]
     _, left = call_x86(driver_emu, name, args, conv)
     assert left == (4 * len(args) if conv == CDECL else 0)
+
+
+def test_x86_ex_allocate_pool2_reads_the_64_bit_flags(driver_emu: Speakeasy) -> None:
+    pool_flag_paged = 0x100
+    addr, _ = call_x86(driver_emu, "ExAllocatePool2", [pool_flag_paged, 0, 0x10, 0x6B736154], STDCALL)
+    assert addr
+    assert driver_emu.emu.pool_allocs[-1] == (addr, ddk.POOL_TYPE.PagedPool, 0x10, "Task")
+
+
+def test_x64_ex_allocate_pool2_reads_the_flags_slot(driver64_emu: Speakeasy) -> None:
+    pool_flag_non_paged = 0x40
+    addr, displays = call(driver64_emu, "ntoskrnl", "ExAllocatePool2", [pool_flag_non_paged, 0x10, 0x6B736154, 0])
+    assert addr
+    assert driver64_emu.emu.pool_allocs[-1] == (addr, ddk.POOL_TYPE.NonPagedPool, 0x10, "Task")
+    assert displays[2] == "Task"

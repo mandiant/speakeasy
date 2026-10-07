@@ -124,11 +124,18 @@ def test_ke_release_spin_lock_restores_new_irql(emu):
     assert emu.get_current_irql() == ddk.PASSIVE_LEVEL
 
 
+def pool2_argv(emu, flags, size, tag):
+    """Lay out ExAllocatePool2 slots: the ULONG64 Flags takes two slots on x86."""
+    if emu.get_ptr_size() == 4:
+        return [flags & 0xFFFFFFFF, flags >> 32, size, tag]
+    return [flags, size, tag]
+
+
 def test_ex_allocate_pool2_decodes_tag_and_paged_flag(emu):
     api = make_api(emu)
     tag = int.from_bytes(b"Face", "little")
 
-    chunk = api.ExAllocatePool2(emu, [0x100, 0x50, tag])
+    chunk = api.ExAllocatePool2(emu, pool2_argv(emu, 0x100, 0x50, tag))
 
     assert chunk != 0
     pool_type, size, decoded_tag = emu.pool_allocs[-1]
@@ -141,7 +148,7 @@ def test_ex_allocate_pool2_defaults_to_nonpaged(emu):
     api = make_api(emu)
     tag = int.from_bytes(b"tada", "little")
 
-    chunk = api.ExAllocatePool2(emu, [0x0, 0x30, tag])
+    chunk = api.ExAllocatePool2(emu, pool2_argv(emu, 0x0, 0x30, tag))
 
     assert chunk != 0
     pool_type, size, decoded_tag = emu.pool_allocs[-1]
@@ -153,7 +160,7 @@ def test_ex_allocate_pool2_defaults_to_nonpaged(emu):
 def test_ex_allocate_pool2_zero_size_allocates_nothing(emu):
     api = make_api(emu)
 
-    chunk = api.ExAllocatePool2(emu, [0x100, 0, 0])
+    chunk = api.ExAllocatePool2(emu, pool2_argv(emu, 0x100, 0, 0))
 
     assert chunk == 0
     assert not emu.pool_allocs
