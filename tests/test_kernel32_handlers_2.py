@@ -344,3 +344,18 @@ def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] != 0
     assert 0x401000 not in emu.emu.veh_handlers
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
+
+
+@pytest.mark.parametrize("name, width", [("GetTempPathA", 1), ("GetTempPathW", 2)])
+def test_get_temp_path_sizes(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    temp = "C:\\Windows\\temp\\"
+    assert call(emu, "kernel32", name, [0, 0])[0] == len(temp) + 1
+
+    small = alloc(emu, b"\xcc" * len(temp) * width)
+    assert call(emu, "kernel32", name, [len(temp), small])[0] == len(temp) + 1
+    assert emu.mem_read(small, len(temp) * width) == b"\xcc" * len(temp) * width
+
+    buf = alloc(emu, b"\xcc" * (len(temp) + 1) * width)
+    assert call(emu, "kernel32", name, [len(temp) + 1, buf])[0] == len(temp)
+    assert emu.mem_read(buf, (len(temp) + 1) * width) == (temp + "\x00").encode(enc)

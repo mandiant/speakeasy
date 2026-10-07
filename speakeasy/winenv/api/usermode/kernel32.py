@@ -5568,10 +5568,11 @@ class Kernel32(api.ApiHandler):
             new = (tempdir).encode("utf-16le") + b"\x00\x00"
         else:
             new = (tempdir).encode("utf-8") + b"\x00"
+        if not lpBuffer or nBufferLength <= len(tempdir):
+            return len(tempdir) + 1
         rv = len(tempdir)
-        if lpBuffer:
-            ctx.args["lpBuffer"].display = tempdir
-            self.mem_write(lpBuffer, new)
+        ctx.args["lpBuffer"].display = tempdir
+        self.mem_write(lpBuffer, new)
         return rv
 
     @apihook("SetPriorityClass", argc=2)
