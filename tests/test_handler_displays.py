@@ -108,6 +108,15 @@ def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
     assert k32.normalize_res_identifier(emu, 1, 0x65) == 0x65
 
 
+def test_resource_name_with_bad_ordinal_stays_a_string(dll_emu: Speakeasy) -> None:
+    emu = dll_emu.emu
+    assert emu is not None
+    k32, _ = emu.normalize_import_miss("kernel32", "FindResourceA")
+    assert k32.normalize_res_identifier(emu, 1, _alloc(dll_emu, b"#abc\x00")) == "#abc"
+    assert k32.normalize_res_identifier(emu, 1, _alloc(dll_emu, b"#101\x00")) == 101
+    assert k32.normalize_res_identifier(emu, 1, _alloc(dll_emu, b"\x00")) == ""
+
+
 def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
     path = _alloc(dll_emu, b"C:\\tmp\x00")
     prefix = _alloc(dll_emu, b"abcd\x00")
