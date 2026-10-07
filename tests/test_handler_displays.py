@@ -233,6 +233,9 @@ def test_crypt_create_hash_shows_a_known_algid(dll_emu: Speakeasy) -> None:
     rv, displays = _call(dll_emu, "advapi32", "CryptCreateHash", [1, 0x8003, 0, 0, ph_hash])
     assert rv == 1
     assert displays["Algid"] == "CALG_MD5"
+    rv, displays = _call(dll_emu, "advapi32", "CryptCreateHash", [1, 0x8003, 1, 0, ph_hash])
+    assert rv == 0
+    assert displays["Algid"] == "CALG_MD5"
 
 
 def test_win_http_query_headers_shows_the_info_level(dll_emu: Speakeasy) -> None:
