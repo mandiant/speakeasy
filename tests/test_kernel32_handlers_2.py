@@ -359,3 +359,16 @@ def test_get_temp_path_sizes(emu: Speakeasy, name: str, width: int) -> None:
     buf = alloc(emu, b"\xcc" * (len(temp) + 1) * width)
     assert call(emu, "kernel32", name, [len(temp) + 1, buf])[0] == len(temp)
     assert emu.mem_read(buf, (len(temp) + 1) * width) == (temp + "\x00").encode(enc)
+
+
+@pytest.mark.parametrize("fixture, size", [("dll_emu", 0x2CC), ("dll64_emu", 0x4D0)])
+def test_rtl_capture_context_fills_one_context(request: pytest.FixtureRequest, fixture: str, size: int) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    other = alloc(se, b"\xcc" * 0x600)
+    se.emu.reg_write(e_arch.X86_REG_ECX if size == 0x2CC else e_arch.AMD64_REG_RCX, other)
+    record = alloc(se, b"\xcc" * (size + 0x40))
+    call(se, "kernel32", "RtlCaptureContext", [record])
+    assert se.mem_read(record, size) == b"\x00" * size
+    assert se.mem_read(record + size, 0x40) == b"\xcc" * 0x40
+    assert se.mem_read(other, 0x600) == b"\xcc" * 0x600

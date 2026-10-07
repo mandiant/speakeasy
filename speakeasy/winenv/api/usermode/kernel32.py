@@ -6928,15 +6928,15 @@ class Kernel32(api.ApiHandler):
 
     @apihook("RtlCaptureContext", argc=1)
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        ptr = self.emu.reg_read("rcx")
+        ptr = argv[0]
         if ptr:
             try:
-                ctx_buf = b"\x00" * 0x500
+                ctx_buf = b"\x00" * (0x4D0 if emu.get_ptr_size() == 8 else 0x2CC)
                 try:
                     self.emu.mem_write(ptr, ctx_buf)
                 except Exception:
                     base_addr = ptr & ~0xFFF
-                    self.emu.mem_map(base_addr, 0x1000)
+                    self.emu.mem_map(0x1000, base_addr)
                     self.emu.mem_write(ptr, ctx_buf)
             except Exception:
                 pass
