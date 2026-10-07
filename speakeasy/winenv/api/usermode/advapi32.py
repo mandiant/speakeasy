@@ -57,40 +57,8 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hKey, lpSubKey, phkResult = argv
-        rv = windefs.ERROR_SUCCESS
-        hnd = 0
 
-        hkey_name = regdefs.get_hkey_type(hKey)
-        if hkey_name:
-            ctx.args["hKey"].display = hkey_name
-            if not hnd and not lpSubKey:
-                hnd = hKey
-        else:
-            key_obj = emu.regman.get_key_from_handle(hKey)
-            if not key_obj:
-                return windefs.ERROR_PATH_NOT_FOUND
-            hkey_name = key_obj.path
-
-        cw = self.get_char_width(ctx)
-        if lpSubKey:
-            lpSubKey = self.read_mem_string(lpSubKey, cw)
-            ctx.args["lpSubKey"].display = lpSubKey
-
-            if hkey_name and lpSubKey:
-                if not lpSubKey.startswith("\\"):
-                    lpSubKey = "\\" + lpSubKey
-                lpSubKey = hkey_name + lpSubKey
-
-            hnd = self.reg_open_key(lpSubKey, create=False)
-            if not hnd:
-                rv = windefs.ERROR_PATH_NOT_FOUND
-
-            self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
-
-        if phkResult and hnd:
-            self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
-
-        return rv
+        return self.open_key(hKey, lpSubKey, phkResult, ctx)
 
     @apihook("RegOpenKeyEx", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def RegOpenKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -104,29 +72,39 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hKey, lpSubKey, ulOptions, samDesired, phkResult = argv
-        rv = windefs.ERROR_SUCCESS
 
-        hnd = 0
+        return self.open_key(hKey, lpSubKey, phkResult, ctx)
+
+    def open_key(self, hKey, lpSubKey, phkResult, ctx):
+        """
+        Open ``lpSubKey`` below ``hKey`` and write the new handle to
+        ``phkResult``. Without a subkey, the handle is ``hKey`` itself.
+        """
+        rv = windefs.ERROR_SUCCESS
 
         hkey_name = regdefs.get_hkey_type(hKey)
         if hkey_name:
             ctx.args["hKey"].display = hkey_name
-            if not hnd and not lpSubKey:
-                hnd = hKey
+        else:
+            key_obj = self.reg_get_key(hKey)
+            if not key_obj:
+                return windefs.ERROR_INVALID_HANDLE
+            hkey_name = key_obj.get_path()
 
+        hnd = hKey
         cw = self.get_char_width(ctx)
         if lpSubKey:
             lpSubKey = self.read_mem_string(lpSubKey, cw)
             ctx.args["lpSubKey"].display = lpSubKey
 
-            if hkey_name and lpSubKey:
-                if not lpSubKey.startswith("\\"):
-                    lpSubKey = "\\" + lpSubKey
-                lpSubKey = hkey_name + lpSubKey
+        if lpSubKey:
+            if not lpSubKey.startswith("\\"):
+                lpSubKey = "\\" + lpSubKey
+            lpSubKey = hkey_name + lpSubKey
 
             hnd = self.reg_open_key(lpSubKey, create=False)
             if not hnd:
-                rv = windefs.ERROR_PATH_NOT_FOUND
+                rv = windefs.ERROR_FILE_NOT_FOUND
 
             self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
 
