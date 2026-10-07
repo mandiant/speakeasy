@@ -372,3 +372,13 @@ def test_rtl_capture_context_fills_one_context(request: pytest.FixtureRequest, f
     assert se.mem_read(record, size) == b"\x00" * size
     assert se.mem_read(record + size, 0x40) == b"\xcc" * 0x40
     assert se.mem_read(other, 0x600) == b"\xcc" * 0x600
+
+
+def test_create_event_clears_a_stale_already_exists(emu: Speakeasy) -> None:
+    name = alloc(emu, b"single-instance\x00")
+    set_last_error(emu, windefs.ERROR_ALREADY_EXISTS)
+    assert call(emu, "kernel32", "CreateEventA", [0, 1, 0, name])[0]
+    assert last_error(emu) == windefs.ERROR_SUCCESS
+
+    assert call(emu, "kernel32", "CreateEventA", [0, 1, 0, name])[0]
+    assert last_error(emu) == windefs.ERROR_ALREADY_EXISTS
