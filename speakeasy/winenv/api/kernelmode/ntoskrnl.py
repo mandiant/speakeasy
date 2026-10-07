@@ -389,21 +389,31 @@ class Ntoskrnl(api.ApiHandler):
         chunk = self.pool_alloc(PoolType, NumberOfBytes, "None")
         return chunk
 
-    @apihook("ExAllocatePool2", argc=3)
+    @apihook("ExAllocatePool2", argc=4)
     def ExAllocatePool2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PVOID ExAllocatePool2(
-            FLAGS Flags,
+            POOL_FLAGS Flags,
             SIZE_T Size,
             ULONG Tag
             );
+
+        POOL_FLAGS is a ULONG64 passed by value: two stack slots on x86, one
+        register on x64. argc=4 covers the x86 layout; on x64 the fourth slot
+        is unused.
         """
-        Flags, Size, Tag = argv
+        if emu.get_ptr_size() == 4:
+            lo, hi, Size, Tag = argv
+            Flags = (hi << 32) | lo
+            tag_slot = 3
+        else:
+            Flags, Size, Tag = argv[:3]
+            tag_slot = 2
 
         if Tag:
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
-                ctx.args[2].display = Tag
+                ctx.args[tag_slot].display = Tag
             except Exception as e:
                 logger.exception(str(e))
 
@@ -1297,7 +1307,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         return
 
-    @apihook("KeSetTimer", argc=3)
+    @apihook("KeSetTimer", argc=4)
     def KeSetTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI BOOLEAN KeSetTimer(
@@ -1305,6 +1315,9 @@ class Ntoskrnl(api.ApiHandler):
             LARGE_INTEGER DueTime,
             PKDPC         Dpc
             );
+
+        DueTime is passed by value: two stack slots on x86, one register on
+        x64. argc=4 covers the x86 layout; on x64 the fourth slot is unused.
         """
         return True
 
@@ -1830,14 +1843,16 @@ class Ntoskrnl(api.ApiHandler):
 
         return rv
 
-    @apihook("CmUnRegisterCallback", argc=1)
+    @apihook("CmUnRegisterCallback", argc=2)
     def CmUnRegisterCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS CmUnRegisterCallback(
             LARGE_INTEGER Cookie
             );
+
+        Cookie is passed by value: two stack slots on x86, one register on
+        x64. argc=2 covers the x86 layout; on x64 the second slot is unused.
         """
-        (Cookie,) = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
