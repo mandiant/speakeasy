@@ -188,3 +188,31 @@ def test_win_http_query_headers_shows_the_info_level(dll_emu: Speakeasy) -> None
     assert displays["dwInfoLevel"] == "WINHTTP_QUERY_RAW_HEADERS_CRLF"
     assert displays["pwszName"] == "0x0"
     assert displays["lpdwIndex"] == hex(index)
+
+
+def _query_status_code(se: Speakeasy, level: int, size: int) -> tuple[int, bytes, int]:
+    buf = _alloc(se, b"\xcc" * 16)
+    buf_len = _alloc(se, struct.pack("<I", size))
+    rv, _ = _call(se, "winhttp", "WinHttpQueryHeaders", [1, level, 0, buf, buf_len, 0])
+    return rv, se.mem_read(buf, 16), int.from_bytes(se.mem_read(buf_len, 4), "little")
+
+
+def test_win_http_query_status_code_as_text(dll_emu: Speakeasy) -> None:
+    rv, buf, length = _query_status_code(dll_emu, 19, 16)
+    assert rv == 1
+    assert buf[:8] == "200\x00".encode("utf-16le")
+    assert length == 6
+
+
+def test_win_http_query_status_code_as_number(dll_emu: Speakeasy) -> None:
+    rv, buf, length = _query_status_code(dll_emu, 19 | 0x20000000, 16)
+    assert rv == 1
+    assert buf[:4] == struct.pack("<I", 200)
+    assert length == 4
+
+
+def test_win_http_query_status_code_small_buffer(dll_emu: Speakeasy) -> None:
+    rv, buf, length = _query_status_code(dll_emu, 19, 4)
+    assert rv == 0
+    assert buf == b"\xcc" * 16
+    assert length == 8
