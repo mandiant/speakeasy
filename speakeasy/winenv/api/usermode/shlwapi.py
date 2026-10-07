@@ -289,6 +289,8 @@ class Shlwapi(api.ApiHandler):
         more = self.read_mem_string(pszMore, cw)
         ctx.args["pszPath"].display = path
         ctx.args["pszMore"].display = more
+        if not more.startswith("\\\\"):
+            more = more.lstrip("\\")
         out = self.join_windows_path(path, more)
         out += "\0"
         self.write_mem_string(out, pszPath, cw)
