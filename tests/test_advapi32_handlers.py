@@ -137,3 +137,10 @@ def test_reg_query_info_key_counts_subkeys_and_values(dll_emu: Speakeasy) -> Non
     assert (subkeys, max_subkey, values, max_name, max_value) == (2, 5, 1, 4, 4)
     assert (cch_class, max_class, sec) == (0, 0, 0)
     assert dll_emu.mem_read(ft, 8) == b"\x00" * 8
+
+
+def test_rtl_gen_random_fills_a_large_buffer(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 0x401)
+    rv, _ = call(dll_emu, "advapi32", "SystemFunction036", [buf, 0x400])
+    assert rv
+    assert dll_emu.mem_read(buf + 0x3FF, 2) == b"\xff\xcc"
