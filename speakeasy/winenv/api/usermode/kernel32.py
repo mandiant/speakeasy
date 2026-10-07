@@ -6188,35 +6188,43 @@ class Kernel32(api.ApiHandler):
         if locale:
             ctx.args["Locale"].display = locale
 
-        if lpDate == 0:
-            self.GetSystemTimeAsFileTime(emu, [lpDate], ctx)
-
-        sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
-        sys_time = self.mem_cast(sys_time, lpDate)
-
-        date_format = self.read_mem_string(lpFormat, cw)
-        if date_format:
-            ctx.args["lpFormat"].display = date_format
+        if lpFormat:
+            date_format = self.read_mem_string(lpFormat, cw)
+            if date_format:
+                ctx.args["lpFormat"].display = date_format
+        else:
+            # Using this as default; TODO: use proper string based on locale
+            date_format = "MM/dd/yyyy"
 
         # Working from example "ddd, dd MMM yyyy "; TODO: expand this
-        date = datetime.date(sys_time.wYear, sys_time.wMonth, sys_time.wDay)
         date_format = date_format.replace("ddd", "%a")
         date_format = date_format.replace("dd", "%d")
         date_format = date_format.replace("MMM", "%b")
+        date_format = date_format.replace("MM", "%m")
         date_format = date_format.replace("yyyy", "%Y")
 
         try:
+            if lpDate:
+                sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
+                sys_time = self.mem_cast(sys_time, lpDate)
+                date = datetime.date(sys_time.wYear, sys_time.wMonth, sys_time.wDay)
+            else:
+                date = datetime.date.today()
             date_str = date.strftime(date_format)
         except Exception:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
-        else:
-            if cchDate == 0:
-                return len(date_str) + 1
 
-            self.write_mem_string(date_str + "\x00" * cw, lpDateStr, cw)
-            ctx.args["lpDateStr"].display = date_str
+        if cchDate == 0:
+            return len(date_str) + 1
+        if cchDate <= len(date_str):
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
 
-        return 1
+        self.write_mem_string(date_str, lpDateStr, cw)
+        ctx.args["lpDateStr"].display = date_str
+
+        return len(date_str) + 1
 
     @apihook("DeviceIoControl", argc=8)
     def DeviceIoControl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6292,12 +6300,6 @@ class Kernel32(api.ApiHandler):
         if locale:
             ctx.args["Locale"].display = locale
 
-        if lpTime == 0:
-            self.GetSystemTimeAsFileTime(emu, [lpTime], ctx)
-
-        sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
-        sys_time = self.mem_cast(sys_time, lpTime)
-
         if lpFormat:
             time_format = self.read_mem_string(lpFormat, cw)
             if time_format:
@@ -6307,24 +6309,33 @@ class Kernel32(api.ApiHandler):
             time_format = "hh:mm:ss"
 
         # Working from "hh:mm:ss"; TODO: expand this
-        t = datetime.time(hour=sys_time.wHour, minute=sys_time.wMinute, second=sys_time.wSecond)
         time_format = time_format.replace("hh", "%I")
         time_format = time_format.replace("HH", "%H")
         time_format = time_format.replace("mm", "%M")
         time_format = time_format.replace("ss", "%S")
 
         try:
+            if lpTime:
+                sys_time = self.k32types.SYSTEMTIME(emu.get_ptr_size())
+                sys_time = self.mem_cast(sys_time, lpTime)
+                t = datetime.time(hour=sys_time.wHour, minute=sys_time.wMinute, second=sys_time.wSecond)
+            else:
+                t = datetime.datetime.now().time()
             time_str = t.strftime(time_format)
         except Exception:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
-        else:
-            if cchTime == 0:
-                return len(time_str) + 1
 
-            self.write_mem_string(time_str + "\x00" * cw, lpTimeStr, cw)
-            ctx.args["lpTimeStr"].display = time_str
+        if cchTime == 0:
+            return len(time_str) + 1
+        if cchTime <= len(time_str):
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
 
-        return 1
+        self.write_mem_string(time_str, lpTimeStr, cw)
+        ctx.args["lpTimeStr"].display = time_str
+
+        return len(time_str) + 1
 
     @apihook("FlushFileBuffers", argc=1)
     def FlushFileBuffers(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
