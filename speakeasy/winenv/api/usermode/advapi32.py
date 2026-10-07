@@ -56,7 +56,6 @@ class AdvApi32(api.ApiHandler):
           PHKEY  phkResult
         );
         """
-
         hKey, lpSubKey, phkResult = argv
         rv = windefs.ERROR_SUCCESS
         hnd = 0
@@ -104,7 +103,6 @@ class AdvApi32(api.ApiHandler):
           PHKEY  phkResult
         );
         """
-
         hKey, lpSubKey, ulOptions, samDesired, phkResult = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -156,7 +154,6 @@ class AdvApi32(api.ApiHandler):
           LPDWORD lpcbData
         );
         """
-
         hKey, lpValueName, lpReserved, lpType, lpData, lpcbData = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -221,7 +218,6 @@ class AdvApi32(api.ApiHandler):
           DWORD      cbData
         );
         """
-
         hKey, lpValueName, _reserved, dwType, lpData, cbData = argv
 
         key = self.reg_get_key(hKey)
@@ -294,7 +290,6 @@ class AdvApi32(api.ApiHandler):
           DWORD cchName
         );
         """
-
         hKey, dwIndex, lpName, cchName = argv
 
         _argv = argv + [0, 0, 0, 0]
@@ -316,7 +311,6 @@ class AdvApi32(api.ApiHandler):
             PFILETIME lpftLastWriteTime
         );
         """
-
         hKey, dwIndex, lpName, cchName, res, pcls, cchcls, last_write = argv
 
         cw = self.get_char_width(ctx)
@@ -1324,7 +1318,6 @@ class AdvApi32(api.ApiHandler):
           [out]           PSID_NAME_USE peUse
         );
         """
-
         ptr_sysname, ptr_acctname, ptr_sid, ptr_cbsid, ptr_domname, ptr_cchdomname, ptr_peuse = argv
         rv = 0
 
@@ -1668,7 +1661,6 @@ class AdvApi32(api.ApiHandler):
             LPDWORD pcbData
             );
         """
-
         hKey, lpSubKey, lpValue, dwFlags, lpType, lpData, lpcbData = argv
         rv = windefs.ERROR_SUCCESS
 

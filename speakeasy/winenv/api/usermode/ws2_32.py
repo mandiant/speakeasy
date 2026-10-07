@@ -128,7 +128,6 @@ class Ws2_32(api.ApiHandler):
             LPQOS          lpGQOS
         );
         """
-
         # TODO: Add actual function logic. However, for now, just call connect()
 
         return self.connect(emu, argv[:3], ctx)

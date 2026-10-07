@@ -32,7 +32,6 @@ class Urlmon(api.ApiHandler):
                     LPBINDSTATUSCALLBACK lpfnCB
         );
         """
-
         pCaller, szURL, szFileName, dwReserved, lpfnCB = argv
         rv = windefs.ERROR_SUCCESS
 

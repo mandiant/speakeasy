@@ -1541,7 +1541,7 @@ class Ntoskrnl(api.ApiHandler):
                     PVOID NormalContext
                 );
         """
-        pApc, Thread, env, KernelRoutine, rundown, NormalRoutine, procmode, ctx = argv
+        pApc, Thread, env, KernelRoutine, rundown, NormalRoutine, procmode, normal_ctx = argv
 
         apc = self.win.KAPC(emu.get_ptr_size())
         apc.Type = 0x12
@@ -1553,7 +1553,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if NormalRoutine:
             apc.ApcMode = procmode
-            apc.NormalContext = ctx
+            apc.NormalContext = normal_ctx
 
     @apihook("MmMapLockedPagesSpecifyCache", argc=6)
     def MmMapLockedPagesSpecifyCache(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -43,7 +43,6 @@ class Shell32(api.ApiHandler):
             const SECURITY_ATTRIBUTES *psa
         );
         """
-
         hwnd, pszPath, psa = argv
 
         cw = self.get_char_width(ctx)
@@ -68,7 +67,6 @@ class Shell32(api.ApiHandler):
             INT    nShowCmd
         );
         """
-
         hwnd, lpOperation, lpFile, lpParameters, lpDirectory, nShowCmd = argv
 
         cw = self.get_char_width(ctx)
