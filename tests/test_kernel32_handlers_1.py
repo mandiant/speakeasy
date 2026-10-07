@@ -421,3 +421,20 @@ def test_system_time_to_file_time_rejects_a_bad_date(dll_emu: Speakeasy, fields:
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
     assert dll_emu.mem_read(ft, 8) == b"\xcc" * 8
+
+
+@pytest.mark.parametrize(
+    "filetime, fields",
+    [
+        (Y2K_FILETIME, (2000, 1, 6, 1, 0, 0, 0, 0)),
+        (133536879302500000, (2024, 2, 4, 29, 13, 45, 30, 250)),
+    ],
+)
+def test_file_time_to_system_time_counts_weekdays_from_sunday(
+    dll_emu: Speakeasy, filetime: int, fields: tuple[int, ...]
+) -> None:
+    ft = alloc(dll_emu, struct.pack("<Q", filetime))
+    st = alloc(dll_emu, b"\x00" * 16)
+    rv, _ = call(dll_emu, "kernel32", "FileTimeToSystemTime", [ft, st])
+    assert rv
+    assert struct.unpack("<8H", dll_emu.mem_read(st, 16)) == fields
