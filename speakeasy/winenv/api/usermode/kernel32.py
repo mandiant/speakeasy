@@ -3254,10 +3254,11 @@ class Kernel32(api.ApiHandler):
 
         if len(sysroot) > uSize:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            rv = len(sysroot)
         else:
             self.mem_write(lpBuffer, out)
             emu.set_last_error(windefs.ERROR_SUCCESS)
-            rv = len(sysroot)
+            rv = len(sysroot) - 1
 
         return rv
 

@@ -77,3 +77,22 @@ def test_shrinking_realloc_copies_only_the_new_size(
     assert new
     assert dll_emu.mem_read(new, 0x10) == bytes(range(0x10))
     assert dll_emu.mem_read(neighbor, 0x3000) == b"\xee" * 0x3000
+
+
+@pytest.mark.parametrize(
+    "api, path, cw",
+    [
+        ("GetSystemDirectoryA", "C:\\Windows\\system32", 1),
+        ("GetSystemDirectoryW", "C:\\Windows\\system32", 2),
+        ("GetWindowsDirectoryA", "C:\\Windows", 1),
+        ("GetWindowsDirectoryW", "C:\\Windows", 2),
+    ],
+)
+def test_system_directory_returns_length_without_nul(dll_emu: Speakeasy, api: str, path: str, cw: int) -> None:
+    encoding = "utf-16le" if cw == 2 else "latin-1"
+    rv, _ = call(dll_emu, "kernel32", api, [0, 0])
+    assert rv == len(path) + 1
+    buf = alloc(dll_emu, b"\xcc" * 520)
+    rv, _ = call(dll_emu, "kernel32", api, [buf, 260])
+    assert rv == len(path)
+    assert dll_emu.mem_read(buf, (len(path) + 1) * cw) == (path + "\0").encode(encoding)
