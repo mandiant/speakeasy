@@ -278,3 +278,35 @@ def test_x64_io_create_synchronization_event_writes_a_pointer_size_handle(driver
     evt, _ = call(driver64_emu, "ntoskrnl", "IoCreateSynchronizationEvent", [us, phnd])
     hnd = int.from_bytes(driver64_emu.mem_read(phnd, 8), "little")
     assert driver64_emu.emu.get_object_from_handle(hnd).address == evt
+
+
+def unnamed_object_attributes(se: Speakeasy) -> int:
+    return alloc(se, struct.pack("<IIIIII", 24, 0, 0, 0, 0, 0))
+
+
+@pytest.mark.parametrize("name", [None, "", "\\BaseNamedObjects\\evt"])
+def test_zw_create_event_accepts_an_unnamed_event(driver_emu: Speakeasy, name: str | None) -> None:
+    oa = 0
+    if name == "":
+        oa = unnamed_object_attributes(driver_emu)
+    elif name:
+        oa = object_attributes(driver_emu, name)
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwCreateEvent", [phnd, 0x1F0003, oa, 0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    hnd = int.from_bytes(driver_emu.mem_read(phnd, 4), "little")
+    assert driver_emu.emu.get_object_from_handle(hnd) is not None
+
+
+@pytest.mark.parametrize("with_oa", [False, True])
+def test_zw_open_event_without_a_name_finds_nothing(driver_emu: Speakeasy, with_oa: bool) -> None:
+    oa = unnamed_object_attributes(driver_emu) if with_oa else 0
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwOpenEvent", [phnd, 0x1F0003, oa])
+    assert rv == ddk.STATUS_OBJECT_NAME_NOT_FOUND
+
+
+def test_rtl_init_ansi_string_accepts_a_null_source(driver_emu: Speakeasy) -> None:
+    dest = alloc(driver_emu, b"\xcc" * 8)
+    call(driver_emu, "ntoskrnl", "RtlInitAnsiString", [dest, 0])
+    assert driver_emu.mem_read(dest, 8) == b"\x00" * 8

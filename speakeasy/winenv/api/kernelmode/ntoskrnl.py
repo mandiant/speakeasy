@@ -99,6 +99,19 @@ class Ntoskrnl(api.ApiHandler):
             return self.mem_alloc(8, base=None, tag="emu.struct.KdDebuggerEnabled")
         return ptr
 
+    def _read_object_name(self, objattr):
+        """
+        Read the ObjectName of an OBJECT_ATTRIBUTES. Both the attributes and
+        the name are optional, so return None when either is NULL.
+        """
+        if not objattr:
+            return None
+        oa = self.win.OBJECT_ATTRIBUTES(self.emu.get_ptr_size())
+        oa = self.mem_cast(oa, objattr)
+        if not oa.ObjectName:
+            return None
+        return self.read_unicode_string(oa.ObjectName)
+
     def _write_counted_string(self, string, buf, count, width):
         """
         Write at most ``count`` characters of ``string`` the way _snprintf
@@ -292,12 +305,17 @@ class Ntoskrnl(api.ApiHandler):
         ansi = self.win.STRING(emu.get_ptr_size())
 
         dest, src = argv
-        ansi_str = self.read_string(src)
-
-        size = len(ansi_str)
-        ansi.Length = size
-        ansi.MaximumLength = size
-        ansi.Buffer = src
+        if src:
+            ansi_str = self.read_string(src)
+            size = len(ansi_str)
+            ansi.Length = size
+            ansi.MaximumLength = size
+            ansi.Buffer = src
+        else:
+            ansi_str = ""
+            ansi.Length = 0
+            ansi.MaximumLength = 0
+            ansi.Buffer = 0
 
         data = self.get_bytes(ansi)
         self.mem_write(dest, data)
@@ -1916,9 +1934,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         EventHandle, DesiredAccess, ObjectAttributes = argv
 
-        oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
-        oa = self.mem_cast(oa, ObjectAttributes)
-        name = self.read_unicode_string(oa.ObjectName)
+        name = self._read_object_name(ObjectAttributes)
 
         obj = self.get_object_from_name(name)
         if not obj:
@@ -1929,7 +1945,8 @@ class Ntoskrnl(api.ApiHandler):
                 self.mem_write(EventHandle, hnd.to_bytes(self.ptr_size, "little"))
             rv = ddk.STATUS_SUCCESS
 
-        ctx.args["ObjectAttributes"].display = name
+        if name:
+            ctx.args["ObjectAttributes"].display = name
         return rv
 
     @apihook("ZwCreateEvent", argc=5)
@@ -1945,16 +1962,15 @@ class Ntoskrnl(api.ApiHandler):
 
         EventHandle, access, objattr, evttype, state = argv
 
-        oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
-        oa = self.mem_cast(oa, objattr)
-        name = self.read_unicode_string(oa.ObjectName)
+        name = self._read_object_name(objattr)
 
         hnd, evt = emu.create_event(name)
         if EventHandle:
             self.mem_write(EventHandle, hnd.to_bytes(self.ptr_size, "little"))
         rv = ddk.STATUS_SUCCESS
 
-        ctx.args["ObjectAttributes"].display = name
+        if name:
+            ctx.args["ObjectAttributes"].display = name
         ctx.args["InitialState"].display = hex(0xFF & state)
 
         return rv
