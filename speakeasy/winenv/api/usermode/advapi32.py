@@ -1408,6 +1408,10 @@ class AdvApi32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
+        if sysname:
+            sn = self.read_mem_string(sysname, cw)
+            ctx.args["lpSystemName"].display = sn
+
         if not cchname or not cchdomname:
             return rv
 
@@ -1417,13 +1421,20 @@ class AdvApi32(api.ApiHandler):
         dom_size = self.mem_read(cchdomname, 4)
         dom_size = int.from_bytes(dom_size, "little")
 
-        self.write_mem_string("myuser", name, cw)
-        self.write_mem_string("mydomain", domname, cw)
-        rv = True
+        user, domain = "myuser", "mydomain"
+        if not name or not domname or name_size < len(user) + 1 or dom_size < len(domain) + 1:
+            self.mem_write(cchname, (len(user) + 1).to_bytes(4, "little"))
+            self.mem_write(cchdomname, (len(domain) + 1).to_bytes(4, "little"))
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return rv
 
-        if sysname:
-            sn = self.read_mem_string(sysname, cw)
-            ctx.args["lpSystemName"].display = sn
+        self.write_mem_string(user, name, cw)
+        self.write_mem_string(domain, domname, cw)
+        self.mem_write(cchname, len(user).to_bytes(4, "little"))
+        self.mem_write(cchdomname, len(domain).to_bytes(4, "little"))
+        if peuse:
+            self.mem_write(peuse, (1).to_bytes(4, "little"))
+        rv = True
 
         return rv
 
