@@ -54,7 +54,6 @@ class DnsApi(api.ApiHandler):
             PVOID       *pReserved
         );
         """
-
         pszName, wType, Options, pExtra, ppQueryResults, pReserved = argv
         rv = windefs.ERROR_INVALID_PARAMETER
         rr = None

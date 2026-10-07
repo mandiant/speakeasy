@@ -39,7 +39,6 @@ class Crypt32(api.ApiHandler):
         DWORD  *pdwFlags
         );
         """
-
         cw = self.get_char_width(ctx)
 
         pszString, cchString, dwFlags, pbBinary, pcbBinary, pdwSkip, pdwFlags = argv

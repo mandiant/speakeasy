@@ -38,7 +38,6 @@ class WtsApi32(api.ApiHandler):
           DWORD              *pCount
         );
         """
-
         hServer, res, ver, ppSessionInfo, pCount = argv
         rv = 0
 

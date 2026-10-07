@@ -406,7 +406,6 @@ class User32(api.ApiHandler):
           int       cchBufferMax
         );
         """
-
         hInstance, uID, lpBuffer, ccBufferMax = argv
         cw = self.get_char_width(ctx)
         size = 0
@@ -531,7 +530,6 @@ class User32(api.ApiHandler):
           LPCSTR lpString
         );
         """
-
         (lpString,) = argv
         rv = 0xC000
 
@@ -566,6 +564,7 @@ class User32(api.ApiHandler):
 
         self.write_mem_string(fin, buf, cw)
 
+        ctx.args.clear()
         ctx.args.append(fin)
         ctx.args.append(fmt_str)
         return len(fin)

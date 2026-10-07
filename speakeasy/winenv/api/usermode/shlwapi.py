@@ -42,7 +42,6 @@ class Shlwapi(api.ApiHandler):
             LPCSTR pszPath
         );
         """
-
         (pszPath,) = argv
 
         cw = self.get_char_width(ctx)
@@ -65,7 +64,6 @@ class Shlwapi(api.ApiHandler):
             PCSTR pszSrch
         );
         """
-
         hay, needle = argv
 
         cw = self.get_char_width(ctx)
@@ -94,7 +92,6 @@ class Shlwapi(api.ApiHandler):
             PCSTR pszSrch
         );
         """
-
         hay, needle = argv
 
         cw = self.get_char_width(ctx)
