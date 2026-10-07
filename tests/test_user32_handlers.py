@@ -7,6 +7,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 from tests.handler_harness import alloc, call, start_process
 
@@ -14,6 +15,7 @@ from tests.handler_harness import alloc, call, start_process
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 28), ("dll64_emu", 48)])
 def test_get_message_writes_one_msg(request: pytest.FixtureRequest, fixture: str, size: int) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
     start_process(se)
     call(se, "user32", "SetTimer", [0, 1, 10, 0])
     buf = alloc(se, b"\xcc" * 0x40)
@@ -194,7 +196,7 @@ def test_get_keyboard_layout_list_writes_one_hkl(request: pytest.FixtureRequest,
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_get_raw_input_device_list(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
+    assert isinstance(se.emu, Win32Emulator)
     start_process(se)
     ps = se.emu.get_ptr_size()
     cb = 2 * ps
