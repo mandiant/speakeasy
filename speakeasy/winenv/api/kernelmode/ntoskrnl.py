@@ -3267,7 +3267,7 @@ class Ntoskrnl(api.ApiHandler):
             size = 0
             f = sect.backed_file
             if f and not pref_address:
-                data = f.get_data()
+                data = f.get_contents()
 
                 if bytes_to_map != 0:
                     data = data[full_offset : full_offset + bytes_to_map]

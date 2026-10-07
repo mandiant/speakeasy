@@ -57,6 +57,20 @@ def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
     assert file_emu.mem_read(view, 4) == struct.pack("<I", 0x4000)
 
 
+def test_map_view_of_file_ignores_the_file_pointer(file_emu: Speakeasy) -> None:
+    name = alloc(file_emu, b"c:\\data.bin\x00")
+    hfile, _ = call(file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
+    buf = alloc(file_emu, b"\xcc" * 4)
+    read = alloc(file_emu, b"\xcc" * 4)
+    assert call(file_emu, "kernel32", "ReadFile", [hfile, buf, 4, read, 0])[0]
+    hmap, _ = call(file_emu, "kernel32", "CreateFileMappingA", [hfile, 0, 0x02, 0, 0, 0])
+    for _ in range(2):
+        view, _ = call(file_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_READ, 0, 0, 0])
+        assert file_emu.mem_read(view, 8) == struct.pack("<II", 0, 1)
+    assert call(file_emu, "kernel32", "ReadFile", [hfile, buf, 4, read, 0])[0]
+    assert file_emu.mem_read(buf, 4) == struct.pack("<I", 1)
+
+
 @pytest.mark.parametrize(
     "alloc_api, alloc_argv, realloc_api, realloc_argv",
     [

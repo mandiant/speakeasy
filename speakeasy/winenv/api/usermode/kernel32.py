@@ -3462,7 +3462,7 @@ class Kernel32(api.ApiHandler):
             size = 0
             view_perms = self.map_view_access_to_emu_perms(access, mapping.prot)
             if f:
-                data = f.get_data()
+                data = f.get_contents()
                 if bytes_to_map != 0:
                     data = data[full_offset : full_offset + bytes_to_map]
                 else:
