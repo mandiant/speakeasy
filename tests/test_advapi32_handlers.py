@@ -170,3 +170,17 @@ def test_lookup_account_sid_reports_the_sizes(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(dom, dom_size)[-1:] == b"\x00"
     assert (_dword(dll_emu, cch_name), _dword(dll_emu, cch_dom)) == (name_size - 1, dom_size - 1)
     assert _dword(dll_emu, use) == 1
+
+
+def test_get_user_name_ex_reports_the_size(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    user = dll_emu.emu.config.user.name
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = call(dll_emu, "secur32", "GetUserNameExA", [2, 0, size])
+    assert (rv, _last_error(dll_emu), _dword(dll_emu, size)) == (0, windefs.ERROR_MORE_DATA, len(user) + 1)
+
+    buf = alloc(dll_emu, b"\xcc" * (len(user) + 1))
+    rv, _ = call(dll_emu, "secur32", "GetUserNameExA", [2, buf, size])
+    assert (rv, _dword(dll_emu, size)) == (1, len(user))
+    assert dll_emu.mem_read(buf, len(user) + 1) == user.encode() + b"\x00"
