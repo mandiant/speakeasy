@@ -1130,6 +1130,9 @@ class AdvApi32(api.ApiHandler):
         rv = True
 
         cm = emu.get_crypt_manager()
+        if not cm.crypt_get(hProv):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
         cm.crypt_close(hProv)
 
         return rv
