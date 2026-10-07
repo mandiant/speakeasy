@@ -172,3 +172,41 @@ def test_wcstombs_converts_at_most_count_bytes(
 
 def test_wcstombs_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "wcstombs", [0, alloc(dll_emu, "hello\0".encode("utf-16le")), 0])[0] == 5
+
+
+@pytest.mark.parametrize(
+    "size, count, rv, converted, written",
+    [
+        (8, None, 0, 3, "hi\0"),
+        (8, 1, 0, 2, "h\0"),
+        (2, None, STRUNCATE, 2, "h\0"),
+        (2, 5, ERANGE, 0, "\0"),
+    ],
+)
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_mbstowcs_s_converts_within_buffer(
+    request: pytest.FixtureRequest,
+    emu_name: str,
+    size: int,
+    count: int | None,
+    rv: int,
+    converted: int,
+    written: str,
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    if count is None:
+        count = (1 << (8 * ptr_size)) - 1
+    out = alloc(se, b"\xcc" * 16)
+    ret = alloc(se, b"\xcc" * 8)
+    assert call(se, "msvcrt", "mbstowcs_s", [ret, out, size, alloc(se, b"hi\x00"), count])[0] == rv
+    assert se.mem_read(ret, 8) == converted.to_bytes(ptr_size, "little") + b"\xcc" * (8 - ptr_size)
+    data = written.encode("utf-16le")
+    assert se.mem_read(out, len(data)) == data
+
+
+def test_mbstowcs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "msvcrt", "mbstowcs_s", [ret, 0, 0, alloc(dll_emu, b"hello\x00"), 0])[0] == 0
+    assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
