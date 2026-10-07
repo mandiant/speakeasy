@@ -123,11 +123,15 @@ class Ole32(api.ApiHandler):
                     pv = self.mem_alloc(emu.get_ptr_size(), tag=f"emu.COM.pv_{iid_name}")
                     self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
                     self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), "little"))
-            else:
-                logger.info("Unsupported COM IID %s", riid)
+                return rv
+            logger.info("Unsupported COM IID %s", riid_str)
+            rv = com.E_NOINTERFACE
         else:
             logger.info("Unsupported COM CLSID %s", clsid_str)
+            rv = com.REGDB_E_CLASSNOTREG
 
+        if ppv:
+            self.mem_write(ppv, b"\x00" * emu.get_ptr_size())
         return rv
 
     @apihook("CoSetProxyBlanket", argc=8)

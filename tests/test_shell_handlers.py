@@ -129,3 +129,45 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "ole32", "StringFromCLSID", [clsid, out])
     assert rv == com.S_OK
     assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
+
+
+def read_ptr(se: Speakeasy, addr: int) -> int:
+    return struct.unpack("<I", se.mem_read(addr, 4))[0]
+
+
+def guid(se: Speakeasy, text: str) -> int:
+    return alloc(se, uuid.UUID(text).bytes_le)
+
+
+@pytest.mark.parametrize(
+    "clsid, iid, expected",
+    [
+        ("{00000000-0000-0000-0000-000000000001}", com.IID_IWbemLocator, com.REGDB_E_CLASSNOTREG),
+        (com.CLSID_WbemLocator, "{00000000-0000-0000-0000-000000000001}", com.E_NOINTERFACE),
+    ],
+)
+def test_co_create_instance_fails_for_unknown_class_or_interface(
+    dll_emu: Speakeasy, clsid: str, iid: str, expected: int
+) -> None:
+    ppv = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "ole32", "CoCreateInstance", [guid(dll_emu, clsid), 0, 1, guid(dll_emu, iid), ppv])
+    assert rv == expected
+    assert read_ptr(dll_emu, ppv) == 0
+
+
+def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
+    ppv = alloc(dll_emu, b"\xcc" * 4)
+    clsid, iid = guid(dll_emu, com.CLSID_WbemLocator), guid(dll_emu, com.IID_IWbemLocator)
+    rv, _ = call(dll_emu, "ole32", "CoCreateInstance", [clsid, 0, 1, iid, ppv])
+    assert rv == com.S_OK
+    obj = read_ptr(dll_emu, ppv)
+    assert read_ptr(dll_emu, read_ptr(dll_emu, obj)) != 0
+
+    out = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "com_api", "IUnknown.QueryInterface", [obj, guid(dll_emu, com.IID_IUnknown), out])
+    assert rv == com.S_OK
+    assert read_ptr(dll_emu, out) == obj
+
+    rv, _ = call(dll_emu, "com_api", "IUnknown.QueryInterface", [obj, guid(dll_emu, str(uuid.UUID(int=1))), out])
+    assert rv == com.E_NOINTERFACE
+    assert read_ptr(dll_emu, out) == 0
