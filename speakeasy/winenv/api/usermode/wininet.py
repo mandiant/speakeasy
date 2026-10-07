@@ -339,26 +339,33 @@ class Wininet(api.ApiHandler):
         hRequest, dwInfoLevel, lpBuffer, lpdwBufferLength, lpdwIndex = argv
         cw = self.get_char_width(ctx)
 
-        rv = False
-        info_str = windefs.get_header_query(dwInfoLevel)
+        header_id = dwInfoLevel & windefs.HTTP_QUERY_HEADER_MASK
+        as_number = bool(dwInfoLevel & windefs.WINHTTP_QUERY_FLAG_NUMBER)
+        info_str = windefs.get_header_query(header_id)
         if info_str:
+            if as_number:
+                info_str += " | WINHTTP_QUERY_FLAG_NUMBER"
             ctx.args["dwInfoLevel"].display = info_str
+
+        if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
+            if as_number:
+                out = int(windefs.HTTP_STATUS_OK).to_bytes(4, "little")
+                out_len = len(out)
+            else:
+                out = (windefs.HTTP_STATUS_OK + "\x00").encode(self.get_encoding(cw))
+                out_len = len(out) - cw
+            if not lpBuffer or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
+                self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
+                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                return False
+            self.mem_write(lpBuffer, out)
+            self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
+            return True
+
         if not lpBuffer:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-        if windefs.WINHTTP_QUERY_STATUS_CODE == dwInfoLevel:
-            if lpBuffer:
-                buf_len = self.mem_read(lpdwBufferLength, 4)
-                buf_len = int.from_bytes(buf_len, "little")
 
-                if cw == 2:
-                    enc = "utf-16le"
-                elif cw == 1:
-                    enc = "utf-8"
-                out = windefs.HTTP_STATUS_OK.encode(enc)
-                self.mem_write(lpBuffer, out)
-                rv = True
-
-        return rv
+        return False
 
     @apihook("InternetQueryDataAvailable", argc=4)
     def InternetQueryDataAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
