@@ -164,13 +164,13 @@ class Ws2_32(api.ApiHandler):
         );
         """
         (a,) = argv
+        rv = INADDR_NONE
 
         if a:
             a = self.read_mem_string(a, 1)
             ctx.args["cp"].display = a
             try:
-                rv = inet_aton(a)
-                rv = int.from_bytes(rv, "little")
+                rv = int.from_bytes(inet_aton(a), "little")
             except OSError:
                 rv = INADDR_NONE
 
