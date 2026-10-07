@@ -204,6 +204,8 @@ class Msvcrt(api.ApiHandler):
 
         string1, string2, count = argv
         rv = 1
+        if not count:
+            return 0
 
         ws1 = self.read_wide_string(string1, max_chars=count)
         ws2 = self.read_wide_string(string2, max_chars=count)
