@@ -16,6 +16,11 @@ class Psapi(api.ApiHandler):
         self.data = {}
         super().__get_hook_attrs__(self)
 
+    def _get_process(self, hProcess):
+        if hProcess == self.get_max_int():
+            return self.emu.get_current_process()
+        return self.get_object_from_handle(hProcess)
+
     def _get_process_module_bases(self, proc):
         proc_module = proc.pe
         if proc_module:
@@ -74,7 +79,7 @@ class Psapi(api.ApiHandler):
     @apihook("EnumProcessModules", argc=4)
     def EnumProcessModules(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         hProcess, lphModule, cb, lpcbNeeded = argv
-        proc = self.get_object_from_handle(hProcess)
+        proc = self._get_process(hProcess)
         if not proc:
             return 0
 
@@ -103,7 +108,7 @@ class Psapi(api.ApiHandler):
         if not lpBaseName or nSize == 0:
             return 0
 
-        proc = self.get_object_from_handle(hProcess)
+        proc = self._get_process(hProcess)
         if not proc:
             return 0
 
@@ -133,7 +138,7 @@ class Psapi(api.ApiHandler):
         if not lpFilename or nSize == 0:
             return 0
 
-        proc = self.get_object_from_handle(hProcess)
+        proc = self._get_process(hProcess)
         if not proc:
             return 0
 

@@ -3,13 +3,14 @@ Shell, COM, and ntdll handlers return what Windows returns and write what
 Windows writes.
 """
 
+import ntpath
 import struct
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.nt import ddk
-from tests.handler_harness import alloc, call
+from tests.handler_harness import alloc, call, start_process
 
 
 def wstr(text: str, width: int) -> bytes:
@@ -97,3 +98,24 @@ def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) 
     rv, _ = call(dll_emu, "shell32", "SHGetFolderPathW", [0, csidl, 0, 0, out])
     assert rv == 0
     assert read_wstr(dll_emu, out) == f"C:\\Users\\{dll_emu.emu.config.user.name}\\AppData\\Roaming"
+
+
+def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    proc = dll_emu.emu.get_current_process()
+    current = 0xFFFFFFFF
+
+    mods = alloc(dll_emu, b"\x00" * 16)
+    needed = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "psapi", "EnumProcessModules", [current, mods, 16, needed])
+    assert rv == 1
+    assert struct.unpack("<I", dll_emu.mem_read(mods, 4))[0] == proc.base
+
+    buf = alloc(dll_emu, b"\x00" * 520)
+    rv, _ = call(dll_emu, "psapi", "GetModuleBaseNameA", [current, 0, buf, 260])
+    assert dll_emu.mem_read(buf, rv) == ntpath.basename(proc.path).encode()
+
+    rv, _ = call(dll_emu, "psapi", "GetModuleFileNameExW", [current, 0, buf, 260])
+    assert read_wstr(dll_emu, buf) == proc.path
+    assert rv == len(proc.path)
