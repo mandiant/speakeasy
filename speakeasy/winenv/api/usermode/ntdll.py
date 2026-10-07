@@ -262,7 +262,7 @@ class Ntdll(api.ApiHandler):
         dwInitial, pData, iLen = argv
 
         data_to_compute = self.mem_read(pData, iLen)
-        dwInitial = binascii.crc32(data_to_compute)
+        dwInitial = binascii.crc32(data_to_compute, dwInitial)
 
         return dwInitial
 
