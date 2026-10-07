@@ -258,3 +258,23 @@ def test_wcscpy_returns_the_destination(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "wcscpy", [out, alloc(driver_emu, "abc\0".encode("utf-16le"))])
     assert rv == out
     assert driver_emu.mem_read(out, 8) == "abc\0".encode("utf-16le")
+
+
+def test_x64_ps_create_system_thread_writes_pointer_size_ids(driver64_emu: Speakeasy) -> None:
+    phnd = alloc(driver64_emu, b"\xcc" * 8)
+    cid = alloc(driver64_emu, b"\xcc" * 16)
+    rv, _ = call(driver64_emu, "ntoskrnl", "PsCreateSystemThread", [phnd, 0x1FFFFF, 0, 0, cid, 0x401000, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    hnd = int.from_bytes(driver64_emu.mem_read(phnd, 8), "little")
+    thread = driver64_emu.emu.get_object_from_handle(hnd)
+    assert thread is not None
+    assert struct.unpack("<QQ", driver64_emu.mem_read(cid, 16)) == (4, thread.tid)
+
+
+def test_x64_io_create_synchronization_event_writes_a_pointer_size_handle(driver64_emu: Speakeasy) -> None:
+    phnd = alloc(driver64_emu, b"\xcc" * 8)
+    name = "\\BaseNamedObjects\\evt".encode("utf-16le")
+    us = alloc(driver64_emu, struct.pack("<HHIQ", len(name), len(name), 0, alloc(driver64_emu, name)))
+    evt, _ = call(driver64_emu, "ntoskrnl", "IoCreateSynchronizationEvent", [us, phnd])
+    hnd = int.from_bytes(driver64_emu.mem_read(phnd, 8), "little")
+    assert driver64_emu.emu.get_object_from_handle(hnd).address == evt
