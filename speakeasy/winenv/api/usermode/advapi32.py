@@ -1255,8 +1255,8 @@ class AdvApi32(api.ApiHandler):
             rv = False
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
 
-        if info_class == 20 and info and emu.config.user.is_admin:
-            self.mem_write(info, (1).to_bytes(4, "little"))
+        if info_class == 20 and info and info_len >= 4:
+            self.mem_write(info, int(emu.config.user.is_admin).to_bytes(4, "little"))
         if ret_len:
             self.mem_write(ret_len, (4).to_bytes(4, "little"))
 
