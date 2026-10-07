@@ -80,7 +80,6 @@ class NetApi32(api.ApiHandler):
             wki.wki_logged_on_users = 2
 
         wki_addr = self.mem_alloc(wki.sizeof())
-        self.mem_cast(wki, wki_addr)
 
         platform_id = 500  # PLATFORM_ID_NT
         wki.wki_platform_id = platform_id
