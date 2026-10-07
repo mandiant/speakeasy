@@ -71,3 +71,10 @@ def test_wcsncpy_writes_exactly_count_chars(dll_emu: Speakeasy, src: str, count:
     assert call(dll_emu, "msvcrt", "wcsncpy", [dest, alloc(dll_emu, f"{src}\0".encode("utf-16le")), count])[0] == dest
     data = written.encode("utf-16le")
     assert dll_emu.mem_read(dest, 18) == data + b"\xcc" * (18 - len(data))
+
+
+@pytest.mark.parametrize("count, result", [(2, b"\xe9\x8fa"), (9, b"\xe9\x8fabc"), (0, b"\xe9")])
+def test_strncat_appends_at_most_count_bytes(dll_emu: Speakeasy, count: int, result: bytes) -> None:
+    dest = alloc(dll_emu, b"\xe9\x00" + b"\xcc" * 8)
+    assert call(dll_emu, "msvcrt", "strncat", [dest, alloc(dll_emu, b"\x8fabc\x00"), count])[0] == dest
+    assert dll_emu.mem_read(dest, len(result) + 1) == result + b"\x00"

@@ -1308,12 +1308,11 @@ class Msvcrt(api.ApiHandler):
         );
         """
         dest, src, count = argv
-        s1 = self.read_mem_string(dest, 1)
-        s2 = self.read_string(src, max_chars=count)
-        ctx.args[0].display = s1
-        ctx.args[1].display = s2
-        new = (s1 + s2).encode("utf-8")
-        self.mem_write(dest, new + b"\x00")
+        s1 = self.read_cstr(dest)
+        s2 = self.read_cstr(src, max_chars=count) if count else b""
+        ctx.args[0].display = s1.decode("utf-8", "ignore")
+        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        self.mem_write(dest + len(s1), s2 + b"\x00")
         return dest
 
     @apihook("wcscat", argc=2, conv=e_arch.CALL_CONV_CDECL)
