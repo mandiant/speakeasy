@@ -338,7 +338,8 @@ class Ws2_32(api.ApiHandler):
 
         socket = self.netman.get_socket(s)
         if not socket:
-            return 0xFFFFFFFF
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
@@ -374,6 +375,9 @@ class Ws2_32(api.ApiHandler):
         rport = ntohs(sa.sin_port)
 
         socket = self.netman.get_socket(s)
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
@@ -446,6 +450,9 @@ class Ws2_32(api.ApiHandler):
         s, addr, addrlen = argv
 
         socket = self.netman.get_socket(s)
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return self.get_max_int()
         stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
@@ -597,6 +604,9 @@ class Ws2_32(api.ApiHandler):
         peek = flags & winsock.MSG_PEEK
 
         sock = self.netman.get_socket(s)
+        if not sock:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
         data = sock.get_recv_data(blen, peek)
         rv = len(data)
 
@@ -630,6 +640,9 @@ class Ws2_32(api.ApiHandler):
         data = b""
 
         socket = self.netman.get_socket(s)
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == "SOCK_STREAM":
@@ -660,8 +673,8 @@ class Ws2_32(api.ApiHandler):
 
         socket = self.netman.get_socket(s)
         if not socket:
-            # This isnt a valid socket, return invalid
-            rv = winsock.WSAENOTSOCK
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            rv = winsock.SOCKET_ERROR
         else:
             self.netman.close_socket(s)
 
@@ -677,11 +690,12 @@ class Ws2_32(api.ApiHandler):
         );
         """
         s, cmd, argp = argv
-        rv = winsock.WSAENOTSOCK
 
         socket = self.netman.get_socket(s)
-        if socket:
-            rv = 0
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
+        rv = 0
 
         return rv
 

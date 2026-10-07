@@ -7,7 +7,7 @@ import pytest
 
 import speakeasy
 from speakeasy import Speakeasy
-from tests.handler_harness import alloc, call, load_emu
+from tests.handler_harness import alloc, call, load_emu, start_process
 
 
 @pytest.fixture
@@ -375,3 +375,23 @@ def test_dns_query_a_record(request: pytest.FixtureRequest, emu_fixture: str, pt
     assert _read_ptr(se, rec) == 0
     assert struct.unpack("<HH", se.mem_read(rec + 2 * ptr_size, 4)) == (1, 4)
     assert se.mem_read(rec + 2 * ptr_size + 16, 4) == bytes([8, 8, 8, 8])
+
+
+@pytest.mark.parametrize(
+    "name, args, rv",
+    [
+        ("bind", [0, 16], 0xFFFFFFFF),
+        ("connect", [0, 16], 0xFFFFFFFF),
+        ("accept", [0, 0], 0xFFFFFFFF),
+        ("recv", [0, 4, 0], 0xFFFFFFFF),
+        ("send", [0, 4, 0], 0xFFFFFFFF),
+        ("closesocket", [], 0xFFFFFFFF),
+        ("ioctlsocket", [0x4004667F, 0], 0xFFFFFFFF),
+    ],
+)
+def test_socket_calls_reject_an_unknown_socket(dll_emu: Speakeasy, name: str, args: list[int], rv: int) -> None:
+    start_process(dll_emu)
+    buf = alloc(dll_emu, b"\x00" * 16)
+    argv = [0x999] + [buf if a == 0 and i == 0 else a for i, a in enumerate(args)]
+    assert call(dll_emu, "ws2_32", name, argv)[0] == rv
+    assert dll_emu.emu.get_last_error() == 10038  # type: ignore[union-attr]
