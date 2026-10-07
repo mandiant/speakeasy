@@ -426,3 +426,9 @@ def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> Non
     ret_len = alloc(admin_emu, b"\xcc" * 4)
     rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 20, info, 4, ret_len])
     assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.is_admin), 4)
+
+
+def test_enum_services_status_returns_no_services(dll_emu: Speakeasy) -> None:
+    outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(3)]
+    rv, _ = call(dll_emu, "advapi32", "EnumServicesStatusA", [0x1234, 0x30, 3, 0, 0, *outs])
+    assert (rv, [_dword(dll_emu, a) for a in outs]) == (1, [0, 0, 0])
