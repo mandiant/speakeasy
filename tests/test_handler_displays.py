@@ -352,3 +352,40 @@ def test_variadic_sprintf_shows_the_output(dll_emu: Speakeasy, dll: str, api: st
     assert rv == 3
     assert dll_emu.mem_read(buf, 4 * width) == "n=7\x00".encode(encoding)
     assert displays == {0: "n=7"}
+
+
+def _bounded_format(se: Speakeasy, dll: str, api: str, count: int) -> tuple[int, bytes]:
+    buf = _alloc(se, b"\xcc" * 8)
+    fmt = _alloc(se, b"n=%d\x00")
+    va = _alloc(se, struct.pack("<I", 7))
+    rv, _ = _call(se, dll, api, [buf, count, fmt, va])
+    return rv, se.mem_read(buf, 5)
+
+
+@pytest.mark.parametrize(
+    "fixture, dll",
+    [("dll_emu", "msvcrt"), ("driver_emu", "ntoskrnl")],
+)
+@pytest.mark.parametrize(
+    "count, rv, out",
+    [
+        (8, 3, b"n=7\x00\xcc"),
+        (3, 3, b"n=7\xcc\xcc"),
+        (2, -1, b"n=\xcc\xcc\xcc"),
+    ],
+)
+def test_vsnprintf_truncation(
+    request: pytest.FixtureRequest, fixture: str, dll: str, count: int, rv: int, out: bytes
+) -> None:
+    assert _bounded_format(request.getfixturevalue(fixture), dll, "_vsnprintf", count) == (rv, out)
+
+
+@pytest.mark.parametrize(
+    "count, rv, out",
+    [
+        (8, 3, b"n=7\x00\xcc"),
+        (3, -1, b"n=\x00\xcc\xcc"),
+    ],
+)
+def test_wvnsprintf_truncation(dll_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
+    assert _bounded_format(dll_emu, "shlwapi", "wvnsprintfA", count) == (rv, out)

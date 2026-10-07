@@ -1577,7 +1577,6 @@ class Msvcrt(api.ApiHandler):
         );
         """
         buffer, count, _format, argptr = argv
-        rv = 0
 
         fmt_str = self.read_mem_string(_format, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -1585,14 +1584,14 @@ class Msvcrt(api.ApiHandler):
         vargs = self.va_args(argptr, fmt_cnt)
 
         fin = self.do_str_format(fmt_str, vargs)
-        fin = fin[:count] + "\x00"
-
-        rv = len(fin)
-        self.mem_write(buffer, fin.encode("utf-8"))
-        ctx.args[0].display = fin.replace("\x00", "")
+        out = fin[:count].encode("utf-8")
+        if len(fin) < count:
+            out += b"\x00"
+        self.mem_write(buffer, out)
+        ctx.args[0].display = fin[:count]
         ctx.args[2].display = fmt_str
 
-        return rv
+        return len(fin) if len(fin) <= count else -1
 
     @apihook("__stdio_common_vsprintf", argc=7, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
