@@ -187,11 +187,11 @@ class Kernel32(api.ApiHandler):
     def normalize_res_identifier(self, emu, cw, val):
         if val >> 16:  # not an INTRESOURCE
             name = emu.read_mem_string(val, cw)
-            if name[0] == "#":
+            if name.startswith("#"):
                 try:
                     name = int(name[1:])
-                except Exception:
-                    return 0
+                except ValueError:
+                    pass
         else:
             name = val
 
