@@ -137,8 +137,8 @@ class Ntoskrnl(api.ApiHandler):
 
         _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 1 + fmt_cnt)[1:]
         fin = self.do_str_format(fmt_str, _argv)
-        argv.clear()
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(fin)
 
         return len(fin)
 
@@ -162,10 +162,10 @@ class Ntoskrnl(api.ApiHandler):
 
         fin = self.do_str_format(fmt_str, _argv)
 
-        argv.clear()
-        argv.append(cid)
-        argv.append(level)
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(hex(cid))
+        ctx.args.append(hex(level))
+        ctx.args.append(fin)
 
         return len(fin)
 
@@ -192,8 +192,8 @@ class Ntoskrnl(api.ApiHandler):
 
         rv = len(fin)
         self.mem_write(buffer, fin.encode("utf-8"))
-        argv[0] = fin.replace("\x00", "")
-        argv[1] = fmt_str
+        ctx.args[0].display = fin.replace("\x00", "")
+        ctx.args[1].display = fmt_str
 
         return rv
 
@@ -241,7 +241,7 @@ class Ntoskrnl(api.ApiHandler):
             data = self.get_bytes(us)
             self.mem_write(dest, data)
 
-        argv[1] = ansi_str
+        ctx.args["SourceString"].display = ansi_str
 
         return nts
 
@@ -266,7 +266,7 @@ class Ntoskrnl(api.ApiHandler):
         data = self.get_bytes(ansi)
         self.mem_write(dest, data)
 
-        argv[1] = ansi_str
+        ctx.args["SourceString"].display = ansi_str
 
     @apihook("RtlInitUnicodeString", argc=2)
     def RtlInitUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -294,7 +294,7 @@ class Ntoskrnl(api.ApiHandler):
         data = self.get_bytes(us)
         self.mem_write(dest, data)
 
-        argv[1] = uni_str
+        ctx.args["SourceString"].display = uni_str
 
     @apihook("RtlFreeUnicodeString", argc=1)
     def RtlFreeUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -306,7 +306,7 @@ class Ntoskrnl(api.ApiHandler):
         (UnicodeString,) = argv
 
         us_str = self.read_unicode_string(UnicodeString)
-        argv[0] = us_str
+        ctx.args["UnicodeString"].display = us_str
 
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
         us = self.mem_cast(us, UnicodeString)
@@ -327,9 +327,9 @@ class Ntoskrnl(api.ApiHandler):
         if Tag:
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
+                ctx.args[2].display = Tag
             except Exception as e:
                 logger.exception(str(e))
-            argv[2] = Tag
 
         chunk = self.pool_alloc(PoolType, NumberOfBytes, Tag)
         return chunk
@@ -347,9 +347,9 @@ class Ntoskrnl(api.ApiHandler):
         if Tag:
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
+                ctx.args[1].display = Tag
             except Exception as e:
                 logger.exception(str(e))
-            argv[1] = Tag
         self.mem_free(P)
 
     @apihook("ExAllocatePool", argc=2)
@@ -379,9 +379,9 @@ class Ntoskrnl(api.ApiHandler):
         if Tag:
             try:
                 Tag = Tag.to_bytes(4, "little").decode("utf-8")
+                ctx.args[2].display = Tag
             except Exception as e:
                 logger.exception(str(e))
-            argv[2] = Tag
 
         if not Size:
             return 0
@@ -445,6 +445,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if name:
             name = self.read_unicode_string(name).replace("\x00", "")
+            ctx.args[2].display = name
 
         driver_obj = self.get_object_from_addr(drv)
         if not driver_obj:
@@ -454,7 +455,6 @@ class Ntoskrnl(api.ApiHandler):
 
         self.mem_write(out_addr, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
 
-        argv[2] = name
         return nts
 
     @apihook("IoCreateDeviceSecure", argc=9)
@@ -478,6 +478,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if name:
             name = self.read_unicode_string(name).replace("\x00", "")
+            ctx.args[2].display = name
 
         driver_obj = self.get_object_from_addr(drv)
 
@@ -485,7 +486,6 @@ class Ntoskrnl(api.ApiHandler):
 
         self.mem_write(out_addr, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
 
-        argv[2] = name
         return nts
 
     @apihook("IoCreateSymbolicLink", argc=2)
@@ -502,8 +502,8 @@ class Ntoskrnl(api.ApiHandler):
         emu.add_symlink(link_name, dev_name)
 
         nts = ddk.STATUS_SUCCESS
-        argv[0] = link_name
-        argv[1] = dev_name
+        ctx.args[0].display = link_name
+        ctx.args[1].display = dev_name
 
         return nts
 
@@ -517,7 +517,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         pIrp, boost = argv
 
-        argv[1] = 0xFF & argv[1]
+        ctx.args[1].display = hex(0xFF & boost)
         return
 
     @apihook("IoDeleteSymbolicLink", argc=1)
@@ -531,7 +531,7 @@ class Ntoskrnl(api.ApiHandler):
 
         SymbolicLinkName = argv[0]
         link_name = self.read_unicode_string(SymbolicLinkName).replace("\x00", "")
-        argv[0] = link_name
+        ctx.args[0].display = link_name
         return nts
 
     @apihook("KeInitializeMutex", argc=2)
@@ -720,7 +720,7 @@ class Ntoskrnl(api.ApiHandler):
         ws = self.read_wide_string(src)
 
         self.write_wide_string(ws, dest)
-        argv[1] = ws
+        ctx.args[1].display = ws
 
         return len(ws)
 
@@ -737,7 +737,7 @@ class Ntoskrnl(api.ApiHandler):
         ws = self.read_wide_string(src)
 
         self.write_wide_string(ws, dest)
-        argv[1] = ws
+        ctx.args[1].display = ws
         return len(ws)
 
     @apihook("RtlMoveMemory", argc=3)
@@ -801,8 +801,8 @@ class Ntoskrnl(api.ApiHandler):
         fin = self.do_str_format(fmt_str, _argv)
 
         self.write_string(fin, buf)
-        argv.clear()
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("_snprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
@@ -826,8 +826,8 @@ class Ntoskrnl(api.ApiHandler):
         fin = self.do_str_format(fmt_str, _argv)
 
         self.write_string(fin, buf)
-        argv.clear()
-        argv.append(fin)
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
@@ -841,7 +841,7 @@ class Ntoskrnl(api.ApiHandler):
         string = argv[0]
         ws = self.read_wide_string(string)
         if isinstance(ws, str):
-            argv[0] = ws
+            ctx.args[0].display = ws
             slen = len(ws)
         else:
             slen = int(len(ws) / 2)
@@ -867,8 +867,8 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = wstr + offset
 
-        argv[0] = ws
-        argv[1] = needle.decode("utf-16le")
+        ctx.args[0].display = ws
+        ctx.args[1].display = needle.decode("utf-16le")
 
         return rv
 
@@ -891,8 +891,8 @@ class Ntoskrnl(api.ApiHandler):
 
         new = (dws + sws).encode("utf-16le")
         self.mem_write(dest, new)
-        argv[0] = dws
-        argv[1] = sws
+        ctx.args[0].display = dws
+        ctx.args[1].display = sws
         return dest
 
     @apihook("strrchr", argc=2, conv=_arch.CALL_CONV_CDECL)
@@ -914,8 +914,8 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = cstr + offset
 
-        argv[0] = cs
-        argv[1] = needle.decode("utf-8")
+        ctx.args[0].display = cs
+        ctx.args[1].display = needle.decode("utf-8")
 
         return rv
 
@@ -938,8 +938,8 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = cstr + offset
 
-        argv[0] = cs
-        argv[1] = needle.decode("utf-8")
+        ctx.args[0].display = cs
+        ctx.args[1].display = needle.decode("utf-8")
 
         return rv
 
@@ -958,8 +958,8 @@ class Ntoskrnl(api.ApiHandler):
         ws1 = self.read_wide_string(string1, max_chars=count)
         ws2 = self.read_wide_string(string2, max_chars=count)
 
-        argv[0] = ws1
-        argv[1] = ws2
+        ctx.args[0].display = ws1
+        ctx.args[1].display = ws2
 
         if ws1.lower() == ws2.lower():
             rv = 0
@@ -983,8 +983,8 @@ class Ntoskrnl(api.ApiHandler):
         cs1 = self.read_string(string1)
         cs2 = self.read_string(string2)
 
-        argv[0] = cs1
-        argv[1] = cs2
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
         if cs1.lower() == cs2.lower():
             rv = 0
@@ -1005,8 +1005,8 @@ class Ntoskrnl(api.ApiHandler):
         ws1 = self.read_wide_string(string1)
         ws2 = self.read_wide_string(string2)
 
-        argv[0] = ws1
-        argv[1] = ws2
+        ctx.args[0].display = ws1
+        ctx.args[1].display = ws2
 
         if ws1.lower() == ws2.lower():
             rv = 0
@@ -1071,7 +1071,7 @@ class Ntoskrnl(api.ApiHandler):
                 to_copy = src.Length
 
             data = self.mem_read(src.Buffer, to_copy)
-            argv[1] = data.decode("utf-16le")
+            ctx.args["SourceString"].display = data.decode("utf-16le")
             self.mem_write(dest.Buffer, data)
 
             self.mem_write(dest_str, self.get_bytes(dest))
@@ -1100,8 +1100,8 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = s1 == s2
 
-        argv[0] = s1
-        argv[1] = s2
+        ctx.args["String1"].display = s1
+        ctx.args["String2"].display = s2
         return int(rv)
 
     @apihook("IoAllocateIrp", argc=2)
@@ -1119,7 +1119,7 @@ class Ntoskrnl(api.ApiHandler):
         irp = emu.new_irp()
         rv = irp.address
 
-        argv[0] = StackSize
+        ctx.args[0].display = hex(StackSize)
 
         return rv
 
@@ -1229,7 +1229,7 @@ class Ntoskrnl(api.ApiHandler):
         if EventHandle:
             self.mem_write(EventHandle, hnd.to_bytes(4, "little"))
 
-        argv[0] = name
+        ctx.args[0].display = name
         return evt.address
 
     @apihook("KeInitializeEvent", argc=3)
@@ -1387,11 +1387,11 @@ class Ntoskrnl(api.ApiHandler):
         if base:
             addr = self.mem_read(base, emu.get_ptr_size())
             addr = int.from_bytes(addr, "little")
-            argv[1] = addr
+            ctx.args["BaseAddress"].display = hex(addr)
         if byte_len:
             size = self.mem_read(byte_len, emu.get_ptr_size())
             size = int.from_bytes(size, "little")
-            argv[2] = size
+            ctx.args["RegionSize"].display = hex(size)
         rv = ddk.STATUS_SUCCESS
         return rv
 
@@ -1414,8 +1414,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             obj = self.get_object_from_handle(hProcess)
 
-        proc_path = obj.path
-        argv[0] = proc_path
+        ctx.args["ProcessHandle"].display = obj.path
 
         data = b""
         if lpBuffer and lpBaseAddress:
@@ -1630,7 +1629,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             name = self.read_unicode_string(ObjectName)
             name = name.replace("\x00", "")
-            argv[0] = name
+            ctx.args[0].display = name
 
             obj = self.get_object_from_name(name)
             if not obj:
@@ -1659,7 +1658,7 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_INVALID_PARAMETER
 
         s1 = self.read_unicode_string(ObjectName).replace("\x00", "")
-        argv[0] = s1
+        ctx.args[0].display = s1
 
         obj = self.get_object_from_name(s1)
         if obj:
@@ -1732,7 +1731,7 @@ class Ntoskrnl(api.ApiHandler):
         fn = self.read_unicode_string(SystemRoutineName)
 
         addr = emu.get_proc("ntoskrnl", fn)
-        argv[0] = fn
+        ctx.args[0].display = fn
         return addr
 
     @apihook("KeQuerySystemTime", argc=1)
@@ -1835,7 +1834,7 @@ class Ntoskrnl(api.ApiHandler):
         guid = self.mem_read(ProviderId, 16)
         guid = uuid.UUID(bytes_le=guid)
 
-        argv[0] = str(guid)
+        ctx.args[0].display = str(guid)
 
         return rv
 
@@ -1852,7 +1851,7 @@ class Ntoskrnl(api.ApiHandler):
         Base, MappedAsImage, DirectoryEntry, Size = argv
 
         MappedAsImage &= 0xFF
-        argv[1] = MappedAsImage
+        ctx.args["MappedAsImage"].display = hex(MappedAsImage)
 
         rv = 0
 
@@ -1884,7 +1883,7 @@ class Ntoskrnl(api.ApiHandler):
                 self.mem_write(EventHandle, hnd.to_bytes(self.ptr_size, "little"))
             rv = ddk.STATUS_SUCCESS
 
-        argv[2] = name
+        ctx.args["ObjectAttributes"].display = name
         return rv
 
     @apihook("ZwCreateEvent", argc=5)
@@ -1909,8 +1908,8 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(EventHandle, hnd.to_bytes(self.ptr_size, "little"))
         rv = ddk.STATUS_SUCCESS
 
-        argv[2] = name
-        argv[4] = 0xFF & state
+        ctx.args["ObjectAttributes"].display = name
+        ctx.args["InitialState"].display = hex(0xFF & state)
 
         return rv
 
@@ -2316,8 +2315,6 @@ class Ntoskrnl(api.ApiHandler):
 
         self.write_wide_string(fin, buf)
 
-        argv = [buf, cnt, fmt] + argv
-        argv[2] = fmt_str
         return len(fin)
 
     @apihook("ObReferenceObjectByHandle", argc=6)
@@ -2469,7 +2466,7 @@ class Ntoskrnl(api.ApiHandler):
         src, num_elements = argv
         ws = self.read_wide_string(src)
 
-        argv[0] = ws
+        ctx.args[0].display = ws
 
         return len(ws)
 
@@ -2690,7 +2687,7 @@ class Ntoskrnl(api.ApiHandler):
         rv = 0
 
         mb = self.read_string(mbstr)
-        argv[1] = mb
+        ctx.args[1].display = mb
         wide = mb.encode("utf-16le")
         if not wcstr:
             rv = len(mb)
@@ -2716,7 +2713,7 @@ class Ntoskrnl(api.ApiHandler):
         oa = self.mem_cast(oa, objattr)
         name = self.read_unicode_string(oa.ObjectName)
 
-        argv[2] = name
+        ctx.args["ObjectAttributes"].display = name
 
         hnd = self.reg_open_key(name, create=False)
         if not hnd:
@@ -2746,7 +2743,7 @@ class Ntoskrnl(api.ApiHandler):
         if val:
             name = self.read_unicode_string(val)
 
-        argv[1] = name
+        ctx.args["ValueName"].display = name
 
         key = self.reg_get_key(hnd)
         if key:
@@ -2807,14 +2804,14 @@ class Ntoskrnl(api.ApiHandler):
 
         create_disp = 0xFFFFFFFF & create_disp
 
-        argv[3] = name
+        ctx.args["IoStatusBlock"].display = name
         cd = ddk.get_create_disposition(create_disp)
         if cd:
-            argv[7] = cd
+            ctx.args["CreateDisposition"].display = cd
 
         ad = ddk.get_file_access_defines(access)
         if ad:
-            argv[1] = " | ".join(ad)
+            ctx.args["DesiredAccess"].display = " | ".join(ad)
 
         npath = name
         if name.startswith("\\??\\"):
@@ -2883,10 +2880,10 @@ class Ntoskrnl(api.ApiHandler):
         oa = self.mem_cast(oa, objattr)
         path = self.read_unicode_string(oa.ObjectName)
 
-        argv[3] = path
+        ctx.args["IoStatusBlock"].display = path
         ad = ddk.get_file_access_defines(access)
         if ad:
-            argv[1] = " | ".join(ad)
+            ctx.args["DesiredAccess"].display = " | ".join(ad)
 
         obj = self.get_object_from_name(path)
         if obj:
@@ -2986,7 +2983,7 @@ class Ntoskrnl(api.ApiHandler):
         }
 
         path_str = self.read_wide_string(Path)
-        argv[1] = path_str
+        ctx.args["Path"].display = path_str
 
         return rv
 
@@ -3013,7 +3010,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if _file and buf and length:
             path = _file.path
-            argv[0] = path
+            ctx.args["FileHandle"].display = path
 
             data = self.mem_read(buf, length)
             if data:
@@ -3026,7 +3023,7 @@ class Ntoskrnl(api.ApiHandler):
                     data = data.decode("utf-8")
                 except UnicodeDecodeError:
                     data = data.hex()
-                argv[6] = data[:0x10]
+                ctx.args["Length"].display = data[:0x10]
                 nts = ddk.STATUS_SUCCESS
 
         return nts
@@ -3053,7 +3050,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if _file and buf:
             path = _file.path
-            argv[0] = path
+            ctx.args["FileHandle"].display = path
 
             data = _file.get_data()
 
@@ -3115,7 +3112,7 @@ class Ntoskrnl(api.ApiHandler):
             oa = self.mem_cast(oa, ObjectAttributes)
             if oa.ObjectName:
                 name = self.read_unicode_string(oa.ObjectName)
-                argv[2] = name
+                ctx.args["ObjectAttributes"].display = name
 
         size = 0
         if MaximumSize:
@@ -3123,7 +3120,7 @@ class Ntoskrnl(api.ApiHandler):
             size = int.from_bytes(size, "little")
         hmap = fm.file_create_mapping(FileHandle, name, size, SectionPageProtection)
         self.mem_write(SectionHandle, hmap.to_bytes(self.get_ptr_size(), byteorder="little"))
-        argv[0] = hmap
+        ctx.args["SectionHandle"].display = hex(hmap)
 
         return ddk.STATUS_SUCCESS
 
@@ -3210,8 +3207,8 @@ class Ntoskrnl(api.ApiHandler):
                 self.mem_write(buf, data)
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), "little"))
-                argv[2] = buf
-                argv[6] = size
+                ctx.args["BaseAddress"].display = hex(buf)
+                ctx.args["ViewSize"].display = hex(size)
             elif not pref_address:
                 if bytes_to_map == 0:
                     bytes_to_map = sect.size
@@ -3221,8 +3218,8 @@ class Ntoskrnl(api.ApiHandler):
                 mm.tag = f"{tag_prefix}.0x{buf:x}"
                 if ViewSize:
                     self.mem_write(ViewSize, size.to_bytes(self.get_ptr_size(), "little"))
-                argv[2] = buf
-                argv[6] = size
+                ctx.args["BaseAddress"].display = hex(buf)
+                ctx.args["ViewSize"].display = hex(size)
                 sect.add_view(buf, full_offset, size, access)
             else:
                 buf = pref_address

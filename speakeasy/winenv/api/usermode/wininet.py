@@ -53,13 +53,13 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if ua:
             ua = self.read_mem_string(ua, cw)
-            argv[0] = ua
+            ctx.args["lpszAgent"].display = ua
         if proxy:
             proxy = self.read_mem_string(proxy, cw)
-            argv[2] = proxy
+            ctx.args["lpszProxy"].display = proxy
         if bypass:
             bypass = self.read_mem_string(bypass, cw)
-            argv[3] = bypass
+            ctx.args["lpszProxyBypass"].display = bypass
 
         conn = self.netman.new_wininet_inst(ua, access, proxy, bypass, flags)
         hnd = conn.get_handle()
@@ -84,13 +84,13 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if server:
             server = self.read_mem_string(server, cw)
-            argv[1] = server
+            ctx.args["lpszServerName"].display = server
         if user:
             user = self.read_mem_string(user, cw)
-            argv[3] = user
+            ctx.args["lpszUserName"].display = user
         if password:
             password = self.read_mem_string(password, cw)
-            argv[4] = password
+            ctx.args["lpszPassword"].display = password
 
         wini = self.netman.get_wininet_object(hnd)
 
@@ -120,19 +120,19 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if verb:
             verb = self.read_mem_string(verb, cw)
-            argv[1] = verb
+            ctx.args["lpszVerb"].display = verb
         if objname:
             objname = self.read_mem_string(objname, cw)
-            argv[2] = objname
+            ctx.args["lpszObjectName"].display = objname
         if ver:
             ver = self.read_mem_string(ver, cw)
-            argv[3] = ver
+            ctx.args["lpszVersion"].display = ver
         if ref:
             ref = self.read_mem_string(ref, cw)
-            argv[4] = ref
+            ctx.args["lpszReferrer"].display = ref
 
         defs = windefs.get_flag_defines(flags)
-        argv[6] = " | ".join(defs)
+        ctx.args["dwFlags"].display = " | ".join(defs)
 
         sess = self.netman.get_wininet_object(hnd)
         req = sess.new_request(verb, objname, ver, ref, accepts, defs, dwctx)
@@ -156,7 +156,7 @@ class Wininet(api.ApiHandler):
 
         if lpszUrl and lpUrlComponents:
             url = self.read_mem_string(lpszUrl, cw)
-            argv[0] = url
+            ctx.args["lpszUrl"].display = url
             rv = True
 
             uc = windefs.URL_COMPONENTS(emu.get_ptr_size())
@@ -213,7 +213,7 @@ class Wininet(api.ApiHandler):
 
         if lpdwFlags:
             self.mem_write(lpdwFlags, flags.to_bytes(4, "little"))
-            argv[0] = "INTERNET_CONNECTION_LAN"
+            ctx.args["lpdwFlags"].display = "INTERNET_CONNECTION_LAN"
 
         return rv
 
@@ -235,7 +235,7 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if headers:
             headers = self.read_mem_string(headers, cw)
-            argv[1] = headers
+            ctx.args["lpszHeaders"].display = headers
 
         if lpOptional:
             body = self.mem_read(lpOptional, dwOptionalLength)
@@ -282,7 +282,7 @@ class Wininet(api.ApiHandler):
         rv = False
         opt = windefs.get_option_define(dwOption)
         if opt:
-            argv[1] = opt
+            ctx.args["dwOption"].display = opt
 
         if dwOption == windefs.INTERNET_OPTION_SECURITY_FLAGS:
             if lpBuffer:
@@ -335,7 +335,7 @@ class Wininet(api.ApiHandler):
         rv = False
         info_str = windefs.get_header_query(dwInfoLevel)
         if info_str:
-            argv[1] = info_str
+            ctx.args["dwInfoLevel"].display = info_str
         if not lpBuffer:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
         if windefs.WINHTTP_QUERY_STATUS_CODE == dwInfoLevel:
@@ -405,13 +405,13 @@ class Wininet(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpszUrl:
             url = self.read_mem_string(lpszUrl, cw)
-            argv[1] = url
+            ctx.args["lpszUrl"].display = url
         if lpszHeaders:
             headers = self.read_mem_string(lpszHeaders, cw)
-            argv[2] = headers
+            ctx.args["lpszHeaders"].display = headers
 
         defs = windefs.get_flag_defines(dwFlags)
-        argv[4] = " | ".join(defs)
+        ctx.args["dwFlags"].display = " | ".join(defs)
 
         wini = self.netman.get_wininet_object(hInternet)
         if not wini:

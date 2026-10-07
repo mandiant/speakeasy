@@ -86,11 +86,11 @@ class Ole32(api.ApiHandler):
 
         authn_level = com.get_define_int(argv[4])
         if authn_level:
-            argv[4] = authn_level
+            ctx.args["dwAuthnLevel"].display = authn_level
 
         imp_level = com.get_define_int(argv[5])
         if imp_level:
-            argv[5] = imp_level
+            ctx.args["dwImpLevel"].display = imp_level
 
         return rv
 
@@ -112,12 +112,12 @@ class Ole32(api.ApiHandler):
         clsid_str = com.convert_guid_bytes_to_str(clsid_bytes)
         clsid_name = com.get_clsid(clsid_str)
         if clsid_name:
-            argv[0] = clsid_name
+            ctx.args["rclsid"].display = clsid_name
             riid_bytes = self.mem_read(riid, self.sizeof(windefs.GUID()))
             riid_str = com.convert_guid_bytes_to_str(riid_bytes)
             iid_name = com.get_iid(riid_str)
             if iid_name:
-                argv[3] = iid_name
+                ctx.args["riid"].display = iid_name
                 if ppv:
                     ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace("IID_", ""))
                     pv = self.mem_alloc(emu.get_ptr_size(), tag=f"emu.COM.pv_{iid_name}")
@@ -160,7 +160,7 @@ class Ole32(api.ApiHandler):
 
         guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
         u = com.convert_guid_bytes_to_str(guid)
-        argv[1] = u
+        ctx.args["lplpsz"].display = u
         u = (u + "\x00").encode("utf-16le")
 
         ptr = self.mem_alloc(len(u), tag="api.StringFromCLSID")

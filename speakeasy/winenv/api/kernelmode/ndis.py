@@ -85,7 +85,7 @@ class Ndis(api.ApiHandler):
         fn = self.read_unicode_string(NdisRoutineName)
 
         addr = emu.get_proc("ndis", fn)
-        argv[0] = fn
+        ctx.args[0].display = fn
         return addr
 
     @apihook("NdisMRegisterMiniportDriver", argc=5)
@@ -224,7 +224,7 @@ class Ndis(api.ApiHandler):
         ptr = 0
 
         stag = self.convert_pool_tag(tag)
-        argv[1] = stag
+        ctx.args[1].display = stag
 
         go = self.ndis.NDIS_GENERIC_OBJECT(emu.get_ptr_size())
         go.DriverObject = drv
@@ -249,7 +249,7 @@ class Ndis(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         stag = self.convert_pool_tag(tag)
-        argv[2] = stag
+        ctx.args[2].display = stag
 
         ptr = self.mem_alloc(size=size, tag=f"api.ndis_pool.{stag}")
         self.mem_write(va, ptr.to_bytes(emu.get_ptr_size(), "little"))

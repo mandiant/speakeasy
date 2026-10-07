@@ -40,14 +40,14 @@ class Urlmon(api.ApiHandler):
 
         if szURL:
             url = self.read_mem_string(szURL, cw)
-            argv[1] = url
+            ctx.args["param1"].display = url
             parsed = urlparse(url)
             if parsed.netloc:
                 self.record_dns_event(parsed.netloc)
 
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
-            argv[2] = name
+            ctx.args["param2"].display = name
             self.record_file_access_event(name, FILE_CREATE)
             self.record_file_access_event(name, FILE_WRITE)
 
@@ -73,7 +73,7 @@ class Urlmon(api.ApiHandler):
 
         if szURL:
             url = self.read_mem_string(szURL, cw)
-            argv[1] = url
+            ctx.args["param1"].display = url
             parsed = urlparse(url)
             if parsed.netloc:
                 self.record_dns_event(parsed.netloc)
@@ -83,8 +83,7 @@ class Urlmon(api.ApiHandler):
 
         if szFileName:
             required = len(cache_name) + 1
-            argv[2] = cache_name
-            argv[3] = cchFileName
+            ctx.args["param2"].display = cache_name
             if cchFileName >= required:
                 self.write_mem_string(cache_name, szFileName, cw)
                 self.record_file_access_event(cache_name, FILE_CREATE)

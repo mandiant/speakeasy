@@ -116,10 +116,10 @@ class Ntdll(api.ApiHandler):
         pretty_flags = " | ".join([name for bit, name in flags.items() if LoadFlags & bit])
 
         if SearchPath:
-            argv[0] = self.read_mem_string(SearchPath, 2)
+            ctx.args["DllPath"].display = self.read_mem_string(SearchPath, 2)
 
-        argv[2] = req_lib
-        argv[1] = pretty_flags
+        ctx.args["DllName"].display = req_lib
+        ctx.args["DllCharacteristics"].display = pretty_flags
 
         if not hmod:
             STATUS_DLL_NOT_FOUND = 0xC0000135
@@ -149,7 +149,7 @@ class Ntdll(api.ApiHandler):
             fn = self.mem_cast(fn, proc_name)
 
             proc = self.read_mem_string(fn.Buffer, 1, max_chars=fn.Length)
-            argv[1] = proc
+            ctx.args["ProcedureName"].display = proc
 
         elif ordinal:
             proc = f"ordinal_{proc_name}"

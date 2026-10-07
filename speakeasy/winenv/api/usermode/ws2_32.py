@@ -90,8 +90,8 @@ class Ws2_32(api.ApiHandler):
 
         fd = sock.fd
 
-        argv[0] = fam_str
-        argv[1] = sock_str
+        ctx.args["af"].display = fam_str
+        ctx.args["type"].display = sock_str
 
         return fd
 
@@ -151,8 +151,8 @@ class Ws2_32(api.ApiHandler):
 
         fd = sock.fd
 
-        argv[0] = fam_str
-        argv[1] = sock_str
+        ctx.args["af"].display = fam_str
+        ctx.args["type"].display = sock_str
 
         return fd
 
@@ -167,7 +167,7 @@ class Ws2_32(api.ApiHandler):
 
         if a:
             a = self.read_mem_string(a, 1)
-            argv[0] = a
+            ctx.args["cp"].display = a
             try:
                 rv = inet_aton(a)
                 rv = int.from_bytes(rv, "little")
@@ -227,15 +227,15 @@ class Ws2_32(api.ApiHandler):
 
         opt_level = winsock.get_define(level, "SOL_")
         if opt_level:
-            argv[1] = opt_level
+            ctx.args["level"].display = opt_level
 
         opt_name = winsock.get_define(optname, "SO_")
         if opt_name:
-            argv[2] = opt_name
+            ctx.args["optname"].display = opt_name
 
         if opt_name == "SO_RCVBUF" or opt_name == "SO_SNDBUF":
             opt_val = self.mem_read(optval, optlen)
-            argv[3] = struct.unpack("<I", opt_val)[0]
+            ctx.args["optval"].display = hex(struct.unpack("<I", opt_val)[0])
 
         return rv
 
@@ -311,7 +311,7 @@ class Ws2_32(api.ApiHandler):
         else:
             ip = ""
 
-        argv[0] = name
+        ctx.args["name"].display = name
         self.record_dns_event(name, ip)
 
         return ptr_hostent
@@ -352,7 +352,7 @@ class Ws2_32(api.ApiHandler):
 
         self.record_network_event(raddr, rport, typ="connect", proto=proto, method="winsock.connect")
 
-        argv[1] = f"{raddr}:{rport}"
+        ctx.args["name"].display = f"{raddr}:{rport}"
 
         return rv
 
@@ -386,7 +386,7 @@ class Ws2_32(api.ApiHandler):
         socket.set_connection_info(raddr, rport)
         self.record_network_event(raddr, rport, typ="bind", proto=proto, method="winsock.bind")
 
-        argv[1] = f"{raddr}:{rport}"
+        ctx.args["name"].display = f"{raddr}:{rport}"
 
         return rv
 
@@ -505,12 +505,12 @@ class Ws2_32(api.ApiHandler):
         family, pAddr, pStringBuf, StringBufSize = argv
 
         fam_str = winsock.get_addr_family(family)
-        argv[0] = fam_str
+        ctx.args["Family"].display = fam_str
 
         # TODO: implement case AF_INET6
         if fam_str == "AF_INET":
             ipv4_bytes = self.mem_read(pAddr, 4)
-            argv[1] = int.from_bytes(ipv4_bytes, "big")
+            ctx.args["pAddr"].display = hex(int.from_bytes(ipv4_bytes, "big"))
             try:
                 ipv4_str = inet_ntop(family, ipv4_bytes)
             except OSError:
@@ -534,12 +534,12 @@ class Ws2_32(api.ApiHandler):
         family, pszAddrString, pAddrBuf = argv
 
         fam_str = winsock.get_addr_family(family)
-        argv[0] = fam_str
+        ctx.args["Family"].display = fam_str
 
         # TODO: implement case AF_INET6
         if fam_str == "AF_INET":
             ipv4_str = self.read_string(pszAddrString)
-            argv[1] = ipv4_str
+            ctx.args["pszAddrString"].display = ipv4_str
             try:
                 ipv4_bytes = inet_pton(family, ipv4_str)
             except OSError:
@@ -698,10 +698,10 @@ class Ws2_32(api.ApiHandler):
         rv = 0
 
         host = self.read_string(pNodeName)
-        argv[0] = host
+        ctx.args["pNodeName"].display = host
 
         service_name = self.read_string(pServiceName)
-        argv[1] = service_name
+        ctx.args["pServiceName"].display = service_name
         if service_name.isnumeric():
             port = int(service_name)
         else:
@@ -779,15 +779,15 @@ class Ws2_32(api.ApiHandler):
 
         opt_level = winsock.get_define(level, "SOL_")
         if opt_level:
-            argv[1] = opt_level
+            ctx.args["level"].display = opt_level
 
         opt_len = self.mem_read(optlen, 4)
         opt_len = struct.unpack("<I", opt_len)[0]
-        argv[4] = opt_len
+        ctx.args["optlen"].display = hex(opt_len)
 
         opt_name = winsock.get_define(optname, "SO_")
         if opt_name:
-            argv[2] = opt_name
+            ctx.args["optname"].display = opt_name
             if opt_name == "SO_RCVBUF" or opt_name == "SO_SNDBUF":
                 opt_val = winsock.SOCK_BUF_SIZE
                 self.mem_write(optval, opt_val.to_bytes(opt_len, "little"))

@@ -18,7 +18,8 @@ def hook_messagebox(emu, api_name, func, params):
     # Call the MessageBox function and print its text string data
     rv = func(params)
 
-    hWnd, lpText, lpCaption, uType = params
+    # params holds the raw arguments; the handler's decoded values are in get_api_args()
+    lpText = emu.get_api_args()[1].display
 
     msg = f"{api_name} text: {lpText}"
     logger.info(msg)

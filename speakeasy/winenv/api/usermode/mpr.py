@@ -30,15 +30,15 @@ class Mpr(api.ApiHandler):
 
         scope = mpr.get_define_int(dwScope, "RESOURCE_")
         if scope:
-            argv[0] = scope
+            ctx.args["dwScope"].display = scope
 
         type = mpr.get_define_int(dwType, "RESOURCETYPE_")
         if type:
-            argv[1] = type
+            ctx.args["dwType"].display = type
 
         usage = mpr.get_define_int(dwUsage, "RESOURCEUSAGE_")
         if usage:
-            argv[2] = usage
+            ctx.args["dwUsage"].display = usage
 
         return mpr.ERROR_NO_NETWORK
 
@@ -81,6 +81,6 @@ class Mpr(api.ApiHandler):
 
         local_name = self.read_mem_string(lpLocalName, cw)
         if local_name:
-            argv[0] = local_name
+            ctx.args["lpLocalName"].display = local_name
 
         return mpr.ERROR_NO_NETWORK

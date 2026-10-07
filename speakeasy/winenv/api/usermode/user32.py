@@ -335,12 +335,12 @@ class User32(api.ApiHandler):
         _, cn, wn, _, x, y, width, height, parent, menu, inst, param = argv
         if cn:
             cn = self.read_mem_string(cn, cw)
-            argv[1] = cn
+            ctx.args["lpClassName"].display = cn
         else:
             cn = None
         if wn:
             wn = self.read_mem_string(wn, cw)
-            argv[2] = wn
+            ctx.args["lpWindowName"].display = wn
         else:
             wn = None
         hnd = self.sessman.create_window(wn, cn)
@@ -373,10 +373,10 @@ class User32(api.ApiHandler):
 
         if lpText:
             text = self.read_mem_string(lpText, cw)
-            argv[1] = text
+            ctx.args["lpText"].display = text
         if lpCaption:
             cap = self.read_mem_string(lpCaption, cw)
-            argv[2] = cap
+            ctx.args["lpCaption"].display = cap
         rv = IDCANCEL
 
         return rv
@@ -394,7 +394,6 @@ class User32(api.ApiHandler):
         """
         av = argv[:-1]
         rv = self.MessageBox(emu, av, ctx)
-        argv[:4] = av
         return rv
 
     @apihook("LoadString", argc=4)
@@ -446,10 +445,7 @@ class User32(api.ApiHandler):
             encoded = encoded[: ccBufferMax * cw]
 
         emu.mem_write(lpBuffer, encoded)
-        if cw == 1:
-            argv[2] = s
-        else:
-            argv[2] = s
+        ctx.args["lpBuffer"].display = s
 
         return len(encoded)
 
@@ -542,7 +538,7 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(lpString, cw)
-        argv[0] = s
+        ctx.args["lpString"].display = s
 
         return rv
 
@@ -570,8 +566,8 @@ class User32(api.ApiHandler):
 
         self.write_mem_string(fin, buf, cw)
 
-        argv.append(fin)
-        argv.append(fmt_str)
+        ctx.args.append(fin)
+        ctx.args.append(fmt_str)
         return len(fin)
 
     @apihook("PeekMessage", argc=5)
@@ -643,7 +639,7 @@ class User32(api.ApiHandler):
         hname = windefs.get_windowhook_flags(idHook)
         if hname:
             hname = hname[0]
-            argv[0] = hname
+            ctx.args["idHook"].display = hname
 
         hnd = self.get_handle()
         self.window_hooks.update({hnd: (idHook, lpfn, hmod)})
@@ -770,10 +766,10 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpClassName:
             cn = self.read_mem_string(lpClassName, cw)
-            argv[0] = cn
+            ctx.args["lpClassName"].display = cn
         if lpWindowName:
             wn = self.read_mem_string(lpWindowName, cw)
-            argv[1] = wn
+            ctx.args["lpWindowName"].display = wn
         return 0
 
     @apihook("GetWindowText", argc=3)
@@ -817,9 +813,9 @@ class User32(api.ApiHandler):
         vargs = self.va_args(va_list, fmt_cnt)
         fin = self.do_str_format(fmt_str, vargs)
         self.write_string(fin, buf)
-        argv.clear()
-        argv.append(fin)
-        argv.append(fmt_str)
+        ctx.args.clear()
+        ctx.args.append(fin)
+        ctx.args.append(fmt_str)
         return len(fin)
 
     @apihook("ReleaseDC", argc=2)
@@ -963,7 +959,7 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpTemplateName:
             tname = self.read_mem_string(lpTemplateName, cw)
-            argv[1] = tname
+            ctx.args["lpTemplateName"].display = tname
 
         return rv
 
@@ -1277,8 +1273,7 @@ class User32(api.ApiHandler):
         _str, cchLength = argv
         cw = self.get_char_width(ctx)
         val = self.read_mem_string(_str, cw, max_chars=cchLength)
-        argv[0] = val
-        argv[1] = cchLength
+        ctx.args["lpsz"].display = val
         self.write_mem_string(val.lower(), _str, cw)
         return cchLength
 
@@ -1293,8 +1288,7 @@ class User32(api.ApiHandler):
         _str, cchLength = argv
         cw = self.get_char_width(ctx)
         val = self.read_mem_string(_str, cw, max_chars=cchLength)
-        argv[0] = val
-        argv[1] = cchLength
+        ctx.args["lpsz"].display = val
         self.write_mem_string(val.upper(), _str, cw)
         return cchLength
 
@@ -1379,7 +1373,7 @@ class User32(api.ApiHandler):
         lpszDesktop, dwFlags, fInherit, dwDesiredAccess = argv
         cw = self.get_char_width(ctx)
         desktop = self.read_mem_string(lpszDesktop, cw)
-        argv[0] = desktop
+        ctx.args["lpszDesktop"].display = desktop
         return self.get_handle()
 
     @apihook("SetThreadDesktop", argc=1)

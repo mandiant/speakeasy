@@ -63,7 +63,7 @@ class AdvApi32(api.ApiHandler):
 
         hkey_name = regdefs.get_hkey_type(hKey)
         if hkey_name:
-            argv[0] = hkey_name
+            ctx.args["hKey"].display = hkey_name
             if not hnd and not lpSubKey:
                 hnd = hKey
         else:
@@ -75,7 +75,7 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpSubKey:
             lpSubKey = self.read_mem_string(lpSubKey, cw)
-            argv[1] = lpSubKey
+            ctx.args["lpSubKey"].display = lpSubKey
 
             if hkey_name and lpSubKey:
                 if not lpSubKey.startswith("\\"):
@@ -112,14 +112,14 @@ class AdvApi32(api.ApiHandler):
 
         hkey_name = regdefs.get_hkey_type(hKey)
         if hkey_name:
-            argv[0] = hkey_name
+            ctx.args["hKey"].display = hkey_name
             if not hnd and not lpSubKey:
                 hnd = hKey
 
         cw = self.get_char_width(ctx)
         if lpSubKey:
             lpSubKey = self.read_mem_string(lpSubKey, cw)
-            argv[1] = lpSubKey
+            ctx.args["lpSubKey"].display = lpSubKey
 
             if hkey_name and lpSubKey:
                 if not lpSubKey.startswith("\\"):
@@ -156,17 +156,17 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpValueName:
             lpValueName = self.read_mem_string(lpValueName, cw)
-            argv[1] = lpValueName
+            ctx.args["lpValueName"].display = lpValueName
 
         type_name = regdefs.get_value_type(lpType)
         if type_name:
-            argv[3] = type_name
+            ctx.args["lpType"].display = type_name
 
         length = 0
         if lpcbData:
             length = self.mem_read(lpcbData, 4)
             length = int.from_bytes(length, "little")
-            argv[5] = length
+            ctx.args["lpcbData"].display = hex(length)
 
         key = self.reg_get_key(hKey)
         if key:
@@ -237,7 +237,7 @@ class AdvApi32(api.ApiHandler):
         value_name = ""
         if lpValueName:
             value_name = self.read_mem_string(lpValueName, cw)
-            argv[1] = value_name
+            ctx.args["lpValueName"].display = value_name
 
         value_data = ""
         if lpData and cbData:
@@ -304,7 +304,6 @@ class AdvApi32(api.ApiHandler):
 
         _argv = argv + [0, 0, 0, 0]
         rv = self.RegEnumKeyEx(emu, _argv, ctx)
-        argv[:] = _argv[:4]
 
         return rv
 
@@ -329,7 +328,7 @@ class AdvApi32(api.ApiHandler):
         rv = windefs.ERROR_INVALID_HANDLE
         if hKey:
             key = self.reg_get_key(hKey)
-            argv[0] = key.get_path()
+            ctx.args["hKey"].display = key.get_path()
             if not key:
                 rv = windefs.ERROR_INVALID_HANDLE
             else:
@@ -362,14 +361,14 @@ class AdvApi32(api.ApiHandler):
         rv = windefs.ERROR_INVALID_HANDLE
         if hkey:
             key = self.reg_get_key(hkey)
-            argv[0] = key.get_path()
+            ctx.args["hKey"].display = key.get_path()
             if not key:
                 rv = windefs.ERROR_INVALID_HANDLE
             else:
                 cw = self.get_char_width(ctx)
                 if lpSubKey:
                     lpSubKey = self.read_mem_string(lpSubKey, cw)
-                    argv[1] = lpSubKey
+                    ctx.args["lpSubKey"].display = lpSubKey
                     sub_key_path = key.get_path() + "\\" + lpSubKey
                     self.emu.reg_create_key(sub_key_path)
                     self.record_registry_access_event(sub_key_path, REG_CREATE)
@@ -399,7 +398,7 @@ class AdvApi32(api.ApiHandler):
         key_path = ""
         hkey_name = regdefs.get_hkey_type(hKey)
         if hkey_name:
-            argv[0] = hkey_name
+            ctx.args["hKey"].display = hkey_name
             key_path = hkey_name
         else:
             key_obj = self.reg_get_key(hKey)
@@ -410,7 +409,7 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpSubKey:
             sub_key = self.read_mem_string(lpSubKey, cw)
-            argv[1] = sub_key
+            ctx.args["lpSubKey"].display = sub_key
             if key_path and sub_key:
                 if not sub_key.startswith("\\"):
                     sub_key = "\\" + sub_key
@@ -449,7 +448,7 @@ class AdvApi32(api.ApiHandler):
         value_name = ""
         if lpValueName:
             value_name = self.read_mem_string(lpValueName, cw)
-            argv[1] = value_name
+            ctx.args["lpValueName"].display = value_name
 
         value = key.get_value(value_name)
         if not value:
@@ -497,7 +496,7 @@ class AdvApi32(api.ApiHandler):
 
         hkey_name = regdefs.get_hkey_type(hKey)
         if hkey_name:
-            argv[0] = hkey_name
+            ctx.args["hKey"].display = hkey_name
 
         key = self.reg_get_key(hKey)
         if not key:
@@ -636,29 +635,30 @@ class AdvApi32(api.ApiHandler):
         ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
         entry = self.mem_cast(ste, lpServiceStartTable)
 
-        argv[0] = "lpServiceStartTable=["
+        table = "lpServiceStartTable=["
 
         while entry.lpServiceName != windefs.NULL or entry.lpServiceProc != windefs.NULL:
             service_name = "Service"
             if entry.lpServiceName != windefs.NULL:
                 service_name = self.read_mem_string(entry.lpServiceName, cw)
-                argv[0] += f" {{ lpServiceName={service_name}"
+                table += f" {{ lpServiceName={service_name}"
             else:
-                argv[0] += " { lpServiceName=NULL"
+                table += " { lpServiceName=NULL"
 
             if entry.lpServiceProc != windefs.NULL:
                 service_main = entry.lpServiceProc
-                argv[0] += f", lpServiceProc={hex(service_main)} }} "
+                table += f", lpServiceProc={hex(service_main)} }} "
                 argc, svc_argv = emu.build_service_main_args(service_name, char_width=cw)
                 self.queue_run("thread.service", service_main, [argc, svc_argv])
             else:
-                argv[0] += ", lpServiceProc=NULL } "
+                table += ", lpServiceProc=NULL } "
 
             lpServiceStartTable += self.sizeof(ste)
             ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
             entry = self.mem_cast(ste, lpServiceStartTable)
 
-        argv[0] += "]"
+        table += "]"
+        ctx.args["lpServiceStartTable"].display = table
 
         rv = True
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -782,13 +782,13 @@ class AdvApi32(api.ApiHandler):
 
         if svc_name:
             _sname = self.read_mem_string(svc_name, cw)
-            argv[1] = _sname
+            ctx.args["lpServiceName"].display = _sname
         if disp_name:
             _dname = self.read_mem_string(disp_name, cw)
-            argv[2] = _dname
+            ctx.args["lpDisplayName"].display = _dname
         if bin_path:
             _bpname = self.read_mem_string(bin_path, cw)
-            argv[7] = _bpname
+            ctx.args["lpBinaryPathName"].display = _bpname
 
         hSvc = self.mem_alloc(size=8)
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -956,17 +956,17 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         if lpBinaryPathName:
-            argv[4] = self.read_mem_string(lpBinaryPathName, cw)
+            ctx.args["lpBinaryPathName"].display = self.read_mem_string(lpBinaryPathName, cw)
         if lpLoadOrderGroup:
-            argv[5] = self.read_mem_string(lpLoadOrderGroup, cw)
+            ctx.args["lpLoadOrderGroup"].display = self.read_mem_string(lpLoadOrderGroup, cw)
         if lpDependencies:
-            argv[7] = self.read_mem_string(lpDependencies, cw)
+            ctx.args["lpDependencies"].display = self.read_mem_string(lpDependencies, cw)
         if lpServiceStartName:
-            argv[8] = self.read_mem_string(lpServiceStartName, cw)
+            ctx.args["lpServiceStartName"].display = self.read_mem_string(lpServiceStartName, cw)
         if lpPassword:
-            argv[9] = self.read_mem_string(lpPassword, cw)
+            ctx.args["lpPassword"].display = self.read_mem_string(lpPassword, cw)
         if lpDisplayName:
-            argv[10] = self.read_mem_string(lpDisplayName, cw)
+            ctx.args["lpDisplayName"].display = self.read_mem_string(lpDisplayName, cw)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
@@ -1024,10 +1024,10 @@ class AdvApi32(api.ApiHandler):
 
         if szContainer:
             cont_str = self.read_mem_string(szContainer, cw)
-            argv[1] = cont_str
+            ctx.args["szContainer"].display = cont_str
         if szProvider:
             prov_str = self.read_mem_string(szProvider, cw)
-            argv[2] = prov_str
+            ctx.args["szProvider"].display = prov_str
 
         cm = emu.get_crypt_manager()
         hnd = cm.crypt_open(cname=cont_str, pname=prov_str, ptype=dwProvType, flags=dwFlags)
@@ -1179,7 +1179,7 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         user_name = emu.config.user.name
-        argv[0] = user_name
+        ctx.args["lpBuffer"].display = user_name
 
         if lpBuffer:
             if cw == 2:
@@ -1208,10 +1208,10 @@ class AdvApi32(api.ApiHandler):
 
         if sysname:
             sysname = self.read_mem_string(sysname, cw)
-            argv[0] = sysname
+            ctx.args["lpSystemName"].display = sysname
         if name:
             name = self.read_mem_string(name, cw)
-            argv[1] = name
+            ctx.args["lpName"].display = name
             rv = True
 
         return rv
@@ -1337,13 +1337,13 @@ class AdvApi32(api.ApiHandler):
 
         if ptr_sysname:
             sn = self.read_mem_string(ptr_sysname, cw)
-            argv[0] = sn
+            ctx.args["lpSystemName"].display = sn
 
         if not ptr_acctname:
             return rv
 
         acctname = self.read_mem_string(ptr_acctname, cw)
-        argv[1] = acctname
+        ctx.args["lpAccountName"].display = acctname
 
         user = emu.config.user.name
         # Currently only supporting user SIDs specified in the config
@@ -1354,13 +1354,13 @@ class AdvApi32(api.ApiHandler):
         if not str_sid:
             return rv
 
-        argv[2] = str_sid
+        ctx.args["Sid"].display = str_sid
         sid_struct = windefs.convert_sid_str_to_struct(emu.get_ptr_size(), str_sid)
         side_struct_size = sid_struct.sizeof()
 
         cbsid = self.mem_read(ptr_cbsid, 4)
         cbsid = int.from_bytes(cbsid, "little")
-        argv[3] = cbsid
+        ctx.args["cbSid"].display = hex(cbsid)
         if not cbsid:
             self.mem_write(ptr_cbsid, side_struct_size.to_bytes(4, "little"))
             return rv
@@ -1371,7 +1371,7 @@ class AdvApi32(api.ApiHandler):
         domain = emu.config.domain
         cchdomname = self.mem_read(ptr_cchdomname, 4)
         cbcchdomname = int.from_bytes(cchdomname, "little")
-        argv[5] = cbcchdomname
+        ctx.args["cchReferencedDomainName"].display = hex(cbcchdomname)
         if not cbcchdomname:
             buf_size = len(domain) + 1
             self.mem_write(ptr_cchdomname, buf_size.to_bytes(4, "little"))
@@ -1382,11 +1382,11 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(ptr_sid, self.get_bytes(sid_struct))
 
         self.write_mem_string(domain, ptr_domname, cw)
-        argv[4] = domain
+        ctx.args["ReferencedDomainName"].display = domain
 
         # Currently only supporting user SIDs (SidTypeUser = 1)
         self.mem_write(ptr_peuse, (1).to_bytes(4, "little"))
-        argv[6] = 1
+        ctx.args["peUse"].display = hex(1)
 
         return rv
 
@@ -1423,7 +1423,7 @@ class AdvApi32(api.ApiHandler):
 
         if sysname:
             sn = self.read_mem_string(sysname, cw)
-            argv[0] = sn
+            ctx.args["lpSystemName"].display = sn
 
         return rv
 
@@ -1451,12 +1451,12 @@ class AdvApi32(api.ApiHandler):
         appstr = ""
         if app:
             appstr = self.read_mem_string(app, cw)
-            argv[1] = appstr
+            ctx.args["lpApplicationName"].display = appstr
         if cmd:
             cmdstr = self.read_mem_string(cmd, cw)
             if not appstr:
                 appstr = cmdstr.split(" ")[0]
-            argv[2] = cmdstr
+            ctx.args["lpCommandLine"].display = cmdstr
 
         proc = emu.create_process(path=appstr, cmdline=cmdstr)
         proc_hnd = self.get_object_handle(proc)
@@ -1499,7 +1499,7 @@ class AdvApi32(api.ApiHandler):
         }
 
         hProv, Algid, hKey, dwFlags, phHash = argv
-        argv[1] = hash_algs.get(Algid, Algid)[0]
+        ctx.args["Algid"].display = hash_algs.get(Algid, Algid)[0]
 
         if hKey != 0:
             return 0
@@ -1553,7 +1553,7 @@ class AdvApi32(api.ApiHandler):
         param_enums = {1: "HP_ALGID", 2: "HP_HASHVAL", 4: "HP_HASHSIZE", 5: "HP_HMAC_INFO"}
 
         if dwParam in param_enums.keys():
-            argv[1] = param_enums[dwParam]
+            ctx.args["dwParam"].display = param_enums[dwParam]
 
         return 1
 
@@ -1679,15 +1679,15 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         if lpSubKey:
             lpSubKey = self.read_mem_string(lpSubKey, cw)
-            argv[1] = lpSubKey
+            ctx.args["lpSubKey"].display = lpSubKey
 
         if lpValue:
             lpValue = self.read_mem_string(lpValue, cw)
-            argv[2] = lpValue
+            ctx.args["lpValue"].display = lpValue
 
         type_name = regdefs.get_value_type(lpType)
         if type_name:
-            argv[4] = type_name
+            ctx.args["pdwType"].display = type_name
 
         length = 0
         if lpcbData:
@@ -1753,11 +1753,11 @@ class AdvApi32(api.ApiHandler):
 
         service_type_str = adv32.get_define_int(dwServiceType, "SERVICE_")
         if service_type_str:
-            argv[1] = service_type_str
+            ctx.args["dwServiceType"].display = service_type_str
 
         service_state_str = adv32.get_define_int(dwServiceState, "SERVICE_")
         if service_state_str:
-            argv[2] = service_state_str
+            ctx.args["dwServiceState"].display = service_state_str
 
         # TODO: Populate service status output
         return 1
@@ -1774,7 +1774,7 @@ class AdvApi32(api.ApiHandler):
         hSCManager, lpServiceName, dwDesiredAccess = argv
         cw = self.get_char_width(ctx)
         svcname = self.read_mem_string(lpServiceName, cw)
-        argv[1] = svcname
+        ctx.args["lpServiceName"].display = svcname
         return self.get_handle()
 
     @apihook("DeleteService", argc=1, conv=_arch.CALL_CONV_STDCALL)

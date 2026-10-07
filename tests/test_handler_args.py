@@ -54,6 +54,17 @@ def test_handler_display_without_signature_by_slot() -> None:
     ]
 
 
+def test_handler_display_non_string_keeps_rendering() -> None:
+    args = _signature_args()
+    args["p2"].display = None
+    args["p0"].display = 0
+    assert [(a.type, a.display) for a in args.get_report_args()] == [
+        ("ptr", "0x1000"),
+        ("flags", "F_ONE"),
+        ("handle", "0x44"),
+    ]
+
+
 def test_handler_type_is_settable() -> None:
     args = api.HandlerArgs.from_slots([0x1000])
     args[0].display = "C:\\x"
