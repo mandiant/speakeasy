@@ -283,3 +283,34 @@ def test_url_download_to_cache_file_small_buffer_fails(dll_emu: Speakeasy) -> No
     rv, _ = call(dll_emu, "urlmon", "URLDownloadToCacheFileA", [0, url, out, 8, 0, 0])
     assert rv == 0x8007000E
     assert dll_emu.mem_read(out, 8) == b"\xcc" * 8
+
+
+@pytest.mark.parametrize("emu_fixture, ptr_size", [("dll_emu", 4), ("dll64_emu", 8)])
+def test_win_http_get_ie_proxy_config_clears_the_strings(
+    request: pytest.FixtureRequest, emu_fixture: str, ptr_size: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    config = alloc(se, b"\xcc" * 40)
+    rv, _ = call(se, "winhttp", "WinHttpGetIEProxyConfigForCurrentUser", [config])
+    assert rv == 1
+    size = 4 * ptr_size
+    data = se.mem_read(config, 40)
+    assert struct.unpack_from("<I", data, 0)[0] == 1
+    assert data[ptr_size:size] == b"\x00" * (size - ptr_size)
+    assert data[size:] == b"\xcc" * (40 - size)
+
+
+@pytest.mark.parametrize("emu_fixture, ptr_size", [("dll_emu", 4), ("dll64_emu", 8)])
+def test_win_http_get_proxy_for_url_reports_no_proxy(
+    request: pytest.FixtureRequest, emu_fixture: str, ptr_size: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    url = alloc(se, "http://example.com/\x00".encode("utf-16le"))
+    info = alloc(se, b"\xcc" * 32)
+    rv, _ = call(se, "winhttp", "WinHttpGetProxyForUrl", [0, url, 0, info])
+    assert rv == 1
+    size = 3 * ptr_size
+    data = se.mem_read(info, 32)
+    assert struct.unpack_from("<I", data, 0)[0] == 1
+    assert data[ptr_size:size] == b"\x00" * (size - ptr_size)
+    assert data[size:] == b"\xcc" * (32 - size)

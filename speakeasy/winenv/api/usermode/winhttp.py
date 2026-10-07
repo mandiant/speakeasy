@@ -141,7 +141,8 @@ class WinHttp(api.ApiHandler):
         (proxy_config,) = argv
 
         if proxy_config:
-            self.mem_write(proxy_config, (1).to_bytes(4, "little"))
+            ps = self.get_ptr_size()
+            self.mem_write(proxy_config, (1).to_bytes(ps, "little") + b"\0" * (3 * ps))
 
         return True
 
@@ -161,6 +162,10 @@ class WinHttp(api.ApiHandler):
         if url:
             url = self.read_mem_string(url, 2)
             ctx.args["lpcwszUrl"].display = url
+
+        if proxinfo:
+            ps = self.get_ptr_size()
+            self.mem_write(proxinfo, windefs.WINHTTP_ACCESS_TYPE_NO_PROXY.to_bytes(ps, "little") + b"\0" * (2 * ps))
 
         return True
 
