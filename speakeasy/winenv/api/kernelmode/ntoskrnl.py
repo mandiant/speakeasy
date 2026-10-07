@@ -897,17 +897,18 @@ class Ntoskrnl(api.ApiHandler):
         """
         wstr, c = argv
         ws = self.read_wide_string(wstr)
-        hay = ws.encode("utf-16le")
-        needle = c.to_bytes(2, "little")
+        # The terminator is part of the string, so a NUL finds it
+        hay = self.mem_read(wstr, (self.mem_string_len(wstr, 2) + 1) * 2)
+        needle = (c & 0xFFFF).to_bytes(2, "little")
 
-        offset = hay.find(needle)
-        if offset < 0:
-            rv = 0
-        else:
-            rv = wstr + offset
+        rv = 0
+        for offset in range(0, len(hay), 2):
+            if hay[offset : offset + 2] == needle:
+                rv = wstr + offset
+                break
 
         ctx.args[0].display = ws
-        ctx.args[1].display = needle.decode("utf-16le")
+        ctx.args[1].display = needle.decode("utf-16le", "replace")
 
         return rv
 
@@ -943,20 +944,16 @@ class Ntoskrnl(api.ApiHandler):
             );
         """
         cstr, c = argv
-        cs = self.read_string(cstr)
-        hay = cs.encode("utf-8")
-        needle = c.to_bytes(1, "little")
+        # The terminator is part of the string, so a NUL finds it
+        hay = self.mem_read(cstr, self.mem_string_len(cstr, 1) + 1)
+        needle = bytes([c & 0xFF])
 
         offset = hay.rfind(needle)
-        if offset < 0:
-            rv = 0
-        else:
-            rv = cstr + offset
 
-        ctx.args[0].display = cs
-        ctx.args[1].display = needle.decode("utf-8")
+        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
+        ctx.args[1].display = needle.decode("latin-1")
 
-        return rv
+        return cstr + offset if offset >= 0 else 0
 
     @apihook("strchr", argc=2, conv=_arch.CALL_CONV_CDECL)
     def strchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -967,20 +964,16 @@ class Ntoskrnl(api.ApiHandler):
             );
         """
         cstr, c = argv
-        cs = self.read_string(cstr)
-        hay = cs.encode("utf-8")
-        needle = c.to_bytes(1, "little")
+        # The terminator is part of the string, so a NUL finds it
+        hay = self.mem_read(cstr, self.mem_string_len(cstr, 1) + 1)
+        needle = bytes([c & 0xFF])
 
         offset = hay.find(needle)
-        if offset < 0:
-            rv = 0
-        else:
-            rv = cstr + offset
 
-        ctx.args[0].display = cs
-        ctx.args[1].display = needle.decode("utf-8")
+        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
+        ctx.args[1].display = needle.decode("latin-1")
 
-        return rv
+        return cstr + offset if offset >= 0 else 0
 
     @apihook("_wcsnicmp", argc=3, conv=_arch.CALL_CONV_CDECL)
     def _wcsnicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
