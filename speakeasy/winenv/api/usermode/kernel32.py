@@ -4829,8 +4829,12 @@ class Kernel32(api.ApiHandler):
                 locale_data = "English"
 
             if locale_data:
-                self.write_mem_string(locale_data, lpLCData, cw)
-                rv = len(locale_data) + cw
+                rv = len(locale_data) + 1
+                if cchData:
+                    if cchData < rv:
+                        emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                        return 0
+                    self.write_mem_string(locale_data, lpLCData, cw)
 
         return rv
 

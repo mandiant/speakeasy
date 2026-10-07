@@ -215,3 +215,21 @@ def test_llseek(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "_llseek", [hnd, -4 & 0xFFFFFFFF, FILE_CURRENT])[0] == 12
     assert call(emu, "kernel32", "_llseek", [hnd, -1 & 0xFFFFFFFF, FILE_BEGIN])[0] == windefs.HFILE_ERROR
     assert call(emu, "kernel32", "_llseek", [0x7FF0, 0, FILE_BEGIN])[0] == windefs.HFILE_ERROR
+
+
+LOCALE_SENGLISHCOUNTRYNAME = 0x1002
+
+
+@pytest.mark.parametrize("name, width", [("GetLocaleInfoA", 1), ("GetLocaleInfoW", 2)])
+def test_get_locale_info_counts_characters(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, 0, 0])[0] == 14
+
+    small = alloc(emu, b"\xcc" * 4 * width)
+    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, small, 4])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INSUFFICIENT_BUFFER
+    assert emu.mem_read(small, 4 * width) == b"\xcc" * 4 * width
+
+    buf = alloc(emu, b"\xcc" * 32 * width)
+    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, buf, 32])[0] == 14
+    assert emu.mem_read(buf, 14 * width) == "United States\x00".encode(enc)
