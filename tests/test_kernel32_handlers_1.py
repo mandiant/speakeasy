@@ -209,3 +209,23 @@ def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     hproc = struct.unpack("<I", dll_emu.mem_read(pi, 4))[0]
     rv, _ = call(dll_emu, "kernel32", "TerminateProcess", [hproc, 0])
     assert rv is True
+
+
+TH32CS_SNAPALL = 0xF
+
+
+@pytest.mark.parametrize(
+    "flags, walks",
+    [
+        (TH32CS_SNAPALL, ["Process32First", "Thread32First", "Module32First"]),
+        (0x8 | 0x10, ["Module32First"]),
+        (0x80000000 | 0x2, ["Process32First"]),
+    ],
+)
+def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags: int, walks: list[str]) -> None:
+    start_process(dll_emu)
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [flags, 0])
+    for walk in walks:
+        entry = alloc(dll_emu, b"\x00" * 0x400)
+        rv, _ = call(dll_emu, "kernel32", walk, [hsnap, entry])
+        assert rv, walk
