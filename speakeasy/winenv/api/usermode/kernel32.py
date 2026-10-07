@@ -1878,8 +1878,12 @@ class Kernel32(api.ApiHandler):
             41: {"name": "PF_AVX512F_INSTRUCTIONS_AVAILABLE", "return": 0},
         }
 
-        rv = lookup[argv[0]]["return"]
-        ctx.args["ProcessorFeature"].display = lookup[argv[0]]["name"]
+        entry = lookup.get(argv[0])
+        if not entry:
+            return 0
+
+        rv = entry["return"]
+        ctx.args["ProcessorFeature"].display = entry["name"]
 
         return rv
 
