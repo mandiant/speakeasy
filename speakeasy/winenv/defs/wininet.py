@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from urllib.parse import urlsplit
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -204,3 +205,34 @@ def get_header_query(opt):
     for k, v in globals().items():
         if k.startswith("WINHTTP_QUERY_") and v == opt:
             return k
+
+
+def crack_url(url):
+    """
+    Split a URL into URL_COMPONENTS parts. Return the port and a mapping of
+    component name (Scheme, HostName, UrlPath, ExtraInfo) to the text and its
+    character offset in ``url``.
+    """
+    crack = urlsplit(url)
+    netloc_start = len(crack.scheme) + 1 if crack.scheme else 0
+    if url.startswith("//", netloc_start):
+        netloc_start += 2
+    host_start = netloc_start + len(crack.netloc.rsplit("@", 1)[0]) + 1 if "@" in crack.netloc else netloc_start
+    try:
+        port = crack.port
+    except ValueError:
+        port = None
+    host = url[host_start : netloc_start + len(crack.netloc)]
+    if port is not None:
+        host = host.rsplit(":", 1)[0]
+    else:
+        port = {"http": 80, "https": 443, "ftp": 21}.get(crack.scheme, 0)
+    path_start = netloc_start + len(crack.netloc)
+    extra_start = path_start + len(crack.path)
+    parts = {
+        "Scheme": (url[: len(crack.scheme)], 0),
+        "HostName": (host, host_start),
+        "UrlPath": (crack.path, path_start),
+        "ExtraInfo": (url[extra_start:], extra_start),
+    }
+    return port, parts

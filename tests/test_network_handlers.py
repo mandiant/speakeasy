@@ -201,3 +201,50 @@ def test_internet_open_url_without_a_url(dll_emu: Speakeasy) -> None:
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     rv, _ = call(dll_emu, "wininet", "InternetOpenUrlA", [inet, 0, 0, 0, 0, 0])
     assert rv == 0
+
+
+def _url_components(host_buf: int = 0, host_len: int = 1) -> bytes:
+    fields = [60, 0, 1, 0, host_buf, host_len, 0, 0, 0, 0, 0, 0, 1, 0, 1]
+    return struct.pack("<15I", *fields)
+
+
+@pytest.mark.parametrize("dll, name, width", [("wininet", "InternetCrackUrlA", 1), ("winhttp", "WinHttpCrackUrl", 2)])
+@pytest.mark.parametrize(
+    "url, host, port, path, extra",
+    [
+        ("http://user@1.2.3.4:8080/x/y.php?a=1", "1.2.3.4", 8080, "/x/y.php", "?a=1"),
+        ("https://Example.com/index.html", "Example.com", 443, "/index.html", ""),
+        ("http://example.com", "example.com", 80, "", ""),
+    ],
+)
+def test_crack_url_points_into_the_url(
+    dll_emu: Speakeasy, dll: str, name: str, width: int, url: str, host: str, port: int, path: str, extra: str
+) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    url_ptr = alloc(dll_emu, (url + "\x00").encode(enc))
+    comp = alloc(dll_emu, _url_components())
+    rv, _ = call(dll_emu, dll, name, [url_ptr, 0, 0, comp])
+    assert rv == 1
+    fields = struct.unpack("<15I", dll_emu.mem_read(comp, 60))
+    assert fields[6] & 0xFFFF == port
+    for ptr, length, text in [
+        (fields[1], fields[2], url.split(":")[0]),
+        (fields[4], fields[5], host),
+        (fields[11], fields[12], path),
+        (fields[13], fields[14], extra),
+    ]:
+        assert length == len(text)
+        assert dll_emu.mem_read(ptr, length * width).decode(enc) == text
+
+
+@pytest.mark.parametrize("dll, name, width", [("wininet", "InternetCrackUrlA", 1), ("winhttp", "WinHttpCrackUrl", 2)])
+def test_crack_url_copies_the_host(dll_emu: Speakeasy, dll: str, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    url_ptr = alloc(dll_emu, "http://example.com:81/a\x00".encode(enc))
+    host_buf = alloc(dll_emu, b"\xcc" * 64)
+    comp = alloc(dll_emu, _url_components(host_buf, 32))
+    rv, _ = call(dll_emu, dll, name, [url_ptr, 0, 0, comp])
+    assert rv == 1
+    fields = struct.unpack("<15I", dll_emu.mem_read(comp, 60))
+    assert (fields[4], fields[5]) == (host_buf, 11)
+    assert dll_emu.mem_read(host_buf, 12 * width) == "example.com\x00".encode(enc)

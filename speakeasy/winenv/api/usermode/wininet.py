@@ -167,16 +167,23 @@ class Wininet(api.ApiHandler):
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
             elif crack.scheme == "http":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
-            if url_comp.dwHostNameLength > 0:
-                if url_comp.lpszHostName:
-                    host = crack.netloc + "\x00"
-                    enc = self.get_encoding(cw)
-                    self.mem_write(url_comp.lpszHostName, host.encode(enc))
+            port, parts = windefs.crack_url(url)
+            url_comp.nPort = port
+            for part, (text, offset) in parts.items():
+                length = getattr(url_comp, f"dw{part}Length")
+                if not length:
+                    continue
+                buf = getattr(url_comp, f"lpsz{part}")
+                if buf:
+                    if length <= len(text):
+                        setattr(url_comp, f"dw{part}Length", len(text) + 1)
+                        self.mem_write(lpUrlComponents, url_comp.get_bytes())
+                        emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                        return False
+                    self.write_mem_string(text, buf, cw)
                 else:
-                    offset = url.find(crack.netloc)
-                    ptr = lpszUrl + (offset * cw)
-                    url_comp.lpszHostName = ptr
-                    url_comp.dwHostNameLength = len(crack.netloc)
+                    setattr(url_comp, f"lpsz{part}", lpszUrl + offset * cw)
+                setattr(url_comp, f"dw{part}Length", len(text))
 
             self.mem_write(lpUrlComponents, url_comp.get_bytes())
 
