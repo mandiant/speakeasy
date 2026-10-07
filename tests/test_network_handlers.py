@@ -60,3 +60,13 @@ def test_get_adapters_info_accepts_a_partial_adapter(
         info = se.mem_read(buf, 0x1D0)
         assert info[8:13] == b"eth0\x00"
         assert struct.unpack_from("<I", info, 416)[0] == 1
+
+
+def test_uuid_to_string_a_returns_a_string_pointer(dll_emu: Speakeasy) -> None:
+    guid = alloc(dll_emu, bytes(range(16)))
+    out = alloc(dll_emu, b"\xcc" * 64)
+    rv, _ = call(dll_emu, "rpcrt4", "UuidToStringA", [guid, out])
+    assert rv == 0
+    ptr = struct.unpack("<I", dll_emu.mem_read(out, 4))[0]
+    assert dll_emu.mem_read(out + 4, 60) == b"\xcc" * 60
+    assert dll_emu.mem_read(ptr, 37) == b"03020100-0504-0706-0809-0a0b0c0d0e0f\x00"
