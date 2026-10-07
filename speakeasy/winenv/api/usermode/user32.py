@@ -846,9 +846,9 @@ class User32(api.ApiHandler):
         );
         """
         (s,) = argv
-        rv = 0
+        rv = s
         cw = self.get_char_width(ctx)
-        if s:
+        if s and int.from_bytes(self.mem_read(s, cw), "little"):
             rv = s + cw
         return rv
 
