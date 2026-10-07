@@ -18,6 +18,14 @@ from tests.handler_harness import alloc, call, load_emu
 
 USBSAMP = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp"
 
+# One interface with a bulk IN endpoint and an interrupt OUT endpoint.
+CONFIG_DESCRIPTOR = (
+    bytes([9, 2, 32, 0, 1, 1, 0, 0x80, 50])
+    + bytes([9, 4, 0, 0, 2, 0xFF, 0, 0, 0])
+    + bytes([7, 5, 0x81, 2, 0x00, 0x02, 0])
+    + bytes([7, 5, 0x02, 3, 0x40, 0x00, 10])
+)
+
 
 @pytest.fixture(params=["wdm_test_x86.sys.xz", "wdm_test_x64.sys.xz"], ids=["x86", "x64"])
 def any_driver_emu(request: pytest.FixtureRequest, config: dict[str, Any], load_test_bin: Any) -> Iterator[Speakeasy]:
@@ -55,6 +63,22 @@ def _wdf_driver(se: Speakeasy) -> int:
     )
     assert rv == ddk.STATUS_SUCCESS
     return driver_globals
+
+
+def _usb_device(se: Speakeasy, driver_globals: int) -> int:
+    out = alloc(se, b"\x00" * _ptr_size(se))
+    rv, _ = call(se, "wdfldr", "WdfUsbTargetDeviceCreateWithParameters", [driver_globals, 8, 0, 0, out])
+    assert rv == ddk.STATUS_SUCCESS
+    return _read_ptr(se, out)
+
+
+def _retrieve_config_descriptor(
+    se: Speakeasy, driver_globals: int, usb_device: int, desc: int, size: int
+) -> tuple[int, int]:
+    length = alloc(se, struct.pack("<H", size))
+    args = [driver_globals, usb_device, desc, length]
+    rv, _ = call(se, "wdfldr", "WdfUsbTargetDeviceRetrieveConfigDescriptor", args)
+    return rv, int.from_bytes(se.mem_read(length, 2), "little")
 
 
 def test_wsk_receive_from_accepts_all_parameters(driver_emu: Speakeasy) -> None:
@@ -157,3 +181,14 @@ def test_wdf_registry_query_ulong(any_driver_emu: Speakeasy, name: str, rv: int,
     args = [0, key, _unicode_string(any_driver_emu, name), out]
     assert call(any_driver_emu, "wdfldr", "WdfRegistryQueryULong", args)[0] == rv
     assert any_driver_emu.mem_read(out, 4) == value
+
+
+def test_wdf_usb_config_descriptor_probe_returns_the_size(any_driver_emu: Speakeasy) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    usb_device = _usb_device(any_driver_emu, driver_globals)
+    probe = (any_driver_emu, driver_globals, usb_device, 0, 0)
+    assert _retrieve_config_descriptor(*probe) == (ddk.STATUS_BUFFER_TOO_SMALL, 9)
+    desc = alloc(any_driver_emu, CONFIG_DESCRIPTOR)
+    rv, _ = _retrieve_config_descriptor(any_driver_emu, driver_globals, usb_device, desc, len(CONFIG_DESCRIPTOR))
+    assert rv == ddk.STATUS_SUCCESS
+    assert _retrieve_config_descriptor(*probe) == (ddk.STATUS_BUFFER_TOO_SMALL, len(CONFIG_DESCRIPTOR))
