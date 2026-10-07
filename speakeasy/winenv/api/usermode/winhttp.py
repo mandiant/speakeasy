@@ -341,10 +341,6 @@ class WinHttp(api.ApiHandler):
                 header_query += " | WINHTTP_QUERY_FLAG_NUMBER"
             ctx.args["dwInfoLevel"].display = header_query
 
-        if buffer == 0:
-            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-            return 0
-
         if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
             if as_number:
                 out = int(windefs.HTTP_STATUS_OK).to_bytes(4, "little")
@@ -352,12 +348,17 @@ class WinHttp(api.ApiHandler):
             else:
                 out = (windefs.HTTP_STATUS_OK + "\x00").encode("utf-16le")
                 out_len = len(out) - 2
-            if int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
+            if buffer == 0 or int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
                 self.mem_write(bufferLen, len(out).to_bytes(4, "little"))
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 return 0
             self.mem_write(buffer, out)
             self.mem_write(bufferLen, out_len.to_bytes(4, "little"))
+            return 1
+
+        if buffer == 0:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
 
         rv = 1
 
