@@ -349,3 +349,14 @@ def test_ob_reference_object_by_handle_resolves_pseudo_handles(driver_emu: Speak
     rv, _ = call(driver_emu, "ntoskrnl", "ObReferenceObjectByHandle", [hnd, 0x1FFFFF, 0, 0, out, 0])
     assert rv == ddk.STATUS_SUCCESS
     assert int.from_bytes(driver_emu.mem_read(out, 4), "little") == expected.address
+
+
+def ansi_string_x86(se: Speakeasy, text: bytes) -> int:
+    return alloc(se, struct.pack("<HHI", len(text), len(text) + 1, alloc(se, text + b"\x00")))
+
+
+def test_rtl_ansi_string_to_unicode_string_keeps_the_caller_buffer_size(driver_emu: Speakeasy) -> None:
+    dest = empty_unicode_string_x86(driver_emu, 64)
+    rv, _ = call(driver_emu, "ntoskrnl", "RtlAnsiStringToUnicodeString", [dest, ansi_string_x86(driver_emu, b"ab"), 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert read_unicode_string_x86(driver_emu, dest) == (4, 64, "ab".encode("utf-16le"))
