@@ -4236,6 +4236,7 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, evt = emu.create_event(evt_name)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return hnd
 
