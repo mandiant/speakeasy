@@ -2,14 +2,59 @@
 Kernel driver framework handlers (NDIS, WFP, WSK, KMDF) return what callers read.
 """
 
+import struct
 import uuid
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND, Fwpkclnt
 from speakeasy.winenv.api.kernelmode.netio import Netio
-from tests.handler_harness import alloc, call
+from speakeasy.winenv.defs import wdf
+from speakeasy.winenv.defs.nt import ddk
+from tests.handler_harness import alloc, call, load_emu
+
+USBSAMP = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp"
+
+
+@pytest.fixture(params=["wdm_test_x86.sys.xz", "wdm_test_x64.sys.xz"], ids=["x86", "x64"])
+def any_driver_emu(request: pytest.FixtureRequest, config: dict[str, Any], load_test_bin: Any) -> Iterator[Speakeasy]:
+    yield from load_emu(config, load_test_bin(request.param))
+
+
+def _ptr_size(se: Speakeasy) -> int:
+    assert se.emu is not None
+    return se.emu.get_ptr_size()
+
+
+def _read_ptr(se: Speakeasy, addr: int) -> int:
+    return int.from_bytes(se.mem_read(addr, _ptr_size(se)), "little")
+
+
+def _unicode_string(se: Speakeasy, text: str) -> int:
+    buf = text.encode("utf-16le")
+    buf_addr = alloc(se, buf + b"\x00\x00")
+    pad = b"\x00" * (_ptr_size(se) - 4)
+    return alloc(se, struct.pack("<HH", len(buf), len(buf) + 2) + pad + buf_addr.to_bytes(_ptr_size(se), "little"))
+
+
+def _wdf_driver(se: Speakeasy) -> int:
+    """Bind to KMDF, create the driver, and return the driver globals."""
+    ps = _ptr_size(se)
+    bind_info = wdf.WDF_BIND_INFO(ps)
+    bind_info.FuncTable = alloc(se, b"\x00" * ps)
+    globals_ptr = alloc(se, b"\x00" * ps)
+    rv, _ = call(se, "wdfldr", "WdfVersionBind", [0, 0, alloc(se, bind_info.get_bytes()), globals_ptr])
+    assert rv == ddk.STATUS_SUCCESS
+    driver_globals = _read_ptr(se, globals_ptr)
+    driver_object = alloc(se, b"\x00" * 0x200)
+    rv, _ = call(
+        se, "wdfldr", "WdfDriverCreate", [driver_globals, driver_object, _unicode_string(se, USBSAMP), 0, 0, 0]
+    )
+    assert rv == ddk.STATUS_SUCCESS
+    return driver_globals
 
 
 def test_wsk_receive_from_accepts_all_parameters(driver_emu: Speakeasy) -> None:
@@ -75,3 +120,23 @@ def test_ndis_handles_are_pointer_sized(driver64_emu: Speakeasy, api: str, argv:
     call(driver64_emu, "ndis", api, [slots[a] if isinstance(a, str) else a for a in argv])
     handle = int.from_bytes(driver64_emu.mem_read(out, 8), "little")
     assert 0 < handle < 0x10000
+
+
+def test_wdf_parameters_key_is_null_when_missing(any_driver_emu: Speakeasy) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    key = alloc(any_driver_emu, b"\xcc" * 8)
+    rv, _ = call(any_driver_emu, "wdfldr", "WdfDriverOpenParametersRegistryKey", [driver_globals, 0, 0x20019, 0, key])
+    assert rv == ddk.STATUS_OBJECT_NAME_NOT_FOUND
+    assert _read_ptr(any_driver_emu, key) == 0
+
+
+def test_wdf_parameters_key_opens(config: dict[str, Any], load_test_bin: Any) -> None:
+    config["registry"]["keys"].append(
+        {"path": "HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\usbsamp\\Parameters"}
+    )
+    for se in load_emu(config, load_test_bin("wdm_test_x86.sys.xz")):
+        driver_globals = _wdf_driver(se)
+        key = alloc(se, b"\x00" * 4)
+        rv, _ = call(se, "wdfldr", "WdfDriverOpenParametersRegistryKey", [driver_globals, 0, 0x20019, 0, key])
+        assert rv == ddk.STATUS_SUCCESS
+        assert _read_ptr(se, key) != 0
