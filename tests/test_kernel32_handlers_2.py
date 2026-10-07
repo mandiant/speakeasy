@@ -300,3 +300,15 @@ def test_version_helpers_clean_the_stack(emu: Speakeasy) -> None:
     rv, popped = call_and_return(emu, "kernel32", "VerifyVersionInfoW", [info, 2, 0, 0])
     assert rv
     assert popped == 4 + 16
+
+
+def test_enum_processes_reports_bytes(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    count = len(emu.emu.get_processes())
+    assert count > 1
+    pids = alloc(emu, b"\x00" * 4 * 64)
+    needed = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "EnumProcesses", [pids, 4 * 64, needed])[0]
+    assert int.from_bytes(emu.mem_read(needed, 4), "little") == 4 * count
+
+    assert call(emu, "kernel32", "EnumProcesses", [pids, 4 * 64, 0])[0]

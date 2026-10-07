@@ -6477,8 +6477,9 @@ class Kernel32(api.ApiHandler):
             self.mem_write(lpidProcess_cursor, pid)
             lpidProcess_cursor += 4
 
-        pcbNeeded = lim
-        self.mem_write(lpcbNeeded, pcbNeeded.to_bytes(4, "little"))
+        pcbNeeded = lim * 4
+        if lpcbNeeded:
+            self.mem_write(lpcbNeeded, pcbNeeded.to_bytes(4, "little"))
 
         return 1
 
