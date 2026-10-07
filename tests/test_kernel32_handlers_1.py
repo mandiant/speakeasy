@@ -96,3 +96,30 @@ def test_system_directory_returns_length_without_nul(dll_emu: Speakeasy, api: st
     rv, _ = call(dll_emu, "kernel32", api, [buf, 260])
     assert rv == len(path)
     assert dll_emu.mem_read(buf, (len(path) + 1) * cw) == (path + "\0").encode(encoding)
+
+
+CP_UTF8 = 65001
+
+
+@pytest.mark.parametrize("text", ["abc", "café"])
+def test_wide_char_to_multi_byte_returns_bytes_written(dll_emu: Speakeasy, text: str) -> None:
+    start_process(dll_emu)
+    expected = (text + "\0").encode("utf-8")
+    src = alloc(dll_emu, (text + "\0").encode("utf-16le"))
+    need, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, 0, 0, 0, 0])
+    assert need == len(expected)
+    dst = alloc(dll_emu, b"\xcc" * 260)
+    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, dst, 260, 0, 0])
+    assert rv == len(expected)
+    assert dll_emu.mem_read(dst, len(expected) + 1) == expected + b"\xcc"
+
+
+def test_wide_char_to_multi_byte_checks_the_buffer_size(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    src = alloc(dll_emu, "abc\0".encode("utf-16le"))
+    dst = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, dst, 2, 0, 0])
+    assert rv == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
+    assert dll_emu.mem_read(dst, 8) == b"\xcc" * 8
