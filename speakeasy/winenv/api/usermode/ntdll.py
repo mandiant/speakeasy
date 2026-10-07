@@ -2,6 +2,7 @@
 
 import binascii
 import os
+import struct
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -350,11 +351,10 @@ class Ntdll(api.ApiHandler):
         if ResourceDataEntry == 0:
             return ddk.STATUS_INVALID_PARAMETER
 
-        offset = emu.read_mem_value(ResourceDataEntry, 4)
-        size = emu.read_mem_value(ResourceDataEntry + 4, 4)
+        offset, size = struct.unpack("<II", self.mem_read(ResourceDataEntry, 8))
 
         if Size:
-            emu.write_ptr(Size, size)
+            self.mem_write(Size, size.to_bytes(4, "little"))
 
         if Resource:
             emu.write_ptr(Resource, BaseAddress + offset)
