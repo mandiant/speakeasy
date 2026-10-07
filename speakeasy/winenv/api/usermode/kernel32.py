@@ -6594,7 +6594,9 @@ class Kernel32(api.ApiHandler):
         ULONG RemoveVectoredExceptionHandler(
             PVOID Handle);
         """
-        Handler = argv
+        (Handler,) = argv
+        if Handler not in emu.veh_handlers:
+            return 0
         emu.remove_vectored_exception_handler(Handler)
         return 1
 
