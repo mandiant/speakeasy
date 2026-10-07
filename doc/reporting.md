@@ -26,14 +26,15 @@ Entry-point highlights:
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
 
-An `api` event records its arguments in `args`, one formatted string per argument. When the
-signature database declares the function and its prototype consumes the same argument slots
-as the call, the event also carries `arg_names`, `arg_types`, and `arg_values`, each with one
-entry per parameter. `args` is then rendered from the declared types. Strings are decoded,
-enums and flags are symbolic, and struct pointers are expanded. Each entry of `arg_types` gives
-the kind of the matching entry of `args`.
+An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value`,
+and `display`. When the signature database declares the function and its prototype consumes
+the same argument slots as the call, `args` has one entry per parameter, with the parameter
+name in `name` and `display` rendered from the declared type. Strings are decoded, enums and
+flags are symbolic, and struct pointers are expanded. Without a usable signature, `args` has
+one entry per argument slot, `name` is absent, and `display` is the hex value. `type` tells a
+consumer how to read `display`.
 
-| Kind | Text in `args` |
+| Type | `display` |
 |---|---|
 | `int` | hex integer |
 | `ptr` | address in hex (also null, out-only, and unreadable pointers) |
@@ -48,12 +49,12 @@ the kind of the matching entry of `args`.
 | `float` | decimal number |
 | `text` | a value that a handler decoded itself |
 
-`arg_values` holds the raw integer the caller passed for each parameter, so a consumer can
-match a flag or constant without parsing `args`. A parameter that uses two argument slots on
-x86 (a 64-bit integer, for example) has the combined value. For a call served by a handler, a
-value the handler decoded itself (such as the key path behind a registry handle) replaces the
-rendering of that parameter, and `arg_values` still holds what the caller passed.
-Without a usable signature, `arg_names` is absent and integers are hex-encoded.
+`value` holds the raw integer the caller passed, so a consumer can match a flag or constant
+without parsing `display`. A parameter that uses two argument slots on x86 (a 64-bit integer,
+for example) has the combined value. For a call served by a handler, a value the handler
+decoded itself (such as the key path behind a registry handle) replaces the `display` of that
+parameter, and `value` still holds what the caller passed. An entry that a variadic handler
+adds, such as the formatted output of `printf`, has no `value`.
 
 Every event carries `pos`, the position of the actor that performed the operation, so an
 event always sits in the timeline of the thread that caused it. Process-scoped events
@@ -77,7 +78,7 @@ thread, even for a local create.
 ```jsonc
 {
   // Report format version.
-  "report_version": "4.0.0",
+  "report_version": "5.0.0",
 
   // Total wall-clock runtime in seconds.
   "emulation_total_runtime": 1.234,
@@ -153,11 +154,8 @@ thread, even for a local create.
           "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": 4198400},
           "event": "api",
           "api_name": "kernel32.LoadLibraryA",
-          "args": ["ws2_32"],
-          // Present when the API signature is known.
-          "arg_names": ["lpLibFileName"],
-          "arg_types": ["str"],
-          "arg_values": [4206732],
+          // "name" is present when the API signature is known.
+          "args": [{"name": "lpLibFileName", "type": "str", "value": 4206732, "display": "ws2_32"}],
           "ret_val": "0x78c00000"
         },
         {
@@ -425,7 +423,7 @@ thread, even for a local create.
 
 ```json
 {
-  "report_version": "4.0.0",
+  "report_version": "5.0.0",
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
@@ -449,7 +447,7 @@ thread, even for a local create.
 ```jsonc
 {
   // Report schema version.
-  "report_version": "4.0.0",
+  "report_version": "5.0.0",
 
   // Total runtime in seconds for this emulation session.
   "emulation_total_runtime": 0.012,

@@ -134,8 +134,7 @@ def collect_behavior(report) -> ObservedBehavior:
     urls = set()
     for evt in api_events:
         for arg in evt.args or []:
-            if isinstance(arg, str):
-                urls.update(normalize_value(match) for match in URL_PATTERN.findall(arg))
+            urls.update(normalize_value(match) for match in URL_PATTERN.findall(arg.display))
 
     unsupported_api_count = sum(1 for evt in events if evt.event == "unsupported_api")
     unsupported_api_count += sum(1 for evt in api_events if (evt.api_name or "").lower().startswith("unsupported"))

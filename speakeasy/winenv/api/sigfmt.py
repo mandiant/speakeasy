@@ -20,9 +20,9 @@ from __future__ import annotations
 import struct as _struct
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, NamedTuple
 
+from speakeasy.profiler_events import ApiArg
 from speakeasy.winenv.api import sigdb
 
 ReadMem = Callable[[int, int], bytes]
@@ -34,20 +34,10 @@ _INTEGER_STRUCTS = ("LARGE_INTEGER", "ULARGE_INTEGER")
 
 
 class RenderedArg(NamedTuple):
-    """Text of one top-level argument and its kind, as listed for ``ApiEvent.arg_types``."""
+    """Text of one top-level argument and its kind, as listed for ``ApiArg.type``."""
 
     text: str
     kind: str
-
-
-@dataclass(frozen=True)
-class CallArgs:
-    """Named, rendered arguments of one API call, one entry per signature parameter."""
-
-    names: list[str]
-    texts: list[str]
-    kinds: list[str]
-    values: list[int]
 
 
 def quote_string(text: str) -> str:
@@ -316,7 +306,7 @@ def get_call_args(
     rendered: list[RenderedArg],
     before: list[int],
     after: list[Any] | None = None,
-) -> CallArgs:
+) -> list[ApiArg]:
     """
     Assemble the named arguments of a call from the rendering of its
     parameters. ``before`` holds the raw argument slots as read from the call
@@ -345,12 +335,30 @@ def get_call_args(
             args.append(arg)
         else:
             args.append(_render_handler_value(param, changed[0]))
-    return CallArgs(
-        names=[param.name for param in sig.params],
-        texts=[arg.text for arg in args],
-        kinds=[arg.kind for arg in args],
-        values=sig.values_from_slots(before, ptr_size),
-    )
+    values = sig.values_from_slots(before, ptr_size)
+    return [
+        ApiArg(name=param.name, type=arg.kind, value=value, display=arg.text)
+        for param, arg, value in zip(sig.params, args, values)
+    ]
+
+
+def get_slot_args(before: list[int], after: list[Any] | None = None) -> list[ApiArg]:
+    """
+    Arguments of a call without a usable signature, one entry per argument
+    slot. ``after`` is the slot list once a handler returned; a slot the
+    handler replaced with a string shows that string, and entries the handler
+    appended have no raw value.
+    """
+    if after is None:
+        after = before
+    args = []
+    for i, slot in enumerate(after):
+        value = before[i] if i < len(before) else None
+        if isinstance(slot, int):
+            args.append(ApiArg(type="int", value=value, display=hex(slot)))
+        else:
+            args.append(ApiArg(type="text", value=value, display=str(slot)))
+    return args
 
 
 def _render_handler_value(param: sigdb.ParamSig, value: Any) -> RenderedArg:

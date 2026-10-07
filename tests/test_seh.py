@@ -25,7 +25,7 @@ def test_seh_dispatch(config, load_test_bin, run_test):
         if evt.event == "api" and "__stdio_common_vfprintf" in evt.api_name:
             printfs.append(evt)
 
-    fmt_strings = [p.args[2] for p in printfs]
+    fmt_strings = [p.args[2].display for p in printfs]
     assert len(fmt_strings) == len(DISPATCH_SCRIPT)
     for i, s in enumerate(fmt_strings):
         assert s == DISPATCH_SCRIPT[i]
