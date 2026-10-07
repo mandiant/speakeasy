@@ -3031,6 +3031,9 @@ class Kernel32(api.ApiHandler):
         if not cw:
             cw = 2
 
+        if (cchSrc & 0xFFFFFFFF) == 0xFFFFFFFF:
+            cchSrc = self.mem_string_len(lpSrcStr, cw) + 1
+
         CT_CTYPE1 = 1
 
         C1_UPPER, C1_LOWER, C1_DIGIT, C1_SPACE = 0x001, 0x0002, 0x0004, 0x0008
@@ -3099,11 +3102,16 @@ class Kernel32(api.ApiHandler):
         rv = 0
         cw = self.get_char_width(ctx)
 
+        if lpSrcStr and (cchSrc & 0xFFFFFFFF) == 0xFFFFFFFF:
+            cchSrc = self.mem_string_len(lpSrcStr, cw) + 1
+
         if lpSrcStr == 0 or cchSrc == 0:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-        if lpDestStr == 0 or cchDest == 0:
+        elif lpDestStr == 0 or cchDest == 0:
             emu.set_last_error(windefs.ERROR_SUCCESS)
             rv = cchSrc
+        elif cchDest < cchSrc:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
         else:
             data = self.mem_read(lpSrcStr, cchSrc * cw)
             self.mem_write(lpDestStr, data)
@@ -3131,11 +3139,16 @@ class Kernel32(api.ApiHandler):
 
         rv = 0
 
+        if lpSrcStr and (cchSrc & 0xFFFFFFFF) == 0xFFFFFFFF:
+            cchSrc = self.mem_string_len(lpSrcStr, 2) + 1
+
         if lpSrcStr == 0 or cchSrc == 0:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-        if lpDestStr == 0 or cchDest == 0:
+        elif lpDestStr == 0 or cchDest == 0:
             emu.set_last_error(windefs.ERROR_SUCCESS)
             rv = cchSrc
+        elif cchDest < cchSrc:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
         else:
             data = self.mem_read(lpSrcStr, cchSrc * 2)
             self.mem_write(lpDestStr, data)

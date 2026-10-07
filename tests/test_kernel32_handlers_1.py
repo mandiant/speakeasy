@@ -256,3 +256,38 @@ def test_tls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
     assert value == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
+
+
+def lcmap_argv(api: str, src: int, cch_src: int, dst: int, cch_dst: int) -> list[int]:
+    if api == "LCMapStringEx":
+        return [0, 0, src, cch_src, dst, cch_dst, 0, 0, 0]
+    return [0x409, 0, src, cch_src, dst, cch_dst]
+
+
+@pytest.mark.parametrize("api, cw", [("LCMapStringA", 1), ("LCMapStringW", 2), ("LCMapStringEx", 2)])
+def test_lcmap_string_reads_a_nul_terminated_source(dll_emu: Speakeasy, api: str, cw: int) -> None:
+    start_process(dll_emu)
+    src = alloc(dll_emu, encode("hello\0", cw))
+    need, _ = call(dll_emu, "kernel32", api, lcmap_argv(api, src, 0xFFFFFFFF, 0, 0))
+    assert need == 6
+    dst = alloc(dll_emu, b"\xcc" * 32)
+    rv, _ = call(dll_emu, "kernel32", api, lcmap_argv(api, src, 0xFFFFFFFF, dst, 2))
+    assert rv == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
+    assert dll_emu.mem_read(dst, 32) == b"\xcc" * 32
+    rv, _ = call(dll_emu, "kernel32", api, lcmap_argv(api, src, 0xFFFFFFFF, dst, 16))
+    assert rv == 6
+    assert dll_emu.mem_read(dst, 6 * cw + 1) == encode("hello\0", cw) + b"\xcc"
+
+
+@pytest.mark.parametrize("api, cw", [("GetStringTypeA", 1), ("GetStringTypeW", 2)])
+def test_get_string_type_reads_a_nul_terminated_source(dll_emu: Speakeasy, api: str, cw: int) -> None:
+    src = alloc(dll_emu, encode("a1\0", cw))
+    out = alloc(dll_emu, b"\xcc" * 16)
+    argv = [1, src, 0xFFFFFFFF, out]
+    if api == "GetStringTypeA":
+        argv = [0x409, *argv]
+    rv, _ = call(dll_emu, "kernel32", api, argv)
+    assert rv == 1
+    assert dll_emu.mem_read(out, 8) == struct.pack("<HHH", 0x382, 0x284, 0x20) + b"\xcc\xcc"
