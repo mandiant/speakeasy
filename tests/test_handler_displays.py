@@ -516,6 +516,52 @@ def test_zw_query_value_key_returns_the_data(driver_emu: Speakeasy, name: str, v
     assert driver_emu.mem_read(info, 12 + len(data)) == struct.pack("<III", 0, val_type, len(data)) + data
 
 
+@pytest.mark.parametrize(
+    "info_class, name, val_type, data, data_offset",
+    [
+        (1, "Start", 4, struct.pack("<I", 3), 32),
+        (1, "DisplayName", 1, "An example service\x00".encode("utf-16le"), 44),
+        (3, "DisplayName", 1, "An example service\x00".encode("utf-16le"), 48),
+    ],
+)
+def test_zw_query_value_key_returns_the_full_information(
+    driver_emu: Speakeasy, info_class: int, name: str, val_type: int, data: bytes, data_offset: int
+) -> None:
+    phnd = _alloc(driver_emu, b"\x00" * 4)
+    oa = _object_attributes(driver_emu, "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp")
+    rv, _ = _call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])
+    assert rv == 0
+    hnd = int.from_bytes(driver_emu.mem_read(phnd, 4), "little")
+    info = _alloc(driver_emu, b"\xcc" * 128)
+    ret_len = _alloc(driver_emu, b"\x00" * 4)
+    value_name = _unicode_string(driver_emu, name)
+    rv, _ = _call(driver_emu, "ntoskrnl", "ZwQueryValueKey", [hnd, value_name, info_class, info, 128, ret_len])
+    assert rv == 0
+    encoded_name = name.encode("utf-16le")
+    header = struct.pack("<IIIII", 0, val_type, data_offset, len(data), len(encoded_name))
+    assert int.from_bytes(driver_emu.mem_read(ret_len, 4), "little") == data_offset + len(data)
+    assert driver_emu.mem_read(info, 20 + len(encoded_name)) == header + encoded_name
+    assert driver_emu.mem_read(info + data_offset, len(data)) == data
+
+
+def test_zw_query_value_key_full_information_without_data(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["registry"]["keys"][0]["values"].append({"name": "Empty", "type": "REG_BINARY", "data": ""})
+    for se in _load(config, load_test_bin("wdm_test_x86.sys.xz")):
+        phnd = _alloc(se, b"\x00" * 4)
+        oa = _object_attributes(se, "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp")
+        rv, _ = _call(se, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])
+        assert rv == 0
+        hnd = int.from_bytes(se.mem_read(phnd, 4), "little")
+        info = _alloc(se, b"\xcc" * 128)
+        ret_len = _alloc(se, b"\x00" * 4)
+        rv, _ = _call(se, "ntoskrnl", "ZwQueryValueKey", [hnd, _unicode_string(se, "Empty"), 1, info, 128, ret_len])
+        assert rv == 0
+        assert int.from_bytes(se.mem_read(ret_len, 4), "little") == 30
+        assert se.mem_read(info, 30) == struct.pack("<IIIII", 0, 3, 0xFFFFFFFF, 0, 10) + "Empty".encode("utf-16le")
+
+
 @pytest.mark.parametrize("dll", ["netapi32", "wkscli"])
 def test_net_get_join_information_fits_a_long_domain(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], dll: str
