@@ -177,7 +177,7 @@ class File:
                 byte = 0xFF & int(byte, 16)
             size = bf.size
             b = (byte).to_bytes(1, "little")
-            return b * size
+            return io.BytesIO(b * size)
         return io.BytesIO(b"")
 
 
