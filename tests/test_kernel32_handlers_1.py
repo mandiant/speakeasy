@@ -146,3 +146,32 @@ def test_multi_byte_to_wide_char_checks_the_buffer_size(dll_emu: Speakeasy) -> N
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(dst, 16) == b"\xcc" * 16
+
+
+def encode(text: str, cw: int) -> bytes:
+    return text.encode("utf-16le" if cw == 2 else "latin-1")
+
+
+@pytest.mark.parametrize("api, cw", [("ExpandEnvironmentStringsA", 1), ("ExpandEnvironmentStringsW", 2)])
+@pytest.mark.parametrize(
+    "src, expanded",
+    [
+        ("%windir%\\x.exe", "C:\\Windows\\x.exe"),
+        ("%WINDIR%\\%ComSpec%", "C:\\Windows\\C:\\Windows\\system32\\cmd.exe"),
+        ("no vars", "no vars"),
+    ],
+)
+def test_expand_environment_strings_returns_size_with_nul(
+    dll_emu: Speakeasy, api: str, cw: int, src: str, expanded: str
+) -> None:
+    lp_src = alloc(dll_emu, encode(src + "\0", cw))
+    need, _ = call(dll_emu, "kernel32", api, [lp_src, 0, 0])
+    assert need == len(expanded) + 1
+    dst = alloc(dll_emu, b"\xcc" * 0x100)
+    rv, _ = call(dll_emu, "kernel32", api, [lp_src, dst, 4])
+    assert rv == need
+    assert dll_emu.mem_read(dst, 0x100) == b"\xcc" * 0x100
+    rv, displays = call(dll_emu, "kernel32", api, [lp_src, dst, need])
+    assert rv == need
+    assert displays["lpDst"] == expanded
+    assert dll_emu.mem_read(dst, need * cw + 1) == encode(expanded + "\0", cw) + b"\xcc"

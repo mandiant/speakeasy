@@ -2631,11 +2631,10 @@ class Kernel32(api.ApiHandler):
                 if ev in dst.lower():
                     o = dst.lower().find(ev)
                     dst = dst[:o] + v + dst[o + len(ev) :]
-                    dst += "\x00\x00"
 
-            if lpDst:
+            rv = len(dst) + 1
+            if lpDst and nSize >= rv:
                 self.write_mem_string(dst, lpDst, cw)
-                rv = len(dst)
                 ctx.args["lpDst"].display = dst
 
         return rv
