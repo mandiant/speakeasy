@@ -1312,9 +1312,9 @@ class Msvcrt(api.ApiHandler):
         if not string_ptr:
             return 0
 
-        string = self.read_string(string_ptr)
-        ctx.args[0].display = string
-        self.write_string(string.lower(), string_ptr)
+        string = self.read_cstr(string_ptr)
+        ctx.args[0].display = string.decode("utf-8", "ignore")
+        self.mem_write(string_ptr, string.lower())
         return string_ptr
 
     @apihook("strncat", argc=3, conv=e_arch.CALL_CONV_CDECL)
