@@ -37,7 +37,7 @@ class NetApi32(api.ApiHandler):
         # Assumes the server being queried is the local computer
         domain = emu.config.domain
         ctx.args["lpNameBuffer"].display = domain
-        namebuf = self.mem_alloc(emu.get_ptr_size())
+        namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)
         self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), "little"))
 
