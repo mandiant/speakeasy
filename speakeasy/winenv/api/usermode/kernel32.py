@@ -806,6 +806,8 @@ class Kernel32(api.ApiHandler):
         emu.kill_process(proc)
         rv = True
 
+        return rv
+
     @apihook("FreeLibraryAndExitThread", argc=2)
     def FreeLibraryAndExitThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
