@@ -333,10 +333,10 @@ class AdvApi32(api.ApiHandler):
         rv = windefs.ERROR_INVALID_HANDLE
         if hKey:
             key = self.reg_get_key(hKey)
-            ctx.args["hKey"].display = key.get_path()
             if not key:
                 rv = windefs.ERROR_INVALID_HANDLE
             else:
+                ctx.args["hKey"].display = key.get_path()
                 subkeys = self.reg_get_subkeys(key)
                 if (dwIndex + 1) > len(subkeys):
                     rv = windefs.ERROR_NO_MORE_ITEMS
@@ -350,7 +350,7 @@ class AdvApi32(api.ApiHandler):
                             name = name.encode("utf-8")
                         self.mem_write(lpName, name)
                         rv = windefs.ERROR_SUCCESS
-            self.record_registry_access_event(key.get_path(), REG_LIST)
+                self.record_registry_access_event(key.get_path(), REG_LIST)
         return rv
 
     @apihook("RegCreateKey", argc=3)
@@ -366,10 +366,10 @@ class AdvApi32(api.ApiHandler):
         rv = windefs.ERROR_INVALID_HANDLE
         if hkey:
             key = self.reg_get_key(hkey)
-            ctx.args["hKey"].display = key.get_path()
             if not key:
                 rv = windefs.ERROR_INVALID_HANDLE
             else:
+                ctx.args["hKey"].display = key.get_path()
                 cw = self.get_char_width(ctx)
                 if lpSubKey:
                     lpSubKey = self.read_mem_string(lpSubKey, cw)
