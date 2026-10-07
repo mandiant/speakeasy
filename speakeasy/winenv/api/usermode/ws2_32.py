@@ -697,21 +697,25 @@ class Ws2_32(api.ApiHandler):
         pNodeName, pServiceName, pHints, ppResult = argv
         rv = 0
 
-        host = self.read_string(pNodeName)
-        ctx.args["pNodeName"].display = host
+        host = ""
+        if pNodeName:
+            host = self.read_string(pNodeName)
+            ctx.args["pNodeName"].display = host
 
-        service_name = self.read_string(pServiceName)
-        ctx.args["pServiceName"].display = service_name
-        if service_name.isnumeric():
-            port = int(service_name)
-        else:
-            port = winsock.SERVICE_PORTS.get(service_name)
-
-        if not port:
-            return rv
+        port = 0
+        if pServiceName:
+            service_name = self.read_string(pServiceName)
+            ctx.args["pServiceName"].display = service_name
+            if service_name.isnumeric():
+                port = int(service_name)
+            elif service_name in winsock.SERVICE_PORTS:
+                port = winsock.SERVICE_PORTS[service_name]
+            else:
+                return winsock.WSATYPE_NOT_FOUND
 
         hints_ai = self.wstypes.addrinfo(emu.get_ptr_size())
-        hints_ai = self.mem_cast(hints_ai, pHints)
+        if pHints:
+            hints_ai = self.mem_cast(hints_ai, pHints)
 
         # Handles a specific case where an IP address is converted as part of a URL
         # TODO: handle additional cases
@@ -729,24 +733,24 @@ class Ws2_32(api.ApiHandler):
 
         # Populate sockaddr_in
         sockaddr_in = self.wstypes.sockaddr_in(emu.get_ptr_size())
-        sockaddr_in.sin_family = hints_ai.ai_family
+        sockaddr_in.sin_family = winsock.AF_INET
         sockaddr_in.sin_port = htons(port)
         sockaddr_in.sin_addr = htonl(int(ip_bytes.hex(), 16))
-        p_sockaddr = self.mem_alloc(emu.get_ptr_size())
+        p_sockaddr = self.mem_alloc(sockaddr_in.sizeof(), tag="api.struct.sockaddr_in")
         self.mem_write(p_sockaddr, sockaddr_in.get_bytes())
 
         # Populate addrinfo with sockaddr_in and pHints data
         addrinfo = self.wstypes.addrinfo(emu.get_ptr_size())
         # TODO: Update ai_flags as additional cases are added
         addrinfo.ai_flags = winsock.AI_NUMERICHOST
-        addrinfo.ai_family = hints_ai.ai_family
+        addrinfo.ai_family = winsock.AF_INET
         addrinfo.ai_socktype = hints_ai.ai_socktype
         addrinfo.ai_protocol = hints_ai.ai_protocol
         addrinfo.ai_addrlen = sockaddr_in.sizeof()
         addrinfo.ai_addr = p_sockaddr
 
         # Populate ppResult with addrinfo
-        pResult = self.mem_alloc(emu.get_ptr_size())
+        pResult = self.mem_alloc(addrinfo.sizeof(), tag="api.struct.addrinfo")
         self.mem_write(pResult, addrinfo.get_bytes())
         self.mem_write(ppResult, pResult.to_bytes(emu.get_ptr_size(), "little"))
 

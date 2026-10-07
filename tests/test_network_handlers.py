@@ -103,3 +103,38 @@ def test_wsa_startup_fills_wsadata(
     assert struct.unpack_from("<H", wsadata, max_sockets_offset)[0] != 0xCCCC
     assert wsadata[description_offset : description_offset + 12] == b"WinSock 2.0\x00"
     assert wsadata[size:] == b"\xcc" * (0x200 - size)
+
+
+def _read_ptr(se: Speakeasy, addr: int) -> int:
+    size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    return int.from_bytes(se.mem_read(addr, size), "little")
+
+
+@pytest.mark.parametrize("emu_fixture, addr_offset", [("dll_emu", 24), ("dll64_emu", 32)])
+@pytest.mark.parametrize("service, port", [(None, 0), (b"443", 443), (b"http", 80)])
+def test_getaddrinfo_without_hints(
+    request: pytest.FixtureRequest, emu_fixture: str, addr_offset: int, service: bytes | None, port: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    node = alloc(se, b"example.com\x00")
+    service_ptr = alloc(se, service + b"\x00") if service else 0
+    result = alloc(se, b"\x00" * 8)
+    rv, _ = call(se, "ws2_32", "getaddrinfo", [node, service_ptr, 0, result])
+    assert rv == 0
+    for last in range(4):
+        call(se, "ws2_32", "inet_ntoa", [last << 24])
+    info = _read_ptr(se, result)
+    assert struct.unpack("<II", se.mem_read(info + 4, 8)) == (2, 0)
+    assert _read_ptr(se, info + addr_offset - se.emu.get_ptr_size()) == 0  # type: ignore[union-attr]
+    sockaddr = se.mem_read(_read_ptr(se, info + addr_offset), 8)
+    assert struct.unpack("<H", sockaddr[:2])[0] == 2
+    assert struct.unpack(">H", sockaddr[2:4])[0] == port
+    assert sockaddr[4:8] == bytes([10, 1, 2, 3])
+
+
+def test_getaddrinfo_unknown_service(dll_emu: Speakeasy) -> None:
+    node = alloc(dll_emu, b"example.com\x00")
+    service = alloc(dll_emu, b"nosuchservice\x00")
+    result = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "ws2_32", "getaddrinfo", [node, service, 0, result])
+    assert rv == 10109
