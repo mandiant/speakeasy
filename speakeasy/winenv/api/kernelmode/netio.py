@@ -352,7 +352,7 @@ class Netio(api.ApiHandler):
           PULONG ControlFlags,
           PIRP Irp
         )"""
-        sock, buf, flags, raddr, ctllen, ctlinfo, irp = argv
+        sock, buf, flags, raddr, ctllen, ctlinfo, ctlflags, irp = argv
         rv = 0
 
         return rv
