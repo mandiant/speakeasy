@@ -171,3 +171,13 @@ def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "com_api", "IUnknown.QueryInterface", [obj, guid(dll_emu, str(uuid.UUID(int=1))), out])
     assert rv == com.E_NOINTERFACE
     assert read_ptr(dll_emu, out) == 0
+
+
+def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    pp = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "SHGetMalloc", [pp])
+    assert rv == com.S_OK
+    obj = read_ptr(dll_emu, pp)
+    query_interface = read_ptr(dll_emu, read_ptr(dll_emu, obj))
+    assert (query_interface, "com_api", "IUnknown.QueryInterface") in dll_emu.emu.callbacks
