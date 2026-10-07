@@ -198,3 +198,14 @@ def test_path_add_backslash_returns_the_terminator(dll_emu: Speakeasy, path: str
     rv, _ = call(dll_emu, "shlwapi", "PathAddBackslash" + ("W" if width == 2 else "A"), [p])
     assert rv == p + 7 * width
     assert dll_emu.mem_read(p, 8 * width) == wstr("C:\\dir\\", width)
+
+
+@pytest.mark.parametrize("more", ["file.exe", "\\file.exe"])
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_append_keeps_the_path_for_a_leading_backslash(dll_emu: Speakeasy, more: str, width: int) -> None:
+    p = alloc(dll_emu, wstr("C:\\dir", width) + b"\x00" * 40)
+    rv, _ = call(
+        dll_emu, "shlwapi", "PathAppend" + ("W" if width == 2 else "A"), [p, alloc(dll_emu, wstr(more, width))]
+    )
+    assert rv == 1
+    assert dll_emu.mem_read(p, 16 * width) == wstr("C:\\dir\\file.exe", width)
