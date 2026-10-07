@@ -1249,10 +1249,8 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (c,) = argv
-        if 0x00 <= c <= 0x7F:
-            c = ord(chr(c).upper())
-        else:
-            c = 0x00
+        if ord("a") <= c <= ord("z"):
+            c -= 0x20
         return c
 
     @apihook("strlen", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1485,7 +1483,9 @@ class Msvcrt(api.ApiHandler):
         int tolower ( int c );
         """
         (c,) = argv
-        return c | 0x20
+        if ord("A") <= c <= ord("Z"):
+            c += 0x20
+        return c
 
     @apihook("isdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
