@@ -12,6 +12,8 @@ from .. import api
 EINVAL = 22
 ERANGE = 34
 _TRUNCATE = 0xFFFFFFFF
+_CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
+_CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
 
 TIME_BASE = 1576292568
 RAND_BASE = 0
@@ -1605,21 +1607,32 @@ class Msvcrt(api.ApiHandler):
             va_list argptr
         );
         """
+        options = argv[0]
         first = 1 if emu.get_arch() == e_arch.ARCH_AMD64 else 2
         buffer, count, _format, _, argptr = argv[first : first + 5]
-        rv = 0
         fmt_str = self.read_mem_string(_format, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         vargs = self.va_args(argptr, fmt_cnt)
 
         fin = self.do_str_format(fmt_str, vargs)
-        fin = fin[:count] + "\x00"
-
-        rv = len(fin)
-        self.mem_write(buffer, fin.encode("utf-8"))
-        ctx.args[first].display = fin.replace("\x00", "")
         ctx.args[first + 2].display = fmt_str
+        if not buffer and not count:
+            return len(fin)
+
+        if options & _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR:
+            out = fin[: count - 1] + "\x00"
+            rv = len(fin)
+        elif options & _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION:
+            out = fin[:count] if len(fin) >= count else fin + "\x00"
+            rv = len(fin) if len(fin) <= count else -1
+        else:
+            out = fin[: count - 1] + "\x00"
+            rv = len(fin) if len(fin) < count else -1
+
+        if count:
+            self.mem_write(buffer, out.encode("utf-8"))
+            ctx.args[first].display = out.rstrip("\x00")
 
         return rv
 
