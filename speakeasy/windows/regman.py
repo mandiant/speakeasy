@@ -53,6 +53,24 @@ class RegValue:
     def get_data(self):
         return self.data
 
+    def get_bytes(self, width):
+        """
+        Get the data as the registry APIs return it, with strings encoded in
+        characters of ``width`` bytes.
+        """
+        enc = "utf-16le" if width == 2 else "utf-8"
+        if self.type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ):
+            return (self.data + "\x00").encode(enc)
+        if self.type == regdefs.REG_MULTI_SZ:
+            return (self.data + "\x00\x00").encode(enc)
+        if self.type == regdefs.REG_DWORD and isinstance(self.data, int):
+            return self.data.to_bytes(4, "little")
+        if self.type == regdefs.REG_QWORD and isinstance(self.data, int):
+            return self.data.to_bytes(8, "little")
+        if self.type == regdefs.REG_BINARY:
+            return base64.b64decode(self.data)
+        return self.data if isinstance(self.data, bytes) else b""
+
 
 class RegKey:
     """
