@@ -471,8 +471,9 @@ class Ws2_32(api.ApiHandler):
         if addr:
             sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
             sockaddr = self.mem_cast(sockaddr, addr)
+            sockaddr.sin_family = winsock.AF_INET
             sockaddr.sin_addr = nip
-            sockaddr.sin_port = port
+            sockaddr.sin_port = htons(port)
             self.mem_write(addr, sockaddr.get_bytes())
 
         return new_sock.fd
