@@ -46,11 +46,11 @@ class Shlwapi(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         pn = ""
-        rv = False
+        rv = True
         if pszPath:
             pn = self.read_mem_string(pszPath, cw)
-            if ".." in pn:
-                rv = True
+            if pn.startswith("\\") or pn[1:2] == ":":
+                rv = False
 
             ctx.args["pszPath"].display = pn
 
