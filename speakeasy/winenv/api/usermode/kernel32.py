@@ -1133,6 +1133,10 @@ class Kernel32(api.ApiHandler):
         else:
             obj = self.get_object_from_handle(hProcess)
 
+        if not obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return rv
+
         proc_path = obj.path
         ctx.args["hProcess"].display = proc_path
 
@@ -1170,6 +1174,10 @@ class Kernel32(api.ApiHandler):
             obj = emu.get_current_process()
         else:
             obj = self.get_object_from_handle(hProcess)
+
+        if not obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return rv
 
         proc_path = obj.path
         ctx.args["hProcess"].display = proc_path
@@ -1215,6 +1223,10 @@ class Kernel32(api.ApiHandler):
         else:
             is_remote = True
             proc_obj = self.get_object_from_handle(hProcess)
+
+        if not proc_obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         proc_path = proc_obj.path
         ctx.args["hProcess"].display = proc_path
@@ -1473,6 +1485,10 @@ class Kernel32(api.ApiHandler):
         proc_obj = self.get_object_from_handle(hProcess)
         if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
             proc_obj = emu.get_current_process()
+
+        if not proc_obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
 
         rv = self.VirtualProtect(emu, argv[1:], ctx)
 

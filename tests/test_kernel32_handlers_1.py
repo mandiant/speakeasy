@@ -438,3 +438,21 @@ def test_file_time_to_system_time_counts_weekdays_from_sunday(
     rv, _ = call(dll_emu, "kernel32", "FileTimeToSystemTime", [ft, st])
     assert rv
     assert struct.unpack("<8H", dll_emu.mem_read(st, 16)) == fields
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("WriteProcessMemory", lambda buf: [0x9999, buf, buf, 4, 0]),
+        ("ReadProcessMemory", lambda buf: [0x9999, buf, buf, 4, 0]),
+        ("CreateRemoteThread", lambda buf: [0x9999, 0, 0, buf, 0, 0, 0]),
+        ("VirtualProtectEx", lambda buf: [0x9999, buf, 4, windefs.PAGE_READWRITE, buf]),
+    ],
+)
+def test_unknown_process_handle_is_invalid(dll_emu: Speakeasy, api: str, argv: Callable[[int], list[int]]) -> None:
+    start_process(dll_emu)
+    buf = alloc(dll_emu, b"\x00" * 16)
+    rv, _ = call(dll_emu, "kernel32", api, argv(buf))
+    assert not rv
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
