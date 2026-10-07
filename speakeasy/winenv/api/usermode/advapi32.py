@@ -138,8 +138,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     def write_value_type(self, val, lpType, arg):
-        typ = val.get_type()
-        code = regdefs.get_flag_value(typ) if isinstance(typ, str) else typ
+        code = val.get_type()
         if not lpType or not isinstance(code, int):
             return
         self.mem_write(lpType, code.to_bytes(4, "little"))
@@ -177,23 +176,14 @@ class AdvApi32(api.ApiHandler):
             val = key.get_value(lpValueName)
             if val:
                 self.write_value_type(val, lpType, ctx.args["lpType"])
-                output = b""
-                typ = val.get_type()
-                data = val.get_data()
-                if typ == "REG_SZ":
-                    output = data.encode("utf-8")
-
-                if not lpData and not lpcbData:
-                    rv = windefs.ERROR_SUCCESS
-                else:
-                    if lpcbData:
-                        self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
-
+                output = val.get_bytes(cw)
+                if lpcbData:
+                    self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+                if lpData:
                     if len(output) > length:
-                        rv = windefs.ERROR_INSUFFICIENT_BUFFER
+                        rv = windefs.ERROR_MORE_DATA
                     else:
-                        if lpData:
-                            self.mem_write(lpData, output)
+                        self.mem_write(lpData, output)
 
             # For now, return an empty buffer
             else:
