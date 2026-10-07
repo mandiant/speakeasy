@@ -271,6 +271,8 @@ class Shlwapi(api.ApiHandler):
 
         if rv <= max_buf_size:
             self.write_mem_string(fin, buf, cw)
+            ctx.args.clear()
+            ctx.args.append(fin)
             return rv
         else:
             return -1

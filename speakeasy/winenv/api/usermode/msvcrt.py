@@ -1922,6 +1922,8 @@ class Msvcrt(api.ApiHandler):
         fin = self.do_str_format(fmt_str, argv)
 
         self.write_wide_string(fin, buf)
+        ctx.args.clear()
+        ctx.args.append(fin)
         return len(fin)
 
     @apihook("_errno", argc=0)
