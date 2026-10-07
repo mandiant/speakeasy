@@ -65,3 +65,12 @@ def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
     assert addr >> 24
     assert k32.normalize_res_identifier(emu, 1, addr) == "MYNAME"
     assert k32.normalize_res_identifier(emu, 1, 0x65) == 0x65
+
+
+def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
+    path = _alloc(dll_emu, b"C:\\tmp\x00")
+    prefix = _alloc(dll_emu, b"abc\x00")
+    out = _alloc(dll_emu, b"\x00" * 260)
+    _, displays = _call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0, out])
+    assert displays["lpPrefixString"] == "abc"
+    assert displays["lpTempFileName"].startswith("C:\\tmp\\abc_")

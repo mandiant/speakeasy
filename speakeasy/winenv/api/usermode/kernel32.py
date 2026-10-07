@@ -6502,7 +6502,7 @@ class Kernel32(api.ApiHandler):
             out = path + f"\\{prefix}_{int(time.time_ns())}.tmp"
         else:
             out = path + f"{int(time.time_ns())}.tmp"
-        ctx.args["lpPrefixString"].display = out
+        ctx.args["lpTempFileName"].display = out
         self.write_mem_string(out, lpTempFileName, cw)
 
         return len(out) + 1
