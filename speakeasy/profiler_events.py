@@ -121,6 +121,26 @@ class ApiEvent(Event):
             "Present only when the signature accounts for every argument slot of the call."
         ),
     )
+    arg_types: list[str] | None = Field(
+        default=None,
+        description=(
+            "How to read each entry of ``args``, present with ``arg_names``: "
+            "``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), "
+            "``bool`` (TRUE or FALSE), ``enum`` (a member name), "
+            "``flags`` (member names joined by ``|``, maybe with a hex remainder), "
+            "``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), "
+            "``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler)."
+        ),
+    )
+    arg_values: list[int] | None = Field(
+        default=None,
+        description=(
+            "Raw value of each parameter as the caller passed it, present with ``arg_names``. "
+            "A parameter that uses more than one argument slot has the combined value. "
+            "A floating point argument that Win64 passes in an XMM register has the value of the "
+            "integer register for the same position instead."
+        ),
+    )
     ret_val: str | None = Field(
         default=None,
         description=(

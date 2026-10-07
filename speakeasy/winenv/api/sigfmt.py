@@ -1,13 +1,15 @@
 """
-Human readable rendering of the arguments of signature-emulated API calls.
+Human readable rendering of the arguments of API calls with a known signature.
 
-:class:`ArgFormatter` turns raw argument values into the ``name: value`` text
-that appears in the API trace, using the type information in a
+:class:`ArgFormatter` turns raw argument values into the text that appears in
+the API trace, using the type information in a
 :class:`~speakeasy.winenv.api.sigdb.SignatureDatabase`: strings are read from
-memory and quoted, BOOLs become ``TRUE``/``FALSE``, enum and flag values get
-their symbolic names, and pointers to known structs are expanded into a
-JSON-like ``{field: value, ...}`` rendering, following nested pointers a
-bounded number of levels.
+memory, BOOLs become ``TRUE``/``FALSE``, enum and flag values get their
+symbolic names, and pointers to known structs are expanded into a JSON-like
+``{field: value, ...}`` rendering, following nested pointers a bounded number
+of levels. Each top-level argument also gets a kind that tells a consumer how
+to read its text; strings inside a struct rendering are quoted, top-level
+strings are not.
 
 Memory access goes through callbacks so the formatter is independent of the
 emulator and testable against a plain ``bytes`` buffer.
@@ -18,6 +20,8 @@ from __future__ import annotations
 import struct as _struct
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, NamedTuple
 
 from speakeasy.winenv.api import sigdb
 
@@ -27,6 +31,23 @@ ReadXmm = Callable[[int], int]
 # Structs with a more useful rendering than their raw fields
 _COUNTED_STRING_STRUCTS = {"UNICODE_STRING": 2, "STRING": 1, "ANSI_STRING": 1, "CUNICODE_STRING": 2}
 _INTEGER_STRUCTS = ("LARGE_INTEGER", "ULARGE_INTEGER")
+
+
+class RenderedArg(NamedTuple):
+    """Text of one top-level argument and its kind, as listed for ``ApiEvent.arg_types``."""
+
+    text: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class CallArgs:
+    """Named, rendered arguments of one API call, one entry per signature parameter."""
+
+    names: list[str]
+    texts: list[str]
+    kinds: list[str]
+    values: list[int]
 
 
 def quote_string(text: str) -> str:
@@ -54,7 +75,7 @@ class ArgFormatter:
 
     # -- parameters --------------------------------------------------------
 
-    def format_param(self, param: sigdb.ParamSig, value: int, index: int) -> str:
+    def render_param(self, param: sigdb.ParamSig, value: int, index: int) -> RenderedArg:
         """Render parameter ``index`` of a call whose folded argument value is ``value``."""
         kind = param.kind
         if kind in sigdb.FLOAT_KINDS:
@@ -63,25 +84,42 @@ class ArgFormatter:
                 try:
                     value = self.read_xmm(index)
                 except Exception:
-                    return hex(value)
-            return self._format_float(kind, value)
+                    return RenderedArg(hex(value), "int")
+            return RenderedArg(self._format_float(kind, value), "float")
         if kind == "g" and self.ptr_size == 4:
-            return self._format_guid(value.to_bytes(16, "little"))
+            return RenderedArg(self._format_guid(value.to_bytes(16, "little")), "guid")
         if kind == "st" and not (self.ptr_size == 8 and param.size(8) not in (1, 2, 4, 8)):
             # by value in the argument slots themselves
-            return self._truncate(
-                self._format_struct_bytes(_struct_key(param), value.to_bytes(param.size(self.ptr_size), "little"), 0)
-            )
-        if kind in ("ps", "st", "g"):
-            # ps: pointer parameter; st/g: aggregate passed by reference on Win64.
-            # Out-only pointers hold nothing meaningful before the call.
-            if not param.is_in:
-                return hex(value)
-            name = _struct_key(param) if kind != "g" else None
-            return self._truncate(self._format_struct_ptr(name, value, 0, guid=(kind == "g")))
-        if kind in sigdb.STRING_KINDS and not param.is_in:
-            return hex(value)
-        return self._truncate(self._format_scalar(param.code, value, 0))
+            return self._render_struct_bytes(_struct_key(param), value.to_bytes(param.size(self.ptr_size), "little"))
+        if kind in ("ps", "st", "g", *sigdb.STRING_KINDS) and (not param.is_in or not value):
+            # Out-only pointers hold nothing meaningful before the call
+            return RenderedArg(hex(value), "ptr")
+        if kind == "g":
+            # aggregate passed by reference on Win64
+            try:
+                return RenderedArg(self._format_guid(self.read_mem(value, 16)), "guid")
+            except Exception:
+                return RenderedArg(hex(value), "ptr")
+        if kind in ("ps", "st"):
+            return self._render_struct_ptr(_struct_key(param), value)
+        if kind in sigdb.STRING_KINDS:
+            try:
+                text = self._read_string(value, 1 if kind == "s" else 2, self.MAX_STRING_CHARS)
+            except Exception:
+                return RenderedArg(hex(value), "ptr")
+            return RenderedArg(self._truncate(text), "str")
+        if kind in sigdb.BOOL_KINDS and value in (0, 1):
+            return RenderedArg("TRUE" if value else "FALSE", "bool")
+        if kind == "h":
+            return RenderedArg(hex(value), "handle")
+        if kind in ("p", "a"):
+            return RenderedArg(hex(value), "ptr")
+        enum = self.db.lookup_enum(param.enum) if param.enum else None
+        if enum is not None:
+            text = enum.decode(value)
+            if text != hex(value):
+                return RenderedArg(self._truncate(text), "flags" if enum.flags else "enum")
+        return RenderedArg(hex(value), "int")
 
     # -- scalars -----------------------------------------------------------
 
@@ -152,14 +190,29 @@ class ArgFormatter:
 
     # -- structs -----------------------------------------------------------
 
-    def _format_struct_ptr(self, name: str | None, addr: int, depth: int, guid: bool = False) -> str:
+    def _render_struct_ptr(self, name: str | None, addr: int) -> RenderedArg:
+        struct = self.db.lookup_struct(name) if name else None
+        if struct is None or not struct.fields or struct.size(self.ptr_size) == 0:
+            return RenderedArg(hex(addr), "ptr")
+        try:
+            data = self.read_mem(addr, struct.size(self.ptr_size))
+        except Exception:
+            return RenderedArg(hex(addr), "ptr")
+        return self._render_struct_bytes(name, data, struct)
+
+    def _render_struct_bytes(self, name: str | None, data: bytes, struct: sigdb.StructDef | None = None) -> RenderedArg:
+        if struct is None:
+            struct = self.db.lookup_struct(name) if name else None
+        if struct is None or not struct.fields:
+            return RenderedArg(self._truncate("0x" + data.hex()), "bytes")
+        special = self._render_special_struct(struct, data)
+        if special is not None:
+            return RenderedArg(self._truncate(special.text), special.kind)
+        return RenderedArg(self._truncate(self._format_struct_bytes(name, data, 0, struct)), "struct")
+
+    def _format_struct_ptr(self, name: str | None, addr: int, depth: int) -> str:
         if not addr:
             return hex(addr)
-        if guid:
-            try:
-                return self._format_guid(self.read_mem(addr, 16))
-            except Exception:
-                return hex(addr)
         struct = self.db.lookup_struct(name) if name else None
         if struct is None or not struct.fields or struct.size(self.ptr_size) == 0:
             return hex(addr)
@@ -176,9 +229,9 @@ class ArgFormatter:
             struct = self.db.lookup_struct(name) if name else None
         if struct is None or not struct.fields:
             return "0x" + data.hex()
-        special = self._format_special_struct(struct, data)
+        special = self._render_special_struct(struct, data)
         if special is not None:
-            return special
+            return quote_string(special.text) if special.kind == "str" else special.text
         parts = []
         for field in struct.fields:
             size = field.size(self.ptr_size)
@@ -190,11 +243,11 @@ class ArgFormatter:
             parts.append(f"{field.name}: {self._format_field(field.code, raw, depth)}")
         return "{" + ", ".join(parts) + "}"
 
-    def _format_special_struct(self, struct: sigdb.StructDef, data: bytes) -> str | None:
-        """Counted strings render as their text, LARGE_INTEGERs as one number."""
+    def _render_special_struct(self, struct: sigdb.StructDef, data: bytes) -> RenderedArg | None:
+        """Counted strings render as their (unquoted) text, LARGE_INTEGERs as one number."""
         name = struct.name
         if name in _INTEGER_STRUCTS and len(data) >= 8:
-            return hex(int.from_bytes(data[:8], "little"))
+            return RenderedArg(hex(int.from_bytes(data[:8], "little")), "int")
         width = _COUNTED_STRING_STRUCTS.get(name)
         if width is not None:
             fields = {f.name: f for f in struct.fields}
@@ -204,7 +257,7 @@ class ArgFormatter:
                 if buffer and length is not None:
                     try:
                         raw = self.read_mem(buffer, min(length, self.MAX_STRING_CHARS * width))
-                        return quote_string(_decode(raw, width))
+                        return RenderedArg(_decode(raw, width), "str")
                     except Exception:
                         return None
         return None
@@ -257,36 +310,60 @@ class ArgFormatter:
         return text
 
 
-def get_handler_arg_values(
-    sig: sigdb.FuncSig, ptr_size: int, before: list[int], after: list, rendered: list[str]
-) -> list[str]:
+def get_call_args(
+    sig: sigdb.FuncSig,
+    ptr_size: int,
+    rendered: list[RenderedArg],
+    before: list[int],
+    after: list[Any] | None = None,
+) -> CallArgs:
     """
-    Combine the signature rendering of a handled call's parameters with the
-    values its handler wrote back into the argument slots. ``before`` holds the
-    raw slots as read from the call, ``after`` the same list once the handler
-    returned, and ``rendered`` one formatted value per parameter. A parameter
+    Assemble the named arguments of a call from the rendering of its
+    parameters. ``before`` holds the raw argument slots as read from the call
+    and gives each parameter's value. For a call served by a handler,
+    ``after`` is the same slot list once the handler returned: a parameter
     whose slot the handler replaced shows the handler's value (it may know
-    more than the signature, such as the path behind a handle); the others
-    keep their rendering.
+    more than the signature, such as the path behind a handle), and the
+    others keep their rendering. A handler's symbolic name for a value the
+    signature already decodes as an enum or flags does not replace the
+    signature rendering, so that one format applies to all of them.
 
     Raises:
         ValueError: the slot lists do not match the slots the signature consumes.
     """
+    if after is None:
+        after = before
     layout = sig.slot_layout(ptr_size)
     if not (len(before) == len(after) == sum(layout)) or len(rendered) != len(layout):
         raise ValueError(f"{sig.name}: argument slots do not match the signature")
-    values = []
+    args = []
     pos = 0
-    for text, count in zip(rendered, layout):
+    for param, arg, count in zip(sig.params, rendered, layout):
         changed = [after[i] for i in range(pos, pos + count) if after[i] != before[i]]
         pos += count
-        if not changed:
-            values.append(text)
-        elif isinstance(changed[0], int):
-            values.append(hex(changed[0]))
+        if not changed or (isinstance(changed[0], str) and arg.kind in ("enum", "flags")):
+            args.append(arg)
         else:
-            values.append(str(changed[0]))
-    return values
+            args.append(_render_handler_value(param, changed[0]))
+    return CallArgs(
+        names=[param.name for param in sig.params],
+        texts=[arg.text for arg in args],
+        kinds=[arg.kind for arg in args],
+        values=sig.values_from_slots(before, ptr_size),
+    )
+
+
+def _render_handler_value(param: sigdb.ParamSig, value: Any) -> RenderedArg:
+    """Kind of a value a handler wrote into an argument slot, judged by the declared type."""
+    if isinstance(value, int):
+        if param.kind == "h":
+            return RenderedArg(hex(value), "handle")
+        if param.kind in ("p", "a", "ps", *sigdb.STRING_KINDS):
+            return RenderedArg(hex(value), "ptr")
+        return RenderedArg(hex(value), "int")
+    if isinstance(value, str) and param.kind in sigdb.STRING_KINDS:
+        return RenderedArg(value, "str")
+    return RenderedArg(str(value), "text")
 
 
 def _struct_key(param: sigdb.ParamSig) -> str | None:

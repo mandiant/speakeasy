@@ -211,7 +211,9 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch
 
     move = events[0]
     assert move.arg_names == ["lpExistingFileName", "lpNewFileName", "dwFlags"]
-    assert move.args == [f'"{OLD_NAME}"', f'"{NEW_NAME}"', "MOVEFILE_REPLACE_EXISTING"]
+    assert move.args == [OLD_NAME, NEW_NAME, "MOVEFILE_REPLACE_EXISTING"]
+    assert move.arg_types == ["str", "str", "flags"]
+    assert move.arg_values is not None and move.arg_values[2] == MOVEFILE_REPLACE_EXISTING
     # BOOL return: fake success
     assert move.ret_val == "0x1"
 
@@ -238,9 +240,11 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     assert [e.api_name for e in events] == ["kernel32.GetPrivateProfileStringW", "kernel32.ExitProcess"]
     call = events[0]
     assert call.arg_names == ["lpAppName", "lpKeyName", "lpDefault", "lpReturnedString", "nSize", "lpFileName"]
-    assert call.args[:3] == ['"app"', '"key"', '"def"']
+    assert call.args[:3] == ["app", "key", "def"]
     assert call.args[3].startswith("0x")
-    assert call.args[4:] == [f"{PROFILE_BUFFER_CHARS:#x}", '"C:\\x.ini"']
+    assert call.args[4:] == [f"{PROFILE_BUFFER_CHARS:#x}", "C:\\x.ini"]
+    # the Out buffer is a pointer, not a string, before the call fills it
+    assert call.arg_types == ["str", "str", "str", "ptr", "int", "str"]
     # "0 characters copied" and an empty string in the buffer agree with each other
     assert call.ret_val == "0x0"
     assert blobs[3] == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
@@ -259,10 +263,11 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     assert [e.api_name for e in events] == ["kernel32.CreateDirectoryExW", "kernel32.ExitProcess"]
     assert events[0].arg_names == ["lpTemplateDirectory", "lpNewDirectory", "lpSecurityAttributes"]
     assert events[0].args == [
-        '"C:\\tmpl"',
-        '"C:\\new"',
+        "C:\\tmpl",
+        "C:\\new",
         "{nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}",
     ]
+    assert events[0].arg_types == ["str", "str", "struct"]
     assert events[0].ret_val == "0x1"
     assert events[1].args == [f"{EXIT_CODE:#x}"]
 
@@ -310,8 +315,13 @@ def test_handled_api_args_are_named(config: dict[str, Any]) -> None:
         "FILE_ATTRIBUTE_NORMAL",
         "0x0",
     ]
+    assert call.arg_types == ["str", "flags", "flags", "ptr", "enum", "flags", "handle"]
+    assert call.arg_values is not None
+    assert call.arg_values[1:] == [GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0]
     assert events[1].arg_names == ["uExitCode"]
     assert events[1].args == [f"{EXIT_CODE:#x}"]
+    assert events[1].arg_types == ["int"]
+    assert events[1].arg_values == [EXIT_CODE]
 
 
 def test_handler_signature_requires_matching_argc(config: dict[str, Any]) -> None:

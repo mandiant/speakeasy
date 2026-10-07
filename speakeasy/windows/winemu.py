@@ -1799,18 +1799,20 @@ class WindowsEmulator(BinaryEmulator):
         imp_api: str,
         rv: int | None,
         argv: list[Any],
-        display: list[str] | None = None,
-        arg_names: list[str] | None = None,
+        call_args: sigfmt.CallArgs | None = None,
     ) -> None:
         """
-        Log an API call and record it with the profiler. ``display`` optionally
-        supplies a pre-rendered string per argument (used when parameter types
-        are known) that replaces the default formatting of ``argv``, and
-        ``arg_names`` the parameter name of each.
+        Log an API call and record it with the profiler. ``call_args``, when the
+        signature of the API is known, replaces the default formatting of ``argv``
+        with named, rendered arguments.
         """
-        rendered = display if display is not None else [self.format_api_arg(arg) for arg in argv]
-        if arg_names is not None:
-            rendered = [f"{name}: {value}" for name, value in zip(arg_names, rendered)]
+        if call_args is not None:
+            rendered = [
+                f"{name}: {sigfmt.quote_string(text) if kind == 'str' else text}"
+                for name, text, kind in zip(call_args.names, call_args.texts, call_args.kinds)
+            ]
+        else:
+            rendered = [self.format_api_arg(arg) for arg in argv]
         call_str = f"{imp_api}({', '.join(rendered)})"
 
         rv_str = hex(rv) if rv is not None else None
@@ -1820,7 +1822,7 @@ class WindowsEmulator(BinaryEmulator):
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, display=display, arg_names=arg_names)
+            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, call_args=call_args)
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
         """
@@ -1880,16 +1882,16 @@ class WindowsEmulator(BinaryEmulator):
             )
         return self._sigfmt
 
-    def _format_signature_arg(self, param: sigdb.ParamSig, value: int, index: int) -> str:
+    def _render_signature_arg(self, param: sigdb.ParamSig, value: int, index: int) -> sigfmt.RenderedArg:
         try:
-            return self.get_signature_formatter().format_param(param, value, index)
+            return self.get_signature_formatter().render_param(param, value, index)
         except Exception:
             logger.debug("failed to render %s (%s)", param.name, param.code, exc_info=True)
-            return hex(value)
+            return sigfmt.RenderedArg(hex(value), "int")
 
-    def _render_signature_args(self, sig: sigdb.FuncSig, argv: list[int]) -> list[str]:
+    def _render_signature_args(self, sig: sigdb.FuncSig, argv: list[int]) -> list[sigfmt.RenderedArg]:
         values = sig.values_from_slots(argv, self.get_ptr_size())
-        return [self._format_signature_arg(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
+        return [self._render_signature_arg(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
 
     # Upper bound on how much memory a single Out parameter is zero-filled with
     MAX_OUT_ZERO_FILL = 0x10000
@@ -1953,7 +1955,7 @@ class WindowsEmulator(BinaryEmulator):
 
         argv = self.get_func_argv(conv, argc)
         values = sig.values_from_slots(argv, ptr_size)
-        display = self._render_signature_args(sig, argv)
+        call_args = sigfmt.get_call_args(sig, ptr_size, self._render_signature_args(sig, argv), argv)
 
         rv = self._default_return_for_signature(sig)
         logger.debug(
@@ -1974,7 +1976,7 @@ class WindowsEmulator(BinaryEmulator):
                 set_last_error(0)
 
         ret = self.get_ret_address()
-        self.log_api(call_pc, imp_api, rv, argv, display=display, arg_names=[param.name for param in sig.params])
+        self.log_api(call_pc, imp_api, rv, argv, call_args=call_args)
         self.do_call_return(argc, ret, rv, conv=conv)
         if not self.run_complete:
             self.enable_code_hook()
@@ -2039,8 +2041,8 @@ class WindowsEmulator(BinaryEmulator):
 
             # Log the API args and return value
             if sig is not None and rendered is not None and len(argv) == len(raw_argv):
-                values = sigfmt.get_handler_arg_values(sig, self.get_ptr_size(), raw_argv, argv, rendered)
-                self.log_api(call_pc, imp_api, rv, argv, display=values, arg_names=[p.name for p in sig.params])
+                call_args = sigfmt.get_call_args(sig, self.get_ptr_size(), rendered, raw_argv, argv)
+                self.log_api(call_pc, imp_api, rv, argv, call_args=call_args)
             else:
                 self.log_api(call_pc, imp_api, rv, argv)
 

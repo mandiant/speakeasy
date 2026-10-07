@@ -68,6 +68,7 @@ from speakeasy.report import (
     StringsReport,
     SymAccessReport,
 )
+from speakeasy.winenv.api.sigfmt import CallArgs
 
 
 class ProfileError(Exception):
@@ -231,15 +232,14 @@ class Profiler:
         name: str,
         ret: int | None,
         argv: list[Any],
-        display: list[str] | None = None,
-        arg_names: list[str] | None = None,
+        call_args: CallArgs | None = None,
     ) -> None:
         """
         Log a call to an OS API. This includes arguments, return address, and return value.
 
-        ``display``, when given, is a pre-rendered human readable representation of
-        each argument (e.g. ``"\\"C:\\\\x\\""``) that is recorded verbatim in
-        place of the raw ``argv`` formatting. ``arg_names`` names each of them.
+        ``call_args``, when the signature of the API is known, supplies the
+        names, rendered text, kinds and raw values of the arguments, recorded
+        in place of the raw ``argv`` formatting.
         """
         run.num_apis += 1
 
@@ -249,8 +249,8 @@ class Profiler:
 
         ret_str = hex(ret) if ret is not None else None
 
-        if display is not None:
-            args = list(display)
+        if call_args is not None:
+            args = list(call_args.texts)
         else:
             args = argv.copy()
             for i, arg in enumerate(args):
@@ -261,7 +261,9 @@ class Profiler:
             pos=pos,
             api_name=name,
             args=args,
-            arg_names=list(arg_names) if arg_names is not None else None,
+            arg_names=list(call_args.names) if call_args is not None else None,
+            arg_types=list(call_args.kinds) if call_args is not None else None,
+            arg_values=list(call_args.values) if call_args is not None else None,
             ret_val=ret_str,
         )
 
@@ -271,6 +273,7 @@ class Profiler:
             and e.api_name == event.api_name
             and e.args == event.args
             and e.arg_names == event.arg_names
+            and e.arg_types == event.arg_types
             and e.ret_val == event.ret_val
             for e in recent_events
         ):
