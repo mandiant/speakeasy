@@ -67,3 +67,18 @@ def test_get_subkeys_lists_each_child_once() -> None:
         regman.create_key(path)
     parent = regman.create_key("HKEY_LOCAL_MACHINE\\T")
     assert regman.get_subkeys(parent) == ["A"]
+
+
+def test_reg_create_key_returns_a_handle_to_the_subkey(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    phk = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "advapi32", "RegCreateKeyA", [HKEY_CURRENT_USER, alloc(dll_emu, b"Software\\Evil\x00"), phk])
+    assert rv == windefs.ERROR_SUCCESS
+    key = dll_emu.emu.regman.get_key_from_handle(_dword(dll_emu, phk))
+    assert key is not None and key.get_path() == "HKEY_CURRENT_USER\\Software\\Evil"
+
+
+def test_reg_create_key_without_a_subkey_returns_the_key(dll_emu: Speakeasy) -> None:
+    phk = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "advapi32", "RegCreateKeyA", [HKEY_CURRENT_USER, 0, phk])
+    assert (rv, _dword(dll_emu, phk)) == (windefs.ERROR_SUCCESS, HKEY_CURRENT_USER)
