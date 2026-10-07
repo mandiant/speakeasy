@@ -168,6 +168,9 @@ class Wininet(api.ApiHandler):
             elif crack.scheme == "http":
                 url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
             port, parts = windefs.crack_url(url)
+            if not url_comp.dwExtraInfoLength:
+                path_start = parts["UrlPath"][1]
+                parts["UrlPath"] = (url[path_start:], path_start)
             url_comp.nPort = port
             for part, (text, offset) in parts.items():
                 length = getattr(url_comp, f"dw{part}Length")
