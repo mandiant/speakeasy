@@ -1001,7 +1001,7 @@ class AdvApi32(api.ApiHandler):
 
         rv = False
         if RandomBuffer and RandomBufferLength:
-            buf = bytes([i for i in range(RandomBufferLength)])
+            buf = bytes(i & 0xFF for i in range(RandomBufferLength))
             self.mem_write(RandomBuffer, buf)
             rv = True
 
