@@ -159,6 +159,19 @@ def test_zw_file_path_is_on_object_attributes(driver_emu: Speakeasy, api: str, a
     assert displays["IoStatusBlock"] == hex(argv[3])
 
 
+def test_zw_write_file_data_is_on_buffer(driver_emu: Speakeasy) -> None:
+    handle = _alloc(driver_emu, b"\x00" * 4)
+    obj_attrs = _object_attributes(driver_emu, "\\??\\C:\\out.txt")
+    iosb = _alloc(driver_emu, b"\x00" * 8)
+    _call(driver_emu, "ntoskrnl", "ZwCreateFile", [handle, 0x40000000, obj_attrs, iosb, 0, 0, 0, 5, 0, 0, 0])
+    hnd = int.from_bytes(driver_emu.mem_read(handle, 4), "little")
+    buf = _alloc(driver_emu, b"hello")
+    rv, displays = _call(driver_emu, "ntoskrnl", "ZwWriteFile", [hnd, 0, 0, 0, iosb, buf, 5, 0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert displays["Buffer"] == "hello"
+    assert displays["Length"] == "0x5"
+
+
 def _format_args(se: Speakeasy) -> tuple[int, int, int]:
     """Return (output buffer, format string, va_list) for "n=%d" with 7."""
     return _alloc(se, b"\x00" * 64), _alloc(se, b"n=%d\x00"), _alloc(se, struct.pack("<I", 7))

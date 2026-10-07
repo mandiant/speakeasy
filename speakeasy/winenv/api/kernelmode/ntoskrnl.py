@@ -3037,7 +3037,7 @@ class Ntoskrnl(api.ApiHandler):
                     data = data.decode("utf-8")
                 except UnicodeDecodeError:
                     data = data.hex()
-                ctx.args["Length"].display = data[:0x10]
+                ctx.args["Buffer"].display = data[:0x10]
                 nts = ddk.STATUS_SUCCESS
 
         return nts
