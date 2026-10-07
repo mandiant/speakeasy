@@ -335,7 +335,7 @@ class WinHttp(api.ApiHandler):
 
         header_query = windefs.get_header_query(dwInfoLevel)
         if header_query:
-            ctx.args["pwszName"].display = header_query
+            ctx.args["dwInfoLevel"].display = header_query
 
         if buffer == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -346,7 +346,6 @@ class WinHttp(api.ApiHandler):
             self.mem_write(buffer, b"\x32\x00\x30\x00\x30\x00\x00\x00")
             self.mem_write(bufferLen, 8)
 
-        ctx.args["lpdwIndex"].display = hex(0)
         rv = 1
 
         return rv
