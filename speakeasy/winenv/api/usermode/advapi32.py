@@ -1499,14 +1499,14 @@ class AdvApi32(api.ApiHandler):
         }
 
         hProv, Algid, hKey, dwFlags, phHash = argv
-        ctx.args["Algid"].display = hash_algs.get(Algid, Algid)[0]
-
         if hKey != 0:
             return 0
 
         if Algid not in hash_algs:
             emu.set_last_error(adv32.NTE_BAD_ALGID)
             return 0
+
+        ctx.args["Algid"].display = hash_algs[Algid][0]
 
         hnd = self.get_handle()
         self.hash_objects.update({hnd: hash_algs[Algid][1]()})
