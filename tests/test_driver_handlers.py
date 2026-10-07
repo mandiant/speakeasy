@@ -4,6 +4,8 @@ Kernel driver framework handlers (NDIS, WFP, WSK, KMDF) return what callers read
 
 import uuid
 
+import pytest
+
 from speakeasy import Speakeasy
 from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND, Fwpkclnt
 from speakeasy.winenv.api.kernelmode.netio import Netio
@@ -57,3 +59,19 @@ def test_fwpm_filter_delete_by_id_pops_the_64_bit_id(driver_emu: Speakeasy) -> N
     assert Fwpkclnt.FwpmFilterDeleteById0.__apihook__[2] == 3
     rv, _ = call(driver_emu, "fwpkclnt", "FwpmFilterDeleteById0", [4, 8, 0])
     assert rv == 0
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("NdisMRegisterMiniportDriver", [0, 0, 0, 0, "out"]),
+        ("NdisRegisterProtocol", ["buf", "out", "buf", 0x40]),
+        ("NdisIMRegisterLayeredMiniport", [0, "buf", 0x40, "out"]),
+    ],
+)
+def test_ndis_handles_are_pointer_sized(driver64_emu: Speakeasy, api: str, argv: list[int | str]) -> None:
+    out = alloc(driver64_emu, b"\xcc" * 8)
+    slots = {"out": out, "buf": alloc(driver64_emu, b"\x00" * 0x40)}
+    call(driver64_emu, "ndis", api, [slots[a] if isinstance(a, str) else a for a in argv])
+    handle = int.from_bytes(driver64_emu.mem_read(out, 8), "little")
+    assert 0 < handle < 0x10000
