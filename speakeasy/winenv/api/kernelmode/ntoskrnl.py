@@ -816,7 +816,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         dest, c, count = argv
 
-        data = c.to_bytes(1, "little")
+        data = bytes([c & 0xFF])
         self.mem_write(dest, data * count)
         return dest
 

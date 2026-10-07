@@ -111,3 +111,10 @@ def test_rtl_compare_memory_counts_matching_bytes(
 ) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "RtlCompareMemory", [alloc(driver_emu, a), alloc(driver_emu, b), length])
     assert rv == expected
+
+
+def test_memset_fills_with_the_low_byte_of_c(driver_emu: Speakeasy) -> None:
+    buf = alloc(driver_emu, b"\x00" * 8)
+    rv, _ = call(driver_emu, "ntoskrnl", "memset", [buf, 0xFFFFFFFF, 4])
+    assert rv == buf
+    assert driver_emu.mem_read(buf, 8) == b"\xff" * 4 + b"\x00" * 4
