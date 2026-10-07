@@ -737,3 +737,14 @@ def test_wnsprintf_without_arguments_fits_the_buffer(dll_emu: Speakeasy) -> None
     fmt = _alloc(dll_emu, b"abcdef\x00")
     rv, _ = _call(dll_emu, "shlwapi", "wnsprintfA", [buf, 4, fmt])
     assert (rv, dll_emu.mem_read(buf, 5)) == (-1, b"abc\x00\xcc")
+
+
+@pytest.mark.parametrize(
+    "count, rv, out",
+    [
+        (8, 3, b"n=7\x00\xcc"),
+        (3, -1, b"\x00\xcc\xcc\xcc\xcc"),
+    ],
+)
+def test_vsprintf_s_overflow_leaves_an_empty_string(driver_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
+    assert _bounded_format(driver_emu, "ntoskrnl", "vsprintf_s", count) == (rv, out)
