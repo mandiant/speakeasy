@@ -52,3 +52,28 @@ def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
     hmap, _ = call(file_emu, "kernel32", "CreateFileMappingA", [hfile, 0, 0x02, 0, 0, 0])
     view, _ = call(file_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_READ, 0, 0x10000, 0])
     assert file_emu.mem_read(view, 4) == struct.pack("<I", 0x4000)
+
+
+@pytest.mark.parametrize(
+    "alloc_api, alloc_argv, realloc_api, realloc_argv",
+    [
+        ("HeapAlloc", lambda h: [h, 0, 0x3000], "HeapReAlloc", lambda h, p: [h, 0, p, 0x10]),
+        ("LocalAlloc", lambda h: [0, 0x3000], "LocalReAlloc", lambda h, p: [p, 0x10, 0]),
+    ],
+)
+def test_shrinking_realloc_copies_only_the_new_size(
+    dll_emu: Speakeasy,
+    alloc_api: str,
+    alloc_argv: Callable[[int], list[int]],
+    realloc_api: str,
+    realloc_argv: Callable[[int, int], list[int]],
+) -> None:
+    heap, _ = call(dll_emu, "kernel32", "GetProcessHeap", [])
+    old, _ = call(dll_emu, "kernel32", alloc_api, alloc_argv(heap))
+    dll_emu.mem_write(old, bytes(range(256)) * 0x30)
+    neighbor, _ = call(dll_emu, "kernel32", alloc_api, alloc_argv(heap))
+    dll_emu.mem_write(neighbor, b"\xee" * 0x3000)
+    new, _ = call(dll_emu, "kernel32", realloc_api, realloc_argv(heap, old))
+    assert new
+    assert dll_emu.mem_read(new, 0x10) == bytes(range(0x10))
+    assert dll_emu.mem_read(neighbor, 0x3000) == b"\xee" * 0x3000
