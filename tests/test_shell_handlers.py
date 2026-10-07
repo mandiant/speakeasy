@@ -319,3 +319,13 @@ def test_str_cmp_i_orders_strings(dll_emu: Speakeasy, a: str, b: str, sign: int,
 def test_co_set_proxy_blanket_returns_s_ok(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "ole32", "CoSetProxyBlanket", [0x1000, 10, 0, 0, 3, 3, 0, 0])
     assert rv == com.S_OK
+
+
+def test_enum_processes_reports_bytes_written(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert len(dll_emu.emu.get_processes()) > 1
+    pids = alloc(dll_emu, b"\xcc" * 8)
+    needed = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "psapi", "EnumProcesses", [pids, 4, needed])[0] == 1
+    assert int.from_bytes(dll_emu.mem_read(needed, 4), "little") == 4
+    assert dll_emu.mem_read(pids + 4, 4) == b"\xcc" * 4

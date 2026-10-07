@@ -61,10 +61,9 @@ class Psapi(api.ApiHandler):
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
-        if lpcbNeeded:
-            self.mem_write(lpcbNeeded, (len(processes) * 4).to_bytes(4, "little"))
-
         if not lpidProcess or cb < 4:
+            if lpcbNeeded:
+                self.mem_write(lpcbNeeded, (len(processes) * 4).to_bytes(4, "little"))
             return 1
 
         count = min(cb // 4, len(processes))
@@ -73,6 +72,9 @@ class Psapi(api.ApiHandler):
             pid = process.pid or 0
             self.mem_write(cursor, int(pid).to_bytes(4, "little"))
             cursor += 4
+
+        if lpcbNeeded:
+            self.mem_write(lpcbNeeded, (count * 4).to_bytes(4, "little"))
 
         return 1
 
