@@ -5020,6 +5020,8 @@ class Kernel32(api.ApiHandler):
         try:
             name, is_dir = next(walker)
         except StopIteration:
+            self.find_files.pop(hnd)
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return windefs.INVALID_HANDLE_VALUE
 
         if cw == 2:
@@ -5053,12 +5055,14 @@ class Kernel32(api.ApiHandler):
         fsearch = self.find_files.get(hFindFile)
 
         if not hFindFile or not lpFindFileData or not fsearch:
-            return windefs.INVALID_HANDLE_VALUE
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         walker = fsearch.get("walker")
         try:
             name, is_dir = next(walker)
         except StopIteration:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return 0
 
         ctx.args["lpFindFileData"].display = name

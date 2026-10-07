@@ -382,3 +382,20 @@ def test_create_event_clears_a_stale_already_exists(emu: Speakeasy) -> None:
 
     assert call(emu, "kernel32", "CreateEventA", [0, 1, 0, name])[0]
     assert last_error(emu) == windefs.ERROR_ALREADY_EXISTS
+
+
+def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    data = alloc(se, b"\x00" * 0x200)
+    pattern = alloc(se, b"c:\\programdata\\mydir\\*.bin\x00")
+    hnd, _ = call(se, "kernel32", "FindFirstFileA", [pattern, data])
+    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert call(se, "kernel32", "FindNextFileA", [hnd, data])[0] == 0
+    assert last_error(se) == windefs.ERROR_NO_MORE_FILES
+
+    assert call(se, "kernel32", "FindNextFileA", [0x7FF0, data])[0] == 0
+    assert last_error(se) == windefs.ERROR_INVALID_HANDLE
+
+    nomatch = alloc(se, b"c:\\programdata\\mydir\\*.xyz\x00")
+    assert call(se, "kernel32", "FindFirstFileA", [nomatch, data])[0] == windefs.INVALID_HANDLE_VALUE
+    assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
