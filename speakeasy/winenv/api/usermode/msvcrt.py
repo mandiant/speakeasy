@@ -2,6 +2,7 @@
 
 import io
 import math
+import re
 import struct
 from typing import Any
 
@@ -853,15 +854,13 @@ class Msvcrt(api.ApiHandler):
 
         (_str,) = argv
 
-        i = self.read_string(_str)
-        ctx.args[0].display = i
+        i = self.read_cstr(_str)
+        ctx.args[0].display = i.decode("utf-8", "ignore")
 
-        try:
-            rv = int(i)
-        except ValueError:
-            rv = 0
-
-        return rv
+        m = re.match(rb"[ \t\n\v\f\r]*([+-]?[0-9]+)", i)
+        if not m:
+            return 0
+        return max(-0x80000000, min(int(m.group(1)), 0x7FFFFFFF))
 
     @apihook("rand", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def rand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

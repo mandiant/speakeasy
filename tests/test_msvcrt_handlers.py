@@ -226,3 +226,19 @@ def test_fseek_takes_a_signed_offset(request: pytest.FixtureRequest, emu_name: s
     assert call(se, "msvcrt", "fseek", [stream, minus, 0])[0] == -1
     assert call(se, "msvcrt", "fseek", [stream, minus - 1, 1])[0] == 0
     assert call(se, "msvcrt", "fread", [alloc(se, b"\x00" * 16), 1, 16, stream])[0] == 6
+
+
+@pytest.mark.parametrize(
+    "text, rv",
+    [
+        (b"123abc", 123),
+        (b" \t-42x", -42),
+        (b"+7", 7),
+        (b"1_0", 1),
+        (b"abc", 0),
+        (b"99999999999", 0x7FFFFFFF),
+        (b"-99999999999", -0x80000000),
+    ],
+)
+def test_atoi_parses_leading_digits(dll_emu: Speakeasy, text: bytes, rv: int) -> None:
+    assert call(dll_emu, "msvcrt", "atoi", [alloc(dll_emu, text + b"\x00")])[0] == rv
