@@ -1638,8 +1638,8 @@ class Kernel32(api.ApiHandler):
 
         quad = (ft.dwHighDateTime << 32) | ft.dwLowDateTime
         try:
-            dt = datetime.datetime.fromtimestamp((quad - 116444736000000000) / 10000000, tz=datetime.timezone.utc)
-        except ValueError:
+            dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
+        except OverflowError:
             dt = None
 
         if dt:
