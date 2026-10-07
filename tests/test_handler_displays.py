@@ -766,3 +766,16 @@ def test_load_string_counts_characters(dll_emu: Speakeasy, api: str, count: int,
     result, displays = _call(dll_emu, "user32", api, [0, 7, buf, count])
     assert (result, dll_emu.mem_read(buf, len(out))) == (rv, out)
     assert displays["lpBuffer"] == out.decode("utf-16le" if api.endswith("W") else "utf-8").rstrip("\x00")
+
+
+@pytest.mark.parametrize(
+    "a, b, rv",
+    [
+        (b"AAAA", b"AAAA", 0),
+        (b"AAAA", b"AABB", -1),
+        (b"AAZA", b"AABB", 1),
+    ],
+)
+def test_memcmp_compares_every_byte(dll_emu: Speakeasy, a: bytes, b: bytes, rv: int) -> None:
+    result, _ = _call(dll_emu, "msvcrt", "memcmp", [_alloc(dll_emu, a), _alloc(dll_emu, b), 4])
+    assert result == rv
