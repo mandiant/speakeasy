@@ -1,12 +1,15 @@
 import copy
 import json
 import lzma
+from collections.abc import Callable, Iterator
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
+from tests.handler_harness import load_emu
 
 TESTS_DIR = Path(__file__).resolve().parent
 BINS_DIR = TESTS_DIR / "bins"
@@ -45,3 +48,23 @@ def run_test():
             se.shutdown()
 
     return _run
+
+
+@pytest.fixture
+def dll_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.fixture
+def dll64_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(config, load_test_bin("dll_test_x64.dll.xz"))
+
+
+@pytest.fixture
+def driver_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(config, load_test_bin("wdm_test_x86.sys.xz"))
+
+
+@pytest.fixture
+def driver64_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(config, load_test_bin("wdm_test_x64.sys.xz"))
