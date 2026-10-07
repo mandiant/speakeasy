@@ -253,6 +253,7 @@ def test_path_name_sizes(emu: Speakeasy, name: str) -> None:
 
 
 OPEN_ALWAYS = 4
+TRUNCATE_EXISTING = 5
 
 
 def test_create_file_open_always_reports_existing_files(strict_fs_emu: Speakeasy) -> None:
@@ -263,3 +264,14 @@ def test_create_file_open_always_reports_existing_files(strict_fs_emu: Speakeasy
 
     assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
     assert last_error(se) == windefs.ERROR_ALREADY_EXISTS
+
+
+def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, BYTE_FILL_PATH.encode() + b"\x00")
+    hnd, displays = call(se, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, TRUNCATE_EXISTING, 0, 0])
+    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert displays["dwCreationDisposition"] == "TRUNCATE_EXISTING"
+
+    assert open_file(se, "c:\\missing.txt", TRUNCATE_EXISTING) == windefs.INVALID_HANDLE_VALUE
+    assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
