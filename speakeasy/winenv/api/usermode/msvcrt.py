@@ -713,7 +713,7 @@ class Msvcrt(api.ApiHandler):
 
         ptr, value, num = argv
 
-        data = value.to_bytes(1, "little") * num
+        data = bytes([value & 0xFF]) * num
         self.mem_write(ptr, data)
 
         return ptr
