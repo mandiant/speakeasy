@@ -410,3 +410,19 @@ def test_lookup_account_name_small_domain_buffer(sid_emu: Speakeasy) -> None:
         len(domain) + 1,
     )
     assert sid_emu.mem_read(dom, 4) == b"\xcc" * 4
+
+
+@pytest.fixture(params=[False, True], ids=["user", "admin"])
+def admin_emu(
+    request: pytest.FixtureRequest, config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> Iterator[Speakeasy]:
+    config["user"]["is_admin"] = request.param
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> None:
+    assert admin_emu.emu is not None
+    info = alloc(admin_emu, b"\xcc" * 4)
+    ret_len = alloc(admin_emu, b"\xcc" * 4)
+    rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 20, info, 4, ret_len])
+    assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.is_admin), 4)
