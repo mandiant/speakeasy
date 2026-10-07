@@ -364,9 +364,11 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, Driver, DesiredAccess, KeyAttributes, pKey = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
+        hnd = 0
 
         driver = self.wdf_drivers.get(DriverGlobals)
-        hnd = emu.reg_open_key(driver.reg_path + "\\Parameters")
+        if driver and driver.reg_path:
+            hnd = emu.reg_open_key(driver.reg_path + "\\Parameters") or 0
         if hnd:
             rv = ddk.STATUS_SUCCESS
 
