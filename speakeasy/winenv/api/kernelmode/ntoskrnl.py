@@ -2477,11 +2477,10 @@ class Ntoskrnl(api.ApiHandler):
                 if proc_info_len < self.get_ptr_size():
                     nts = ddk.STATUS_INFO_LENGTH_MISMATCH
                     if retlen:
-                        self.mem_write(retlen, ptr_size.to_bytes(ptr_size, "little"))
-                        nts = ddk.STATUS_SUCCESS
+                        self.mem_write(retlen, ptr_size.to_bytes(4, "little"))
                 else:
                     if retlen:
-                        self.mem_write(retlen, ptr_size.to_bytes(ptr_size, "little"))
+                        self.mem_write(retlen, ptr_size.to_bytes(4, "little"))
                     # Send back that we are not in WOW64
                     self.mem_write(proc_info, (0).to_bytes(ptr_size, "little"))
                     nts = ddk.STATUS_SUCCESS
