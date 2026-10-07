@@ -124,3 +124,29 @@ def test_snprintf_writes_at_most_count_chars(
     assert call(dll_emu, "msvcrt", api, [buf, count, *args])[0] == rv
     data = written.encode(enc)
     assert dll_emu.mem_read(buf, len(data) + width) == data + b"\xcc" * width
+
+
+@pytest.mark.parametrize(
+    "value, radix, text",
+    [
+        (255, 16, "ff"),
+        (255, 10, "255"),
+        (5, 2, "101"),
+        (0, 10, "0"),
+        (0xFFFFFFFB, 10, "-5"),
+        (0xFFFFFFFB, 16, "fffffffb"),
+        (0x80000000, 10, "-2147483648"),
+    ],
+)
+@pytest.mark.parametrize("api, enc", [("_ltoa", "utf-8"), ("_itoa", "utf-8"), ("_itow", "utf-16le")])
+def test_itoa_formats_in_radix(dll_emu: Speakeasy, api: str, enc: str, value: int, radix: int, text: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 40)
+    assert call(dll_emu, "msvcrt", api, [value, buf, radix])[0] == buf
+    data = f"{text}\0".encode(enc)
+    assert dll_emu.mem_read(buf, len(data)) == data
+
+
+def test_itoa_uses_32_bit_value_on_x64(dll64_emu: Speakeasy) -> None:
+    buf = alloc(dll64_emu, b"\xcc" * 16)
+    call(dll64_emu, "msvcrt", "_itoa", [0xFFFFFFFFFFFFFFFB, buf, 10])
+    assert dll64_emu.mem_read(buf, 3) == b"-5\x00"
