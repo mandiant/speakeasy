@@ -77,3 +77,14 @@ def test_apihook_params_have_names() -> None:
                 unnamed.add(f"{mod_name}.{candidate}")
 
     assert not unnamed, "add param_names to scripts/win32_overrides.json for: " + ", ".join(sorted(unnamed))
+
+
+def test_crt_hooks_are_cdecl() -> None:
+    # _CxxThrowException is declared __stdcall in the CRT headers.
+    stdcall = {"_CxxThrowException"}
+    wrong = [
+        f"{mod_name}.{name}"
+        for mod_name, name, argc, conv in _hooked_functions()
+        if mod_name == "msvcrt" and argc and name not in stdcall and conv == _arch.CALL_CONV_STDCALL
+    ]
+    assert not wrong, "CRT functions are cdecl: " + ", ".join(sorted(wrong))
