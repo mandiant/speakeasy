@@ -514,3 +514,18 @@ def test_zw_query_value_key_returns_the_data(driver_emu: Speakeasy, name: str, v
     assert rv == 0
     assert int.from_bytes(driver_emu.mem_read(ret_len, 4), "little") == 12 + len(data)
     assert driver_emu.mem_read(info, 12 + len(data)) == struct.pack("<III", 0, val_type, len(data)) + data
+
+
+@pytest.mark.parametrize("dll", ["netapi32", "wkscli"])
+def test_net_get_join_information_fits_a_long_domain(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], dll: str
+) -> None:
+    domain = "d" * 3000
+    config["domain"] = domain
+    for se in _load(config, load_test_bin("dll_test_x86.dll.xz")):
+        name_buf = _alloc(se, b"\x00" * 4)
+        status = _alloc(se, b"\x00" * 4)
+        rv, _ = _call(se, dll, "NetGetJoinInformation", [0, name_buf, status])
+        assert rv == 0
+        name = int.from_bytes(se.mem_read(name_buf, 4), "little")
+        assert se.mem_read(name, 2 * len(domain) + 2) == (domain + "\x00").encode("utf-16le")
