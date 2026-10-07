@@ -446,3 +446,11 @@ def test_rtl_decompress_buffer_reports_bad_lznt1_data(driver_emu: Speakeasy, dat
     argv = [ddk.COMPRESSION_FORMAT_LZNT1, out, 0x100, comp, len(data), final]
     rv, _ = call(driver_emu, "ntoskrnl", "RtlDecompressBuffer", argv)
     assert rv == ddk.STATUS_BAD_COMPRESSION_BUFFER
+
+
+def test_zw_query_system_information_rejects_an_unhandled_class(driver_emu: Speakeasy) -> None:
+    info = alloc(driver_emu, b"\x00" * 0x40)
+    retlen = alloc(driver_emu, b"\xcc" * 4)
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwQuerySystemInformation", [0, info, 0x40, retlen])
+    assert rv == ddk.STATUS_INVALID_INFO_CLASS
+    assert driver_emu.mem_read(retlen, 4) == b"\xcc" * 4

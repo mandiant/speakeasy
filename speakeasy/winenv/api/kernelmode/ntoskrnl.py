@@ -750,7 +750,7 @@ class Ntoskrnl(api.ApiHandler):
                 nts = ddk.STATUS_SUCCESS
 
         else:
-            raise ApiEmuError(f"Unsupported information class: 0x{sysclass:x}")
+            return ddk.STATUS_INVALID_INFO_CLASS
 
         if retlen:
             self.mem_write(retlen, size.to_bytes(4, "little"))
