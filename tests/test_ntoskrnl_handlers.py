@@ -67,3 +67,23 @@ def test_x64_ex_allocate_pool2_reads_the_flags_slot(driver64_emu: Speakeasy) -> 
     assert addr
     assert driver64_emu.emu.pool_allocs[-1] == (addr, ddk.POOL_TYPE.NonPagedPool, 0x10, "Task")
     assert displays[2] == "Task"
+
+
+@pytest.mark.parametrize(
+    ("value", "count", "expected"),
+    [
+        (0x00000001_80000001, 1, 0x00000003_00000002),
+        (0x00000000_12345678, 32, 0x12345678_00000000),
+        (0x00000000_00000001, 63, 0x80000000_00000000),
+        (0x00000000_00000001, 64, 0),
+        (0x00000000_00000001, 0xFFFFFF04, 0x00000000_00000010),
+    ],
+)
+def test_allshl_shifts_edx_eax_by_cl(driver_emu: Speakeasy, value: int, count: int, expected: int) -> None:
+    emu = driver_emu.emu
+    emu.reg_write(_arch.X86_REG_EAX, value & 0xFFFFFFFF)
+    emu.reg_write(_arch.X86_REG_EDX, value >> 32)
+    emu.reg_write(_arch.X86_REG_ECX, count)
+    eax, left = call_x86(driver_emu, "_allshl", [], CDECL)
+    assert (emu.reg_read(_arch.X86_REG_EDX) << 32 | eax) == expected
+    assert left == 0
