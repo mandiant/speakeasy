@@ -2369,16 +2369,14 @@ class Ntoskrnl(api.ApiHandler):
             );
         """
         buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
-        # the internal printf implementation requires uppercase S for wide string formatting,
-        # otherwise the function replaces a latin1 string into an utf-16 string
-        fmt_str = self.read_wide_string(fmt).replace(r"%s", r"%S")
+        fmt_str = self.read_wide_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         if not fmt_cnt:
             return self._write_counted_string(fmt_str, buf, cnt, 2)
 
         argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-        fin = self.do_str_format(fmt_str, argv)
+        fin = self.do_str_format(fmt_str, argv, wide=True)
 
         return self._write_counted_string(fin, buf, cnt, 2)
 

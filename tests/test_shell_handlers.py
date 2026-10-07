@@ -325,6 +325,14 @@ def test_co_set_proxy_blanket_returns_s_ok(dll_emu: Speakeasy) -> None:
     assert rv == com.S_OK
 
 
+def test_wnsprintfw_reads_s_as_wide_and_S_as_ansi(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 40)
+    fmt = alloc(dll_emu, wstr("%s|%S|%%s", 2))
+    args = [alloc(dll_emu, wstr("ab", 2)), alloc(dll_emu, wstr("cd", 1))]
+    assert call(dll_emu, "shlwapi", "wnsprintfW", [buf, 20, fmt, *args])[0] == 8
+    assert read_wstr(dll_emu, buf) == "ab|cd|%s"
+
+
 def test_enum_processes_reports_bytes_written(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     assert len(dll_emu.emu.get_processes()) > 1
