@@ -242,3 +242,36 @@ def test_fseek_takes_a_signed_offset(request: pytest.FixtureRequest, emu_name: s
 )
 def test_atoi_parses_leading_digits(dll_emu: Speakeasy, text: bytes, rv: int) -> None:
     assert call(dll_emu, "msvcrt", "atoi", [alloc(dll_emu, text + b"\x00")])[0] == rv
+
+
+@pytest.mark.parametrize(
+    "api, a, b, rv",
+    [
+        ("strcmp", b"a\xff", b"a\xfe", 1),
+        ("strcmp", b"abc", b"abd", -1),
+        ("strcmp", b"abc", b"abc", 0),
+        ("_stricmp", b"a\xff", b"A\xfe", 1),
+        ("_stricmp", b"ABC", b"abd", -1),
+        ("_stricmp", b"ABC", b"abc", 0),
+        ("_stricmp", b"\xc9", b"\xe9", -1),
+        ("_strcmpi", b"a\xff", b"A\xfe", 1),
+        ("_strcmpi", b"Path\\X", b"path\\x", 0),
+    ],
+)
+def test_strcmp_compares_bytes(dll_emu: Speakeasy, api: str, a: bytes, b: bytes, rv: int) -> None:
+    result, _ = call(dll_emu, "msvcrt", api, [alloc(dll_emu, a + b"\x00"), alloc(dll_emu, b + b"\x00")])
+    assert result == rv
+
+
+@pytest.mark.parametrize(
+    "a, b, count, rv",
+    [
+        (b"\x8fABx", b"\x8fabY", 3, 0),
+        (b"\x8fABx", b"\x8fabY", 4, -1),
+        (b"a\xff", b"a\xfe", 2, 1),
+        (b"a", b"b", 0, 0),
+    ],
+)
+def test_strnicmp_compares_count_bytes(dll_emu: Speakeasy, a: bytes, b: bytes, count: int, rv: int) -> None:
+    result, _ = call(dll_emu, "msvcrt", "_strnicmp", [alloc(dll_emu, a + b"\x00"), alloc(dll_emu, b + b"\x00"), count])
+    assert result == rv
