@@ -198,7 +198,32 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("vsprintf_s", argc=4, conv=_arch.CALL_CONV_CDECL)
     def vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return self._vsnprintf(emu, argv, ctx)
+        """
+        int vsprintf_s(
+            char *buffer,
+            size_t numberOfElements,
+            const char *format,
+            va_list argptr
+        );
+        """
+        buffer, count, _format, argptr = argv
+
+        fmt_str = self.read_mem_string(_format, 1)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(argptr, fmt_cnt)
+
+        fin = self.do_str_format(fmt_str, vargs)
+        ctx.args[2].display = fmt_str
+        # Unlike _vsnprintf, output that does not fit leaves an empty string
+        if len(fin) >= count:
+            if count > 0:
+                self.mem_write(buffer, b"\x00")
+            return -1
+        self.write_mem_string(fin, buffer, 1)
+        ctx.args[0].display = fin
+
+        return len(fin)
 
     @apihook("RtlAnsiStringToUnicodeString", argc=3)
     def RtlAnsiStringToUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
