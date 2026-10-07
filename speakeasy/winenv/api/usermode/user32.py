@@ -1392,9 +1392,8 @@ class User32(api.ApiHandler):
         if not nBuff:
             # number of items
             return 1
-        locale = 0x409  # English - United States
-        self.mem_write(lpList, locale.to_bytes(2, "little"))
-        self.mem_write(lpList + 4, locale.to_bytes(2, "little"))
+        hkl = 0x04090409  # English - United States
+        self.mem_write(lpList, hkl.to_bytes(self.get_ptr_size(), "little"))
 
         return 1
 
