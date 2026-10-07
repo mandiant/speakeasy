@@ -31,12 +31,12 @@ class WdfDevice:
 class WdfUsbDevice:
     def __init__(self):
         self.num_interfaces: int = 0
-        self.config_desc: int | None = None
+        self.config_desc: bytes | None = None
 
 
 class WdfUsbInterface:
     def __init__(self):
-        self.config_desc = 0
+        self.config_desc: bytes | None = None
         self.iface_index = 0
         self.setting_index = 0
 
@@ -171,7 +171,9 @@ class Wdfldr(api.ApiHandler):
         self.mem_write(self.func_table_ptr, self.func_table.get_bytes())
 
     def parse_usb_config(self, data):
-        interfaces = []
+        interfaces: list[Any] = []
+        if not data:
+            return interfaces
 
         # Get the USB config descriptor
         cd = usbdefs.USB_CONFIGURATION_DESCRIPTOR().cast(data)
@@ -596,6 +598,8 @@ class Wdfldr(api.ApiHandler):
         cfg_params = self.mem_cast(cfg_params, Params)
 
         dev = self.usb_devices.get(UsbDevice)
+        if not dev:
+            return ddk.STATUS_INVALID_HANDLE
 
         enum = self.types.WdfUsbTargetDeviceSelectConfigType
         if cfg_params.Type == enum.WdfUsbTargetDeviceSelectConfigTypeSingleInterface:
@@ -724,6 +728,8 @@ class Wdfldr(api.ApiHandler):
 
         rv = 0
         uif = self.usb_interfaces.get(UsbInterface)
+        if not uif:
+            return rv
 
         interfaces = self.parse_usb_config(uif.config_desc)
 
@@ -768,6 +774,8 @@ class Wdfldr(api.ApiHandler):
 
         rv = 0
         uif = self.usb_interfaces.get(UsbInterface)
+        if not uif:
+            return rv
 
         interfaces = self.parse_usb_config(uif.config_desc)
         if PipeInfo:
