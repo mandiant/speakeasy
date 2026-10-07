@@ -367,16 +367,18 @@ class AdvApi32(api.ApiHandler):
             else:
                 ctx.args["hKey"].display = key.get_path()
                 cw = self.get_char_width(ctx)
+                sub_key = ""
                 if lpSubKey:
-                    lpSubKey = self.read_mem_string(lpSubKey, cw)
-                    ctx.args["lpSubKey"].display = lpSubKey
-                    sub_key_path = key.get_path() + "\\" + lpSubKey
-                    self.emu.reg_create_key(sub_key_path)
-                    self.record_registry_access_event(sub_key_path, REG_CREATE)
-                else:
-                    hkey = (hkey).to_bytes(self.get_ptr_size(), "little")
-                    self.mem_write(phkResult, hkey)
-                    rv = windefs.ERROR_SUCCESS
+                    sub_key = self.read_mem_string(lpSubKey, cw)
+                    ctx.args["lpSubKey"].display = sub_key
+                hnd = hkey
+                if sub_key:
+                    sub_key_path = key.get_path() + "\\" + sub_key.lstrip("\\")
+                    hnd = self.reg_open_key(sub_key_path, create=True)
+                    self.record_registry_access_event(sub_key_path, REG_CREATE, handle=hnd)
+                if phkResult:
+                    self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
+                rv = windefs.ERROR_SUCCESS
         return rv
 
     @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
