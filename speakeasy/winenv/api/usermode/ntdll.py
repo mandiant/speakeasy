@@ -155,7 +155,7 @@ class Ntdll(api.ApiHandler):
         elif ordinal:
             proc = f"ordinal_{ordinal}"
         else:
-            return rv
+            return ddk.STATUS_INVALID_PARAMETER
 
         mods = emu.get_peb_modules()
         for mod in mods:
