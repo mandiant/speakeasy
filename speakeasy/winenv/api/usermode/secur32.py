@@ -2,6 +2,7 @@
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.secur32 as sec32defs
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 
@@ -37,6 +38,12 @@ class Secur32(api.ApiHandler):
 
         ctx.args["lpNameBuffer"].display = user_name
         ctx.args["nSize"].display = hex(user_name_len)
+
+        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        if not lpNameBuffer or size < user_name_len + 1:
+            self.mem_write(nSize, (user_name_len + 1).to_bytes(4, "little"))
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
+            return 0
 
         self.write_mem_string(user_name, lpNameBuffer, cw)
         self.mem_write(nSize, user_name_len.to_bytes(4, "little"))
