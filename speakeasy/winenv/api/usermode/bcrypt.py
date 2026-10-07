@@ -97,8 +97,9 @@ class Bcrypt(api.ApiHandler):
         hAlgorithm, dwFlags = argv
 
         cm = emu.get_crypt_manager()
-        if hAlgorithm:
-            cm.crypt_close(hAlgorithm)
+        if not cm.crypt_get(hAlgorithm):
+            return ntdefs.STATUS_INVALID_HANDLE
+        cm.crypt_close(hAlgorithm)
 
         return ntdefs.STATUS_SUCCESS
 

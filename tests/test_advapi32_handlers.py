@@ -10,6 +10,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
+from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, start_process
 
@@ -200,3 +201,27 @@ def test_get_user_name_reports_the_size(dll_emu: Speakeasy, api: str, encoding: 
     rv, _ = call(dll_emu, "advapi32", api, [buf, size])
     assert (rv, _dword(dll_emu, size)) == (1, need)
     assert dll_emu.mem_read(buf, len(expected)) == expected
+
+
+def test_crypt_release_context_rejects_an_unknown_handle(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    phprov = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "advapi32", "CryptAcquireContextA", [phprov, 0, 0, 1, 0xF0000000])
+    assert rv
+    hprov = _dword(dll_emu, phprov)
+    assert call(dll_emu, "advapi32", "CryptReleaseContext", [hprov, 0])[0]
+    rv, _ = call(dll_emu, "advapi32", "CryptReleaseContext", [hprov, 0])
+    assert (rv, _last_error(dll_emu)) == (0, windefs.ERROR_INVALID_HANDLE)
+    rv, _ = call(dll_emu, "advapi32", "CryptReleaseContext", [0, 0])
+    assert not rv
+
+
+def test_bcrypt_close_algorithm_provider_twice(dll_emu: Speakeasy) -> None:
+    ph = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(
+        dll_emu, "bcrypt", "BCryptOpenAlgorithmProvider", [ph, alloc(dll_emu, "RSA\x00".encode("utf-16le")), 0, 0]
+    )
+    assert rv == 0
+    halg = _dword(dll_emu, ph)
+    assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == 0
+    assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == ddk.STATUS_INVALID_HANDLE

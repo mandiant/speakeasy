@@ -60,7 +60,7 @@ class CryptoManager:
         return hnd
 
     def crypt_close(self, hnd):
-        self.ctx_handles.pop(hnd)
+        self.ctx_handles.pop(hnd, None)
 
     def crypt_get(self, hnd):
         return self.ctx_handles.get(hnd, None)
