@@ -182,3 +182,22 @@ def test_win_http_read_data_without_a_configured_response(dll_emu: Speakeasy) ->
     rv, _ = call(dll_emu, "winhttp", "WinHttpReadData", [req, buf, 16, read])
     assert rv == 1
     assert dll_emu.mem_read(read, 4) == b"\x00" * 4
+
+
+def test_internet_open_url_with_headers(dll_emu: Speakeasy) -> None:
+    inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
+    url = alloc(dll_emu, b"http://example.com/a.bin\x00")
+    headers = alloc(dll_emu, b"Accept: */*\r\n\x00")
+    req, _ = call(dll_emu, "wininet", "InternetOpenUrlA", [inet, url, headers, 0xFFFFFFFF, 0, 0])
+    assert req
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    read = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "wininet", "InternetReadFile", [req, buf, 16, read])
+    assert rv == 1
+    assert dll_emu.mem_read(read, 4) == struct.pack("<I", 16)
+
+
+def test_internet_open_url_without_a_url(dll_emu: Speakeasy) -> None:
+    inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
+    rv, _ = call(dll_emu, "wininet", "InternetOpenUrlA", [inet, 0, 0, 0, 0, 0])
+    assert rv == 0
