@@ -1446,16 +1446,13 @@ class Msvcrt(api.ApiHandler):
         );
         """
         s1, s2 = argv
-        rv = 1
 
-        string1 = self.read_mem_string(s1, 1)
-        string2 = self.read_mem_string(s2, 1)
-        if string1 == string2:
-            rv = 0
-        ctx.args[0].display = string1
-        ctx.args[1].display = string2
+        string1 = self.read_cstr(s1)
+        string2 = self.read_cstr(s2)
+        ctx.args[0].display = string1.decode("utf-8", "ignore")
+        ctx.args[1].display = string2.decode("utf-8", "ignore")
 
-        return rv
+        return (string1 > string2) - (string1 < string2)
 
     @apihook("strrchr", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strrchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1650,16 +1647,14 @@ class Msvcrt(api.ApiHandler):
         if not string1 or not string2:
             return rv
 
-        cs1 = self.read_string(string1)
-        cs2 = self.read_string(string2)
+        cs1 = self.read_cstr(string1)
+        cs2 = self.read_cstr(string2)
 
-        ctx.args[0].display = cs1
-        ctx.args[1].display = cs2
+        ctx.args[0].display = cs1.decode("utf-8", "ignore")
+        ctx.args[1].display = cs2.decode("utf-8", "ignore")
 
-        if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
+        cs1, cs2 = cs1.lower(), cs2.lower()
+        return (cs1 > cs2) - (cs1 < cs2)
 
     @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _wcsicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1860,16 +1855,14 @@ class Msvcrt(api.ApiHandler):
         if not string1 or not string2:
             return rv
 
-        cs1 = self.read_string(string1)
-        cs2 = self.read_string(string2)
+        cs1 = self.read_cstr(string1)
+        cs2 = self.read_cstr(string2)
 
-        ctx.args[0].display = cs1
-        ctx.args[1].display = cs2
+        ctx.args[0].display = cs1.decode("utf-8", "ignore")
+        ctx.args[1].display = cs2.decode("utf-8", "ignore")
 
-        if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
+        cs1, cs2 = cs1.lower(), cs2.lower()
+        return (cs1 > cs2) - (cs1 < cs2)
 
     @apihook("_strnicmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _strnicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1886,16 +1879,17 @@ class Msvcrt(api.ApiHandler):
         if not string1 or not string2:
             return rv
 
-        cs1 = self.read_string(string1)
-        cs2 = self.read_string(string2)
+        if not count:
+            return 0
 
-        ctx.args[0].display = cs1
-        ctx.args[1].display = cs2
+        cs1 = self.read_cstr(string1, count)
+        cs2 = self.read_cstr(string2, count)
 
-        if cs1[:count].lower() == cs2[:count].lower():
-            rv = 0
+        ctx.args[0].display = cs1.decode("utf-8", "ignore")
+        ctx.args[1].display = cs2.decode("utf-8", "ignore")
 
-        return rv
+        cs1, cs2 = cs1.lower(), cs2.lower()
+        return (cs1 > cs2) - (cs1 < cs2)
 
     @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
     def _wcsicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
