@@ -28,10 +28,31 @@ Entry-point highlights:
 
 An `api` event records its arguments in `args`, one formatted string per argument. When the
 signature database declares the function and its prototype consumes the same argument slots
-as the call, `arg_names` holds the parameter name for each entry of `args` and the values are
-rendered from the declared types: strings are quoted, enums and flags are symbolic, and struct
-pointers are expanded. For a call served by a handler, a value the handler decoded itself
-(such as the key path behind a registry handle) replaces the rendering of that parameter.
+as the call, the event also carries `arg_names`, `arg_types`, and `arg_values`, each with one
+entry per parameter. `args` is then rendered from the declared types. Strings are decoded,
+enums and flags are symbolic, and struct pointers are expanded. Each entry of `arg_types` gives
+the kind of the matching entry of `args`.
+
+| Kind | Text in `args` |
+|---|---|
+| `int` | hex integer |
+| `ptr` | address in hex (also null, out-only, and unreadable pointers) |
+| `handle` | handle value in hex |
+| `str` | decoded string, without quotes |
+| `bool` | `TRUE` or `FALSE` |
+| `enum` | one member name |
+| `flags` | member names joined by `\|`, with a hex remainder for unknown bits |
+| `struct` | `{field: value, ...}` display text, which is not JSON |
+| `bytes` | hex dump of a by-value struct with no known layout |
+| `guid` | `{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}` |
+| `float` | decimal number |
+| `text` | a value that a handler decoded itself |
+
+`arg_values` holds the raw integer the caller passed for each parameter, so a consumer can
+match a flag or constant without parsing `args`. A parameter that uses two argument slots on
+x86 (a 64-bit integer, for example) has the combined value. For a call served by a handler, a
+value the handler decoded itself (such as the key path behind a registry handle) replaces the
+rendering of that parameter, and `arg_values` still holds what the caller passed.
 Without a usable signature, `arg_names` is absent and integers are hex-encoded.
 
 Every event carries `pos`, the position of the actor that performed the operation, so an
@@ -133,8 +154,10 @@ thread, even for a local create.
           "event": "api",
           "api_name": "kernel32.LoadLibraryA",
           "args": ["ws2_32"],
-          // Parameter names, when the API signature is known.
+          // Present when the API signature is known.
           "arg_names": ["lpLibFileName"],
+          "arg_types": ["str"],
+          "arg_values": [4206732],
           "ret_val": "0x78c00000"
         },
         {
