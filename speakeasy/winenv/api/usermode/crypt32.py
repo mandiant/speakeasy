@@ -67,7 +67,7 @@ class Crypt32(api.ApiHandler):
 
         if pbBinary == 0:
             self.mem_write(pcbBinary, out_len.to_bytes(4, "little"))
-            return out_len
+            return 1
 
         if out_len > cbBinary:
             emu.set_last_error(ERROR_MORE_DATA)
