@@ -335,3 +335,12 @@ def test_get_file_attributes_ex(strict_fs_emu: Speakeasy) -> None:
     missing = alloc(se, b"c:\\missing.txt\x00")
     assert not call(se, "kernel32", "GetFileAttributesExA", [missing, 0, data])[0]
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
+
+
+def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    handle, _ = call(emu, "kernel32", "AddVectoredExceptionHandler", [1, 0x401000])
+    assert 0x401000 in emu.emu.veh_handlers
+    assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] != 0
+    assert 0x401000 not in emu.emu.veh_handlers
+    assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
