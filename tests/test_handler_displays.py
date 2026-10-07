@@ -685,3 +685,9 @@ def test_find_volume_shows_the_volume_names(dll_emu: Speakeasy) -> None:
     rv, displays = _call(dll_emu, "kernel32", "FindNextVolumeA", [hnd, buf, 64])
     assert rv == 1
     assert displays["lpszVolumeName"] == "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\"
+
+
+def test_register_service_ctrl_handler_ex_returns_a_handle(dll_emu: Speakeasy) -> None:
+    name = _alloc(dll_emu, b"svc\x00")
+    rv, _ = _call(dll_emu, "advapi32", "RegisterServiceCtrlHandlerExA", [name, 0x401000, 0])
+    assert rv != 0

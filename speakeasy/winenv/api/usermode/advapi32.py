@@ -683,7 +683,7 @@ class AdvApi32(api.ApiHandler):
         """
         lpServiceName, lpHandlerProc, lpContext = argv
 
-        return self.RegisterServiceCtrlHandler(self, emu, [lpServiceName, lpHandlerProc], ctx)
+        return self.RegisterServiceCtrlHandler(emu, [lpServiceName, lpHandlerProc], ctx)
 
     @apihook("SetServiceStatus", argc=2)
     def SetServiceStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
