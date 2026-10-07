@@ -310,3 +310,17 @@ def test_rtl_init_ansi_string_accepts_a_null_source(driver_emu: Speakeasy) -> No
     dest = alloc(driver_emu, b"\xcc" * 8)
     call(driver_emu, "ntoskrnl", "RtlInitAnsiString", [dest, 0])
     assert driver_emu.mem_read(dest, 8) == b"\x00" * 8
+
+
+@pytest.mark.parametrize(
+    ("name", "argv", "status"),
+    [
+        ("ObOpenObjectByPointer", [0x1234, 0, 0, 0, 0, 0, "out"], ddk.STATUS_INVALID_PARAMETER),
+        ("ZwWriteVirtualMemory", [0x1234, "out", "out", 4, 0], ddk.STATUS_INVALID_HANDLE),
+        ("ZwAllocateVirtualMemory", [0x1234, "out", 0, "size", 0x3000, 0x04], ddk.STATUS_INVALID_HANDLE),
+    ],
+)
+def test_unknown_objects_fail_with_a_status(driver_emu: Speakeasy, name: str, argv: list, status: int) -> None:
+    slots = {"out": alloc(driver_emu, b"\x00" * 8), "size": alloc(driver_emu, (0x1000).to_bytes(4, "little"))}
+    rv, _ = call(driver_emu, "ntoskrnl", name, [slots.get(a, a) if isinstance(a, str) else a for a in argv])
+    assert rv == status
