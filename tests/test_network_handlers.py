@@ -70,3 +70,11 @@ def test_uuid_to_string_a_returns_a_string_pointer(dll_emu: Speakeasy) -> None:
     ptr = struct.unpack("<I", dll_emu.mem_read(out, 4))[0]
     assert dll_emu.mem_read(out + 4, 60) == b"\xcc" * 60
     assert dll_emu.mem_read(ptr, 37) == b"03020100-0504-0706-0809-0a0b0c0d0e0f\x00"
+
+
+def test_inet_ntoa_reuses_the_buffer_for_an_address(dll_emu: Speakeasy) -> None:
+    addr = struct.unpack("<I", bytes([10, 1, 2, 3]))[0]
+    first, _ = call(dll_emu, "ws2_32", "inet_ntoa", [addr])
+    second, _ = call(dll_emu, "ws2_32", "inet_ntoa", [addr])
+    assert first == second
+    assert dll_emu.mem_read(first, 9) == b"10.1.2.3\x00"
