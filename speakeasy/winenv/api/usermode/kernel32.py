@@ -1665,7 +1665,33 @@ class Kernel32(api.ApiHandler):
         """
 
         lpSystemTime, lpFileTime = argv
-        self.GetSystemTimeAsFileTime(emu, argv[1:], ctx)
+
+        st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
+        st = self.mem_cast(st, lpSystemTime)
+        try:
+            dt = datetime.datetime(
+                st.wYear,
+                st.wMonth,
+                st.wDay,
+                st.wHour,
+                st.wMinute,
+                st.wSecond,
+                st.wMilliseconds * 1000,
+                tzinfo=datetime.timezone.utc,
+            )
+        except ValueError:
+            dt = None
+        if not dt or dt.year < 1601:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
+
+        delta = dt - datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
+        timestamp = (delta.days * 86400 + delta.seconds) * 10000000 + delta.microseconds * 10
+
+        ft = self.k32types.FILETIME(emu.get_ptr_size())
+        ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+        ft.dwHighDateTime = timestamp >> 32
+        self.mem_write(lpFileTime, self.get_bytes(ft))
 
         return True
 

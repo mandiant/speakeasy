@@ -389,3 +389,35 @@ def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: in
     rv, _ = call(dll_emu, "kernel32", "VirtualQuery", [addr, mbi, 28])
     assert rv == 28
     assert struct.unpack("<I", dll_emu.mem_read(mbi + 20, 4))[0] == protect
+
+
+Y2K_FILETIME = 125911584000000000
+
+
+@pytest.mark.parametrize(
+    "fields, filetime",
+    [
+        ((2000, 1, 6, 1, 0, 0, 0, 0), Y2K_FILETIME),
+        ((2024, 2, 4, 29, 13, 45, 30, 250), 133536879302500000),
+    ],
+)
+def test_system_time_to_file_time_converts_the_input(
+    dll_emu: Speakeasy, fields: tuple[int, ...], filetime: int
+) -> None:
+    st = alloc(dll_emu, struct.pack("<8H", *fields))
+    ft = alloc(dll_emu, b"\x00" * 8)
+    rv, _ = call(dll_emu, "kernel32", "SystemTimeToFileTime", [st, ft])
+    assert rv
+    assert struct.unpack("<Q", dll_emu.mem_read(ft, 8))[0] == filetime
+
+
+@pytest.mark.parametrize("fields", [(2000, 13, 0, 1, 0, 0, 0, 0), (1600, 12, 0, 31, 0, 0, 0, 0)])
+def test_system_time_to_file_time_rejects_a_bad_date(dll_emu: Speakeasy, fields: tuple[int, ...]) -> None:
+    start_process(dll_emu)
+    st = alloc(dll_emu, struct.pack("<8H", *fields))
+    ft = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "kernel32", "SystemTimeToFileTime", [st, ft])
+    assert not rv
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert dll_emu.mem_read(ft, 8) == b"\xcc" * 8
