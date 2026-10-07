@@ -185,8 +185,7 @@ class Kernel32(api.ApiHandler):
         return perms
 
     def normalize_res_identifier(self, emu, cw, val):
-        mask = (16 ** (emu.get_ptr_size() // 2) - 1) << 16
-        if val & mask:  # not an INTRESOURCE
+        if val >> 16:  # not an INTRESOURCE
             name = emu.read_mem_string(val, cw)
             if name[0] == "#":
                 try:
