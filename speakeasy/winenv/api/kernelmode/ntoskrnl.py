@@ -862,10 +862,6 @@ class Ntoskrnl(api.ApiHandler):
         buf, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        if not fmt_cnt:
-            self.write_string(fmt_str, buf)
-            return len(fmt_str)
-
         _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
         fin = self.do_str_format(fmt_str, _argv)
 
@@ -887,9 +883,6 @@ class Ntoskrnl(api.ApiHandler):
         buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        if not fmt_cnt:
-            return self._write_counted_string(fmt_str, buf, cnt, 1)
-
         _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
         fin = self.do_str_format(fmt_str, _argv)
 
@@ -2371,9 +2364,6 @@ class Ntoskrnl(api.ApiHandler):
         buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_wide_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-
-        if not fmt_cnt:
-            return self._write_counted_string(fmt_str, buf, cnt, 2)
 
         argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
         fin = self.do_str_format(fmt_str, argv, wide=True)

@@ -561,10 +561,6 @@ class User32(api.ApiHandler):
         fmt_str = self.read_mem_string(fmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
-        if not fmt_cnt:
-            self.write_mem_string(fmt_str, buf, cw)
-            return len(fmt_str)
-
         _args = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
         fin = self.do_str_format(fmt_str, _args, wide=cw == 2)
 

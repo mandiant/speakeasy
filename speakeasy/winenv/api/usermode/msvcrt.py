@@ -688,12 +688,6 @@ class Msvcrt(api.ApiHandler):
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
-        if not fmt_cnt:
-            ctx.args.clear()
-            ctx.args.append(hex(stream))
-            ctx.args.append(fmt_str)
-            return len(fmt_str)
-
         _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
         fin = self.do_str_format(fmt_str, _argv)
         ctx.args.clear()
@@ -712,11 +706,6 @@ class Msvcrt(api.ApiHandler):
         (fmt,) = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-
-        if not fmt_cnt:
-            ctx.args.clear()
-            ctx.args.append(fmt_str)
-            return len(fmt_str)
 
         fmt_argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1 + fmt_cnt)[1:]
         fin = self.do_str_format(fmt_str, fmt_argv)
@@ -807,10 +796,6 @@ class Msvcrt(api.ApiHandler):
         buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        if not fmt_cnt:
-            self.write_string(fmt_str, buf)
-            return len(fmt_str)
-
         _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
         fin = self.do_str_format(fmt_str, _argv)
 
@@ -832,13 +817,10 @@ class Msvcrt(api.ApiHandler):
         buf, count, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        if not fmt_cnt:
-            fin = fmt_str
-        else:
-            _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-            fin = self.do_str_format(fmt_str, _argv)
-            ctx.args.clear()
-            ctx.args.append(fin)
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, _argv)
+        ctx.args.clear()
+        ctx.args.append(fin)
 
         out = fin[:count].encode("utf-8")
         if len(fin) < count:
@@ -1949,13 +1931,10 @@ class Msvcrt(api.ApiHandler):
         fmt_str = self.read_wide_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
-        if not fmt_cnt:
-            fin = fmt_str
-        else:
-            argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-            fin = self.do_str_format(fmt_str, argv, wide=True)
-            ctx.args.clear()
-            ctx.args.append(fin)
+        argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, argv, wide=True)
+        ctx.args.clear()
+        ctx.args.append(fin)
 
         out = fin[:cnt].encode("utf-16le")
         if len(fin) < cnt:

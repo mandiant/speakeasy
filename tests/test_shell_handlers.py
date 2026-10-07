@@ -333,6 +333,14 @@ def test_wnsprintfw_reads_s_as_wide_and_S_as_ansi(dll_emu: Speakeasy) -> None:
     assert read_wstr(dll_emu, buf) == "ab|cd|%s"
 
 
+@pytest.mark.parametrize("api, width", [("wnsprintfA", 1), ("wnsprintfW", 2)])
+def test_wnsprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Speakeasy, api: str, width: int) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    fmt = alloc(dll_emu, wstr("100%%", width))
+    assert call(dll_emu, "shlwapi", api, [buf, 16, fmt])[0] == 4
+    assert dll_emu.mem_read(buf, 5 * width) == wstr("100%", width)
+
+
 def test_enum_processes_reports_bytes_written(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     assert len(dll_emu.emu.get_processes()) > 1

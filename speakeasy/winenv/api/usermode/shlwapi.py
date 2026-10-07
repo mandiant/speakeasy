@@ -259,10 +259,8 @@ class Shlwapi(api.ApiHandler):
 
         fmt_str = self.read_mem_string(fmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
-        fin = fmt_str
-        if fmt_cnt:
-            _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-            fin = self.do_str_format(fmt_str, _argv, wide=cw == 2)
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, _argv, wide=cw == 2)
 
         out = fin[: max(max_buf_size - 1, 0)]
         if max_buf_size > 0:
