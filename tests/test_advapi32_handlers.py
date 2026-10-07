@@ -225,3 +225,20 @@ def test_bcrypt_close_algorithm_provider_twice(dll_emu: Speakeasy) -> None:
     halg = _dword(dll_emu, ph)
     assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == 0
     assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == ddk.STATUS_INVALID_HANDLE
+
+
+def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
+    assert se.emu is not None
+    ph = alloc(se, b"\xcc" * 8)
+    pname = alloc(se, (name + "\x00").encode("utf-16le")) if name is not None else 0
+    rv, _ = call(se, "ncrypt", "NCryptOpenStorageProvider", [ph, pname, 0])
+    assert rv == 0
+    return int.from_bytes(se.mem_read(ph, se.emu.get_ptr_size()), "little")
+
+
+@pytest.mark.parametrize("name", [None, "Microsoft Software Key Storage Provider"])
+def test_ncrypt_open_storage_provider_returns_a_handle(dll_emu: Speakeasy, name: str | None) -> None:
+    assert dll_emu.emu is not None
+    hprov = _open_storage_provider(dll_emu, name)
+    assert dll_emu.emu.get_crypt_manager().crypt_get(hprov) is not None
+

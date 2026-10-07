@@ -34,14 +34,15 @@ class Ncrypt(api.ApiHandler):
         );
         """
         phProvider, pszProviderName, dwFlags = argv
+        prov_str = ""
         if pszProviderName:
             prov_str = self.read_wide_string(pszProviderName)
             ctx.args["pszProviderName"].display = prov_str
 
-            cm = emu.get_crypt_manager()
-            hnd = cm.crypt_open(pname=prov_str, flags=dwFlags)
-            if hnd:
-                self.mem_write(phProvider, hnd.to_bytes(emu.get_ptr_size(), "little"))
+        cm = emu.get_crypt_manager()
+        hnd = cm.crypt_open(pname=prov_str, flags=dwFlags)
+        if hnd:
+            self.mem_write(phProvider, hnd.to_bytes(emu.get_ptr_size(), "little"))
 
         return windefs.ERROR_SUCCESS
 
