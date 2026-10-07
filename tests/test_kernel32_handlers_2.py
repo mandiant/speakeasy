@@ -127,3 +127,17 @@ def test_open_thread(emu: Speakeasy) -> None:
 
     assert call(emu, "kernel32", "OpenThread", [0x1F03FF, 0, 0x7FFF0])[0] == 0
     assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+
+
+def test_get_module_file_name_ex(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    module = emu.emu.modules[0]
+    path = module.emu_path
+    buf = alloc(emu, b"\xcc" * 260)
+    rv, displays = call(emu, "kernel32", "GetModuleFileNameExA", [0, module.base, buf, 260])
+    assert rv == len(path)
+    assert emu.mem_read(buf, len(path) + 1) == path.encode() + b"\x00"
+    assert displays["lpFilename"] == path
+
+    assert call(emu, "kernel32", "GetModuleFileNameExA", [0x7FF0, 0, buf, 260])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
