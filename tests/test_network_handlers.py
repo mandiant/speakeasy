@@ -261,3 +261,17 @@ def test_recv_peek_keeps_the_read_position(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(buf, peeked) == stager[4:]
     assert call(dll_emu, "ws2_32", "recv", [s, buf, 4, 0])[0] == 4
     assert dll_emu.mem_read(buf, 4) == stager[4:8]
+
+
+@pytest.mark.parametrize("level", [101, 102])
+def test_net_wksta_get_info_keeps_the_lanroot(dll_emu: Speakeasy, level: int) -> None:
+    out = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "netapi32", "NetWkstaGetInfo", [0, level, out])
+    assert rv == 0
+    info = dll_emu.mem_read(struct.unpack("<I", dll_emu.mem_read(out, 4))[0], 28 if level == 102 else 24)
+    assert struct.unpack_from("<I", info, 0)[0] == 500
+    lanroot = struct.unpack_from("<I", info, 20)[0]
+    assert lanroot != 0
+    assert dll_emu.mem_read(lanroot, 2) == b"\x00\x00"
+    if level == 102:
+        assert struct.unpack_from("<I", info, 24)[0] == 2
