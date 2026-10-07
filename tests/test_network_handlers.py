@@ -395,3 +395,10 @@ def test_socket_calls_reject_an_unknown_socket(dll_emu: Speakeasy, name: str, ar
     argv = [0x999] + [buf if a == 0 and i == 0 else a for i, a in enumerate(args)]
     assert call(dll_emu, "ws2_32", name, argv)[0] == rv
     assert dll_emu.emu.get_last_error() == 10038  # type: ignore[union-attr]
+
+
+def test_gethostname_fills_an_exact_buffer(dll_emu: Speakeasy) -> None:
+    host = dll_emu.emu.config.hostname.encode()  # type: ignore[union-attr]
+    buf = alloc(dll_emu, b"\xcc" * 64)
+    assert call(dll_emu, "ws2_32", "gethostname", [buf, len(host) + 1])[0] == 0
+    assert dll_emu.mem_read(buf, len(host) + 2) == host + b"\x00\xcc"

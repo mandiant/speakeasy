@@ -268,7 +268,7 @@ class Ws2_32(api.ApiHandler):
         host = emu.config.hostname
         if name and host:
             host += "\x00"
-            if namelen > len(host):
+            if namelen >= len(host):
                 out = host.encode("utf-8")
                 self.mem_write(name, out)
                 rv = 0
