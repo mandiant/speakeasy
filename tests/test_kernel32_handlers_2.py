@@ -399,3 +399,10 @@ def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     nomatch = alloc(se, b"c:\\programdata\\mydir\\*.xyz\x00")
     assert call(se, "kernel32", "FindFirstFileA", [nomatch, data])[0] == windefs.INVALID_HANDLE_VALUE
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
+
+
+def test_init_once_begin_initialize_sets_pending(emu: Speakeasy) -> None:
+    init_once = alloc(emu, b"\x00" * 4)
+    pending = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0]
+    assert emu.mem_read(pending, 4) == (1).to_bytes(4, "little")
