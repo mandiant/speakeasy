@@ -3215,6 +3215,7 @@ class Ntoskrnl(api.ApiHandler):
             Win32Protect,
         ) = argv
 
+        rv = ddk.STATUS_INVALID_HANDLE
         fman = emu.get_file_manager()
 
         sect = fman.get_mapping_from_handle(SectionHandle)
@@ -3227,6 +3228,7 @@ class Ntoskrnl(api.ApiHandler):
         if SectionOffset:
             full_offset = int.from_bytes(self.mem_read(SectionOffset, 8), "little")
 
+        bytes_to_map = 0
         if ViewSize:
             bytes_to_map = int.from_bytes(self.mem_read(ViewSize, emu.get_ptr_size()), "little")
 

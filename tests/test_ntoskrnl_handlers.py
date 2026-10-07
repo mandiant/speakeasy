@@ -152,3 +152,26 @@ def test_wcschr_searches_whole_characters(driver_emu: Speakeasy, text: str, c: i
     s = alloc(driver_emu, text.encode("utf-16le") + b"\x00\x00")
     rv, _ = call(driver_emu, "ntoskrnl", "wcschr", [s, c])
     assert rv == (0 if index is None else s + 2 * index)
+
+
+def test_zw_map_view_of_section_rejects_an_unknown_section(driver_emu: Speakeasy) -> None:
+    base = alloc(driver_emu, b"\x00" * 4)
+    view_size = alloc(driver_emu, b"\x00" * 4)
+    argv = [0x1234, 0xFFFFFFFF, base, 0, 0, 0, view_size, 1, 0, 0x04]
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwMapViewOfSection", argv)
+    assert rv == ddk.STATUS_INVALID_HANDLE
+
+
+def test_zw_map_view_of_section_maps_the_whole_section_without_a_view_size(driver_emu: Speakeasy) -> None:
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    max_size = alloc(driver_emu, (0x2000).to_bytes(8, "little"))
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwCreateSection", [phnd, 0xF001F, 0, max_size, 0x04, 0x8000000, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    section = int.from_bytes(driver_emu.mem_read(phnd, 4), "little")
+
+    base = alloc(driver_emu, b"\x00" * 4)
+    argv = [section, 0xFFFFFFFF, base, 0, 0, 0, 0, 1, 0, 0x04]
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwMapViewOfSection", argv)
+    assert rv == ddk.STATUS_SUCCESS
+    view = int.from_bytes(driver_emu.mem_read(base, 4), "little")
+    driver_emu.mem_write(view + 0x1FFF, b"\x01")
