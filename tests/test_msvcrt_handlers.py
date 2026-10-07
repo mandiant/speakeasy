@@ -210,3 +210,19 @@ def test_mbstowcs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
     ret = alloc(dll_emu, b"\xcc" * 4)
     assert call(dll_emu, "msvcrt", "mbstowcs_s", [ret, 0, 0, alloc(dll_emu, b"hello\x00"), 0])[0] == 0
     assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_fseek_takes_a_signed_offset(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    minus = (1 << (8 * se.emu.get_ptr_size())) - 1
+    path = alloc(se, b"c:\\windows\\system32\\cmd.exe\x00")
+    stream, _ = call(se, "msvcrt", "fopen", [path, alloc(se, b"rb\x00")])
+    assert stream
+
+    assert call(se, "msvcrt", "fseek", [stream, minus - 3, 2])[0] == 0
+    assert call(se, "msvcrt", "ftell", [stream])[0] == 4092
+    assert call(se, "msvcrt", "fseek", [stream, minus, 0])[0] == -1
+    assert call(se, "msvcrt", "fseek", [stream, minus - 1, 1])[0] == 0
+    assert call(se, "msvcrt", "fread", [alloc(se, b"\x00" * 16), 1, 16, stream])[0] == 6
