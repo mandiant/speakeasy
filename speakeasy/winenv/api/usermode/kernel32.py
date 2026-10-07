@@ -5446,7 +5446,7 @@ class Kernel32(api.ApiHandler):
 
         return
 
-    @apihook("VerSetConditionMask", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("VerSetConditionMask", argc=4)
     def VerSetConditionMask(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI ULONGLONG VerSetConditionMask(
@@ -5454,13 +5454,20 @@ class Kernel32(api.ApiHandler):
             DWORD     TypeMask,
             BYTE      Condition
         );
+
+        ConditionMask takes two stack slots on x86. On x64 the fourth slot
+        is unused.
         """
         # Stub
-        con_mask, type_mask, cond = argv
+        if emu.get_ptr_size() == 4:
+            lo, hi, type_mask, cond = argv
+            con_mask = (hi << 32) | lo
+        else:
+            con_mask, type_mask, cond = argv[:3]
 
         return 0
 
-    @apihook("VerifyVersionInfo", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    @apihook("VerifyVersionInfo", argc=4)
     def VerifyVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL VerifyVersionInfo(
@@ -5468,9 +5475,16 @@ class Kernel32(api.ApiHandler):
             DWORD              dwTypeMask,
             DWORDLONG          dwlConditionMask
         );
+
+        dwlConditionMask takes two stack slots on x86. On x64 the fourth slot
+        is unused.
         """
         # Stub
-        vinfo, type_mask, con_mask = argv
+        if emu.get_ptr_size() == 4:
+            vinfo, type_mask, lo, hi = argv
+            con_mask = (hi << 32) | lo
+        else:
+            vinfo, type_mask, con_mask = argv[:3]
 
         return True
 

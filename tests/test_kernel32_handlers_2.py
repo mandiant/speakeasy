@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
@@ -275,3 +276,27 @@ def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
 
     assert open_file(se, "c:\\missing.txt", TRUNCATE_EXISTING) == windefs.INVALID_HANDLE_VALUE
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
+
+
+def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, int]:
+    """Call a handler, return to the caller, and give the result and the bytes popped from the stack."""
+    emu = se.emu
+    assert emu is not None and emu.api is not None
+    _, func_attrs = emu.api.get_export_func_handler(dll, name)
+    if not func_attrs:
+        _, func_attrs = emu.normalize_import_miss(dll, name)
+    _, _, argc, conv, _ = func_attrs
+    esp = emu.reg_read(e_arch.X86_REG_ESP)
+    rv, _ = call(se, dll, name, argv)
+    emu.do_call_return(argc, 0x401000, rv, conv=conv)
+    return rv, emu.reg_read(e_arch.X86_REG_ESP) - esp
+
+
+def test_version_helpers_clean_the_stack(emu: Speakeasy) -> None:
+    _, popped = call_and_return(emu, "kernel32", "VerSetConditionMask", [0, 0, 2, 3])
+    assert popped == 4 + 16
+
+    info = alloc(emu, b"\x00" * 0x9C)
+    rv, popped = call_and_return(emu, "kernel32", "VerifyVersionInfoW", [info, 2, 0, 0])
+    assert rv
+    assert popped == 4 + 16
