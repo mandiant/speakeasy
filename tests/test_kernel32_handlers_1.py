@@ -465,3 +465,9 @@ def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
     assert rv == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
+@pytest.mark.parametrize("feature, present", [(10, 1), (41, 0), (42, 0), (0x1000, 0)])
+def test_is_processor_feature_present_knows_unlisted_features(dll_emu: Speakeasy, feature: int, present: int) -> None:
+    rv, _ = call(dll_emu, "kernel32", "IsProcessorFeaturePresent", [feature])
+    assert rv == present
