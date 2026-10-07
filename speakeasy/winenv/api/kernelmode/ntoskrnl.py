@@ -2748,7 +2748,7 @@ class Ntoskrnl(api.ApiHandler):
         if key:
             val = key.get_value(name)
             if val:
-                data = val.get_data()
+                data = val.get_bytes(2)
                 output = b""
                 if info_class == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
                     vi = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())

@@ -50,12 +50,16 @@ def _alloc(se: Speakeasy, data: bytes) -> int:
     return addr
 
 
+def _unicode_string(se: Speakeasy, text: str) -> int:
+    """Build an x86 UNICODE_STRING for ``text`` and return its address."""
+    buf = text.encode("utf-16le")
+    buf_addr = _alloc(se, buf + b"\x00\x00")
+    return _alloc(se, struct.pack("<HHI", len(buf), len(buf) + 2, buf_addr))
+
+
 def _object_attributes(se: Speakeasy, name: str) -> int:
     """Build an x86 OBJECT_ATTRIBUTES for ``name`` and return its address."""
-    buf = name.encode("utf-16le")
-    buf_addr = _alloc(se, buf + b"\x00\x00")
-    us_addr = _alloc(se, struct.pack("<HHI", len(buf), len(buf) + 2, buf_addr))
-    return _alloc(se, struct.pack("<IIIIII", 24, 0, us_addr, 0, 0, 0))
+    return _alloc(se, struct.pack("<IIIIII", 24, 0, _unicode_string(se, name), 0, 0, 0))
 
 
 def _call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str | int, str]]:
@@ -488,3 +492,25 @@ def test_reg_get_value_returns_the_size(dll_emu: Speakeasy) -> None:
 def test_reg_get_value_small_buffer(dll_emu: Speakeasy) -> None:
     rv, length, _ = _get_value(dll_emu, "RegGetValueA", b"DisplayName\x00", 4)
     assert (rv, length) == (234, 19)
+
+
+@pytest.mark.parametrize(
+    "name, val_type, data",
+    [
+        ("DisplayName", 1, "An example service\x00".encode("utf-16le")),
+        ("Start", 4, struct.pack("<I", 3)),
+    ],
+)
+def test_zw_query_value_key_returns_the_data(driver_emu: Speakeasy, name: str, val_type: int, data: bytes) -> None:
+    phnd = _alloc(driver_emu, b"\x00" * 4)
+    oa = _object_attributes(driver_emu, "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp")
+    rv, _ = _call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])
+    assert rv == 0
+    hnd = int.from_bytes(driver_emu.mem_read(phnd, 4), "little")
+    info = _alloc(driver_emu, b"\xcc" * 128)
+    ret_len = _alloc(driver_emu, b"\x00" * 4)
+    value_name = _unicode_string(driver_emu, name)
+    rv, _ = _call(driver_emu, "ntoskrnl", "ZwQueryValueKey", [hnd, value_name, 2, info, 128, ret_len])
+    assert rv == 0
+    assert int.from_bytes(driver_emu.mem_read(ret_len, 4), "little") == 12 + len(data)
+    assert driver_emu.mem_read(info, 12 + len(data)) == struct.pack("<III", 0, val_type, len(data)) + data
