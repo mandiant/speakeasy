@@ -639,7 +639,7 @@ class GdbServer:
         try:
             address_text, size_text = payload.split(b",", 1)
             address, size = int(address_text, 16), int(size_text, 16)
-            if address < 0 or size < 0 or size > (_PACKET_SIZE - 1) // 2:
+            if address < 0 or size < 0 or size > _PACKET_SIZE // 2:
                 raise ValueError
             self._reply(bytes(self.emu.mem_read(address, size)).hex().encode("ascii"))
         except Exception:

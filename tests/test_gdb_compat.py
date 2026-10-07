@@ -305,3 +305,17 @@ def test_change_breakpoint_survives_hook_error(caplog):
 
     assert replies == [b"E01"]
     assert any("breakpoint command failed" in r.message for r in caplog.records)
+
+
+def test_read_memory_fills_advertised_packet_size():
+    server = make_server()
+    server.emu.mem_read = lambda address, size: bytes(range(256)) * (size // 256)
+    replies = []
+    server._reply = replies.append
+
+    server._read_memory(f"402000,{_PACKET_SIZE // 2:x}".encode())
+    server._read_memory(f"402000,{_PACKET_SIZE // 2 + 1:x}".encode())
+
+    assert len(replies[0]) == _PACKET_SIZE
+    assert bytes.fromhex(replies[0].decode()) == bytes(range(256)) * (_PACKET_SIZE // 512)
+    assert replies[1] == b"E01"
