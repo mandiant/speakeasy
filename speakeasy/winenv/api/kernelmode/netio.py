@@ -152,8 +152,8 @@ class Netio(api.ApiHandler):
                 wpn.Dispatch = wpd_addr
 
                 self.mem_write(wpd_addr, self.get_bytes(self.prov_disp))
-                self.mem_write(WskProviderNpi, self.get_bytes(wpn))
                 self.provider_npi = wpn
+            self.mem_write(WskProviderNpi, self.get_bytes(self.provider_npi))
 
         return rv
 
