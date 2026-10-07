@@ -4039,16 +4039,33 @@ class Kernel32(api.ApiHandler):
         );
         """
         hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod = argv
-        rv = 0
 
         f = self.file_get(hFile)
-        if f:
-            # TODO add high offset, log access?
-            f.seek(lDistanceToMove, dwMoveMethod)
-            rv = f.tell()
-            emu.set_last_error(windefs.ERROR_SUCCESS)
+        if not f:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return windefs.INVALID_SET_FILE_POINTER
 
-        return rv
+        if lpDistanceToMoveHigh:
+            high = int.from_bytes(self.mem_read(lpDistanceToMoveHigh, 4), "little", signed=True)
+            offset = (high << 32) | (lDistanceToMove & 0xFFFFFFFF)
+        else:
+            offset = ct.c_int32(lDistanceToMove).value
+
+        if dwMoveMethod == windefs.FILE_CURRENT:
+            offset += f.tell()
+        elif dwMoveMethod == windefs.FILE_END:
+            offset += f.get_size()
+        if offset < 0:
+            emu.set_last_error(windefs.ERROR_NEGATIVE_SEEK)
+            return windefs.INVALID_SET_FILE_POINTER
+
+        f.seek(offset, windefs.FILE_BEGIN)
+        rv = f.tell()
+        if lpDistanceToMoveHigh:
+            self.mem_write(lpDistanceToMoveHigh, (rv >> 32).to_bytes(4, "little"))
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+
+        return rv & 0xFFFFFFFF
 
     @apihook("SetFilePointerEx", argc=5)
     def SetFilePointerEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4073,7 +4090,14 @@ class Kernel32(api.ApiHandler):
             lDistanceToMove -= 1 << 64
         f = self.file_get(hFile)
         if f:
-            f.seek(lDistanceToMove, dwMoveMethod)
+            if dwMoveMethod == windefs.FILE_CURRENT:
+                lDistanceToMove += f.tell()
+            elif dwMoveMethod == windefs.FILE_END:
+                lDistanceToMove += f.get_size()
+            if lDistanceToMove < 0:
+                emu.set_last_error(windefs.ERROR_NEGATIVE_SEEK)
+                return False
+            f.seek(lDistanceToMove, windefs.FILE_BEGIN)
             rv = f.tell()
             if lpNewFilePointer:
                 self.mem_write(lpNewFilePointer, rv.to_bytes(8, "little"))

@@ -176,3 +176,33 @@ def test_set_file_pointer_on_first_open(strict_fs_emu: Speakeasy) -> None:
 
     new = open_file(strict_fs_emu, "c:\\new.txt", CREATE_ALWAYS)
     assert call(strict_fs_emu, "kernel32", "SetFilePointer", [new, 0, 0, FILE_CURRENT])[0] == 0
+
+
+def test_set_file_pointer_moves_back_from_the_end(emu: Speakeasy) -> None:
+    hnd = open_file(emu, BYTE_FILL_PATH)
+    assert call(emu, "kernel32", "SetFilePointer", [hnd, -4 & 0xFFFFFFFF, 0, FILE_END])[0] == 508
+
+    buf = alloc(emu, b"\x00" * 16)
+    read = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "ReadFile", [hnd, buf, 16, read, 0])[0]
+    assert emu.mem_read(read, 4) == (4).to_bytes(4, "little")
+
+
+def test_set_file_pointer_uses_the_high_part(emu: Speakeasy) -> None:
+    hnd = open_file(emu, BYTE_FILL_PATH)
+    high = alloc(emu, (-1 & 0xFFFFFFFF).to_bytes(4, "little"))
+    assert call(emu, "kernel32", "SetFilePointer", [hnd, -8 & 0xFFFFFFFF, high, FILE_END])[0] == 504
+    assert emu.mem_read(high, 4) == b"\x00" * 4
+
+
+def test_set_file_pointer_fails_before_the_start(emu: Speakeasy) -> None:
+    hnd = open_file(emu, BYTE_FILL_PATH)
+    assert call(emu, "kernel32", "SetFilePointer", [hnd, -1 & 0xFFFFFFFF, 0, FILE_BEGIN])[0] == 0xFFFFFFFF
+    assert last_error(emu) == windefs.ERROR_NEGATIVE_SEEK
+
+    rv, _ = call(emu, "kernel32", "SetFilePointerEx", [hnd, 0xFFFFFFFF, 0xFFFFFFFF, 0, FILE_BEGIN])
+    assert not rv
+    assert last_error(emu) == windefs.ERROR_NEGATIVE_SEEK
+
+    assert call(emu, "kernel32", "SetFilePointer", [0x7FF0, 0, 0, FILE_BEGIN])[0] == 0xFFFFFFFF
+    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
