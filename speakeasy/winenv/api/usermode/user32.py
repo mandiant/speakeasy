@@ -1331,14 +1331,13 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         bits = _str.bit_length()
         if bits <= 16:
-            if cw == 1:
-                val = chr(_str).lower().encode("ascii")
-            else:
-                val = chr(_str).lower().encode("utf-16le")
+            if cw == 1 and _str > 0xFF:
+                return _str
+            val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=False)
             return int.from_bytes(val, byteorder="little")
         else:
-            val = self.read_mem_string(_str, cw)
-            self.write_mem_string(val.lower(), _str, cw)
+            raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
+            self.mem_write(_str, map_char_case(raw, cw, upper=False))
             return _str
 
     @apihook("CharUpper", argc=1)
@@ -1352,14 +1351,13 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         bits = _str.bit_length()
         if bits <= 16:
-            if cw == 1:
-                val = chr(_str).upper().encode("ascii")
-            else:
-                val = chr(_str).upper().encode("utf-16le")
+            if cw == 1 and _str > 0xFF:
+                return _str
+            val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=True)
             return int.from_bytes(val, byteorder="little")
         else:
-            val = self.read_mem_string(_str, cw)
-            self.write_mem_string(val.upper(), _str, cw)
+            raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
+            self.mem_write(_str, map_char_case(raw, cw, upper=True))
             return _str
 
     @apihook("SetTimer", argc=4)
