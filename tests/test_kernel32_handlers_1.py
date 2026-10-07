@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import speakeasy.common as common
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv.defs.windows import windows as windefs
@@ -368,3 +369,23 @@ def test_code_page_1252_has_no_lead_bytes(dll_emu: Speakeasy, byte: int) -> None
     assert acp == 1252
     rv, _ = call(dll_emu, "kernel32", "IsDBCSLeadByte", [byte])
     assert not rv
+
+
+@pytest.mark.parametrize(
+    "perms, protect",
+    [
+        (common.PERM_MEM_READ, windefs.PAGE_READONLY),
+        (common.PERM_MEM_RW, windefs.PAGE_READWRITE),
+        (common.PERM_MEM_RX, windefs.PAGE_EXECUTE_READ),
+        (common.PERM_MEM_EXEC, windefs.PAGE_EXECUTE),
+        (common.PERM_MEM_RWX, windefs.PAGE_EXECUTE_READWRITE),
+        (common.PERM_MEM_NONE, windefs.PAGE_NOACCESS),
+    ],
+)
+def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: int, protect: int) -> None:
+    assert dll_emu.emu is not None
+    addr = dll_emu.emu.mem_map(0x1000, perms=perms)
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    rv, _ = call(dll_emu, "kernel32", "VirtualQuery", [addr, mbi, 28])
+    assert rv == 28
+    assert struct.unpack("<I", dll_emu.mem_read(mbi + 20, 4))[0] == protect

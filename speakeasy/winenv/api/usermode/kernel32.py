@@ -154,18 +154,20 @@ class Kernel32(api.ApiHandler):
         return new
 
     def emu_perms_to_win_perms(self, emu_perms):
-        new = 0
-        if emu_perms & common.PERM_MEM_RWX:
-            new = windefs.PAGE_EXECUTE_READWRITE
-        elif emu_perms & common.PERM_MEM_NONE:
-            new = windefs.PAGE_NOACCESS
-        else:
+        if emu_perms & common.PERM_MEM_WRITE:
             if emu_perms & common.PERM_MEM_EXEC:
-                new |= windefs.PAGE_EXECUTE
-            if emu_perms & common.PERM_MEM_READ:  # noqa
-                new |= windefs.PAGE_READONLY
-            if emu_perms & common.PERM_MEM_WRITE:
-                new |= windefs.PAGE_READWRITE
+                new = windefs.PAGE_EXECUTE_READWRITE
+            else:
+                new = windefs.PAGE_READWRITE
+        elif emu_perms & common.PERM_MEM_EXEC:
+            if emu_perms & common.PERM_MEM_READ:
+                new = windefs.PAGE_EXECUTE_READ
+            else:
+                new = windefs.PAGE_EXECUTE
+        elif emu_perms & common.PERM_MEM_READ:
+            new = windefs.PAGE_READONLY
+        else:
+            new = windefs.PAGE_NOACCESS
         return new
 
     def map_view_access_to_emu_perms(self, desired_access, mapping_protect):
