@@ -11,7 +11,9 @@
     "(prefixes that may be prepended to an import name to find its metadata",
     "entry, e.g. psapi's EnumProcesses is recorded as KERNEL32!K32EnumProcesses).",
     "enum_extra (enum name -> list of win32json constant names appended to",
-    "that enum's members, for values win32metadata does not attach to it)."
+    "that enum's members, for values win32metadata does not attach to it).",
+    "param_names (function name -> parameter names, for prototypes whose",
+    "header declares no names and win32metadata records param0, param1, ...)."
   ],
   "cdecl_dlls": [
     "icu",
@@ -87,5 +89,11 @@
       "MAXIMUM_ALLOWED",
       "ACCESS_SYSTEM_SECURITY"
     ]
+  },
+  "param_names": {
+    "URLDownloadToFileA": ["pCaller", "szURL", "szFileName", "dwReserved", "lpfnCB"],
+    "URLDownloadToFileW": ["pCaller", "szURL", "szFileName", "dwReserved", "lpfnCB"],
+    "URLDownloadToCacheFileA": ["lpUnkcaller", "szURL", "szFileName", "cchFileName", "dwReserved", "pBSC"],
+    "URLDownloadToCacheFileW": ["lpUnkcaller", "szURL", "szFileName", "cchFileName", "dwReserved", "pBSC"]
   }
 }

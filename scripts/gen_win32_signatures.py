@@ -461,6 +461,7 @@ def load_overrides(path: str) -> dict:
     doc.setdefault("dll_aliases", {})
     doc.setdefault("name_prefixes", {})
     doc.setdefault("enum_extra", {})
+    doc.setdefault("param_names", {})
     return doc
 
 
@@ -493,22 +494,26 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
         entry["ret"] = "p"
         skip_reason = f"return type: {e}"
 
+    name = fn["Name"]
+    names = overrides["param_names"].get(name, [pm["Name"] for pm in fn["Params"]])
+    if len(names) != len(fn["Params"]):
+        raise SystemExit(f"param_names: {name} has {len(fn['Params'])} parameters, not {len(names)}")
+
     params = []
-    for pm in fn["Params"]:
+    for pm, param_name in zip(fn["Params"], names):
         flags = "".join(ATTR_FLAGS[a] for a in pm["Attrs"] if isinstance(a, str) and a in ATTR_FLAGS)
         try:
             code = resolver.resolve(pm["Type"])
         except UnsupportedType as e:
             code = "p"
             skip_reason = skip_reason or f"param {pm['Name']}: {e}"
-        param = [pm["Name"], code, flags]
+        param = [param_name, code, flags]
         length = _buffer_length(pm, len(fn["Params"]))
         if length:
             param.append(length)
         params.append(param)
     entry["params"] = params
 
-    name = fn["Name"]
     if name in overrides["variadic"]:
         entry["variadic"] = True
         entry["conv"] = "cdecl"
