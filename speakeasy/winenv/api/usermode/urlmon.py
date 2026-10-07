@@ -88,6 +88,6 @@ class Urlmon(api.ApiHandler):
                 self.record_file_access_event(cache_name, FILE_CREATE)
                 self.record_file_access_event(cache_name, FILE_WRITE)
             else:
-                rv = windefs.ERROR_INSUFFICIENT_BUFFER
+                rv = windefs.E_OUTOFMEMORY
 
         return rv

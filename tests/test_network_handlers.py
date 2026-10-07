@@ -275,3 +275,11 @@ def test_net_wksta_get_info_keeps_the_lanroot(dll_emu: Speakeasy, level: int) ->
     assert dll_emu.mem_read(lanroot, 2) == b"\x00\x00"
     if level == 102:
         assert struct.unpack_from("<I", info, 24)[0] == 2
+
+
+def test_url_download_to_cache_file_small_buffer_fails(dll_emu: Speakeasy) -> None:
+    url = alloc(dll_emu, b"http://example.com/a.bin\x00")
+    out = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "urlmon", "URLDownloadToCacheFileA", [0, url, out, 8, 0, 0])
+    assert rv == 0x8007000E
+    assert dll_emu.mem_read(out, 8) == b"\xcc" * 8
