@@ -197,3 +197,15 @@ def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
     rv, _ = call(dll_emu, "kernel32", api, [dst, src])
     assert rv == dst
     assert dll_emu.mem_read(dst, 4 * cw + 1) == encode("ABC\0", cw) + b"\xcc"
+
+
+def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
+    si = alloc(dll_emu, b"\x00" * 0x44)
+    pi = alloc(dll_emu, b"\x00" * 0x10)
+    ok, _ = call(dll_emu, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, 0, 0, 0, si, pi])
+    assert ok
+    hproc = struct.unpack("<I", dll_emu.mem_read(pi, 4))[0]
+    rv, _ = call(dll_emu, "kernel32", "TerminateProcess", [hproc, 0])
+    assert rv is True
