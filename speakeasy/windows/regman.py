@@ -164,12 +164,8 @@ class RegistryManager:
             if key.path.lower() == path.lower():
                 new_key = RegKey(self.allocator, path)
                 for value in key.values:
-                    val_type = value.type
-                    vts = regdefs.get_flag_value(val_type)  # noqa
-
                     val_name = value.name or ""
-                    data = value.data
-                    new_key.create_value(val_name, val_type, data)
+                    new_key.create_value(val_name, regdefs.get_flag_value(value.type), value.data)
                 return new_key
         return None
 
