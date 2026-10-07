@@ -99,6 +99,18 @@ class Ntoskrnl(api.ApiHandler):
             return self.mem_alloc(8, base=None, tag="emu.struct.KdDebuggerEnabled")
         return ptr
 
+    def _write_counted_string(self, string, buf, count, width):
+        """
+        Write at most ``count`` characters of ``string`` the way _snprintf
+        does: add a NUL only when there is room, and return -1 when the
+        string does not fit.
+        """
+        out = string[:count].encode(self.get_encoding(width))
+        if len(string) < count:
+            out += b"\x00" * width
+        self.mem_write(buf, out)
+        return len(string) if len(string) <= count else -1
+
     @apihook("ObfDereferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ObfDereferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -858,16 +870,14 @@ class Ntoskrnl(api.ApiHandler):
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
         if not fmt_cnt:
-            self.write_string(fmt_str[: cnt - 1], buf)
-            return len(fmt_str)
+            return self._write_counted_string(fmt_str, buf, cnt, 1)
 
         _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
         fin = self.do_str_format(fmt_str, _argv)
 
-        self.write_string(fin, buf)
         ctx.args.clear()
         ctx.args.append(fin)
-        return len(fin)
+        return self._write_counted_string(fin, buf, cnt, 1)
 
     @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2343,15 +2353,12 @@ class Ntoskrnl(api.ApiHandler):
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         if not fmt_cnt:
-            self.write_wide_string(fmt_str, buf)
-            return len(fmt_str)
+            return self._write_counted_string(fmt_str, buf, cnt, 2)
 
         argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
         fin = self.do_str_format(fmt_str, argv)
 
-        self.write_wide_string(fin, buf)
-
-        return len(fin)
+        return self._write_counted_string(fin, buf, cnt, 2)
 
     @apihook("ObReferenceObjectByHandle", argc=6)
     def ObReferenceObjectByHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
