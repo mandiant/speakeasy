@@ -348,3 +348,17 @@ def test_gethostbyname_ignores_case(dll_emu: Speakeasy) -> None:
 
 def test_inet_addr_null(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "ws2_32", "inet_addr", [0])[0] == 0xFFFFFFFF
+
+
+def test_accept_fills_the_peer_address(dll_emu: Speakeasy) -> None:
+    s, _ = call(dll_emu, "ws2_32", "socket", [2, 1, 6])
+    local = alloc(dll_emu, struct.pack("<H", 2) + struct.pack(">H", 4444) + b"\x00" * 12)
+    assert call(dll_emu, "ws2_32", "bind", [s, local, 16])[0] == 0
+    peer = alloc(dll_emu, b"\xcc" * 16)
+    peer_len = alloc(dll_emu, struct.pack("<I", 16))
+    client, _ = call(dll_emu, "ws2_32", "accept", [s, peer, peer_len])
+    assert client
+    data = dll_emu.mem_read(peer, 8)
+    assert struct.unpack("<H", data[:2])[0] == 2
+    assert struct.unpack(">H", data[2:4])[0] == 4444
+    assert data[4:8] == bytes([10, 1, 2, 3])
