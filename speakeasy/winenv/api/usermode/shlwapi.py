@@ -262,7 +262,7 @@ class Shlwapi(api.ApiHandler):
         fin = fmt_str
         if fmt_cnt:
             _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-            fin = self.do_str_format(fmt_str, _argv)
+            fin = self.do_str_format(fmt_str, _argv, wide=cw == 2)
 
         out = fin[: max(max_buf_size - 1, 0)]
         if max_buf_size > 0:

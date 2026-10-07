@@ -455,3 +455,11 @@ def test_zw_query_system_information_rejects_an_unhandled_class(driver_emu: Spea
     rv, _ = call(driver_emu, "ntoskrnl", "ZwQuerySystemInformation", [0, info, 0x40, retlen])
     assert rv == ddk.STATUS_INVALID_INFO_CLASS
     assert driver_emu.mem_read(retlen, 4) == b"\xcc" * 4
+
+
+def test_snwprintf_reads_s_as_wide_and_S_as_ansi(driver_emu: Speakeasy) -> None:
+    buf = alloc(driver_emu, b"\xcc" * 40)
+    fmt = alloc(driver_emu, "%s|%S|%%s\0".encode("utf-16le"))
+    args = [alloc(driver_emu, "ab\0".encode("utf-16le")), alloc(driver_emu, b"cd\0")]
+    assert call(driver_emu, "ntoskrnl", "_snwprintf", [buf, 20, fmt, *args])[0] == 8
+    assert driver_emu.mem_read(buf, 18) == "ab|cd|%s\0".encode("utf-16le")

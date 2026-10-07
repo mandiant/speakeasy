@@ -289,6 +289,14 @@ def test_wcsnicmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count
     assert call(dll_emu, "msvcrt", "_wcsnicmp", [*args, count])[0] == rv
 
 
+def test_snwprintf_reads_s_as_wide_and_S_as_ansi(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 40)
+    fmt = alloc(dll_emu, "%s|%S|%%s\0".encode("utf-16le"))
+    args = [alloc(dll_emu, "ab\0".encode("utf-16le")), alloc(dll_emu, b"cd\0")]
+    assert call(dll_emu, "msvcrt", "_snwprintf", [buf, 20, fmt, *args])[0] == 8
+    assert dll_emu.mem_read(buf, 18) == "ab|cd|%s\0".encode("utf-16le")
+
+
 def test_snprintf_reads_no_argument_for_percent_escape(dll_emu: Speakeasy) -> None:
     buf = alloc(dll_emu, b"\xcc" * 16)
     fmt = alloc(dll_emu, b"%d%%\0")
