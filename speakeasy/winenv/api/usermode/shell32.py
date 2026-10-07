@@ -189,7 +189,9 @@ class Shell32(api.ApiHandler):
 
         if ppMalloc:
             ci = emu.com.get_interface(emu, emu.get_ptr_size(), "IMalloc")
-            self.mem_write(ppMalloc, ci.address.to_bytes(emu.get_ptr_size(), "little"))
+            pv = self.mem_alloc(emu.get_ptr_size(), tag="emu.COM.pv_IMalloc")
+            self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
+            self.mem_write(ppMalloc, pv.to_bytes(emu.get_ptr_size(), "little"))
         rv = windefs.S_OK
         return rv
 
