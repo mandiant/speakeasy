@@ -233,3 +233,20 @@ def test_get_locale_info_counts_characters(emu: Speakeasy, name: str, width: int
     buf = alloc(emu, b"\xcc" * 32 * width)
     assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, buf, 32])[0] == 14
     assert emu.mem_read(buf, 14 * width) == "United States\x00".encode(enc)
+
+
+@pytest.mark.parametrize("name", ["GetLongPathNameA", "GetLongPathNameW", "GetShortPathNameA", "GetShortPathNameW"])
+def test_path_name_sizes(emu: Speakeasy, name: str) -> None:
+    width = 1 if name.endswith("A") else 2
+    enc = "utf-8" if width == 1 else "utf-16le"
+    path = "C:\\WINDOWS\\A.TXT"
+    src = alloc(emu, (path + "\x00").encode(enc))
+    assert call(emu, "kernel32", name, [src, 0, 0])[0] == len(path) + 1
+
+    small = alloc(emu, b"\xcc" * 4 * width)
+    assert call(emu, "kernel32", name, [src, small, 4])[0] == len(path) + 1
+    assert emu.mem_read(small, 4 * width) == b"\xcc" * 4 * width
+
+    exact = alloc(emu, b"\xcc" * (len(path) + 1) * width)
+    assert call(emu, "kernel32", name, [src, exact, len(path) + 1])[0] == len(path)
+    assert emu.mem_read(exact, (len(path) + 1) * width) == (path + "\x00").encode(enc)

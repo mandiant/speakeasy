@@ -5688,6 +5688,7 @@ class Kernel32(api.ApiHandler):
         if lpszShortPath and len(out) + 1 <= cchBuffer:
             ctx.args["lpszShortPath"].display = out
             self.write_mem_string(out, lpszShortPath, cw)
+            return len(out)
 
         return len(out) + 1
 
@@ -5707,10 +5708,13 @@ class Kernel32(api.ApiHandler):
         s = self.read_mem_string(lpszShortPath, cw)
         ctx.args["lpszShortPath"].display = s
 
+        if not lpszLongPath or cchBuffer <= len(s):
+            return len(s) + 1
+
         self.write_mem_string(s, lpszLongPath, cw)
         ctx.args["lpszLongPath"].display = s
 
-        return len(s) * cw + 1
+        return len(s)
 
     @apihook("QueueUserAPC", argc=3)
     def QueueUserAPC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
