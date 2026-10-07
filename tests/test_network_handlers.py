@@ -1,9 +1,11 @@
 import struct
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+import speakeasy
 from speakeasy import Speakeasy
 from tests.handler_harness import alloc, call, load_emu
 
@@ -248,3 +250,14 @@ def test_crack_url_copies_the_host(dll_emu: Speakeasy, dll: str, name: str, widt
     fields = struct.unpack("<15I", dll_emu.mem_read(comp, 60))
     assert (fields[4], fields[5]) == (host_buf, 11)
     assert dll_emu.mem_read(host_buf, 12 * width) == "example.com\x00".encode(enc)
+
+
+def test_recv_peek_keeps_the_read_position(dll_emu: Speakeasy) -> None:
+    stager = (Path(speakeasy.__file__).parent / "resources" / "web" / "stager.bin").read_bytes()
+    s, _ = call(dll_emu, "ws2_32", "socket", [2, 1, 6])
+    buf = alloc(dll_emu, b"\x00" * 0x100)
+    assert call(dll_emu, "ws2_32", "recv", [s, buf, 4, 0])[0] == 4
+    peeked, _ = call(dll_emu, "ws2_32", "recv", [s, buf, 0x100, 2])
+    assert dll_emu.mem_read(buf, peeked) == stager[4:]
+    assert call(dll_emu, "ws2_32", "recv", [s, buf, 4, 0])[0] == 4
+    assert dll_emu.mem_read(buf, 4) == stager[4:8]
