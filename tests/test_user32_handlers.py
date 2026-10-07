@@ -151,3 +151,28 @@ def test_get_object_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> No
     rv, _ = call(dll_emu, "gdi32", "GetObjectA", [0x1234, 24, pv])
     assert rv == 24
     assert dll_emu.mem_read(pv, 24) == b"\x00" * 24
+
+
+@pytest.mark.parametrize(
+    "name, cw, maxc, expected",
+    [
+        ("GetWindowTextA", 1, 5, "spea"),
+        ("GetWindowTextW", 2, 5, "spea"),
+        ("GetWindowTextA", 1, 64, "speakeasy window"),
+        ("GetWindowTextA", 1, 1, ""),
+    ],
+)
+def test_get_window_text_fits_the_buffer(dll_emu: Speakeasy, name: str, cw: int, maxc: int, expected: str) -> None:
+    enc = "utf-8" if cw == 1 else "utf-16le"
+    buf = alloc(dll_emu, b"\xcc" * 160)
+    rv, _ = call(dll_emu, "user32", name, [0x1234, buf, maxc])
+    assert rv == len(expected)
+    data = (expected + "\0").encode(enc)
+    assert dll_emu.mem_read(buf, len(data) + cw) == data + b"\xcc" * cw
+
+
+def test_get_window_text_with_no_room(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "user32", "GetWindowTextA", [0x1234, buf, 0])
+    assert rv == 0
+    assert dll_emu.mem_read(buf, 4) == b"\xcc" * 4
