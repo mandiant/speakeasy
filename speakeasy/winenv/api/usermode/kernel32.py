@@ -3878,7 +3878,7 @@ class Kernel32(api.ApiHandler):
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     hnd = self.file_open(target, create=True)
                 elif disp == windefs.OPEN_ALWAYS:
-                    emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+                    emu.set_last_error(windefs.ERROR_SUCCESS)
                     # Open the file
                     hnd = self.file_open(target, create=True)
                 elif disp == windefs.OPEN_EXISTING:
