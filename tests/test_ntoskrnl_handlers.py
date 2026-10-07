@@ -398,3 +398,13 @@ def test_x64_zw_query_information_process_wow64(driver64_emu: Speakeasy, length:
     assert driver64_emu.mem_read(retlen, 8) == b"\x08\x00\x00\x00" + b"\xcc" * 4
     if status == ddk.STATUS_SUCCESS:
         assert driver64_emu.mem_read(info, 8) == b"\x00" * 8
+
+
+@pytest.mark.parametrize("name", ["ZwGetContextThread", "ZwSetContextThread"])
+def test_context_thread_calls_return_ntstatus(driver_emu: Speakeasy, name: str) -> None:
+    set_current_system_thread(driver_emu)
+    emu = driver_emu.emu
+    hnd = emu.get_object_handle(emu.get_current_thread())
+    context = alloc(driver_emu, b"\x00" * 0x2CC)
+    assert call(driver_emu, "ntoskrnl", name, [hnd, context])[0] == ddk.STATUS_SUCCESS
+    assert call(driver_emu, "ntoskrnl", name, [0x1234, context])[0] == ddk.STATUS_INVALID_HANDLE
