@@ -2,6 +2,7 @@
 
 import base64
 
+import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
@@ -71,6 +72,8 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         if hProvider and phKey:
             prov_ctx = cm.crypt_get(hProvider)
+            if not prov_ctx:
+                return adv32.NTE_INVALID_HANDLE
             hnd = prov_ctx.import_key(
                 blob_type=blob_type,
                 blob=blob,

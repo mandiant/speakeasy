@@ -5,6 +5,7 @@ import ctypes as ct
 from speakeasy.struct import EmuStruct, Ptr
 
 NTE_BAD_ALGID = 0x80090008
+NTE_INVALID_HANDLE = 0x80090026
 
 SERVICE_WIN32 = 0x30
 

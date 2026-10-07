@@ -11,6 +11,7 @@ from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import advapi32 as adv32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, start_process
 
@@ -252,3 +253,13 @@ def test_ncrypt_import_key_ignores_the_high_bits_of_the_size(dll64_emu: Speakeas
     rv, _ = call(dll64_emu, "ncrypt", "NCryptImportKey", argv)
     assert rv == 0
     assert int.from_bytes(dll64_emu.mem_read(phkey, 8), "little") != 0
+
+
+def test_import_key_rejects_an_unknown_provider(dll_emu: Speakeasy) -> None:
+    blob_type = alloc(dll_emu, "RSAPUBLICBLOB\x00".encode("utf-16le"))
+    data = alloc(dll_emu, b"\x01" * 16)
+    phkey = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "ncrypt", "NCryptImportKey", [0x1234, 0, blob_type, 0, phkey, data, 16, 0])
+    assert rv == adv32defs.NTE_INVALID_HANDLE
+    rv, _ = call(dll_emu, "bcrypt", "BCryptImportKeyPair", [0x1234, 0, blob_type, phkey, data, 16, 0])
+    assert rv == ddk.STATUS_INVALID_HANDLE

@@ -79,6 +79,8 @@ class Bcrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         if hAlgorithm and phKey:
             alg_ctx = cm.crypt_get(hAlgorithm)
+            if not alg_ctx:
+                return ntdefs.STATUS_INVALID_HANDLE
             hnd = alg_ctx.import_key(blob_type=blob_type, blob=blob, blob_len=cbInput, flags=dwFlags)
             if hnd:
                 self.mem_write(phKey, hnd.to_bytes(emu.get_ptr_size(), "little"))
