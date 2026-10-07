@@ -432,3 +432,9 @@ def test_enum_services_status_returns_no_services(dll_emu: Speakeasy) -> None:
     outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(3)]
     rv, _ = call(dll_emu, "advapi32", "EnumServicesStatusA", [0x1234, 0x30, 3, 0, 0, *outs])
     assert (rv, [_dword(dll_emu, a) for a in outs]) == (1, [0, 0, 0])
+
+
+def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> None:
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = call(dll_emu, "crypt32", "CryptStringToBinaryA", [alloc(dll_emu, b"YWJj\x00"), 0, 1, 0, size, 0, 0])
+    assert (rv, _dword(dll_emu, size)) == (1, 3)
