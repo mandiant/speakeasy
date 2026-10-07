@@ -11,6 +11,7 @@ from .. import api
 
 EINVAL = 22
 ERANGE = 34
+STRUNCATE = 80
 _TRUNCATE = 0xFFFFFFFF
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
@@ -603,32 +604,28 @@ class Msvcrt(api.ApiHandler):
         );
         """
         strDest, num, src, count = argv
-        rv = 0
 
-        is_truncated = 0xFFFFFFFF & count
-        if is_truncated == _TRUNCATE:
-            is_truncated = True
-        else:
-            is_truncated = False
+        is_truncated = count == self.get_max_int()
 
-        ctx.args[0].display = self.read_mem_string(strDest, 1)
-        ctx.args[2].display = self.read_mem_string(src, 1)
+        s1 = self.read_cstr(strDest)
+        s2 = self.read_cstr(src, max_chars=0 if is_truncated else count) if count else b""
+        ctx.args[0].display = s1.decode("utf-8", "ignore")
+        ctx.args[2].display = s2.decode("utf-8", "ignore")
 
-        slen1 = self.mem_string_len(strDest, 1)
-        rem = num - slen1
+        rem = num - len(s1)
+        if rem <= 0:
+            return EINVAL
+
+        if len(s2) < rem:
+            self.mem_write(strDest + len(s1), s2 + b"\x00")
+            return 0
 
         if is_truncated:
-            if rem < count:
-                self.mem_copy(strDest + slen1, src, count - 1)
-            else:
-                self.mem_copy(strDest + slen1, src, count)
-        else:
-            if rem < count:
-                rv = EINVAL
-            else:
-                self.mem_copy(strDest + slen1, src, count)
+            self.mem_write(strDest + len(s1), s2[: rem - 1] + b"\x00")
+            return STRUNCATE
 
-        return rv
+        self.mem_write(strDest, b"\x00")
+        return ERANGE
 
     @apihook("__stdio_common_vfprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vfprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
