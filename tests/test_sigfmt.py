@@ -280,48 +280,25 @@ def test_call_args_of_signature_call() -> None:
     ]
 
 
-def test_handler_values_replace_rendered_params() -> None:
-    sig = _sig("S", "u32", "u32", "u32", "h", "p")
-    before = [0x1000, 0x80000000, 3, 7, 0x44, 0x2000]
-    after = ["C:\\x", "GENERIC_READ", 4, "SYMBOLIC", 0x48, 0x3000]
-    rendered = [
-        sigfmt.RenderedArg("C:\\x", "str"),
-        sigfmt.RenderedArg("GENERIC_READ", "flags"),
-        sigfmt.RenderedArg("0x3", "int"),
-        sigfmt.RenderedArg("0x7", "int"),
-        sigfmt.RenderedArg("0x44", "handle"),
-        sigfmt.RenderedArg("0x2000", "ptr"),
-    ]
-    args = sigfmt.get_call_args(sig, 4, rendered, before, after)
-    assert [a.display for a in args] == ["C:\\x", "GENERIC_READ", "0x4", "SYMBOLIC", "0x48", "0x3000"]
-    # the handler's name for a flags value gives way to the signature's decoding
-    assert [a.type for a in args] == ["str", "flags", "int", "text", "handle", "ptr"]
-    # values are what the caller passed, not what the handler wrote back
-    assert [a.value for a in args] == before
-
-
-def test_handler_value_for_multi_slot_param() -> None:
+def test_call_args_of_multi_slot_param() -> None:
     sig = _sig("u64", "u32")
     rendered = [sigfmt.RenderedArg("0x200000001", "int"), sigfmt.RenderedArg("0x3", "int")]
-    args = sigfmt.get_call_args(sig, 4, rendered, [1, 2, 3], [1, "COND", 3])
-    assert args == [
-        ApiArg(name="p0", type="text", value=0x200000001, display="COND"),
+    assert sigfmt.get_call_args(sig, 4, rendered, [1, 2, 3]) == [
+        ApiArg(name="p0", type="int", value=0x200000001, display="0x200000001"),
         ApiArg(name="p1", type="int", value=3, display="0x3"),
     ]
 
 
 def test_slot_args_of_call_without_signature() -> None:
-    args = sigfmt.get_slot_args([0x1000, 2], ["C:\\x", 2, "extra"])
-    assert args == [
-        ApiArg(type="text", value=0x1000, display="C:\\x"),
+    assert sigfmt.get_slot_args([0x1000, 2]) == [
+        ApiArg(type="int", value=0x1000, display="0x1000"),
         ApiArg(type="int", value=2, display="0x2"),
-        ApiArg(type="text", display="extra"),
     ]
 
 
 def test_call_args_require_matching_slots() -> None:
     rendered = [sigfmt.RenderedArg("0x1", "int"), sigfmt.RenderedArg("0x2", "int")]
     with pytest.raises(ValueError):
-        sigfmt.get_call_args(_sig("u32", "u32"), 4, rendered, [1, 2], [1, 2, 3])
+        sigfmt.get_call_args(_sig("u32", "u32"), 4, rendered, [1, 2, 3])
     with pytest.raises(ValueError):
         sigfmt.get_call_args(_sig("u32", "u32"), 4, rendered[:1], [1, 2])

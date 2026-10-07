@@ -19,7 +19,7 @@ class Bcryptprimitives(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("ProcessPrng", argc=2)
-    def ProcessPrng(self, emu, argv, ctx={}):
+    def ProcessPrng(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ProcessPrng(PBYTE pbData, SIZE_T cbData);
         """

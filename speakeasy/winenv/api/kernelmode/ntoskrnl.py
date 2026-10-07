@@ -100,7 +100,7 @@ class Ntoskrnl(api.ApiHandler):
         return ptr
 
     @apihook("ObfDereferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ObfDereferenceObject(self, emu, argv, ctx: api.ApiContext = None):
+    def ObfDereferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void ObfDereferenceObject(a);
         """
@@ -111,7 +111,7 @@ class Ntoskrnl(api.ApiHandler):
             obj.ref_cnt -= 1
 
     @apihook("ZwClose", argc=1)
-    def ZwClose(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS ZwClose(
         HANDLE Handle
@@ -123,7 +123,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("DbgPrint", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def DbgPrint(self, emu, argv, ctx: api.ApiContext = None):
+    def DbgPrint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG DbgPrint(
         PCSTR Format,
@@ -143,7 +143,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("DbgPrintEx", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def DbgPrintEx(self, emu, argv, ctx: api.ApiContext = None):
+    def DbgPrintEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI ULONG DbgPrintEx(
           ULONG ComponentId,
@@ -170,7 +170,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("_vsnprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def _vsnprintf(self, emu, argv, ctx: api.ApiContext = None):
+    def _vsnprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _vsnprintf(
             char *buffer,
@@ -198,12 +198,11 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("vsprintf_s", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def vsprintf_s(self, emu, argv, ctx: api.ApiContext = None):
-        ctx = ctx or {}
+    def vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return self._vsnprintf(emu, argv, ctx)
 
     @apihook("RtlAnsiStringToUnicodeString", argc=3)
-    def RtlAnsiStringToUnicodeString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlAnsiStringToUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlAnsiStringToUnicodeString(
             PUNICODE_STRING DestinationString,
@@ -247,7 +246,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("RtlInitAnsiString", argc=2)
-    def RtlInitAnsiString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlInitAnsiString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI VOID RtlInitAnsiString(
             PANSI_STRING DestinationString,
@@ -270,7 +269,7 @@ class Ntoskrnl(api.ApiHandler):
         argv[1] = ansi_str
 
     @apihook("RtlInitUnicodeString", argc=2)
-    def RtlInitUnicodeString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlInitUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI VOID RtlInitUnicodeString(
             PUNICODE_STRING DestinationString,
@@ -298,7 +297,7 @@ class Ntoskrnl(api.ApiHandler):
         argv[1] = uni_str
 
     @apihook("RtlFreeUnicodeString", argc=1)
-    def RtlFreeUnicodeString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlFreeUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI VOID RtlFreeUnicodeString(
             PUNICODE_STRING UnicodeString
@@ -314,7 +313,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(us.Buffer)
 
     @apihook("ExAllocatePoolWithTag", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def ExAllocatePoolWithTag(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAllocatePoolWithTag(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PVOID ExAllocatePoolWithTag(
            POOL_TYPE PoolType,
@@ -336,7 +335,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExFreePoolWithTag", argc=2)
-    def ExFreePoolWithTag(self, emu, argv, ctx: api.ApiContext = None):
+    def ExFreePoolWithTag(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID ExFreePoolWithTag(
             PVOID P,
@@ -354,7 +353,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(P)
 
     @apihook("ExAllocatePool", argc=2)
-    def ExAllocatePool(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAllocatePool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PVOID ExAllocatePool(
             POOL_TYPE PoolType,
@@ -367,7 +366,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExAllocatePool2", argc=3)
-    def ExAllocatePool2(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAllocatePool2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PVOID ExAllocatePool2(
             FLAGS Flags,
@@ -394,7 +393,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExFreePool", argc=1)
-    def ExFreePool(self, emu, argv, ctx: api.ApiContext = None):
+    def ExFreePool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void ExFreePool(
             addr
@@ -404,7 +403,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(addr)
 
     @apihook("memmove", argc=3)
-    def memmove(self, emu, argv, ctx: api.ApiContext = None):
+    def memmove(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *memmove(
             void *dest,
@@ -419,7 +418,7 @@ class Ntoskrnl(api.ApiHandler):
         return dest
 
     @apihook("IoDeleteDriver", argc=1)
-    def IoDeleteDriver(self, emu, argv, ctx: api.ApiContext = None):
+    def IoDeleteDriver(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoDeleteDriver(PDRIVER_OBJECT DriverObject)
         """
@@ -428,7 +427,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoCreateDevice", argc=7)
-    def IoCreateDevice(self, emu, argv, ctx: api.ApiContext = None):
+    def IoCreateDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS IoCreateDevice(
             PDRIVER_OBJECT  DriverObject,
@@ -459,7 +458,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("IoCreateDeviceSecure", argc=9)
-    def IoCreateDeviceSecure(self, emu, argv, ctx: api.ApiContext = None):
+    def IoCreateDeviceSecure(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoCreateDeviceSecure(
             _In_     PDRIVER_OBJECT   DriverObject,
@@ -490,7 +489,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("IoCreateSymbolicLink", argc=2)
-    def IoCreateSymbolicLink(self, emu, argv, ctx: api.ApiContext = None):
+    def IoCreateSymbolicLink(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS IoCreateSymbolicLink(
             PUNICODE_STRING SymbolicLinkName,
@@ -509,7 +508,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("IofCompleteRequest", argc=2, conv=_arch.CALL_CONV_FASTCALL)
-    def IofCompleteRequest(self, emu, argv, ctx: api.ApiContext = None):
+    def IofCompleteRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoCompleteRequest(
             _In_ PIRP  Irp,
@@ -522,7 +521,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoDeleteSymbolicLink", argc=1)
-    def IoDeleteSymbolicLink(self, emu, argv, ctx: api.ApiContext = None):
+    def IoDeleteSymbolicLink(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoDeleteSymbolicLink(
         PUNICODE_STRING SymbolicLinkName
@@ -536,11 +535,11 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("KeInitializeMutex", argc=2)
-    def KeInitializeMutex(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
 
     @apihook("IoDeleteDevice", argc=1)
-    def IoDeleteDevice(self, emu, argv, ctx: api.ApiContext = None):
+    def IoDeleteDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID IoDeleteDevice(
             __drv_freesMem(Mem)PDEVICE_OBJECT DeviceObject
@@ -552,7 +551,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("MmIsAddressValid", argc=1)
-    def MmIsAddressValid(self, emu, argv, ctx: api.ApiContext = None):
+    def MmIsAddressValid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN MmIsAddressValid(
         PVOID VirtualAddress
@@ -566,7 +565,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwQuerySystemInformation", argc=4)
-    def ZwQuerySystemInformation(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwQuerySystemInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WINAPI ZwQuerySystemInformation(
             _In_      SYSTEM_INFORMATION_CLASS SystemInformationClass,
@@ -696,7 +695,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("_allshl", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def _allshl(self, emu, argv, ctx: api.ApiContext = None):
+    def _allshl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONGLONG _allshl
         (
@@ -710,7 +709,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("wcscpy", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcscpy(self, emu, argv, ctx: api.ApiContext = None):
+    def wcscpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcscpy(
                         wchar_t *strDestination,
@@ -726,7 +725,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(ws)
 
     @apihook("wcsncpy", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def wcsncpy(self, emu, argv, ctx: api.ApiContext = None):
+    def wcsncpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcsncpy(
             wchar_t *strDest,
@@ -742,7 +741,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(ws)
 
     @apihook("RtlMoveMemory", argc=3)
-    def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlMoveMemory(
             void*       Destination,
@@ -753,7 +752,7 @@ class Ntoskrnl(api.ApiHandler):
         self.memcpy(emu, argv)
 
     @apihook("memcpy", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def memcpy(self, emu, argv, ctx: api.ApiContext = None):
+    def memcpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *memcpy(
             void *dest,
@@ -768,7 +767,7 @@ class Ntoskrnl(api.ApiHandler):
         return dest
 
     @apihook("memset", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def memset(self, emu, argv, ctx: api.ApiContext = None):
+    def memset(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *memset(
             void *dest,
@@ -783,7 +782,7 @@ class Ntoskrnl(api.ApiHandler):
         return dest
 
     @apihook("sprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def sprintf(self, emu, argv, ctx: api.ApiContext = None):
+    def sprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int sprintf(
             char *buffer,
@@ -807,7 +806,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("_snprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def _snprintf(self, emu, argv, ctx: api.ApiContext = None):
+    def _snprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _snprintf(
             char *buffer,
@@ -832,7 +831,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
-    def wcslen(self, emu, argv, ctx: api.ApiContext = None):
+    def wcslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t wcslen(
             const wchar_t *str
@@ -850,7 +849,7 @@ class Ntoskrnl(api.ApiHandler):
         return slen
 
     @apihook("wcschr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcschr(self, emu, argv, ctx: api.ApiContext = None):
+    def wcschr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcschr(
                 const wchar_t *str,
@@ -874,7 +873,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("wcscat", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcscat(self, emu, argv, ctx: api.ApiContext = None):
+    def wcscat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcscat(
             wchar_t *strDestination,
@@ -897,7 +896,7 @@ class Ntoskrnl(api.ApiHandler):
         return dest
 
     @apihook("strrchr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def strrchr(self, emu, argv, ctx: api.ApiContext = None):
+    def strrchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strrchr(
             const char *str,
@@ -921,7 +920,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("strchr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def strchr(self, emu, argv, ctx: api.ApiContext = None):
+    def strchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strchr(
             const char *str,
@@ -945,7 +944,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("_wcsnicmp", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def _wcsnicmp(self, emu, argv, ctx: api.ApiContext = None):
+    def _wcsnicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _wcsnicmp(
         const wchar_t *string1,
@@ -968,7 +967,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("_stricmp", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def _stricmp(self, emu, argv, ctx: api.ApiContext = None):
+    def _stricmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _stricmp(
                 const char *string1,
@@ -993,7 +992,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("_wcsicmp", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def _wcsicmp(self, emu, argv, ctx: api.ApiContext = None):
+    def _wcsicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _wcsicmp(
             const wchar_t *string1,
@@ -1015,7 +1014,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsCreateSystemThread", argc=7)
-    def PsCreateSystemThread(self, emu, argv, ctx: api.ApiContext = None):
+    def PsCreateSystemThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS PsCreateSystemThread(
             PHANDLE            ThreadHandle,
@@ -1047,7 +1046,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlCopyUnicodeString", argc=2)
-    def RtlCopyUnicodeString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlCopyUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI VOID RtlCopyUnicodeString(
             PUNICODE_STRING  DestinationString,
@@ -1080,7 +1079,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("RtlEqualUnicodeString", argc=3)
-    def RtlEqualUnicodeString(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlEqualUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI BOOLEAN RtlEqualUnicodeString(
             PCUNICODE_STRING String1,
@@ -1106,7 +1105,7 @@ class Ntoskrnl(api.ApiHandler):
         return int(rv)
 
     @apihook("IoAllocateIrp", argc=2)
-    def IoAllocateIrp(self, emu, argv, ctx: api.ApiContext = None):
+    def IoAllocateIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PIRP IoAllocateIrp(
           CCHAR   StackSize,
@@ -1125,7 +1124,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoFreeIrp", argc=1)
-    def IoFreeIrp(self, emu, argv, ctx: api.ApiContext = None):
+    def IoFreeIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IoFreeIrp(
           PIRP Irp
@@ -1136,7 +1135,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoReuseIrp", argc=2)
-    def IoReuseIrp(self, emu, argv, ctx: api.ApiContext = None):
+    def IoReuseIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IoReuseIrp(
           PIRP     Irp,
@@ -1148,7 +1147,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoAllocateMdl", argc=5)
-    def IoAllocateMdl(self, emu, argv, ctx: api.ApiContext = None):
+    def IoAllocateMdl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PMDL IoAllocateMdl(
           __drv_aliasesMem PVOID VirtualAddress,
@@ -1175,7 +1174,7 @@ class Ntoskrnl(api.ApiHandler):
         return ptr
 
     @apihook("MmProbeAndLockPages", argc=3)
-    def MmProbeAndLockPages(self, emu, argv, ctx: api.ApiContext = None):
+    def MmProbeAndLockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MmProbeAndLockPages(
           PMDL            MemoryDescriptorList,
@@ -1186,7 +1185,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeDelayExecutionThread", argc=3)
-    def KeDelayExecutionThread(self, emu, argv, ctx: api.ApiContext = None):
+    def KeDelayExecutionThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS KeDelayExecutionThread(
               KPROCESSOR_MODE WaitMode,
@@ -1200,7 +1199,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeSetEvent", argc=3)
-    def KeSetEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def KeSetEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG KeSetEvent(
         PRKEVENT  Event,
@@ -1214,7 +1213,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoCreateSynchronizationEvent", argc=2)
-    def IoCreateSynchronizationEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def IoCreateSynchronizationEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PKEVENT IoCreateSynchronizationEvent(
             PUNICODE_STRING EventName,
@@ -1234,7 +1233,7 @@ class Ntoskrnl(api.ApiHandler):
         return evt.address
 
     @apihook("KeInitializeEvent", argc=3)
-    def KeInitializeEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeInitializeEvent(
             PRKEVENT   Event,
@@ -1246,7 +1245,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeResetEvent", argc=1)
-    def KeResetEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def KeResetEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI LONG KeResetEvent(
             PRKEVENT Event
@@ -1257,7 +1256,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeClearEvent", argc=1)
-    def KeClearEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def KeClearEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeClearEvent(
             PRKEVENT Event
@@ -1266,7 +1265,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeInitializeTimer", argc=1)
-    def KeInitializeTimer(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeInitializeTimer(
             PKTIMER Timer
@@ -1275,7 +1274,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeSetTimer", argc=3)
-    def KeSetTimer(self, emu, argv, ctx: api.ApiContext = None):
+    def KeSetTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI BOOLEAN KeSetTimer(
             PKTIMER       Timer,
@@ -1286,7 +1285,7 @@ class Ntoskrnl(api.ApiHandler):
         return True
 
     @apihook("PsLookupProcessByProcessId", argc=2)
-    def PsLookupProcessByProcessId(self, emu, argv, ctx: api.ApiContext = None):
+    def PsLookupProcessByProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS PsLookupProcessByProcessId(
             HANDLE    ProcessId,
@@ -1312,7 +1311,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ObOpenObjectByPointer", argc=7)
-    def ObOpenObjectByPointer(self, emu, argv, ctx: api.ApiContext = None):
+    def ObOpenObjectByPointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS ObOpenObjectByPointer(
                 PVOID           Object,
@@ -1336,7 +1335,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsGetProcessPeb", argc=1)
-    def PsGetProcessPeb(self, emu, argv, ctx: api.ApiContext = None):
+    def PsGetProcessPeb(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI PPEB PsGetProcessPeb(
             PEPROCESS           Object,
@@ -1349,7 +1348,7 @@ class Ntoskrnl(api.ApiHandler):
         return peb.address
 
     @apihook("KeStackAttachProcess", argc=2)
-    def KeStackAttachProcess(self, emu, argv, ctx: api.ApiContext = None):
+    def KeStackAttachProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeStackAttachProcess(
             PRKPROCESS   PROCESS,
@@ -1363,7 +1362,7 @@ class Ntoskrnl(api.ApiHandler):
         emu.set_current_process(proc)
 
     @apihook("KeUnstackDetachProcess", argc=1)
-    def KeUnstackDetachProcess(self, emu, argv, ctx: api.ApiContext = None):
+    def KeUnstackDetachProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeUnstackDetachProcess(
             PRKAPC_STATE ApcState
@@ -1373,7 +1372,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ZwProtectVirtualMemory", argc=5)
-    def ZwProtectVirtualMemory(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwProtectVirtualMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwProtectVirtualMemory(
             IN HANDLE ProcessHandle,
@@ -1397,7 +1396,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwWriteVirtualMemory", argc=5)
-    def ZwWriteVirtualMemory(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwWriteVirtualMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ZwWriteVirtualMemory(
             HANDLE ProcessHandle,
@@ -1433,7 +1432,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwAllocateVirtualMemory", argc=6)
-    def ZwAllocateVirtualMemory(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwAllocateVirtualMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS ZwAllocateVirtualMemory(
             HANDLE    ProcessHandle,
@@ -1465,7 +1464,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsLookupThreadByThreadId", argc=2)
-    def PsLookupThreadByThreadId(self, emu, argv, ctx: api.ApiContext = None):
+    def PsLookupThreadByThreadId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS PsLookupThreadByThreadId(
             HANDLE   ThreadId,
@@ -1487,7 +1486,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlGetVersion", argc=1)
-    def RtlGetVersion(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlGetVersion(
             PRTL_OSVERSIONINFOW lpVersionInformation
@@ -1515,7 +1514,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeWaitForSingleObject", argc=5)
-    def KeWaitForSingleObject(self, emu, argv, ctx: api.ApiContext = None):
+    def KeWaitForSingleObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS KeWaitForSingleObject(
             PVOID Object,
@@ -1531,7 +1530,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeInitializeApc", argc=8)
-    def KeInitializeApc(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeApc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID KeInitializeApc(
                     PKAPC Apc,
@@ -1544,7 +1543,6 @@ class Ntoskrnl(api.ApiHandler):
                     PVOID NormalContext
                 );
         """
-        ctx = ctx or {}
         pApc, Thread, env, KernelRoutine, rundown, NormalRoutine, procmode, ctx = argv
 
         apc = self.win.KAPC(emu.get_ptr_size())
@@ -1560,7 +1558,7 @@ class Ntoskrnl(api.ApiHandler):
             apc.NormalContext = ctx
 
     @apihook("MmMapLockedPagesSpecifyCache", argc=6)
-    def MmMapLockedPagesSpecifyCache(self, emu, argv, ctx: api.ApiContext = None):
+    def MmMapLockedPagesSpecifyCache(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID MmMapLockedPagesSpecifyCache(
             PMDL MemoryDescriptorList,
@@ -1581,7 +1579,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeInsertQueueApc", argc=4)
-    def KeInsertQueueApc(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInsertQueueApc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI BOOLEAN KeInsertQueueApc(
                 PKAPC Apc,
@@ -1595,7 +1593,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeInitializeDpc", argc=3)
-    def KeInitializeDpc(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeDpc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void KeInitializeDpc(
         __drv_aliasesMem PRKDPC Dpc,
@@ -1608,7 +1606,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ObReferenceObjectByName", argc=8)
-    def ObReferenceObjectByName(self, emu, argv, ctx: api.ApiContext = None):
+    def ObReferenceObjectByName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS
             NTAPI
@@ -1648,7 +1646,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoGetDeviceObjectPointer", argc=4)
-    def IoGetDeviceObjectPointer(self, emu, argv, ctx: api.ApiContext = None):
+    def IoGetDeviceObjectPointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS IoGetDeviceObjectPointer(
             PUNICODE_STRING ObjectName,
@@ -1673,7 +1671,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsTerminateSystemThread", argc=1)
-    def PsTerminateSystemThread(self, emu, argv, ctx: api.ApiContext = None):
+    def PsTerminateSystemThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS PsTerminateSystemThread(
             NTSTATUS ExitStatus
@@ -1685,7 +1683,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoRegisterBootDriverReinitialization", argc=3)
-    def IoRegisterBootDriverReinitialization(self, emu, argv, ctx: api.ApiContext = None):
+    def IoRegisterBootDriverReinitialization(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IoRegisterBootDriverReinitialization(
             PDRIVER_OBJECT       DriverObject,
@@ -1701,14 +1699,14 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KdDisableDebugger", argc=0)
-    def KdDisableDebugger(self, emu, argv, ctx: api.ApiContext = None):
+    def KdDisableDebugger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTKERNELAPI NTSTATUS KdDisableDebugger();"""
 
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
 
     @apihook("KdChangeOption", argc=0)
-    def KdChangeOption(self, emu, argv, ctx: api.ApiContext = None):
+    def KdChangeOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KdChangeOption(
           KD_OPTION Option,
@@ -1724,7 +1722,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("MmGetSystemRoutineAddress", argc=1)
-    def MmGetSystemRoutineAddress(self, emu, argv, ctx: api.ApiContext = None):
+    def MmGetSystemRoutineAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DECLSPEC_IMPORT PVOID MmGetSystemRoutineAddress(
             PUNICODE_STRING SystemRoutineName
@@ -1738,7 +1736,7 @@ class Ntoskrnl(api.ApiHandler):
         return addr
 
     @apihook("KeQuerySystemTime", argc=1)
-    def KeQuerySystemTime(self, emu, argv, ctx: api.ApiContext = None):
+    def KeQuerySystemTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void KeQuerySystemTime(
             PLARGE_INTEGER CurrentTime
@@ -1750,7 +1748,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(CurrentTime, data)
 
     @apihook("RtlTimeToTimeFields", argc=2)
-    def RtlTimeToTimeFields(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlTimeToTimeFields(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI VOID RtlTimeToTimeFields(
             PLARGE_INTEGER Time,
@@ -1763,7 +1761,7 @@ class Ntoskrnl(api.ApiHandler):
         sys_time
 
     @apihook("ExSystemTimeToLocalTime", argc=2)
-    def ExSystemTimeToLocalTime(self, emu, argv, ctx: api.ApiContext = None):
+    def ExSystemTimeToLocalTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void ExSystemTimeToLocalTime(
             PLARGE_INTEGER SystemTime,
@@ -1777,7 +1775,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(LocalTime, int_sys_time.to_bytes(8, "little"))
 
     @apihook("CmRegisterCallbackEx", argc=6)
-    def CmRegisterCallbackEx(self, emu, argv, ctx: api.ApiContext = None):
+    def CmRegisterCallbackEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS CmRegisterCallbackEx(
             PEX_CALLBACK_FUNCTION Function,
@@ -1794,7 +1792,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("CmRegisterCallback", argc=3)
-    def CmRegisterCallback(self, emu, argv, ctx: api.ApiContext = None):
+    def CmRegisterCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS CmRegisterCallback(
             PEX_CALLBACK_FUNCTION Function,
@@ -1810,7 +1808,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("CmUnRegisterCallback", argc=1)
-    def CmUnRegisterCallback(self, emu, argv, ctx: api.ApiContext = None):
+    def CmUnRegisterCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS CmUnRegisterCallback(
             LARGE_INTEGER Cookie
@@ -1822,7 +1820,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("EtwRegister", argc=4)
-    def EtwRegister(self, emu, argv, ctx: api.ApiContext = None):
+    def EtwRegister(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS EtwRegister(
             LPCGUID            ProviderId,
@@ -1842,7 +1840,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlImageDirectoryEntryToData", argc=4)
-    def RtlImageDirectoryEntryToData(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlImageDirectoryEntryToData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID IMAGEAPI ImageDirectoryEntryToData(
             PVOID   Base,
@@ -1863,7 +1861,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwOpenEvent", argc=3)
-    def ZwOpenEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwOpenEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSCALLAPI NTSTATUS ZwOpenEvent(
         PHANDLE            EventHandle,
@@ -1890,7 +1888,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateEvent", argc=5)
-    def ZwCreateEvent(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwCreateEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTSYSAPI NTSTATUS ZwCreateEvent(
         PHANDLE            EventHandle,
         ACCESS_MASK        DesiredAccess,
@@ -1917,7 +1915,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExInitializeResourceLite", argc=1)
-    def ExInitializeResourceLite(self, emu, argv, ctx: api.ApiContext = None):
+    def ExInitializeResourceLite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS ExInitializeResourceLite(
             PERESOURCE Resource
@@ -1928,13 +1926,13 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("KeEnterCriticalRegion", argc=0)
-    def KeEnterCriticalRegion(self, emu, argv, ctx: api.ApiContext = None):
+    def KeEnterCriticalRegion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTKERNELAPI VOID KeEnterCriticalRegion();"""
 
         return
 
     @apihook("ExAcquireResourceExclusiveLite", argc=2)
-    def ExAcquireResourceExclusiveLite(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAcquireResourceExclusiveLite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN ExAcquireResourceExclusiveLite(
             PERESOURCE Resource,
@@ -1945,7 +1943,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExAcquireResourceSharedLite", argc=2)
-    def ExAcquireResourceSharedLite(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAcquireResourceSharedLite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN ExAcquireResourceSharedLite(
             _Inout_ PERESOURCE Resource,
@@ -1956,7 +1954,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExReleaseResourceLite", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExReleaseResourceLite(self, emu, argv, ctx: api.ApiContext = None):
+    def ExReleaseResourceLite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseResourceLite(
             _Inout_ PERESOURCE Resource
@@ -1965,7 +1963,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ExAcquireFastMutex", argc=1)
-    def ExAcquireFastMutex(self, emu, argv, ctx: api.ApiContext = None):
+    def ExAcquireFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExAcquireFastMutex(
             _Inout_ PFAST_MUTEX FastMutex
@@ -1976,7 +1974,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ExReleaseFastMutex", argc=1)
-    def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = None):
+    def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseFastMutex(
             _Inout_ PFAST_MUTEX FastMutex
@@ -1987,7 +1985,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ObfReferenceObject", argc=1)
-    def ObfReferenceObject(self, emu, argv, ctx: api.ApiContext = None):
+    def ObfReferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI LONG_PTR ObfReferenceObject(
             PVOID Object
@@ -1996,7 +1994,7 @@ class Ntoskrnl(api.ApiHandler):
         return 0
 
     @apihook("RtlLengthRequiredSid", argc=1)
-    def RtlLengthRequiredSid(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlLengthRequiredSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI ULONG RtlLengthRequiredSid(
             ULONG SubAuthorityCount
@@ -2008,7 +2006,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlInitializeSid", argc=3)
-    def RtlInitializeSid(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlInitializeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlInitializeSid(
             PSID                      Sid,
@@ -2022,7 +2020,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlSubAuthoritySid", argc=2)
-    def RtlSubAuthoritySid(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlSubAuthoritySid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI PULONG RtlSubAuthoritySid(
             PSID  Sid,
@@ -2035,7 +2033,7 @@ class Ntoskrnl(api.ApiHandler):
         return sid
 
     @apihook("RtlCreateAcl", argc=3)
-    def RtlCreateAcl(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlCreateAcl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlCreateAcl(
             PACL  Acl,
@@ -2050,7 +2048,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlSetDaclSecurityDescriptor", argc=4)
-    def RtlSetDaclSecurityDescriptor(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlSetDaclSecurityDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlSetDaclSecurityDescriptor(
             PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -2066,7 +2064,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ObSetSecurityObjectByPointer", argc=3)
-    def ObSetSecurityObjectByPointer(self, emu, argv, ctx: api.ApiContext = None):
+    def ObSetSecurityObjectByPointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ObSetSecurityObjectByPointer(IN PVOID Object,
                               IN SECURITY_INFORMATION SecurityInformation,
@@ -2080,7 +2078,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlCreateSecurityDescriptor", argc=2)
-    def RtlCreateSecurityDescriptor(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlCreateSecurityDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlCreateSecurityDescriptor(
             PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -2094,7 +2092,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlAddAccessAllowedAce", argc=4)
-    def RtlAddAccessAllowedAce(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlAddAccessAllowedAce(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlAddAccessAllowedAce(
             PACL        Acl,
@@ -2110,7 +2108,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PoDeletePowerRequest", argc=1)
-    def PoDeletePowerRequest(self, emu, argv, ctx: api.ApiContext = None):
+    def PoDeletePowerRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void PoDeletePowerRequest(
             PVOID PowerRequest
@@ -2119,7 +2117,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoWMIRegistrationControl", argc=2)
-    def IoWMIRegistrationControl(self, emu, argv, ctx: api.ApiContext = None):
+    def IoWMIRegistrationControl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoWMIRegistrationControl(
             PDEVICE_OBJECT DeviceObject,
@@ -2135,7 +2133,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ObMakeTemporaryObject", argc=1)
-    def ObMakeTemporaryObject(self, emu, argv, ctx: api.ApiContext = None):
+    def ObMakeTemporaryObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI VOID ObMakeTemporaryObject(
             PVOID Object
@@ -2144,7 +2142,7 @@ class Ntoskrnl(api.ApiHandler):
         return None
 
     @apihook("RtlGetCompressionWorkSpaceSize", argc=3)
-    def RtlGetCompressionWorkSpaceSize(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlGetCompressionWorkSpaceSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NT_RTL_COMPRESS_API NTSTATUS RtlGetCompressionWorkSpaceSize(
             USHORT CompressionFormatAndEngine,
@@ -2160,7 +2158,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDecompressBuffer", argc=6)
-    def RtlDecompressBuffer(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlDecompressBuffer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NT_RTL_COMPRESS_API NTSTATUS RtlDecompressBuffer(
             USHORT CompressionFormat,
@@ -2197,7 +2195,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("FsRtlAllocatePool", argc=2)
-    def FsRtlAllocatePool(self, emu, argv, ctx: api.ApiContext = None):
+    def FsRtlAllocatePool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void FsRtlAllocatePool(
             PoolType,
@@ -2209,7 +2207,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("IofCallDriver", argc=2, conv=_arch.CALL_CONV_FASTCALL)
-    def IofCallDriver(self, emu, argv, ctx: api.ApiContext = None):
+    def IofCallDriver(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IofCallDriver(
           PDEVICE_OBJECT        DeviceObject,
@@ -2228,7 +2226,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoSetCompletionRoutineEx", argc=7)
-    def IoSetCompletionRoutineEx(self, emu, argv, ctx: api.ApiContext = None):
+    def IoSetCompletionRoutineEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoSetCompletionRoutineEx(
           PDEVICE_OBJECT         DeviceObject,
@@ -2246,7 +2244,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExQueueWorkItem", argc=2)
-    def ExQueueWorkItem(self, emu, argv, ctx: api.ApiContext = None):
+    def ExQueueWorkItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DECLSPEC_DEPRECATED_DDK NTKERNELAPI VOID ExQueueWorkItem(
         __drv_aliasesMem PWORK_QUEUE_ITEM WorkItem,
@@ -2258,7 +2256,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ZwDeviceIoControlFile", argc=10)
-    def ZwDeviceIoControlFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwDeviceIoControlFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtDeviceIoControlFile(
             HANDLE           FileHandle,
@@ -2294,7 +2292,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("_snwprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def _snwprintf(self, emu, argv, ctx: api.ApiContext = None):
+    def _snwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _snwprintf(
             wchar_t *buffer,
@@ -2323,7 +2321,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("ObReferenceObjectByHandle", argc=6)
-    def ObReferenceObjectByHandle(self, emu, argv, ctx: api.ApiContext = None):
+    def ObReferenceObjectByHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI NTSTATUS ObReferenceObjectByHandle(
             HANDLE                     Handle,
@@ -2348,7 +2346,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ObGetFilterVersion", argc=0)
-    def ObGetFilterVersion(self, emu, argv, ctx: api.ApiContext = None):
+    def ObGetFilterVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         USHORT
@@ -2359,7 +2357,7 @@ class Ntoskrnl(api.ApiHandler):
         return 256
 
     @apihook("ObRegisterCallbacks", argc=2)
-    def ObRegisterCallbacks(self, emu, argv, ctx: api.ApiContext = None):
+    def ObRegisterCallbacks(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2374,7 +2372,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwDeleteKey", argc=1)
-    def ZwDeleteKey(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwDeleteKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwDeleteKey(
             HANDLE KeyHandle
@@ -2386,7 +2384,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwQueryInformationProcess", argc=5)
-    def ZwQueryInformationProcess(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwQueryInformationProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSTATUS ZwQueryInformationProcess(
             IN HANDLE               ProcessHandle,
@@ -2427,14 +2425,14 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("IoGetCurrentProcess", argc=0)
-    def IoGetCurrentProcess(self, emu, argv, ctx: api.ApiContext = None):
+    def IoGetCurrentProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTKERNELAPI PEPROCESS IoGetCurrentProcess();"""
 
         p = emu.get_current_process()
         return p.address
 
     @apihook("PsGetCurrentProcessId", argc=0)
-    def PsGetCurrentProcessId(self, emu, argv, ctx: api.ApiContext = None):
+    def PsGetCurrentProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE PsGetCurrentProcessId(
             void
@@ -2446,7 +2444,7 @@ class Ntoskrnl(api.ApiHandler):
         return pid if pid is not None else 4
 
     @apihook("NtSetInformationThread", argc=4)
-    def NtSetInformationThread(self, emu, argv, ctx: api.ApiContext = None):
+    def NtSetInformationThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtSetInformationThread(
             HANDLE          ThreadHandle,
@@ -2460,7 +2458,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("wcsnlen", argc=2)
-    def wcsnlen(self, emu, argv, ctx: api.ApiContext = None):
+    def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """s
         ize_t wcsnlen(
            const wchar_t *str,
@@ -2476,7 +2474,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(ws)
 
     @apihook("IoRegisterShutdownNotification", argc=1)
-    def IoRegisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = None):
+    def IoRegisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoRegisterShutdownNotification(
           PDEVICE_OBJECT DeviceObject
@@ -2488,7 +2486,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoUnregisterShutdownNotification", argc=1)
-    def IoUnregisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = None):
+    def IoUnregisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoRegisterShutdownNotification(
           PDEVICE_OBJECT DeviceObject
@@ -2498,7 +2496,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("KeAcquireSpinLockRaiseToDpc", argc=1)
-    def KeAcquireSpinLockRaiseToDpc(self, emu, argv, ctx: api.ApiContext = None):
+    def KeAcquireSpinLockRaiseToDpc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         KIRQL KeAcquireSpinLockRaiseToDpc(
         _Inout_ PKSPIN_LOCK SpinLock
@@ -2510,7 +2508,7 @@ class Ntoskrnl(api.ApiHandler):
         return irql
 
     @apihook("KeInitializeSpinLock", argc=1)
-    def KeInitializeSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+    def KeInitializeSpinLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeSpinLock(
         _Out_ PKSPIN_LOCK SpinLock
@@ -2522,7 +2520,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeAcquireSpinLock", argc=2)
-    def KeAcquireSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+    def KeAcquireSpinLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeAcquireSpinLock(
         _Inout_ PKSPIN_LOCK SpinLock,
@@ -2537,7 +2535,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeReleaseSpinLock", argc=2)
-    def KeReleaseSpinLock(self, emu, argv, ctx: api.ApiContext = None):
+    def KeReleaseSpinLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeReleaseSpinLock(
         _Inout_ PKSPIN_LOCK SpinLock,
@@ -2552,7 +2550,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("MmUnlockPages", argc=1)
-    def MmUnlockPages(self, emu, argv, ctx: api.ApiContext = None):
+    def MmUnlockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MmUnlockPages(
         PMDL MemoryDescriptorList
@@ -2562,7 +2560,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoFreeMdl", argc=1)
-    def IoFreeMdl(self, emu, argv, ctx: api.ApiContext = None):
+    def IoFreeMdl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IoFreeMdl(
         PMDL Mdl
@@ -2572,7 +2570,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeCancelTimer", argc=1)
-    def KeCancelTimer(self, emu, argv, ctx: api.ApiContext = None):
+    def KeCancelTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN KeCancelTimer(
         PKTIMER Arg1
@@ -2582,7 +2580,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsGetVersion", argc=4)
-    def PsGetVersion(self, emu, argv, ctx: api.ApiContext = None):
+    def PsGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN PsGetVersion(
             PULONG          MajorVersion,
@@ -2608,7 +2606,7 @@ class Ntoskrnl(api.ApiHandler):
         return 0
 
     @apihook("PsSetCreateProcessNotifyRoutineEx", argc=2)
-    def PsSetCreateProcessNotifyRoutineEx(self, emu, argv, ctx: api.ApiContext = None):
+    def PsSetCreateProcessNotifyRoutineEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2623,7 +2621,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsSetLoadImageNotifyRoutine", argc=1)
-    def PsSetLoadImageNotifyRoutine(self, emu, argv, ctx: api.ApiContext = None):
+    def PsSetLoadImageNotifyRoutine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2637,7 +2635,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsRemoveLoadImageNotifyRoutine", argc=1)
-    def PsRemoveLoadImageNotifyRoutine(self, emu, argv, ctx: api.ApiContext = None):
+    def PsRemoveLoadImageNotifyRoutine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2651,7 +2649,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsSetCreateThreadNotifyRoutine", argc=1)
-    def PsSetCreateThreadNotifyRoutine(self, emu, argv, ctx: api.ApiContext = None):
+    def PsSetCreateThreadNotifyRoutine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2665,7 +2663,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsRemoveCreateThreadNotifyRoutine", argc=1)
-    def PsRemoveCreateThreadNotifyRoutine(self, emu, argv, ctx: api.ApiContext = None):
+    def PsRemoveCreateThreadNotifyRoutine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTKERNELAPI
         NTSTATUS
@@ -2679,7 +2677,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("mbstowcs", argc=3)
-    def mbstowcs(self, emu, argv, ctx: api.ApiContext = None):
+    def mbstowcs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t mbstowcs(
         wchar_t *wcstr,
@@ -2703,7 +2701,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwOpenKey", argc=3)
-    def ZwOpenKey(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwOpenKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwOpenKey(
         PHANDLE            KeyHandle,
@@ -2730,7 +2728,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwQueryValueKey", argc=6)
-    def ZwQueryValueKey(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwQueryValueKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwQueryValueKey(
         HANDLE                      KeyHandle,
@@ -2781,7 +2779,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateFile", argc=11)
-    def ZwCreateFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwCreateFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtCreateFile(
             PHANDLE            FileHandle,
@@ -2865,7 +2863,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwOpenFile", argc=6)
-    def ZwOpenFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwOpenFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtOpenFile(
           PHANDLE            FileHandle,
@@ -2912,7 +2910,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwQueryInformationFile", argc=5)
-    def ZwQueryInformationFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwQueryInformationFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtQueryInformationFile(
             HANDLE                 FileHandle,
@@ -2942,7 +2940,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("RtlCompareMemory", argc=3)
-    def RtlCompareMemory(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlCompareMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI SIZE_T RtlCompareMemory(
           const VOID *Source1,
@@ -2964,7 +2962,7 @@ class Ntoskrnl(api.ApiHandler):
         return i
 
     @apihook("RtlQueryRegistryValuesEx", argc=5)
-    def RtlQueryRegistryValuesEx(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlQueryRegistryValuesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS RtlQueryRegistryValuesEx(
           ULONG                     RelativeTo,
@@ -2993,7 +2991,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwWriteFile", argc=9)
-    def ZwWriteFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwWriteFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtWriteFile(
             HANDLE           FileHandle,
@@ -3034,7 +3032,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwReadFile", argc=9)
-    def ZwReadFile(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwReadFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         __kernel_entry NTSYSCALLAPI NTSTATUS NtReadFile(
             HANDLE           FileHandle,
@@ -3070,7 +3068,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("MmIsDriverVerifying", argc=1)
-    def MmIsDriverVerifying(self, emu, argv, ctx: api.ApiContext = None):
+    def MmIsDriverVerifying(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LOGICAL MmIsDriverVerifying(
           _DRIVER_OBJECT *DriverObject
@@ -3083,7 +3081,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateSection", argc=7)
-    def ZwCreateSection(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwCreateSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwCreateSection(
             PHANDLE            SectionHandle,
@@ -3130,7 +3128,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwUnmapViewOfSection", argc=2)
-    def ZwUnmapViewOfSection(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwUnmapViewOfSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwUnmapViewOfSection(
             HANDLE ProcessHandle,
@@ -3141,7 +3139,7 @@ class Ntoskrnl(api.ApiHandler):
         return 0
 
     @apihook("ZwMapViewOfSection", argc=10)
-    def ZwMapViewOfSection(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwMapViewOfSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI NTSTATUS ZwMapViewOfSection(
             HANDLE          SectionHandle,
@@ -3241,7 +3239,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlAllocateHeap", argc=3)
-    def RtlAllocateHeap(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlAllocateHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI PVOID RtlAllocateHeap(
             PVOID  HeapHandle,
@@ -3256,7 +3254,7 @@ class Ntoskrnl(api.ApiHandler):
         return block
 
     @apihook("ZwGetContextThread", argc=2)
-    def ZwGetContextThread(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwGetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ZwGetContextThread(
             HANDLE    hThread,
@@ -3276,7 +3274,7 @@ class Ntoskrnl(api.ApiHandler):
         return True
 
     @apihook("ZwSetContextThread", argc=2)
-    def ZwSetContextThread(self, emu, argv, ctx: api.ApiContext = None):
+    def ZwSetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ZwSetContextThread(
             HANDLE    hThread,
@@ -3297,7 +3295,7 @@ class Ntoskrnl(api.ApiHandler):
         return True
 
     @apihook("RtlFreeHeap", argc=3)
-    def RtlFreeHeap(self, emu, argv, ctx: api.ApiContext = None):
+    def RtlFreeHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSYSAPI RtlFreeHeap(
             PVOID HeapHandle,

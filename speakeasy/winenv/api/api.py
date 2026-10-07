@@ -1,18 +1,139 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass, field
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
-from speakeasy.profiler_events import TracePosition
+from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
+from speakeasy.winenv.api import sigdb, sigfmt
 
 logger = logging.getLogger(__name__)
 
-ApiContext = dict[str, str] | None
+
+class HandlerArg:
+    """
+    One argument of a handled call, as recorded in the report. A handler sets
+    ``display`` to show a value it decoded, such as the path behind a handle.
+    """
+
+    def __init__(self, arg: ApiArg, param: sigdb.ParamSig | None = None) -> None:
+        self._arg = arg
+        self._param = param
+
+    @property
+    def name(self) -> str | None:
+        return self._arg.name
+
+    @property
+    def value(self) -> int | None:
+        return self._arg.value
+
+    @property
+    def type(self) -> str:
+        return self._arg.type
+
+    @type.setter
+    def type(self, type: str) -> None:
+        self._arg.type = type
+
+    @property
+    def display(self) -> str:
+        return self._arg.display
+
+    @display.setter
+    def display(self, text: str) -> None:
+        """
+        Show ``text`` for this argument. The type becomes ``str`` on a
+        parameter declared as a string, and ``text`` otherwise. A parameter
+        that the signature renders as an enum or flags keeps that rendering,
+        so all such values have one format.
+        """
+        if self._param is not None and self._arg.type in ("enum", "flags"):
+            return
+        self._arg.display = text
+        self._arg.type = "str" if self._param is not None and self._param.kind in sigdb.STRING_KINDS else "text"
+
+
+def _detached_arg() -> HandlerArg:
+    return HandlerArg(ApiArg(type="int", display=""))
+
+
+class HandlerArgs:
+    """
+    The arguments of a handled call. With a usable signature there is one
+    entry per parameter, found by parameter name or index. Without one there
+    is one entry per argument slot, found by slot index. A name or index that
+    does not match an entry gives a detached argument whose changes are not
+    recorded, so a missing signature never stops emulation.
+    """
+
+    def __init__(self, args: list[ApiArg], params: list[sigdb.ParamSig] | None = None, discard: bool = False) -> None:
+        self._args = args
+        self._params = params
+        self._discard = discard
+
+    @classmethod
+    def from_signature(
+        cls, sig: sigdb.FuncSig, ptr_size: int, rendered: list[sigfmt.RenderedArg], slots: list[int]
+    ) -> HandlerArgs:
+        """
+        Raises:
+            ValueError: the slots do not match the slots the signature consumes.
+        """
+        return cls(sigfmt.get_call_args(sig, ptr_size, rendered, slots), list(sig.params))
+
+    @classmethod
+    def from_slots(cls, slots: list[int]) -> HandlerArgs:
+        return cls(sigfmt.get_slot_args(slots))
+
+    def __len__(self) -> int:
+        return len(self._args)
+
+    def __getitem__(self, key: int | str) -> HandlerArg:
+        if isinstance(key, str):
+            for index, param in enumerate(self._params or []):
+                if param.name == key:
+                    return HandlerArg(self._args[index], param)
+            logger.debug("no argument named %s", key)
+            return _detached_arg()
+        if not -len(self._args) <= key < len(self._args):
+            logger.debug("no argument at index %d", key)
+            return _detached_arg()
+        params = self._params or []
+        index = key % len(self._args)
+        return HandlerArg(self._args[index], params[index] if index < len(params) else None)
+
+    def append(self, display: str, type: str = "text") -> HandlerArg:
+        """Add an argument without a raw value, such as the output of a printf call."""
+        arg = ApiArg(type=type, display=display)
+        if not self._discard:
+            self._args.append(arg)
+        return HandlerArg(arg)
+
+    def clear(self) -> None:
+        self._args.clear()
+        self._params = None
+
+    def get_report_args(self) -> list[ApiArg]:
+        return list(self._args)
+
+
+@dataclass
+class ApiContext:
+    """Call context that the emulator passes to an API handler."""
+
+    func_name: str = ""
+    args: HandlerArgs = field(default_factory=lambda: HandlerArgs([]))
+
+
+NO_CONTEXT = ApiContext(args=HandlerArgs([], discard=True))
 
 
 class ApiHandler:
@@ -359,7 +480,7 @@ class ApiHandler:
         Based on the API name, determine the character width
         being used by the function
         """
-        name = ctx.get("func_name", "")
+        name = ctx.func_name
         if name.endswith("A"):
             return 1
         elif name.endswith("W"):

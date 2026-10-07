@@ -17,21 +17,21 @@ class Winmm(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("timeBeginPeriod", argc=1)
-    def timeBeginPeriod(self, emu, argv, ctx={}):
+    def timeBeginPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         MMRESULT timeBeginPeriod(UINT uPeriod);
         """
         return 0  # TIMERR_NOERROR
 
     @apihook("timeEndPeriod", argc=1)
-    def timeEndPeriod(self, emu, argv, ctx={}):
+    def timeEndPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         MMRESULT timeEndPeriod(UINT uPeriod);
         """
         return 0  # TIMERR_NOERROR
 
     @apihook("timeGetTime", argc=0)
-    def timeGetTime(self, emu, argv, ctx: api.ApiContext = None):
+    def timeGetTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD timeGetTime(); // return the system time, in milliseconds
         """

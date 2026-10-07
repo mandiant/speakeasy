@@ -15,9 +15,9 @@ class sfc(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SfcIsFileProtected", argc=2)
-    def SfcIsFileProtected(self, emu, argv, ctx: api.ApiContext = None):
+    def SfcIsFileProtected(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return False
 
     @apihook("SfcTerminateWatcherThread", argc=0, ordinal=2)
-    def SfcTerminateWatcherThread(self, emu, argv, ctx: api.ApiContext = None):
+    def SfcTerminateWatcherThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return 0

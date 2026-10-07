@@ -25,7 +25,7 @@ class Bcrypt(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("BCryptOpenAlgorithmProvider", argc=4)
-    def BCryptOpenAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = None):
+    def BCryptOpenAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptOpenAlgorithmProvider(
           BCRYPT_ALG_HANDLE *phAlgorithm,
@@ -55,7 +55,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptImportKeyPair", argc=7)
-    def BCryptImportKeyPair(self, emu, argv, ctx: api.ApiContext = None):
+    def BCryptImportKeyPair(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptImportKeyPair(
           BCRYPT_ALG_HANDLE hAlgorithm,
@@ -67,7 +67,6 @@ class Bcrypt(api.ApiHandler):
           ULONG             dwFlags
         );
         """
-        ctx = ctx or {}
         hAlgorithm, hImportKey, pszBlobType, phKey, pbInput, cbInput, dwFlags = argv
 
         blob_type = self.read_wide_string(pszBlobType)
@@ -88,7 +87,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptCloseAlgorithmProvider", argc=2)
-    def BCryptCloseAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = None):
+    def BCryptCloseAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptCloseAlgorithmProvider(
           BCRYPT_ALG_HANDLE hAlgorithm,
@@ -104,7 +103,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptGetProperty", argc=6)
-    def BCryptGetProperty(self, emu, argv, ctx: api.ApiContext = None):
+    def BCryptGetProperty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGetProperty(
           BCRYPT_HANDLE hObject,
@@ -126,13 +125,12 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptDestroyKey", argc=1)
-    def BCryptDestroyKey(self, emu, argv, ctx: api.ApiContext = None):
+    def BCryptDestroyKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDestroyKey(
           BCRYPT_KEY_HANDLE hKey
         );
         """
-        ctx = ctx or {}
         (hKey,) = argv
         cm = emu.get_crypt_manager()
         for hnd, ctx in cm.ctx_handles.items():

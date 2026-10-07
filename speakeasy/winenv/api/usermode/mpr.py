@@ -16,7 +16,7 @@ class Mpr(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WNetOpenEnum", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WNetOpenEnum(self, emu, argv, ctx: api.ApiContext = None):
+    def WNetOpenEnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetOpenEnum(
           DWORD          dwScope,
@@ -43,7 +43,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetEnumResource", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetEnumResource(self, emu, argv, ctx: api.ApiContext = None):
+    def WNetEnumResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetEnumResourceA(
           HANDLE  hEnum,
@@ -55,7 +55,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetAddConnection2", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetAddConnection2(self, emu, argv, ctx: api.ApiContext = None):
+    def WNetAddConnection2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetAddConnection2W(
           LPNETRESOURCEW lpNetResource,
@@ -67,7 +67,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetGetConnection", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def WNetGetConnection(self, emu, argv, ctx: api.ApiContext = None):
+    def WNetGetConnection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetGetConnectionA(
           LPCSTR  lpLocalName,
@@ -75,7 +75,6 @@ class Mpr(api.ApiHandler):
           LPDWORD lpnLength
         );
         """
-        ctx = ctx or {}
         lpLocalName, lpRemoteName, lpnLength = argv
 
         cw = self.get_char_width(ctx)

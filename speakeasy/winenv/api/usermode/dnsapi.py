@@ -43,7 +43,7 @@ class DnsApi(api.ApiHandler):
         self.names = {}
 
     @apihook("DnsQuery_", argc=6)
-    def DnsQuery_(self, emu, argv, ctx: api.ApiContext = None):
+    def DnsQuery_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DNS_STATUS DnsQuery_A(
             PCSTR       pszName,
@@ -54,7 +54,6 @@ class DnsApi(api.ApiHandler):
             PVOID       *pReserved
         );
         """
-        ctx = ctx or {}
 
         pszName, wType, Options, pExtra, ppQueryResults, pReserved = argv
         rv = windefs.ERROR_INVALID_PARAMETER
