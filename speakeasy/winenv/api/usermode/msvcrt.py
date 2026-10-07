@@ -84,6 +84,25 @@ class Msvcrt(api.ApiHandler):
             data += char
         return data
 
+    def format_int32(self, val, radix):
+        """
+        Format a 32-bit int as _itoa does: signed in radix 10, unsigned in any
+        other radix, with lowercase digits.
+        """
+        if not 2 <= radix <= 36:
+            return ""
+        val &= 0xFFFFFFFF
+        sign = ""
+        if radix == 10 and val & 0x80000000:
+            sign = "-"
+            val = 0x100000000 - val
+        digits = ""
+        while True:
+            val, d = divmod(val, radix)
+            digits = "0123456789abcdefghijklmnopqrstuvwxyz"[d] + digits
+            if not val:
+                return sign + digits
+
     def double_to_hex(self, x):
         return struct.unpack("<Q", struct.pack("<d", x))[0]
 
@@ -1378,9 +1397,8 @@ class Msvcrt(api.ApiHandler):
             radix,
         ) = argv
 
-        v = str(val).encode("utf-8")
-        self.mem_write(out_str, v)
-        return
+        self.write_string(self.format_int32(val, radix), out_str)
+        return out_str
 
     @apihook("__dllonexit", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def __dllonexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1748,11 +1766,29 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_itoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """
+        char *_itoa(
+            int value,
+            char *buffer,
+            int radix
+        );
+        """
+        val, out_str, radix = argv
+        self.write_string(self.format_int32(val, radix), out_str)
+        return out_str
 
     @apihook("_itow", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """
+        wchar_t *_itow(
+            int value,
+            wchar_t *buffer,
+            int radix
+        );
+        """
+        val, out_str, radix = argv
+        self.write_wide_string(self.format_int32(val, radix), out_str)
+        return out_str
 
     @apihook("_EH_prolog", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _EH_prolog(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
