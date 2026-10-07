@@ -5742,6 +5742,7 @@ class Kernel32(api.ApiHandler):
         pfnAPC, hThread, dwData = argv
         run_type = f"apc_thread_{hThread:x}"
         self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
+        return 1
 
     @apihook("DuplicateHandle", argc=7)
     def DuplicateHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
