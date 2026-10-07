@@ -2,12 +2,14 @@
 Handlers put each decoded value on the parameter it came from.
 """
 
+import struct
 from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.profiler import Run
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiContext, HandlerArgs
 
@@ -19,6 +21,22 @@ def dll_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> It
     se = Speakeasy(config=config)
     try:
         se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
+        assert se.emu is not None
+        se.emu.curr_run = Run()
+        yield se
+    finally:
+        se.shutdown()
+
+
+@pytest.fixture
+def driver_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated")
+    se = Speakeasy(config=config)
+    try:
+        se.load_module(data=load_test_bin("wdm_test_x86.sys.xz"))
+        assert se.emu is not None
+        se.emu.curr_run = Run()
         yield se
     finally:
         se.shutdown()
@@ -30,8 +48,20 @@ def _alloc(se: Speakeasy, data: bytes) -> int:
     return addr
 
 
-def _call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str, str]]:
-    """Call a handler with the context dispatch builds, and return (rv, {param name: display})."""
+def _object_attributes(se: Speakeasy, name: str) -> int:
+    """Build an x86 OBJECT_ATTRIBUTES for ``name`` and return its address."""
+    buf = name.encode("utf-16le")
+    buf_addr = _alloc(se, buf + b"\x00\x00")
+    us_addr = _alloc(se, struct.pack("<HHI", len(buf), len(buf) + 2, buf_addr))
+    return _alloc(se, struct.pack("<IIIIII", 24, 0, us_addr, 0, 0, 0))
+
+
+def _call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str | int, str]]:
+    """
+    Call a handler with the context dispatch builds. Return the handler result
+    and the displays, by parameter name, or by slot index for a call without a
+    signature.
+    """
     emu = se.emu
     assert emu is not None and emu.api is not None
     mod, func_attrs = emu.api.get_export_func_handler(dll, name)
@@ -40,11 +70,13 @@ def _call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dic
     _, func, argc, _, _ = func_attrs
     assert argc == len(argv)
     sig = emu.get_handler_signature(dll, name, argc)
-    assert sig is not None
-    args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
+    if sig is None:
+        args = HandlerArgs.from_slots(argv)
+    else:
+        args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
     ctx = ApiContext(func_name=f"{dll}.{name}", args=args)
     rv = func(mod, emu, list(argv), ctx)
-    return rv, {a.name: a.display for a in args.get_report_args() if a.name is not None}
+    return rv, {i if a.name is None else a.name: a.display for i, a in enumerate(args.get_report_args())}
 
 
 def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
@@ -74,3 +106,21 @@ def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
     _, displays = _call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0, out])
     assert displays["lpPrefixString"] == "abc"
     assert displays["lpTempFileName"].startswith("C:\\tmp\\abc_")
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("ZwCreateFile", [0, 0x80000000, 0, 0, 0, 0, 1, 3, 0, 0, 0]),
+        ("ZwOpenFile", [0, 0x80000000, 0, 0, 1, 0]),
+    ],
+)
+def test_zw_file_path_is_on_object_attributes(driver_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    path = "\\??\\C:\\test.txt"
+    argv = list(argv)
+    argv[0] = _alloc(driver_emu, b"\x00" * 4)
+    argv[2] = _object_attributes(driver_emu, path)
+    argv[3] = _alloc(driver_emu, b"\x00" * 8)
+    _, displays = _call(driver_emu, "ntoskrnl", api, argv)
+    assert displays["ObjectAttributes"] == path
+    assert displays["IoStatusBlock"] == hex(argv[3])

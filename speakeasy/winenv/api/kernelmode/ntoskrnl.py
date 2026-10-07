@@ -2804,7 +2804,7 @@ class Ntoskrnl(api.ApiHandler):
 
         create_disp = 0xFFFFFFFF & create_disp
 
-        ctx.args["IoStatusBlock"].display = name
+        ctx.args["ObjectAttributes"].display = name
         cd = ddk.get_create_disposition(create_disp)
         if cd:
             ctx.args["CreateDisposition"].display = cd
@@ -2880,7 +2880,7 @@ class Ntoskrnl(api.ApiHandler):
         oa = self.mem_cast(oa, objattr)
         path = self.read_unicode_string(oa.ObjectName)
 
-        ctx.args["IoStatusBlock"].display = path
+        ctx.args["ObjectAttributes"].display = path
         ad = ddk.get_file_access_defines(access)
         if ad:
             ctx.args["DesiredAccess"].display = " | ".join(ad)
