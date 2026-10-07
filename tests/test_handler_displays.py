@@ -389,3 +389,29 @@ def test_vsnprintf_truncation(
 )
 def test_wvnsprintf_truncation(dll_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
     assert _bounded_format(dll_emu, "shlwapi", "wvnsprintfA", count) == (rv, out)
+
+
+@pytest.mark.parametrize(
+    "options, count, rv, out",
+    [
+        (0, 8, 3, b"n=7\x00\xcc"),
+        (0, 3, -1, b"n=\x00\xcc\xcc"),
+        (1, 3, 3, b"n=7\xcc\xcc"),
+        (1, 2, -1, b"n=\xcc\xcc\xcc"),
+        (2, 3, 3, b"n=\x00\xcc\xcc"),
+        (2, 8, 3, b"n=7\x00\xcc"),
+    ],
+)
+def test_stdio_common_vsprintf_truncation(dll_emu: Speakeasy, options: int, count: int, rv: int, out: bytes) -> None:
+    buf = _alloc(dll_emu, b"\xcc" * 8)
+    fmt = _alloc(dll_emu, b"n=%d\x00")
+    va = _alloc(dll_emu, struct.pack("<I", 7))
+    result, _ = _call(dll_emu, "msvcrt", "__stdio_common_vsprintf", [options, 0, buf, count, fmt, 0, va])
+    assert (result, dll_emu.mem_read(buf, 5)) == (rv, out)
+
+
+def test_stdio_common_vsprintf_measures_without_a_buffer(dll_emu: Speakeasy) -> None:
+    fmt = _alloc(dll_emu, b"n=%d\x00")
+    va = _alloc(dll_emu, struct.pack("<I", 7))
+    rv, _ = _call(dll_emu, "msvcrt", "__stdio_common_vsprintf", [2, 0, 0, 0, fmt, 0, va])
+    assert rv == 3
