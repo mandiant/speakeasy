@@ -86,3 +86,31 @@ def test_wvsprintf_is_stdcall_and_writes_its_width(
     rv, _ = call(se, "user32", name, [buf, fmt, va])
     assert rv == 3
     assert se.mem_read(buf, 4 * cw) == "x7y\0".encode(enc)
+
+
+@pytest.mark.parametrize(
+    "name, fmt, arg, expected",
+    [
+        ("wsprintfW", "%s!", "abc", "abc!"),
+        ("wsprintfW", "%ls!", "abc", "abc!"),
+        ("wsprintfW", "%S!", b"abc", "abc!"),
+        ("wsprintfW", "%hs!", b"abc", "abc!"),
+        ("wsprintfA", "%s!", b"abc", "abc!"),
+        ("wsprintfA", "%S!", "abc", "abc!"),
+        ("wvsprintfW", "%s!", "abc", "abc!"),
+        ("wvsprintfW", "%S!", b"abc", "abc!"),
+    ],
+)
+def test_wsprintf_string_width(dll_emu: Speakeasy, name: str, fmt: str, arg: str | bytes, expected: str) -> None:
+    enc = "utf-16le" if name.endswith("W") else "utf-8"
+    sarg = alloc(dll_emu, arg + b"\x00" if isinstance(arg, bytes) else (arg + "\0").encode("utf-16le"))
+    pfmt = alloc(dll_emu, (fmt + "\0").encode(enc))
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    if name.startswith("wv"):
+        argv = [buf, pfmt, alloc(dll_emu, sarg.to_bytes(4, "little"))]
+    else:
+        argv = [buf, pfmt, sarg]
+    rv, _ = call(dll_emu, "user32", name, argv)
+    assert rv == len(expected)
+    data = (expected + "\0").encode(enc)
+    assert dll_emu.mem_read(buf, len(data)) == data

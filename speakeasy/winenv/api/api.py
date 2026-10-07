@@ -530,9 +530,11 @@ class ApiHandler:
         else:
             run.api_callbacks.append((None, func, args))
 
-    def do_str_format(self, string, argv):
+    def do_str_format(self, string, argv, wide=False):
         """
-        Format a string similar to msvcrt.printf
+        Format a string similar to msvcrt.printf. With ``wide``, %s and %S
+        follow the wide-character functions: %s is a wide string and %S is
+        an ANSI string, unless an h or l prefix gives the width.
         """
 
         # Skip over the format string
@@ -554,7 +556,10 @@ class ApiHandler:
 
             if inside_fmt:
                 if c == "S":
-                    s = self.read_wide_string(args.pop(0))
+                    if wide and "l" not in string[string.rfind("%", 0, i) : i]:
+                        s = self.read_string(args.pop(0))
+                    else:
+                        s = self.read_wide_string(args.pop(0))
                     new_fmts.append(s)
                     new[i - removed] = "s"
                     inside_fmt = False
@@ -564,6 +569,9 @@ class ApiHandler:
                         s = self.read_wide_string(args.pop(0))
                         new[i - 1 - removed] = "\xff"
                         curr_fmt = ""
+                        new_fmts.append(s)
+                    elif wide and "h" not in string[string.rfind("%", 0, i) : i]:
+                        s = self.read_wide_string(args.pop(0))
                         new_fmts.append(s)
                     else:
                         s = self.read_string(args.pop(0))
