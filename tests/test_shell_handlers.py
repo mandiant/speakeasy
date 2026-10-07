@@ -5,11 +5,13 @@ Windows writes.
 
 import ntpath
 import struct
+import uuid
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import com
 from tests.handler_harness import alloc, call, start_process
 
 
@@ -119,3 +121,11 @@ def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) ->
     rv, _ = call(dll_emu, "psapi", "GetModuleFileNameExW", [current, 0, buf, 260])
     assert read_wstr(dll_emu, buf) == proc.path
     assert rv == len(proc.path)
+
+
+def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
+    clsid = alloc(dll_emu, uuid.UUID(com.CLSID_WbemLocator).bytes_le)
+    out = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "ole32", "StringFromCLSID", [clsid, out])
+    assert rv == com.S_OK
+    assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
