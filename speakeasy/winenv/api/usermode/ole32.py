@@ -148,7 +148,7 @@ class Ole32(api.ApiHandler):
             DWORD                    dwCapabilities
         );
         """
-        return 1
+        return windefs.S_OK
 
     @apihook("StringFromCLSID", argc=2)
     def StringFromCLSID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
