@@ -143,10 +143,8 @@ class RegistryManager:
         return None
 
     def is_key_a_parent_key(self, path):
-        for key in self.keys:
-            if key.get_path().lower().startswith(path.lower()):
-                return True
-        return False
+        prefix = path.lower().rstrip("\\") + "\\"
+        return any(key.get_path().lower().startswith(prefix) for key in self.keys)
 
     def get_subkeys(self, key):
         # TODO: once we revamp the registry emulation,
