@@ -134,10 +134,10 @@ class Shlwapi(api.ApiHandler):
         t = s[idx1 + 1 :]
         idx2 = t.rfind(".")
         if idx2 == -1:
-            return pszPath + len(s)
+            return pszPath + len(s) * cw
 
         ctx.args["pszPath"].display = t[idx2:]
-        return pszPath + idx1 + 1 + idx2
+        return pszPath + (idx1 + 1 + idx2) * cw
 
     @apihook("StrCmpI", argc=2)
     def StrCmpI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -175,10 +175,10 @@ class Shlwapi(api.ApiHandler):
         ctx.args["pszPath"].display = s
         idx = s.rfind("\\")
         if idx == -1:
-            return pszPath + len(s)
+            return pszPath
 
         ctx.args["pszPath"].display = s[idx + 1 :]
-        return pszPath + idx + 1
+        return pszPath + (idx + 1) * cw
 
     @apihook("PathRemoveExtension", argc=1)
     def PathRemoveExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

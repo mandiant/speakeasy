@@ -46,3 +46,19 @@ def test_str_str_returns_null_for_null_args(dll_emu: Speakeasy, api: str) -> Non
     s = alloc(dll_emu, b"a\x00\x00\x00")
     assert call(dll_emu, "shlwapi", api, [0, s])[0] == 0
     assert call(dll_emu, "shlwapi", api, [s, 0])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "api, path, index",
+    [
+        ("PathFindExtension", "C:\\dir\\file.txt", 11),
+        ("PathFindExtension", "C:\\dir.d\\file", 13),
+        ("PathFindFileName", "C:\\dir\\file.txt", 7),
+        ("PathFindFileName", "file.txt", 0),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_find_returns_byte_address(dll_emu: Speakeasy, api: str, path: str, index: int, width: int) -> None:
+    p = alloc(dll_emu, wstr(path, width))
+    rv, _ = call(dll_emu, "shlwapi", api + ("W" if width == 2 else "A"), [p])
+    assert rv == p + index * width
