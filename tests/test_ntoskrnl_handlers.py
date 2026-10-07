@@ -1,9 +1,11 @@
+import struct
+
 import pytest
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
-from tests.handler_harness import alloc, call, object_attributes
+from tests.handler_harness import alloc, call, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -175,3 +177,36 @@ def test_zw_map_view_of_section_maps_the_whole_section_without_a_view_size(drive
     assert rv == ddk.STATUS_SUCCESS
     view = int.from_bytes(driver_emu.mem_read(base, 4), "little")
     driver_emu.mem_write(view + 0x1FFF, b"\x01")
+
+
+def read_unicode_string_x86(se: Speakeasy, addr: int) -> tuple[int, int, bytes]:
+    length, max_length, buf = struct.unpack("<HHI", se.mem_read(addr, 8))
+    return length, max_length, se.mem_read(buf, length)
+
+
+def empty_unicode_string_x86(se: Speakeasy, max_length: int) -> int:
+    buf = alloc(se, b"\xee" * max_length)
+    return alloc(se, struct.pack("<HHI", 0, max_length, buf))
+
+
+@pytest.mark.parametrize(
+    ("max_length", "expected"),
+    [
+        (64, "hello"),
+        (6, "hel"),
+    ],
+)
+def test_rtl_copy_unicode_string_sets_the_destination_length(
+    driver_emu: Speakeasy, max_length: int, expected: str
+) -> None:
+    dest = empty_unicode_string_x86(driver_emu, max_length)
+    call(driver_emu, "ntoskrnl", "RtlCopyUnicodeString", [dest, unicode_string(driver_emu, "hello")])
+    data = expected.encode("utf-16le")
+    assert read_unicode_string_x86(driver_emu, dest) == (len(data), max_length, data)
+
+
+def test_rtl_copy_unicode_string_empties_the_destination_for_a_null_source(driver_emu: Speakeasy) -> None:
+    dest = empty_unicode_string_x86(driver_emu, 64)
+    call(driver_emu, "ntoskrnl", "RtlCopyUnicodeString", [dest, unicode_string(driver_emu, "old")])
+    call(driver_emu, "ntoskrnl", "RtlCopyUnicodeString", [dest, 0])
+    assert read_unicode_string_x86(driver_emu, dest)[0] == 0

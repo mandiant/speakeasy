@@ -1090,23 +1090,22 @@ class Ntoskrnl(api.ApiHandler):
         dest = self.win.UNICODE_STRING(emu.get_ptr_size())
         dest = self.mem_cast(dest, dest_str)
 
-        src = self.win.UNICODE_STRING(emu.get_ptr_size())
-        src = self.mem_cast(src, src_str)
+        src = None
+        if src_str:
+            src = self.win.UNICODE_STRING(emu.get_ptr_size())
+            src = self.mem_cast(src, src_str)
 
-        if src.Buffer == 0 or dest.Buffer == 0:
+        if src is None or src.Buffer == 0 or dest.Buffer == 0:
             dest.Length = 0
-            self.mem_write(src_str, self.get_bytes(src))
         else:
-            if src.Length > dest.MaximumLength:
-                to_copy = dest.MaximumLength
-            else:
-                to_copy = src.Length
+            to_copy = min(src.Length, dest.MaximumLength)
 
             data = self.mem_read(src.Buffer, to_copy)
-            ctx.args["SourceString"].display = data.decode("utf-16le")
+            ctx.args["SourceString"].display = data.decode("utf-16le", "replace")
             self.mem_write(dest.Buffer, data)
+            dest.Length = to_copy
 
-            self.mem_write(dest_str, self.get_bytes(dest))
+        self.mem_write(dest_str, self.get_bytes(dest))
 
         return
 
