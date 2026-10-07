@@ -10,6 +10,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
+from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiContext, HandlerArgs
 from speakeasy.winenv.defs.nt import ddk
@@ -59,17 +60,20 @@ def _object_attributes(se: Speakeasy, name: str) -> int:
 
 def _call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str | int, str]]:
     """
-    Call a handler with the context dispatch builds. Return the handler result
-    and the displays, by parameter name, or by slot index for a call without a
-    signature.
+    Call a handler with the context dispatch builds. A variadic handler reads
+    ``argv`` from the stack. Return the handler result and the displays, by
+    parameter name, or by slot index for a call without a signature.
     """
     emu = se.emu
     assert emu is not None and emu.api is not None
     mod, func_attrs = emu.api.get_export_func_handler(dll, name)
     if not func_attrs:
         mod, func_attrs = emu.normalize_import_miss(dll, name)
-    _, func, argc, _, _ = func_attrs
-    assert argc == len(argv)
+    _, func, argc, conv, _ = func_attrs
+    if argc == e_arch.VAR_ARGS:
+        emu.set_func_args(emu.stack_base, 0, *argv, conv=conv)
+        argv = []
+    assert argc in (e_arch.VAR_ARGS, len(argv))
     sig = emu.get_handler_signature(dll, name, argc)
     if sig is None:
         args = HandlerArgs.from_slots(argv)
@@ -331,3 +335,20 @@ def test_get_console_title_truncates_to_the_buffer(dll_emu: Speakeasy) -> None:
     assert rv == len("explorer.exe")
     assert dll_emu.mem_read(buf, 5) == b"exp\x00\xcc"
     assert displays["lpConsoleTitle"] == "exp"
+
+
+@pytest.mark.parametrize(
+    "dll, api, width, encoding",
+    [
+        ("shlwapi", "wnsprintfA", 1, "utf-8"),
+        ("shlwapi", "wnsprintfW", 2, "utf-16le"),
+        ("msvcrt", "_snwprintf", 2, "utf-16le"),
+    ],
+)
+def test_variadic_sprintf_shows_the_output(dll_emu: Speakeasy, dll: str, api: str, width: int, encoding: str) -> None:
+    buf = _alloc(dll_emu, b"\x00" * 64)
+    fmt = _alloc(dll_emu, "n=%d\x00".encode(encoding))
+    rv, displays = _call(dll_emu, dll, api, [buf, 32, fmt, 7])
+    assert rv == 3
+    assert dll_emu.mem_read(buf, 4 * width) == "n=7\x00".encode(encoding)
+    assert displays == {0: "n=7"}
