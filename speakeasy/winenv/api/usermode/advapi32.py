@@ -1365,20 +1365,16 @@ class AdvApi32(api.ApiHandler):
         cbsid = self.mem_read(ptr_cbsid, 4)
         cbsid = int.from_bytes(cbsid, "little")
         ctx.args["cbSid"].display = hex(cbsid)
-        if not cbsid:
-            self.mem_write(ptr_cbsid, side_struct_size.to_bytes(4, "little"))
-            return rv
-
-        if cbsid < side_struct_size:
-            return rv
 
         domain = emu.config.domain
         cchdomname = self.mem_read(ptr_cchdomname, 4)
         cbcchdomname = int.from_bytes(cchdomname, "little")
         ctx.args["cchReferencedDomainName"].display = hex(cbcchdomname)
-        if not cbcchdomname:
-            buf_size = len(domain) + 1
-            self.mem_write(ptr_cchdomname, buf_size.to_bytes(4, "little"))
+
+        if not ptr_sid or cbsid < side_struct_size or not ptr_domname or cbcchdomname < len(domain) + 1:
+            self.mem_write(ptr_cbsid, side_struct_size.to_bytes(4, "little"))
+            self.mem_write(ptr_cchdomname, (len(domain) + 1).to_bytes(4, "little"))
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return rv
 
         rv = 1
@@ -1386,6 +1382,7 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(ptr_sid, self.get_bytes(sid_struct))
 
         self.write_mem_string(domain, ptr_domname, cw)
+        self.mem_write(ptr_cchdomname, len(domain).to_bytes(4, "little"))
         ctx.args["ReferencedDomainName"].display = domain
 
         # Currently only supporting user SIDs (SidTypeUser = 1)
