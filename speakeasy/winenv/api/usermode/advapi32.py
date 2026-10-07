@@ -1546,8 +1546,8 @@ class AdvApi32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        if dwDataLen <= 0:
-            return 0
+        if dwDataLen == 0:
+            return 1
 
         data = self.mem_read(pbData, dwDataLen)
         hnd.update(data)
