@@ -294,8 +294,7 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, dwIndex, lpName, cchName = argv
 
-        _argv = argv + [0, 0, 0, 0]
-        rv = self.RegEnumKeyEx(emu, _argv, ctx)
+        rv, _ = self.enum_key(hKey, dwIndex, lpName, cchName, ctx)
 
         return rv
 
@@ -315,8 +314,20 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, dwIndex, lpName, cchName, res, pcls, cchcls, last_write = argv
 
+        cch = int.from_bytes(self.mem_read(cchName, 4), "little") if cchName else 0
+        rv, name = self.enum_key(hKey, dwIndex, lpName, cch, ctx)
+        if rv == windefs.ERROR_SUCCESS:
+            self.mem_write(cchName, len(name).to_bytes(4, "little"))
+        return rv
+
+    def enum_key(self, hKey, dwIndex, lpName, cch, ctx):
+        """
+        Write the name of subkey ``dwIndex`` to ``lpName``, a buffer of
+        ``cch`` characters. Return the status and the name.
+        """
         cw = self.get_char_width(ctx)
         rv = windefs.ERROR_INVALID_HANDLE
+        name = ""
         if hKey:
             key = self.reg_get_key(hKey)
             if not key:
@@ -326,18 +337,17 @@ class AdvApi32(api.ApiHandler):
                 subkeys = self.reg_get_subkeys(key)
                 if (dwIndex + 1) > len(subkeys):
                     rv = windefs.ERROR_NO_MORE_ITEMS
+                elif not lpName:
+                    rv = windefs.ERROR_INVALID_PARAMETER
                 else:
-                    if lpName:
-                        sk = subkeys[dwIndex]
-                        name = sk.get_path()
-                        if cw == 2:
-                            name = name.encode("utf-16le")
-                        else:
-                            name = name.encode("utf-8")
-                        self.mem_write(lpName, name)
+                    name = subkeys[dwIndex]
+                    if cch < len(name) + 1:
+                        rv = windefs.ERROR_MORE_DATA
+                    else:
+                        self.write_mem_string(name, lpName, cw)
                         rv = windefs.ERROR_SUCCESS
                 self.record_registry_access_event(key.get_path(), REG_LIST)
-        return rv
+        return rv, name
 
     @apihook("RegCreateKey", argc=3)
     def RegCreateKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
