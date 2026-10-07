@@ -780,6 +780,7 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, UsbInterface, PipeIndex, PipeInfo = argv
+        PipeIndex &= 0xFF
 
         rv = 0
         uif = self.usb_interfaces.get(UsbInterface)

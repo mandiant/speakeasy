@@ -252,6 +252,7 @@ def test_wdf_usb_unknown_handle(any_driver_emu: Speakeasy, api: str, argv: list[
     [
         (0, (wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeBulk, 0x81, 0x200, 0)),
         (1, (wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeInterrupt, 0x02, 0x40, 10)),
+        (0x12345601, (wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeInterrupt, 0x02, 0x40, 10)),
     ],
 )
 def test_wdf_usb_pipe_information(any_driver_emu: Speakeasy, index: int, expected: tuple[int, int, int, int]) -> None:
