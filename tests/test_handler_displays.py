@@ -276,6 +276,13 @@ def test_win_http_query_status_code_small_buffer(dll_emu: Speakeasy) -> None:
     assert length == 8
 
 
+def test_win_http_query_status_code_null_buffer_gives_size(dll_emu: Speakeasy) -> None:
+    buf_len = _alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = _call(dll_emu, "winhttp", "WinHttpQueryHeaders", [1, 19, 0, 0, buf_len, 0])
+    assert rv == 0
+    assert int.from_bytes(dll_emu.mem_read(buf_len, 4), "little") == 8
+
+
 def test_url_download_to_cache_file_names_its_params(dll_emu: Speakeasy) -> None:
     url = _alloc(dll_emu, b"http://example.com/a.bin\x00")
     out = _alloc(dll_emu, b"\x00" * 260)
