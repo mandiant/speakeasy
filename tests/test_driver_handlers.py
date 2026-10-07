@@ -81,6 +81,17 @@ def _retrieve_config_descriptor(
     return rv, int.from_bytes(se.mem_read(length, 2), "little")
 
 
+def _select_single_interface(se: Speakeasy, driver_globals: int, usb_device: int) -> int:
+    params = wdf.WDF_USB_DEVICE_SELECT_CONFIG_PARAMS(_ptr_size(se))
+    params.Size = params.sizeof()
+    params.Type = wdf.WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeSingleInterface
+    addr = alloc(se, params.get_bytes())
+    rv, _ = call(se, "wdfldr", "WdfUsbTargetDeviceSelectConfig", [driver_globals, usb_device, 0, addr])
+    assert rv == ddk.STATUS_SUCCESS
+    params.cast(se.mem_read(addr, params.sizeof()))
+    return params.Types.SingleInterface.ConfiguredUsbInterface
+
+
 def test_wsk_receive_from_accepts_all_parameters(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "netio", "callback_WskReceiveFrom", [1, 2, 3, 4, 5, 6, 7, 8])
     assert rv == 0
@@ -192,3 +203,31 @@ def test_wdf_usb_config_descriptor_probe_returns_the_size(any_driver_emu: Speake
     rv, _ = _retrieve_config_descriptor(any_driver_emu, driver_globals, usb_device, desc, len(CONFIG_DESCRIPTOR))
     assert rv == ddk.STATUS_SUCCESS
     assert _retrieve_config_descriptor(*probe) == (ddk.STATUS_BUFFER_TOO_SMALL, len(CONFIG_DESCRIPTOR))
+
+
+def test_wdf_usb_interface_without_a_config_descriptor_has_no_pipes(any_driver_emu: Speakeasy) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    usb_interface = _select_single_interface(
+        any_driver_emu, driver_globals, _usb_device(any_driver_emu, driver_globals)
+    )
+    assert (
+        call(any_driver_emu, "wdfldr", "WdfUsbInterfaceGetNumConfiguredPipes", [driver_globals, usb_interface])[0] == 0
+    )
+    assert call(any_driver_emu, "wdfldr", "WdfUsbInterfaceGetNumSettings", [driver_globals, usb_interface])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "api, argv, rv",
+    [
+        ("WdfUsbInterfaceGetNumSettings", [0x999], 0),
+        ("WdfUsbInterfaceGetConfiguredPipe", [0x999, 0, 0], 0),
+        ("WdfUsbTargetDeviceSelectConfig", [0x999, 0, "params"], ddk.STATUS_INVALID_HANDLE),
+    ],
+)
+def test_wdf_usb_unknown_handle(any_driver_emu: Speakeasy, api: str, argv: list[int | str], rv: int) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    params = wdf.WDF_USB_DEVICE_SELECT_CONFIG_PARAMS(_ptr_size(any_driver_emu))
+    params.Type = wdf.WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeSingleInterface
+    params_addr = alloc(any_driver_emu, params.get_bytes())
+    args = [driver_globals] + [params_addr if a == "params" else a for a in argv]
+    assert call(any_driver_emu, "wdfldr", api, args)[0] == rv
