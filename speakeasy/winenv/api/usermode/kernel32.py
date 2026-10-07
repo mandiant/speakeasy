@@ -6496,16 +6496,18 @@ class Kernel32(api.ApiHandler):
         path = self.read_mem_string(lpPathName, cw)
         prefix = self.read_mem_string(lpPrefixString, cw)
 
-        import time
-
-        if prefix:
-            out = path + f"\\{prefix}_{int(time.time_ns())}.tmp"
-        else:
-            out = path + f"{int(time.time_ns())}.tmp"
+        unique = uUnique & 0xFFFF
+        create = not unique
+        if create:
+            unique = (time.time_ns() // 1000) & 0xFFFF or 1
+        out = path.rstrip("\\") + f"\\{prefix[:3]}{unique:X}.TMP"
         ctx.args["lpTempFileName"].display = out
         self.write_mem_string(out, lpTempFileName, cw)
+        if create:
+            self.file_open(out, create=True)
+            self.record_file_access_event(out, FILE_CREATE)
 
-        return len(out) + 1
+        return unique
 
     @apihook("_llseek", argc=3)
     def _llseek(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

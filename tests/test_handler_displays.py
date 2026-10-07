@@ -102,11 +102,26 @@ def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
 
 def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
     path = _alloc(dll_emu, b"C:\\tmp\x00")
-    prefix = _alloc(dll_emu, b"abc\x00")
+    prefix = _alloc(dll_emu, b"abcd\x00")
     out = _alloc(dll_emu, b"\x00" * 260)
-    _, displays = _call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0, out])
-    assert displays["lpPrefixString"] == "abc"
-    assert displays["lpTempFileName"].startswith("C:\\tmp\\abc_")
+    rv, displays = _call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0x1A2B, out])
+    assert rv == 0x1A2B
+    assert displays["lpPrefixString"] == "abcd"
+    assert displays["lpTempFileName"] == "C:\\tmp\\abc1A2B.TMP"
+    assert dll_emu.mem_read(out, 19) == b"C:\\tmp\\abc1A2B.TMP\x00"
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_file_manager().get_file_from_path("C:\\tmp\\abc1A2B.TMP") is None
+
+
+def test_get_temp_file_name_creates_a_unique_file(dll_emu: Speakeasy) -> None:
+    path = _alloc(dll_emu, b"C:\\tmp\\\x00")
+    prefix = _alloc(dll_emu, b"\x00")
+    out = _alloc(dll_emu, b"\x00" * 260)
+    rv, displays = _call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0, out])
+    assert 0 < rv <= 0xFFFF
+    assert displays["lpTempFileName"] == f"C:\\tmp\\{rv:X}.TMP"
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_file_manager().get_file_from_path(f"C:\\tmp\\{rv:X}.TMP") is not None
 
 
 @pytest.mark.parametrize(
