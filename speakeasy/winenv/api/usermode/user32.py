@@ -1583,7 +1583,7 @@ class User32(api.ApiHandler):
                     emu.mem_write(dst, data)
                 except Exception:
                     base_addr = dst & ~0xFFF
-                    emu.mem_map(base_addr, 0x1000)
+                    emu.mem_map(0x1000, base=base_addr)
                     emu.mem_write(dst, data)
             except Exception:
                 pass

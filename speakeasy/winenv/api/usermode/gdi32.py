@@ -282,7 +282,7 @@ class GDI32(api.ApiHandler):
                     emu.mem_write(pv, data)
                 except Exception:
                     base_addr = pv & ~0xFFF
-                    emu.mem_map(base_addr, 0x1000)
+                    emu.mem_map(0x1000, base=base_addr)
                     emu.mem_write(pv, data)
             except Exception:
                 pass

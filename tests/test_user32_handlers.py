@@ -134,3 +134,20 @@ def test_oem_to_char_copies_the_string_and_its_nul(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "user32", "OemToCharA", [src, dst])
     assert rv == 1
     assert dll_emu.mem_read(dst, 8) == b"hi\x80\x00" + b"\xcc" * 4
+
+
+def test_oem_to_char_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    src = alloc(dll_emu, b"hi\x00")
+    dst = 0x5FFF0010
+    assert not dll_emu.emu.is_address_valid(dst)
+    call(dll_emu, "user32", "OemToCharA", [src, dst])
+    assert dll_emu.mem_read(dst, 3) == b"hi\x00"
+
+
+def test_get_object_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    pv = 0x5FFF0010
+    rv, _ = call(dll_emu, "gdi32", "GetObjectA", [0x1234, 24, pv])
+    assert rv == 24
+    assert dll_emu.mem_read(pv, 24) == b"\x00" * 24
