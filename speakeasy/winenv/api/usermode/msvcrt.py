@@ -70,6 +70,19 @@ class Msvcrt(api.ApiHandler):
         x = struct.unpack("d", x)[0]
         return x
 
+    def read_cstr(self, addr, max_chars=0):
+        """
+        Read the bytes of a NUL-terminated string, without the NUL. The CRT
+        byte-string functions work on bytes, which a decoded string can drop.
+        """
+        data = b""
+        while not max_chars or len(data) < max_chars:
+            char = self.mem_read(addr + len(data), 1)
+            if char == b"\x00":
+                break
+            data += char
+        return data
+
     def double_to_hex(self, x):
         return struct.unpack("<Q", struct.pack("<d", x))[0]
 
@@ -545,21 +558,13 @@ class Msvcrt(api.ApiHandler):
         """
         hay, needle = argv
 
-        if hay:
-            _hay = self.read_mem_string(hay, 1)
-            ctx.args[0].display = _hay
+        _hay = self.read_cstr(hay)
+        _needle = self.read_cstr(needle)
+        ctx.args[0].display = _hay.decode("utf-8", "ignore")
+        ctx.args[1].display = _needle.decode("utf-8", "ignore")
 
-        if needle:
-            needle = self.read_mem_string(needle, 1)
-            ctx.args[1].display = needle
-
-        ret = _hay.find(needle)
-        if ret != -1:
-            ret = hay + ret
-        else:
-            ret = 0
-
-        return ret
+        ret = _hay.find(_needle)
+        return hay + ret if ret != -1 else 0
 
     @apihook("wcsstr", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcsstr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -902,10 +907,10 @@ class Msvcrt(api.ApiHandler):
         );
         """
         dest, src = argv
-        s = self.read_string(src)
+        s = self.read_cstr(src)
 
-        self.write_string(s, dest)
-        ctx.args[1].display = s
+        self.mem_write(dest, s + b"\x00")
+        ctx.args[1].display = s.decode("utf-8", "ignore")
         return dest
 
     @apihook("wcscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -1259,11 +1264,10 @@ class Msvcrt(api.ApiHandler):
         """
         (s,) = argv
 
-        string = self.read_mem_string(s, 1)
-        ctx.args[0].display = string
-        rv = len(string)
+        string = self.read_cstr(s)
+        ctx.args[0].display = string.decode("utf-8", "ignore")
 
-        return rv
+        return len(string)
 
     @apihook("strcat", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strcat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1274,12 +1278,11 @@ class Msvcrt(api.ApiHandler):
         );
         """
         _str1, _str2 = argv
-        s1 = self.read_mem_string(_str1, 1)
-        s2 = self.read_mem_string(_str2, 1)
-        ctx.args[0].display = s1
-        ctx.args[1].display = s2
-        new = (s1 + s2).encode("utf-8")
-        self.mem_write(_str1, new + b"\x00")
+        s1 = self.read_cstr(_str1)
+        s2 = self.read_cstr(_str2)
+        ctx.args[0].display = s1.decode("utf-8", "ignore")
+        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        self.mem_write(_str1 + len(s1), s2 + b"\x00")
         return _str1
 
     @apihook("_strlwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1411,16 +1414,15 @@ class Msvcrt(api.ApiHandler):
         );
         """
         s1, s2, c = argv
-        rv = 1
+        if not c:
+            return 0
 
-        string1 = self.read_mem_string(s1, 1)
-        string2 = self.read_mem_string(s2, 1)
-        if string1 == string2:
-            rv = 0
-        ctx.args[0].display = string1
-        ctx.args[1].display = string2
+        string1 = self.read_cstr(s1, c)
+        string2 = self.read_cstr(s2, c)
+        ctx.args[0].display = string1.decode("utf-8", "ignore")
+        ctx.args[1].display = string2.decode("utf-8", "ignore")
 
-        return rv
+        return (string1 > string2) - (string1 < string2)
 
     @apihook("strcmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1451,20 +1453,16 @@ class Msvcrt(api.ApiHandler):
             );
         """
         cstr, c = argv
-        cs = self.read_string(cstr)
-        hay = cs.encode("utf-8")
-        needle = c.to_bytes(1, "little")
+        # The terminator is part of the string, so a NUL finds it
+        hay = self.read_cstr(cstr) + b"\x00"
+        needle = bytes([c & 0xFF])
 
         offset = hay.rfind(needle)
-        if offset < 0:
-            rv = 0
-        else:
-            rv = cstr + offset
 
-        ctx.args[0].display = cs
-        ctx.args[1].display = needle.decode("utf-8")
+        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
+        ctx.args[1].display = needle.decode("latin-1")
 
-        return rv
+        return cstr + offset if offset >= 0 else 0
 
     @apihook("_ftol", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _ftol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1515,20 +1513,16 @@ class Msvcrt(api.ApiHandler):
             );
         """
         cstr, c = argv
-        cs = self.read_string(cstr)
-        hay = cs.encode("utf-8")
-        needle = c.to_bytes(1, "little")
+        # The terminator is part of the string, so a NUL finds it
+        hay = self.read_cstr(cstr) + b"\x00"
+        needle = bytes([c & 0xFF])
 
         offset = hay.find(needle)
-        if offset < 0:
-            rv = 0
-        else:
-            rv = cstr + offset
 
-        ctx.args[0].display = cs
-        ctx.args[1].display = needle.decode("utf-8")
+        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
+        ctx.args[1].display = needle.decode("latin-1")
 
-        return rv
+        return cstr + offset if offset >= 0 else 0
 
     @apihook("_set_invalid_parameter_handler", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
