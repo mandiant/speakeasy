@@ -1274,8 +1274,8 @@ class AdvApi32(api.ApiHandler):
         rv = False
 
         if sid1 and sid2:
-            s1 = self.mem_read(sid1, 10)
-            s2 = self.mem_read(sid2, 10)
+            s1 = self.mem_read(sid1, 8 + 4 * self.mem_read(sid1 + 1, 1)[0])
+            s2 = self.mem_read(sid2, 8 + 4 * self.mem_read(sid2 + 1, 1)[0])
             if s1 == s2:
                 rv = True
 

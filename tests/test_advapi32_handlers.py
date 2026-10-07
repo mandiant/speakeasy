@@ -263,3 +263,22 @@ def test_import_key_rejects_an_unknown_provider(dll_emu: Speakeasy) -> None:
     assert rv == adv32defs.NTE_INVALID_HANDLE
     rv, _ = call(dll_emu, "bcrypt", "BCryptImportKeyPair", [0x1234, 0, blob_type, phkey, data, 16, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE
+
+
+def _sid(*subauthorities: int) -> bytes:
+    return bytes([1, len(subauthorities), 0, 0, 0, 0, 0, 5]) + struct.pack(f"<{len(subauthorities)}I", *subauthorities)
+
+
+@pytest.mark.parametrize(
+    "a, b, equal",
+    [
+        (_sid(32, 544), _sid(32, 544), True),
+        (_sid(32, 544), _sid(32, 545), False),
+        (_sid(32, 0x10220), _sid(32, 0x20220), False),
+        (_sid(32), _sid(32, 544), False),
+    ],
+    ids=["same", "last", "high-bytes", "count"],
+)
+def test_equal_sid_compares_every_subauthority(dll_emu: Speakeasy, a: bytes, b: bytes, equal: bool) -> None:
+    rv, _ = call(dll_emu, "advapi32", "EqualSid", [alloc(dll_emu, a), alloc(dll_emu, b)])
+    assert bool(rv) == equal
