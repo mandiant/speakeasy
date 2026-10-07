@@ -2955,9 +2955,9 @@ class Kernel32(api.ApiHandler):
                 ctx.args["lpMultiByteStr"].display = mbs
                 rv = len(mbs) + 1
             else:
-                mbs = self.read_mem_string(lpMultiByteStr, 1)
+                mbs = self.mem_read(lpMultiByteStr, cbMultiByte).decode("utf-8", "ignore")
                 ctx.args["lpMultiByteStr"].display = mbs
-                rv = len(mbs) + 1
+                rv = len(mbs.encode("utf-16le")) // 2
         elif lpMultiByteStr == 0 or cbMultiByte == 0:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             rv = 0
@@ -2980,8 +2980,11 @@ class Kernel32(api.ApiHandler):
                 cs = self.mem_read(lpMultiByteStr, cbMultiByte)
                 cs = cs.decode("utf-8", "ignore")
                 cs = cs.encode("utf-16le")
-                self.mem_write(lpWideCharStr, cs)
-                rv = cbMultiByte
+                if len(cs) // 2 > cchWideChar:
+                    emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                else:
+                    self.mem_write(lpWideCharStr, cs)
+                    rv = len(cs) // 2
 
         return rv
 
