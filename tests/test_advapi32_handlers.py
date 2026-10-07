@@ -440,6 +440,34 @@ def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> N
     assert (rv, _dword(dll_emu, size)) == (1, 3)
 
 
+HKEY_LOCAL_MACHINE = 0x80000002
+USBSAMP = b"System\\CurrentControlSet\\Services\\usbsamp\x00"
+
+
+def test_reg_config_key_keeps_values_across_opens(dll_emu: Speakeasy) -> None:
+    phk = alloc(dll_emu, b"\x00" * 4)
+    call(dll_emu, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, alloc(dll_emu, USBSAMP), 0, 0xF003F, phk])
+    value = alloc(dll_emu, b"abc\x00")
+    name = alloc(dll_emu, b"Extra\x00")
+    assert call(dll_emu, "advapi32", "RegSetValueExA", [_dword(dll_emu, phk), name, 0, 1, value, 4])[0] == 0
+
+    call(dll_emu, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, alloc(dll_emu, USBSAMP), 0, 0xF003F, phk])
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = call(dll_emu, "advapi32", "RegQueryValueExA", [_dword(dll_emu, phk), name, 0, 0, 0, size])
+    assert (rv, _dword(dll_emu, size)) == (windefs.ERROR_SUCCESS, 4)
+
+
+def test_reg_parent_of_a_config_key_lists_it(dll_emu: Speakeasy) -> None:
+    phk = alloc(dll_emu, b"\x00" * 4)
+    services = alloc(dll_emu, b"System\\CurrentControlSet\\Services\x00")
+    rv, _ = call(dll_emu, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, services, 0, 0xF003F, phk])
+    assert rv == windefs.ERROR_SUCCESS
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    cch = alloc(dll_emu, struct.pack("<I", 32))
+    rv, _ = call(dll_emu, "advapi32", "RegEnumKeyExA", [_dword(dll_emu, phk), 0, buf, cch, 0, 0, 0, 0])
+    assert (rv, dll_emu.mem_read(buf, 8)) == (windefs.ERROR_SUCCESS, b"usbsamp\x00")
+
+
 def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, alloc(dll_emu, b"Soft\x00"))
