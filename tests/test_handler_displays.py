@@ -457,3 +457,34 @@ def test_reg_query_value_ex_returns_a_value_it_set(dll_emu: Speakeasy) -> None:
     rv, _ = _call(dll_emu, "advapi32", "RegSetValueExA", [hkey, name, 0, 1, value, 4])
     assert rv == 0
     assert _query_value(dll_emu, "RegQueryValueExA", hkey, b"Extra\x00", 64) == (0, 4, b"abc\x00")
+
+
+def _get_value(se: Speakeasy, api: str, name: bytes, size: int | None) -> tuple[int, int, bytes]:
+    hkey = _open_usbsamp(se)
+    name_addr = _alloc(se, name)
+    data = _alloc(se, b"\xcc" * 64) if size is not None else 0
+    cb = _alloc(se, struct.pack("<I", size or 0))
+    rv, _ = _call(se, "advapi32", api, [hkey, 0, name_addr, 0xFFFF, 0, data, cb])
+    length = int.from_bytes(se.mem_read(cb, 4), "little")
+    return rv, length, se.mem_read(data, length) if data else b""
+
+
+@pytest.mark.parametrize(
+    "api, name, expected",
+    [
+        ("RegGetValueA", b"DisplayName\x00", b"An example service\x00"),
+        ("RegGetValueW", "DisplayName\x00".encode("utf-16le"), "An example service\x00".encode("utf-16le")),
+        ("RegGetValueA", b"Start\x00", struct.pack("<I", 3)),
+    ],
+)
+def test_reg_get_value_returns_the_data(dll_emu: Speakeasy, api: str, name: bytes, expected: bytes) -> None:
+    assert _get_value(dll_emu, api, name, 64) == (0, len(expected), expected)
+
+
+def test_reg_get_value_returns_the_size(dll_emu: Speakeasy) -> None:
+    assert _get_value(dll_emu, "RegGetValueA", b"DisplayName\x00", None) == (0, 19, b"")
+
+
+def test_reg_get_value_small_buffer(dll_emu: Speakeasy) -> None:
+    rv, length, _ = _get_value(dll_emu, "RegGetValueA", b"DisplayName\x00", 4)
+    assert (rv, length) == (234, 19)
