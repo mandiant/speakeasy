@@ -6920,6 +6920,9 @@ class Kernel32(api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         """
+        fPending = argv[2]
+        if fPending:
+            self.mem_write(fPending, (1).to_bytes(4, "little"))
         return 1
 
     @apihook("FlsGetValue2", argc=1)
