@@ -14,7 +14,8 @@ def split_command_line(cmdline: str) -> list[str]:
     name ends at the next quote or whitespace, without escapes. In later
     arguments, 2n backslashes and a quote give n backslashes and toggle
     quoting, 2n+1 backslashes and a quote give n backslashes and a literal
-    quote, and other backslashes are literal.
+    quote, and other backslashes are literal. In a run of quotes, every
+    third quote is a literal quote, as in Wine CommandLineToArgvW.
     """
     blank = " \t"
     if cmdline.startswith('"'):
@@ -27,9 +28,12 @@ def split_command_line(cmdline: str) -> list[str]:
         args = [cmdline[:end]]
 
     arg: list[str] = []
-    started = quoted = False
-    backslashes = 0
-    for c in cmdline[end:]:
+    started = False
+    quotes = backslashes = 0
+    i = end
+    while i < len(cmdline):
+        c = cmdline[i]
+        i += 1
         if c == "\\":
             backslashes += 1
             started = True
@@ -39,9 +43,17 @@ def split_command_line(cmdline: str) -> list[str]:
             if backslashes % 2:
                 arg.append('"')
             else:
-                quoted = not quoted
+                quotes += 1
+            while i < len(cmdline) and cmdline[i] == '"':
+                i += 1
+                quotes += 1
+                if quotes == 3:
+                    arg.append('"')
+                    quotes = 0
+            if quotes == 2:
+                quotes = 0
             started = True
-        elif c in blank and not quoted:
+        elif c in blank and not quotes:
             arg.append("\\" * backslashes)
             if started:
                 args.append("".join(arg))

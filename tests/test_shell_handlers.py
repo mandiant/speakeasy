@@ -83,6 +83,10 @@ def test_path_find_returns_byte_address(dll_emu: Speakeasy, api: str, path: str,
         ('C:\\a\\"b c\\\\', ['C:\\a\\"b', "c\\\\"]),
         ('a.exe "" \t x', ["a.exe", "", "x"]),
         ('a.exe "b c', ["a.exe", "b c"]),
+        ('a.exe "a""b"', ["a.exe", 'a"b']),
+        ('a.exe "a""b" c', ["a.exe", 'a"b c']),
+        ("a.exe " + '"' * 3 + "a b" + '"' * 3, ["a.exe", '"a', 'b"']),
+        ('a.exe ""a b', ["a.exe", "a", "b"]),
     ],
 )
 def test_command_line_to_argv_uses_windows_rules(dll_emu: Speakeasy, cmdline: str, expected: list[str]) -> None:
