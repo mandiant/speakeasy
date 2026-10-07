@@ -1948,7 +1948,11 @@ class Kernel32(api.ApiHandler):
         """
         dwFlags, lpModuleName, phModule = argv
 
-        hmod = self.GetModuleHandle(emu, [lpModuleName], ctx)
+        if dwFlags & k32types.GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS:
+            mod = emu.get_mod_from_addr(lpModuleName)
+            hmod = mod.base if mod else 0
+        else:
+            hmod = self.GetModuleHandle(emu, [lpModuleName], ctx)
         if phModule:
             _mod = (hmod).to_bytes(emu.get_ptr_size(), "little")
             self.mem_write(phModule, _mod)
