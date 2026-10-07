@@ -160,7 +160,7 @@ class RegistryManager:
         # make this better
 
         parent_path = key.get_path().rstrip("\\") + "\\"
-        subkeys = []
+        subkeys: list[str] = []
         for test_path in self.get_key_paths():
             if test_path.lower().startswith(parent_path.lower()):
                 sub = test_path[len(parent_path) :]
