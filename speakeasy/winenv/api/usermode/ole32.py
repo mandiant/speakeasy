@@ -164,6 +164,7 @@ class Ole32(api.ApiHandler):
         u = (u + "\x00").encode("utf-16le")
 
         ptr = self.mem_alloc(len(u), tag="api.StringFromCLSID")
+        self.mem_write(ptr, u)
 
         if lplpsz:
             self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), "little"))
