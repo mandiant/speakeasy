@@ -4,6 +4,7 @@ signature database. A mismatch in ``argc`` corrupts the emulated stack on x86,
 so hooks and metadata must agree wherever both exist.
 """
 
+import re
 from collections.abc import Iterator
 
 import pytest
@@ -59,3 +60,20 @@ def test_apihook_argc_matches_metadata() -> None:
 
     assert compared > 500, "expected the metadata to cover most hooks"
     assert not mismatches, "\n".join(mismatches)
+
+
+def test_apihook_params_have_names() -> None:
+    db = sigdb.get_default_database()
+    if not db.available:
+        pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")
+
+    unnamed = set()
+    for mod_name, name, argc, _ in _hooked_functions():
+        for candidate in (name, name + "W", name + "A"):
+            sig = db.lookup(mod_name, candidate, sigdb.ARCH_X86)
+            if sig is None or sig.variadic or sig.slot_count(4) != argc:
+                continue
+            if any(re.fullmatch(r"param\d+", p.name) for p in sig.params):
+                unnamed.add(f"{mod_name}.{candidate}")
+
+    assert not unnamed, "add param_names to scripts/win32_overrides.json for: " + ", ".join(sorted(unnamed))
