@@ -792,16 +792,23 @@ class User32(api.ApiHandler):
         """
         return 0
 
-    @apihook("wvsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
+    @apihook("wvsprintf", argc=3)
     def wvsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        buf, fmt, va_list = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)[:3]
+        """
+        int wvsprintf(
+          LPSTR   lpOutput,
+          LPCSTR  lpFmt,
+          va_list arglist
+        );
+        """
+        buf, fmt, va_list = argv
         cw = self.get_char_width(ctx)
         fmt_str = self.read_mem_string(fmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         vargs = self.va_args(va_list, fmt_cnt)
         fin = self.do_str_format(fmt_str, vargs)
-        self.write_string(fin, buf)
+        self.write_mem_string(fin, buf, cw)
         ctx.args.clear()
         ctx.args.append(fin)
         ctx.args.append(fmt_str)

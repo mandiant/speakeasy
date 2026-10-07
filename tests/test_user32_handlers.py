@@ -7,6 +7,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.winenv import arch as e_arch
 from tests.handler_harness import alloc, call, start_process
 
 
@@ -65,3 +66,23 @@ def test_update_window_with_an_unknown_class(dll_emu: Speakeasy) -> None:
     hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, alloc(dll_emu, b"EDIT\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
     assert rv
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize("name, cw", [("wvsprintfA", 1), ("wvsprintfW", 2)])
+def test_wvsprintf_is_stdcall_and_writes_its_width(
+    request: pytest.FixtureRequest, fixture: str, name: str, cw: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None and se.emu.api is not None
+    _, (_, _, argc, conv, _) = se.emu.normalize_import_miss("user32", name)
+    assert (argc, conv) == (3, e_arch.CALL_CONV_STDCALL)
+
+    enc = "utf-8" if cw == 1 else "utf-16le"
+    ps = se.emu.get_ptr_size()
+    fmt = alloc(se, "x%dy\0".encode(enc))
+    va = alloc(se, (7).to_bytes(ps, "little"))
+    buf = alloc(se, b"\xcc" * 16)
+    rv, _ = call(se, "user32", name, [buf, fmt, va])
+    assert rv == 3
+    assert se.mem_read(buf, 4 * cw) == "x7y\0".encode(enc)

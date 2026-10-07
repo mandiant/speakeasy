@@ -98,6 +98,8 @@
     "GetMenuInfo": ["hmenu", "lpcmi"],
     "RegisterClassExA": ["lpwcx"],
     "RegisterClassExW": ["lpwcx"],
+    "wvsprintfA": ["lpOutput", "lpFmt", "arglist"],
+    "wvsprintfW": ["lpOutput", "lpFmt", "arglist"],
     "__WSAFDIsSet": ["fd", "set"]
   }
 }
