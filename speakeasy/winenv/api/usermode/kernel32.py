@@ -6449,7 +6449,7 @@ class Kernel32(api.ApiHandler):
         hProcess, hModule, lpFilename, nSize = argv
 
         if hModule:
-            return self.GetModuleFileName(hModule, lpFilename, nSize)
+            return self.GetModuleFileName(emu, [hModule, lpFilename, nSize], ctx)
 
         size = 0
         cw = self.get_char_width(ctx)
@@ -6457,7 +6457,8 @@ class Kernel32(api.ApiHandler):
         proc = self.get_object_from_handle(hProcess)
 
         if proc is None:
-            return
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         filename = proc.path
 
