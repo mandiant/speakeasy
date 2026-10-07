@@ -209,3 +209,19 @@ def test_path_append_keeps_the_path_for_a_leading_backslash(dll_emu: Speakeasy, 
     )
     assert rv == 1
     assert dll_emu.mem_read(p, 16 * width) == wstr("C:\\dir\\file.exe", width)
+
+
+@pytest.mark.parametrize(
+    "path, relative",
+    [("file.txt", True), ("..\\file.txt", True), ("", True), ("C:\\file.txt", False), ("\\\\srv\\share", False)],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_is_relative(dll_emu: Speakeasy, path: str, relative: bool, width: int) -> None:
+    p = alloc(dll_emu, wstr(path, width))
+    rv, _ = call(dll_emu, "shlwapi", "PathIsRelative" + ("W" if width == 2 else "A"), [p])
+    assert bool(rv) == relative
+
+
+def test_path_is_relative_null(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "shlwapi", "PathIsRelativeA", [0])
+    assert rv
