@@ -1389,6 +1389,8 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         obj = self.get_object_from_addr(Object)
+        if not obj:
+            return ddk.STATUS_INVALID_PARAMETER
         obj.ref_cnt += 1
 
         hnd = self.get_object_handle(obj)
@@ -1475,6 +1477,8 @@ class Ntoskrnl(api.ApiHandler):
             obj = emu.get_current_process()
         else:
             obj = self.get_object_from_handle(hProcess)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         ctx.args["ProcessHandle"].display = obj.path
 
@@ -1511,6 +1515,8 @@ class Ntoskrnl(api.ApiHandler):
             obj = emu.get_current_process()
         else:
             obj = self.get_object_from_handle(ProcessHandle)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         size = int.from_bytes(self.mem_read(RegionSize, self.get_ptr_size()), "little")
 
