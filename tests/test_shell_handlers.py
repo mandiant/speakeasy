@@ -225,3 +225,28 @@ def test_path_is_relative(dll_emu: Speakeasy, path: str, relative: bool, width: 
 def test_path_is_relative_null(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "shlwapi", "PathIsRelativeA", [0])
     assert rv
+
+
+def read_bstr(se: Speakeasy, bstr: int) -> bytes:
+    (size,) = struct.unpack("<I", se.mem_read(bstr - 4, 4))
+    assert se.mem_read(bstr + size, 2) == b"\x00\x00"
+    return se.mem_read(bstr, size)
+
+
+@pytest.mark.parametrize("text", ["", "abc"])
+def test_sys_alloc_string_copies_the_string(dll_emu: Speakeasy, text: str) -> None:
+    rv, _ = call(dll_emu, "oleaut32", "SysAllocString", [alloc(dll_emu, wstr(text, 2))])
+    assert rv != 0
+    assert read_bstr(dll_emu, rv) == text.encode("utf-16le")
+
+
+def test_sys_alloc_string_returns_null_for_null(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "oleaut32", "SysAllocString", [0])
+    assert rv == 0
+
+
+@pytest.mark.parametrize("text, length", [("", 0), ("abc", 2), ("a\x00b", 3)])
+def test_sys_alloc_string_len_copies_length_characters(dll_emu: Speakeasy, text: str, length: int) -> None:
+    rv, _ = call(dll_emu, "oleaut32", "SysAllocStringLen", [alloc(dll_emu, wstr(text, 2)), length])
+    assert rv != 0
+    assert read_bstr(dll_emu, rv) == text[:length].encode("utf-16le")
