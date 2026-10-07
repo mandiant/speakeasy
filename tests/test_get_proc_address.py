@@ -13,8 +13,8 @@ def test_get_proc_address_on_missing_function_returns_zero(config, load_test_bin
 
     get_proc_addr = get_api_calls(eps[0], "kernel32.GetProcAddress")
 
-    assert get_proc_addr[2].args[1] == "AreFileApisANSI"
+    assert get_proc_addr[2].args[1].display == "AreFileApisANSI"
     assert get_proc_addr[2].ret_val != "0x0"
 
-    assert get_proc_addr[3].args[1] == "ThisFunctionIsNotExportedByKernel32"
+    assert get_proc_addr[3].args[1].display == "ThisFunctionIsNotExportedByKernel32"
     assert get_proc_addr[3].ret_val == "0x0"

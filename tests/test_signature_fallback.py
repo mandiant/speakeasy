@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.profiler_events import ApiEvent
+from speakeasy.profiler_events import ApiArg, ApiEvent
 from speakeasy.report import Report
 from speakeasy.winenv.api import sigdb
 
@@ -210,15 +210,17 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch
     assert names == ["kernel32.MoveFileExW", "kernel32.ExitProcess"]
 
     move = events[0]
-    assert move.arg_names == ["lpExistingFileName", "lpNewFileName", "dwFlags"]
-    assert move.args == [OLD_NAME, NEW_NAME, "MOVEFILE_REPLACE_EXISTING"]
-    assert move.arg_types == ["str", "str", "flags"]
-    assert move.arg_values is not None and move.arg_values[2] == MOVEFILE_REPLACE_EXISTING
+    assert [(a.name, a.type, a.display) for a in move.args] == [
+        ("lpExistingFileName", "str", OLD_NAME),
+        ("lpNewFileName", "str", NEW_NAME),
+        ("dwFlags", "flags", "MOVEFILE_REPLACE_EXISTING"),
+    ]
+    assert move.args[2].value == MOVEFILE_REPLACE_EXISTING
     # BOOL return: fake success
     assert move.ret_val == "0x1"
 
     # The stack (x86) / registers (x64) were left exactly as the caller expects
-    assert events[1].args == [f"{EXIT_CODE:#x}"]
+    assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
 def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
@@ -239,16 +241,24 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.GetPrivateProfileStringW", "kernel32.ExitProcess"]
     call = events[0]
-    assert call.arg_names == ["lpAppName", "lpKeyName", "lpDefault", "lpReturnedString", "nSize", "lpFileName"]
-    assert call.args[:3] == ["app", "key", "def"]
-    assert call.args[3].startswith("0x")
-    assert call.args[4:] == [f"{PROFILE_BUFFER_CHARS:#x}", "C:\\x.ini"]
+    assert [a.name for a in call.args] == [
+        "lpAppName",
+        "lpKeyName",
+        "lpDefault",
+        "lpReturnedString",
+        "nSize",
+        "lpFileName",
+    ]
+    displays = [a.display for a in call.args]
+    assert displays[:3] == ["app", "key", "def"]
+    assert displays[3].startswith("0x")
+    assert displays[4:] == [f"{PROFILE_BUFFER_CHARS:#x}", "C:\\x.ini"]
     # the Out buffer is a pointer, not a string, before the call fills it
-    assert call.arg_types == ["str", "str", "str", "ptr", "int", "str"]
+    assert [a.type for a in call.args] == ["str", "str", "str", "ptr", "int", "str"]
     # "0 characters copied" and an empty string in the buffer agree with each other
     assert call.ret_val == "0x0"
     assert blobs[3] == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
-    assert events[1].args == [f"{EXIT_CODE:#x}"]
+    assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
 def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
@@ -261,15 +271,13 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.CreateDirectoryExW", "kernel32.ExitProcess"]
-    assert events[0].arg_names == ["lpTemplateDirectory", "lpNewDirectory", "lpSecurityAttributes"]
-    assert events[0].args == [
-        "C:\\tmpl",
-        "C:\\new",
-        "{nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}",
+    assert [(a.name, a.type, a.display) for a in events[0].args] == [
+        ("lpTemplateDirectory", "str", "C:\\tmpl"),
+        ("lpNewDirectory", "str", "C:\\new"),
+        ("lpSecurityAttributes", "struct", "{nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}"),
     ]
-    assert events[0].arg_types == ["str", "str", "struct"]
     assert events[0].ret_val == "0x1"
-    assert events[1].args == [f"{EXIT_CODE:#x}"]
+    assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
 GENERIC_READ = 0x80000000
@@ -296,32 +304,19 @@ def test_handled_api_args_are_named(config: dict[str, Any]) -> None:
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.CreateFileW", "kernel32.ExitProcess"]
     call = events[0]
-    assert call.arg_names == [
-        "lpFileName",
-        "dwDesiredAccess",
-        "dwShareMode",
-        "lpSecurityAttributes",
-        "dwCreationDisposition",
-        "dwFlagsAndAttributes",
-        "hTemplateFile",
-    ]
     # the handler's own decoding of lpFileName is kept; the rest come from the signature
-    assert call.args == [
-        "C:\\missing.txt",
-        "GENERIC_READ",
-        "FILE_SHARE_READ",
-        "0x0",
-        "OPEN_EXISTING",
-        "FILE_ATTRIBUTE_NORMAL",
-        "0x0",
+    assert [(a.name, a.type, a.display) for a in call.args] == [
+        ("lpFileName", "str", "C:\\missing.txt"),
+        ("dwDesiredAccess", "flags", "GENERIC_READ"),
+        ("dwShareMode", "flags", "FILE_SHARE_READ"),
+        ("lpSecurityAttributes", "ptr", "0x0"),
+        ("dwCreationDisposition", "enum", "OPEN_EXISTING"),
+        ("dwFlagsAndAttributes", "flags", "FILE_ATTRIBUTE_NORMAL"),
+        ("hTemplateFile", "handle", "0x0"),
     ]
-    assert call.arg_types == ["str", "flags", "flags", "ptr", "enum", "flags", "handle"]
-    assert call.arg_values is not None
-    assert call.arg_values[1:] == [GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0]
-    assert events[1].arg_names == ["uExitCode"]
-    assert events[1].args == [f"{EXIT_CODE:#x}"]
-    assert events[1].arg_types == ["int"]
-    assert events[1].arg_values == [EXIT_CODE]
+    values = [a.value for a in call.args[1:]]
+    assert values == [GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0]
+    assert events[1].args == [ApiArg(name="uExitCode", type="int", value=EXIT_CODE, display=f"{EXIT_CODE:#x}")]
 
 
 def test_handler_signature_requires_matching_argc(config: dict[str, Any]) -> None:

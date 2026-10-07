@@ -34,5 +34,5 @@ def test_get_proc_case_insensitive(config, load_test_bin, run_test):
     eps = report.entry_points
     events = eps[0].events or []
     api_calls = [e for e in events if e.event == "api" and e.api_name == "kernel32.GetProcAddress"]
-    assert api_calls[2].args[1] == "AreFileApisANSI"
+    assert api_calls[2].args[1].display == "AreFileApisANSI"
     assert api_calls[2].ret_val != "0x0"

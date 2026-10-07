@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 # Data format versioning
-__report_version__ = "4.0.0"
+__report_version__ = "5.0.0"
 
 import hashlib
 import time
@@ -28,6 +28,7 @@ from speakeasy.profiler_events import (
     THREAD_CREATE,
     THREAD_INJECT,
     AnyEvent,
+    ApiArg,
     ApiEvent,
     ExceptionEvent,
     FileCreateEvent,
@@ -68,7 +69,6 @@ from speakeasy.report import (
     StringsReport,
     SymAccessReport,
 )
-from speakeasy.winenv.api.sigfmt import CallArgs
 
 
 class ProfileError(Exception):
@@ -231,15 +231,15 @@ class Profiler:
         pos: TracePosition,
         name: str,
         ret: int | None,
-        argv: list[Any],
-        call_args: CallArgs | None = None,
+        args: list[ApiArg],
     ) -> None:
         """
         Log a call to an OS API. This includes arguments, return address, and return value.
 
-        ``call_args``, when the signature of the API is known, supplies the
-        names, rendered text, kinds and raw values of the arguments, recorded
-        in place of the raw ``argv`` formatting.
+        A call is recorded once when it repeats the API, address, arguments and
+        return value of one of the last few events. Raw argument values do not
+        count, so a loop that passes the same string from another buffer stays
+        one event.
         """
         run.num_apis += 1
 
@@ -248,32 +248,14 @@ class Profiler:
             run.unique_apis.append(name)
 
         ret_str = hex(ret) if ret is not None else None
+        event = ApiEvent(pos=pos, api_name=name, args=args, ret_val=ret_str)
 
-        if call_args is not None:
-            args = list(call_args.texts)
-        else:
-            args = argv.copy()
-            for i, arg in enumerate(args):
-                if isinstance(arg, int):
-                    args[i] = hex(arg)
-
-        event = ApiEvent(
-            pos=pos,
-            api_name=name,
-            args=args,
-            arg_names=list(call_args.names) if call_args is not None else None,
-            arg_types=list(call_args.kinds) if call_args is not None else None,
-            arg_values=list(call_args.values) if call_args is not None else None,
-            ret_val=ret_str,
-        )
-
+        shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
         if not any(
             e.pos.pc == event.pos.pc
             and e.api_name == event.api_name
-            and e.args == event.args
-            and e.arg_names == event.arg_names
-            and e.arg_types == event.arg_types
+            and [(a.name, a.type, a.display) for a in e.args] == shown
             and e.ret_val == event.ret_val
             for e in recent_events
         ):

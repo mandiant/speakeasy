@@ -31,13 +31,13 @@ def test_wdm_driver_load_unload(wdm_report):
     create_dev = get_api_calls(driver_entry, "ntoskrnl.IoCreateDeviceSecure")
     assert len(create_dev) == 1
     create_dev = create_dev[0]
-    assert create_dev.args[2] == DEV_NAME
+    assert create_dev.args[2].display == DEV_NAME
 
     create_sym = get_api_calls(driver_entry, "ntoskrnl.IoCreateSymbolicLink")
     assert len(create_sym) == 1
     create_sym = create_sym[0]
-    assert create_sym.args[0] == SYM_LINK
-    assert create_sym.args[1] == DEV_NAME
+    assert create_sym.args[0].display == SYM_LINK
+    assert create_sym.args[1].display == DEV_NAME
 
     assert driver_entry.ret_val == 0
 
@@ -45,12 +45,12 @@ def test_wdm_driver_load_unload(wdm_report):
     delete_sym = get_api_calls(driver_unload, "ntoskrnl.IoDeleteSymbolicLink")
     assert len(delete_sym) == 1
     delete_sym = delete_sym[0]
-    assert delete_sym.args[0] == SYM_LINK
+    assert delete_sym.args[0].display == SYM_LINK
 
     delete_dev = get_api_calls(driver_unload, "ntoskrnl.IoDeleteDevice")
     assert len(delete_dev) == 1
     delete_dev = delete_dev[0]
-    assert delete_dev.args[0] != "0x0"
+    assert delete_dev.args[0].display != "0x0"
 
 
 def test_wdm_irp_handlers(wdm_report):
@@ -64,23 +64,23 @@ def test_wdm_irp_handlers(wdm_report):
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
-            assert dprint.args[0] == "Inside IRP_MJ_CREATE handler"
+            assert dprint.args[0].display == "Inside IRP_MJ_CREATE handler"
             assert handler.ret_val == 0
         elif handler.ep_type == "irp_mj_device_control":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
-            assert dprint.args[0] == "Inside IRP_MJ_DEVICE_CONTROL handler"
+            assert dprint.args[0].display == "Inside IRP_MJ_DEVICE_CONTROL handler"
             assert handler.ret_val == 0
         elif handler.ep_type == "irp_mj_close":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
-            assert dprint.args[0] == "Inside IRP_MJ_CLOSE handler"
+            assert dprint.args[0].display == "Inside IRP_MJ_CLOSE handler"
             assert handler.ret_val == 0
         else:
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
-            assert dprint.args[0] == "Inside default handler"
+            assert dprint.args[0].display == "Inside default handler"
             assert handler.ret_val == 0xC00000BB

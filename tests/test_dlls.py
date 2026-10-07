@@ -25,22 +25,22 @@ def test_dll_emu(config, load_test_bin, run_test, bin_file):
     msgbox = get_api_calls(dll_entry, "user32.MessageBoxA")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
-    assert msgbox.args[1] == "Inside process attach"
-    assert msgbox.args[2] == "My caption"
+    assert msgbox.args[1].display == "Inside process attach"
+    assert msgbox.args[2].display == "My caption"
     assert dll_entry.ret_val == 1
 
     ep = eps[1]
     msgbox = get_api_calls(ep, "user32.MessageBoxA")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
-    assert msgbox.args[1] == "Inside emu_test_one"
-    assert msgbox.args[2] == "First export"
+    assert msgbox.args[1].display == "Inside emu_test_one"
+    assert msgbox.args[2].display == "First export"
     assert ep.ret_val == 0x41414141
 
     ep = eps[2]
     msgbox = get_api_calls(ep, "user32.MessageBoxW")
     assert len(msgbox) == 1
     msgbox = msgbox[0]
-    assert msgbox.args[1] == "Inside emu_test_two"
-    assert msgbox.args[2] == "Second export"
+    assert msgbox.args[1].display == "Inside emu_test_two"
+    assert msgbox.args[2].display == "Second export"
     assert ep.ret_val == 0x42424242

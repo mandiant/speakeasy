@@ -4,6 +4,7 @@ import struct
 
 import pytest
 
+from speakeasy.profiler_events import ApiArg
 from speakeasy.winenv.api import sigdb, sigfmt
 
 
@@ -272,12 +273,11 @@ def test_call_args_of_signature_call() -> None:
         sigfmt.RenderedArg("F_ONE", "flags"),
         sigfmt.RenderedArg("0x44", "handle"),
     ]
-    assert sigfmt.get_call_args(sig, 4, rendered, [0x1000, 1, 0x44]) == sigfmt.CallArgs(
-        names=["p0", "p1", "p2"],
-        texts=["C:\\x", "F_ONE", "0x44"],
-        kinds=["str", "flags", "handle"],
-        values=[0x1000, 1, 0x44],
-    )
+    assert sigfmt.get_call_args(sig, 4, rendered, [0x1000, 1, 0x44]) == [
+        ApiArg(name="p0", type="str", value=0x1000, display="C:\\x"),
+        ApiArg(name="p1", type="flags", value=1, display="F_ONE"),
+        ApiArg(name="p2", type="handle", value=0x44, display="0x44"),
+    ]
 
 
 def test_handler_values_replace_rendered_params() -> None:
@@ -293,20 +293,30 @@ def test_handler_values_replace_rendered_params() -> None:
         sigfmt.RenderedArg("0x2000", "ptr"),
     ]
     args = sigfmt.get_call_args(sig, 4, rendered, before, after)
-    assert args.texts == ["C:\\x", "GENERIC_READ", "0x4", "SYMBOLIC", "0x48", "0x3000"]
+    assert [a.display for a in args] == ["C:\\x", "GENERIC_READ", "0x4", "SYMBOLIC", "0x48", "0x3000"]
     # the handler's name for a flags value gives way to the signature's decoding
-    assert args.kinds == ["str", "flags", "int", "text", "handle", "ptr"]
+    assert [a.type for a in args] == ["str", "flags", "int", "text", "handle", "ptr"]
     # values are what the caller passed, not what the handler wrote back
-    assert args.values == before
+    assert [a.value for a in args] == before
 
 
 def test_handler_value_for_multi_slot_param() -> None:
     sig = _sig("u64", "u32")
     rendered = [sigfmt.RenderedArg("0x200000001", "int"), sigfmt.RenderedArg("0x3", "int")]
     args = sigfmt.get_call_args(sig, 4, rendered, [1, 2, 3], [1, "COND", 3])
-    assert args.texts == ["COND", "0x3"]
-    assert args.kinds == ["text", "int"]
-    assert args.values == [0x200000001, 3]
+    assert args == [
+        ApiArg(name="p0", type="text", value=0x200000001, display="COND"),
+        ApiArg(name="p1", type="int", value=3, display="0x3"),
+    ]
+
+
+def test_slot_args_of_call_without_signature() -> None:
+    args = sigfmt.get_slot_args([0x1000, 2], ["C:\\x", 2, "extra"])
+    assert args == [
+        ApiArg(type="text", value=0x1000, display="C:\\x"),
+        ApiArg(type="int", value=2, display="0x2"),
+        ApiArg(type="text", display="extra"),
+    ]
 
 
 def test_call_args_require_matching_slots() -> None:

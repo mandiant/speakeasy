@@ -20,7 +20,7 @@ from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import MemAccess, Run
-from speakeasy.profiler_events import TracePosition
+from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows.cryptman import CryptoManager
@@ -1781,39 +1781,20 @@ class WindowsEmulator(BinaryEmulator):
         return string
 
     @staticmethod
-    def format_api_arg(arg: Any) -> str:
+    def format_api_arg(arg: ApiArg) -> str:
         """
         Render a single API argument the way it appears in the API trace
         """
-        if isinstance(arg, int):
-            return f"0x{arg:x}"
-        elif isinstance(arg, str):
-            return sigfmt.quote_string(arg)
-        elif isinstance(arg, bytes):
-            return f'"{arg}"'  # type: ignore[str-bytes-safe]
-        return ""
+        text = arg.display
+        if arg.type == "str" or (arg.name is None and arg.type == "text"):
+            text = sigfmt.quote_string(text)
+        return f"{arg.name}: {text}" if arg.name is not None else text
 
-    def log_api(
-        self,
-        pc: int,
-        imp_api: str,
-        rv: int | None,
-        argv: list[Any],
-        call_args: sigfmt.CallArgs | None = None,
-    ) -> None:
+    def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg]) -> None:
         """
-        Log an API call and record it with the profiler. ``call_args``, when the
-        signature of the API is known, replaces the default formatting of ``argv``
-        with named, rendered arguments.
+        Log an API call and record it with the profiler
         """
-        if call_args is not None:
-            rendered = [
-                f"{name}: {sigfmt.quote_string(text) if kind == 'str' else text}"
-                for name, text, kind in zip(call_args.names, call_args.texts, call_args.kinds)
-            ]
-        else:
-            rendered = [self.format_api_arg(arg) for arg in argv]
-        call_str = f"{imp_api}({', '.join(rendered)})"
+        call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
         rv_str = hex(rv) if rv is not None else None
         logger.info("%s: %s -> %s", hex(pc), repr(call_str), rv_str)
@@ -1822,7 +1803,7 @@ class WindowsEmulator(BinaryEmulator):
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, argv, call_args=call_args)
+            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, args)
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
         """
@@ -1955,7 +1936,7 @@ class WindowsEmulator(BinaryEmulator):
 
         argv = self.get_func_argv(conv, argc)
         values = sig.values_from_slots(argv, ptr_size)
-        call_args = sigfmt.get_call_args(sig, ptr_size, self._render_signature_args(sig, argv), argv)
+        args = sigfmt.get_call_args(sig, ptr_size, self._render_signature_args(sig, argv), argv)
 
         rv = self._default_return_for_signature(sig)
         logger.debug(
@@ -1976,7 +1957,7 @@ class WindowsEmulator(BinaryEmulator):
                 set_last_error(0)
 
         ret = self.get_ret_address()
-        self.log_api(call_pc, imp_api, rv, argv, call_args=call_args)
+        self.log_api(call_pc, imp_api, rv, args)
         self.do_call_return(argc, ret, rv, conv=conv)
         if not self.run_complete:
             self.enable_code_hook()
@@ -2041,10 +2022,10 @@ class WindowsEmulator(BinaryEmulator):
 
             # Log the API args and return value
             if sig is not None and rendered is not None and len(argv) == len(raw_argv):
-                call_args = sigfmt.get_call_args(sig, self.get_ptr_size(), rendered, raw_argv, argv)
-                self.log_api(call_pc, imp_api, rv, argv, call_args=call_args)
+                args = sigfmt.get_call_args(sig, self.get_ptr_size(), rendered, raw_argv, argv)
             else:
-                self.log_api(call_pc, imp_api, rv, argv)
+                args = sigfmt.get_slot_args(raw_argv, argv)
+            self.log_api(call_pc, imp_api, rv, args)
 
             if not self.run_complete and ret == oret and pc == opc:
                 self.do_call_return(argc, ret, rv, conv=conv)
@@ -2079,7 +2060,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
                 ret = self.get_ret_address()
-                self.log_api(call_pc, imp_api, rv, argv)
+                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv))
                 self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 if not self.run_complete:
                     self.enable_code_hook()
@@ -2097,7 +2078,7 @@ class WindowsEmulator(BinaryEmulator):
                 argv = self.get_func_argv(conv, argc)
                 rv = 1
                 ret = self.get_ret_address()
-                self.log_api(call_pc, imp_api, rv, argv)
+                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv))
                 self.do_call_return(argc, ret, rv, conv=conv)
                 if not self.run_complete:
                     self.enable_code_hook()

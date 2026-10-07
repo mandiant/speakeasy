@@ -92,6 +92,36 @@ class Event(BaseModel):
     event: str = Field(description=("Event type discriminator.\n\nDetermines which concrete payload schema applies."))
 
 
+class ApiArg(BaseModel):
+    """One argument of an API call, as passed by the caller and as shown in the trace."""
+
+    name: str | None = Field(
+        default=None,
+        description="Parameter name from the API signature. Absent when the signature is not known.",
+    )
+    type: str = Field(
+        description=(
+            "How to read ``display``: "
+            "``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), "
+            "``bool`` (TRUE or FALSE), ``enum`` (a member name), "
+            "``flags`` (member names joined by ``|``, maybe with a hex remainder), "
+            "``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), "
+            "``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler)."
+        )
+    )
+    value: int | None = Field(
+        default=None,
+        description=(
+            "Raw value as the caller passed it. "
+            "A parameter that uses more than one argument slot has the combined value. "
+            "A floating point argument that Win64 passes in an XMM register has the value of the "
+            "integer register for the same position instead. "
+            "Absent for an entry that a handler adds, such as the formatted output of a printf call."
+        ),
+    )
+    display: str = Field(description="Human readable rendering of the argument.")
+
+
 class ApiEvent(Event):
     """Records one intercepted API invocation.
 
@@ -108,38 +138,11 @@ class ApiEvent(Event):
             "Used for behavior signatures, clustering, and family comparison."
         )
     )
-    args: list[str] = Field(
+    args: list[ApiArg] = Field(
         description=(
-            "Formatted argument values captured for the call.\n\n"
-            "Integers are typically represented in hexadecimal string form."
+            "Arguments of the call. With a usable API signature there is one entry per parameter; "
+            "otherwise one entry per argument slot, plus any entries a variadic handler adds."
         )
-    )
-    arg_names: list[str] | None = Field(
-        default=None,
-        description=(
-            "Parameter name for each entry of ``args``, when the API signature is known.\n\n"
-            "Present only when the signature accounts for every argument slot of the call."
-        ),
-    )
-    arg_types: list[str] | None = Field(
-        default=None,
-        description=(
-            "How to read each entry of ``args``, present with ``arg_names``: "
-            "``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), "
-            "``bool`` (TRUE or FALSE), ``enum`` (a member name), "
-            "``flags`` (member names joined by ``|``, maybe with a hex remainder), "
-            "``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), "
-            "``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler)."
-        ),
-    )
-    arg_values: list[int] | None = Field(
-        default=None,
-        description=(
-            "Raw value of each parameter as the caller passed it, present with ``arg_names``. "
-            "A parameter that uses more than one argument slot has the combined value. "
-            "A floating point argument that Win64 passes in an XMM register has the value of the "
-            "integer register for the same position instead."
-        ),
     )
     ret_val: str | None = Field(
         default=None,

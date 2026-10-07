@@ -94,7 +94,7 @@ def test_emu_exe_example_modifies_ntreadfile_buffer(config, load_test_bin, caplo
         for event in report.entry_points[0].events or []
         if event.event == "api" and "__stdio_common_vfprintf" in event.api_name
     ]
-    assert printfs[-1].args[2].strip() == "File contained: 0x4141414141414141"
+    assert printfs[-1].args[2].display.strip() == "File contained: 0x4141414141414141"
 
 
 def test_upx_unpack_example_runs_and_dumps_file(tmp_path):

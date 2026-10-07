@@ -7,6 +7,7 @@ from speakeasy.profiler_events import (
     REG_WRITE,
     THREAD_CREATE,
     THREAD_INJECT,
+    ApiArg,
     FileWriteEvent,
     MemAllocEvent,
     RegWriteValueEvent,
@@ -16,7 +17,6 @@ from speakeasy.profiler_events import (
 )
 from speakeasy.windows.fileman import File
 from speakeasy.windows.objman import HandleAllocator
-from speakeasy.winenv.api.sigfmt import CallArgs
 
 
 @dataclass(frozen=True)
@@ -164,15 +164,13 @@ def test_repeated_api_call_with_same_rendering_is_recorded_once():
     run = Run()
     pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401000)
 
-    def call_args(buffer: int) -> CallArgs:
-        return CallArgs(names=["lpLibFileName"], texts=["psapi.dll"], kinds=["str"], values=[buffer])
+    def lib_name(buffer: int) -> list[ApiArg]:
+        return [ApiArg(name="lpLibFileName", type="str", value=buffer, display="psapi.dll")]
 
-    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, [0x2000], call_args=call_args(0x2000))
+    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, lib_name(0x2000))
     # same string from another buffer: one event, holding the first call's values
-    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, [0x3000], call_args=call_args(0x3000))
-    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, [0x4000])
+    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, lib_name(0x3000))
+    unnamed = [ApiArg(type="int", value=1, display="0x1")]
+    profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, unnamed)
 
-    assert [(e.args, e.arg_types, e.arg_values) for e in run.events] == [
-        (["psapi.dll"], ["str"], [0x2000]),
-        (["0x4000"], None, None),
-    ]
+    assert [e.args for e in run.events] == [lib_name(0x2000), unnamed]

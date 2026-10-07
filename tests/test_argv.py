@@ -16,6 +16,6 @@ def test_argv_exe(config, load_test_bin, run_test, bin_file):
     assert len(printfs) - 2 == argv_len
     for i, p in enumerate(printfs[2:]):
         i += 1
-        fmt_str = p.args[2]
+        fmt_str = p.args[2].display
         test_str = f"argv[{i}] = argument_{i}\n"
         assert test_str == fmt_str
