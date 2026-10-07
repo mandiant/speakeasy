@@ -1182,15 +1182,16 @@ class AdvApi32(api.ApiHandler):
         user_name = emu.config.user.name
         ctx.args["lpBuffer"].display = user_name
 
-        if lpBuffer:
-            if cw == 2:
-                out = user_name.encode("utf-16le")
-            elif cw == 1:
-                out = user_name.encode("utf-8")
-            self.mem_write(lpBuffer, out)
-            rv = True
+        need = len(user_name) + 1
+        size = int.from_bytes(self.mem_read(pcbBuffer, 4), "little") if pcbBuffer else 0
         if pcbBuffer:
-            self.mem_write(pcbBuffer, (len(user_name)).to_bytes(4, "little"))
+            self.mem_write(pcbBuffer, need.to_bytes(4, "little"))
+        if not lpBuffer or size < need:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return rv
+
+        self.write_mem_string(user_name, lpBuffer, cw)
+        rv = True
 
         return rv
 
