@@ -426,7 +426,7 @@ class Ntoskrnl(api.ApiHandler):
         (addr,) = argv
         self.mem_free(addr)
 
-    @apihook("memmove", argc=3)
+    @apihook("memmove", argc=3, conv=_arch.CALL_CONV_CDECL)
     def memmove(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *memmove(
@@ -2478,7 +2478,7 @@ class Ntoskrnl(api.ApiHandler):
         nts = ddk.STATUS_SUCCESS
         return nts
 
-    @apihook("wcsnlen", argc=2)
+    @apihook("wcsnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
     def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """s
         ize_t wcsnlen(
@@ -2697,7 +2697,7 @@ class Ntoskrnl(api.ApiHandler):
 
         return rv
 
-    @apihook("mbstowcs", argc=3)
+    @apihook("mbstowcs", argc=3, conv=_arch.CALL_CONV_CDECL)
     def mbstowcs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t mbstowcs(
