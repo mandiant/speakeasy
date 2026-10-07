@@ -104,7 +104,7 @@ class Ndis(api.ApiHandler):
 
         if phnd:
             hnd = self.new_id()
-            hnd = hnd.to_bytes(4, "little")
+            hnd = hnd.to_bytes(self.get_ptr_size(), "little")
             self.mem_write(phnd, hnd)
         return rv
 
@@ -173,7 +173,7 @@ class Ndis(api.ApiHandler):
             self.mem_write(pStatus, rv.to_bytes(4, "little"))
 
         if pProtoHandle:
-            self.mem_write(pProtoHandle, hnd.to_bytes(4, "little"))
+            self.mem_write(pProtoHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisIMRegisterLayeredMiniport", argc=4)
     def NdisIMRegisterLayeredMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -196,7 +196,7 @@ class Ndis(api.ApiHandler):
         self.drivers.update({dhnd: mpc})
 
         if drv_hnd:
-            self.mem_write(drv_hnd, dhnd.to_bytes(4, "little"))
+            self.mem_write(drv_hnd, dhnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
