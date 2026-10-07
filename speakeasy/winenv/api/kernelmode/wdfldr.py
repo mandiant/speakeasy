@@ -194,6 +194,15 @@ class Wdfldr(api.ApiHandler):
 
         return interfaces
 
+    def get_pipe_type(self, ep):
+        pipe_types = {
+            usbdefs.USB_ENDPOINT_TYPE_CONTROL: wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeControl,
+            usbdefs.USB_ENDPOINT_TYPE_ISOCHRONOUS: wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeIsochronous,
+            usbdefs.USB_ENDPOINT_TYPE_BULK: wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeBulk,
+            usbdefs.USB_ENDPOINT_TYPE_INTERRUPT: wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeInterrupt,
+        }
+        return pipe_types[ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_MASK]
+
     @apihook("WdfVersionBind", argc=4)
     def WdfVersionBind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -790,13 +799,7 @@ class Wdfldr(api.ApiHandler):
                     info.MaximumPacketSize = ep.wMaxPacketSize
                     info.EndpointAddress = ep.bEndpointAddress
                     info.Interval = ep.bInterval
-                    if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_ISOCHRONOUS:
-                        info.PipeType = wdf.WdfUsbPipeTypeIsochronous
-                    if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_BULK:
-                        info.PipeType = wdf.WdfUsbPipeTypeBulk
-                    if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_INTERRUPT:
-                        info.PipeType = wdf.WdfUsbPipeTypeInterrupt
-                    info.PipeType = ep.bmAttributes
+                    info.PipeType = self.get_pipe_type(ep)
                     self.mem_write(PipeInfo, info.get_bytes())
 
         if uif:
@@ -837,13 +840,7 @@ class Wdfldr(api.ApiHandler):
                         info.MaximumPacketSize = ep.wMaxPacketSize
                         info.EndpointAddress = ep.bEndpointAddress
                         info.Interval = ep.bInterval
-                        if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_ISOCHRONOUS:
-                            info.PipeType = wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeIsochronous
-                        if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_BULK:
-                            info.PipeType = wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeBulk
-                        if ep.bmAttributes & usbdefs.USB_ENDPOINT_TYPE_INTERRUPT:
-                            info.PipeType = wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeInterrupt
-                        info.PipeType = ep.bmAttributes
+                        info.PipeType = self.get_pipe_type(ep)
                         self.mem_write(PipeInfo, info.get_bytes())
 
         return
