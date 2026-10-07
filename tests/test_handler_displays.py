@@ -779,3 +779,39 @@ def test_load_string_counts_characters(dll_emu: Speakeasy, api: str, count: int,
 def test_memcmp_compares_every_byte(dll_emu: Speakeasy, a: bytes, b: bytes, rv: int) -> None:
     result, _ = _call(dll_emu, "msvcrt", "memcmp", [_alloc(dll_emu, a), _alloc(dll_emu, b), 4])
     assert result == rv
+
+
+def test_crt_string_functions_keep_raw_bytes(dll_emu: Speakeasy) -> None:
+    raw = b"\x8f\xe9\x01AB"
+    src = _alloc(dll_emu, raw + b"\x00")
+    assert _call(dll_emu, "msvcrt", "strlen", [src])[0] == len(raw)
+    assert _call(dll_emu, "msvcrt", "strstr", [src, _alloc(dll_emu, b"AB\x00")])[0] == src + 3
+    assert _call(dll_emu, "msvcrt", "strrchr", [src, ord("A")])[0] == src + 3
+
+    dest = _alloc(dll_emu, b"x\x00" + b"\xcc" * 14)
+    assert _call(dll_emu, "msvcrt", "strcat", [dest, src])[0] == dest
+    assert dll_emu.mem_read(dest, 7) == b"x" + raw + b"\x00"
+    _call(dll_emu, "msvcrt", "strcpy", [dest, src])
+    assert dll_emu.mem_read(dest, 6) == raw + b"\x00"
+
+
+@pytest.mark.parametrize(
+    "a, b, count, rv",
+    [
+        (b"abcX", b"abcY", 3, 0),
+        (b"abcX", b"abcY", 4, -1),
+        (b"abd", b"abc", 3, 1),
+        (b"a", b"b", 0, 0),
+    ],
+)
+def test_strncmp_compares_count_chars(dll_emu: Speakeasy, a: bytes, b: bytes, count: int, rv: int) -> None:
+    result, _ = _call(dll_emu, "msvcrt", "strncmp", [_alloc(dll_emu, a + b"\x00"), _alloc(dll_emu, b + b"\x00"), count])
+    assert result == rv
+
+
+@pytest.mark.parametrize("api", ["strchr", "strrchr"])
+@pytest.mark.parametrize("c, offset", [(0, 4), (0xFFFFFFE9, 1), (ord("z"), None)])
+def test_strchr_finds_bytes_and_terminator(dll_emu: Speakeasy, api: str, c: int, offset: int | None) -> None:
+    s = _alloc(dll_emu, b"a\xe9bc\x00")
+    result, _ = _call(dll_emu, "msvcrt", api, [s, c])
+    assert result == (0 if offset is None else s + offset)
