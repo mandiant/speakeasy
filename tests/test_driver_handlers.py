@@ -92,6 +92,20 @@ def _select_single_interface(se: Speakeasy, driver_globals: int, usb_device: int
     return params.Types.SingleInterface.ConfiguredUsbInterface
 
 
+def _configured_usb_interface(se: Speakeasy, driver_globals: int) -> int:
+    usb_device = _usb_device(se, driver_globals)
+    desc = alloc(se, CONFIG_DESCRIPTOR)
+    rv, _ = _retrieve_config_descriptor(se, driver_globals, usb_device, desc, len(CONFIG_DESCRIPTOR))
+    assert rv == ddk.STATUS_SUCCESS
+    return _select_single_interface(se, driver_globals, usb_device)
+
+
+def _pipe_information(se: Speakeasy, addr: int) -> tuple[int, int, int, int]:
+    info = wdf.WDF_USB_PIPE_INFORMATION(_ptr_size(se))
+    info.cast(se.mem_read(addr, info.sizeof()))
+    return info.PipeType, info.EndpointAddress, info.MaximumPacketSize, info.Interval
+
+
 def test_wsk_receive_from_accepts_all_parameters(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "netio", "callback_WskReceiveFrom", [1, 2, 3, 4, 5, 6, 7, 8])
     assert rv == 0
@@ -231,3 +245,26 @@ def test_wdf_usb_unknown_handle(any_driver_emu: Speakeasy, api: str, argv: list[
     params_addr = alloc(any_driver_emu, params.get_bytes())
     args = [driver_globals] + [params_addr if a == "params" else a for a in argv]
     assert call(any_driver_emu, "wdfldr", api, args)[0] == rv
+
+
+@pytest.mark.parametrize(
+    "index, expected",
+    [
+        (0, (wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeBulk, 0x81, 0x200, 0)),
+        (1, (wdf.WDF_USB_PIPE_TYPE.WdfUsbPipeTypeInterrupt, 0x02, 0x40, 10)),
+    ],
+)
+def test_wdf_usb_pipe_information(any_driver_emu: Speakeasy, index: int, expected: tuple[int, int, int, int]) -> None:
+    driver_globals = _wdf_driver(any_driver_emu)
+    usb_interface = _configured_usb_interface(any_driver_emu, driver_globals)
+    assert (
+        call(any_driver_emu, "wdfldr", "WdfUsbInterfaceGetNumConfiguredPipes", [driver_globals, usb_interface])[0] == 2
+    )
+    info = alloc(any_driver_emu, b"\x00" * 0x20)
+    args = [driver_globals, usb_interface, index, info]
+    pipe, _ = call(any_driver_emu, "wdfldr", "WdfUsbInterfaceGetConfiguredPipe", args)
+    assert pipe != 0
+    assert _pipe_information(any_driver_emu, info) == expected
+    info = alloc(any_driver_emu, b"\x00" * 0x20)
+    call(any_driver_emu, "wdfldr", "WdfUsbTargetPipeGetInformation", [driver_globals, pipe, info])
+    assert _pipe_information(any_driver_emu, info) == expected
