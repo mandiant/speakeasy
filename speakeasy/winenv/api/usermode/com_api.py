@@ -31,8 +31,19 @@ class ComApi(api.ApiHandler):
             void   **ppvObject
         );
         """
-        # not implemented
-        return comdefs.S_OK
+        ptr, riid, ppvObject = argv
+        if not ppvObject:
+            return comdefs.E_POINTER
+
+        iid = comdefs.convert_guid_bytes_to_str(self.mem_read(riid, 16))
+        iid_name = comdefs.get_iid(iid)
+        if iid_name:
+            ctx.args[1].display = iid_name
+            self.mem_write(ppvObject, ptr.to_bytes(emu.get_ptr_size(), "little"))
+            return comdefs.S_OK
+
+        self.mem_write(ppvObject, b"\x00" * emu.get_ptr_size())
+        return comdefs.E_NOINTERFACE
 
     @apihook("IUnknown.AddRef", argc=1)
     def IUnknown_AddRef(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
