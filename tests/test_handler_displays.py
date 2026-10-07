@@ -15,32 +15,32 @@ from speakeasy.winenv.api.api import ApiContext, HandlerArgs
 from speakeasy.winenv.defs.nt import ddk
 
 
-@pytest.fixture
-def dll_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+def _load(config: dict[str, Any], data: bytes) -> Iterator[Speakeasy]:
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated")
     se = Speakeasy(config=config)
     try:
-        se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
+        se.load_module(data=data)
         assert se.emu is not None
         se.emu.curr_run = Run()
         yield se
     finally:
         se.shutdown()
+
+
+@pytest.fixture
+def dll_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from _load(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.fixture
+def dll64_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from _load(config, load_test_bin("dll_test_x64.dll.xz"))
 
 
 @pytest.fixture
 def driver_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
-    if not sigdb.get_default_database().available:
-        pytest.skip("bundled signature database not generated")
-    se = Speakeasy(config=config)
-    try:
-        se.load_module(data=load_test_bin("wdm_test_x86.sys.xz"))
-        assert se.emu is not None
-        se.emu.curr_run = Run()
-        yield se
-    finally:
-        se.shutdown()
+    yield from _load(config, load_test_bin("wdm_test_x86.sys.xz"))
 
 
 def _alloc(se: Speakeasy, data: bytes) -> int:
@@ -163,6 +163,16 @@ def test_stdio_common_vsprintf_output_and_format_are_on_their_slots(dll_emu: Spe
     buf, fmt, va = _format_args(dll_emu)
     _, displays = _call(dll_emu, "msvcrt", "__stdio_common_vsprintf", [0, 0, buf, 64, fmt, 0, va])
     assert displays == {0: "0x0", 1: "0x0", 2: "n=7", 3: "0x40", 4: "n=%d", 5: "0x0", 6: hex(va)}
+
+
+def test_stdio_common_vsprintf_x64_options_use_one_slot(dll64_emu: Speakeasy) -> None:
+    buf = _alloc(dll64_emu, b"\x00" * 64)
+    fmt = _alloc(dll64_emu, b"n=%d\x00")
+    va = _alloc(dll64_emu, struct.pack("<Q", 7))
+    _, displays = _call(dll64_emu, "msvcrt", "__stdio_common_vsprintf", [0, buf, 64, fmt, 0, va, 0])
+    assert dll64_emu.mem_read(buf, 4) == b"n=7\x00"
+    assert displays[1] == "n=7"
+    assert displays[3] == "n=%d"
 
 
 def test_wvnsprintf_format_is_on_psz_fmt(dll_emu: Speakeasy) -> None:
