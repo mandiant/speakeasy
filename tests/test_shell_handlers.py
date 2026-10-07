@@ -6,6 +6,7 @@ Windows writes.
 import ntpath
 import struct
 import uuid
+import zlib
 
 import pytest
 
@@ -181,3 +182,10 @@ def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> No
     obj = read_ptr(dll_emu, pp)
     query_interface = read_ptr(dll_emu, read_ptr(dll_emu, obj))
     assert (query_interface, "com_api", "IUnknown.QueryInterface") in dll_emu.emu.callbacks
+
+
+def test_rtl_compute_crc32_continues_from_the_initial_value(dll_emu: Speakeasy) -> None:
+    hello, world = alloc(dll_emu, b"hello"), alloc(dll_emu, b" world")
+    first, _ = call(dll_emu, "ntdll", "RtlComputeCrc32", [0, hello, 5])
+    rv, _ = call(dll_emu, "ntdll", "RtlComputeCrc32", [first, world, 6])
+    assert rv == zlib.crc32(b"hello world")
