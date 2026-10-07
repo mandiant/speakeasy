@@ -5395,6 +5395,9 @@ class Kernel32(api.ApiHandler):
         """
         access, bInheritHandle, dwThreadId = argv
         thread = emu.get_object_from_id(dwThreadId)
+        if not thread:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
         hnd = emu.get_object_handle(thread)
         if not hnd:
             hnd = 0
