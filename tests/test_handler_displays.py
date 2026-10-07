@@ -164,3 +164,17 @@ def test_zw_query_value_key_accepts_a_null_value_name(driver_emu: Speakeasy) -> 
     rv, displays = _call(driver_emu, "ntoskrnl", "ZwQueryValueKey", [0, 0, 2, info, 64, ret_len])
     assert rv == ddk.STATUS_INVALID_HANDLE
     assert displays["ValueName"] == "0x0"
+
+
+def test_crypt_create_hash_rejects_an_unknown_algid(dll_emu: Speakeasy) -> None:
+    ph_hash = _alloc(dll_emu, b"\x00" * 4)
+    rv, displays = _call(dll_emu, "advapi32", "CryptCreateHash", [1, 0x1234, 0, 0, ph_hash])
+    assert rv == 0
+    assert displays["Algid"] == "0x1234"
+
+
+def test_crypt_create_hash_shows_a_known_algid(dll_emu: Speakeasy) -> None:
+    ph_hash = _alloc(dll_emu, b"\x00" * 4)
+    rv, displays = _call(dll_emu, "advapi32", "CryptCreateHash", [1, 0x8003, 0, 0, ph_hash])
+    assert rv == 1
+    assert displays["Algid"] == "CALG_MD5"
