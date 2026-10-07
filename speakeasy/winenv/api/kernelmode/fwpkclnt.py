@@ -336,7 +336,7 @@ class Fwpkclnt(api.ApiHandler):
         guid = self.mem_read(key, 16)
         guid = uuid.UUID(bytes_le=guid)
 
-        if self.sublayers.get(guid):
+        if self.sublayers.pop(str(guid), None):
             rv = ddk.STATUS_SUCCESS
 
         return rv
