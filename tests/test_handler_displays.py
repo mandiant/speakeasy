@@ -178,3 +178,13 @@ def test_crypt_create_hash_shows_a_known_algid(dll_emu: Speakeasy) -> None:
     rv, displays = _call(dll_emu, "advapi32", "CryptCreateHash", [1, 0x8003, 0, 0, ph_hash])
     assert rv == 1
     assert displays["Algid"] == "CALG_MD5"
+
+
+def test_win_http_query_headers_shows_the_info_level(dll_emu: Speakeasy) -> None:
+    buf = _alloc(dll_emu, b"\x00" * 64)
+    buf_len = _alloc(dll_emu, struct.pack("<I", 64))
+    index = _alloc(dll_emu, b"\x00" * 4)
+    _, displays = _call(dll_emu, "winhttp", "WinHttpQueryHeaders", [1, 22, 0, buf, buf_len, index])
+    assert displays["dwInfoLevel"] == "WINHTTP_QUERY_RAW_HEADERS_CRLF"
+    assert displays["pwszName"] == "0x0"
+    assert displays["lpdwIndex"] == hex(index)
