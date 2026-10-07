@@ -66,6 +66,7 @@ class Kernel32(api.ApiHandler):
         self.find_files = {}
         self.find_volumes = {}
         self.snapshots = {}
+        self.tls_count = 0
         self.tick_counter = 86400000  # 1 day in millisecs
         self.perf_counter = 0x5FD27D571F
 
@@ -2361,9 +2362,10 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.tls
 
-        tls.append(0)
+        idx = self.tls_count
+        self.tls_count += 1
+        tls.extend([0] * (self.tls_count - len(tls)))
         thread.tls = tls
-        idx = len(tls) - 1
 
         return idx
 
@@ -2382,7 +2384,8 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.tls
 
-        if dwTlsIndex < len(tls):
+        if dwTlsIndex < self.tls_count:
+            tls.extend([0] * (dwTlsIndex + 1 - len(tls)))
             tls[dwTlsIndex] = lpTlsValue
             thread.tls = tls
             rv = 1
@@ -2406,8 +2409,9 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.tls
 
-        if dwTlsIndex < len(tls):
-            rv = tls[dwTlsIndex]
+        if dwTlsIndex < self.tls_count:
+            if dwTlsIndex < len(tls):
+                rv = tls[dwTlsIndex]
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
