@@ -3311,7 +3311,7 @@ class Kernel32(api.ApiHandler):
             BYTE TestChar
         );
         """
-        return True
+        return False
 
     @apihook("SetEnvironmentVariable", argc=2)
     def SetEnvironmentVariable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

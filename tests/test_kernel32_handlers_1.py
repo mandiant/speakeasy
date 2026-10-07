@@ -360,3 +360,11 @@ def test_get_full_path_name_sizes_and_file_part(
         assert ptr == 0
     else:
         assert ptr == buf + (len(path) - len(part)) * cw
+
+
+@pytest.mark.parametrize("byte", [0x41, 0x81, 0xE0])
+def test_code_page_1252_has_no_lead_bytes(dll_emu: Speakeasy, byte: int) -> None:
+    acp, _ = call(dll_emu, "kernel32", "GetACP", [])
+    assert acp == 1252
+    rv, _ = call(dll_emu, "kernel32", "IsDBCSLeadByte", [byte])
+    assert not rv
