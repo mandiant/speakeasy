@@ -259,3 +259,24 @@ def test_path_canonicalize_uses_the_char_width(dll_emu: Speakeasy, width: int) -
     rv, _ = call(dll_emu, "shlwapi", "PathCanonicalize" + ("W" if width == 2 else "A"), [out, src])
     assert rv == 1
     assert dll_emu.mem_read(out, 8 * width) == wstr("C:\\abc", width) + b"\xcc" * width
+
+
+@pytest.mark.parametrize(
+    "path, ext, expected",
+    [
+        ("C:\\dir.v1\\file", ".exe", "C:\\dir.v1\\file.exe"),
+        ("C:\\dir.v1\\file.txt", ".exe", "C:\\dir.v1\\file.exe"),
+        ("file", ".exe", "file.exe"),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_rename_extension_changes_the_file_name_only(
+    dll_emu: Speakeasy, path: str, ext: str, expected: str, width: int
+) -> None:
+    p = alloc(dll_emu, wstr(path, width) + b"\x00" * 16)
+    rv, _ = call(
+        dll_emu, "shlwapi", "PathRenameExtension" + ("W" if width == 2 else "A"), [p, alloc(dll_emu, wstr(ext, width))]
+    )
+    assert rv == 1
+    assert dll_emu.mem_read(p, (len(expected) + 1) * width) == wstr(expected, width)
+
