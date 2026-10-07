@@ -2525,19 +2525,22 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("wcsnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
     def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """s
-        ize_t wcsnlen(
+        """
+        size_t wcsnlen(
            const wchar_t *str,
            size_t numberOfElements
         );
         """
 
         src, num_elements = argv
-        ws = self.read_wide_string(src)
+        ws = self.read_wide_string(src, max_chars=num_elements)
 
         ctx.args[0].display = ws
 
-        return len(ws)
+        rv = 0
+        while rv < num_elements and self.mem_read(src + rv * 2, 2) != b"\x00\x00":
+            rv += 1
+        return rv
 
     @apihook("IoRegisterShutdownNotification", argc=1)
     def IoRegisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2757,12 +2760,14 @@ class Ntoskrnl(api.ApiHandler):
 
         mb = self.read_string(mbstr)
         ctx.args[1].display = mb
-        wide = mb.encode("utf-16le")
         if not wcstr:
             rv = len(mb)
         else:
+            wide = mb[:count].encode("utf-16le")
+            if len(mb) < count:
+                wide += b"\x00\x00"
             self.mem_write(wcstr, wide)
-            rv = len(mb)
+            rv = min(len(mb), count)
 
         return rv
 

@@ -360,3 +360,26 @@ def test_rtl_ansi_string_to_unicode_string_keeps_the_caller_buffer_size(driver_e
     rv, _ = call(driver_emu, "ntoskrnl", "RtlAnsiStringToUnicodeString", [dest, ansi_string_x86(driver_emu, b"ab"), 0])
     assert rv == ddk.STATUS_SUCCESS
     assert read_unicode_string_x86(driver_emu, dest) == (4, 64, "ab".encode("utf-16le"))
+
+
+@pytest.mark.parametrize(
+    ("count", "rv", "written"),
+    [
+        (8, 3, "abc\0"),
+        (3, 3, "abc"),
+        (2, 2, "ab"),
+    ],
+)
+def test_mbstowcs_converts_at_most_count_characters(driver_emu: Speakeasy, count: int, rv: int, written: str) -> None:
+    out = alloc(driver_emu, b"\xee" * 32)
+    result, _ = call(driver_emu, "ntoskrnl", "mbstowcs", [out, alloc(driver_emu, b"abc\x00"), count])
+    assert result == rv
+    data = written.encode("utf-16le")
+    assert driver_emu.mem_read(out, len(data) + 2) == data + b"\xee\xee"
+
+
+@pytest.mark.parametrize(("limit", "expected"), [(3, 3), (8, 8), (20, 8)])
+def test_wcsnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected: int) -> None:
+    s = alloc(driver_emu, "abcdefgh\0".encode("utf-16le"))
+    rv, _ = call(driver_emu, "ntoskrnl", "wcsnlen", [s, limit])
+    assert rv == expected
