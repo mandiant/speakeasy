@@ -137,6 +137,14 @@ class AdvApi32(api.ApiHandler):
 
         return rv
 
+    def write_value_type(self, val, lpType, arg):
+        typ = val.get_type()
+        code = regdefs.get_flag_value(typ) if isinstance(typ, str) else typ
+        if not lpType or not isinstance(code, int):
+            return
+        self.mem_write(lpType, code.to_bytes(4, "little"))
+        arg.display = regdefs.get_value_type(code)
+
     @apihook("RegQueryValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryValueEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -158,10 +166,6 @@ class AdvApi32(api.ApiHandler):
             lpValueName = self.read_mem_string(lpValueName, cw)
             ctx.args["lpValueName"].display = lpValueName
 
-        type_name = regdefs.get_value_type(lpType)
-        if type_name:
-            ctx.args["lpType"].display = type_name
-
         length = 0
         if lpcbData:
             length = self.mem_read(lpcbData, 4)
@@ -172,6 +176,7 @@ class AdvApi32(api.ApiHandler):
         if key:
             val = key.get_value(lpValueName)
             if val:
+                self.write_value_type(val, lpType, ctx.args["lpType"])
                 output = b""
                 typ = val.get_type()
                 data = val.get_data()
@@ -1685,10 +1690,6 @@ class AdvApi32(api.ApiHandler):
             lpValue = self.read_mem_string(lpValue, cw)
             ctx.args["lpValue"].display = lpValue
 
-        type_name = regdefs.get_value_type(lpType)
-        if type_name:
-            ctx.args["pdwType"].display = type_name
-
         length = 0
         if lpcbData:
             length = self.mem_read(lpcbData, 4)
@@ -1698,6 +1699,7 @@ class AdvApi32(api.ApiHandler):
         if key:
             val = key.get_value(lpValue)
             if val:
+                self.write_value_type(val, lpType, ctx.args["pdwType"])
                 output = b""
 
                 if lpcbData:
