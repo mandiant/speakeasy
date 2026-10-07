@@ -312,3 +312,11 @@ def test_enum_processes_reports_bytes(emu: Speakeasy) -> None:
     assert int.from_bytes(emu.mem_read(needed, 4), "little") == 4 * count
 
     assert call(emu, "kernel32", "EnumProcesses", [pids, 4 * 64, 0])[0]
+
+
+def test_get_system_time_precise_as_file_time(emu: Speakeasy) -> None:
+    ft = alloc(emu, b"\x00" * 8)
+    call(emu, "kernel32", "GetSystemTimePreciseAsFileTime", [ft])
+    ticks = int.from_bytes(emu.mem_read(ft, 8), "little")
+    when = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ticks // 10)
+    assert abs(when - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)) < datetime.timedelta(minutes=1)
