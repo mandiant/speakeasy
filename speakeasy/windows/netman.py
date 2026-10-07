@@ -219,6 +219,9 @@ class WininetRequest(WininetComponent):
                         with open(default_resp_path, "rb") as f:
                             self.response = BytesIO(f.read())
 
+        if self.response is None:
+            self.response = BytesIO(b"")
+
         return self.response
 
 
