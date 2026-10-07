@@ -2761,7 +2761,7 @@ class Ntoskrnl(api.ApiHandler):
 
         hnd = self.reg_open_key(name, create=False)
         if not hnd:
-            rv = ddk.STATUS_INVALID_HANDLE
+            return ddk.STATUS_OBJECT_NAME_NOT_FOUND
 
         if phnd:
             self.mem_write(phnd, hnd.to_bytes(self.get_ptr_size(), "little"))

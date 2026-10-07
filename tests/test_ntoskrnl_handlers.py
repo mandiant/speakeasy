@@ -3,7 +3,7 @@ import pytest
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
-from tests.handler_harness import alloc, call
+from tests.handler_harness import alloc, call, object_attributes
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -87,3 +87,11 @@ def test_allshl_shifts_edx_eax_by_cl(driver_emu: Speakeasy, value: int, count: i
     eax, left = call_x86(driver_emu, "_allshl", [], CDECL)
     assert (emu.reg_read(_arch.X86_REG_EDX) << 32 | eax) == expected
     assert left == 0
+
+
+def test_zw_open_key_reports_a_missing_key(driver_emu: Speakeasy) -> None:
+    phnd = alloc(driver_emu, b"\xcc" * 4)
+    oa = object_attributes(driver_emu, "\\Registry\\Machine\\Software\\NoSuchVendor\\NoSuchKey")
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])
+    assert rv == ddk.STATUS_OBJECT_NAME_NOT_FOUND
+    assert driver_emu.mem_read(phnd, 4) == b"\xcc" * 4
