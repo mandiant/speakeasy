@@ -9,7 +9,6 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
-from Crypto.Cipher import ARC4
 
 from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
@@ -305,6 +304,22 @@ def _derive_and_decrypt(se: Speakeasy, algid: int, flags: int, ciphertext: bytes
     return se.mem_read(buf, len(ciphertext))
 
 
+def _rc4(key: bytes, data: bytes) -> bytes:
+    s = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + s[i] + key[i % len(key)]) & 0xFF
+        s[i], s[j] = s[j], s[i]
+    out = bytearray()
+    i = j = 0
+    for b in data:
+        i = (i + 1) & 0xFF
+        j = (j + s[i]) & 0xFF
+        s[i], s[j] = s[j], s[i]
+        out.append(b ^ s[(s[i] + s[j]) & 0xFF])
+    return bytes(out)
+
+
 @pytest.mark.parametrize(
     "algid, hasher, flags, key",
     [
@@ -320,7 +335,7 @@ def test_crypt_derive_key_rc4(
     dll_emu: Speakeasy, algid: int, hasher: Callable[[bytes], Any], flags: int, key: Callable[[bytes], bytes]
 ) -> None:
     plaintext = b"hello world!"
-    ciphertext = ARC4.new(key(hasher(b"secret").digest())).encrypt(plaintext)
+    ciphertext = _rc4(key(hasher(b"secret").digest()), plaintext)
     assert _derive_and_decrypt(dll_emu, algid, flags, ciphertext) == plaintext
 
 
