@@ -2061,13 +2061,7 @@ class Kernel32(api.ApiHandler):
         if proc:
             for mod in emu.modules:
                 if mod.base == hmod:
-                    bn = mod.get_base_name()
-                    mname, _ = os.path.splitext(bn)
-                    entry = next(filter(lambda entry: entry.name == proc, mod.get_exports()), None)
-                    if entry:
-                        rv = emu.get_proc(mname, proc)
-                    elif emu.config.modules.functions_always_exist or emu.has_api_signature(mname, proc):
-                        rv = emu.get_proc(mname, proc)
+                    rv = emu.resolve_export(mod, proc)
                     break
 
         return rv

@@ -30,7 +30,7 @@ import logging
 import os
 import threading
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ BOOL_KINDS = ("b", "B")
 FLOAT_KINDS = ("f32", "f64")
 AGGREGATE_KINDS = ("st", "g")
 INT_KINDS = ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64")
+EMULATION_SCALAR_KINDS = INT_KINDS + BOOL_KINDS + ("p", "ps", "a", "s", "S", "h")
 
 
 def normalize_dll(name: str) -> str:
@@ -294,6 +295,29 @@ class FuncSig:
     def supports_arch(self, arch: str) -> bool:
         return self.arch is None or arch in self.arch
 
+    def supports_emulation(self, ptr_size: int) -> bool:
+        """Whether the current generic integer-slot executor can use this ABI.
+
+        This conservative capability check does not affect catalog membership
+        or handler/hook availability. Floating-point and aggregate transport,
+        variadic calls, and non-cdecl/stdcall conventions need explicit support.
+        On x86, wide integer arguments occupy multiple stack slots, but wide
+        returns require EDX:EAX and cannot use the generic return path.
+        """
+        if ptr_size not in (4, 8):
+            return False
+        arch = ARCH_X86 if ptr_size == 4 else ARCH_X64
+        if not self.supports_arch(arch) or self.skip is not None or self.variadic:
+            return False
+        if self.conv not in (CONV_CDECL, CONV_STDCALL):
+            return False
+        if self.ret_kind != "v":
+            if self.ret_kind not in EMULATION_SCALAR_KINDS:
+                return False
+            if ParamSig("", self.ret).size(ptr_size) > ptr_size:
+                return False
+        return all(param.kind in EMULATION_SCALAR_KINDS for param in self.params)
+
     def slot_layout(self, ptr_size: int) -> list[int]:
         return [p.slots(ptr_size) for p in self.params]
 
@@ -392,6 +416,25 @@ class SignatureSource(ABC):
     def lookup(self, dll: str, func: str, arch: str) -> FuncSig | None:
         """Return the signature for ``dll!func`` on ``arch`` ("x86" or "x64"), if known."""
 
+    def lookup_exact(self, dll: str, func: str, arch: str) -> FuncSig | None:
+        """Return an exact module/name declaration, including unsupported ABIs.
+
+        Custom sources can override this to search their declarations directly.
+        The default validates the existing lookup result without accepting
+        aliases, name substitutions, or architecture-ineligible signatures.
+        """
+        sig = self.lookup(dll, func, arch)
+        if sig is not None and normalize_dll(sig.dll) == normalize_dll(dll) and sig.name == func:
+            return sig if sig.supports_arch(arch) else None
+        return None
+
+    def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
+        """Enumerate exact module declarations, independently of ABI support.
+
+        Lookup-only custom sources contribute no catalog entries by default.
+        """
+        return iter(())
+
     def lookup_enum(self, name: str) -> EnumDef | None:
         """Return the enum definition a type code qualifier refers to, if this source has it."""
         return None
@@ -489,6 +532,43 @@ class Win32MetadataSource(SignatureSource):
         dll = normalize_dll(dll)
         return self._dll_aliases.get(dll, dll)
 
+    def lookup_exact(self, dll: str, func: str, arch: str) -> FuncSig | None:
+        """Find the first exact DLL/name declaration eligible for ``arch``.
+
+        No cross-DLL fallback, DLL alias canonicalization, or name prefixes are
+        applied. A returned signature can still have an unsupported ABI;
+        execution capability must be checked separately by the caller.
+        """
+        self._load()
+        dll = normalize_dll(dll)
+        for idx, entry in enumerate(self._functions.get(func, ())):
+            if normalize_dll(entry["dll"]) != dll:
+                continue
+            arches = entry.get("arch")
+            if arches is not None and arch not in arches:
+                continue
+            return self._to_sig(func, idx, entry)
+        return None
+
+    def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
+        """Yield exact DLL declarations in name order, converting them lazily.
+
+        Unlike lookup, this never reuses another DLL's declarations or applies
+        DLL aliases/name prefixes. The first architecture-eligible declaration
+        for each exact name wins; skip markers do not affect membership.
+        """
+        self._load()
+        dll = normalize_dll(dll)
+        for name in sorted(self._functions):
+            for idx, entry in enumerate(self._functions[name]):
+                if normalize_dll(entry["dll"]) != dll:
+                    continue
+                arches = entry.get("arch")
+                if arches is not None and arch not in arches:
+                    continue
+                yield self._to_sig(name, idx, entry)
+                break
+
     def lookup(self, dll: str, func: str, arch: str) -> FuncSig | None:
         self._load()
         if not self._functions:
@@ -500,7 +580,8 @@ class Win32MetadataSource(SignatureSource):
         candidates: list[tuple[str, int, dict]] = []
         for name in names:
             for idx, entry in enumerate(self._functions.get(name, ())):
-                if entry.get("arch") and arch not in entry["arch"]:
+                arches = entry.get("arch")
+                if arches is not None and arch not in arches:
                     continue
                 candidates.append((name, idx, entry))
         if not candidates:
@@ -554,7 +635,7 @@ class Win32MetadataSource(SignatureSource):
                 params=tuple(_to_param(p) for p in entry.get("params", [])),
                 conv=entry.get("conv", CONV_STDCALL),
                 variadic=bool(entry.get("variadic")),
-                arch=tuple(entry["arch"]) if entry.get("arch") else None,
+                arch=tuple(entry["arch"]) if entry.get("arch") is not None else None,
                 set_last_error=bool(entry.get("sle")),
                 skip=entry.get("skip"),
                 source=self.name,
@@ -612,6 +693,38 @@ class SignatureDatabase:
             if sig is not None:
                 return sig
         return None
+
+    def lookup_exact(self, dll: str, func: str, arch: str) -> FuncSig | None:
+        """Return the first source's exact, architecture-eligible declaration.
+
+        Unsupported declarations retain source precedence. Explicit alias
+        bindings belong to the caller; this method never applies aliases.
+        """
+        dll = normalize_dll(dll)
+        for source in self.sources:
+            sig = source.lookup_exact(dll, func, arch)
+            if sig is not None and normalize_dll(sig.dll) == dll and sig.name == func and sig.supports_arch(arch):
+                return sig
+        return None
+
+    def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
+        """Yield catalog entries in source order, keeping the first exact name.
+
+        Membership comes from enumeration, never permissive lookup or an ABI
+        capability check. Each source controls its own declaration order;
+        foreign or architecture-ineligible results cannot claim precedence.
+        """
+        dll = normalize_dll(dll)
+        seen: set[str] = set()
+        for source in self.sources:
+            for sig in source.iter_functions(dll, arch):
+                if not isinstance(sig, FuncSig):
+                    raise TypeError(f"signature source {source.name!r} iter_functions must yield FuncSig records")
+                if normalize_dll(sig.dll) != dll or not sig.supports_arch(arch):
+                    continue
+                if sig.name not in seen:
+                    seen.add(sig.name)
+                    yield sig
 
     def lookup_enum(self, name: str) -> EnumDef | None:
         for source in self.sources:

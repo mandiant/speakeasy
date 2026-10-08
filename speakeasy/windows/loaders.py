@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ntpath
 import os
+import struct
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -55,7 +56,7 @@ def perms_from_section_chars(chars: int) -> int:
         perms |= common.PERM_MEM_WRITE
     if chars & ImageSectionCharacteristics.IMAGE_SCN_MEM_EXECUTE:
         perms |= common.PERM_MEM_EXEC
-    return perms
+    return int(perms)
 
 
 def get_prot_string(perms: int) -> str:
@@ -70,6 +71,7 @@ class ImportEntry:
     iat_address: int
     dll_name: str
     func_name: str
+    source: str = "static"
 
 
 @dataclass
@@ -78,6 +80,9 @@ class ExportEntry:
     address: int
     ordinal: int
     execution_mode: str
+    kind: str = "function"
+    forwarder: str | None = None
+    visibility: str = "static"
 
 
 @dataclass
@@ -100,6 +105,7 @@ class LoadedImage:
     loader: Loader | None = None
     sections: list[SectionEntry] = field(default_factory=list)
     pe_metadata: PeMetadata | None = None
+    source: str = "guest_pe"
 
 
 class Loader(Protocol):
@@ -167,6 +173,57 @@ class RuntimeModule:
         return self._image.pe_metadata
 
 
+def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
+    """Check raw delay descriptors before trusting pefile's permissive parser.
+
+    Legacy x86 descriptors contain VAs. pefile normalizes their struct fields
+    in place; retain the raw bytes so mapping does not rewrite the guest table.
+    """
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) <= 13:
+        return 0, b"", []
+    directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[13]
+    rva, size = directory.VirtualAddress, directory.Size
+    if not rva and not size:
+        return 0, b"", []
+    if not rva or size < 32 or rva + size > pe.image_size:
+        raise ValueError("Delay import directory lies outside the image or is truncated")
+    raw = pe.get_data(rva, size)
+    if len(raw) != size:
+        raise ValueError("Truncated delay import directory")
+    counts: list[int] = []
+    for offset in range(0, size - 31, 32):
+        fields = struct.unpack_from("<8I", raw, offset)
+        if not any(fields):
+            return rva, raw, counts
+        attrs, name, _handle, iat, names, _bound, _unload, _timestamp = fields
+        if attrs not in (0, 1) or (pe.arch == _arch.ARCH_AMD64 and attrs != 1):
+            raise ValueError("Invalid delay import attributes for PE architecture")
+        if not attrs:
+            name, iat, names = name - pe.base, iat - pe.base, names - pe.base
+        if not 0 < name < pe.image_size:
+            raise ValueError("Delay import DLL name lies outside the image")
+        if not 0 < iat <= pe.image_size - pe.arch // 8:
+            raise ValueError("Delay import IAT slot lies outside the image")
+        if not 0 < names <= pe.image_size - pe.arch // 8:
+            raise ValueError("Delay import name table lies outside the image")
+        width = pe.arch // 8
+        count = 0
+        while True:
+            slot = names + count * width
+            if slot > pe.image_size - width:
+                raise ValueError("Unterminated delay import name table")
+            if iat + count * width > pe.image_size - width:
+                raise ValueError("Delay import IAT slot lies outside the image")
+            thunk = pe.get_data(slot, width)
+            if len(thunk) != width:
+                raise ValueError("Truncated delay import name table")
+            if not int.from_bytes(thunk, "little"):
+                break
+            count += 1
+        counts.append(count)
+    raise ValueError("Unterminated delay import descriptor table")
+
+
 class PeLoader:
     def __init__(
         self,
@@ -185,10 +242,30 @@ class PeLoader:
     def make_image(self) -> LoadedImage:
         from speakeasy.windows.common import _PeParser
 
-        pe = _PeParser(path=self._path, data=self._data, imp_id=0xFEEDF00C, imp_step=4)
+        pe = _PeParser(path=self._path, data=self._data)
         self._pe_obj = pe
+        supported = {(0x14C, 0x10B): _arch.ARCH_X86, (0x8664, 0x20B): _arch.ARCH_AMD64}
+        if (pe.FILE_HEADER.Machine, pe.OPTIONAL_HEADER.Magic) not in supported:
+            raise ValueError("Unsupported or inconsistent PE machine and optional-header magic")
 
+        if pe.base + pe.image_size > 1 << pe.arch:
+            raise ValueError("PE exceeds architecture address space")
+        if pe.OPTIONAL_HEADER.SizeOfHeaders > pe.image_size:
+            raise ValueError("PE headers extend beyond the image")
+        for section in pe.sections:
+            # Raw file-alignment padding is not a declared virtual allocation.
+            # Malware images may put that padding beyond SizeOfImage.
+            if section.Misc_VirtualSize and section.VirtualAddress + section.Misc_VirtualSize > pe.image_size:
+                raise ValueError("PE section extends beyond the image")
+
+        if self._base_override is not None:
+            if type(self._base_override) is not int or not 0 <= self._base_override < (1 << pe.arch):
+                raise ValueError("Invalid PE base override")
+            if self._base_override + pe.image_size > 1 << pe.arch:
+                raise ValueError("Rebased PE exceeds architecture address space")
         if self._base_override is not None and self._base_override != pe.base:
+            if not getattr(pe, "DIRECTORY_ENTRY_BASERELOC", None):
+                raise ValueError("Cannot rebase a guest PE without valid relocation data")
             pe.rebase(self._base_override)
 
         module_type = "exe"
@@ -198,36 +275,82 @@ class PeLoader:
             module_type = "dll"
 
         base = pe.base
-        mapped_image = pe.get_memory_mapped_image(max_virtual_address=0xF0000000)
+        delay_rva, delay_raw, delay_counts = _delay_import_directory(pe)
+        parsed_delay = getattr(pe, "DIRECTORY_ENTRY_DELAY_IMPORT", ())
+        if delay_counts != [len(entry.imports) for entry in parsed_delay]:
+            raise ValueError("Delay import descriptors could not be parsed completely")
+        mapped_image = pe.get_memory_mapped_image(max_virtual_address=0xF0000000)[: pe.image_size]
+        if delay_raw:
+            mapped_image = bytearray(mapped_image)
+            mapped_image[delay_rva : delay_rva + len(delay_raw)] = delay_raw
 
         imports: list[ImportEntry] = []
-        if hasattr(pe, "DIRECTORY_ENTRY_IMPORT"):
-            for entry in pe.DIRECTORY_ENTRY_IMPORT:
-                dll = entry.dll.decode("utf-8")
-                dll = os.path.splitext(dll)[0]
-                for imp in entry.imports:
+        ptr_size = pe.arch // 8
+        # Eager delay binding uses exactly the same inventory as ordinary imports.
+        # pefile normalizes legacy x86 VA-based delay descriptors to RVAs, but
+        # does not relocate delay symbol.address when the image is rebased.
+        for directory_name, source in (("DIRECTORY_ENTRY_IMPORT", "static"), ("DIRECTORY_ENTRY_DELAY_IMPORT", "delay")):
+            for entry in getattr(pe, directory_name, ()):
+                dll = entry.dll.decode("ascii")
+                if not dll or dll == "*invalid*" or "\0" in dll:
+                    raise ValueError("Invalid imported DLL name")
+                dll = ntpath.splitext(dll)[0]
+                if source == "delay":
+                    if entry.struct.grAttrs not in (0, 1) or (
+                        pe.arch == _arch.ARCH_AMD64 and entry.struct.grAttrs != 1
+                    ):
+                        raise ValueError("Invalid delay import attributes for PE architecture")
+                    iat_rva = entry.struct.pIAT
+                else:
+                    iat_rva = entry.struct.FirstThunk
+                for index, imp in enumerate(entry.imports):
+                    slot_rva = iat_rva + index * ptr_size
+                    if iat_rva == 0 or not 0 <= slot_rva <= pe.image_size - ptr_size:
+                        raise ValueError("Import IAT slot lies outside the image")
                     if imp.import_by_ordinal:
                         func_name = f"ordinal_{imp.ordinal}"
                     else:
-                        func_name = imp.name.decode("utf-8")
-                    imports.append(
-                        ImportEntry(
-                            iat_address=imp.address,
-                            dll_name=dll,
-                            func_name=func_name,
-                        )
-                    )
+                        if not imp.name:
+                            raise ValueError("Missing imported function name")
+                        func_name = imp.name.decode("ascii")
+                    imports.append(ImportEntry(base + slot_rva, dll, func_name, source))
 
         exports: list[ExportEntry] = []
         if hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
+            from speakeasy.windows.api_image import validate_forwarder
+
+            directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
+            directory_end = directory.VirtualAddress + directory.Size
+            if directory_end > pe.image_size:
+                raise ValueError("Export directory extends beyond the image")
+            directory_bytes = pe.get_data(directory.VirtualAddress, directory.Size)
             for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+                if not exp.address:
+                    continue
+                if not 0 < exp.address < pe.image_size:
+                    raise ValueError("Export target lies outside the image")
+                forwarder = None
+                if directory.VirtualAddress <= exp.address < directory_end:
+                    offset = exp.address - directory.VirtualAddress
+                    terminator = directory_bytes.find(b"\0", offset)
+                    if terminator < 0:
+                        raise ValueError("Unterminated forwarder within export directory")
+                    forwarder = directory_bytes[offset:terminator].decode("ascii")
+                    validate_forwarder(forwarder)
+                section = pe.get_section_by_rva(exp.address)
+                kind = "function"
+                if forwarder is None and section is not None:
+                    if not section.Characteristics & 0x20000000:  # IMAGE_SCN_MEM_EXECUTE
+                        kind = "data"
                 name = exp.name.decode("utf-8") if exp.name else None
                 exports.append(
                     ExportEntry(
                         name=name,
                         address=exp.address + base,
                         ordinal=exp.ordinal,
-                        execution_mode="intercepted",
+                        execution_mode="guest",
+                        kind=kind,
+                        forwarder=forwarder,
                     )
                 )
 
@@ -246,12 +369,16 @@ class PeLoader:
 
         sections = []
         for sect in pe.sections:
+            available = max(0, pe.image_size - sect.VirtualAddress)
+            extent = min(max(sect.Misc_VirtualSize, sect.SizeOfRawData), available)
+            if not extent:
+                continue
             sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
             sections.append(
                 SectionEntry(
                     name=sect_name,
                     virtual_address=sect.VirtualAddress,
-                    virtual_size=sect.Misc_VirtualSize,
+                    virtual_size=extent,
                     perms=perms_from_section_chars(sect.Characteristics),
                 )
             )
@@ -300,7 +427,7 @@ class PeLoader:
                         if hasattr(resource_id, "directory"):
                             for str_entry in resource_id.directory.entries:
                                 directory = getattr(str_entry, "directory", None)
-                                if hasattr(directory, "strings"):
+                                if directory is not None and hasattr(directory, "strings"):
                                     for s_id, s_val in directory.strings.items():
                                         pe_metadata.string_table[s_id] = s_val
 
@@ -338,7 +465,7 @@ class PeLoader:
             regions=[region],
             imports=imports,
             exports=exports,
-            default_export_mode="intercepted",
+            default_export_mode="guest",
             entry_points=entry_points,
             visible_in_peb=True,
             stack_size=max(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0, 0x12000),
@@ -366,6 +493,7 @@ class ShellcodeLoader:
         return LoadedImage(
             arch=self._arch,
             module_type="shellcode",
+            source="guest_shellcode",
             name="shellcode",
             emu_path="",
             image_base=0,
@@ -389,152 +517,94 @@ class ShellcodeLoader:
 
 
 class ApiModuleLoader:
-    def __init__(self, *, name: str, api: Any, arch: int, base: int, emu_path: str) -> None:
+    def __init__(
+        self,
+        *,
+        name: str,
+        arch: int,
+        base: int,
+        emu_path: str,
+        api: Any = None,
+        signature_db: Any = None,
+    ) -> None:
         self._name = name
         self._api = api
         self._arch = arch
         self._base = base
         self._emu_path = emu_path
+        if signature_db is None:
+            from speakeasy.winenv.api.sigdb import get_default_database
+
+            signature_db = get_default_database()
+        self._signature_db = signature_db
 
     def make_image(self) -> LoadedImage:
-        from speakeasy.windows.common import EXPORTED_FUNCTION, JitPeFile
+        from speakeasy.windows.api_image import ApiExportSpec, build_api_image
 
-        funcs = [(f[4], f[0]) for k, f in self._api.funcs.items() if isinstance(k, str)]
-        data_exports = [k for k, d in self._api.data.items() if isinstance(k, str)]
-
-        new = funcs.copy()
-
-        if self._name == "ntdll":
+        arch_name = "x86" if self._arch == _arch.ARCH_X86 else "x64"
+        # Strict enumeration owns surface membership. Lookup is intentionally
+        # permissive for ABI reuse and must never determine exported names.
+        specs = {sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)}
+        ordinal_only: dict[int, ApiExportSpec] = {}
+        handlers = [self._api] if self._api is not None else []
+        if self._name.lower().removesuffix(".dll") == "ntdll":
             nt_handler = getattr(self._api, "_nt_handler", None)
-            if nt_handler:
-                nt_funcs = [(f[4], f[0]) for k, f in nt_handler.funcs.items() if isinstance(k, str)]
-                new = funcs + nt_funcs
-
-        if self._name in ("ntdll", "ntoskrnl"):
-            extra = []
-            for _o, fn in new:
-                if fn.startswith("Nt"):
-                    extra.append((None, "Zw" + fn[2:]))
-                elif fn.startswith("Zw"):
-                    extra.append((None, "Nt" + fn[2:]))
-            new = new + extra
-        else:
-            extra = []
-            for _o, fn in new:
-                extra.append((None, fn + "A"))
-                extra.append((None, fn + "W"))
-            new = new + extra
-
-        func_names = [fn for _o, fn in new]
-        func_names.sort()
-
-        all_exports: list[str] = []
-        ords = [o for o, _fn in funcs if o is not None]
-        if ords:
-            num_exports = max(max(ords) + 1, len(all_exports) + 1)
-            all_exports = [f"ordinal_{i}" for i in range(num_exports)]
-            for o, fn in funcs:
-                if o is not None:
-                    all_exports[o - 1] = fn
-            for fn in func_names:
-                if fn not in all_exports:
-                    all_exports.append(fn)
-        if not all_exports:
-            all_exports = func_names
-        all_exports += data_exports
-
-        jit = JitPeFile(self._arch, base=self._base, mod_name=self._name, exports=all_exports)
-        img_data = jit.basepe.get_memory_mapped_image(max_virtual_address=0xF0000000)
-        image_size = jit.basepe.OPTIONAL_HEADER.SizeOfImage
-
-        text_sect = jit.get_section_by_name(jit.basepe, ".text")
-        text_va = text_sect.VirtualAddress
-        stub_size = len(EXPORTED_FUNCTION[self._arch])
-
-        pe_exports: list[ExportEntry] = []
-        for i, name in enumerate(all_exports):
-            pe_exports.append(
-                ExportEntry(
-                    name=name,
-                    address=self._base + text_va + i * stub_size,
-                    ordinal=i + 1,
-                    execution_mode="intercepted",
-                )
-            )
-
-        sections = []
-        for sect in jit.basepe.sections:
-            sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-            vs = sect.Misc_VirtualSize
-            sections.append(
-                SectionEntry(
-                    name=sect_name,
-                    virtual_address=sect.VirtualAddress,
-                    virtual_size=vs,
-                    perms=perms_from_section_chars(sect.Characteristics),
-                )
-            )
-
-        region = MemoryRegion(
-            base=self._base,
-            data=bytes(img_data),
-            name="api_module",
-            perms=common.PERM_MEM_RWX,
-        )
-
-        pe_metadata = PeMetadata(
-            subsystem=jit.basepe.OPTIONAL_HEADER.Subsystem,
-            timestamp=jit.basepe.FILE_HEADER.TimeDateStamp,
-            machine=jit.basepe.FILE_HEADER.Machine,
-            magic=jit.basepe.OPTIONAL_HEADER.Magic,
-        )
-
-        return LoadedImage(
-            arch=self._arch,
-            module_type="dll",
+            if nt_handler is not None:
+                handlers.append(nt_handler)
+        for handler in handlers:
+            for key, func in handler.funcs.items():
+                name, ordinal = func[0], func[4]
+                if handler is not self._api and (not isinstance(name, str) or not name.startswith(("Nt", "Zw"))):
+                    continue
+                if isinstance(key, int):
+                    # Normal handlers register both a string and integer key.
+                    # Keep genuinely ordinal-only entries without fake names.
+                    if name in handler.funcs:
+                        continue
+                    ordinal_only[key] = ApiExportSpec(None, key)
+                else:
+                    specs[key] = ApiExportSpec(key, ordinal)
+            for name in handler.data if handler is self._api else ():
+                if isinstance(name, str):
+                    specs[name] = ApiExportSpec(name, kind="data")
+        image = build_api_image(
             name=self._name,
+            arch=self._arch,
+            base=self._base,
             emu_path=self._emu_path,
-            image_base=self._base,
-            image_size=image_size,
-            regions=[region],
-            imports=[],
-            exports=pe_exports,
-            default_export_mode="intercepted",
-            entry_points=[],
-            visible_in_peb=True,
-            loader=self,
-            sections=sections,
-            pe_metadata=pe_metadata,
+            exports=list(specs.values()) + list(ordinal_only.values()),
         )
+        image.loader = self
+        return image
 
 
 class DecoyLoader:
-    def __init__(self, *, name: str, base: int, emu_path: str, image_size: int) -> None:
+    def __init__(
+        self,
+        *,
+        name: str,
+        base: int,
+        emu_path: str,
+        image_size: int,
+        arch: int = _arch.ARCH_X86,
+    ) -> None:
         self._name = name
         self._base = base
         self._emu_path = emu_path
         self._image_size = image_size
+        self._arch = arch
 
     def make_image(self) -> LoadedImage:
-        pe_metadata = PeMetadata(
-            subsystem=2,  # IMAGE_SUBSYSTEM_WINDOWS_GUI
-            timestamp=0,
-            machine=0,
-            magic=0,
-        )
-        return LoadedImage(
-            arch=0,
-            module_type="decoy",
+        from speakeasy.windows.api_image import build_api_image
+
+        image = build_api_image(
             name=self._name,
+            arch=self._arch,
+            base=self._base,
             emu_path=self._emu_path,
-            image_base=self._base,
-            image_size=self._image_size,
-            regions=[],
-            imports=[],
             exports=[],
-            default_export_mode="intercepted",
-            entry_points=[],
-            visible_in_peb=True,
-            loader=self,
-            pe_metadata=pe_metadata,
+            module_type="decoy",
+            minimum_size=self._image_size,
         )
+        image.loader = self
+        return image

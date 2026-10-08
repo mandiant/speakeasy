@@ -118,17 +118,17 @@ class Msvcrt(api.ApiHandler):
         ptr_size = self.emu.get_ptr_size()
 
         if not ptr:
-            cmdln = self.mem_alloc(len(_argv) + ptr_size, base=None, tag="api.msvcrt._acmdln")
-            p_cmdln = cmdln + ptr_size
-            self.emu.mem_write(cmdln, p_cmdln.to_bytes(ptr_size, "little"))
-            self.emu.mem_write(p_cmdln, _argv)
+            cmdln = self.mem_alloc(ptr_size, base=None, tag="api.msvcrt._acmdln")
+        p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
+        self.emu.mem_write(cmdln, p_cmdln.to_bytes(ptr_size, "little"))
+        self.emu.mem_write(p_cmdln, _argv + b"\x00")
         return cmdln
 
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """Command line global CRT variable"""
 
-        cmdln = self._acmdln()
+        cmdln = emu.get_proc("msvcrt", "_acmdln")
 
         return cmdln
 
@@ -1797,6 +1797,7 @@ class Msvcrt(api.ApiHandler):
         # push    eax
         # ret     0
         emu.push_stack(eax)
+        emu.do_call_return(0, eax, conv=e_arch.CALL_CONV_CDECL)
         return
 
     @apihook("wcstombs", argc=3, conv=e_arch.CALL_CONV_CDECL)

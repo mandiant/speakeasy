@@ -933,6 +933,14 @@ class Speakeasy:
         """
         return self.emu.get_symbol_from_address(address)  # type: ignore[no-any-return, union-attr]
 
+    def get_api_symbols(self) -> dict[int, str]:
+        """Return mapped API symbol addresses, including dynamic-only lookups.
+
+        Snapshot again after new modules or functions are resolved. Private
+        dispatch tokens and export-directory forwarder strings are excluded.
+        """
+        return self.emu.get_api_symbols()  # type: ignore[no-any-return, union-attr]
+
     def is_address_valid(self, address: int) -> bool:
         """
         Was this address previously reserved or mapped?

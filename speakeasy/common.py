@@ -138,6 +138,7 @@ class ApiHook(Hook):
         self.api_name = api_name
         self.argc = argc
         self.call_conv = call_conv
+        self.registration_sequence = -1
 
 
 class DynCodeHook(Hook):

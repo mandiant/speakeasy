@@ -596,9 +596,9 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         ssdt = self.ktypes.SSDT(self.get_ptr_size())
         size = self.get_ptr_size() * 256
 
-        self.ssdt_ptr = self.mem_map(size, base=None, tag="api.struct.SSDT")
+        self.ssdt_ptr = self.get_proc("ntoskrnl", "KeServiceDescriptorTable")
         ssdt.NumberOfServices = 256
-        ssdt.pServiceTable = self.ssdt_ptr + self.sizeof(ssdt)
+        ssdt.pServiceTable = self.mem_map(size, base=None, tag="api.struct.SSDT.services")
         self.mem_write(self.ssdt_ptr, self.get_bytes(ssdt))
 
         self.setup_msrs()

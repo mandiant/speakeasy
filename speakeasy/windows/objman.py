@@ -506,7 +506,6 @@ class Process(KernelObject):
 
     def __init__(self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
-        self.ldr_entries: list[LdrDataTableEntry] = []
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
@@ -519,6 +518,7 @@ class Process(KernelObject):
             self.emu.mem_write(list_entry, list_entry.to_bytes(8, "little"))
             self.emu.mem_write(list_entry + 8, list_entry.to_bytes(8, "little"))
         self.ldr_entries: list[LdrDataTableEntry] = []
+        self._peb_modules: dict[int, Any] = {}
         self.name: str = name
         self.base: int = base
         self.pid: int = self.id
@@ -614,23 +614,13 @@ class Process(KernelObject):
         self.threads.append(thr)
 
     def add_module_to_peb(self, module):
-        pld = self.peb_ldr_data
-        list_type = self.nt_types.LIST_ENTRY(self.emu.get_ptr_size())
+        # One loader entry per mapped image in this process. Keep ldr_entries
+        # as a list of LdrDataTableEntry objects for existing consumers.
+        if module.base in self._peb_modules:
+            self._sync_peb_module_links()
+            return
 
-        # Initialize the LDTE
         ldte = LdrDataTableEntry(self.emu, module.emu_path)
-        if not self.ldr_entries:
-            prev = ldte
-        else:
-            prev = self.ldr_entries[-1]
-
-        self.ldr_entries.append(ldte)
-        first = self.ldr_entries[0]
-
-        ldte.object.InLoadOrderLinks.Flink = first.address
-        ldte.object.InMemoryOrderLinks.Flink = first.address + self.sizeof(list_type)
-        ldte.object.InInitializationOrderLinks.Flink = first.address + self.sizeof(list_type) * 2
-
         ldte.object.DllBase = module.base
         ldte.object.EntryPoint = module.base + module.ep
         ldte.object.SizeOfImage = module.image_size
@@ -651,57 +641,61 @@ class Process(KernelObject):
         ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.MaximumLength - len(dllname))
         ldte.write_back()
 
-        prev.object.InLoadOrderLinks.Flink = ldte.address
-        prev.object.InMemoryOrderLinks.Flink = ldte.address + self.sizeof(list_type)
+        self.ldr_entries.append(ldte)
+        self._peb_modules[module.base] = module
+        self._sync_peb_module_links()
 
-        if first is ldte:
-            prev.object.InInitializationOrderLinks.Flink = 0
-        else:
-            imol = prev.object.InMemoryOrderLinks.Flink
-            prev.object.InInitializationOrderLinks.Flink = imol + self.sizeof(list_type)
+    def remove_module_from_peb(self, module):
+        """Detach a mapped image during loader rollback without freeing memory."""
+        if module.base not in self._peb_modules:
+            return
+        # Update the list in place so external references and surviving loader
+        # entry objects retain their identity and order.
+        self.ldr_entries[:] = [entry for entry in self.ldr_entries if entry.object.DllBase != module.base]
+        del self._peb_modules[module.base]
+        self._sync_peb_module_links()
 
-        ldte.object.InLoadOrderLinks.Blink = prev.address
-        ldte.object.InMemoryOrderLinks.Blink = prev.address + self.sizeof(list_type)
+    def _sync_peb_module_links(self):
+        """Link each loader ring through its own PEB_LDR_DATA sentinel."""
+        pld = self.peb_ldr_data
+        main_base = self.pe.base if self.pe is not None else self.base
+        lists = (
+            ("InLoadOrderModuleList", "InLoadOrderLinks"),
+            ("InMemoryOrderModuleList", "InMemoryOrderLinks"),
+            ("InInitializationOrderModuleList", "InInitializationOrderLinks"),
+        )
+        for head_field, link_field in lists:
+            head = pld.address + getattr(pld.object.get_cstruct(), head_field).offset
+            entries = []
+            for entry in self.ldr_entries:
+                module = self._peb_modules[entry.object.DllBase]
+                link = getattr(entry.object, link_field)
+                node = entry.address + getattr(entry.object.get_cstruct(), link_field).offset
+                if link_field == "InInitializationOrderLinks" and module.base == main_base and module.is_exe():
+                    # The main executable is not a member of the initialization ring.
+                    link.Flink = link.Blink = node
+                    continue
+                entries.append((node, link))
 
-        if first is ldte:
-            ldte.object.InInitializationOrderLinks.Blink = 0
-        else:
-            imol = ldte.object.InMemoryOrderLinks.Blink
-            ldte.object.InInitializationOrderLinks.Blink = imol + self.sizeof(list_type)
+            sentinel = getattr(pld.object, head_field)
+            sentinel.Flink = entries[0][0] if entries else head
+            sentinel.Blink = entries[-1][0] if entries else head
+            for i, (_, link) in enumerate(entries):
+                link.Blink = entries[i - 1][0] if i else head
+                link.Flink = entries[i + 1][0] if i + 1 < len(entries) else head
 
-        prev.write_back()
-        ldte.write_back()
-
-        first.object.InLoadOrderLinks.Blink = ldte.address
-        first.object.InMemoryOrderLinks.Blink = ldte.address + self.sizeof(list_type)
-        if first is not ldte:
-            first.object.InInitializationOrderLinks.Blink = ldte.address + self.sizeof(list_type) * 2
-
-        first.write_back()
-
-        pld.object.InLoadOrderModuleList.Flink = first.address
-        pld.object.InMemoryOrderModuleList.Flink = pld.object.InLoadOrderModuleList.Flink + self.sizeof(list_type)
-
-        # Lets just copy InMemoryOrderModuleList but skip the main EXE module
-        head = pld.object.InMemoryOrderModuleList.Flink
-        le = self.emu.mem_cast(ntoskrnl.LIST_ENTRY(self.emu.get_ptr_size()), head)
-
-        pld.object.InInitializationOrderModuleList.Flink = le.Flink + self.sizeof(list_type)
-
-        pld.object.InLoadOrderModuleList.Blink = ldte.address
-        pld.object.InMemoryOrderModuleList.Blink = ldte.address + self.sizeof(list_type)
-
-        pld.object.InInitializationOrderModuleList.Blink = ldte.address + self.sizeof(list_type) * 2
-
+        for entry in self.ldr_entries:
+            entry.write_back()
         pld.write_back()
-
         self.peb.object.Ldr = pld.address
         self.peb.write_back()
 
     def init_peb(self, modules):
-        # Add an entry for each module in the module list
+        # Repeated initialization extends the existing membership without
+        # reallocating entries or losing modules attached dynamically.
         for mod in modules:
             self.add_module_to_peb(mod)
+        self._sync_peb_module_links()
 
 
 class RTL_USER_PROCESS_PARAMETERS(KernelObject):

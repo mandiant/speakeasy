@@ -2,6 +2,8 @@
 
 Speakeasy supports interactive debugging of emulated binaries via the GDB Remote Serial Protocol. When enabled, the emulator pauses before the first instruction and waits for a GDB client to connect. You can then set breakpoints, inspect registers and memory, single-step, and continue execution — all through a standard GDB interface.
 
+Synthesized Windows API pointers returned by `GetProcAddress`, bound imports, and export-table walks refer to mapped executable entries. Set a breakpoint directly on that pointer; stepping executes its public bytes before handler dispatch. See [Unified Windows API addresses](unified-api-addresses.md) for entry layouts, dynamic-only symbols, unsupported-call stops and migration details.
+
 ---
 
 ## Quick Start
