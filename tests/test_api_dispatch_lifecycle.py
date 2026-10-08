@@ -1,6 +1,8 @@
 """Guest callbacks and execution budgets survive deferred API dispatch."""
 
 import struct
+import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -80,3 +82,35 @@ def test_instruction_limit_is_shared_across_api_yields(api_emu):
     assert len(hits) == 3
     assert emu.curr_run.instr_cnt == 17
     assert emu.curr_run.error.type == "max_instructions"
+
+
+def test_nondebug_timeout_reports_completed_handler_and_stops(api_emu, monkeypatch):
+    import speakeasy.windows.winemu as winemu
+
+    emu = api_emu.emu
+    caller, _ = prepare(emu)
+    origin = emu.curr_run
+    clock = [0.0]
+    hits = []
+
+    def handler(e, api, original, args):
+        hits.append(api)
+        clock[0] = 2.0
+        return 77
+
+    api_emu.add_api_hook(handler, "test_timeout", "Tick", argc=0)
+    entry = emu.get_proc("test_timeout", "Tick")
+    code = (b"\xb8" + struct.pack("<I", entry)) if emu.ptr_size == 4 else (b"\x48\xb8" + struct.pack("<Q", entry))
+    code += b"\xff\xd0\xeb" + bytes([(-len(code) - 4) & 0xFF])
+    emu.mem_write(caller, code)
+    # Move active time across the deadline during Python dispatch without
+    # sleeping or depending on runner speed. Preserve unrelated wall clocks.
+    monkeypatch.setattr(winemu, "time", SimpleNamespace(monotonic=lambda: clock[0], time=time.time))
+    emu._execution_elapsed = 0.0
+    emu._run_api_engine(caller, timeout=1)
+
+    assert hits == ["test_timeout.Tick"]
+    assert origin.error.type == "timeout"
+    events = [event for event in origin.events if event.event == "api"]
+    assert len(events) == 1 and events[0].ret_val == "0x4d"
+    assert emu._execution_elapsed == 2.0

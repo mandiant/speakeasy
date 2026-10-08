@@ -46,7 +46,9 @@ PMA_CASES: tuple[PmaCase, ...] = (
             domains=("www.malwareanalysisbook.com",),
             urls=("http://www.malwareanalysisbook.com",),
         ),
-        allowed_entrypoint_errors=("max_api_count",),
+        # The loop may reach either configured guard; active timeouts now
+        # appear explicitly in the report instead of only being logged.
+        allowed_entrypoint_errors=("max_api_count", "timeout"),
         profile=profile_pma_0102,
     ),
     PmaCase(
@@ -107,7 +109,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
+        allowed_entrypoint_errors=("max_api_count", "invalid_read", "timeout"),
     ),
     PmaCase(
         name="pma-06-03-exe",
