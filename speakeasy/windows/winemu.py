@@ -45,8 +45,15 @@ SIGSEGV = 11
 logger = logging.getLogger(__name__)
 
 
+MODULE_EXTENSIONS = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
+
+
 def _normalize_mod_name(name: str) -> str:
-    return os.path.splitext(name)[0].lower()
+    # Strip only image extensions so that repeated normalization keeps dotted
+    # module names such as windows.storage intact.
+    name = ntpath.basename(name).lower()
+    root, extension = ntpath.splitext(name)
+    return root if extension in MODULE_EXTENSIONS else name
 
 
 def _module_type_from_path(path: str, default: str = "dll") -> str:
