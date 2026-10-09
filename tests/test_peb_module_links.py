@@ -8,7 +8,6 @@ from speakeasy import Speakeasy
 from tests.guest_harness import (
     Deref,
     assert_process_rings,
-    assert_rings,
     get_api,
     guest_call,
     loader_bases,
@@ -69,6 +68,7 @@ def test_guest_walks_loader_lists_of_its_own_process(config, arch):
         child = emu.get_mod_by_name("notepad").base
 
         load, memory, init = read_walk(se, parent_walk)
+        main = load[0]
         assert memory == load
         assert load[1:3] == [ntdll, kernel32]
         assert init == load[1:]
@@ -77,16 +77,16 @@ def test_guest_walks_loader_lists_of_its_own_process(config, arch):
 
         load, memory, init = read_walk(se, child_walk)
         assert memory == load
-        assert load.count(child) == 1
-        assert init == [base for base in load if base != child]
-        assert kernel not in load
+        assert load[0] == child
+        assert load[1:3] == [ntdll, kernel32]
+        assert init == load[1:]
+        assert dll not in load and main not in load and kernel not in load
 
         for proc in emu.processes:
             if proc.is_peb_active:
                 assert_process_rings(proc)
         for proc in emu.child_processes:
-            bases = loader_bases(proc)
-            assert child in bases
-            assert_rings(proc, bases, [base for base in bases if base != proc.pe.base])
+            assert child in loader_bases(proc)
+            assert_process_rings(proc)
     finally:
         se.shutdown()
