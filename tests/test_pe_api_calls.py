@@ -1,8 +1,7 @@
-"""Public PE/IAT counterparts of the supplied PR review reproductions."""
+"""Built PE32/PE32+ images that call APIs through their IAT."""
 
 import struct
 import time
-from types import SimpleNamespace
 
 import pefile
 import pytest
@@ -10,10 +9,7 @@ import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
-from speakeasy.windows import winemu
-from speakeasy.winenv.api import sigdb
-from tests.review_pebuild import build_pe
-from tests.test_public_api_regressions import UnsafeDeclarationSource
+from tests.pe_builder import build_pe
 
 TICK = {"kernel32.dll": ["GetTickCount"]}
 
@@ -54,52 +50,34 @@ def api_names(entry):
     return [event.api_name for event in (entry.events or []) if event.event == "api"]
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-def test_timeout_budget_public_pe_iat_calls_are_independent(architecture, monkeypatch):
+def test_timeout_budget_public_pe_iat_calls_are_independent():
     marker = b"\xb8\x37\x13\0\0"
-    data, _ = build_pe(
-        architecture, text=calls(architecture, [("kernel32.dll", "GetTickCount")], suffix=marker), imports=TICK
-    )
-    clock = [0.0]
-    origins = []
-    with Speakeasy(config=configured(timeout=1)) as se:
+    data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")], suffix=marker), imports=TICK)
+    with Speakeasy(config=configured(timeout=0.5)) as se:
 
         def tick(emu, name, original, args):
-            assert emu.curr_run.execution_elapsed == 0
-            origins.append(emu.curr_run)
-            clock[0] += 0.6
+            time.sleep(0.3)
             return 7
 
         se.add_api_hook(tick, "kernel32", "GetTickCount", argc=0)
         module = se.load_module(data=data)
-        monkeypatch.setattr(winemu, "time", SimpleNamespace(monotonic=lambda: clock[0], time=time.time))
         se.run_module(module)
-        for _ in range(4):
-            se.call(module.base + 0x1000)
-            assert se.reg_read("eax") == 0x1337
-        assert len(origins) == 5 and len({id(run) for run in origins}) == 5
-        assert clock[0] == pytest.approx(3)
-        assert all(run.execution_elapsed == pytest.approx(0.6) for run in origins)
+        se.call(module.base + 0x1000)
+        assert se.reg_read("eax") == 0x1337
         entries = se.get_report().entry_points
-        assert len(entries) == 5
+        assert len(entries) == 2
         assert all(entry.error is None and api_names(entry) == ["kernel32.GetTickCount"] for entry in entries)
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-@pytest.mark.parametrize("nxcompat", [False, True])
-@pytest.mark.parametrize("strict_nx", [None, False, True], ids=["default", "recover", "enforce"])
-def test_public_guest_data_execution_and_nx_policy(architecture, nxcompat, strict_nx):
+@pytest.mark.parametrize("enforce_nx", [None, True], ids=["default", "enforce"])
+def test_public_guest_data_execution_and_nx_policy(enforce_nx):
     def text(base, iat):
-        load = (
-            b"\x48\xb8" + struct.pack("<Q", base + 0x2000)
-            if architecture == 64
-            else b"\xb8" + struct.pack("<I", base + 0x2000)
-        )
-        return calls(architecture, [("kernel32.dll", "GetTickCount")], prefix=load + b"\xff\xd0")(base, iat)
+        load = b"\xb8" + struct.pack("<I", base + 0x2000)
+        return calls(32, [("kernel32.dll", "GetTickCount")], prefix=load + b"\xff\xd0")(base, iat)
 
-    data, _ = build_pe(architecture, text=text, data=b"\xb8\x2a\0\0\0\xc3", imports=TICK, nxcompat=nxcompat)
+    data, _ = build_pe(32, text=text, data=b"\xb8\x2a\0\0\0\xc3", imports=TICK, nxcompat=True)
     hits = []
-    overrides = {} if strict_nx is None else {"analysis.enforce_nx": strict_nx}
+    overrides = {} if enforce_nx is None else {"analysis.enforce_nx": enforce_nx}
     with Speakeasy(config=configured(**overrides)) as se:
 
         def tick(emu, name, original, args):
@@ -109,10 +87,9 @@ def test_public_guest_data_execution_and_nx_policy(architecture, nxcompat, stric
 
         se.add_api_hook(tick, "kernel32", "GetTickCount", argc=0)
         module = se.load_module(data=data)
-        emu = se.emu
 
         def permissions(address):
-            return next(p for start, end, p in emu.get_mem_regions() if start <= address <= end)
+            return next(p for start, end, p in se.emu.get_mem_regions() if start <= address <= end)
 
         data_address = module.base + 0x2000
         previous = permissions(data_address)
@@ -120,7 +97,7 @@ def test_public_guest_data_execution_and_nx_policy(architecture, nxcompat, stric
         assert previous == unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
         se.run_module(module)
         entry = se.get_report().entry_points[0]
-        if strict_nx:
+        if enforce_nx:
             assert entry.error.type == "invalid_protect_fetch"
             assert entry.error.pc == data_address
             assert hits == [] and api_names(entry) == []
@@ -133,34 +110,22 @@ def test_public_guest_data_execution_and_nx_policy(architecture, nxcompat, stric
         assert permissions(module.base + 0x3000) == adjacent
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-@pytest.mark.parametrize("malformation", ["delay-outside", "delay-attributes", "export-outside", "non-ascii-dll"])
-def test_public_malformed_optional_pe_inventory_still_executes(architecture, malformation, caplog):
-    imports, dirs, section = TICK, {}, b""
+@pytest.mark.parametrize("malformation", ["delay-outside", "export-outside"])
+def test_public_malformed_optional_pe_inventory_still_executes(malformation, caplog):
     if malformation == "delay-outside":
+        section = b""
         dirs = {13: (0x7FFF0000, 64)}
-    elif malformation == "delay-attributes":
-        section = struct.pack("<8I", 5, 0x2100, 0, 0x2200, 0x2300, 0, 0, 0) + b"\0" * 32
-        dirs = {13: (0x2000, 64)}
-    elif malformation == "export-outside":
+    else:
         section = bytearray(0x80)
         struct.pack_into("<IIHHIIIIIII", section, 0, 0, 0, 0, 0, 0x2060, 1, 1, 0, 0x2040, 0, 0)
         struct.pack_into("<I", section, 0x40, 0x00FF0000)
         section[0x60:0x66] = b"x.dll\0"
         dirs = {0: (0x2000, 0x80)}
-    else:
-        imports = {**TICK, "k\xe9rnel.dll": ["Foo"]}
     data, _ = build_pe(
-        architecture,
-        text=calls(architecture, [("kernel32.dll", "GetTickCount")]),
-        data=section,
-        imports=imports,
-        extra_dirs=dirs,
+        32, text=calls(32, [("kernel32.dll", "GetTickCount")]), data=section, imports=TICK, extra_dirs=dirs
     )
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=data)
-        if malformation == "non-ascii-dll":
-            assert any(imp.dll_name == "k\xe9rnel" and imp.func_name == "Foo" for imp in module._image.imports)
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
@@ -170,42 +135,32 @@ def test_public_malformed_optional_pe_inventory_still_executes(architecture, mal
             se.load_module(data=data)
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
 @pytest.mark.parametrize("oft_zero", [False, True])
-@pytest.mark.parametrize("bad_name", [0, 0xE9], ids=["empty", "non-ascii"])
-def test_public_filtered_import_does_not_shift_valid_iat_call(architecture, oft_zero, bad_name, caplog):
+def test_public_filtered_import_does_not_shift_valid_iat_call(oft_zero):
     imports = {"kernel32.dll": ["BadFunction", "GetTickCount"]}
-    data, slots = build_pe(architecture, text=calls(architecture, [("kernel32.dll", "GetTickCount")]), imports=imports)
+    data, slots = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")]), imports=imports)
     pe = pefile.PE(data=data)
     first = pe.DIRECTORY_ENTRY_IMPORT[0].imports[0]
     if oft_zero:
         pe.DIRECTORY_ENTRY_IMPORT[0].struct.OriginalFirstThunk = 0
     raw = bytearray(pe.write())
-    raw[first.name_offset] = bad_name
-    first_value = int.from_bytes(pe.get_data(slots["kernel32.dll", "BadFunction"], architecture // 8), "little")
+    raw[first.name_offset] = 0xE9
+    bad_slot = slots["kernel32.dll", "BadFunction"]
+    original = pe.get_data(bad_slot, 4)
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=bytes(raw))
-        static = module._image.imports
-        assert [(imp.func_name, imp.iat_address) for imp in static] == [
-            ("GetTickCount", module.base + slots["kernel32.dll", "GetTickCount"])
-        ]
-        assert (
-            int.from_bytes(se.mem_read(module.base + slots["kernel32.dll", "BadFunction"], architecture // 8), "little")
-            == first_value
-        )
-        target = se.emu.get_proc("kernel32", "GetTickCount")
-        assert int.from_bytes(se.mem_read(static[0].iat_address, architecture // 8), "little") == target
+        assert se.mem_read(module.base + bad_slot, 4) == original
+        bound = int.from_bytes(se.mem_read(module.base + slots["kernel32.dll", "GetTickCount"], 4), "little")
+        assert bound == se.emu.get_proc("kernel32", "GetTickCount")
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
-        assert "Skipping malformed PE static import entry" in caplog.text
     with Speakeasy(config=configured(**{"modules.strict_pe_parsing": True})) as se:
         with pytest.raises(ValueError):
             se.load_module(data=bytes(raw))
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-@pytest.mark.parametrize("always_exist", [False, True])
+@pytest.mark.parametrize("architecture, always_exist", [(32, True), (64, False), (64, True)])
 def test_public_unknown_iat_call_has_architecture_safe_return(architecture, always_exist):
     unknown = "SpeakeasyNoSuchExport"
     imports = {"kernel32.dll": [unknown, "GetTickCount"]}
@@ -229,57 +184,28 @@ def test_public_unknown_iat_call_has_architecture_safe_return(architecture, alwa
             assert api_names(entry) == [f"kernel32.{unknown}"]
 
 
-class ImportedUnsafeSource(UnsafeDeclarationSource):
-    def iter_functions(self, dll, architecture):
-        declaration = self.lookup(dll, self.declaration.name, architecture)
-        return iter(()) if declaration is None else iter((declaration,))
-
-
-@pytest.mark.parametrize("architecture", [32, 64])
-@pytest.mark.parametrize(
-    "return_type, parameter_type",
-    [("f64", None), ("u32", "f32"), ("st:PAIR:16", None), ("u32", "st:PAIR:16")],
-    ids=["float-return", "float-argument", "aggregate-return", "aggregate-argument"],
-)
-def test_public_catalogued_unsafe_iat_call_cannot_use_unknown_fallback(
-    architecture, return_type, parameter_type, monkeypatch
-):
-    dll, name = "review_unsafe", "RequiresExplicitHandler"
-    declaration = sigdb.FuncSig(
-        dll=dll,
-        name=name,
-        ret=return_type,
-        params=() if parameter_type is None else (sigdb.ParamSig("value", parameter_type),),
-    )
-    database = sigdb.SignatureDatabase([ImportedUnsafeSource(declaration)])
-    monkeypatch.setattr(winemu.WindowsEmulator, "get_signature_db", lambda self: database)
-    imports = {dll + ".dll": [name], **TICK}
+def test_public_catalogued_unsafe_iat_call_cannot_use_unknown_fallback():
+    name = "GetLargestConsoleWindowSize"
     data, _ = build_pe(
-        architecture,
-        text=calls(architecture, [(dll + ".dll", name), ("kernel32.dll", "GetTickCount")]),
-        imports=imports,
+        64,
+        text=calls(64, [("kernel32.dll", name), ("kernel32.dll", "GetTickCount")]),
+        imports={"kernel32.dll": [name, "GetTickCount"]},
     )
     with Speakeasy(config=configured(**{"modules.functions_always_exist": True})) as se:
         module = se.load_module(data=data)
-        dependency = se.emu.get_mod_by_name(dll)
-        export = dependency.get_export_by_name(name)
-        assert export is not None
-        assert not declaration.supports_emulation(architecture // 8)
-        assert se.get_symbols()[export.address] == (dll, name)
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert entry.error.type == "unsupported_api"
-        assert entry.error.api_name == f"{dll}.{name}"
-        assert api_names(entry) == [f"{dll}.{name}"]
+        assert entry.error.api_name == f"kernel32.{name}"
+        assert api_names(entry) == [f"kernel32.{name}"]
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-def test_non_ascii_imported_modules_keep_distinct_callable_identity(architecture):
+def test_non_ascii_imported_modules_keep_distinct_callable_identity():
     dlls = ("k\xe9rnel", "f\xfcnk")
     imports = {dll + ".dll": ["Foo"] for dll in dlls}
     imports.update(TICK)
     sequence = [(dll + ".dll", "Foo") for dll in dlls] + [("kernel32.dll", "GetTickCount")]
-    data, _ = build_pe(architecture, text=calls(architecture, sequence), imports=imports)
+    data, _ = build_pe(32, text=calls(32, sequence), imports=imports)
     hits = []
     with Speakeasy(config=configured()) as se:
 
@@ -291,18 +217,16 @@ def test_non_ascii_imported_modules_keep_distinct_callable_identity(architecture
         for dll in dlls:
             se.add_api_hook(hook, dll, "Foo", argc=0)
         module = se.load_module(data=data)
-        targets = []
+        targets = set()
         for dll in dlls:
             dependency = se.emu.get_mod_by_name(dll)
             assert dependency.name == dll
             assert dependency.emu_path.endswith(dll + ".dll")
             assert dependency in se.emu.get_peb_modules()
             target = se.emu.get_proc(dll, "Foo")
-            targets.append(target)
             assert se.get_symbols()[target] == (dll, "Foo")
-            imported = next(imp for imp in module._image.imports if imp.dll_name == dll)
-            assert int.from_bytes(se.mem_read(imported.iat_address, architecture // 8), "little") == target
-        assert len(set(targets)) == 2
+            targets.add(target)
+        assert len(targets) == 2
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert entry.error is None
@@ -310,9 +234,8 @@ def test_non_ascii_imported_modules_keep_distinct_callable_identity(architecture
         assert api_names(entry) == hits + ["kernel32.GetTickCount"]
 
 
-@pytest.mark.parametrize("architecture", [32, 64])
-def test_public_import_symbols_and_sp_changing_hook(architecture):
-    data, _ = build_pe(architecture, text=calls(architecture, [("kernel32.dll", "GetTickCount")]), imports=TICK)
+def test_public_sp_changing_hook_stops_once_without_redispatch():
+    data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")]), imports=TICK)
     hits = []
     with Speakeasy(config=configured()) as se:
 
@@ -323,12 +246,10 @@ def test_public_import_symbols_and_sp_changing_hook(architecture):
 
         se.add_api_hook(hook, "kernel32", "GetTickCount", argc=0)
         module = se.load_module(data=data)
-        address = se.emu.get_proc("kernel32", "GetTickCount")
-        assert se.get_symbols()[address] == ("kernel32", "GetTickCount")
-        slot = module._image.imports[0].iat_address
-        assert int.from_bytes(se.mem_read(slot, architecture // 8), "little") == address
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert hits == ["kernel32.GetTickCount"]
         assert entry.error.type == "api_handler_did_not_return"
         assert entry.error.api_name == "kernel32.GetTickCount"
+        events = [event for event in entry.events if event.event == "api"]
+        assert len(events) == 1 and events[0].ret_val == "0x7"

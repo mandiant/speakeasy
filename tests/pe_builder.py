@@ -1,4 +1,4 @@
-"""Small independent PE32/PE32+ fixtures for public review regressions."""
+"""Minimal PE32/PE32+ file builder with import tables and no relocations."""
 
 import struct
 

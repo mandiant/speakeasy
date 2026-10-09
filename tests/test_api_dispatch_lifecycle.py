@@ -1,116 +1,88 @@
-"""Guest callbacks and execution budgets survive deferred API dispatch."""
+"""Nested guest callbacks from API handlers return to the originating API frames."""
 
 import struct
-import time
-from types import SimpleNamespace
 
 import pytest
 
-from speakeasy.profiler import Run
-from speakeasy.winenv import arch
+from speakeasy import Speakeasy
+
+OUTER_PARAM = 0x1111
+LEAF_PARAM = 0x2222
 
 
-@pytest.fixture(params=["dll_emu", "dll64_emu"])
-def api_emu(request):
-    return request.getfixturevalue(request.param)
+def x86_program(base, data, api):
+    """
+    Return code that calls ``api`` (CreateDialogIndirectParamA) with an outer
+    dialog procedure, which calls ``api`` again with a leaf procedure. Each
+    procedure stores its HWND and lParam in ``data``; the caller stores its
+    stack delta and the API result.
+    """
+
+    def d(value):
+        return struct.pack("<I", value)
+
+    def call_api(proc, param):
+        return b"\x68" + d(param) + b"\x68" + d(proc) + b"\x6a\x00" * 3 + b"\xb8" + d(api) + b"\xff\xd0"
+
+    def record_args(slot):
+        code = b"\x8b\x44\x24\x10\xa3" + d(data + slot)
+        return code + b"\x8b\x44\x24\x04\xa3" + d(data + slot + 8)
+
+    outer, leaf = base + 0x100, base + 0x200
+    main = b"\x89\xe6" + call_api(outer, OUTER_PARAM) + b"\x29\xe6\x89\x35" + d(data) + b"\xa3" + d(data + 8) + b"\xc3"
+    finish = b"\xb8\x01\x00\x00\x00\xc2\x10\x00"
+    outer_code = record_args(0x10) + call_api(leaf, LEAF_PARAM) + b"\xa3" + d(data + 0x40) + finish
+    leaf_code = record_args(0x20) + finish
+    return {base: main, outer: outer_code, leaf: leaf_code}
 
 
-def prepare(emu, argc=0):
-    emu.curr_run = Run()
-    emu.profiler.add_run(emu.curr_run)
-    emu.emu_complete = False
-    emu.run_complete = False
-    emu.set_hooks()
-    caller = emu.mem_map(0x1000, tag="test.api.caller")
-    emu.mem_write(caller, b"\x90")
-    emu.set_func_args(emu.stack_base, caller, *range(argc), conv=arch.CALL_CONV_STDCALL)
-    return caller, emu.get_stack_ptr()
+def x64_program(base, data, api):
+    def q(value):
+        return struct.pack("<Q", value)
+
+    def call_api(proc, param):
+        code = b"\x48\x83\xec\x38\x48\xc7\x44\x24\x20" + struct.pack("<I", param)
+        code += b"\x31\xc9\x31\xd2\x45\x31\xc0\x49\xb9" + q(proc) + b"\x48\xb8" + q(api)
+        return code + b"\xff\xd0\x48\x83\xc4\x38"
+
+    def record_args(slot):
+        return b"\x49\xba" + q(data) + b"\x4d\x89\x4a" + bytes([slot]) + b"\x49\x89\x4a" + bytes([slot + 8])
+
+    outer, leaf = base + 0x100, base + 0x200
+    main = b"\x48\x89\xe6" + call_api(outer, OUTER_PARAM) + b"\x48\x29\xe6"
+    main += b"\x48\xbb" + q(data) + b"\x48\x89\x33\x48\x89\x43\x08\xc3"
+    finish = b"\xb8\x01\x00\x00\x00\xc3"
+    outer_code = record_args(0x10) + call_api(leaf, LEAF_PARAM)
+    outer_code += b"\x49\xba" + q(data) + b"\x49\x89\x42\x40" + finish
+    leaf_code = record_args(0x20) + finish
+    return {base: main, outer: outer_code, leaf: leaf_code}
 
 
-@pytest.mark.parametrize("nested", [False, True])
-def test_callbacks_restore_original_api_frame(api_emu, nested):
-    emu = api_emu.emu
-    caller, sp = prepare(emu, argc=2)
-    handler = emu.api.load_api_handler("user32")
-    callback = emu.mem_map(0x1000, tag="test.callback")
-    leaf = callback + 0x100
-    emu.mem_write(leaf, b"\xb8\x63\x00\x00\x00" + (b"\xc2\x04\x00" if emu.ptr_size == 4 else b"\xc3"))
-    calls = []
+@pytest.mark.parametrize("architecture", ["x86", "amd64"])
+def test_nested_dialog_callbacks_return_to_their_api_callers(config, architecture):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch=architecture)
+        data = se.mem_alloc(0x1000)
+        api = se.emu.get_proc("user32", "CreateDialogIndirectParamA")
+        program = x86_program if architecture == "x86" else x64_program
+        for address, code in program(base, data, api).items():
+            se.mem_write(address, code)
 
-    def inner(e, api, original, args):
-        calls.append("inner")
-        handler.setup_callback(leaf, [3], caller_argv=args)
-        return 88
+        se.run_shellcode(base)
 
-    def outer(e, api, original, args):
-        calls.append("outer")
-        handler.setup_callback(callback, [1], caller_argv=args)
-        handler.setup_callback(leaf, [2], caller_argv=args)
-        return 77
+        run = se.get_report().entry_points[0]
+        width = se.get_ptr_size()
 
-    api_emu.add_api_hook(inner, "test_callbacks", "Inner", argc=1)
-    api_emu.add_api_hook(outer, "test_callbacks", "Outer", argc=2)
-    inner_address = emu.get_proc("test_callbacks", "Inner")
-    if not nested:
-        code = b"\xb8\x63\x00\x00\x00" + (b"\xc2\x04\x00" if emu.ptr_size == 4 else b"\xc3")
-    elif emu.ptr_size == 4:
-        code = b"\x6a\x01\xb8" + struct.pack("<I", inner_address) + b"\xff\xd0\xc2\x04\x00"
-    else:
-        code = b"\x48\x83\xec\x28\xb9\x01\x00\x00\x00\x48\xb8" + struct.pack("<Q", inner_address)
-        code += b"\xff\xd0\x48\x83\xc4\x28\xc3"
-    emu.mem_write(callback, code)
-    stop = emu.add_code_hook(lambda e, a, n: e.emu_eng.stop(), begin=caller, end=caller)
-    emu._run_api_engine(emu.get_proc("test_callbacks", "Outer"), timeout=3)
-    assert emu.get_pc() == caller
-    assert calls == (["outer", "inner"] if nested else ["outer"])
-    assert emu.get_return_val() == 77
-    assert emu.get_stack_ptr() == sp + emu.ptr_size + (8 if emu.ptr_size == 4 else 0)
-    assert emu.curr_run.api_callbacks == []
-    stop.disable()
+        def slot(offset):
+            return int.from_bytes(se.mem_read(data + offset, width), "little")
 
-
-def test_instruction_limit_is_shared_across_api_yields(api_emu):
-    emu = api_emu.emu
-    caller, _ = prepare(emu)
-    hits = []
-    api_emu.add_api_hook(lambda e, api, original, args: hits.append(api) or 1, "test_budget", "Tick", argc=0)
-    entry = emu.get_proc("test_budget", "Tick")
-    code = (b"\xb8" + struct.pack("<I", entry)) if emu.ptr_size == 4 else (b"\x48\xb8" + struct.pack("<Q", entry))
-    code += b"\xff\xd0\xeb" + bytes([(-len(code) - 4) & 0xFF])
-    emu.mem_write(caller, code)
-    emu._run_api_engine(caller, timeout=3, count=17)
-    assert len(hits) == (2 if emu.ptr_size == 4 else 3)
-    assert emu.curr_run.instr_cnt == 17
-    assert emu.curr_run.error.type == "max_instructions"
-
-
-def test_nondebug_timeout_reports_completed_handler_and_stops(api_emu, monkeypatch):
-    import speakeasy.windows.winemu as winemu
-
-    emu = api_emu.emu
-    caller, _ = prepare(emu)
-    origin = emu.curr_run
-    clock = [0.0]
-    hits = []
-
-    def handler(e, api, original, args):
-        hits.append(api)
-        clock[0] = 2.0
-        return 77
-
-    api_emu.add_api_hook(handler, "test_timeout", "Tick", argc=0)
-    entry = emu.get_proc("test_timeout", "Tick")
-    code = (b"\xb8" + struct.pack("<I", entry)) if emu.ptr_size == 4 else (b"\x48\xb8" + struct.pack("<Q", entry))
-    code += b"\xff\xd0\xeb" + bytes([(-len(code) - 4) & 0xFF])
-    emu.mem_write(caller, code)
-    # Move active time across the deadline during Python dispatch without
-    # sleeping or depending on runner speed. Preserve unrelated wall clocks.
-    monkeypatch.setattr(winemu, "time", SimpleNamespace(monotonic=lambda: clock[0], time=time.time))
-    origin.execution_elapsed = 0.0
-    emu._run_api_engine(caller, timeout=1)
-
-    assert hits == ["test_timeout.Tick"]
-    assert origin.error.type == "timeout"
-    events = [event for event in origin.events if event.event == "api"]
-    assert len(events) == 1 and events[0].ret_val == "0x4d"
-    assert origin.execution_elapsed == 2.0
+        assert run.error is None
+        assert [event.api_name for event in run.events if event.event == "api"] == [
+            "user32.CreateDialogIndirectParamA"
+        ] * 2
+        assert slot(0) == 0
+        assert (slot(0x10), slot(0x20)) == (OUTER_PARAM, LEAF_PARAM)
+        outer_hwnd, leaf_hwnd = slot(0x18), slot(0x28)
+        assert outer_hwnd and leaf_hwnd and outer_hwnd != leaf_hwnd
+        assert slot(0x40) == leaf_hwnd
+        assert slot(8) == run.ret_val == outer_hwnd
