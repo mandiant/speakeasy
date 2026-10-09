@@ -1,0 +1,17 @@
+{
+  "module": "dinput8",
+  "file": "dinput8.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.1591",
+  "timestamp": 1160405699,
+  "size_of_image": 307200,
+  "sha256": "4464f4c112773be3544d0ea3e36c79d0c3aea7968e2ddb7076effd2b6ac2c482",
+  "exports": [
+    {"ordinal": 1, "name": "DirectInput8Create"},
+    {"ordinal": 2, "name": "DllCanUnloadNow"},
+    {"ordinal": 3, "name": "DllGetClassObject"},
+    {"ordinal": 4, "name": "DllRegisterServer"},
+    {"ordinal": 5, "name": "DllUnregisterServer"},
+    {"ordinal": 6, "name": "GetdfDIJoystick"}
+  ]
+}

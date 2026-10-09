@@ -1,0 +1,13 @@
+{
+  "module": "wow64win",
+  "file": "wow64win.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32684",
+  "timestamp": 3579100092,
+  "size_of_image": 561152,
+  "sha256": "b7a94f982dd6a5b3aa0254b34165f7dbbc2bcde84515d7f9a0ff6d5ce90528b8",
+  "exports": [
+    {"ordinal": 1, "name": "NtWow64UserConnectHook"},
+    {"ordinal": 2, "name": "sdwhwin32", "kind": "data"}
+  ]
+}

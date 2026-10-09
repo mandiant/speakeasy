@@ -1,0 +1,14 @@
+{
+  "module": "d3d10core",
+  "file": "d3d10core.dll",
+  "arch": "x64",
+  "file_version": "10.0.17763.1",
+  "timestamp": 1784327712,
+  "size_of_image": 155648,
+  "sha256": "769d9471d8c9fcca67f8c89080f0247c1393899dacdf0e05b3944f40ea2bc334",
+  "exports": [
+    {"ordinal": 1, "name": "D3D10CoreCreateDevice"},
+    {"ordinal": 2, "name": "D3D10CoreGetVersion"},
+    {"ordinal": 3, "name": "D3D10CoreRegisterLayers"}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "module": "wow64cpu",
+  "file": "wow64cpu.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32684",
+  "timestamp": 888087288,
+  "size_of_image": 40960,
+  "sha256": "936c1c696602be082cc48559dc6ca120d2c5ac58fdd2598a385029d33c14c0ad",
+  "exports": [
+    {"ordinal": 1, "name": "BTCpuGetBopCode"},
+    {"ordinal": 2, "name": "BTCpuGetContext"},
+    {"ordinal": 3, "name": "BTCpuProcessInit"},
+    {"ordinal": 4, "name": "BTCpuResetToConsistentState"},
+    {"ordinal": 5, "name": "BTCpuSetContext"},
+    {"ordinal": 6, "name": "BTCpuSimulate"},
+    {"ordinal": 7, "name": "BTCpuThreadInit"},
+    {"ordinal": 8, "name": "BTCpuTurboThunkControl"},
+    {"ordinal": 9, "name": "TurboDispatchJumpAddressEnd"},
+    {"ordinal": 10, "name": "TurboDispatchJumpAddressStart"}
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "module": "bcryptprimitives",
+  "file": "bcryptprimitives.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32860",
+  "timestamp": 61137655,
+  "size_of_image": 688128,
+  "sha256": "297f4dd7d24f67cb629ea6d1cda3b1c32c44058f8625db7e436395fde3440315",
+  "exports": [
+    {"ordinal": 1, "name": "GetAsymmetricEncryptionInterface"},
+    {"ordinal": 2, "name": "GetCipherInterface"},
+    {"ordinal": 3, "name": "GetHashInterface"},
+    {"ordinal": 4, "name": "GetKeyDerivationInterface"},
+    {"ordinal": 5, "name": "GetKeyEncapsulationInterface"},
+    {"ordinal": 6, "name": "GetRngInterface"},
+    {"ordinal": 7, "name": "GetSecretAgreementInterface"},
+    {"ordinal": 8, "name": "GetSignatureInterface"},
+    {"ordinal": 9, "name": "MSCryptConvertRsaPrivateBlobToFullRsaBlob"},
+    {"ordinal": 10, "name": "ProcessPrng"},
+    {"ordinal": 11, "name": "ProcessPrngGuid"}
+  ]
+}

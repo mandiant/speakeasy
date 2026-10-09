@@ -1,0 +1,15 @@
+{
+  "module": "rasadhlp",
+  "file": "rasadhlp.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.6584",
+  "timestamp": 2585993304,
+  "size_of_image": 32768,
+  "sha256": "7ef8e7908f9e3c7479589d4ab43147d8500e0019e66a14938eebfb820bb9edc8",
+  "exports": [
+    {"ordinal": 1, "name": "AcsHlpNbConnection"},
+    {"ordinal": 2, "name": "WSAttemptAutodialAddr"},
+    {"ordinal": 3, "name": "WSAttemptAutodialName"},
+    {"ordinal": 4, "name": "WSNoteSuccessfulHostentLookup"}
+  ]
+}

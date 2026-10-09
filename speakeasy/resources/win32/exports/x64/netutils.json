@@ -1,0 +1,33 @@
+{
+  "module": "netutils",
+  "file": "netutils.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.1882",
+  "timestamp": 865845000,
+  "size_of_image": 53248,
+  "sha256": "71e1eb4a3027cf348d71bfdfebf0ede76d05d521293250d627417f7c2d9478d8",
+  "exports": [
+    {"ordinal": 1, "name": "NetApiBufferAllocate"},
+    {"ordinal": 2, "name": "NetApiBufferFree"},
+    {"ordinal": 3, "name": "NetApiBufferReallocate"},
+    {"ordinal": 4, "name": "NetApiBufferSize"},
+    {"ordinal": 5, "name": "NetRemoteComputerSupports"},
+    {"ordinal": 6, "name": "NetapipBufferAllocate"},
+    {"ordinal": 7, "name": "NetpIsComputerNameValid"},
+    {"ordinal": 8, "name": "NetpIsDomainNameValid"},
+    {"ordinal": 9, "name": "NetpIsGroupNameValid"},
+    {"ordinal": 10, "name": "NetpIsRemote"},
+    {"ordinal": 11, "name": "NetpIsRemoteNameValid"},
+    {"ordinal": 12, "name": "NetpIsShareNameValid"},
+    {"ordinal": 13, "name": "NetpIsUncComputerNameValid"},
+    {"ordinal": 14, "name": "NetpIsUserNameValid"},
+    {"ordinal": 15, "name": "NetpwListCanonicalize"},
+    {"ordinal": 16, "name": "NetpwListTraverse"},
+    {"ordinal": 17, "name": "NetpwNameCanonicalize"},
+    {"ordinal": 18, "name": "NetpwNameCompare"},
+    {"ordinal": 19, "name": "NetpwNameValidate"},
+    {"ordinal": 20, "name": "NetpwPathCanonicalize"},
+    {"ordinal": 21, "name": "NetpwPathCompare"},
+    {"ordinal": 22, "name": "NetpwPathType"}
+  ]
+}

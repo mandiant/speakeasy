@@ -1,0 +1,22 @@
+{
+  "module": "wintypes",
+  "file": "wintypes.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.32995",
+  "timestamp": 2828676658,
+  "size_of_image": 1019904,
+  "sha256": "78129d53e9bc7ea5f50f7295e88d591eea26be29436419ac4803cde76ce09738",
+  "exports": [
+    {"ordinal": 1, "name": "DllCanUnloadNow"},
+    {"ordinal": 2, "name": "DllGetActivationFactory"},
+    {"ordinal": 3, "name": "DllGetClassObject"},
+    {"ordinal": 4, "name": "RoCreateNonAgilePropertySet"},
+    {"ordinal": 5, "name": "RoCreatePropertySetSerializer"},
+    {"ordinal": 6, "name": "RoGetBufferMarshaler"},
+    {"ordinal": 7, "name": "RoGetMetaDataFile"},
+    {"ordinal": 8, "name": "RoIsApiContractMajorVersionPresent"},
+    {"ordinal": 9, "name": "RoIsApiContractPresent"},
+    {"ordinal": 10, "name": "RoParseTypeName"},
+    {"ordinal": 11, "name": "RoResolveNamespace"}
+  ]
+}

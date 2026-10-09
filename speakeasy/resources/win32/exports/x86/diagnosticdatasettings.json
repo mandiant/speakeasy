@@ -1,0 +1,26 @@
+{
+  "module": "diagnosticdatasettings",
+  "file": "diagnosticdatasettings.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.7019",
+  "timestamp": 789610104,
+  "size_of_image": 49152,
+  "sha256": "fcfeb3f560051256228b79a6c4eac665d4de1a26afd3f591599898aeb652700b",
+  "exports": [
+    {"ordinal": 1, "name": "TelEvaluateActiveSettingAuthority"},
+    {"ordinal": 2, "name": "TelGetAllAllowedTelemetryTypes"},
+    {"ordinal": 3, "name": "TelGetLocalAllowTelemetryRegPath"},
+    {"ordinal": 4, "name": "TelGetMaximumAllowedTelemetryLevel"},
+    {"ordinal": 5, "name": "TelGetNumericPolicy"},
+    {"ordinal": 6, "name": "TelGetRegionalSettingsValue"},
+    {"ordinal": 7, "name": "TelGetStringPolicy"},
+    {"ordinal": 8, "name": "TelGetWerTelemetryMode"},
+    {"ordinal": 9, "name": "TelGetWerTelemetryModeWinRE"},
+    {"ordinal": 10, "name": "TelIsOsInProcessorMode"},
+    {"ordinal": 11, "name": "TelIsProcessorModeAllowed"},
+    {"ordinal": 12, "name": "TelIsRestrictivePolicySet"},
+    {"ordinal": 13, "name": "TelIsTelemetryTypeAllowed"},
+    {"ordinal": 14, "name": "TelIsTelemetryTypeAllowedWinRE"},
+    {"ordinal": 15, "name": "TelSetLocalTelemetrySetting"}
+  ]
+}

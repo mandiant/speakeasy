@@ -1,0 +1,12 @@
+{
+  "module": "wow64base",
+  "file": "wow64base.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32684",
+  "timestamp": 703042672,
+  "size_of_image": 45056,
+  "sha256": "e136d4ce1bc2e446a6b0eb0847ed5aea7f592a516dfe8a7e907a2d9e699cfaaf",
+  "exports": [
+    {"ordinal": 1, "name": "sdwhbase", "kind": "data"}
+  ]
+}

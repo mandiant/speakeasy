@@ -1,0 +1,16 @@
+{
+  "module": "kdcom",
+  "file": "kdcom.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.1882",
+  "timestamp": 2946219595,
+  "size_of_image": 65536,
+  "sha256": "0056be0d7a108d2f5ce402755695e7f6ee807f6869bb98f4d45ffa7cddd8b154",
+  "exports": [
+    {"ordinal": 1, "name": "KdInitialize"},
+    {"ordinal": 2, "name": "KdPower"},
+    {"ordinal": 3, "name": "KdReceivePacket"},
+    {"ordinal": 4, "name": "KdSendPacket"},
+    {"ordinal": 5, "name": "KdSetHiberRange"}
+  ]
+}

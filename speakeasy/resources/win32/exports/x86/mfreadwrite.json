@@ -1,0 +1,18 @@
+{
+  "module": "mfreadwrite",
+  "file": "mfreadwrite.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 2159035831,
+  "size_of_image": 778240,
+  "sha256": "39769f9905edcebb69d7f140d25d99deccfd831bc5c9461ec1a6d83c34eddf0e",
+  "exports": [
+    {"ordinal": 1, "name": "DllCanUnloadNow"},
+    {"ordinal": 2, "name": "DllGetClassObject"},
+    {"ordinal": 3, "name": "MFCreateSinkWriterFromMediaSink"},
+    {"ordinal": 4, "name": "MFCreateSinkWriterFromURL"},
+    {"ordinal": 5, "name": "MFCreateSourceReaderFromByteStream"},
+    {"ordinal": 6, "name": "MFCreateSourceReaderFromMediaSource"},
+    {"ordinal": 7, "name": "MFCreateSourceReaderFromURL"}
+  ]
+}
