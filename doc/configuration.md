@@ -53,7 +53,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
     // Enables instruction-address coverage collection per entry point.
     // Useful for diffing runs and rough execution mapping.
-    "coverage": false
+    "coverage": false,
+
+    // If true, execution in non-executable guest module pages stops with a
+    // fault. If false, Speakeasy makes the page executable and continues,
+    // which lets packers run decrypted data sections.
+    "enforce_nx": false
   },
 
   // If true, frees do not immediately remove memory maps.

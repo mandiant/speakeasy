@@ -3022,12 +3022,13 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when non-executable code is emulated
         """
-        # Ordinary analysis recovers execution in non-X guest sections.
-        # Synthetic API protections and debugger stops are always
+        # Unless analysis.enforce_nx is set, ordinary analysis recovers execution
+        # in non-X guest sections. Synthetic API protections and debugger stops are always
         # authoritative; a symbol never causes dispatch from this hook.
         module = self.get_mod_from_addr(address)
         if (
             not self._stop_on_faults
+            and not self.config.analysis.enforce_nx
             and (module is None or module._image.source != "synthetic")
             and not self.api_registry.overlaps_traps(address)
         ):

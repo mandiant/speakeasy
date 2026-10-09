@@ -69,14 +69,16 @@ def test_timeout_budget_public_pe_iat_calls_are_independent():
         assert all(entry.error is None and api_names(entry) == ["kernel32.GetTickCount"] for entry in entries)
 
 
-def test_public_guest_data_execution_and_nx_policy():
+@pytest.mark.parametrize("enforce_nx", [None, True], ids=["default", "enforce"])
+def test_public_guest_data_execution_and_nx_policy(enforce_nx):
     def text(base, iat):
         load = b"\xb8" + struct.pack("<I", base + 0x2000)
         return calls(32, [("kernel32.dll", "GetTickCount")], prefix=load + b"\xff\xd0")(base, iat)
 
     data, _ = build_pe(32, text=text, data=b"\xb8\x2a\0\0\0\xc3", imports=TICK, nxcompat=True)
     hits = []
-    with Speakeasy(config=configured()) as se:
+    overrides = {} if enforce_nx is None else {"analysis.enforce_nx": enforce_nx}
+    with Speakeasy(config=configured(**overrides)) as se:
 
         def tick(emu, name, original, args):
             hits.append(name)
@@ -95,10 +97,16 @@ def test_public_guest_data_execution_and_nx_policy():
         assert previous == unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
         se.run_module(module)
         entry = se.get_report().entry_points[0]
-        assert entry.error is None and entry.ret_val == 77
-        assert hits == ["kernel32.GetTickCount"]
-        assert api_names(entry) == hits
-        assert permissions(data_address) == previous | unicorn.UC_PROT_EXEC
+        if enforce_nx:
+            assert entry.error.type == "invalid_protect_fetch"
+            assert entry.error.pc == data_address
+            assert hits == [] and api_names(entry) == []
+            assert permissions(data_address) == previous
+        else:
+            assert entry.error is None and entry.ret_val == 77
+            assert hits == ["kernel32.GetTickCount"]
+            assert api_names(entry) == hits
+            assert permissions(data_address) == previous | unicorn.UC_PROT_EXEC
         assert permissions(module.base + 0x3000) == adjacent
 
 
