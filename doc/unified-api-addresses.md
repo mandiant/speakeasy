@@ -52,7 +52,7 @@ Real forwarders resolve through destination modules, names or ordinals, with cyc
 
 Each synthetic image reserves a 64 KiB `.dyn` arena, enough for 2,048 additional entries. Name and ordinal requests have separate keys. Repeated resolution reuses the same address. New entries never change the module's EAT, `SizeOfImage`, section layout or existing pointers.
 
-An empty unknown placeholder can resolve dynamic-only functions. For a populated known surface, missing procedure lookups fail unless `functions_always_exist` or an explicit user hook permits synthesis. Static/injected import binding and the explicit `get_proc` interface permit dynamic placeholders for missing synthetic exports, preserving a meaningful address and later unsupported-call diagnostic. Guest PEs always remain strict. Capacity exhaustion or guest modifications to arena bytes/protections fail allocation without moving existing entries.
+An empty unknown placeholder can resolve dynamic-only functions. For a populated known surface, a procedure lookup for a name that is not exported fails unless the name has a supported declaration for that DLL, `functions_always_exist` is set, or an explicit user hook permits synthesis. A declared name therefore resolves even when the physical manifest lacks it, because other Windows builds export it. A failed `GetProcAddress` sets `ERROR_PROC_NOT_FOUND`. Static/injected import binding and the explicit `get_proc` interface permit dynamic placeholders for missing synthetic exports, preserving a meaningful address and later unsupported-call diagnostic. Guest PEs always remain strict. Capacity exhaustion or guest modifications to arena bytes/protections fail allocation without moving existing entries.
 
 `functions_always_exist` permits dynamic resolution. It also enables the fallback for completely undeclared functions: treat the call as a 4-argument stdcall function, log those arguments, and return 1. This guess lets execution continue. On x86 it corrupts the stack when the real argument count differs. Known declarations rejected by the execution gate never enter the unknown-function fallback. Other unsupported calls log a diagnostic and stop during ordinary dispatch. Under GDB, preflight stops before recording an API call and the original frame remains suspended so a caller can inspect it, add a hook, redirect execution, or patch the entry.
 
@@ -102,7 +102,7 @@ The private reservation is not a guest code or data surface; data probes fault a
 
 ## Migration
 
-- Procedure lookup for a missing name in a known synthetic surface returns NULL unless permissive resolution or an explicit hook enables a dynamic entry.
+- Procedure lookup for a missing name in a known synthetic surface returns NULL unless a supported declaration, permissive resolution or an explicit hook enables a dynamic entry.
 - DLLs represented by the signature catalog load even with `modules_always_exist=false`; that flag controls unknown-module placeholders.
 - Native files selected through configured paths execute their own guest code instead of same-named Python handlers. The old `default_exe`/`default_driver` loader fallback is removed.
 - Configured timeout applies under the debugger, excluding paused time and resetting for each fresh run. `max_total_time` adds a separate aggregate active-time cap per public invocation.
