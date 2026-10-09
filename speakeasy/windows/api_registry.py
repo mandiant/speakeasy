@@ -154,7 +154,6 @@ class ApiRegistry:
             ordinal=reference if isinstance(reference, int) else 0,
             execution_mode="intercepted",
             kind="function",
-            visibility="dynamic",
         )
         from speakeasy.windows.api_image import encode_api_stub
 

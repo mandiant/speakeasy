@@ -498,12 +498,12 @@ class Win32Emulator(WindowsEmulator):
         )
         if main is not None and main.visible_in_peb:
             proc.add_module_to_peb(main)
-        proc._initializing_peb = True
+        proc.initializing_peb = True
         try:
             self._ensure_core_dlls_loaded()
             self.init_peb(self._ordered_peb_modules(proc, include_defaults=True), proc=proc)
         finally:
-            proc._initializing_peb = False
+            proc.initializing_peb = False
 
         return peb
 

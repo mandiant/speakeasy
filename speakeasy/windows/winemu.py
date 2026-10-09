@@ -832,20 +832,6 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and debugger.has_pending_stop():
                     return
                 if self._pending_control:
-                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
-                        stop_limit("max_total_time")
-                        return
-                    control, self._pending_control = self._pending_control, None
-                    if control in ("run_return", "fault_return"):
-                        self.on_run_complete()
-                        return
-                    if control == "exec_recovery":
-                        recover_execution()
-                    else:
-                        self._continue_api_callback()
-                    address = self.get_pc()
-                    if debugger is not None and (debugger.has_pending_stop() or count == 1):
-                        return
                     continue
                 if deadline is not None and time.monotonic() >= deadline:
                     stop_limit(deadline_kind)
@@ -2077,9 +2063,6 @@ class WindowsEmulator(BinaryEmulator):
             module = self.load_module_by_name(host)
         return self.resolve_export(module, func_name, allow_dynamic=True)
 
-    def handle_import_data(self, mod_name, sym, data_ptr=0):
-        return self.get_proc(mod_name, sym)
-
     def _intercept_api_trap(self, access, address, size):
         if self.emu_eng.mem_access.get(access) == common.INVALID_MEM_EXEC:
             if address in (self.return_hook, self.exit_hook) and self.curr_run:
@@ -3232,7 +3215,7 @@ class WindowsEmulator(BinaryEmulator):
         process = self.get_current_process()
         if process is None or not self.get_address_map(process.peb_ldr_data.address):
             return
-        if getattr(process, "_initializing_peb", False):
+        if process.initializing_peb:
             return
         if module.is_exe() and module is not process.pe and module.base != process.base:
             return

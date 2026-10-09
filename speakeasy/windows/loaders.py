@@ -86,7 +86,6 @@ class ExportEntry:
     execution_mode: str
     kind: str = "function"
     forwarder: str | None = None
-    visibility: str = "static"
 
 
 @dataclass
