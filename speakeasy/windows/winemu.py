@@ -1728,6 +1728,9 @@ class WindowsEmulator(BinaryEmulator):
                 return 0
             hooks = self.get_api_hooks(module.name, str(reference))
             eligible = allow_dynamic or self.config.modules.functions_always_exist or hooks
+            # Declared functions that the physical manifest lacks still resolve,
+            # because other Windows builds export them.
+            eligible = eligible or (isinstance(reference, str) and self.has_api_signature(module.name, reference))
             # Empty placeholder modules deliberately offer dynamic-only functions.
             eligible = eligible or (module._image.source == "synthetic" and not module.get_exports())
             if not eligible or module._image.source != "synthetic":
