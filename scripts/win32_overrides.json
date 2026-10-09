@@ -1,7 +1,7 @@
 {
   "_comment": [
     "Hand-maintained corrections layered over win32json when generating",
-    "speakeasy/resources/win32/signatures.json.gz. win32metadata records no",
+    "speakeasy/resources/win32/win32json_signatures.json.gz. win32metadata records no",
     "calling convention and no varargs marker, so both are supplied here.",
     "Keys: cdecl_dlls (entire DLLs whose exports are __cdecl), cdecl",
     "(individual __cdecl functions), variadic (functions taking '...'; these",
