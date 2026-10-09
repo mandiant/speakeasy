@@ -175,7 +175,11 @@ class EmuEngine:
 
     def mem_write(self, addr, data):
         """Write data into the address space of the engine"""
-        return self.emu.mem_write(addr, data)  # type: ignore[union-attr]
+        result = self.emu.mem_write(addr, data)  # type: ignore[union-attr]
+        if data:
+            # Host/debugger writes must invalidate already translated stub bytes.
+            self.emu.ctl_remove_cache(addr, addr + len(data))  # type: ignore[union-attr]
+        return result
 
     def mem_read(self, addr, size):
         """Read data from the address space of the engine"""
