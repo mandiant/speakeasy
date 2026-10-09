@@ -113,6 +113,89 @@ def test_names_sorted_duplicates_exact_and_signatures_lazy(tmp_path: Path) -> No
     assert ("Alpha", 1) not in source._sig_cache
 
 
+@pytest.mark.parametrize("foreign_dlls", [1, 128])
+def test_catalog_operations_only_touch_requested_dll_after_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, foreign_dlls: int
+) -> None:
+    functions = {
+        f"Foreign{dll}_{name}": [{"dll": f"foreign{dll}", "arch": ["x86", "x64"]}]
+        for dll in range(foreign_dlls)
+        for name in range(16)
+    }
+    functions.update(
+        {
+            "Z": [{"dll": "D.DLL", "arch": ["x86", "x64"]}],
+            "A": [
+                {"dll": "d", "arch": ["arm64"]},
+                {"dll": "d", "arch": ["x86", "x64"]},
+                {"dll": "d", "arch": ["x86", "x64"], "ret": "u64"},
+            ],
+        }
+    )
+    source = _source(tmp_path, functions)
+    assert source.available
+    assert not source._sig_cache
+
+    normalized = []
+    sorted_sizes = []
+    arch_checks = []
+    normalize = sigdb.normalize_dll
+    sort = sorted
+
+    def count_normalize(dll):
+        normalized.append(dll)
+        return normalize(dll)
+
+    def count_sort(values):
+        values = list(values)
+        sorted_sizes.append(len(values))
+        return sort(values)
+
+    class CountingArches(list):
+        def __contains__(self, arch):
+            arch_checks.append(arch)
+            return super().__contains__(arch)
+
+    for entries in source._functions.values():
+        for entry in entries:
+            entry["arch"] = CountingArches(entry["arch"])
+    monkeypatch.setattr(sigdb, "normalize_dll", count_normalize)
+    monkeypatch.setattr(sigdb, "sorted", count_sort, raising=False)
+
+    for arch in ("x86", "x64", "x86"):
+        catalog = list(source.iter_functions("D.DLL", arch))
+        assert [sig.name for sig in catalog] == ["A", "Z"]
+        assert catalog[0].ret == "p"
+    assert list(source.iter_functions("missing.dll", "x86")) == []
+    assert normalized == ["D.DLL", "D.DLL", "D.DLL", "missing.dll"]
+    assert sorted_sizes == []
+    # Check each candidate once, stopping at the first eligible duplicate.
+    assert arch_checks == ["x86"] * 3 + ["x64"] * 3 + ["x86"] * 3
+    assert set(source._sig_cache) == {("A", 1), ("Z", 0)}
+
+
+@pytest.mark.parametrize("arch,ret,index", [("x86", "i32", 3), ("x64", "i64", 2), ("arm64", "h", 4)])
+def test_index_preserves_normalized_dll_declaration_order(tmp_path: Path, arch: str, ret: str, index: int) -> None:
+    source = _source(
+        tmp_path,
+        {
+            "Shared": [
+                {"dll": "foreign", "ret": "v"},
+                {"dll": "D.DLL", "arch": [], "ret": "v"},
+                {"dll": "d", "arch": ["x64"], "ret": "i64", "skip": "unsupported"},
+                {"dll": "D.dll", "arch": ["x86"], "ret": "i32"},
+                {"dll": "d", "arch": None, "ret": "h"},
+                {"dll": "d", "ret": "u64"},
+            ],
+        },
+    )
+    catalog = list(source.iter_functions("d.dll", arch))
+    assert len(catalog) == 1 and catalog[0].ret == ret
+    assert catalog[0] is source.lookup_exact("D.DLL", "Shared", arch)
+    assert catalog[0].skip == ("unsupported" if arch == "x64" else None)
+    assert set(source._sig_cache) == {("Shared", index)}
+
+
 class _LookupOnlySource(sigdb.SignatureSource):
     @property
     def available(self) -> bool:

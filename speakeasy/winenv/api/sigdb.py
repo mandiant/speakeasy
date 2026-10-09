@@ -465,6 +465,7 @@ class Win32MetadataSource(SignatureSource):
         self._lock = threading.Lock()
         self._loaded = False
         self._functions: dict[str, list[dict]] = {}
+        self._functions_by_dll: dict[str, dict[str, list[tuple[int, dict]]]] = {}
         self._enums: dict[str, dict] = {}
         self._structs: dict[str, dict] = {}
         self._dll_aliases: dict[str, str] = {}
@@ -509,6 +510,15 @@ class Win32MetadataSource(SignatureSource):
                 )
                 return
             self._functions = doc.get("functions", {})
+            # Keep raw declarations and their original indices so catalogs share
+            # the lookup cache without eagerly constructing any FuncSig objects.
+            for name, entries in self._functions.items():
+                for idx, entry in enumerate(entries):
+                    dll = normalize_dll(entry["dll"])
+                    names = self._functions_by_dll.setdefault(dll, {})
+                    names.setdefault(name, []).append((idx, entry))
+            for dll, names in self._functions_by_dll.items():
+                self._functions_by_dll[dll] = dict(sorted(names.items()))
             self._enums = doc.get("enums", {})
             self._structs = doc.get("structs", {})
             self._dll_aliases = doc.get("dll_aliases", {})
@@ -559,10 +569,8 @@ class Win32MetadataSource(SignatureSource):
         """
         self._load()
         dll = normalize_dll(dll)
-        for name in sorted(self._functions):
-            for idx, entry in enumerate(self._functions[name]):
-                if normalize_dll(entry["dll"]) != dll:
-                    continue
+        for name, entries in self._functions_by_dll.get(dll, {}).items():
+            for idx, entry in entries:
                 arches = entry.get("arch")
                 if arches is not None and arch not in arches:
                     continue
