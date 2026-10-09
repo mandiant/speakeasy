@@ -9,14 +9,22 @@ from typing import TYPE_CHECKING
 
 import speakeasy.common as common
 from speakeasy.errors import WindowsEmuError
+from speakeasy.windows.api_image import API_ENTRY_OFFSET, API_SLOT_SIZE, encode_api_stub
 from speakeasy.windows.loaders import ExportEntry, RuntimeModule
 
 if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator
 
 
+MODULE_EXTENSIONS = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
+
+
 def module_name(value: str) -> str:
-    return ntpath.splitext(ntpath.basename(value))[0].lower()
+    # Strip only image extensions so that repeated normalization keeps dotted
+    # module names such as windows.storage intact.
+    name = ntpath.basename(value).lower()
+    root, extension = ntpath.splitext(name)
+    return root if extension in MODULE_EXTENSIONS else name
 
 
 def symbol_ref(value: str | int) -> str | int:
@@ -111,8 +119,6 @@ class ApiRegistry:
             if entry is None:
                 entry = ApiEntry(module, export)
                 if synthetic and export.kind == "function" and not export.forwarder:
-                    from speakeasy.windows.api_image import encode_api_stub
-
                     entry.trap = self._allocate_trap()
                     code = encode_api_stub(module.arch, export.address, entry.trap)
                     self.emu.mem_write(export.address, code)
@@ -140,14 +146,19 @@ class ApiRegistry:
         reference = symbol_ref(reference)
         arena = next((s for s in module.sections if s.name == ".dyn"), None)
         offset = self.dynamic_offsets.get(id(module), 0)
-        if arena is None or offset + 32 > arena.virtual_size:
+        if arena is None or offset + API_SLOT_SIZE > arena.virtual_size:
             raise WindowsEmuError(f"dynamic API arena exhausted for {module.name}")
         slot = module.base + arena.virtual_address + offset
         # Never overwrite guest patches or restore guest-changed page protections.
-        perms = next((p for start, end, p in self.emu.get_mem_regions() if start <= slot and slot + 32 <= end + 1), 0)
-        if not perms & self.emu.emu_eng.perms[common.PERM_MEM_EXEC] or self.emu.mem_read(slot, 32) != b"\xcc" * 32:
+        perms = next(
+            (p for start, end, p in self.emu.get_mem_regions() if start <= slot and slot + API_SLOT_SIZE <= end + 1), 0
+        )
+        if (
+            not perms & self.emu.emu_eng.perms[common.PERM_MEM_EXEC]
+            or self.emu.mem_read(slot, API_SLOT_SIZE) != b"\xcc" * API_SLOT_SIZE
+        ):
             raise WindowsEmuError(f"dynamic API arena modified by guest for {module.name}")
-        address = slot + 16
+        address = slot + API_ENTRY_OFFSET
         export = ExportEntry(
             name=reference if isinstance(reference, str) else None,
             address=address,
@@ -155,11 +166,10 @@ class ApiRegistry:
             execution_mode="intercepted",
             kind="function",
         )
-        from speakeasy.windows.api_image import encode_api_stub
-
         trap = self._allocate_trap()
         entry = ApiEntry(module, export, [reference] if isinstance(reference, str) else [], trap)
-        self.emu.mem_write(slot, b"\x90" * 16 + encode_api_stub(module.arch, address, trap).ljust(16, b"\xcc"))
+        stub = encode_api_stub(module.arch, address, trap).ljust(API_SLOT_SIZE - API_ENTRY_OFFSET, b"\xcc")
+        self.emu.mem_write(slot, b"\x90" * API_ENTRY_OFFSET + stub)
         self.entries[address] = entry
         insort(self._addresses, address)
         self.traps[trap] = entry
@@ -167,7 +177,7 @@ class ApiRegistry:
             self.names.setdefault(id(module), {})[reference] = entry
         else:
             self.ordinals.setdefault(id(module), {})[reference] = entry
-        self.dynamic_offsets[id(module)] = offset + 32
+        self.dynamic_offsets[id(module)] = offset + API_SLOT_SIZE
         return entry
 
     def symbol(self, address: int) -> str | None:
@@ -179,7 +189,9 @@ class ApiRegistry:
         if index >= 0:
             start = self._addresses[index]
             record = self.entries[start]
-            extent = 16 if record.export.kind == "function" and record.trap is not None else 1
+            extent = (
+                API_SLOT_SIZE - API_ENTRY_OFFSET if record.export.kind == "function" and record.trap is not None else 1
+            )
             if start < address < start + extent:
                 return f"{record.symbol}+0x{address - start:x}"
         return None

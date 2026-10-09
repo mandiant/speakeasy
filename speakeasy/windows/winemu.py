@@ -717,7 +717,6 @@ class WindowsEmulator(BinaryEmulator):
         remaining = [max(budget - used, 0) if budget > 0 else -1]
         limit = [False]
         origin_run = self.curr_run
-        last_owned_pc = address
         hook = None
 
         def recover_execution():
@@ -808,8 +807,6 @@ class WindowsEmulator(BinaryEmulator):
                             self._pending_api_entry is None and not self._pending_control
                         ):
                             raise
-                    if self.curr_run is origin_run:
-                        last_owned_pc = self.get_pc()
                     if self._pending_trap_fault is not None:
                         self._dispatch_trap_fault()
                         address = self.get_pc()
@@ -858,7 +855,6 @@ class WindowsEmulator(BinaryEmulator):
                 self._pending_api_entry = None
                 self._pending_api_snapshot = None
                 self.prev_pc = entry.address
-                last_owned_pc = entry.address
                 self.handle_import_func(entry.dll, entry.name)
                 if self._pending_fault_stop is not None:
                     return
@@ -880,20 +876,20 @@ class WindowsEmulator(BinaryEmulator):
                 if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
                     total_budget.exhausted = True
                     self._cancel_execution_runs()
-                    if origin_run.error is None:
-                        origin_run.error = ErrorInfo(
-                            type="max_total_time", pc=self.get_pc() if self.curr_run is origin_run else last_owned_pc
-                        )
-                    # Completing a run may already have prepared the next one.
-                    # It did not execute and must not appear as a started run.
                     prepared = self.curr_run
-                    if prepared is not origin_run:
+                    if prepared is origin_run:
+                        if not self.run_complete and origin_run.error is None:
+                            origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
+                    else:
+                        # Completing the run already prepared the next one. It
+                        # did not execute and must not appear as a started run.
                         self._cancel_execution_runs(prepared)
-                    if prepared is not origin_run and prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
-                        self.runs[:] = [run for run in self.runs if run is not prepared]
-                        if self.profiler:
-                            self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
-                        self.curr_run = origin_run
+                        if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
+                            self.runs[:] = [run for run in self.runs if run is not prepared]
+                            if self.profiler:
+                                self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
+                            self.curr_run = origin_run
+                            self.run_complete = True
                     if debugger is not None:
                         debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             for module in self._failed_guest_modules:
@@ -919,7 +915,15 @@ class WindowsEmulator(BinaryEmulator):
         self.suspended_runs.clear()
 
     def resume(self, addr, count=-1):
-        timeout = self.config.timeout
+        """Resume emulation directly at an address.
+
+        This low-level API bypasses the GDB command loop; callers that enable
+        GDB should drive execution through :meth:`start` instead.
+        """
+        if self.curr_run is None:
+            self.curr_run = Run()
+        self.emu_complete = False
+        timeout = 0 if self.gdb_port is not None else self.config.timeout
         self._run_api_engine(addr, timeout=timeout, count=count)
 
     @execution_scope
@@ -1363,6 +1367,9 @@ class WindowsEmulator(BinaryEmulator):
         requires every import to validate.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
+
+        Intended for PEs injected via WriteProcessMemory (process hollowing)
+        that bypass the normal module loader.
         """
         import struct
 
@@ -1753,8 +1760,13 @@ class WindowsEmulator(BinaryEmulator):
                 end = (mod.base + section.virtual_address + section.virtual_size + self.page_size - 1) & ~(
                     self.page_size - 1
                 )
+                # PE sections can be smaller than a page and multiple sections can share one page.
+                # Merge permissions per page so a later tiny read-only section does not clobber
+                # earlier writable/executable permissions already required on that same page.
                 for page in range(start, end, self.page_size):
                     page_perms[page] = page_perms.get(page, 0) | section.perms
+            # Each unicorn mem_protect call splits a region, and the cost grows with the region
+            # count, so protect runs of contiguous same-permission pages with one call each.
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
                 self.mem_protect(start, length, perms)
 
@@ -1976,6 +1988,13 @@ class WindowsEmulator(BinaryEmulator):
         ]
 
     def add_callback(self, mod_name, func_name):
+        """
+        Adds a callback to the emulation callback list. A "callback" in this
+        context refers to a function that in not imported statically or dynamically.
+
+        For example, a pointer that is set in a function table
+        (e.g. PsSetCreateProcessNotifyRoutine).
+        """
         from speakeasy.windows.loaders import ApiModuleLoader
 
         module = self.get_mod_by_name("speakeasy_callbacks")
@@ -2989,8 +3008,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when non-executable code is emulated
         """
-        # Ordinary analysis historically recovers execution in non-X guest
-        # sections. Synthetic API protections and debugger stops are always
+        # Unless analysis.enforce_nx is set, ordinary analysis recovers execution
+        # in non-X guest sections. Synthetic API protections and debugger stops are always
         # authoritative; a symbol never causes dispatch from this hook.
         module = self.get_mod_from_addr(address)
         if (

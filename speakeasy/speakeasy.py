@@ -408,6 +408,7 @@ class Speakeasy:
             return
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
 
+    @execution_scope
     def resume(self, addr, count=-1):
         """
         Resume emulating at the specified address

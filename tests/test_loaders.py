@@ -419,12 +419,12 @@ def test_guest_loader_config_controls_optional_parsing(mode, strict, config, tmp
         se.shutdown()
 
 
-def two_static_names(architecture, *, first=b"Normal", oft_zero=False):
+def two_static_names(architecture, *, oft_zero=False):
     raw, data = _make_delay_import_pe(architecture, with_relocations=True)
     raw = bytearray(raw)
     width = architecture // 8
     table = data + (0x340 if oft_zero else 0x300)
-    first_record = b"\0\0" + first + b"\0"
+    first_record = b"\0\0Normal\0"
     second_record = b"\0\0Survivor\0"
     raw[data + 0x160 : data + 0x160 + len(first_record)] = first_record
     raw[data + 0x1A0 : data + 0x1A0 + len(second_record)] = second_record

@@ -13,6 +13,8 @@ import speakeasy.winenv.arch as _arch
 if TYPE_CHECKING:
     from speakeasy.winenv.api.sigdb import SignatureDatabase
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ResourceEntry:
@@ -249,7 +251,7 @@ class PeLoader:
     def _optional_error(self, context: str, error: Exception) -> None:
         if self._strict:
             raise error
-        logging.getLogger(__name__).warning("Skipping malformed PE %s: %s", context, error)
+        logger.warning("Skipping malformed PE %s: %s", context, error)
 
     def _import_dll_name(self, pe: Any, entry: Any, source: str) -> str:
         import pefile
@@ -278,7 +280,7 @@ class PeLoader:
             if self._strict:
                 raise
             dll = raw.decode("latin-1")
-            logging.getLogger(__name__).warning("Non-ASCII imported DLL name decoded as Latin-1: %r", dll)
+            logger.warning("Non-ASCII imported DLL name decoded as Latin-1: %r", dll)
         dll = ntpath.splitext(dll)[0]
         if not dll:
             raise ValueError("Invalid imported DLL name")
@@ -459,14 +461,8 @@ class PeLoader:
             for entry in entries:
                 try:
                     dll = self._import_dll_name(pe, entry, source)
-                    if source == "delay":
-                        if entry.struct.grAttrs not in (0, 1) or (
-                            pe.arch == _arch.ARCH_AMD64 and entry.struct.grAttrs != 1
-                        ):
-                            raise ValueError("Invalid delay import attributes for PE architecture")
-                        iat_rva = entry.struct.pIAT
-                    else:
-                        iat_rva = entry.struct.FirstThunk
+                    # _delay_import_directory already validated delay attributes.
+                    iat_rva = entry.struct.pIAT if source == "delay" else entry.struct.FirstThunk
                 except ValueError as error:
                     self._optional_error(f"{source} import descriptor", error)
                     continue
@@ -769,6 +765,13 @@ class ApiModuleLoader:
                 sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)
             }
             specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
+            if self._name == "ntoskrnl":
+                # The kernel exports native services under both prefixes, and
+                # dispatch folds each pair onto one handler.
+                for name in list(handler_ordinals):
+                    if name.startswith(("Nt", "Zw")):
+                        alias = ("Zw" if name.startswith("Nt") else "Nt") + name[2:]
+                        specs.setdefault(alias, ApiExportSpec(alias))
             specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
             exports = list(specs.values())
         image_name = self._name

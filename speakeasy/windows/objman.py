@@ -615,8 +615,8 @@ class Process(KernelObject):
         self.threads.append(thr)
 
     def add_module_to_peb(self, module):
-        # One loader entry per mapped image in this process. Keep ldr_entries
-        # as a list of LdrDataTableEntry objects for existing consumers.
+        # One loader entry per mapped image in this process. _peb_modules
+        # indexes membership by base; ldr_entries keeps load order.
         if module.base in self._peb_modules:
             self._sync_peb_module_links()
             return

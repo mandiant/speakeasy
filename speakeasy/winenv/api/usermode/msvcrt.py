@@ -108,21 +108,18 @@ class Msvcrt(api.ApiHandler):
         return struct.unpack("<Q", struct.pack("<d", x))[0]
 
     @impdata("_acmdln")
-    def _acmdln(self, ptr=0):
+    def _acmdln(self, ptr):
         """Command line global CRT variable"""
 
-        cmdln = ptr
         _argv = self.emu.get_argv()
         _argv = " ".join(_argv).encode("utf-8")
 
         ptr_size = self.emu.get_ptr_size()
 
-        if not ptr:
-            cmdln = self.mem_alloc(ptr_size, base=None, tag="api.msvcrt._acmdln")
         p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
-        self.emu.mem_write(cmdln, p_cmdln.to_bytes(ptr_size, "little"))
+        self.emu.mem_write(ptr, p_cmdln.to_bytes(ptr_size, "little"))
         self.emu.mem_write(p_cmdln, _argv + b"\x00")
-        return cmdln
+        return ptr
 
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -397,10 +394,8 @@ class Msvcrt(api.ApiHandler):
         return argc
 
     @impdata("__initenv")
-    def __initenv(self, ptr=0):
+    def __initenv(self, ptr):
         """Writable char ** global, shared with __p___initenv."""
-        if not ptr:
-            return self.emu.get_proc("msvcrt", "__initenv")
         self.mem_write(ptr, b"\x00" * self.get_ptr_size())
         return ptr
 
@@ -876,11 +871,11 @@ class Msvcrt(api.ApiHandler):
         return
 
     @impdata("_fmode")
-    def _fmode(self, ptr=0):
+    def _fmode(self, ptr):
         """Writable file-mode global, initialized to _O_TEXT."""
-        if not ptr:
-            return self.emu.get_proc("msvcrt", "_fmode")
-        self.mem_write(ptr, (0x4000).to_bytes(4, "little"))
+        _O_TEXT = 0x4000
+
+        self.mem_write(ptr, _O_TEXT.to_bytes(4, "little"))
         return ptr
 
     @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -889,11 +884,11 @@ class Msvcrt(api.ApiHandler):
         return emu.get_proc("msvcrt", "_fmode")
 
     @impdata("_commode")
-    def _commode(self, ptr=0):
-        """Writable commit-mode global, preserving the accessor's initial value."""
-        if not ptr:
-            return self.emu.get_proc("msvcrt", "_commode")
-        self.mem_write(ptr, (0x4000).to_bytes(4, "little"))
+    def _commode(self, ptr):
+        """Writable commit-mode global, initialized to _IOCOMMIT."""
+        _IOCOMMIT = 0x4000
+
+        self.mem_write(ptr, _IOCOMMIT.to_bytes(4, "little"))
         return ptr
 
     @apihook("__p__commode", argc=0, conv=e_arch.CALL_CONV_CDECL)

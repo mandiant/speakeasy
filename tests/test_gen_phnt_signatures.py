@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from speakeasy.winenv.api import sigdb
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GENERATOR = REPO_ROOT / "scripts" / "gen_phnt_signatures.py"
 
@@ -283,3 +285,49 @@ def test_write_output_is_reproducible(gen: ModuleType, mini_phnt: Path, tmp_path
 def test_main_reports_missing_submodule(gen: ModuleType, tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="git submodule update"):
         gen.generate(str(tmp_path / "empty"))
+
+
+def test_curated_win64_declarations_filter_generated_catalog(gen: ModuleType, mini_phnt: Path, tmp_path: Path):
+    (mini_phnt / "ntrtl.h").write_text(
+        """
+#if defined(_WIN64)
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlWow64GetThreadContext(
+    _In_ HANDLE ThreadHandle,
+    _Inout_ PVOID ThreadContext
+    );
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlWow64SetThreadContext(
+    _In_ HANDLE ThreadHandle,
+    _In_ PVOID ThreadContext
+    );
+NTSYSAPI
+PVOID
+NTAPI
+RtlGetFunctionTableListHead(
+    VOID
+    );
+#endif
+"""
+    )
+    doc, _ = gen.generate(str(mini_phnt))
+    names = {"RtlWow64GetThreadContext", "RtlWow64SetThreadContext", "RtlGetFunctionTableListHead"}
+    for name in names:
+        assert doc["functions"][name][0]["arch"] == ["x64"]
+    assert "arch" not in doc["functions"]["RtlNoArgs"][0]
+    path = tmp_path / "generated.json.gz"
+    gen.write_output(doc, str(path))
+    db = sigdb.SignatureDatabase([sigdb.PhntSource(str(path))])
+    x86 = {sig.name for sig in db.iter_functions("ntdll", "x86")}
+    x64 = {sig.name for sig in db.iter_functions("ntdll", "x64")}
+    assert names.isdisjoint(x86)
+    assert names <= x64
+    assert "RtlNoArgs" in x86 & x64
+    for name in names:
+        assert db.lookup_exact("ntdll", name, "x86") is None
+        sig = db.lookup_exact("ntdll", name, "x64")
+        assert sig is not None and sig.arch == ("x64",)

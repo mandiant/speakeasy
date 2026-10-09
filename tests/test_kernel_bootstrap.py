@@ -28,3 +28,16 @@ def test_kernel_import_data_allocation_uses_system_process_context(config):
         assert proc.pid == 4
     finally:
         se.shutdown()
+
+
+def test_kernel_exports_native_services_under_both_prefixes(config):
+    se = Speakeasy(config=config)
+
+    try:
+        se.load_module(str(SAMPLE_PATH))
+        emu = se.emu
+        ntoskrnl = emu.get_mod_by_name("ntoskrnl")
+        assert emu.resolve_export(ntoskrnl, "ZwClose")
+        assert emu.resolve_export(ntoskrnl, "NtClose")
+    finally:
+        se.shutdown()

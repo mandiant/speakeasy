@@ -4,6 +4,7 @@ import hashlib
 import ntpath
 import os
 
+import speakeasy.common as common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -623,14 +624,12 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                     {sdt_addr + 0x10: (km.get_base_name(), "KeServiceDescriptorTable.NumberOfServices")}
                 )
 
-                # Header padding is not code. Keep the compatibility stub in its
-                # own RX allocation near the kernel for the relative SSDT offsets.
-                from speakeasy.common import PERM_MEM_RX
-
+                # Map the compatibility stub next to the kernel image so that its
+                # 32-bit relative offsets reach the SSDT.
                 ksc64_addr = self.mem_map(
                     self.page_size,
                     base=km.base + km.image_size,
-                    perms=PERM_MEM_RX,
+                    perms=common.PERM_MEM_RX,
                     tag="emu.KiSystemCall64",
                 )
                 self.symbols.update({ksc64_addr: (km.get_base_name(), "KiSystemCall64")})

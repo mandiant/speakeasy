@@ -9,7 +9,6 @@ def build_pe(
     text=b"",
     data=b"",
     imports=None,
-    data_exec=False,
     nxcompat=False,
     extra_dirs=None,
 ):
@@ -63,7 +62,7 @@ def build_pe(
         text = text(base, iat_map)
     sections = [
         (b".text", 0x1000, bytes(text) or b"\xc3", 0x60000020),
-        (b".data", 0x2000, bytes(data) or b"\0", 0xC0000040 | (0x20000000 if data_exec else 0)),
+        (b".data", 0x2000, bytes(data) or b"\0", 0xC0000040),
         (b".idata", import_rva, bytes(idata) or b"\0", 0xC0000040),
     ]
     assert all(len(content) <= 0x1000 for _, _, content, _ in sections)

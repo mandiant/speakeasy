@@ -3,7 +3,7 @@
 import pytest
 import unicorn as uc
 
-from speakeasy import common
+from speakeasy import Speakeasy, common
 from speakeasy.profiler import Run
 
 
@@ -118,3 +118,18 @@ def test_sp_changing_exit_hook_ends_run_and_successor_owns_its_events(api_emu):
     assert [(event.api_name, event.ret_val) for event in api_events(exiting)] == [("kernel32.ExitThread", "0x4d")]
     assert [(event.api_name, event.ret_val) for event in api_events(following)] == [("run_boundary.Next", "0x2b")]
     assert not emu.run_queue
+
+
+@pytest.mark.parametrize("run_first", [False, True])
+def test_resume_executes_before_and_after_a_run(run_first):
+    se = Speakeasy()
+    try:
+        # mov eax, 0x1234; ret; inc ecx (x4); ret
+        address = se.load_shellcode(None, "x86", data=bytes.fromhex("b834120000c3" + "41414141c3"))
+        if run_first:
+            se.run_shellcode(address)
+        se.emu.reg_write("ecx", 0)
+        se.resume(address + 6, count=4)
+        assert se.emu.reg_read("ecx") == 4
+    finally:
+        se.shutdown()
