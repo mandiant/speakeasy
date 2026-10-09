@@ -326,9 +326,10 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // always emulated from it, see doc/api-handlers.md.
     "functions_always_exist": false,
 
-    // Decoy search roots by architecture.
-    "module_directory_x86": "$ROOT$/winenv/decoys/x86",
-    "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
+    // Directories of native DLLs, by architecture. A module with a matching
+    // file name loads from the directory instead of as a synthetic API module.
+    "module_directory_x86": null,
+    "module_directory_x64": null,
 
     // User-mode module inventory.
     "user_modules": [

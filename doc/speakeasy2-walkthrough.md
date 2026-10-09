@@ -8,7 +8,7 @@ Speakeasy now targets Python 3.10+ and Unicorn 2.1.4+. Unicorn 2.1.3 and below h
 
 ## Unified loader and module model
 
-The module system was reorganized around explicit Loader types, a LoadedImage data model, and a consistent RuntimeModule representation. This replaces multiple parallel module registries and consolidates image loading, import hookup, and bookkeeping into one path. The change makes behavior more predictable across PE files, shellcode, decoys, and API modules.
+The module system was reorganized around explicit Loader types, a LoadedImage data model, and a consistent RuntimeModule representation. This replaces multiple parallel module registries and consolidates image loading, import hookup, and bookkeeping into one path. The change makes behavior more predictable across PE files, shellcode, and API modules.
 
 Under the hood, Loader is just the source adapter layer. Each loader type (PE, shellcode, API-generated module, etc.) takes its own input format and normalizes it into one common LoadedImage object. LoadedImage is intentionally “just data”: arch, base/size, regions to map, imports/exports, section metadata, TLS info, and visibility flags, with no emulator side effects yet.
 
