@@ -1285,7 +1285,9 @@ class WindowsEmulator(BinaryEmulator):
                         self.mem_write(imp.iat_address, data_ptr.to_bytes(ptr_size, "little"))
                     self.import_table.pop(old_sentinel, None)
 
-        if is_primary and self.profiler and self.config.analysis.strings and image.regions:
+        # Static strings describe the input, which is the image whose load runs setup.
+        # Setup and later runs load container and decoy PEs that must not replace them.
+        if is_primary and not self._setup_done and self.profiler and self.config.analysis.strings and image.regions:
             raw = image.regions[0].data
             if raw:
                 self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
