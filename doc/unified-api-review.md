@@ -1,6 +1,6 @@
-# Unified API review response
+# Unified API validation and compatibility
 
-This follow-up addresses review of [PR #348](https://github.com/mandiant/speakeasy/pull/348). The mapped-entry design remains: EAT, IAT, runtime resolvers and symbols share one registry; public code executes before private trap dispatch. The review correctly identified regressions in the surrounding runtime. In particular, accepting timeout errors in the previous PMA expectation update hid a session-wide timeout defect. Those allowances are reverted.
+This document records the behavioral contracts and validation of [PR #348](https://github.com/mandiant/speakeasy/pull/348). The mapped-entry design remains: EAT, IAT, runtime resolvers and symbols share one registry; public code executes before private trap dispatch. The review correctly identified regressions in the surrounding runtime. In particular, accepting timeout errors in the previous PMA expectation update hid a session-wide timeout defect. Those allowances are reverted.
 
 The subsequent [supplied-patch comparison](unified-api-patch-comparison.md) maps every hunk and reproduction to coverage. Its public PE/IAT tests found and fixed non-ASCII synthetic module creation and filtered-import slot compression; they additionally protect raw-table bounds, IAT fallback and ordinal validation. The repeated corpus comparison preserves every recorded API sequence and error type from the earlier reviewed head.
 
@@ -8,7 +8,7 @@ The subsequent [supplied-patch comparison](unified-api-patch-comparison.md) maps
 
 | Finding | Resolution |
 | --- | --- |
-| Timeout accumulated across a session | Active elapsed time belongs to `Run`. API yields and debugger actions share that run's budget; every fresh run and public `call()` starts at zero. Removed obsolete session-wall-time checks. |
+| Timeout accumulated across a session | Active elapsed time belongs to `Run`. API yields and debugger actions share that run's budget; every fresh run and public `call()` starts at zero. A separate aggregate active-time budget now bounds a public invocation without starving fresh calls. |
 | Repeated full-database enumeration | Index raw declarations by physical DLL once during source loading, sorting each name set once and keeping lazy signature conversion, architecture filtering and precedence. |
 | Lost legacy symbols | `get_symbols()` returns fresh `{address: (dll, name)}` snapshots from the registry plus auxiliary symbols. Exact kernel auxiliary lookup is restored. |
 | Non-X guest sections stopped execution | Ordinary analysis defaults to recovery; `analysis.enforce_nx=true` opts into enforcement. Guest PE page execute permission is granted after native unwinding, preserving other permissions. Debugger faults and synthetic API protection remain authoritative. |
@@ -16,7 +16,7 @@ The subsequent [supplied-patch comparison](unified-api-patch-comparison.md) maps
 | Unknown x64 calls stopped despite permissive configuration | Preserve an argument-opaque scalar-return-1 fallback only for wholly undeclared Win64 functions with `functions_always_exist`. Unknown x86 calls require a known ABI or explicit hook. Known unsupported float/aggregate declarations remain unsupported. |
 | SP-changing hooks redispatched | Report `api_handler_did_not_return` once when a handler changes SP without returning or scheduling a transfer. `_EH_prolog` retains its explicit return. |
 | Listener exceptions escaped committed loads | Log and isolate each observer; later observers still run after load/discard. |
-| Injected import repair stopped halfway | Resolve and validate all imports before writing the IAT. Catch resolution errors, restore attempted writes after commit faults, and publish bookkeeping only after success. |
+| Injected import repair stopped halfway | Default validation stages independent valid entries and warns about skipped entries. Strict mode requires all entries to validate. Commit faults restore attempted writes; bookkeeping publishes only after successful writes. |
 | Kernel compatibility stub corrupted PE headers | Allocate `KiSystemCall64` in separate RX storage near the kernel; preserve both relative SSDT references and auxiliary symbols. |
 | SEH continuation replayed an unchanged fault | Preserve the existing four-fault guard across handler returns. Reset it only after resumed guest execution advances, the fault key changes, or a fresh run starts. Handler/filter execution alone is not guest progress. |
 | Corpus CRT startup writes faulted | Declare `_fmode`, `_commode`, and `__initenv` as writable data exports. Their existing pointer accessors share the same storage. Function entries stay RX. |
@@ -58,7 +58,7 @@ The final aggregate captures below use the 37 common PMA cases; the additional `
 | Additional PE original PR | 23 | 1,505 | 2 managed + 1 malformed forwarder | 12.386s |
 | Additional PE final | 24 | 1,522 | 2 managed-image rejections | 9.955s |
 
-These totals are descriptive, not pass/fail scores. The raw per-run sequences, errors, selectors, timing captures and comparison CSV are copied into the requested research folder.
+These totals are descriptive, not pass/fail scores. The comparison captures per-run sequences, errors, selection criteria and timing separately; aggregate totals cannot establish payload coverage. The repository PMA profiles and regression tests provide the repeatable validation cases.
 
 ## Behavioral investigations
 
@@ -74,12 +74,68 @@ The baseline's `wsprintfA`/`MessageBoxA` tail reports a failed Winsock ordinal 1
 
 ## Remaining limits
 
-Instruction-cap callback overhead remains a follow-up. Genuine guest reads of the private trap reservation remain unmapped faults; improved error classification/SEH treatment is separate work. Required native dependency initialization failures terminate startup; runtime initialization failures roll back new attachments. Broadly continuing after a failed required DLL would pretend initialized state exists.
+Instruction-cap callback overhead remains a follow-up. Private-reservation data accesses and unallocated fetches now receive typed errors and existing guest SEH dispatch without materializing reservation pages. Default startup initialization failures warn, retain mapped exports with failed state, and continue independent analysis; strict mode terminates startup. Runtime initialization failures roll back new attachments. Continuing analysis does not mark a failed DLL initialized.
 
 The replay guard tracks fault PC and address; same-PC partial instruction progress such as REP and complete temporary recovery-page ownership remain separate SEH work. Some corpus differences still involve exception emulation and event deduplication. In particular, PMA17-02 retains a ServiceMain timeout and a later invalid-read difference from baseline; correcting per-run budgets restores later runs but does not prove full sample equivalence. Versioned Windows export manifests, real syscall layout, complete data declarations, and a larger external malware corpus remain necessary for stronger fidelity claims.
 
-The implementation remains one integrated PR because address ownership, loader publication and scheduler boundaries depend on each other. Review fixes are separate focused commits for catalog indexing, parsing, CRT globals and runtime compatibility. The PR remains open for review and is not merged.
+The change remains an integrated PR. Core address ownership, loader publication and dispatch have coupled invariants; parser leniency, CRT globals, SEH replay and signature curation are independently reviewable and could be extracted. Separate PRs have not been created. The PR remains open for review and is not merged.
 
 ## Validation
 
-Signature generation and repository lint pass. After the supplied-patch coverage follow-up, final local execution with GDB tests enabled passed **1,976 tests, 14 skipped in 139.63 seconds**. The focused comparison suite passes 398 tests. The focused SEH run also passed 29 tests, including unchanged PMA05-01, existing SEH behavior and fault ownership. The earlier Linux CI head passed 1,745 tests and exposed the PMA05-01 individual-run timeout described above; the focused fix keeps its budgets and assertions intact. Exact-head CI results are recorded in the PR description and implementation-status research document. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live x86/x64 RSP sessions cover breakpoints, stepping, patches, watchpoints, interruptions and fault boundaries. CI results are recorded in the PR description and the accompanying implementation-status research document.
+Signature generation and repository lint pass. After the supplied-patch coverage follow-up, the earlier local execution with GDB tests enabled passed **1,976 tests, 14 skipped in 139.63 seconds**. The earlier-review follow-up now passes **2,142 tests, 14 skipped in 171.45 seconds**, including 166 additional cases. The focused comparison suite passes 398 tests. The focused SEH run also passed 29 tests, including unchanged PMA05-01, existing SEH behavior and fault ownership. The earlier Linux CI head passed 1,745 tests and exposed the PMA05-01 individual-run timeout described above; the focused fix keeps its budgets and assertions intact. Exact-head CI results are linked in the PR description. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live x86/x64 RSP sessions cover breakpoints, stepping, patches, watchpoints, interruptions and fault boundaries. The PR description links the corresponding CI run.
+
+## Earlier-review coverage audit
+
+The review of `bc7e964` identified additional concerns beyond the supplied-patch regressions. The following contracts supplement the changes above:
+
+| Concern | Contract and regression coverage |
+| --- | --- |
+| A guest can enqueue successive runs indefinitely | `max_total_time` bounds active execution across a public invocation, independently of per-run `timeout`. Fresh public calls reset it; paused debugger time is excluded. Host hooks are cooperative and can overshoot while blocked. |
+| One unresolved import prevents unrelated code from loading | Default static binding warns and preserves independent successful slots, leaving unresolved bytes intact. It never fabricates native exports. Strict mode retains complete validation and graph rollback. |
+| One malformed hollowing descriptor prevents every binding | Default injected binding skips independently malformed descriptors/slots and binds valid entries, including entries after a bad middle thunk. Warning diagnostics, ordinal-bit validation, Latin-1 DLL identity, strict atomic validation and commit rollback are tested. |
+| One dependency DllMain failure prevents the sample from running | Default startup records failure without claiming successful attachment, keeps mapped IAT targets alive, and continues independent dependencies and the sample. Strict startup remains terminal. Runtime `LoadLibrary` continues to return failure and roll back new attachments. |
+| Hook detectors reading private jump targets bypass guest SEH | Native execution yields before exception delivery. Guest x86 SEH can redirect the context; unchanged read/write replay remains bounded. x86/x64 unhandled probes and real RSP fault stops produce typed errors with no API dispatch or trap mapping. |
+| A copied five-byte x86 prologue truncates a jump | `8B FF 0F 1F 00` occupies the first five bytes; the relative jump starts at byte five. Real guest copied-prologue trampolines run correctly for catalog and dynamic entries, with tracing on/off. Exact step/count tests include the extra NOP. |
+| Failed loads consume tokens or arena allocation exhausts | Tokens remain monotonic and retired to prevent aliasing. Capacity failure is bounded and preserves survivors, public addresses, registry ownership, bytes and graph rollback. Small-capacity tests exercise the actual boundary paths. |
+| Mapping checks reject inconsistent PE headers | These remain mandatory: machine/magic disagreement, impossible section spans and absent required relocation data cannot be repaired by dropping an optional directory. Lenient inventories do not authorize incoherent memory mappings. |
+| Exact Windows exports exceed declaration catalogs | This remains a fidelity limit. Declaration sources are not versioned physical DLL export manifests; undocumented names, forwarders and exact aliases/ordinals require those manifests or native fixtures. Passing resolution tests does not establish build-complete coverage. |
+| Known unsupported declarations and unknown x86 ABIs | Unsupported float/aggregate return handling and undeclared x86 cleanup remain explicit failures. The permissive Win64 fallback only applies to wholly undeclared scalar calls. Stack-safe cleanup alone cannot supply missing float/aggregate return values. |
+| Python instruction callbacks and host cache invalidation cost time | Exact capped accounting still requires Python callbacks; this performance regression is documented rather than hidden by approximate counting. Host patch invalidation preserves guest-visible changes; the measured API dispatch improvement does not isolate cache costs. |
+
+The migration guide enumerates removed sentinel/import-table/data contracts, native guest execution, hook return requirements and debugger limits. Automated RSP tests validate the protocol; they do not establish a live IDA or VMRay integration smoke test. Focused commits improve reviewability, but the PR has not been split into separate PRs. Versioned export fixtures and a representative modern malware evaluation remain separate requirements for stronger fidelity claims.
+
+### Physical export inventory checks
+
+The pinned capa fixtures provide two physical kernel32 inventories, not a complete top-DLL profile. Comparing named EAT exports against eligible declarations plus literal direct handlers finds:
+
+| Fixture | Version | Physical named exports | Missing from synthetic profile | Synthetic-only names |
+| --- | --- | ---: | ---: | ---: |
+| `kernel32.dll_` (x86) | 6.1.7601.17514 | 1,359 | 207 | 259 |
+| `kernel32-64.dll_` (x64) | 10.0.17134.1 | 1,621 | 308 | 112 |
+
+These are different Windows versions, so the difference is not an architecture-only effect. `BaseThreadInitThunk` and `RtlFillMemory` occur in both physical fixtures and are missing from the current synthetic kernel32 profile. Native parsing retains the physical `AcquireSRWLockExclusive -> NTDLL.RtlAcquireSRWLockExclusive` forwarder; a generated declaration profile instead has a local mapped entry. `tests/test_pinned_export_catalog.py` pins hashes and timestamps and tests actual GetProcAddress/Ldr queries before and after an explicit dynamic import request. No physical names or forwarders are fabricated to claim completeness. Synthetic-only names can reflect version differences or generic declarations, rather than necessarily being invalid.
+
+### Shellcode and CRT frame controls
+
+Input-string extraction includes both guest PE and guest shellcode sources, while excluding synthetic export inventories. Public x86/x64 tests cover ANSI/UTF-16 input literals, strings disabled, and strings constructed by actual guest stack stores. `_EH_prolog` tests execute its guest caller and verify FS:[0], saved EBP/SP, argument preservation and both continuations with tracing enabled/disabled and an existing/empty exception chain. These tests supplement indirect corpus evidence.
+
+### Expanded corpus comparison
+
+The additional pass compares six feature-selected images and a filename-sorted census of 128 native PEs on separate baseline and revised trees. Three images overlap, giving 131 distinct additional inputs. The census excludes the previous 24 cases, PMA, managed images, the physical kernel32 controls, files above 2 MiB and mapped images above 32 MiB. Three feature selections have matching CAPE observation reports from October 2023 (including SunCrypt); the other three are BCrypt/WinHTTP/TLS controls, without an age or family claim. Observation dates are not compilation dates.
+
+Profiles use timeout 2 seconds, API limit 200 and the main/attach entry only. Revised code uses an aggregate 2-second active cap to approximate baseline's invocation-wide native timeout while retaining the same per-run timeout. Inputs are hash-pinned and measurements serialized.
+
+| Group / tree | Inputs | Runs | Recorded API events | Load exceptions | Total wall time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Six selections / baseline | 6 | 9 | 386 | 0 | 0.790s |
+| Six selections / revised | 6 | 9 | 387 | 0 | 0.931s |
+| Census / baseline | 128 | 165 | 11,928 | 0 | 35.123s |
+| Census / revised | 128 | 165 | 12,128 | 0 | 30.996s |
+
+All six selections preserve their error categories. One x64 CRT case routes API-set calls to their actual msvcrt owner and advances from memcpy to isalnum before another unsupported call. Of 134 comparison executions, 119 retain error sequences and 68 retain function-name sequences (58 retain exact DLL-qualified sequences). These are descriptive checks, not a claim of uniformly greater coverage. Changed error tails need causal investigation; aggregate event counts alone are insufficient. Attach-only DLL execution also does not reproduce an external sandbox's rundll32 export invocation.
+
+A fresh x86/x64 constructed-PE report additionally passes the parent Speakeasy parser, importer and SQLite trace-store pipeline, with tracing, coverage and snapshots enabled. Assertions check primary-module identity, addresses, section permissions, dynamic API events, guest writes into CRT data and database integrity. This tests the report producer/consumer path without parent edits, Qt or IDA. Live IDA symbol naming, rebasing, multi-process attribution and VMRay archive compatibility remain unverified.
+
+The census also exposes an earlier stop in a Borland startup image (`4bdd67ff852c221112337fecd0681eac.exe_`). Both trees first return the executable base from GetModuleHandleA(NULL). The guest then writes that value into imported `rtl60!@System@MainInstance` and sets `@System@IsMultiThread`. Baseline materializes RWX sentinel pages for these data accesses before eventually stopping at unsupported runtime initialization. Revised code correctly protects synthetic function entries RX, but unknown Borland variable imports were classified as functions and the first store faults. This is missing data-export metadata and a coverage limit, not an API-header patch or a successful baseline payload lost. Known variable declarations should use explicit writable data exports; making every callable page writable would conceal the classification defect. ErrorInfo's allocator-level region protection can be stale after partial protection changes; native engine regions and captured section permissions are authoritative.
+
+The unpacker case `0cd2b334aede270b14868db28211cde3.exe_` explains another changed tail. Baseline's apparently clean GUI path reports unresolved hash `A92D71B2`, identifying SetWindowRgn; it is an unpacking failure. Revised code resolves that export and reaches 87 distinct successful GetProcAddress requests before the same two-second budget expires during import reconstruction. No fault-recovery callbacks were observed. This demonstrates resolution progress, not established payload execution or a general performance conclusion.
