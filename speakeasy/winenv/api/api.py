@@ -144,8 +144,9 @@ class ApiHandler:
         def apitemp(f):
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
+            if hasattr(f, "__apihook__"):
+                raise ApiEmuError(f"{f.__name__} has more than one apihook decorator")
             f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)
-            f.__apihooks__ = (*getattr(f, "__apihooks__", ()), f.__apihook__)
             return f
 
         return apitemp
@@ -187,10 +188,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                for name, func, argc, conv, ordinal in getattr(val, "__apihooks__", (func_attrs,)):
-                    self.funcs[name] = (name, func, argc, conv, ordinal)
-                    if ordinal:
-                        self.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                name, func, argc, conv, ordinal = func_attrs
+                self.funcs[name] = (name, func, argc, conv, ordinal)
+                if ordinal:
+                    self.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -205,10 +206,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                for name, func, argc, conv, ordinal in getattr(val, "__apihooks__", (func_attrs,)):
-                    obj.funcs[name] = (name, func, argc, conv, ordinal)
-                    if ordinal:
-                        obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                name, func, argc, conv, ordinal = func_attrs
+                obj.funcs[name] = (name, func, argc, conv, ordinal)
+                if ordinal:
+                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs

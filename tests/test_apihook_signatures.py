@@ -10,7 +10,9 @@ from collections.abc import Iterator
 import pytest
 
 import speakeasy.winenv.arch as _arch
+from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import sigdb, winapi
+from speakeasy.winenv.api.api import ApiHandler
 
 # Hooks whose argc intentionally differs from the documented prototype.
 # Add an entry with a justification if a deviation is deliberate.
@@ -88,3 +90,12 @@ def test_crt_hooks_are_cdecl() -> None:
         if mod_name == "msvcrt" and argc and name not in stdcall and conv == _arch.CALL_CONV_STDCALL
     ]
     assert not wrong, "CRT functions are cdecl: " + ", ".join(sorted(wrong))
+
+
+def test_apihook_rejects_a_second_decorator() -> None:
+    with pytest.raises(ApiEmuError):
+
+        @ApiHandler.apihook("ExampleA", argc=1)
+        @ApiHandler.apihook("ExampleW", argc=1)
+        def Example(self, emu, argv, ctx):
+            return 0

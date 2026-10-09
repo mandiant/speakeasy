@@ -864,8 +864,6 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("QueryServiceConfig", argc=4)
-    @apihook("QueryServiceConfigA", argc=4)
-    @apihook("QueryServiceConfigW", argc=4)
     def QueryServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL QueryServiceConfigA(

@@ -103,8 +103,6 @@ class Psapi(api.ApiHandler):
         return 1
 
     @apihook("GetModuleBaseName", argc=4)
-    @apihook("GetModuleBaseNameA", argc=4)
-    @apihook("GetModuleBaseNameW", argc=4)
     def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         hProcess, hModule, lpBaseName, nSize = argv
         if not lpBaseName or nSize == 0:
@@ -133,8 +131,6 @@ class Psapi(api.ApiHandler):
         return len(truncated)
 
     @apihook("GetModuleFileNameEx", argc=4)
-    @apihook("GetModuleFileNameExA", argc=4)
-    @apihook("GetModuleFileNameExW", argc=4)
     def GetModuleFileNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         hProcess, hModule, lpFilename, nSize = argv
         if not lpFilename or nSize == 0:

@@ -12,6 +12,7 @@ from typing import Any
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+from speakeasy.windows.export_manifest import get_export_manifest
 from speakeasy.windows.loaders import ExportEntry, LoadedImage, MemoryRegion, PeMetadata, SectionEntry
 from speakeasy.winenv.api.sigdb import SignatureDatabase
 
@@ -264,18 +265,36 @@ class ApiModuleLoader:
             if handler is self._api:
                 data_names.update(handler.data)
 
-        # Strict enumeration owns surface membership. Lookup is intentionally
-        # permissive for ABI reuse and must never determine exported names.
-        specs = {name: ApiExportSpec(name) for name in self._signature_db.get_functions(self._name, arch_name)}
-        specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
-        if self._name == "ntoskrnl":
-            # The kernel exports native services under both prefixes, and
-            # dispatch folds each pair onto one handler.
-            for name in list(handler_ordinals):
-                if name.startswith(("Nt", "Zw")):
-                    alias = ("Zw" if name.startswith("Nt") else "Nt") + name[2:]
-                    specs.setdefault(alias, ApiExportSpec(alias))
-        specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
+        def kind(name: str | None, physical_kind: str = "function") -> str:
+            return "data" if physical_kind == "data" or name in data_names else "function"
+
+        manifest = get_export_manifest(self._name.lower(), arch_name)
+        if manifest is not None:
+            # The physical table owns names and ordinals. Handler-only names
+            # follow the highest physical ordinal so that they never take an
+            # ordinal that the real module leaves unused. A handler name whose
+            # A or W variant is physical only serves dispatch of that variant.
+            exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
+            physical = {e.name for e in manifest.exports}
+            next_ordinal = max((e.ordinal for e in manifest.exports), default=0) + 1
+            extras = (handler_ordinals.keys() | data_names) - physical
+            for name in sorted(n for n in extras if not {n + "A", n + "W"} & physical):
+                exports.append(ApiExportSpec(name, next_ordinal, kind(name)))
+                next_ordinal += 1
+        else:
+            # The catalog owns surface membership. Permissive lookup serves
+            # ABI reuse and must never determine exported names.
+            specs = {name: ApiExportSpec(name) for name in self._signature_db.get_functions(self._name, arch_name)}
+            specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
+            if self._name == "ntoskrnl":
+                # The kernel exports native services under both prefixes, and
+                # dispatch folds each pair onto one handler.
+                for name in list(handler_ordinals):
+                    if name.startswith(("Nt", "Zw")):
+                        alias = ("Zw" if name.startswith("Nt") else "Nt") + name[2:]
+                        specs.setdefault(alias, ApiExportSpec(alias))
+            specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
+            exports = list(specs.values())
         image_name = self._name
         try:
             image_name.encode("ascii")
@@ -289,7 +308,7 @@ class ApiModuleLoader:
             arch=self._arch,
             base=self._base,
             emu_path=self._emu_path,
-            exports=list(specs.values()),
+            exports=exports,
         )
         image.name = self._name
         image.loader = self
