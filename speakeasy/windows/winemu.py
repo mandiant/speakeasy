@@ -166,6 +166,7 @@ class WindowsEmulator(BinaryEmulator):
         self.unhandled_exception_filter: int = 0
         self._seh_last_fault: tuple[int, int | None] | None = None
         self._seh_repeat_count: int = 0
+        self._seh_resume_pc: int | None = None
 
         self.fs_addr: int = 0
         self.gs_addr: int = 0
@@ -456,8 +457,6 @@ class WindowsEmulator(BinaryEmulator):
             return None
 
         self.run_complete = False
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
@@ -490,6 +489,9 @@ class WindowsEmulator(BinaryEmulator):
         logger.info("* exec: %s", run.type)
 
         self.curr_run = run
+        self._seh_last_fault = None
+        self._seh_repeat_count = 0
+        self._seh_resume_pc = None
         self.curr_mod = self.get_module_from_addr(run.start_addr)
         if self.profiler:
             self.profiler.add_run(run)
@@ -2417,12 +2419,20 @@ class WindowsEmulator(BinaryEmulator):
                 self.on_run_complete()
                 return False
 
+            # Handler instructions are not progress at the original fault site.
+            # After continuation, retain the guard until the guest advances.
+            if self._seh_resume_pc is not None and addr != self._seh_resume_pc:
+                self._seh_last_fault = None
+                self._seh_repeat_count = 0
+                self._seh_resume_pc = None
+
             if self.tmp_maps:
                 for base, size in self.tmp_maps:
                     try:
                         self.mem_unmap(base, size)
                     except Exception:
-                        self.disable_code_hook()
+                        if self._seh_resume_pc is None:
+                            self.disable_code_hook()
                         return True
                 self.tmp_maps = []
 
@@ -2437,7 +2447,8 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
             self._set_emu_hooks()
-            self.disable_code_hook()
+            if self._seh_resume_pc is None:
+                self.disable_code_hook()
             return True
 
         except Exception as e:
@@ -2968,9 +2979,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         return (winemu.EMU_RESERVED, winemu.EMU_RESERVED_END)
 
-    def _continue_seh_x86(self):
+    def _continue_seh_x86(self) -> bool:
         """
         Get the next exception handler while processing SEH
+        Return True only when restoring the faulting guest context. Transfers
+        to a filter or handler, and completion, return False.
         """
         thread = self.get_current_thread()
         seh = thread.seh
@@ -2998,7 +3011,7 @@ class WindowsEmulator(BinaryEmulator):
                     self.set_pc(scope_record.record.FilterFunc)
                     seh.last_func = scope_record.record.FilterFunc
                     scope_record.filter_called = True
-                    return
+                    return False
 
                 if (
                     windef.EXCEPTION_EXECUTE_HANDLER == ret_val
@@ -3010,14 +3023,14 @@ class WindowsEmulator(BinaryEmulator):
                         self.set_pc(scope_record.record.HandlerAddress)
                         seh.last_func = scope_record.record.HandlerAddress
                         scope_record.handler_called = True
-                        return
+                        return False
                 elif windef.EXCEPTION_CONTINUE_EXECUTION == ret_val:
                     ctx = seh.context
                     if seh.context_address:
                         _ctx = self.mem_cast(ctx, seh.context_address)
                     self.load_thread_context(_ctx)
                     self.set_pc(ctx.Eip)
-                    return
+                    return True
 
                 elif windef.EXCEPTION_CONTINUE_SEARCH == ret_val:
                     pass
@@ -3027,9 +3040,10 @@ class WindowsEmulator(BinaryEmulator):
         if windef.EXCEPTION_CONTINUE_SEARCH == ret_val and not len(seh.frames):
             ctx = seh.context
             self.set_pc(ctx.Eip)
-            return
+            return True
 
         self.run_complete = True
+        return False
 
     def _map_faulting_page_for_exception(self, faulting_address):
         fakeout = faulting_address & 0xFFFFFFFFFFFFF000
@@ -3042,6 +3056,7 @@ class WindowsEmulator(BinaryEmulator):
     _SEH_MAX_REPEAT = 4
 
     def dispatch_seh(self, except_code, faulting_address=None):
+        self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
             self._seh_repeat_count += 1
@@ -3087,10 +3102,16 @@ class WindowsEmulator(BinaryEmulator):
         return rv
 
     def continue_seh(self):
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
         if self.get_arch() == _arch.ARCH_X86:
-            self._continue_seh_x86()
+            resumed = self._continue_seh_x86()
+            if resumed and not self.run_complete and self._seh_last_fault is not None:
+                if self.get_pc() == self._seh_last_fault[0]:
+                    self._seh_resume_pc = self.get_pc()
+                    self.enable_code_hook()
+                else:
+                    self._seh_last_fault = None
+                    self._seh_repeat_count = 0
+                    self._seh_resume_pc = None
 
     def create_event(self, name=""):
         """
