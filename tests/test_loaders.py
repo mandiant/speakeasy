@@ -8,6 +8,7 @@ import pytest
 import speakeasy.winenv.arch as _arch
 from speakeasy.windows.api_image import ApiExportSpec
 from speakeasy.windows.loaders import ApiModuleLoader, ExportEntry, LoadedImage, PeLoader, RuntimeModule
+from speakeasy.winenv.api.sigdb import SignatureDatabase
 from tests.test_api_image import build, image_bytes
 
 
@@ -75,6 +76,7 @@ def test_api_module_loader_make_image():
         arch=_arch.ARCH_X86,
         base=0x76000000,
         emu_path="C:\\Windows\\System32\\kernel32.dll",
+        signature_db=SignatureDatabase([]),
     )
     image = loader.make_image()
     export_names = {exp.name for exp in image.exports if exp.name}
@@ -101,6 +103,7 @@ def test_api_module_loader_sections_within_image():
         arch=_arch.ARCH_X86,
         base=0x76000000,
         emu_path="C:\\Windows\\System32\\kernel32.dll",
+        signature_db=SignatureDatabase([]),
     )
     image = loader.make_image()
 
@@ -115,7 +118,6 @@ def _warned(caplog):
 
 @pytest.mark.parametrize("architecture,eligible", [(_arch.ARCH_X86, "Only32"), (_arch.ARCH_AMD64, "Only64")])
 def test_api_loader_combines_catalog_and_handler_surfaces(tmp_path, architecture, eligible):
-    from speakeasy.winenv.api.sigdb import SignatureDatabase
     from tests.test_export_catalog import _source
 
     source = _source(

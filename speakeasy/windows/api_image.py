@@ -20,7 +20,6 @@ API_SLOT_SIZE = 32
 API_ENTRY_OFFSET = 16
 API_DATA_SIZE = 0x100
 API_DYNAMIC_SIZE = 0x10000
-MAX_API_IMAGE_SIZE = 0x4000000  # Bound hostile metadata/arena requests to 64 MiB.
 
 
 @dataclass(frozen=True)
@@ -33,20 +32,14 @@ class ApiExportSpec:
 
 def encode_api_stub(arch: int, entry_address: int, trap_address: int) -> bytes:
     """Encode a stack/flags-neutral jump from a public entry to its private trap."""
-    if arch not in (_arch.ARCH_X86, _arch.ARCH_AMD64):
-        raise ValueError(f"Unsupported API image architecture: {arch}")
-    if any(type(address) is not int or not 0 <= address < (1 << arch) for address in (entry_address, trap_address)):
-        raise ValueError("Stub addresses must fit the architecture address space")
     if arch == _arch.ARCH_X86:
         # Keep a complete five-byte prologue for ordinary inline-hook trampolines.
         return b"\x8b\xff\x0f\x1f\x00\xe9" + struct.pack("<I", (trap_address - entry_address - 10) & 0xFFFFFFFF)
-    if arch == _arch.ARCH_AMD64:
-        return b"\x66\x90\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", trap_address)
-    raise ValueError(f"Unsupported API image architecture: {arch}")
+    return b"\x66\x90\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", trap_address)
 
 
 def _ascii_string(value: str, label: str) -> None:
-    if not isinstance(value, str) or not value or "\0" in value:
+    if not value or "\0" in value:
         raise ValueError(f"Invalid {label}")
     try:
         value.encode("ascii")
@@ -79,9 +72,6 @@ def build_api_image(
     base: int,
     emu_path: str,
     exports: list[ApiExportSpec],
-    module_type: str = "dll",
-    minimum_size: int = 0,
-    dynamic_size: int = API_DYNAMIC_SIZE,
 ) -> LoadedImage:
     """Build a valid PE with sparse EAT ordinals and independently sorted names.
 
@@ -91,37 +81,10 @@ def build_api_image(
     """
     from speakeasy.windows.loaders import ExportEntry, LoadedImage, MemoryRegion, PeMetadata, SectionEntry
 
-    if arch not in (_arch.ARCH_X86, _arch.ARCH_AMD64):
-        raise ValueError(f"Unsupported API image architecture: {arch}")
     _ascii_string(name, "module name")
-    if module_type not in ("dll", "decoy"):
-        raise ValueError("Synthetic API images must be DLLs or decoys")
-    if not isinstance(base, int) or isinstance(base, bool) or not 0 <= base < (1 << arch):
-        raise ValueError("Image base is outside the architecture address space")
-    if any(type(size) is not int or not 0 <= size <= MAX_API_IMAGE_SIZE for size in (dynamic_size, minimum_size)):
-        raise ValueError("Image sizes must be integers within the 64 MiB synthetic image limit")
-    specs = list(exports)
-    names: set[str] = set()
-    used: set[int] = set()
-    for spec in specs:
-        if not isinstance(spec, ApiExportSpec):
-            raise ValueError("Invalid export specification")
-        if spec.kind not in ("function", "data"):
-            raise ValueError(f"Invalid export kind: {spec.kind}")
-        if spec.name is not None:
-            _ascii_string(spec.name, "export name")
-            if spec.name in names:
-                raise ValueError(f"Invalid or duplicate export name: {spec.name!r}")
-            names.add(spec.name)
-        if spec.forwarder is not None:
-            validate_forwarder(spec.forwarder)
-        if spec.ordinal is not None:
-            if type(spec.ordinal) is not int or not 0 <= spec.ordinal <= 0xFFFFFFFF:
-                raise ValueError("Invalid export ordinal")
-            used.add(spec.ordinal)
-        elif spec.name is None:
-            raise ValueError("Ordinal-only exports require an explicit ordinal")
-    specs.sort(key=lambda e: (e.name is None, (e.name or "").encode("ascii"), e.ordinal or 0))
+    specs = sorted(exports, key=lambda e: (e.name is None, (e.name or "").encode("ascii"), e.ordinal or 0))
+    names = {spec.name for spec in specs if spec.name is not None}
+    used = {spec.ordinal for spec in specs if spec.ordinal is not None}
     assigned: list[tuple[ApiExportSpec, int]] = []
     candidate = 1
     for spec in specs:
@@ -147,25 +110,6 @@ def build_api_image(
         max(1, sum(s.kind == "function" and s.forwarder is None for s in targets.values()) * API_SLOT_SIZE)
     )
     data_size = _align(max(1, sum(s.kind == "data" and s.forwarder is None for s in targets.values()) * API_DATA_SIZE))
-    # Validate the complete layout before materializing any section buffers.
-    dll_name = name + ("" if name.lower().endswith(".dll") else ".dll")
-    export_size = (
-        (
-            40
-            + span * 4
-            + len(names) * 6
-            + len(dll_name)
-            + 1
-            + sum(len(n) + 1 for n in names)
-            + sum(len(s.forwarder) + 1 for s in targets.values() if s.forwarder is not None)
-        )
-        if assigned
-        else 0
-    )
-    edata_size = _align(max(1, export_size))
-    minimum_layout = 0x1000 + text_size + edata_size + data_size + _align(max(1, dynamic_size))
-    if max(minimum_layout, _align(minimum_size)) > min(MAX_API_IMAGE_SIZE, (1 << arch) - base):
-        raise ValueError("Image exceeds PE size or architecture address capacity")
     text = bytearray(b"\xcc" * text_size)
     data = bytearray(data_size)
     text_rva = 0x1000
@@ -177,18 +121,16 @@ def build_api_image(
         edata.extend(value.encode("ascii") + b"\0")
         return rva
 
+    dll_name = name + ("" if name.lower().endswith(".dll") else ".dll")
     dll_rva = string_rva(dll_name) if assigned else 0
     name_rvas = {s.name: string_rva(s.name) for s, _ in assigned if s.name is not None}
     forward_rvas = {o: string_rva(s.forwarder) for o, s in sorted(targets.items()) if s.forwarder is not None}
-    assert len(edata) == export_size
-    edata.extend(b"\0" * (edata_size - len(edata)))
+    export_size = len(edata)
+    edata.extend(b"\0" * (_align(max(1, export_size)) - export_size))
     data_rva = edata_rva + len(edata)
     dyn_rva = data_rva + len(data)
-    dyn_size = _align(max(1, dynamic_size, minimum_size - dyn_rva))
-    image_size = dyn_rva + dyn_size
-    if image_size > 0xFFFFFFFF:
-        raise ValueError("Image exceeds PE DWORD size capacity")
-    if base + image_size > 1 << arch:
+    image_size = dyn_rva + API_DYNAMIC_SIZE
+    if base < 0 or base + image_size > 1 << arch:
         raise ValueError("Image exceeds the architecture address space")
     rvas: dict[int, int] = {}
     function_index = data_index = 0
@@ -239,7 +181,7 @@ def build_api_image(
     struct.pack_into("<HHIIIHH", headers, 0x84, machine, 4, 0, 0, 0, opt_size, 0x2022 if is64 else 0x2102)
     opt = 0x98
     struct.pack_into(
-        "<HBBIIIII", headers, opt, magic, 0, 0, len(text) + dyn_size, len(edata) + len(data), 0, 0, text_rva
+        "<HBBIIIII", headers, opt, magic, 0, 0, len(text) + API_DYNAMIC_SIZE, len(edata) + len(data), 0, 0, text_rva
     )
     if is64:
         struct.pack_into("<Q", headers, opt + 24, base)
@@ -260,7 +202,7 @@ def build_api_image(
         (".text", text_rva, text, rx, 0x60000020),
         (".edata", edata_rva, edata, common.PERM_MEM_READ, 0x40000040),
         (".data", data_rva, data, rw, 0xC0000040),
-        (".dyn", dyn_rva, b"\xcc" * dyn_size, rx, 0x60000020),
+        (".dyn", dyn_rva, b"\xcc" * API_DYNAMIC_SIZE, rx, 0x60000020),
     ]
     sections = []
     regions = [MemoryRegion(base, bytes(headers), "headers", common.PERM_MEM_READ)]
@@ -285,7 +227,7 @@ def build_api_image(
     regions[0].data = bytes(headers)
     return LoadedImage(
         arch=arch,
-        module_type=module_type,
+        module_type="dll",
         name=name,
         emu_path=emu_path,
         image_base=base,

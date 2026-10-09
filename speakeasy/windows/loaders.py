@@ -5,10 +5,13 @@ import ntpath
 import os
 import struct
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+
+if TYPE_CHECKING:
+    from speakeasy.winenv.api.sigdb import SignatureDatabase
 
 
 @dataclass
@@ -142,9 +145,6 @@ class RuntimeModule:
     def is_driver(self) -> bool:
         return self._image.module_type == "driver"
 
-    def is_decoy(self) -> bool:
-        return self._image.module_type == "decoy"
-
     def get_base_name(self) -> str:
         return ntpath.basename(self.emu_path)
 
@@ -246,7 +246,6 @@ class PeLoader:
         self._data = data
         self._base_override = base_override
         self._emu_path = emu_path
-        self._pe_obj: Any = None
 
     def _optional_error(self, context: str, error: Exception) -> None:
         if self._strict:
@@ -375,7 +374,6 @@ class PeLoader:
                 return []
 
         pe = InventoryParser(path=self._path, data=self._data)
-        self._pe_obj = pe
         supported = {(0x14C, 0x10B): _arch.ARCH_X86, (0x8664, 0x20B): _arch.ARCH_AMD64}
         if (pe.FILE_HEADER.Machine, pe.OPTIONAL_HEADER.Magic) not in supported:
             raise ValueError("Unsupported or inconsistent PE machine and optional-header magic")
@@ -720,18 +718,14 @@ class ApiModuleLoader:
         arch: int,
         base: int,
         emu_path: str,
+        signature_db: SignatureDatabase,
         api: Any = None,
-        signature_db: Any = None,
     ) -> None:
         self._name = name
         self._api = api
         self._arch = arch
         self._base = base
         self._emu_path = emu_path
-        if signature_db is None:
-            from speakeasy.winenv.api.sigdb import get_default_database
-
-            signature_db = get_default_database()
         self._signature_db = signature_db
 
     def make_image(self) -> LoadedImage:
@@ -741,28 +735,17 @@ class ApiModuleLoader:
         # Strict enumeration owns surface membership. Lookup is intentionally
         # permissive for ABI reuse and must never determine exported names.
         specs = {sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)}
-        ordinal_only: dict[int, ApiExportSpec] = {}
-        handlers = [self._api] if self._api is not None else []
-        if self._name.lower().removesuffix(".dll") == "ntdll":
-            nt_handler = getattr(self._api, "_nt_handler", None)
-            if nt_handler is not None:
-                handlers.append(nt_handler)
-        for handler in handlers:
+        nt_handler = getattr(self._api, "_nt_handler", None)
+        for handler in (self._api, nt_handler):
+            if handler is None:
+                continue
             for key, func in handler.funcs.items():
-                name, ordinal = func[0], func[4]
-                if handler is not self._api and (not isinstance(name, str) or not name.startswith(("Nt", "Zw"))):
+                # Handlers register each ordinal under its name as well.
+                if isinstance(key, int) or (handler is nt_handler and not key.startswith(("Nt", "Zw"))):
                     continue
-                if isinstance(key, int):
-                    # Normal handlers register both a string and integer key.
-                    # Keep genuinely ordinal-only entries without fake names.
-                    if name in handler.funcs:
-                        continue
-                    ordinal_only[key] = ApiExportSpec(None, key)
-                else:
-                    specs[key] = ApiExportSpec(key, ordinal)
+                specs[key] = ApiExportSpec(key, func[4])
             for name in handler.data if handler is self._api else ():
-                if isinstance(name, str):
-                    specs[name] = ApiExportSpec(name, kind="data")
+                specs[name] = ApiExportSpec(name, kind="data")
         image_name = self._name
         try:
             image_name.encode("ascii")
@@ -776,40 +759,8 @@ class ApiModuleLoader:
             arch=self._arch,
             base=self._base,
             emu_path=self._emu_path,
-            exports=list(specs.values()) + list(ordinal_only.values()),
+            exports=list(specs.values()),
         )
         image.name = self._name
-        image.loader = self
-        return image
-
-
-class DecoyLoader:
-    def __init__(
-        self,
-        *,
-        name: str,
-        base: int,
-        emu_path: str,
-        image_size: int,
-        arch: int = _arch.ARCH_X86,
-    ) -> None:
-        self._name = name
-        self._base = base
-        self._emu_path = emu_path
-        self._image_size = image_size
-        self._arch = arch
-
-    def make_image(self) -> LoadedImage:
-        from speakeasy.windows.api_image import build_api_image
-
-        image = build_api_image(
-            name=self._name,
-            arch=self._arch,
-            base=self._base,
-            emu_path=self._emu_path,
-            exports=[],
-            module_type="decoy",
-            minimum_size=self._image_size,
-        )
         image.loader = self
         return image
