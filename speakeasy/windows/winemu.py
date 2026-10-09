@@ -918,7 +918,8 @@ class WindowsEmulator(BinaryEmulator):
         if not p:
             p = self.curr_process
         p.init_peb(user_mods)
-        self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), "little"))
+        if p is self.get_current_process():
+            self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), "little"))
         return p.peb
 
     def init_teb(self, thread, peb):
