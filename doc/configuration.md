@@ -316,13 +316,14 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   ],
 
   "modules": {
-    // If true, unknown module loads synthesize decoys instead of failing.
+    // If true, loads of unknown modules create empty synthetic API modules
+    // instead of failing.
     "modules_always_exist": false,
 
     // If true, unresolved API imports that are in neither the handlers nor the
-    // bundled signature database are treated as existing stubs (4 stdcall
-    // arguments, return value 1). Imports with a known signature are always
-    // emulated from it, see doc/api-handlers.md.
+    // bundled signature database resolve to dynamic entries that act as stubs
+    // (4 stdcall arguments, return value 1). Imports with a known signature are
+    // always emulated from it, see doc/api-handlers.md.
     "functions_always_exist": false,
 
     // Decoy search roots by architecture.

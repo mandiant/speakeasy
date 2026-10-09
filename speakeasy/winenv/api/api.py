@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
-from speakeasy.profiler import Run
+from speakeasy.profiler import ApiCallbackFrame, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
@@ -146,6 +145,7 @@ class ApiHandler:
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)
+            f.__apihooks__ = (*getattr(f, "__apihooks__", ()), f.__apihook__)
             return f
 
         return apitemp
@@ -187,10 +187,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal = func_attrs
-                self.funcs[name] = (name, func, argc, conv, ordinal)
-                if ordinal:
-                    self.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                for name, func, argc, conv, ordinal in getattr(val, "__apihooks__", (func_attrs,)):
+                    self.funcs[name] = (name, func, argc, conv, ordinal)
+                    if ordinal:
+                        self.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -205,10 +205,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal = func_attrs
-                obj.funcs[name] = (name, func, argc, conv, ordinal)
-                if ordinal:
-                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                for name, func, argc, conv, ordinal in getattr(val, "__apihooks__", (func_attrs,)):
+                    obj.funcs[name] = (name, func, argc, conv, ordinal)
+                    if ordinal:
+                        obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -511,7 +511,7 @@ class ApiHandler:
             ptr += ptrsize
         return args
 
-    def setup_callback(self, func, args, caller_argv=[]):
+    def setup_callback(self, func, args, caller_argv=()):
         """
         For APIs that call functions, we will setup the stack to make this flow
         naturally.
@@ -519,16 +519,16 @@ class ApiHandler:
 
         run = self.emu.get_current_run()
 
-        if not len(run.api_callbacks):
-            # Get the original return address
-            ret = self.emu.get_ret_address()
-            sp = self.emu.get_stack_ptr()
-
-            self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
-            self.emu.set_pc(func)
-            run.api_callbacks.append((ret, func, caller_argv))
-        else:
-            run.api_callbacks.append((None, func, args))
+        frame = self.emu._active_api_frame
+        if frame is None:
+            frame = ApiCallbackFrame(
+                self.emu.get_stack_ptr(), self.emu.get_ret_address(), len(caller_argv), _arch.CALL_CONV_STDCALL
+            )
+        if any(item is frame for item in run.api_callbacks):
+            frame.pending.append((func, tuple(args)))
+            return
+        self.emu.start_api_callback(frame, func, args)
+        run.api_callbacks.append(frame)
 
     def do_str_format(self, string, argv, wide=False):
         """

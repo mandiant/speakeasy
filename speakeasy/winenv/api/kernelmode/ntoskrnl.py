@@ -1788,7 +1788,13 @@ class Ntoskrnl(api.ApiHandler):
         (SystemRoutineName,) = argv
         fn = self.read_unicode_string(SystemRoutineName)
 
-        addr = emu.get_proc("ntoskrnl", fn)
+        addr = 0
+        for name in ("ntoskrnl", "hal"):
+            module = emu.get_mod_by_name(name)
+            if module is not None:
+                addr = emu.resolve_export(module, fn)
+                if addr:
+                    break
         ctx.args[0].display = fn
         return addr
 

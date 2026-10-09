@@ -4,6 +4,7 @@ import hashlib
 import ntpath
 import os
 
+import speakeasy.common as common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -596,9 +597,9 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         ssdt = self.ktypes.SSDT(self.get_ptr_size())
         size = self.get_ptr_size() * 256
 
-        self.ssdt_ptr = self.mem_map(size, base=None, tag="api.struct.SSDT")
+        self.ssdt_ptr = self.get_proc("ntoskrnl", "KeServiceDescriptorTable")
         ssdt.NumberOfServices = 256
-        ssdt.pServiceTable = self.ssdt_ptr + self.sizeof(ssdt)
+        ssdt.pServiceTable = self.mem_map(size, base=None, tag="api.struct.SSDT.services")
         self.mem_write(self.ssdt_ptr, self.get_bytes(ssdt))
 
         self.setup_msrs()
@@ -613,32 +614,29 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         km = self.get_kernel_mod()
 
         if self.get_arch() == _arch.ARCH_AMD64 and km.image_size > 0:
-            kbase = km.base
-            km_data = bytes(self.mem_read(kbase, km.image_size))
-            ksc64_off = km_data.find(b"\x00" * 100)
-            if ksc64_off != -1:
-                sdt_entry = km.get_export_by_name("KeServiceDescriptorTable")
-                sdt_addr = sdt_entry.address if sdt_entry else None
-                if sdt_addr:
-                    for i in range(0x20):
-                        self.symbols.update({sdt_addr + i: (km.get_base_name(), "KeServiceDescriptorTable")})
-                    self.symbols.update({sdt_addr: (km.get_base_name(), "KeServiceDescriptorTable.pServiceTable")})
-                    self.symbols.update(
-                        {sdt_addr + 0x10: (km.get_base_name(), "KeServiceDescriptorTable.NumberOfServices")}
-                    )
-                    ksc64_off += 5
+            sdt_entry = km.get_export_by_name("KeServiceDescriptorTable")
+            sdt_addr = sdt_entry.address if sdt_entry else None
+            if sdt_addr:
+                for i in range(0x20):
+                    self.symbols.update({sdt_addr + i: (km.get_base_name(), "KeServiceDescriptorTable")})
+                self.symbols.update({sdt_addr: (km.get_base_name(), "KeServiceDescriptorTable.pServiceTable")})
+                self.symbols.update(
+                    {sdt_addr + 0x10: (km.get_base_name(), "KeServiceDescriptorTable.NumberOfServices")}
+                )
 
-                    ksc64_addr = kbase + ksc64_off
-                    self.symbols.update({ksc64_addr: (km.get_base_name(), "KiSystemCall64")})
-
-                    self.reg_write(_arch.X86_REG_MSR, (_arch.LSTAR, ksc64_addr))
-                    sdt_offset = (sdt_addr - ksc64_addr) - 7
-                    data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little")
-                    self.mem_write(kbase + ksc64_off, data)
-                    ksc64_off += 7
-                    sdt_offset = sdt_addr - (kbase + ksc64_off)
-                    data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little")
-                    self.mem_write(kbase + ksc64_off, data)
-                    ksc64_off += 7
-                    data = b"\x90\x90\x90\x90\x90\x90\xc3"
-                    self.mem_write(kbase + ksc64_off, data)
+                # Map the compatibility stub next to the kernel image so that its
+                # 32-bit relative offsets reach the SSDT.
+                ksc64_addr = self.mem_map(
+                    self.page_size,
+                    base=km.base + km.image_size,
+                    perms=common.PERM_MEM_RX,
+                    tag="emu.KiSystemCall64",
+                )
+                self.symbols.update({ksc64_addr: (km.get_base_name(), "KiSystemCall64")})
+                self.reg_write(_arch.X86_REG_MSR, (_arch.LSTAR, ksc64_addr))
+                sdt_offset = sdt_addr - ksc64_addr - 7
+                data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little", signed=True)
+                second_offset = sdt_addr - ksc64_addr - 14
+                data += b"\x90\x90\xc3" + second_offset.to_bytes(4, "little", signed=True)
+                data += b"\x90\x90\x90\x90\x90\x90\xc3"
+                self.mem_write(ksc64_addr, data)

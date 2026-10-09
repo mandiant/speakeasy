@@ -14,6 +14,7 @@ def test_public_shellcode_reports_ansi_and_utf16_input_strings(config):
         se.run_shellcode(base)
 
         report = se.get_report()
+        assert report.entry_points[0].error is None
         assert ansi in report.strings.static.ansi
         assert wide in report.strings.static.unicode
         # Synthetic API export names must not replace the input inventory.
@@ -35,5 +36,6 @@ def test_public_shellcode_extracts_new_stack_string_after_guest_stores(config):
         se.run_shellcode(base)
 
         report = se.get_report()
+        assert report.entry_points[0].error is None
         assert marker not in report.strings.static.ansi
         assert marker in report.strings.in_memory.ansi
