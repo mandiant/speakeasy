@@ -1,6 +1,6 @@
 # Export manifests
 
-Each `<arch>/<module>.json` file records the export directory of one real Windows binary.
+Each `<arch>/<module>.json` file records the export directory of one real Windows binary. When a module has a manifest, speakeasy builds the export table of its synthetic module from the manifest names and ordinals.
 
 The binaries come from the emulation root of [sogen](https://github.com/momo5502/sogen) (`root.zip`), which sogen collects from a GitHub Actions Windows Server 2025 runner, build 10.0.26100. The `x64` files come from `Windows\System32` and the `x86` files from `Windows\SysWOW64`. The root holds only a subset of the system modules: it has no `ntoskrnl.exe`, no `drivers\*.sys` and no `mfc42.dll`.
 
@@ -12,7 +12,7 @@ The files were extracted once with `pefile`, from every PE file in those directo
 4. `kind` is `data` when the RVA is in a section without `IMAGE_SCN_MEM_EXECUTE`. Otherwise it is `function`.
 5. Exports are sorted by ordinal, then by name. Each export is on its own line, so diffs stay small.
 
-There are no files for the CRT modules other than `msvcrt` (`ucrtbase`, `vcruntime*`, `msvcp*`, `msvcr*`) or for `wsock32`.
+There are no files for the CRT modules other than `msvcrt` (`ucrtbase`, `vcruntime*`, `msvcp*`, `msvcr*`) or for `wsock32`. Speakeasy maps those names to `msvcrt` and `ws2_32` before it looks for a manifest.
 
 There is no generator script. To add or correct a module, edit its file or write a new one with the same format:
 
