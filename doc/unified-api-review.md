@@ -16,6 +16,7 @@ This follow-up addresses review of [PR #348](https://github.com/mandiant/speakea
 | Listener exceptions escaped committed loads | Log and isolate each observer; later observers still run after load/discard. |
 | Injected import repair stopped halfway | Resolve and validate all imports before writing the IAT. Catch resolution errors, restore attempted writes after commit faults, and publish bookkeeping only after success. |
 | Kernel compatibility stub corrupted PE headers | Allocate `KiSystemCall64` in separate RX storage near the kernel; preserve both relative SSDT references and auxiliary symbols. |
+| SEH continuation replayed an unchanged fault | Preserve the existing four-fault guard across handler returns. Reset it only after resumed guest execution advances, the fault key changes, or a fresh run starts. Handler/filter execution alone is not guest progress. |
 | Corpus CRT startup writes faulted | Declare `_fmode`, `_commode`, and `__initenv` as writable data exports. Their existing pointer accessors share the same storage. Function entries stay RX. |
 
 The migration guide now records known-module missing-name NULL results, catalog-known DLL loading independent of the unknown-module flag, configured native modules executing their own guest code, removal of loader fallbacks, debugger timeout policy and symbol compatibility. It also records syscall-layout and Nt/Zw alias limits.
@@ -50,10 +51,10 @@ The final aggregate captures below use the 37 common PMA cases; the additional `
 | --- | ---: | ---: | ---: | ---: |
 | PMA baseline | 192 | 10,196 | 0 | 12.166s |
 | PMA original PR | 201 | 12,740 | 0 | 17.756s |
-| PMA final | 201 | 13,696 | 0 | 16.787s |
+| PMA final | 201 | 11,628 | 0 | 11.266s |
 | Additional PE baseline | 24 | 1,558 | 2 managed-image rejections | 9.859s |
 | Additional PE original PR | 23 | 1,505 | 2 managed + 1 malformed forwarder | 12.386s |
-| Additional PE final | 24 | 1,522 | 2 managed-image rejections | 9.926s |
+| Additional PE final | 24 | 1,522 | 2 managed-image rejections | 9.955s |
 
 These totals are descriptive, not pass/fail scores. The raw per-run sequences, errors, selectors, timing captures and comparison CSV are copied into the requested research folder.
 
@@ -65,7 +66,7 @@ The baseline's `wsprintfA`/`MessageBoxA` tail reports a failed Winsock ordinal 1
 
 **PMA14-02:** fewer events accompany successful API-hammer patches and thread cleanup. Baseline changes the bytes but continues executing translated calls until the API limit; original/fixed reach `free` and `ExitThread`. Preserved prefixes, patched bytes, branch targets and cleanup tails support this interpretation. No single-change ablation separates explicit cache invalidation from outer dispatch.
 
-**PMA05-01:** increased event totals largely reflect repeated exception-handler calls. These are not evidence of deeper payload coverage. The per-run timeout regression test, not a wall-clock-dependent event total, establishes restored lifetime scripting behavior.
+**PMA05-01:** Linux CI exposed a separate individual-run timeout after the session-wide timeout fix. `continue_seh()` cleared the repeat guard on every handler return, allowing hundreds of identical faults and C++ handler calls. The existing temporary-page cleanup means these faults are not actually repaired. A progress-aware guard now bounds unchanged replay with the existing `invalid_read` policy; it does not pretend the C++ exception was handled. Handler/filter instructions cannot reset the counter, but genuine resumed guest progress can. No PMA budget or allowed-error assertion is relaxed. The refreshed capture completes in 0.387 seconds, with all 12 runs executing and the failing exports recording 92/24 events versus baseline 93/25; differences are at exception boundaries. The public per-run timeout test independently establishes restored lifetime scripting behavior.
 
 **Additional corpus:** a DLL containing malformed forwarders now loads and completes its attach path, with the baseline's 12 recorded events. This proves lenient loading, not successful resolution of those malformed forwarders. The two CRT-global specimens now pass their original protected writes: one restores baseline's 11-event clean completion; the other reaches the baseline graphics tail and stops at an unsupported CRT API.
 
@@ -73,10 +74,10 @@ The baseline's `wsprintfA`/`MessageBoxA` tail reports a failed Winsock ordinal 1
 
 Instruction-cap callback overhead remains a follow-up. Genuine guest reads of the private trap reservation remain unmapped faults; improved error classification/SEH treatment is separate work. Required native dependency initialization failures terminate startup; runtime initialization failures roll back new attachments. Broadly continuing after a failed required DLL would pretend initialized state exists.
 
-Some corpus differences still involve exception emulation and event deduplication. In particular, PMA17-02 retains a ServiceMain timeout and a later invalid-read difference from baseline; correcting per-run budgets restores later runs but does not prove full sample equivalence. Versioned Windows export manifests, real syscall layout, complete data declarations, and a larger external malware corpus remain necessary for stronger fidelity claims.
+The replay guard tracks fault PC and address; same-PC partial instruction progress such as REP and complete temporary recovery-page ownership remain separate SEH work. Some corpus differences still involve exception emulation and event deduplication. In particular, PMA17-02 retains a ServiceMain timeout and a later invalid-read difference from baseline; correcting per-run budgets restores later runs but does not prove full sample equivalence. Versioned Windows export manifests, real syscall layout, complete data declarations, and a larger external malware corpus remain necessary for stronger fidelity claims.
 
 The implementation remains one integrated PR because address ownership, loader publication and scheduler boundaries depend on each other. Review fixes are separate focused commits for catalog indexing, parsing, CRT globals and runtime compatibility. The PR remains open for review and is not merged.
 
 ## Validation
 
-Signature generation and repository lint pass. Full local execution with GDB tests enabled passed **1,746 tests, 14 skipped in 129.34 seconds**, including the final filename-aware PMA case and its socket-backed shell assertions. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live x86/x64 RSP sessions cover breakpoints, stepping, patches, watchpoints, interruptions and fault boundaries. CI results are recorded in the PR description and the accompanying implementation-status research document.
+Signature generation and repository lint pass. Final local execution with GDB tests enabled passed **1,754 tests, 14 skipped in 129.91 seconds**. The focused SEH run also passed 29 tests, including unchanged PMA05-01, existing SEH behavior and fault ownership. The earlier Linux CI head passed 1,745 tests and exposed the PMA05-01 individual-run timeout described above; the focused fix keeps its budgets and assertions intact. Exact-head CI results are recorded in the PR description and implementation-status research document. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live x86/x64 RSP sessions cover breakpoints, stepping, patches, watchpoints, interruptions and fault boundaries. CI results are recorded in the PR description and the accompanying implementation-status research document.
