@@ -478,7 +478,7 @@ class Win32Emulator(WindowsEmulator):
         Allocate memory for the Process Environment Block (PEB)
         """
         if proc.is_peb_active:
-            return
+            return proc.peb
         size = proc.peb_ldr_data.sizeof()
         res, size = self.get_valid_ranges(size)
         self.mem_reserve(size, base=res, tag="emu.struct.PEB_LDR_DATA")
@@ -494,7 +494,7 @@ class Win32Emulator(WindowsEmulator):
 
         self._ensure_core_dlls_loaded()
         self.mem_map_reserve(proc.peb_ldr_data.address)
-        self.init_peb(self._ordered_peb_modules())
+        self.init_peb(self._ordered_peb_modules(), proc=proc)
 
         return peb
 
