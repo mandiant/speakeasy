@@ -1210,6 +1210,8 @@ class WindowsEmulator(BinaryEmulator):
         """Bind imports of an injected mapped PE using the public API registry.
 
         Validate every RVA against SizeOfImage and bound both table walks.
+        Stage IAT writes until all imports validate; restore attempted writes
+        on a commit fault and publish bindings only after a successful commit.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
         """
@@ -1256,13 +1258,14 @@ class WindowsEmulator(BinaryEmulator):
                     value.extend(byte)
                 raise ValueError("unterminated import name")
 
+            pending = []
             for index in range(min(import_size // 20, 4096)):
                 descriptor = read_rva(import_rva + index * 20, 20)
                 if descriptor == b"\x00" * 20:
                     break
                 ilt_rva, _, _, name_rva, iat_rva = struct.unpack("<5I", descriptor)
                 if not name_rva or not iat_rva:
-                    break
+                    raise ValueError("incomplete import descriptor")
                 dll_name = read_name(name_rva)
                 thunk_rva = ilt_rva or iat_rva
                 for offset in range(min(image_size // ptr_size, 65536)):
@@ -1287,9 +1290,29 @@ class WindowsEmulator(BinaryEmulator):
                     address = self.get_proc(dll_name, reference)
                     if not address:
                         raise WindowsEmuError(f"unresolved import {dll_name}!{reference}")
-                    self.mem_write(base_addr + iat, address.to_bytes(ptr_size, "little"))
-                    self._import_bindings[base_addr + iat] = address
-        except (ValueError, UnicodeError, struct.error, uc.UcError):
+                    pending.append((base_addr + iat, current.to_bytes(ptr_size, "little"), address))
+                else:
+                    raise ValueError("unterminated import thunk table")
+            else:
+                raise ValueError("unterminated import descriptor table")
+
+            attempted = []
+            try:
+                for iat, original, address in pending:
+                    # Include the failing write: a backend may write partially
+                    # before raising, so its slot also needs restoration.
+                    attempted.append((iat, original))
+                    self.mem_write(iat, address.to_bytes(ptr_size, "little"))
+            except Exception:
+                for iat, original in reversed(attempted):
+                    try:
+                        self.mem_write(iat, original)
+                    except Exception:
+                        logger.exception("failed to restore injected PE IAT slot at %#x", iat)
+                logger.debug("failed to commit injected PE import table at %#x", base_addr, exc_info=True)
+                return
+            self._import_bindings.update((iat, address) for iat, _, address in pending)
+        except (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError):
             logger.debug("invalid injected PE import table at %#x", base_addr, exc_info=True)
 
     def get_mod_by_name(self, name):
@@ -1344,9 +1367,16 @@ class WindowsEmulator(BinaryEmulator):
         finally:
             self._load_depth -= 1
         if outer:
-            for listener in tuple(self.module_change_listeners):
-                listener()
+            self._notify_module_change()
         return module
+
+    def _notify_module_change(self):
+        """Notify every observer without letting one failure disrupt publication."""
+        for listener in tuple(self.module_change_listeners):
+            try:
+                listener()
+            except Exception:
+                logger.exception("module change listener failed: %r", listener)
 
     def _discard_loaded_module(self, module):
         processes = list(self.processes)
@@ -1370,8 +1400,7 @@ class WindowsEmulator(BinaryEmulator):
             for address, target in self._import_bindings.items()
             if not module.base <= address < module.base + module.image_size
         }
-        for listener in tuple(self.module_change_listeners):
-            listener()
+        self._notify_module_change()
 
     def _snapshot_peb_attachments(self):
         processes = list(self.processes)
