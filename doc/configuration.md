@@ -22,6 +22,10 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Raise for slow/staged samples. Lower for quick triage.
   "timeout": 60,
 
+  // Active execution cap in seconds across all runs of one run_module,
+  // run_shellcode, or call invocation. 0 disables it.
+  "max_total_time": 0,
+
   // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
   // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
   "max_api_count": 10000,

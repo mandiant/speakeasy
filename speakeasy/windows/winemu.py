@@ -8,7 +8,9 @@ import time
 import traceback
 from abc import abstractmethod
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum
+from functools import wraps
 from typing import Any
 
 import unicorn as uc
@@ -47,6 +49,30 @@ DISASM_SIZE = 0x20
 SIGSEGV = 11
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _ExecutionBudget:
+    limit: float
+    elapsed: float = 0.0
+    exhausted: bool = False
+
+
+def execution_scope(func):
+    """Share one active-time cap across every start in a public invocation."""
+
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+        emu = self if isinstance(self, WindowsEmulator) else self.emu
+        if emu is None or emu._execution_budget is not None:
+            return func(self, *args, **kwargs)
+        emu._execution_budget = _ExecutionBudget(emu.config.max_total_time)
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            emu._execution_budget = None
+
+    return wrapped
 
 
 def _normalize_mod_name(name: str) -> str:
@@ -95,6 +121,7 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr: Address of the Process Environment Block
     """
 
+    _execution_budget: _ExecutionBudget | None = None
     peb_addr: int
 
     @abstractmethod
@@ -678,6 +705,13 @@ class WindowsEmulator(BinaryEmulator):
         started = time.monotonic()
         spent = self.curr_run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
+        deadline_kind = "timeout"
+        total_budget = self._execution_budget
+        if total_budget is not None and total_budget.limit > 0:
+            total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
+            if deadline is None or total_deadline < deadline:
+                deadline = total_deadline
+                deadline_kind = "max_total_time"
         budget = self.config.max_instructions if debugger is not None else count
         used = self.curr_run.budget_instructions
         remaining = [max(budget - used, 0) if budget > 0 else -1]
@@ -696,10 +730,17 @@ class WindowsEmulator(BinaryEmulator):
                 self.set_pc(self._pending_api_entry.address)
             if kind == "timeout":
                 logger.error("* Timeout of %d sec(s) reached.", timeout)
+            elif kind == "max_total_time":
+                logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
             else:
                 logger.error("* Instruction limit of %d reached.", budget)
             # A limit that expires while a fault is completing keeps the fault as
             # the run's error.
+            if kind == "max_total_time":
+                total_budget.exhausted = True
+                self._cancel_execution_runs()
+                if self.curr_run is origin_run and origin_run.error is None:
+                    origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
             elif self.curr_run is origin_run:
@@ -732,6 +773,9 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_control:
                     if debugger is not None and debugger.has_pending_stop():
                         return
+                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                        stop_limit("max_total_time")
+                        return
                     control, self._pending_control = self._pending_control, None
                     if control in ("run_return", "fault_return"):
                         self.on_run_complete()
@@ -744,7 +788,7 @@ class WindowsEmulator(BinaryEmulator):
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
                 if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit("timeout")
+                    stop_limit(deadline_kind)
                     return
                 if limit[0] or (budget > 0 and remaining[0] <= 0):
                     stop_limit("max_instructions")
@@ -796,7 +840,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_control:
                     continue
                 if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit("timeout")
+                    stop_limit(deadline_kind)
                     return
                 if budget > 0 and remaining[0] <= 0:
                     stop_limit("max_instructions")
@@ -810,6 +854,9 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_fault_stop is not None:
                     return
                 if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
+                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                        stop_limit("max_total_time")
+                        return
                     self.on_run_complete()
                 address = self.get_pc()
                 if self.curr_run is not origin_run:
@@ -817,7 +864,31 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and (debugger.has_pending_stop() or count == 1):
                     return
         finally:
-            origin_run.execution_elapsed = spent + time.monotonic() - started
+            elapsed = time.monotonic() - started
+            origin_run.execution_elapsed = spent + elapsed
+            if total_budget is not None:
+                total_budget.elapsed += elapsed
+                if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
+                    if not total_budget.exhausted:
+                        logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
+                    total_budget.exhausted = True
+                    self._cancel_execution_runs()
+                    prepared = self.curr_run
+                    if prepared is origin_run:
+                        if not self.run_complete and origin_run.error is None:
+                            origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
+                    else:
+                        # Completing the run already prepared the next one. It
+                        # did not execute and must not appear as a started run.
+                        self._cancel_execution_runs(prepared)
+                        if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
+                            self.runs[:] = [run for run in self.runs if run is not prepared]
+                            if self.profiler:
+                                self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
+                            self.curr_run = origin_run
+                            self.run_complete = True
+                    if debugger is not None:
+                        debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             for module in self._failed_guest_modules:
                 self._discard_loaded_module(module)
             self._failed_guest_modules.clear()
@@ -825,6 +896,20 @@ class WindowsEmulator(BinaryEmulator):
                 if hook.added:
                     self.emu_eng.hook_remove(hook.handle)
                 self.hooks[common.HOOK_CODE].remove(hook)
+
+    def _cancel_execution_runs(self, prepared=None):
+        """Cancel unexecuted work without leaving DLL attachments initializing."""
+        canceled = [*self.run_queue, *self.suspended_runs]
+        if prepared is not None:
+            canceled.append(prepared)
+        for run in canceled:
+            stage = run.guest_initialization
+            if stage is not None:
+                module, _last, _is_dll, pid = stage
+                if module._initialization.get(pid) == "initializing":
+                    module._initialization.pop(pid, None)
+        self.run_queue.clear()
+        self.suspended_runs.clear()
 
     def resume(self, addr, count=-1):
         """Resume emulation directly at an address.
@@ -838,10 +923,16 @@ class WindowsEmulator(BinaryEmulator):
         timeout = 0 if self.gdb_port is not None else self.config.timeout
         self._run_api_engine(addr, timeout=timeout, count=count)
 
+    @execution_scope
     def start(self, addr=None, size=None):
         """
         Begin emulation executing each run in the specified run queue
         """
+        total_budget = self._execution_budget
+        assert total_budget is not None
+        if total_budget.exhausted:
+            self._cancel_execution_runs()
+            return
         if not self.kernel_mode and self.run_queue:
             initializers = self._collect_guest_initializers()
             queued = []
@@ -899,6 +990,8 @@ class WindowsEmulator(BinaryEmulator):
         """Execute prepared runs, optionally under control of an active GDB session."""
         if debugger is not None:
             assert debug_action is not None
+        total_budget = self._execution_budget
+        assert total_budget is not None
         detached_resume_addr = None
         terminal_signal = 0
         timeout = 0 if debugger is not None else self.config.timeout
@@ -920,6 +1013,12 @@ class WindowsEmulator(BinaryEmulator):
                 executing_run = self.curr_run
                 if should_execute:
                     self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count, debugger=debugger)
+                if debugger is None and total_budget.exhausted:
+                    self._cancel_execution_runs()
+                    if not self.run_complete:
+                        self.on_run_complete()
+                    self.on_emu_complete()
+                    break
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
                     fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
@@ -928,13 +1027,21 @@ class WindowsEmulator(BinaryEmulator):
                         terminal_signal = fault_stop.signal
                     if stop_reason is not None:
                         debug_action = debugger.command_loop(stop_reason)
-                        if debug_action.kill:
+                        if debug_action.kill and not total_budget.exhausted:
                             return True
                         if debug_action.detach:
                             debugger.close()
                             debugger = None
                             self._stop_on_faults = False
                             timeout = self.config.timeout
+                        if total_budget.exhausted:
+                            self._cancel_execution_runs()
+                            if not self.run_complete:
+                                self.on_run_complete()
+                            if debugger is not None and not debug_action.kill:
+                                debugger.notify_exit(0)
+                            self.on_emu_complete()
+                            return True
                         if fault_stop is not None and not self.on_run_complete():
                             break
                         if debugger is None:

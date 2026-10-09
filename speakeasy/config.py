@@ -10,6 +10,7 @@ DEFAULT_CONFIG_DATA = {
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",
     "timeout": 60,
+    "max_total_time": 0,
     "max_api_count": 10000,
     "stack_size": 0,
     "system": "windows",
@@ -541,6 +542,12 @@ class SpeakeasyConfig(BaseModel):
     timeout: float = Field(
         default=DEFAULT_CONFIG_DATA["timeout"],
         description="Active execution timeout in seconds per Run. 0 disables it.",
+    )
+    max_total_time: float = Field(
+        default=DEFAULT_CONFIG_DATA["max_total_time"],
+        ge=0,
+        allow_inf_nan=False,
+        description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
     )
     max_api_count: int = Field(
         default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."

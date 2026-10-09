@@ -243,7 +243,7 @@ For the full reference and caveats, use [doc/gdb.md](gdb.md) and [doc/gdb-exampl
 
 ## Timeout enforcement across multi-run and parent supervision
 
-Timeout handling was tightened so each run has its own active-time budget across chained entry-point runs and parent-process control logic. This closes cases where retry loops or queue waits could effectively outlive the requested timeout. Users should now see more predictable stop behavior on long or stalled analyses.
+Timeout handling was tightened so each run has its own active-time budget and `max_total_time` caps active time across chained entry-point runs and parent-process control logic. This closes cases where retry loops or queue waits could effectively outlive the requested timeout. Users should now see more predictable stop behavior on long or stalled analyses.
 
 ## Related docs
 
