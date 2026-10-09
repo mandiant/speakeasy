@@ -18,9 +18,14 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Emulation backend. Only "unicorn" is currently supported.
   "emu_engine": "unicorn",
 
-  // Wall-clock timeout in seconds for each emulation session.
+  // Active execution timeout in seconds for each run. 0 disables it.
   // Raise for slow/staged samples. Lower for quick triage.
   "timeout": 60,
+
+  // Active execution cap in seconds across all runs of one run_module,
+  // run_shellcode, or call invocation. 0 disables it. This cap also limits
+  // "timeout", so raise both for long analyses.
+  "max_total_time": 60,
 
   // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
   // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
@@ -49,7 +54,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
     // Enables instruction-address coverage collection per entry point.
     // Useful for diffing runs and rough execution mapping.
-    "coverage": false
+    "coverage": false,
+
+    // If true, execution in non-executable guest module pages stops with a
+    // fault. If false, Speakeasy makes the page executable and continues,
+    // which lets packers run decrypted data sections.
+    "enforce_nx": false
   },
 
   // If true, frees do not immediately remove memory maps.
@@ -316,13 +326,19 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   ],
 
   "modules": {
-    // If true, unknown module loads synthesize decoys instead of failing.
+    // If true, loads of unknown modules create empty synthetic API modules
+    // instead of failing.
     "modules_always_exist": false,
 
+    // If true, reject malformed guest PE metadata, bind imports atomically,
+    // and stop when a startup DLL initializer fails.
+    "strict_pe_parsing": false,
+
     // If true, unresolved API imports that are in neither the handlers nor the
-    // bundled signature database are treated as existing stubs (4 stdcall
-    // arguments, return value 1). Imports with a known signature are always
-    // emulated from it, see doc/api-handlers.md.
+    // bundled signature database resolve to dynamic entries. On x64 a call to
+    // one returns 1 and the caller cleans the stack. On x86 the argument count
+    // is unknown, so the call stops with unsupported_api. Imports with a known
+    // signature are always emulated from it, see doc/api-handlers.md.
     "functions_always_exist": false,
 
     // Decoy search roots by architecture.

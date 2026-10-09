@@ -29,7 +29,7 @@ Why execution stops:
 - for unknown APIs, argument count/calling convention cannot be trusted
 - continuing may corrupt stack state and generate misleading report data
 
-Queued runs (for example additional entry points) can still execute. `modules.functions_always_exist` forces these calls through as 4-argument stdcall stubs returning 1.
+Queued runs (for example additional entry points) can still execute. On x64, `modules.functions_always_exist` lets calls to undeclared functions return 1 with the caller-cleaned Win64 ABI. On x86 an unknown argument count cannot select the stdcall cleanup, so these calls still stop.
 
 ## Environmental requirements
 

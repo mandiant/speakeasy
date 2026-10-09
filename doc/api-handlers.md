@@ -40,7 +40,7 @@ Undocumented native APIs (`Nt*`/`Zw*`, `Rtl*`, `Ldr*`, `Csr*`, `Dbg*` ...) come 
 
 ### Regenerating the signature databases
 
-The databases live at `speakeasy/resources/win32/signatures.json.gz` (win32metadata) and `speakeasy/resources/win32/phnt_signatures.json.gz` (phnt). They are build artifacts, not committed: `python -m build` regenerates them (see `setup.py`), and for a source checkout run
+The databases live at `speakeasy/resources/win32/win32json_signatures.json.gz` (win32metadata) and `speakeasy/resources/win32/phnt_signatures.json.gz` (phnt). They are build artifacts, not committed: `python -m build` regenerates them (see `setup.py`), and for a source checkout run
 
 ```console
 just gen-signatures

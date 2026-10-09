@@ -16,7 +16,7 @@ The subsequent [supplied-patch comparison](unified-api-patch-comparison.md) maps
 | Unknown x64 calls stopped despite permissive configuration | Preserve an argument-opaque scalar-return-1 fallback only for wholly undeclared Win64 functions with `functions_always_exist`. Unknown x86 calls require a known ABI or explicit hook. Known unsupported float/aggregate declarations remain unsupported. |
 | SP-changing hooks redispatched | Report `api_handler_did_not_return` once when a handler changes SP without returning or scheduling a transfer. `_EH_prolog` retains its explicit return. |
 | Listener exceptions escaped committed loads | Log and isolate each observer; later observers still run after load/discard. |
-| Injected import repair stopped halfway | Default validation stages independent valid entries and warns about skipped entries. Strict mode requires all entries to validate. Commit faults restore attempted writes; bookkeeping publishes only after successful writes. |
+| Injected import repair stopped halfway | Default validation stages independent valid entries and warns about skipped entries. Strict mode requires all entries to validate. A write fault during commit leaves earlier writes in place; bookkeeping publishes only after all writes succeed. |
 | Kernel compatibility stub corrupted PE headers | Allocate `KiSystemCall64` in separate RX storage near the kernel; preserve both relative SSDT references and auxiliary symbols. |
 | SEH continuation replayed an unchanged fault | Preserve the existing four-fault guard across handler returns. Reset it only after resumed guest execution advances, the fault key changes, or a fresh run starts. Handler/filter execution alone is not guest progress. |
 | Corpus CRT startup writes faulted | Declare `_fmode`, `_commode`, and `__initenv` as writable data exports. Their existing pointer accessors share the same storage. Function entries stay RX. |
@@ -82,7 +82,7 @@ The change remains an integrated PR. Core address ownership, loader publication 
 
 ## Validation
 
-Signature generation and repository lint pass. The local execution with GDB tests enabled passes **1,260 tests, 14 skipped in 14.7 seconds**. An earlier Linux CI head exposed the PMA05-01 individual-run timeout described above; the focused fix keeps its budgets and assertions intact. Exact-head CI results are linked in the PR description. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live x86/x64 RSP sessions cover breakpoints, stepping, patches, watchpoints and hook faults. The PR description links the corresponding CI run.
+Signature generation and repository lint pass. The local execution with GDB tests enabled passes **1,548 tests, 14 skipped in 14.7 seconds**. An earlier Linux CI head exposed the PMA05-01 individual-run timeout described above; the focused fix keeps its budgets and assertions intact. Exact-head CI results are linked in the PR description. Public tests cover fresh `call()` budgets, Win64 fallback and rejected known ABIs, SP-changing hooks, symbols, guest stores into CRT data, and precise capped execution with tracing enabled/disabled. Live RSP sessions cover breakpoints and stepping on x86 and x64, and patches, watchpoints and hook faults on x86. The PR description links the corresponding CI run.
 
 ## Earlier-review coverage audit
 
