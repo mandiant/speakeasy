@@ -2070,6 +2070,8 @@ class Kernel32(api.ApiHandler):
                         rv = emu.get_proc(mname, proc)
                     break
 
+        if not rv:
+            emu.set_last_error(windefs.ERROR_PROC_NOT_FOUND)
         return rv
 
     @apihook("AllocConsole", argc=0)
