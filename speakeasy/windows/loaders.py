@@ -163,9 +163,6 @@ class RuntimeModule:
     def is_driver(self) -> bool:
         return self._image.module_type == "driver"
 
-    def is_decoy(self) -> bool:
-        return self._image.module_type == "decoy"
-
     def get_base_name(self) -> str:
         return ntpath.basename(self.emu_path)
 
