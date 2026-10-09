@@ -742,8 +742,8 @@ class ApiModuleLoader:
             if handler is self._api:
                 data_names.update(handler.data)
 
-        def kind(name: str | None) -> str:
-            return "data" if name in data_names else "function"
+        def kind(name: str | None, physical_kind: str = "function") -> str:
+            return "data" if physical_kind == "data" or name in data_names else "function"
 
         manifest = get_export_manifest(self._name.lower(), arch_name)
         if manifest is not None:
@@ -751,7 +751,7 @@ class ApiModuleLoader:
             # follow the highest physical ordinal so that they never take an
             # ordinal that the real module leaves unused. A handler name whose
             # A or W variant is physical only serves dispatch of that variant.
-            exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name)) for e in manifest.exports]
+            exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
             physical = {e.name for e in manifest.exports}
             next_ordinal = max((e.ordinal for e in manifest.exports), default=0) + 1
             extras = (handler_ordinals.keys() | data_names) - physical

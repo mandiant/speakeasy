@@ -6,7 +6,7 @@ This page covers runtime limits, execution mode, and debugging controls.
 
 Primary flags:
 - `--timeout`: active execution timeout in seconds per run
-- `--max-total-time`: active execution cap in seconds across all runs (also limits `--timeout`)
+- `--max-total-time`: active execution cap in seconds across all runs (0, the default, disables it)
 - `--max-api-count`: cap API calls per run
 - `--max-instructions`: cap executed instructions per run
 

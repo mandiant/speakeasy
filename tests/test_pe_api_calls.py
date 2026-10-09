@@ -160,24 +160,27 @@ def test_public_filtered_import_does_not_shift_valid_iat_call(oft_zero):
             se.load_module(data=bytes(raw))
 
 
-@pytest.mark.parametrize("architecture, always_exist", [(32, True), (64, False), (64, True)])
-def test_public_unknown_iat_call_has_architecture_safe_return(architecture, always_exist):
+@pytest.mark.parametrize("architecture", [32, 64])
+@pytest.mark.parametrize("always_exist", [False, True])
+def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_exist):
     unknown = "SpeakeasyNoSuchExport"
     imports = {"kernel32.dll": [unknown, "GetTickCount"]}
+    # The x86 stub is stdcall and pops four arguments.
+    prefix = b"\x6a\x00" * 4 if architecture == 32 else b""
     data, _ = build_pe(
         architecture,
-        text=calls(architecture, [("kernel32.dll", unknown), ("kernel32.dll", "GetTickCount")]),
+        text=calls(architecture, [("kernel32.dll", unknown), ("kernel32.dll", "GetTickCount")], prefix=prefix),
         imports=imports,
     )
     with Speakeasy(config=configured(**{"modules.functions_always_exist": always_exist})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
         entry = se.get_report().entry_points[0]
-        if architecture == 64 and always_exist:
+        if always_exist:
             assert entry.error is None
             assert api_names(entry) == [f"kernel32.{unknown}", "kernel32.GetTickCount"]
             event = next(event for event in entry.events if event.event == "api")
-            assert event.ret_val == "0x1" and event.args == []
+            assert event.ret_val == "0x1" and len(event.args) == 4
         else:
             assert entry.error.type == "unsupported_api"
             assert entry.error.api_name == f"kernel32.{unknown}"

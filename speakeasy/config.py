@@ -10,7 +10,7 @@ DEFAULT_CONFIG_DATA = {
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",
     "timeout": 60,
-    "max_total_time": 60,
+    "max_total_time": 0,
     "max_api_count": 10000,
     "stack_size": 0,
     "system": "windows",

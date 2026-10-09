@@ -494,7 +494,7 @@ class WindowsEmulator(BinaryEmulator):
         stage = self.curr_run.guest_initialization
         if stage is not None:
             module, last, is_dll, pid = stage
-            if self.curr_run.error or (is_dll and not self.get_return_val()):
+            if self.curr_run.error or (is_dll and not self._dll_main_succeeded()):
                 self.curr_run.error = self.curr_run.error or ErrorInfo(
                     type="dll_initialization_failed", pc=self.get_pc()
                 )
@@ -728,17 +728,26 @@ class WindowsEmulator(BinaryEmulator):
         def stop_limit(kind):
             if self._pending_api_entry is not None:
                 self.set_pc(self._pending_api_entry.address)
+            if kind == "timeout":
+                logger.error("* Timeout of %d sec(s) reached.", timeout)
+            elif kind == "max_total_time":
+                logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
+            else:
+                logger.error("* Instruction limit of %d reached.", budget)
+            # A limit that expires while a fault is completing keeps the fault as
+            # the run's error.
             if kind == "max_total_time":
                 total_budget.exhausted = True
                 self._cancel_execution_runs()
-                if self.curr_run is origin_run:
+                if self.curr_run is origin_run and origin_run.error is None:
                     origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
             elif self.curr_run is origin_run:
-                origin_run.error = ErrorInfo(
-                    type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
-                )
+                if origin_run.error is None:
+                    origin_run.error = ErrorInfo(
+                        type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
+                    )
                 self.on_run_complete()
 
         if budget > 0:
@@ -874,6 +883,8 @@ class WindowsEmulator(BinaryEmulator):
             if total_budget is not None:
                 total_budget.elapsed += elapsed
                 if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
+                    if not total_budget.exhausted:
+                        logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
                     total_budget.exhausted = True
                     self._cancel_execution_runs()
                     prepared = self.curr_run
@@ -2405,13 +2416,9 @@ class WindowsEmulator(BinaryEmulator):
         return sig
 
     def _can_stub_unknown_api(self, dll: str, name: str) -> bool:
-        # Win64 caller cleanup permits an argument-opaque scalar stub. A known
-        # unsupported declaration is not unknown and still requires a handler.
-        return (
-            self.get_ptr_size() == 8
-            and self.config.modules.functions_always_exist
-            and self._lookup_api_declaration(dll, name) is None
-        )
+        # A known unsupported declaration is not unknown and still requires a
+        # handler.
+        return self.config.modules.functions_always_exist and self._lookup_api_declaration(dll, name) is None
 
     def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
@@ -2710,12 +2717,17 @@ class WindowsEmulator(BinaryEmulator):
             if sig is not None:
                 self.emulate_api_from_signature(dll, name, sig, call_pc)
             elif self._can_stub_unknown_api(dll, name):
-                logger.warning("Stubbed unknown Win64 API %s with scalar return 1", imp_api)
-                frame.argc = 0
-                frame.convention = _arch.CALL_CONV_STDCALL
+                # Guess a four-argument stdcall function that succeeds so that
+                # execution can continue.
+                logger.warning("Stubbed unknown API %s with return 1", imp_api)
+                conv = _arch.CALL_CONV_STDCALL
+                argc = 4
+                argv = self.get_func_argv(conv, argc)
+                frame.argc = argc
+                frame.convention = conv
                 frame.result = 1
-                self.log_api(call_pc, imp_api, 1, [], run=origin_run)
-                self.do_call_return(0, oret, 1, conv=_arch.CALL_CONV_STDCALL)
+                self.log_api(call_pc, imp_api, 1, sigfmt.get_slot_args(argv), run=origin_run)
+                self.do_call_return(argc, oret, 1, conv=conv)
             else:
                 error = self.get_error_info("unsupported_api", self.get_pc())
                 logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
@@ -2738,6 +2750,24 @@ class WindowsEmulator(BinaryEmulator):
             )
             self.on_run_complete()
 
+    def _dll_main_succeeded(self):
+        # The loader truncates the BOOL result of DllMain to a BOOLEAN, so only
+        # the low byte decides success.
+        return bool(self.get_return_val() & 0xFF)
+
+    def start_api_callback(self, frame, function, args):
+        """Enter a guest callback on the stack of its API frame."""
+        frame.function = function
+        sp = frame.stack_pointer
+        if self.ptr_size == 8:
+            # Win64 callees expect RSP + 8 to be 16-byte aligned at entry, and
+            # each argument after the fourth occupies one 8-byte stack slot.
+            sp &= ~0xF
+            if max(len(args) - 4, 0) % 2:
+                sp -= 8
+        self.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
+        self.set_pc(function)
+
     def _continue_api_callback(self):
         """Resume a typed guest callback continuation outside Unicorn callbacks."""
         run = self.get_current_run()
@@ -2745,7 +2775,7 @@ class WindowsEmulator(BinaryEmulator):
         stage = frame.initializers.get(frame.function)
         if stage is not None:
             module, last, is_dll, pid = stage
-            if is_dll and not self.get_return_val():
+            if is_dll and not self._dll_main_succeeded():
                 frame.result = frame.failure_result
                 for address, data in frame.failure_writes:
                     self.mem_write(address, data)
@@ -2757,12 +2787,7 @@ class WindowsEmulator(BinaryEmulator):
         self.set_stack_ptr(frame.stack_pointer)
         if frame.pending:
             function, args = frame.pending.pop(0)
-            frame.function = function
-            sp = frame.stack_pointer
-            if self.ptr_size == 8:
-                sp &= ~0xF
-            self.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
-            self.set_pc(function)
+            self.start_api_callback(frame, function, args)
         else:
             run.api_callbacks.pop()
             if frame.event is not None:

@@ -23,9 +23,8 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   "timeout": 60,
 
   // Active execution cap in seconds across all runs of one run_module,
-  // run_shellcode, or call invocation. 0 disables it. This cap also limits
-  // "timeout", so raise both for long analyses.
-  "max_total_time": 60,
+  // run_shellcode, or call invocation. 0 disables it.
+  "max_total_time": 0,
 
   // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
   // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
@@ -335,10 +334,9 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     "strict_pe_parsing": false,
 
     // If true, unresolved API imports that are in neither the handlers nor the
-    // bundled signature database resolve to dynamic entries. On x64 a call to
-    // one returns 1 and the caller cleans the stack. On x86 the argument count
-    // is unknown, so the call stops with unsupported_api. Imports with a known
-    // signature are always emulated from it, see doc/api-handlers.md.
+    // bundled signature database resolve to dynamic entries that act as stubs
+    // (4 stdcall arguments, return value 1). Imports with a known signature are
+    // always emulated from it, see doc/api-handlers.md.
     "functions_always_exist": false,
 
     // Decoy search roots by architecture.

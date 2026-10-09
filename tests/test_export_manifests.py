@@ -74,3 +74,12 @@ def test_manifest_is_well_formed(path):
         assert export.kind in ("function", "data")
         if export.forwarder is not None:
             validate_forwarder(export.forwarder)
+
+
+@pytest.mark.parametrize("module,name", [("ntdll", "NlsMbCodePageTag"), ("user32", "gSharedInfo")])
+def test_physical_data_exports_are_zeroed_variables(started, module, name):
+    address = started.emu.get_proc(module, name)
+    export = started.emu.get_mod_by_name(module).get_export_by_name(name)
+    assert export.kind == "data" and export.address == address
+    assert started.mem_read(address, 0x100) == b"\0" * 0x100
+    assert started.get_symbols()[address] == (module, name)

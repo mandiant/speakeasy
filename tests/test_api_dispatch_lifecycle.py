@@ -86,3 +86,29 @@ def test_nested_dialog_callbacks_return_to_their_api_callers(config, architectur
         assert outer_hwnd and leaf_hwnd and outer_hwnd != leaf_hwnd
         assert slot(0x40) == leaf_hwnd
         assert slot(8) == run.ret_val == outer_hwnd
+
+
+@pytest.mark.parametrize("argc", [4, 5, 6])
+def test_x64_api_callback_entry_stack_is_aligned(config, argc):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        data = se.mem_alloc(0x1000)
+        api = se.emu.get_proc("kernel32", "GetTickCount")
+        callback = base + 0x100
+
+        def handler(_se, _api, _original, args):
+            se.emu.api.load_api_handler("user32").setup_callback(callback, list(range(argc)), caller_argv=args)
+            return 0
+
+        se.add_api_hook(handler, "kernel32", "GetTickCount", argc=0)
+        main = b"\x48\x83\xec\x28\x48\xb8" + struct.pack("<Q", api) + b"\xff\xd0\x48\x83\xc4\x28\xc3"
+        # mov r10, data; mov [r10], rsp; ret
+        record_rsp = b"\x49\xba" + struct.pack("<Q", data) + b"\x49\x89\x22\xc3"
+        se.mem_write(base, main)
+        se.mem_write(callback, record_rsp)
+
+        se.run_shellcode(base)
+
+        assert se.get_report().entry_points[0].error is None
+        rsp = int.from_bytes(se.mem_read(data, 8), "little")
+        assert rsp and (rsp + 8) % 16 == 0

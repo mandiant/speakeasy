@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
@@ -528,12 +527,7 @@ class ApiHandler:
         if any(item is frame for item in run.api_callbacks):
             frame.pending.append((func, tuple(args)))
             return
-        frame.function = func
-        sp = frame.stack_pointer
-        if self.emu.get_ptr_size() == 8:
-            sp &= ~0xF
-        self.emu.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
-        self.emu.set_pc(func)
+        self.emu.start_api_callback(frame, func, args)
         run.api_callbacks.append(frame)
 
     def do_str_format(self, string, argv, wide=False):

@@ -12,7 +12,7 @@ from speakeasy.windows.loaders import ImportEntry, LoadedImage, MemoryRegion
 from tests.test_peb_module_links import Deref, get_api, guest_call, read_pointer
 
 
-def make_native_dll(emu, path, success=True):
+def make_native_dll(emu, path, result=1):
     base, _ = emu.get_valid_ranges(0x20000, addr=0x62000000)
     image = build_api_image(
         name="guest_dependency",
@@ -33,12 +33,12 @@ def make_native_dll(emu, path, success=True):
         offset = region.base - base
         data[offset : offset + len(region.data)] = region.data
     ret = b"\xc2\x0c\x00" if emu.ptr_size == 4 else b"\xc3"
-    for name, result in [("TlsCallback", 1), ("Initializer", int(success))]:
+    for name, value in [("TlsCallback", 1), ("Initializer", result)]:
         address = exports[name]
         increment = b"\xff\x05" + (
             struct.pack("<I", flag) if emu.ptr_size == 4 else struct.pack("<i", flag - address - 6)
         )
-        code = increment + b"\xb8" + struct.pack("<I", result) + ret
+        code = increment + b"\xb8" + struct.pack("<I", value) + ret
         data[address - base : address - base + len(code)] = code
     address = exports["GetTickCount"]
     code = (
@@ -112,13 +112,14 @@ def test_runtime_load_runs_tls_callback_and_dllmain_once(config, tmp_path, arch)
         se.shutdown()
 
 
+@pytest.mark.parametrize("result", [0, 0x100], ids=["false", "low-byte-false"])
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
-def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch):
+def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch, result):
     se = Speakeasy(config=native_config(config, tmp_path))
     try:
         code = se.load_shellcode(data=b"\xc3" * 0x400, arch=arch)
         ptr = se.get_ptr_size()
-        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", success=False)
+        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", result=result)
         data = se.mem_alloc(0x1000, base=0x20000000)
         dll_name, wide_name, unicode, handle, results = (data + offset for offset in range(0, 0x140, 0x40))
         text = "guest_dependency.dll".encode("utf-16le")
@@ -149,7 +150,7 @@ def test_startup_dllmain_failure_policy(config, tmp_path, strict):
     builder = Speakeasy(config=config)
     try:
         builder.load_shellcode(data=b"\xc3", arch="x86")
-        first = make_native_dll(builder.emu, tmp_path / "first.dll", success=False)
+        first = make_native_dll(builder.emu, tmp_path / "first.dll", result=0)
         builder.mem_alloc(0x20000, base=image_base(tmp_path / "first.dll"))
         second = make_native_dll(builder.emu, tmp_path / "second.dll")
     finally:
