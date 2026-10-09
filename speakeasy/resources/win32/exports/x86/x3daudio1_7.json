@@ -1,0 +1,13 @@
+{
+  "module": "x3daudio1_7",
+  "file": "x3daudio1_7.dll",
+  "arch": "x86",
+  "file_version": "9.28.1886.0",
+  "timestamp": 1265305488,
+  "size_of_image": 28672,
+  "sha256": "288c701bdedf1d45c63dd0b7d424a752f8819f90feb5088c582f76bc98970ba3",
+  "exports": [
+    {"ordinal": 1, "name": "X3DAudioCalculate"},
+    {"ordinal": 2, "name": "X3DAudioInitialize"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "module": "d3d11",
+  "file": "d3d11.dll",
+  "arch": "x64",
+  "file_version": "10.0.17763.1",
+  "timestamp": 1784327712,
+  "size_of_image": 7467008,
+  "sha256": "9f2e94fdb4658f964ff84f8cc93eef83603c6b19684760e5f240668c21252fca",
+  "exports": [
+    {"ordinal": 18, "name": "D3D11CoreCreateDevice"},
+    {"ordinal": 22, "name": "D3D11CreateDevice"},
+    {"ordinal": 23, "name": "D3D11CreateDeviceAndSwapChain"},
+    {"ordinal": 24, "name": "D3D11On12CreateDevice"}
+  ]
+}

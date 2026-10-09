@@ -500,7 +500,7 @@ class Ws2_32(api.ApiHandler):
             self.addr_bufs.update({raddr: buf})
         return buf
 
-    @apihook("inet_ntop", argc=4, ordinal=180)
+    @apihook("inet_ntop", argc=4)
     def inet_ntop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PCSTR WSAAPI inet_ntop(
@@ -529,7 +529,7 @@ class Ws2_32(api.ApiHandler):
 
         return 0
 
-    @apihook("inet_pton", argc=3, ordinal=181)
+    @apihook("inet_pton", argc=3)
     def inet_pton(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT WSAAPI inet_pton(
@@ -699,7 +699,7 @@ class Ws2_32(api.ApiHandler):
 
         return rv
 
-    @apihook("getaddrinfo", argc=4, ordinal=178)
+    @apihook("getaddrinfo", argc=4)
     def getaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT WSAAPI getaddrinfo(
@@ -771,7 +771,7 @@ class Ws2_32(api.ApiHandler):
 
         return rv
 
-    @apihook("freeaddrinfo", argc=1, ordinal=177)
+    @apihook("freeaddrinfo", argc=1)
     def freeaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID WSAAPI freeaddrinfo(

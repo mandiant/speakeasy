@@ -1,0 +1,26 @@
+{
+  "module": "xinput1_4",
+  "file": "xinput1_4.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 1286568480,
+  "size_of_image": 114688,
+  "sha256": "039fb85aec92ac92f663762bda46c1be3845c3c26ca6ac65985e7cd02d140988",
+  "exports": [
+    {"ordinal": 1, "name": "DllMain"},
+    {"ordinal": 2, "name": "XInputGetState"},
+    {"ordinal": 3, "name": "XInputSetState"},
+    {"ordinal": 4, "name": "XInputGetCapabilities"},
+    {"ordinal": 5, "name": "XInputEnable"},
+    {"ordinal": 7, "name": "XInputGetBatteryInformation"},
+    {"ordinal": 8, "name": "XInputGetKeystroke"},
+    {"ordinal": 10, "name": "XInputGetAudioDeviceIds"},
+    {"ordinal": 100},
+    {"ordinal": 101},
+    {"ordinal": 102},
+    {"ordinal": 103},
+    {"ordinal": 104},
+    {"ordinal": 108},
+    {"ordinal": 109}
+  ]
+}

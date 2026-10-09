@@ -1,0 +1,13 @@
+{
+  "module": "napinsp",
+  "file": "napinsp.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.1",
+  "timestamp": 3920240652,
+  "size_of_image": 73728,
+  "sha256": "af779385f5ccdaa3b3413cd8ff3f7774f0834d4f6f199025158797ebba42f174",
+  "exports": [
+    {"ordinal": 1, "name": "DllMain"},
+    {"ordinal": 2, "name": "NSPStartup"}
+  ]
+}

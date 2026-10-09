@@ -1,0 +1,16 @@
+{
+  "module": "normaliz",
+  "file": "normaliz.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.1",
+  "timestamp": 3139002400,
+  "size_of_image": 32768,
+  "sha256": "8a6ee80a338e6b090757a4a5bd217072c9d7e2aa3cf80f99428f9032d48f8057",
+  "exports": [
+    {"ordinal": 1, "name": "IdnToAscii", "forwarder": "kernelbase.IdnToAscii"},
+    {"ordinal": 2, "name": "IdnToNameprepUnicode", "forwarder": "kernelbase.IdnToNameprepUnicode"},
+    {"ordinal": 3, "name": "IdnToUnicode", "forwarder": "kernelbase.IdnToUnicode"},
+    {"ordinal": 4, "name": "IsNormalizedString", "forwarder": "kernelbase.IsNormalizedString"},
+    {"ordinal": 5, "name": "NormalizeString", "forwarder": "kernelbase.NormalizeString"}
+  ]
+}

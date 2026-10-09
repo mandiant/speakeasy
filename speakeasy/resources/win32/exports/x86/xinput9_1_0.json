@@ -1,0 +1,16 @@
+{
+  "module": "xinput9_1_0",
+  "file": "xinput9_1_0.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.1",
+  "timestamp": 167805755,
+  "size_of_image": 28672,
+  "sha256": "e1ab54ddbfffcf7b8f44327611b69f57d73a0978a69981cf426b9686c76ef1bb",
+  "exports": [
+    {"ordinal": 1, "name": "DllMain"},
+    {"ordinal": 2, "name": "XInputGetCapabilities"},
+    {"ordinal": 3, "name": "XInputGetDSoundAudioDeviceGuids"},
+    {"ordinal": 4, "name": "XInputGetState"},
+    {"ordinal": 5, "name": "XInputSetState"}
+  ]
+}

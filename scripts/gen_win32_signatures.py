@@ -9,7 +9,7 @@ contains into a compact table keyed by function name, resolving every
 parameter and return type down to a handful of type codes that the emulator
 can act on without walking the metadata type graph at runtime.
 
-The output (``speakeasy/resources/win32/signatures.json.gz``) is a build
+The output (``speakeasy/resources/win32/win32json_signatures.json.gz``) is a build
 artifact: it is regenerated on every build and is not committed.
 
 Usage::
@@ -100,7 +100,7 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_WIN32JSON = os.path.join(REPO_ROOT, "deps", "win32json")
 DEFAULT_OVERRIDES = os.path.join(REPO_ROOT, "scripts", "win32_overrides.json")
-DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "speakeasy", "resources", "win32", "signatures.json.gz")
+DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "speakeasy", "resources", "win32", "win32json_signatures.json.gz")
 
 FORMAT_VERSION = 2
 

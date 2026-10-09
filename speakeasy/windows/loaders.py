@@ -729,11 +729,11 @@ class ApiModuleLoader:
 
     def make_image(self) -> LoadedImage:
         from speakeasy.windows.api_image import ApiExportSpec, build_api_image
+        from speakeasy.windows.export_manifest import get_export_manifest
 
         arch_name = "x86" if self._arch == _arch.ARCH_X86 else "x64"
-        # Strict enumeration owns surface membership. Lookup is intentionally
-        # permissive for ABI reuse and must never determine exported names.
-        specs = {sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)}
+        handler_ordinals: dict[str, int | None] = {}
+        data_names: set[str] = set()
         nt_handler = getattr(self._api, "_nt_handler", None)
         for handler in (self._api, nt_handler):
             if handler is None:
@@ -742,9 +742,35 @@ class ApiModuleLoader:
                 # Handlers register each ordinal under its name as well.
                 if isinstance(key, int) or (handler is nt_handler and not key.startswith(("Nt", "Zw"))):
                     continue
-                specs[key] = ApiExportSpec(key, func[4])
-            for name in handler.data if handler is self._api else ():
-                specs[name] = ApiExportSpec(name, kind="data")
+                handler_ordinals[key] = func[4]
+            if handler is self._api:
+                data_names.update(handler.data)
+
+        def kind(name: str | None) -> str:
+            return "data" if name in data_names else "function"
+
+        manifest = get_export_manifest(self._name.lower(), arch_name)
+        if manifest is not None:
+            # The physical table owns names and ordinals. Handler-only names
+            # follow the highest physical ordinal so that they never take an
+            # ordinal that the real module leaves unused. A handler name whose
+            # A or W variant is physical only serves dispatch of that variant.
+            exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name)) for e in manifest.exports]
+            physical = {e.name for e in manifest.exports}
+            next_ordinal = max((e.ordinal for e in manifest.exports), default=0) + 1
+            extras = (handler_ordinals.keys() | data_names) - physical
+            for name in sorted(n for n in extras if not {n + "A", n + "W"} & physical):
+                exports.append(ApiExportSpec(name, next_ordinal, kind(name)))
+                next_ordinal += 1
+        else:
+            # Strict enumeration owns surface membership. Lookup is intentionally
+            # permissive for ABI reuse and must never determine exported names.
+            specs = {
+                sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)
+            }
+            specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
+            specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
+            exports = list(specs.values())
         image_name = self._name
         try:
             image_name.encode("ascii")
@@ -758,7 +784,7 @@ class ApiModuleLoader:
             arch=self._arch,
             base=self._base,
             emu_path=self._emu_path,
-            exports=list(specs.values()),
+            exports=exports,
         )
         image.name = self._name
         image.loader = self

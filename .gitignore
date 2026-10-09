@@ -113,5 +113,5 @@ report.json
 .claude/
 
 # Generated Win32 API signature database (built from deps/win32json)
-speakeasy/resources/win32/signatures.json.gz
+speakeasy/resources/win32/win32json_signatures.json.gz
 speakeasy/resources/win32/phnt_signatures.json.gz

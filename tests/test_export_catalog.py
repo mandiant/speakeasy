@@ -9,15 +9,23 @@ import pytest
 from speakeasy.winenv.api import sigdb
 
 
-def _source(tmp_path: Path, functions: dict, *, phnt: bool = False, filename: str = "sigs"):
+def _source(
+    tmp_path: Path,
+    functions: dict,
+    *,
+    phnt: bool = False,
+    filename: str = "sigs",
+    dll_aliases: dict | None = None,
+    name_prefixes: dict | None = None,
+):
     path = tmp_path / f"{filename}.json.gz"
     with gzip.open(path, "wt") as stream:
         json.dump(
             {
                 "format": sigdb.SUPPORTED_FORMAT,
                 "functions": functions,
-                "dll_aliases": {"psapi": "kernel32", "ntoskrnl": "ntdll"},
-                "name_prefixes": {"kernel32": ["K32"]},
+                "dll_aliases": dll_aliases or {"psapi": "kernel32", "ntoskrnl": "ntdll"},
+                "name_prefixes": name_prefixes or {"kernel32": ["K32"]},
             },
             stream,
         )

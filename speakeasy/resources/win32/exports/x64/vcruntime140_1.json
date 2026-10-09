@@ -1,0 +1,14 @@
+{
+  "module": "vcruntime140_1",
+  "file": "vcruntime140_1.dll",
+  "arch": "x64",
+  "file_version": "14.51.36247.0",
+  "timestamp": 3691554600,
+  "size_of_image": 49152,
+  "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+  "exports": [
+    {"ordinal": 1, "name": "__CxxFrameHandler4"},
+    {"ordinal": 2, "name": "__NLG_Dispatch2"},
+    {"ordinal": 3, "name": "__NLG_Return2"}
+  ]
+}

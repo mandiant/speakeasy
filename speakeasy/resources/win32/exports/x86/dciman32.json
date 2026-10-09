@@ -1,0 +1,31 @@
+{
+  "module": "dciman32",
+  "file": "dciman32.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.1882",
+  "timestamp": 3069107179,
+  "size_of_image": 28672,
+  "sha256": "0c97c148b29759a29f1fedd4f43a33c053fc834b40451e580fb60040ada8637d",
+  "exports": [
+    {"ordinal": 1, "name": "DCIBeginAccess"},
+    {"ordinal": 2, "name": "DCICloseProvider"},
+    {"ordinal": 3, "name": "DCICreateOffscreen"},
+    {"ordinal": 4, "name": "DCICreateOverlay"},
+    {"ordinal": 5, "name": "DCICreatePrimary"},
+    {"ordinal": 6, "name": "DCIDestroy"},
+    {"ordinal": 7, "name": "DCIDraw"},
+    {"ordinal": 8, "name": "DCIEndAccess"},
+    {"ordinal": 9, "name": "DCIEnum"},
+    {"ordinal": 10, "name": "DCIOpenProvider"},
+    {"ordinal": 11, "name": "DCISetClipList"},
+    {"ordinal": 12, "name": "DCISetDestination"},
+    {"ordinal": 13, "name": "DCISetSrcDestClip"},
+    {"ordinal": 14, "name": "GetDCRegionData"},
+    {"ordinal": 15, "name": "GetWindowRegionData"},
+    {"ordinal": 16, "name": "WinWatchClose"},
+    {"ordinal": 17, "name": "WinWatchDidStatusChange"},
+    {"ordinal": 18, "name": "WinWatchGetClipList"},
+    {"ordinal": 19, "name": "WinWatchNotify"},
+    {"ordinal": 20, "name": "WinWatchOpen"}
+  ]
+}

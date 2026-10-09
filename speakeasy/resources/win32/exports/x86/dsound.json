@@ -1,0 +1,23 @@
+{
+  "module": "dsound",
+  "file": "dsound.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.32234",
+  "timestamp": 4180834759,
+  "size_of_image": 483328,
+  "sha256": "5544ae190c02efae06f32d05d3deac1051f10857f5e3ee9a0778599d7f533257",
+  "exports": [
+    {"ordinal": 1, "name": "DirectSoundCreate"},
+    {"ordinal": 2, "name": "DirectSoundEnumerateA"},
+    {"ordinal": 3, "name": "DirectSoundEnumerateW"},
+    {"ordinal": 4, "name": "DllCanUnloadNow"},
+    {"ordinal": 5, "name": "DllGetClassObject"},
+    {"ordinal": 6, "name": "DirectSoundCaptureCreate"},
+    {"ordinal": 7, "name": "DirectSoundCaptureEnumerateA"},
+    {"ordinal": 8, "name": "DirectSoundCaptureEnumerateW"},
+    {"ordinal": 9, "name": "GetDeviceID"},
+    {"ordinal": 10, "name": "DirectSoundFullDuplexCreate"},
+    {"ordinal": 11, "name": "DirectSoundCreate8"},
+    {"ordinal": 12, "name": "DirectSoundCaptureCreate8"}
+  ]
+}

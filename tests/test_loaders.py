@@ -123,25 +123,27 @@ def test_api_loader_combines_catalog_and_handler_surfaces(tmp_path, architecture
     source = _source(
         tmp_path,
         {
-            "Only32": [{"dll": "kernel32", "arch": ["x86"]}],
-            "Only64": [{"dll": "kernel32", "arch": ["x64"]}],
-            "Unsupported": [{"dll": "kernel32", "skip": "unsupported ABI"}],
-            "Foreign": [{"dll": "user32"}],
-            "K32Example": [{"dll": "kernel32"}],
+            "Only32": [{"dll": "examplelib", "arch": ["x86"]}],
+            "Only64": [{"dll": "examplelib", "arch": ["x64"]}],
+            "Unsupported": [{"dll": "examplelib", "skip": "unsupported ABI"}],
+            "Foreign": [{"dll": "otherlib"}],
+            "ExpExample": [{"dll": "examplelib"}],
         },
+        dll_aliases={"aliaslib": "examplelib"},
+        name_prefixes={"examplelib": ["Exp"]},
     )
     database = SignatureDatabase([source])
     api = SimpleNamespace(funcs={"HandlerOnly": ("HandlerOnly", None, 0, "stdcall", 30)}, data={"Counter": None})
     image = ApiModuleLoader(
-        name="kernel32", api=api, arch=architecture, base=0x60000000, emu_path="kernel32.dll", signature_db=database
+        name="examplelib", api=api, arch=architecture, base=0x60000000, emu_path="examplelib.dll", signature_db=database
     ).make_image()
     exports = {e.name: e for e in image.exports}
-    assert set(exports) == {eligible, "Unsupported", "K32Example", "HandlerOnly", "Counter"}
+    assert set(exports) == {eligible, "Unsupported", "ExpExample", "HandlerOnly", "Counter"}
     assert exports["HandlerOnly"].ordinal == 30
     assert exports["Counter"].kind == "data"
     # Neither an advisory DLL alias nor permissive ABI reuse adds physical exports.
     foreign = ApiModuleLoader(
-        name="psapi", arch=architecture, base=0x60000000, emu_path="psapi.dll", signature_db=database
+        name="aliaslib", arch=architecture, base=0x60000000, emu_path="aliaslib.dll", signature_db=database
     ).make_image()
     assert foreign.exports == []
 

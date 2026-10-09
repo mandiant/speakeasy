@@ -10,7 +10,7 @@ them up, the name and basic type of each parameter, and the return type.
 Signatures come from pluggable :class:`SignatureSource` backends. Two are
 bundled, both reading the same compact JSON table format:
 
-* :class:`Win32MetadataSource` reads ``resources/win32/signatures.json.gz``,
+* :class:`Win32MetadataSource` reads ``resources/win32/win32json_signatures.json.gz``,
   generated from Microsoft's win32metadata (via the ``deps/win32json``
   submodule) by ``scripts/gen_win32_signatures.py``: the documented Win32 API.
 * :class:`PhntSource` reads ``resources/win32/phnt_signatures.json.gz``,
@@ -40,7 +40,7 @@ SUPPORTED_FORMAT = 2
 _RESOURCES = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "resources", "win32"
 )
-DEFAULT_PATH = os.path.join(_RESOURCES, "signatures.json.gz")
+DEFAULT_PATH = os.path.join(_RESOURCES, "win32json_signatures.json.gz")
 DEFAULT_PHNT_PATH = os.path.join(_RESOURCES, "phnt_signatures.json.gz")
 
 CONV_STDCALL = "stdcall"

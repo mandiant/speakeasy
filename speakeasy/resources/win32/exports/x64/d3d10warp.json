@@ -1,0 +1,22 @@
+{
+  "module": "d3d10warp",
+  "file": "d3d10warp.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32995",
+  "timestamp": 2474649195,
+  "size_of_image": 5955584,
+  "sha256": "4dd2bcc8cd150a1b33579f75bd11fcaaa72305a04667f8df669af2e3217b7ab3",
+  "exports": [
+    {"ordinal": 199},
+    {"ordinal": 200, "name": "VSD3DDebugConnectionBuffer", "kind": "data"},
+    {"ordinal": 201, "name": "D3D11RefGetLastCreation"},
+    {"ordinal": 202, "name": "D3DLayerGetInterface"},
+    {"ordinal": 203, "name": "OpenAdapter"},
+    {"ordinal": 204, "name": "OpenAdapter10_2"},
+    {"ordinal": 205, "name": "OpenAdapter12"},
+    {"ordinal": 206, "name": "OpenDisplayAdapter1"},
+    {"ordinal": 207, "name": "QueryDListForApplication1"},
+    {"ordinal": 208, "name": "QueryDListForApplication2"},
+    {"ordinal": 209, "name": "QueryMuxDListForApplication"}
+  ]
+}

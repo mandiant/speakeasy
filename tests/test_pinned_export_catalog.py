@@ -1,4 +1,4 @@
-"""Pinned physical kernel32 exports are evidence; they never extend the synthetic export surface."""
+"""Pinned kernel32 files from other Windows builds never extend the synthetic export table."""
 
 import hashlib
 import struct
@@ -75,9 +75,9 @@ def query_both(se, module, name):
     return win32, status, native
 
 
-def test_uncatalogued_real_export_fails_lookup_until_a_guest_import_binds_it(physical_kernel32, config):
+def test_export_of_another_build_fails_lookup_until_a_guest_import_binds_it(physical_kernel32, config):
     architecture, real = physical_kernel32
-    name = "BaseThreadInitThunk"
+    name = "NlsWriteEtwEvent"
     assert real.get_export_by_name(name) is not None
     config["modules"]["functions_always_exist"] = False
     config["timeout"] = 3
