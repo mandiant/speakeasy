@@ -1,0 +1,15 @@
+{
+  "module": "d3d8",
+  "file": "d3d8.dll",
+  "arch": "x64",
+  "file_version": "10.0.17763.1",
+  "timestamp": 1784327712,
+  "size_of_image": 1581056,
+  "sha256": "bc914850d9799ce985d458cab5e14c132c6eec6c85aecd8eeabb7f2ead74e299",
+  "exports": [
+    {"ordinal": 2, "name": "ValidatePixelShader"},
+    {"ordinal": 3, "name": "ValidateVertexShader"},
+    {"ordinal": 4, "name": "DebugSetMute"},
+    {"ordinal": 5, "name": "Direct3DCreate8"}
+  ]
+}

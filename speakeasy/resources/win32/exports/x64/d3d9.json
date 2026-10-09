@@ -1,0 +1,31 @@
+{
+  "module": "d3d9",
+  "file": "d3d9.dll",
+  "arch": "x64",
+  "file_version": "10.0.17763.1",
+  "timestamp": 1784327712,
+  "size_of_image": 7282688,
+  "sha256": "08c6b258f89b22efd154440ff2813c8dce3bcbdbfc1f46cb0640ffed38ad7aaf",
+  "exports": [
+    {"ordinal": 16},
+    {"ordinal": 20, "name": "Direct3DCreate9On12"},
+    {"ordinal": 21, "name": "Direct3DCreate9On12Ex"},
+    {"ordinal": 24, "name": "Direct3DShaderValidatorCreate9"},
+    {"ordinal": 25, "name": "PSGPError"},
+    {"ordinal": 26, "name": "PSGPSampleTexture"},
+    {"ordinal": 27, "name": "D3DPERF_BeginEvent"},
+    {"ordinal": 28, "name": "D3DPERF_EndEvent"},
+    {"ordinal": 29, "name": "D3DPERF_GetStatus"},
+    {"ordinal": 30, "name": "D3DPERF_QueryRepeatFrame"},
+    {"ordinal": 31, "name": "D3DPERF_SetMarker"},
+    {"ordinal": 32, "name": "D3DPERF_SetOptions"},
+    {"ordinal": 33, "name": "D3DPERF_SetRegion"},
+    {"ordinal": 34, "name": "DebugSetLevel"},
+    {"ordinal": 35, "name": "DebugSetMute"},
+    {"ordinal": 36, "name": "Direct3D9EnableMaximizedWindowedModeShim"},
+    {"ordinal": 37, "name": "Direct3DCreate9"},
+    {"ordinal": 38, "name": "Direct3DCreate9Ex"},
+    {"ordinal": 28257},
+    {"ordinal": 28258}
+  ]
+}

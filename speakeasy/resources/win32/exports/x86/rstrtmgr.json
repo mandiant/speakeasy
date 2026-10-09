@@ -1,0 +1,23 @@
+{
+  "module": "rstrtmgr",
+  "file": "rstrtmgr.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 3867729134,
+  "size_of_image": 221184,
+  "sha256": "a3a1ccebf93e68c8bfecf799e41959442883752bb0c4ac89d2cb1844cc86d2b5",
+  "exports": [
+    {"ordinal": 1, "name": "RmAddFilter"},
+    {"ordinal": 2, "name": "RmCancelCurrentTask"},
+    {"ordinal": 3, "name": "RmEndSession"},
+    {"ordinal": 4, "name": "RmGetFilterList"},
+    {"ordinal": 5, "name": "RmGetList"},
+    {"ordinal": 6, "name": "RmJoinSession"},
+    {"ordinal": 7, "name": "RmRegisterResources"},
+    {"ordinal": 8, "name": "RmRemoveFilter"},
+    {"ordinal": 9, "name": "RmReserveHeap"},
+    {"ordinal": 10, "name": "RmRestart"},
+    {"ordinal": 11, "name": "RmShutdown"},
+    {"ordinal": 12, "name": "RmStartSession"}
+  ]
+}

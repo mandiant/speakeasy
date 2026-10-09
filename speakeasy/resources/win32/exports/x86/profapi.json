@@ -1,0 +1,28 @@
+{
+  "module": "profapi",
+  "file": "profapi.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 3496798068,
+  "size_of_image": 118784,
+  "sha256": "125e6e2f737eb0cf13d35899564f655fe3a27620e9c819c9c5e8f630ab01a643",
+  "exports": [
+    {"ordinal": 101},
+    {"ordinal": 102},
+    {"ordinal": 103},
+    {"ordinal": 104},
+    {"ordinal": 105},
+    {"ordinal": 106},
+    {"ordinal": 107},
+    {"ordinal": 108},
+    {"ordinal": 109},
+    {"ordinal": 110},
+    {"ordinal": 111},
+    {"ordinal": 112},
+    {"ordinal": 113},
+    {"ordinal": 114},
+    {"ordinal": 115},
+    {"ordinal": 116},
+    {"ordinal": 117}
+  ]
+}

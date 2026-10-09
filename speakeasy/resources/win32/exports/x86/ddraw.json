@@ -1,0 +1,33 @@
+{
+  "module": "ddraw",
+  "file": "ddraw.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 1811115158,
+  "size_of_image": 966656,
+  "sha256": "2a0bad9222d14a99920682524ffac140d454b9c6eae9311380f178701df6bd3e",
+  "exports": [
+    {"ordinal": 1, "name": "AcquireDDThreadLock"},
+    {"ordinal": 2, "name": "CompleteCreateSysmemSurface"},
+    {"ordinal": 3, "name": "D3DParseUnknownCommand"},
+    {"ordinal": 4, "name": "DDGetAttachedSurfaceLcl"},
+    {"ordinal": 5, "name": "DDInternalLock"},
+    {"ordinal": 6, "name": "DDInternalUnlock"},
+    {"ordinal": 7, "name": "DSoundHelp"},
+    {"ordinal": 8, "name": "DirectDrawCreate"},
+    {"ordinal": 9, "name": "DirectDrawCreateClipper"},
+    {"ordinal": 10, "name": "DirectDrawCreateEx"},
+    {"ordinal": 11, "name": "DirectDrawEnumerateA"},
+    {"ordinal": 12, "name": "DirectDrawEnumerateExA"},
+    {"ordinal": 13, "name": "DirectDrawEnumerateExW"},
+    {"ordinal": 14, "name": "DirectDrawEnumerateW"},
+    {"ordinal": 15, "name": "DllCanUnloadNow"},
+    {"ordinal": 16, "name": "DllGetClassObject"},
+    {"ordinal": 17, "name": "GetDDSurfaceLocal"},
+    {"ordinal": 18, "name": "GetOLEThunkData"},
+    {"ordinal": 19, "name": "GetSurfaceFromDC"},
+    {"ordinal": 20, "name": "RegisterSpecialCase"},
+    {"ordinal": 21, "name": "ReleaseDDThreadLock"},
+    {"ordinal": 22, "name": "SetAppCompatData"}
+  ]
+}

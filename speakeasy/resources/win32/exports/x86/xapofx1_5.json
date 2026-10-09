@@ -1,0 +1,12 @@
+{
+  "module": "xapofx1_5",
+  "file": "xapofx1_5.dll",
+  "arch": "x86",
+  "file_version": "9.29.1962.0",
+  "timestamp": 1275478501,
+  "size_of_image": 81920,
+  "sha256": "becfdcd6b16523573cb52df87aa7d993f1b345ba903d0618c3b36535c3800197",
+  "exports": [
+    {"ordinal": 1, "name": "CreateFX"}
+  ]
+}
