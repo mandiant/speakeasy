@@ -2969,7 +2969,12 @@ class WindowsEmulator(BinaryEmulator):
 
         def make_loader(address):
             if native_path:
-                return PeLoader(path=native_path, base_override=address, emu_path=emu_path)
+                return PeLoader(
+                    path=native_path,
+                    base_override=address,
+                    emu_path=emu_path,
+                    strict=self.config.modules.strict_pe_parsing,
+                )
             return ApiModuleLoader(
                 name=name,
                 api=handler,

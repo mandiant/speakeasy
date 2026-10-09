@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import ntpath
 import os
 import struct
@@ -225,6 +226,12 @@ def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
 
 
 class PeLoader:
+    """Load guest PEs, tolerating malformed optional inventories by default.
+
+    strict=True rejects malformed import/export metadata. Image mapping and
+    architecture validation are mandatory in either mode.
+    """
+
     def __init__(
         self,
         *,
@@ -232,17 +239,68 @@ class PeLoader:
         data: bytes | None = None,
         base_override: int | None = None,
         emu_path: str = "",
+        strict: bool = False,
     ) -> None:
+        self._strict = strict
         self._path = path
         self._data = data
         self._base_override = base_override
         self._emu_path = emu_path
         self._pe_obj: Any = None
 
+    def _optional_error(self, context: str, error: Exception) -> None:
+        if self._strict:
+            raise error
+        logging.getLogger(__name__).warning("Skipping malformed PE %s: %s", context, error)
+
+    def _import_dll_name(self, pe: Any, entry: Any, source: str) -> str:
+        import pefile
+
+        # pefile replaces non-ASCII names with *invalid*. Read the original
+        # bounded string so accepting Latin-1 does not lose the name's bytes.
+        rva = entry.struct.Name if source == "static" else entry.struct.szName
+        if not 0 < rva < pe.image_size:
+            raise ValueError("Import DLL name lies outside the image")
+        try:
+            raw = pe.get_data(rva, min(pefile.MAX_DLL_LENGTH, pe.image_size - rva))
+        except pefile.PEFormatError as error:
+            raise ValueError("Unreadable imported DLL name") from error
+        terminator = raw.find(b"\0")
+        if terminator < 0:
+            raise ValueError("Unterminated imported DLL name")
+        raw = raw[:terminator]
+        # Retain pefile's filename rules for ASCII, allowing high bytes only
+        # through the explicit lossless decoding policy.
+        ascii_name = bytes(c if c < 128 else ord("x") for c in raw)
+        if not raw or not pefile.is_valid_dos_filename(ascii_name):
+            raise ValueError("Invalid imported DLL name")
+        try:
+            dll = raw.decode("ascii")
+        except UnicodeDecodeError:
+            if self._strict:
+                raise
+            dll = raw.decode("latin-1")
+            logging.getLogger(__name__).warning("Non-ASCII imported DLL name decoded as Latin-1: %r", dll)
+        dll = ntpath.splitext(dll)[0]
+        if not dll:
+            raise ValueError("Invalid imported DLL name")
+        return dll
+
     def make_image(self) -> LoadedImage:
+        import pefile
+
         from speakeasy.windows.common import _PeParser
 
-        pe = _PeParser(path=self._path, data=self._data)
+        class InventoryParser(_PeParser):
+            # PeLoader builds these inventories from the raw pefile entries.
+            # Avoid legacy eager UTF-8 decoding before our policy can run.
+            def _get_pe_imports(self):
+                return {}
+
+            def _get_pe_exports(self):
+                return []
+
+        pe = InventoryParser(path=self._path, data=self._data)
         self._pe_obj = pe
         supported = {(0x14C, 0x10B): _arch.ARCH_X86, (0x8664, 0x20B): _arch.ARCH_AMD64}
         if (pe.FILE_HEADER.Machine, pe.OPTIONAL_HEADER.Magic) not in supported:
@@ -275,10 +333,27 @@ class PeLoader:
             module_type = "dll"
 
         base = pe.base
-        delay_rva, delay_raw, delay_counts = _delay_import_directory(pe)
         parsed_delay = getattr(pe, "DIRECTORY_ENTRY_DELAY_IMPORT", ())
-        if delay_counts != [len(entry.imports) for entry in parsed_delay]:
-            raise ValueError("Delay import descriptors could not be parsed completely")
+        delay_rva, delay_raw = 0, b""
+        try:
+            delay_rva, delay_raw, delay_counts = _delay_import_directory(pe)
+            if delay_counts != [len(entry.imports) for entry in parsed_delay]:
+                raise ValueError("Delay import descriptors could not be parsed completely")
+        except (ValueError, pefile.PEFormatError) as error:
+            self._optional_error("delay import directory", error)
+            parsed_delay = ()
+            # Restore bounded raw descriptors even if their inventory is bad:
+            # pefile may have normalized legacy VA fields in place.
+            directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[13]
+            delay_rva, size = directory.VirtualAddress, directory.Size
+            delay_raw = b""
+            if 0 < delay_rva and delay_rva + size <= pe.image_size:
+                try:
+                    raw = pe.get_data(delay_rva, size)
+                except pefile.PEFormatError:
+                    raw = b""
+                if len(raw) == size:
+                    delay_raw = raw
         mapped_image = pe.get_memory_mapped_image(max_virtual_address=0xF0000000)[: pe.image_size]
         if delay_raw:
             mapped_image = bytearray(mapped_image)
@@ -289,70 +364,90 @@ class PeLoader:
         # Eager delay binding uses exactly the same inventory as ordinary imports.
         # pefile normalizes legacy x86 VA-based delay descriptors to RVAs, but
         # does not relocate delay symbol.address when the image is rebased.
-        for directory_name, source in (("DIRECTORY_ENTRY_IMPORT", "static"), ("DIRECTORY_ENTRY_DELAY_IMPORT", "delay")):
-            for entry in getattr(pe, directory_name, ()):
-                dll = entry.dll.decode("ascii")
-                if not dll or dll == "*invalid*" or "\0" in dll:
-                    raise ValueError("Invalid imported DLL name")
-                dll = ntpath.splitext(dll)[0]
-                if source == "delay":
-                    if entry.struct.grAttrs not in (0, 1) or (
-                        pe.arch == _arch.ARCH_AMD64 and entry.struct.grAttrs != 1
-                    ):
-                        raise ValueError("Invalid delay import attributes for PE architecture")
-                    iat_rva = entry.struct.pIAT
-                else:
-                    iat_rva = entry.struct.FirstThunk
-                for index, imp in enumerate(entry.imports):
-                    slot_rva = iat_rva + index * ptr_size
-                    if iat_rva == 0 or not 0 <= slot_rva <= pe.image_size - ptr_size:
-                        raise ValueError("Import IAT slot lies outside the image")
-                    if imp.import_by_ordinal:
-                        func_name = f"ordinal_{imp.ordinal}"
+        for entries, source in ((getattr(pe, "DIRECTORY_ENTRY_IMPORT", ()), "static"), (parsed_delay, "delay")):
+            for entry in entries:
+                try:
+                    dll = self._import_dll_name(pe, entry, source)
+                    if source == "delay":
+                        if entry.struct.grAttrs not in (0, 1) or (
+                            pe.arch == _arch.ARCH_AMD64 and entry.struct.grAttrs != 1
+                        ):
+                            raise ValueError("Invalid delay import attributes for PE architecture")
+                        iat_rva = entry.struct.pIAT
                     else:
-                        if not imp.name:
-                            raise ValueError("Missing imported function name")
-                        func_name = imp.name.decode("ascii")
-                    imports.append(ImportEntry(base + slot_rva, dll, func_name, source))
+                        iat_rva = entry.struct.FirstThunk
+                except ValueError as error:
+                    self._optional_error(f"{source} import descriptor", error)
+                    continue
+                for index, imp in enumerate(entry.imports):
+                    try:
+                        slot_rva = iat_rva + index * ptr_size
+                        if iat_rva == 0 or not 0 <= slot_rva <= pe.image_size - ptr_size:
+                            raise ValueError("Import IAT slot lies outside the image")
+                        if imp.import_by_ordinal:
+                            func_name = f"ordinal_{imp.ordinal}"
+                        else:
+                            if not imp.name:
+                                raise ValueError("Missing imported function name")
+                            func_name = imp.name.decode("ascii")
+                        imports.append(ImportEntry(base + slot_rva, dll, func_name, source))
+                    except ValueError as error:
+                        self._optional_error(f"{source} import entry", error)
 
         exports: list[ExportEntry] = []
-        if hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
-            from speakeasy.windows.api_image import validate_forwarder
-
+        parsed_exports = getattr(getattr(pe, "DIRECTORY_ENTRY_EXPORT", None), "symbols", ())
+        if pe.OPTIONAL_HEADER.DATA_DIRECTORY:
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
             directory_end = directory.VirtualAddress + directory.Size
-            if directory_end > pe.image_size:
-                raise ValueError("Export directory extends beyond the image")
-            directory_bytes = pe.get_data(directory.VirtualAddress, directory.Size)
-            for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
-                if not exp.address:
-                    continue
-                if not 0 < exp.address < pe.image_size:
-                    raise ValueError("Export target lies outside the image")
-                forwarder = None
-                if directory.VirtualAddress <= exp.address < directory_end:
-                    offset = exp.address - directory.VirtualAddress
-                    terminator = directory_bytes.find(b"\0", offset)
-                    if terminator < 0:
-                        raise ValueError("Unterminated forwarder within export directory")
-                    forwarder = directory_bytes[offset:terminator].decode("ascii")
-                    validate_forwarder(forwarder)
-                section = pe.get_section_by_rva(exp.address)
-                kind = "function"
-                if forwarder is None and section is not None:
-                    if not section.Characteristics & 0x20000000:  # IMAGE_SCN_MEM_EXECUTE
-                        kind = "data"
-                name = exp.name.decode("utf-8") if exp.name else None
-                exports.append(
-                    ExportEntry(
-                        name=name,
-                        address=exp.address + base,
-                        ordinal=exp.ordinal,
-                        execution_mode="guest",
-                        kind=kind,
-                        forwarder=forwarder,
+            if (directory.VirtualAddress or directory.Size) and (
+                not directory.VirtualAddress or directory.Size < 40 or directory_end > pe.image_size
+            ):
+                self._optional_error("export directory", ValueError("Export directory extends beyond the image"))
+                parsed_exports = ()
+            directory_bytes = b""
+            if directory.VirtualAddress and directory.Size >= 40 and directory_end <= pe.image_size:
+                try:
+                    directory_bytes = pe.get_data(directory.VirtualAddress, directory.Size)
+                    if len(directory_bytes) != directory.Size:
+                        raise ValueError("Truncated export directory")
+                except (ValueError, pefile.PEFormatError) as error:
+                    self._optional_error("export directory", error)
+                    parsed_exports = ()
+            from speakeasy.windows.api_image import validate_forwarder
+
+            for exp in parsed_exports:
+                try:
+                    if not exp.address:
+                        continue
+                    if not 0 < exp.address < pe.image_size:
+                        raise ValueError("Export target lies outside the image")
+                    forwarder = None
+                    if directory.VirtualAddress <= exp.address < directory_end:
+                        offset = exp.address - directory.VirtualAddress
+                        terminator = directory_bytes.find(b"\0", offset)
+                        if terminator < 0:
+                            raise ValueError("Unterminated forwarder within export directory")
+                        forwarder = directory_bytes[offset:terminator].decode("ascii")
+                        validate_forwarder(forwarder)
+                    section = pe.get_section_by_rva(exp.address)
+                    kind = "function"
+                    if forwarder is None and section is not None:
+                        if not section.Characteristics & 0x20000000:  # IMAGE_SCN_MEM_EXECUTE
+                            kind = "data"
+                    name = exp.name.decode("utf-8") if exp.name else None
+                    exports.append(
+                        ExportEntry(
+                            name=name,
+                            address=exp.address + base,
+                            ordinal=exp.ordinal,
+                            execution_mode="guest",
+                            kind=kind,
+                            forwarder=forwarder,
+                        )
                     )
-                )
+
+                except ValueError as error:
+                    self._optional_error("export entry", error)
 
         tls_callbacks: list[int] = []
         tls_directory_va: int | None = None

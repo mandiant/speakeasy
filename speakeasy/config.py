@@ -495,6 +495,10 @@ class SystemModuleConfig(BaseModel):
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    strict_pe_parsing: bool = Field(
+        default=False, description="Reject malformed optional guest PE import/export metadata."
+    )
+
     modules_always_exist: bool = Field(
         default=False, description="Synthesize unknown modules instead of failing loads."
     )

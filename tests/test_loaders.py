@@ -228,7 +228,8 @@ def test_explicit_native_and_ordinal_only_handler_exports():
 
 
 @pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
-def test_native_aliases_and_forwarders_preserve_pe_surface(architecture):
+@pytest.mark.parametrize("strict", [False, True])
+def test_native_aliases_and_forwarders_preserve_pe_surface(architecture, strict):
     import pefile
 
     from speakeasy.windows.api_image import ApiExportSpec
@@ -245,7 +246,7 @@ def test_native_aliases_and_forwarders_preserve_pe_surface(architecture):
             architecture,
         )
     )
-    native = PeLoader(data=raw).make_image()
+    native = PeLoader(data=raw, strict=strict).make_image()
     independent = pefile.PE(data=raw)
     assert {(e.name, e.ordinal, e.address - native.image_base, e.forwarder) for e in native.exports} == {
         (s.name.decode() if s.name else None, s.ordinal, s.address, s.forwarder.decode() if s.forwarder else None)
@@ -282,7 +283,7 @@ def test_native_malformed_forwarder_rejected(forwarder):
     replacement = forwarder.encode() + b"\0"
     raw[rva : rva + len(replacement)] = replacement
     with pytest.raises(ValueError):
-        PeLoader(data=bytes(raw)).make_image()
+        PeLoader(data=bytes(raw), strict=True).make_image()
 
 
 def test_native_forwarder_terminator_must_be_inside_directory():
@@ -296,7 +297,7 @@ def test_native_forwarder_terminator_must_be_inside_directory():
     directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
     directory.Size -= 1  # Its forwarder terminator remains readable, but outside the directory.
     with pytest.raises(ValueError, match="Unterminated forwarder"):
-        PeLoader(data=pe.write()).make_image()
+        PeLoader(data=pe.write(), strict=True).make_image()
 
 
 @pytest.mark.parametrize("mutate", ["export", "directory", "machine"])
@@ -318,14 +319,15 @@ def test_native_malformed_export_bounds_and_machine_rejected(mutate):
         eat = pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfFunctions
         struct.pack_into("<I", raw, eat, pe.OPTIONAL_HEADER.SizeOfImage)
     with pytest.raises(ValueError):
-        PeLoader(data=bytes(raw)).make_image()
+        PeLoader(data=bytes(raw), strict=True).make_image()
 
 
-def test_native_no_relocation_rebase_rejected():
+@pytest.mark.parametrize("strict", [False, True])
+def test_native_no_relocation_rebase_rejected(strict):
     from tests.test_api_image import build, image_bytes
 
     with pytest.raises(ValueError, match="without valid relocation data"):
-        PeLoader(data=image_bytes(build([])), base_override=0x60000000).make_image()
+        PeLoader(data=image_bytes(build([])), strict=strict, base_override=0x60000000).make_image()
 
 
 @pytest.mark.parametrize("filename", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
@@ -370,7 +372,8 @@ def test_explicit_handler_alias_keys_keep_names_and_ordinal_identity():
     assert len({e.address for e in image.exports}) == 1
 
 
-def test_native_section_cannot_extend_beyond_declared_image():
+@pytest.mark.parametrize("strict", [False, True])
+def test_native_section_cannot_extend_beyond_declared_image(strict):
     import pefile
 
     from tests.test_api_image import build, image_bytes
@@ -378,7 +381,7 @@ def test_native_section_cannot_extend_beyond_declared_image():
     pe = pefile.PE(data=image_bytes(build([])))
     pe.sections[-1].Misc_VirtualSize = pe.OPTIONAL_HEADER.SizeOfImage
     with pytest.raises(ValueError, match="section extends beyond"):
-        PeLoader(data=pe.write()).make_image()
+        PeLoader(data=pe.write(), strict=strict).make_image()
 
 
 def _make_delay_import_pe(architecture, *, attrs=1, with_relocations=False):
@@ -440,11 +443,12 @@ def _make_delay_import_pe(architecture, *, attrs=1, with_relocations=False):
 
 
 @pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
-def test_eager_delay_imports_join_static_inventory_without_mutating_iat(architecture):
+@pytest.mark.parametrize("strict", [False, True])
+def test_eager_delay_imports_join_static_inventory_without_mutating_iat(architecture, strict):
     import struct
 
     raw, data = _make_delay_import_pe(architecture)
-    image = PeLoader(data=raw).make_image()
+    image = PeLoader(data=raw, strict=strict).make_image()
     assert [(e.dll_name, e.func_name, e.source) for e in image.imports] == [
         ("NormalTarget", "Normal", "static"),
         ("DelayTarget", "ByName", "delay"),
@@ -463,9 +467,10 @@ def test_eager_delay_imports_join_static_inventory_without_mutating_iat(architec
 
 
 @pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
-def test_delay_import_rvas_rebase_without_using_stale_pefile_symbol_addresses(architecture):
+@pytest.mark.parametrize("strict", [False, True])
+def test_delay_import_rvas_rebase_without_using_stale_pefile_symbol_addresses(architecture, strict):
     raw, data = _make_delay_import_pe(architecture, with_relocations=True)
-    image = PeLoader(data=raw, base_override=0x60000000).make_image()
+    image = PeLoader(data=raw, strict=strict, base_override=0x60000000).make_image()
     delayed = [e for e in image.imports if e.source == "delay"]
     assert [e.iat_address for e in delayed] == [
         0x60000000 + data + 0x240,
@@ -505,13 +510,13 @@ def test_malformed_delay_imports_rejected(mutate):
     elif mutate == "dll":
         raw[data + 0x100] = ord("*")
     with pytest.raises(ValueError):
-        PeLoader(data=bytes(raw)).make_image()
+        PeLoader(data=bytes(raw), strict=True).make_image()
 
 
 def test_x64_delay_descriptor_requires_rva_attributes():
     raw, _ = _make_delay_import_pe(_arch.ARCH_AMD64, attrs=0)
     with pytest.raises(ValueError, match="architecture"):
-        PeLoader(data=raw).make_image()
+        PeLoader(data=raw, strict=True).make_image()
 
 
 @pytest.mark.parametrize("virtual_size", [0, 0x800])
@@ -665,5 +670,232 @@ def test_pma_0501_text_pages_remain_executable_after_contiguous_mapping(base_con
         )
         assert permissions & uc.UC_PROT_WRITE
         assert not permissions & uc.UC_PROT_EXEC
+    finally:
+        se.shutdown()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("mutate", ["outside_image", "junk_attributes"])
+def test_lenient_bad_delay_directory_preserves_static_imports(architecture, mutate, caplog):
+    import struct
+
+    import pefile
+
+    raw, data = _make_delay_import_pe(architecture)
+    pe = pefile.PE(data=raw)
+    if mutate == "outside_image":
+        pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage
+        raw = pe.write()
+    else:
+        raw = bytearray(raw)
+        struct.pack_into("<I", raw, data, 3)
+        raw = bytes(raw)
+    image = PeLoader(data=raw).make_image()
+    assert [(e.dll_name, e.func_name, e.source) for e in image.imports] == [("NormalTarget", "Normal", "static")]
+    assert image.imports[0].iat_address == image.image_base + data + 0x340
+    assert image.regions[0].data == pefile.PE(data=raw).get_memory_mapped_image()[: image.image_size]
+    assert "Skipping malformed PE delay import directory" in caplog.text
+    with pytest.raises(ValueError):
+        PeLoader(data=raw, strict=True).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+def test_lenient_export_directory_outside_image_preserves_imports(architecture, caplog):
+    import pefile
+
+    raw, data = _make_delay_import_pe(architecture)
+    pe = pefile.PE(data=raw)
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[0].VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[0].Size = 40
+    raw = pe.write()
+    image = PeLoader(data=raw).make_image()
+    assert image.exports == []
+    assert [(e.dll_name, e.func_name, e.source) for e in image.imports] == [
+        ("NormalTarget", "Normal", "static"),
+        ("DelayTarget", "ByName", "delay"),
+        ("DelayTarget", "ordinal_17", "delay"),
+    ]
+    assert "Skipping malformed PE export directory" in caplog.text
+    with pytest.raises(ValueError, match="Export directory"):
+        PeLoader(data=raw, strict=True).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("source", ["static", "delay"])
+def test_lenient_non_ascii_dll_name_is_lossless(architecture, source, caplog):
+    raw, data = _make_delay_import_pe(architecture)
+    raw = bytearray(raw)
+    offset = data + (0x120 if source == "static" else 0x100)
+    raw[offset] = 0xE9  # Not valid UTF-8; preserve this byte with Latin-1.
+    image = PeLoader(data=bytes(raw)).make_image()
+    expected_dll = "éormalTarget" if source == "static" else "éelayTarget"
+    selected = [e for e in image.imports if e.source == source]
+    assert selected
+    assert all(e.dll_name == expected_dll for e in selected)
+    assert (selected[0].dll_name + ".dll").encode("latin-1") == bytes(raw[offset : raw.index(0, offset)])
+    assert len(image.imports) == 3
+    assert "Non-ASCII imported DLL name decoded as Latin-1" in caplog.text
+    with pytest.raises(UnicodeDecodeError):
+        PeLoader(data=bytes(raw), strict=True).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("mutate", ["target", "forwarder", "terminator", "directory"])
+def test_lenient_malformed_exports_preserve_valid_entries(architecture, mutate, caplog):
+    import struct
+
+    import pefile
+
+    from speakeasy.windows.api_image import ApiExportSpec
+    from tests.test_api_image import build, image_bytes
+
+    pe = pefile.PE(
+        data=image_bytes(
+            build(
+                [
+                    ApiExportSpec("Valid", 10),
+                    ApiExportSpec("Bad", 11, forwarder="target.Function"),
+                ],
+                architecture,
+            )
+        )
+    )
+    directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
+    if mutate == "directory":
+        directory.Size = pe.OPTIONAL_HEADER.SizeOfImage
+    elif mutate == "terminator":
+        directory.Size -= 1
+    raw = bytearray(pe.write())
+    bad = next(e for e in pe.DIRECTORY_ENTRY_EXPORT.symbols if e.name == b"Bad")
+    if mutate == "target":
+        eat = pe.DIRECTORY_ENTRY_EXPORT.struct.AddressOfFunctions
+        struct.pack_into("<I", raw, eat + 4, pe.OPTIONAL_HEADER.SizeOfImage)
+    elif mutate == "forwarder":
+        raw[bad.address : bad.address + 8] = b"invalid\0"
+    image = PeLoader(data=bytes(raw)).make_image()
+    assert [e.name for e in image.exports] == ([] if mutate == "directory" else ["Valid"])
+    assert "Skipping malformed PE export" in caplog.text
+    with pytest.raises(ValueError):
+        PeLoader(data=bytes(raw), strict=True).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("mutate", ["iat", "dll", "non_ascii_invalid_dll"])
+def test_lenient_bad_static_import_preserves_delay_inventory(architecture, mutate, caplog):
+    import struct
+
+    import pefile
+
+    raw, data = _make_delay_import_pe(architecture)
+    raw = bytearray(raw)
+    pe = pefile.PE(data=bytes(raw))
+    if mutate == "iat":
+        struct.pack_into("<I", raw, data + 0x50, pe.OPTIONAL_HEADER.SizeOfImage)
+    else:
+        raw[data + 0x120] = ord("*")
+        if mutate == "non_ascii_invalid_dll":
+            raw[data + 0x121] = 0xE9
+    image = PeLoader(data=bytes(raw)).make_image()
+    assert [(e.dll_name, e.func_name, e.source) for e in image.imports] == [
+        ("DelayTarget", "ByName", "delay"),
+        ("DelayTarget", "ordinal_17", "delay"),
+    ]
+    assert "Skipping malformed PE static import" in caplog.text
+    assert all(image.image_base <= e.iat_address < image.image_base + image.image_size for e in image.imports)
+    with pytest.raises(ValueError):
+        PeLoader(data=bytes(raw), strict=True).make_image()
+
+
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize("mutate", ["machine", "address_space", "headers", "base", "rebased_address_space"])
+def test_loader_safety_checks_are_mandatory(strict, mutate):
+    import pefile
+
+    from tests.test_api_image import build, image_bytes
+
+    pe = pefile.PE(data=image_bytes(build([])))
+    base_override = None
+    if mutate == "machine":
+        pe.FILE_HEADER.Machine = 0x8664
+    elif mutate == "address_space":
+        pe.OPTIONAL_HEADER.ImageBase = 0xFFFFF000
+    elif mutate == "headers":
+        pe.OPTIONAL_HEADER.SizeOfHeaders = pe.OPTIONAL_HEADER.SizeOfImage + 1
+    elif mutate == "base":
+        base_override = -1
+    else:
+        base_override = 0xFFFFF000
+    with pytest.raises(ValueError):
+        PeLoader(data=pe.write(), base_override=base_override, strict=strict).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("directory_index", [0, 13])
+def test_lenient_unreadable_optional_directory_preserves_static_imports(architecture, directory_index, caplog):
+    import pefile
+
+    raw, _ = _make_delay_import_pe(architecture)
+    pe = pefile.PE(data=raw)
+    # A virtual gap is in the image's address space but has no file backing.
+    pe.OPTIONAL_HEADER.SizeOfImage += 0x2000
+    directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_index]
+    directory.VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage - 0x1000
+    directory.Size = 64
+    image = PeLoader(data=pe.write()).make_image()
+    assert any(e.dll_name == "NormalTarget" and e.source == "static" for e in image.imports)
+    if directory_index == 13:
+        assert all(e.source == "static" for e in image.imports)
+        assert "Skipping malformed PE delay import directory" in caplog.text
+    else:
+        assert image.exports == []
+        assert "Skipping malformed PE export directory" in caplog.text
+    with pytest.raises((ValueError, pefile.PEFormatError)):
+        PeLoader(data=pe.write(), strict=True).make_image()
+
+
+@pytest.mark.parametrize("architecture", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+@pytest.mark.parametrize("mode", ["user", "kernel", "dependency"])
+@pytest.mark.parametrize("strict", [None, False, True], ids=["default", "lenient", "strict"])
+def test_guest_loader_config_controls_optional_parsing(architecture, mode, strict, config, tmp_path):
+    import pefile
+
+    from speakeasy import Speakeasy
+    from tests.test_api_image import build, image_bytes
+
+    if strict is not None:
+        config.setdefault("modules", {})["strict_pe_parsing"] = strict
+    pe = pefile.PE(data=image_bytes(build([], architecture)))
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].Size = 64
+    if mode == "kernel":
+        pe.OPTIONAL_HEADER.Subsystem = 1  # IMAGE_SUBSYSTEM_NATIVE
+    malformed = pe.write()
+    se = Speakeasy(config=config)
+    try:
+        if mode == "dependency":
+            se.load_module(data=image_bytes(build([], architecture, base=0x400000)))
+            path = tmp_path / "malformed_dependency.dll"
+            path.write_bytes(malformed)
+
+            def load():
+                return se.emu.load_module_by_name(
+                    "malformed_dependency", native_path=str(path), base=pe.OPTIONAL_HEADER.ImageBase
+                )
+        else:
+
+            def load():
+                return se.load_module(data=malformed)
+
+        if strict:
+            with pytest.raises(ValueError, match="Delay import directory"):
+                load()
+        else:
+            module = load()
+            assert module._image.source == "guest_pe"
+            assert module._image.imports == []
+            assert module.loader._strict is False
+        assert se.emu.config.modules.strict_pe_parsing is (strict is True)
+        if mode == "kernel":
+            assert se.emu.kernel_mode
     finally:
         se.shutdown()
