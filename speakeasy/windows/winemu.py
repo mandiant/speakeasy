@@ -847,6 +847,20 @@ class WindowsEmulator(BinaryEmulator):
                     return
                 if entry is None:
                     return
+                # A missing ABI remains a suspended call under the debugger.
+                if debugger is not None:
+                    mod, attrs = self.api.get_export_func_handler(entry.dll, entry.name)
+                    if not attrs:
+                        mod, attrs = self.normalize_import_miss(entry.dll, entry.name)
+                    if (
+                        not attrs
+                        and not self.get_api_hooks(entry.dll, entry.name)
+                        and not self.lookup_api_signature(entry.dll, entry.name)
+                        and not self._can_stub_unknown_api(entry.dll, entry.name)
+                    ):
+                        self.set_pc(entry.address)
+                        debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
+                        return
                 self._pending_api_entry = None
                 self._pending_api_snapshot = None
                 self.prev_pc = entry.address
@@ -994,7 +1008,7 @@ class WindowsEmulator(BinaryEmulator):
         assert total_budget is not None
         detached_resume_addr = None
         terminal_signal = 0
-        timeout = 0 if debugger is not None else self.config.timeout
+        timeout = self.config.timeout
         self._stop_on_faults = debugger is not None
         self._pending_fault_stop = None
 
