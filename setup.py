@@ -24,7 +24,7 @@ DATABASES = [
     (
         os.path.join(HERE, "scripts", "gen_win32_signatures.py"),
         os.path.join(HERE, "deps", "win32json", "api"),
-        os.path.join(RESOURCES, "signatures.json.gz"),
+        os.path.join(RESOURCES, "win32json_signatures.json.gz"),
     ),
     (
         os.path.join(HERE, "scripts", "gen_phnt_signatures.py"),
