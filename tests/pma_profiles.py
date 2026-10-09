@@ -181,3 +181,13 @@ def profile_pma_0101_staged(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
         argv=("WARNING_THIS_WILL_DESTROY_YOUR_MACHINE",),
         volumes=(f"{tmp_path}:C:\\Windows\\system32",),
     )
+
+
+def profile_pma_1803_ocl(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
+    # The unpacked payload checks its own basename before starting the reverse shell.
+    sample_path = tmp_path / "ocl.exe"
+    shutil.copy2(TESTS_DIR / "capa-testfiles" / "Practical Malware Analysis Lab 18-03.exe_", sample_path)
+    cfg["timeout"] = 2
+    cfg["max_api_count"] = 200
+    set_main_command_line(cfg, "ocl.exe")
+    return CaseRuntime(sample_path=sample_path)
