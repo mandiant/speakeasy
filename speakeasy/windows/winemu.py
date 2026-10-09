@@ -4,6 +4,7 @@ import logging
 import ntpath
 import os
 import shlex
+import time
 import traceback
 from abc import abstractmethod
 from collections.abc import Callable
@@ -468,7 +469,9 @@ class WindowsEmulator(BinaryEmulator):
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
         self.mem_write(mm.base, b"\x00" * mm.size)
-        return self._prepare_run_context(run)
+        prepared = self._prepare_run_context(run)
+        self.emu_eng.stop()
+        return prepared
 
     def call(self, addr, params=[]):
         """
@@ -605,6 +608,57 @@ class WindowsEmulator(BinaryEmulator):
 
         self.mem_write(base, bytes(data))
 
+    def _run_api_engine(self, address, timeout=0, count=-1):
+        """Execute the current run until it ends or reaches its time or instruction limit."""
+        started = time.monotonic()
+        deadline = started + timeout if timeout > 0 else None
+        budget = count
+        remaining = [budget if budget > 0 else -1]
+        limit = [False]
+        origin_run = self.curr_run
+        hook = None
+
+        def stop_limit(kind):
+            if kind == "timeout":
+                logger.error("* Timeout of %d sec(s) reached.", timeout)
+            else:
+                logger.error("* Instruction limit of %d reached.", budget)
+            if self.curr_run is origin_run:
+                if origin_run.error is None:
+                    origin_run.error = ErrorInfo(
+                        type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
+                    )
+                self.on_run_complete()
+
+        if budget > 0:
+
+            def account_instruction(_emu, _address, _size):
+                if remaining[0] <= 0:
+                    limit[0] = True
+                    self.emu_eng.stop()
+                    return
+                remaining[0] -= 1
+                if not self.config.analysis.memory_tracing:
+                    self.curr_run.instr_cnt += 1
+
+            hook = self.add_code_hook(account_instruction)
+        try:
+            native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
+            native_count = remaining[0] if budget > 0 else 0
+            self.emu_eng.start(address, timeout=native_timeout, count=native_count)
+            if self.curr_run is not origin_run or self.emu_complete:
+                return
+            if deadline is not None and time.monotonic() >= deadline:
+                stop_limit("timeout")
+                return
+            if limit[0] or (budget > 0 and remaining[0] <= 0):
+                stop_limit("max_instructions")
+        finally:
+            if hook is not None:
+                if hook.added:
+                    self.emu_eng.hook_remove(hook.handle)
+                self.hooks[common.HOOK_CODE].remove(hook)
+
     def resume(self, addr, count=-1):
         """Resume emulation directly at an address.
 
@@ -624,6 +678,7 @@ class WindowsEmulator(BinaryEmulator):
             return
 
         self.run_complete = False
+        self.emu_complete = False
         self.set_hooks()
         self._set_emu_hooks()
 
@@ -676,7 +731,10 @@ class WindowsEmulator(BinaryEmulator):
                     detached_resume_addr = None
                 instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
                 should_execute = debugger is None or debugger.begin_run(debug_action)
-                if should_execute:
+                executing_run = self.curr_run
+                if should_execute and debugger is None:
+                    self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count)
+                elif should_execute:
                     self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
@@ -698,9 +756,8 @@ class WindowsEmulator(BinaryEmulator):
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
-                if self.profiler and timeout > 0:
-                    if self.profiler.get_run_time() > timeout:
-                        logger.error("* Timeout of %d sec(s) reached.", timeout)
+                if self.curr_run is not executing_run and not self.emu_complete:
+                    continue
             except KeyboardInterrupt:
                 logger.error("* User exited.")
                 if debugger is not None:
@@ -737,9 +794,6 @@ class WindowsEmulator(BinaryEmulator):
 
                 run = self.on_run_complete()
                 if not run:
-                    break
-                if self.profiler and timeout > 0 and self.profiler.get_run_time() > timeout:
-                    logger.error("* Timeout of %d sec(s) reached.", timeout)
                     break
                 continue
             break
@@ -2488,10 +2542,6 @@ class WindowsEmulator(BinaryEmulator):
         symbol execution tracking, and per-region execution tracking.
         """
         try:
-            if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:  # type: ignore[union-attr]
-                self.on_run_complete()
-                return False
-
             if logger.isEnabledFor(logging.DEBUG):
                 disasm = self.get_disasm(addr, size)[2]
                 logger.debug("exec: 0x%x %s", addr, disasm)

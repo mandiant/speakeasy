@@ -18,7 +18,7 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Emulation backend. Only "unicorn" is currently supported.
   "emu_engine": "unicorn",
 
-  // Wall-clock timeout in seconds for each emulation session.
+  // Active execution timeout in seconds for each run. 0 disables it.
   // Raise for slow/staged samples. Lower for quick triage.
   "timeout": 60,
 
