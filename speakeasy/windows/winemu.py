@@ -149,6 +149,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_control = None
         self._pending_exec_recovery: tuple[int, int] | None = None
         self._pending_trap_fault: tuple[str, int] | None = None
+        self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
         self._active_api_frame: ApiCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
@@ -1483,6 +1484,9 @@ class WindowsEmulator(BinaryEmulator):
             raw = image.regions[0].data
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
+        if not self.kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
+            self._shared_peb_modules.add(mod.base)
+        self._attach_module_to_current_process(mod)
         self._notify_module_change()
         return mod
 
@@ -2929,6 +2933,18 @@ class WindowsEmulator(BinaryEmulator):
 
         return fp
 
+    def _attach_module_to_current_process(self, module):
+        if self.kernel_mode or not module.visible_in_peb or module.is_driver():
+            return
+        process = self.get_current_process()
+        if process is None or not self.get_address_map(process.peb_ldr_data.address):
+            return
+        if process.initializing_peb:
+            return
+        if module.is_exe() and module is not process.pe and module.base != process.base:
+            return
+        process.add_module_to_peb(module)
+
     def load_library(self, mod_name):
         name = winemu.normalize_dll_name(module_name(mod_name))
         module = self.get_mod_by_name(name)
@@ -2940,9 +2956,7 @@ class WindowsEmulator(BinaryEmulator):
             if not known and not self.config.modules.modules_always_exist:
                 return 0
             module = self.load_module_by_name(name)
-            proc = self.get_current_process()
-            if proc is not None and self.get_address_map(proc.peb_ldr_data.address):
-                proc.add_module_to_peb(module)
+        self._attach_module_to_current_process(module)
         return module.base
 
     def _make_image_at_free_base(self, make_loader: Callable[[int | None], Any], base: int | None):
@@ -2966,6 +2980,7 @@ class WindowsEmulator(BinaryEmulator):
         name = module_name(name)
         existing = self.get_mod_by_name(name)
         if existing is not None:
+            self._attach_module_to_current_process(existing)
             return existing
         if not emu_path:
             emu_path = (self.config.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"

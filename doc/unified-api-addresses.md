@@ -76,9 +76,9 @@ Static imports retain their original thunk/IAT positions when pefile filters a m
 
 Ordinary and delay imports share the import inventory and binder. Native delay imports are bound eagerly; legacy VA-form descriptors are handled when rebasing. Injected import repair validates architecture and bounds descriptor, thunk and string reads by the mapped image. Injected repair resolves and validates all import slots before committing writes. Invalid slots keep their original bytes, and in strict mode any validation failure leaves the whole IAT unchanged. Binding bookkeeping is separate from callable address ownership.
 
-Each process has its own loader lists. List heads are real sentinels with reciprocal forward/back links, including empty lists. The main image is first in load/memory order and excluded from initialization order. PEB allocation attaches every visible module that is loaded at that time, and a runtime library load attaches the new module to the current process. Allocating another PEB does not replace the running thread's FS/GS PEB pointer.
+Each process has its own loader entries. List heads are real sentinels with reciprocal forward/back links, including empty lists. The main image is first in load/memory order and excluded from initialization order. Core/default DLLs are attached during PEB allocation; subsequent reinitialization preserves that process's actual membership. Cached loads attach only to the selected process, and kernel/invisible modules stay out of user PEBs. Allocating another PEB does not replace the running thread's FS/GS PEB pointer.
 
-Speakeasy uses a shared emulated address space, so module data can remain shared between processes. Complete Windows reference counting, API-set schema/build fidelity, native TLS semantics, special `LoadLibraryEx` mapping modes and DLL unload notifications are not modeled.
+Speakeasy uses a shared emulated address space. Per-process PEB membership is not virtual-address-space isolation; module data can remain shared. Complete Windows reference counting, API-set schema/build fidelity, native TLS semantics, special `LoadLibraryEx` mapping modes and DLL unload notifications are not modeled.
 
 ## Debugger limits and symbols
 

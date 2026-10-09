@@ -541,6 +541,7 @@ class Process(KernelObject):
         self.peb = PEB(emu=emu)
         self.peb_ldr_data = PebLdrData(self.emu)
         self.is_peb_active = False
+        self.initializing_peb = False
         self.path = path
         self.set_process_parameters(emu)
         self.image = ""

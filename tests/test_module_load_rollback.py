@@ -77,3 +77,4 @@ def test_listener_failure_does_not_interrupt_load_or_other_listeners(warm_emu):
 
     assert observed == ["broken", module]
     assert emu.get_proc("listener_guest", "GuestStep") == base + 0x1000
+    assert base in [entry.object.DllBase for entry in emu.get_current_process().ldr_entries]
