@@ -396,12 +396,18 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(argc, len(_argv).to_bytes(4, "little"))
         return argc
 
+    @impdata("__initenv")
+    def __initenv(self, ptr=0):
+        """Writable char ** global, shared with __p___initenv."""
+        if not ptr:
+            return self.emu.get_proc("msvcrt", "__initenv")
+        self.mem_write(ptr, b"\x00" * self.get_ptr_size())
+        return ptr
+
     @apihook("__p___initenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___initenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """char *** __p___initenv ()"""
-        ptr_size = self.get_ptr_size()
-        ptr = self.mem_alloc(size=ptr_size, tag="api.initenv")
-        return ptr
+        return emu.get_proc("msvcrt", "__initenv")
 
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -869,29 +875,31 @@ class Msvcrt(api.ApiHandler):
     def _set_app_type(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
 
+    @impdata("_fmode")
+    def _fmode(self, ptr=0):
+        """Writable file-mode global, initialized to _O_TEXT."""
+        if not ptr:
+            return self.emu.get_proc("msvcrt", "_fmode")
+        self.mem_write(ptr, (0x4000).to_bytes(4, "little"))
+        return ptr
+
     @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int* __p__fmode();
-        """
-        _O_TEXT = 0x4000
+        """int* __p__fmode();"""
+        return emu.get_proc("msvcrt", "_fmode")
 
-        ptr = self.mem_alloc(4, tag="api.fmode")
-        data = _O_TEXT.to_bytes(4, "little")
-        self.mem_write(ptr, data)
+    @impdata("_commode")
+    def _commode(self, ptr=0):
+        """Writable commit-mode global, preserving the accessor's initial value."""
+        if not ptr:
+            return self.emu.get_proc("msvcrt", "_commode")
+        self.mem_write(ptr, (0x4000).to_bytes(4, "little"))
         return ptr
 
     @apihook("__p__commode", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__commode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int* __p__commode();
-        """
-        _IOCOMMIT = 0x4000
-
-        ptr = self.mem_alloc(4, tag="api.commode")
-        data = _IOCOMMIT.to_bytes(4, "little")
-        self.mem_write(ptr, data)
-        return ptr
+        """int* __p__commode();"""
+        return emu.get_proc("msvcrt", "_commode")
 
     @apihook("_controlfp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
