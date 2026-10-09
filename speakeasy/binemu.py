@@ -69,7 +69,6 @@ class BinaryEmulator(MemoryManager, ABC):
         self.maps: list[Any] = []
         self.config = config
         self.hooks: dict[int, Any] = {}
-        self._api_hook_sequence = 0
 
         self.profiler: Profiler = Profiler()
 
@@ -928,8 +927,6 @@ class BinaryEmulator(MemoryManager, ABC):
         if not emu:
             emu = self
         hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
-        hook.registration_sequence = self._api_hook_sequence
-        self._api_hook_sequence += 1
         _hooks: MODULE_LEVEL | None = self.hooks.get(common.HOOK_API)
 
         api_dictionary = ({api_name: [hook]}, wildcard_api)

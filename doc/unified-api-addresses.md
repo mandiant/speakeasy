@@ -58,7 +58,7 @@ An empty unknown placeholder can resolve dynamic-only functions. For a populated
 
 Generic dispatch uses an exact module/name/architecture declaration with source precedence. Permissive cross-DLL signature lookup remains available for formatting arguments of implemented handlers, but cannot select an unknown function's execution ABI.
 
-Proven same-address aliases share a dispatch identity. Hooks registered under any of those names are collected once: exact-name matches precede wildcard matches, and each group retains registration order. Copied pointers retain the canonical record identity in telemetry because the original lookup name cannot be recovered from an address alone.
+When several export names share one address, dispatch and telemetry use the first registered name, because an address alone does not identify the name a caller used to find it. Hooks match that name.
 
 The generic execution gate supports scalar/pointer cdecl and stdcall declarations it can transport correctly, with the corresponding Win64 integer/pointer ABI on x64. It rejects skipped declarations, variadic calls, unsupported conventions, floating-point transport, by-value aggregates, and x86 64-bit returns. These functions remain visible and can have explicit handlers or hooks. Exceptions raised by providers during dispatch lookup are reported with the requested DLL and function rather than silently selecting another source's ABI. Bundled archive loading retains its existing behavior of treating unreadable or malformed archives as unavailable sources.
 

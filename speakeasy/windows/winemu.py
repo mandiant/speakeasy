@@ -2392,23 +2392,6 @@ class WindowsEmulator(BinaryEmulator):
     def _get_signature_arch(self) -> str:
         return sigdb.ARCH_X86 if self.get_arch() == _arch.ARCH_X86 else sigdb.ARCH_X64
 
-    def get_api_hooks(self, mod_name, func_name) -> list[common.ApiHook]:
-        """Merge hooks for proven same-address names, preserving legacy matches."""
-        module = self.get_mod_by_name(mod_name)
-        entry = self.api_registry.lookup(module, func_name) if module is not None else None
-        if entry is None or len(entry.names) < 2:
-            return super().get_api_hooks(mod_name, func_name)
-        names = list(dict.fromkeys([func_name, *entry.names]))
-        exact_names = {name.lower() for name in names}
-        matches: list[common.ApiHook] = []
-        seen: set[int] = set()
-        for name in names:
-            for hook in super().get_api_hooks(mod_name, name):
-                if id(hook) not in seen:
-                    seen.add(id(hook))
-                    matches.append(hook)
-        return sorted(matches, key=lambda hook: (hook.api_name not in exact_names, hook.registration_sequence))
-
     def _lookup_api_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
         """Find the authoritative declaration without choosing an execution ABI."""
         db = self.get_signature_db()
