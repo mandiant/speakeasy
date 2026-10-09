@@ -646,6 +646,16 @@ class Process(KernelObject):
         self._peb_modules[module.base] = module
         self._sync_peb_module_links()
 
+    def remove_module_from_peb(self, module):
+        """Detach a mapped image during loader rollback without freeing memory."""
+        if module.base not in self._peb_modules:
+            return
+        # Update the list in place so external references and surviving loader
+        # entry objects retain their identity and order.
+        self.ldr_entries[:] = [entry for entry in self.ldr_entries if entry.object.DllBase != module.base]
+        del self._peb_modules[module.base]
+        self._sync_peb_module_links()
+
     def _sync_peb_module_links(self):
         """Link each loader ring through its own PEB_LDR_DATA sentinel."""
         pld = self.peb_ldr_data
