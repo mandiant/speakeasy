@@ -530,7 +530,10 @@ class SpeakeasyConfig(BaseModel):
     emu_engine: Literal["unicorn"] = Field(
         default=DEFAULT_CONFIG_DATA["emu_engine"], description="Emulation backend identifier."
     )
-    timeout: float = Field(default=DEFAULT_CONFIG_DATA["timeout"], description="Emulation timeout in seconds.")
+    timeout: float = Field(
+        default=DEFAULT_CONFIG_DATA["timeout"],
+        description="Active execution timeout in seconds per Run. 0 disables it.",
+    )
     max_api_count: int = Field(
         default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."
     )
