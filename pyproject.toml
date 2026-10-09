@@ -54,7 +54,6 @@ include = ["speakeasy*"]
 speakeasy = [
     "py.typed",
     "resources/**/*",
-    "winenv/decoys/**/*",
 ]
 
 [tool.ruff]

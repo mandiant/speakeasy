@@ -136,11 +136,11 @@ options:
                         Treat unresolved imports as existing stubs. (default:
                         False)
   --modules-module-directory-x86 MODULE_DIRECTORY_X86
-                        Search path for x86 decoy modules. (default:
-                        '$ROOT$/winenv/decoys/x86')
+                        Directory of x86 DLLs to load instead of synthetic API
+                        modules. (default: None)
   --modules-module-directory-x64 MODULE_DIRECTORY_X64
-                        Search path for x64 decoy modules. (default:
-                        '$ROOT$/winenv/decoys/amd64')
+                        Directory of x64 DLLs to load instead of synthetic API
+                        modules. (default: None)
 ```
 
 ## Related docs

@@ -2835,35 +2835,17 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_native_module_path(self, mod_name=""):
         """
-        Get the full filesystem path of a default decoy that is supplied by
-        speakeasy
+        Get the path of a DLL with this name in the configured module directory
         """
-
-        def get_fp(path, mod_name):
-            path = common.normalize_package_path(path)
-            files = [os.path.join(path, fn) for fn in os.listdir(path)]
-            for fp in files:
-                bn = os.path.basename(fp.lower())
-                bn = os.path.splitext(bn)[0]
-                if mod_name == bn:
-                    return fp
-
+        attr = "module_directory_x64" if self.get_arch() == _arch.ARCH_AMD64 else "module_directory_x86"
+        path = common.normalize_package_path(getattr(self.config.modules, attr) or "")
+        if not os.path.isdir(path):
+            return None
         mod_name = mod_name.lower()
-        decoy_arch_dir = {
-            _arch.ARCH_X86: ("module_directory_x86", "x86"),
-            _arch.ARCH_AMD64: ("module_directory_x64", "amd64"),
-        }
-        dirs = decoy_arch_dir[self.get_arch()]
-        mod_dir = dirs[0]
-
-        path = getattr(self.config.modules, mod_dir, "") or ""
-
-        fp = get_fp(path, mod_name)
-        if not fp:
-            path = os.path.join(os.path.dirname(__file__), os.pardir, "winenv", "decoys", dirs[1])
-            fp = get_fp(path, mod_name)
-
-        return fp
+        for fn in os.listdir(path):
+            if os.path.splitext(fn.lower())[0] == mod_name:
+                return os.path.join(path, fn)
+        return None
 
     def load_library(self, mod_name):
         name = winemu.normalize_dll_name(module_name(mod_name))

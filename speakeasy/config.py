@@ -162,8 +162,6 @@ DEFAULT_CONFIG_DATA = {
     "modules": {
         "modules_always_exist": False,
         "functions_always_exist": False,
-        "module_directory_x86": "$ROOT$/winenv/decoys/x86",
-        "module_directory_x64": "$ROOT$/winenv/decoys/amd64",
         "system_modules": [
             {"name": "ntoskrnl", "base_addr": "0x803d0000", "path": "C:\\Windows\\system32\\ntoskrnl.exe"},
             {"name": "hal", "base_addr": "0xC1000000", "path": "C:\\Windows\\system32\\hal.dll"},
@@ -499,8 +497,12 @@ class ModulesConfig(BaseModel):
         default=False, description="Synthesize unknown modules instead of failing loads."
     )
     functions_always_exist: bool = Field(default=False, description="Treat unresolved imports as existing stubs.")
-    module_directory_x86: str | None = Field(default=None, description="Search path for x86 decoy modules.")
-    module_directory_x64: str | None = Field(default=None, description="Search path for x64 decoy modules.")
+    module_directory_x86: str | None = Field(
+        default=None, description="Directory of x86 DLLs to load instead of synthetic API modules."
+    )
+    module_directory_x64: str | None = Field(
+        default=None, description="Directory of x64 DLLs to load instead of synthetic API modules."
+    )
     user_modules: list[UserModuleConfig] = Field(
         default_factory=list, description="Configured user-mode module inventory."
     )
