@@ -1,3 +1,6 @@
+import pefile
+import pytest
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.windows.loaders import ApiModuleLoader, ExportEntry, LoadedImage, PeLoader, RuntimeModule
 
@@ -96,3 +99,49 @@ def test_api_module_loader_sections_within_image():
     for section in image.sections:
         end = section.virtual_address + section.virtual_size
         assert end <= image.image_size
+
+
+@pytest.mark.parametrize("filename", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
+def test_native_rebase_header_imports_and_exports_are_consistent(filename, load_test_bin):
+    raw = load_test_bin(filename)
+    original = pefile.PE(data=raw)
+    base = 0x60000000
+    image = PeLoader(data=raw, base_override=base).make_image()
+    assert image.image_base == base
+    expected = pefile.PE(data=raw)
+    expected.relocate_image(base)
+    assert image.regions[0].data == expected.get_memory_mapped_image()
+    assert [e.iat_address for e in image.imports] == [
+        base + d.struct.FirstThunk + i * (image.arch // 8)
+        for d in original.DIRECTORY_ENTRY_IMPORT
+        for i, _ in enumerate(d.imports)
+    ]
+    assert [(e.address - base, e.ordinal) for e in image.exports] == [
+        (e.address, e.ordinal) for e in original.DIRECTORY_ENTRY_EXPORT.symbols if e.address
+    ]
+
+
+def test_pma_0501_padded_sections_map_with_section_permissions(base_config):
+    from pathlib import Path
+
+    import unicorn as uc
+
+    from speakeasy import Speakeasy
+
+    path = Path(__file__).parent / "capa-testfiles" / "Practical Malware Analysis Lab 05-01.dll_"
+    if not path.exists():
+        pytest.skip("PMA malware fixture is unavailable")
+    se = Speakeasy(config=base_config)
+    try:
+        module = se.load_module(str(path))
+
+        def permissions(address):
+            return next(p for start, end, p in se.emu.get_mem_regions() if start <= address <= end)
+
+        for rva in (0x1656, 0x7025):
+            assert permissions(module.base + rva) & uc.UC_PROT_EXEC
+        data = next(s for s in module.sections if s.name == ".data")
+        assert permissions(module.base + data.virtual_address) & uc.UC_PROT_WRITE
+        assert not permissions(module.base + data.virtual_address) & uc.UC_PROT_EXEC
+    finally:
+        se.shutdown()

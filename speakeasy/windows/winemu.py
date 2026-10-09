@@ -1251,6 +1251,8 @@ class WindowsEmulator(BinaryEmulator):
 
         ptr_size = self.get_ptr_size()
         for imp in image.imports:
+            if imp.source == "delay":
+                continue
             sentinel = self._alloc_sentinel()
             self.import_table[sentinel] = (_normalize_mod_name(imp.dll_name), imp.func_name)
             offset = imp.iat_address
@@ -1325,6 +1327,8 @@ class WindowsEmulator(BinaryEmulator):
                 self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
 
             for imp in image.imports:
+                if imp.source == "delay":
+                    continue
                 dll_name = imp.dll_name
                 alt_dll = winemu.normalize_dll_name(dll_name)
                 _api_mod, eh = self.api.get_data_export_handler(dll_name, imp.func_name)
