@@ -79,7 +79,7 @@ def test_instruction_limit_is_shared_across_api_yields(api_emu):
     code += b"\xff\xd0\xeb" + bytes([(-len(code) - 4) & 0xFF])
     emu.mem_write(caller, code)
     emu._run_api_engine(caller, timeout=3, count=17)
-    assert len(hits) == 3
+    assert len(hits) == (2 if emu.ptr_size == 4 else 3)
     assert emu.curr_run.instr_cnt == 17
     assert emu.curr_run.error.type == "max_instructions"
 

@@ -138,9 +138,9 @@ def test_x86_stub_wraps_modulo32():
     entry = 0xFFFFFFFC
     trap = 0x12345678
     stub = encode_api_stub(arch.ARCH_X86, entry, trap)
-    assert stub[:3] == b"\x8b\xff\xe9"
-    assert len(stub) == 7
-    displacement = struct.unpack("<I", stub[3:])[0]
+    assert stub[:6] == b"\x8b\xff\x0f\x1f\x00\xe9"
+    assert len(stub) == 10
+    displacement = struct.unpack("<I", stub[6:])[0]
     assert (entry + len(stub) + displacement) & 0xFFFFFFFF == trap
 
 
@@ -312,3 +312,19 @@ def test_many_mapped_entries_are_disjoint_patchable_and_aligned(architecture):
 def test_stub_malformed_addresses_rejected(architecture, entry, trap):
     with pytest.raises(ValueError):
         encode_api_stub(architecture, entry, trap)
+
+
+def test_x86_inline_hook_prefix_ends_at_instruction_boundary():
+    import capstone
+
+    entry, trap = 0x76001010, 0xF0000010
+    stub = encode_api_stub(arch.ARCH_X86, entry, trap)
+    instructions = list(capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32).disasm(stub, entry))
+    assert [(instruction.address - entry, instruction.size, instruction.mnemonic) for instruction in instructions] == [
+        (0, 2, "mov"),
+        (2, 3, "nop"),
+        (5, 5, "jmp"),
+    ]
+    assert sum(instruction.size for instruction in instructions[:2]) == 5
+    assert instructions[-1].op_str == hex(trap)
+    assert len(stub) <= API_SLOT_SIZE - API_ENTRY_OFFSET

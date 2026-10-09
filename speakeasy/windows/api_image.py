@@ -38,7 +38,8 @@ def encode_api_stub(arch: int, entry_address: int, trap_address: int) -> bytes:
     if any(type(address) is not int or not 0 <= address < (1 << arch) for address in (entry_address, trap_address)):
         raise ValueError("Stub addresses must fit the architecture address space")
     if arch == _arch.ARCH_X86:
-        return b"\x8b\xff\xe9" + struct.pack("<I", (trap_address - entry_address - 7) & 0xFFFFFFFF)
+        # Keep a complete five-byte prologue for ordinary inline-hook trampolines.
+        return b"\x8b\xff\x0f\x1f\x00\xe9" + struct.pack("<I", (trap_address - entry_address - 10) & 0xFFFFFFFF)
     if arch == _arch.ARCH_AMD64:
         return b"\x66\x90\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", trap_address)
     raise ValueError(f"Unsupported API image architecture: {arch}")

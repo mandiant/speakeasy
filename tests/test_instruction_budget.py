@@ -43,11 +43,11 @@ def test_cap_within_block_and_at_back_edge(budget_target, budget):
     assert int(run.error.pc) == base + budget % 8
 
 
-@pytest.mark.parametrize("budget, calls, offset", [(3, 0, None), (4, 0, None), (5, 1, 0), (17, 3, None)])
-def test_cap_is_shared_across_public_api_yields(budget_target, budget, calls, offset):
+@pytest.mark.parametrize("budget", [3, 4, 5, 6, 17])
+def test_cap_is_shared_across_public_api_yields(budget_target, budget):
     se, architecture = budget_target(budget)
     hits = []
-    # MOV target; CALL target; public two-instruction stub; JMP caller.
+    # MOV target; CALL target; public stub (three x86/two x64 instructions); JMP caller.
     width = 4 if architecture == "x86" else 8
     mov = b"\xb8" if width == 4 else b"\x48\xb8"
     code = mov + b"\0" * width + b"\xff\xd0"
@@ -58,17 +58,27 @@ def test_cap_is_shared_across_public_api_yields(budget_target, budget, calls, of
     se.mem_write(base + len(mov), target.to_bytes(width, "little"))
     se.run_shellcode(base)
     run = assert_limit(se, budget)
+    if width == 4:
+        calls, pc = {
+            3: (0, target + 2),
+            4: (0, target + 5),
+            5: (0, target),
+            6: (1, base),
+            17: (2, target),
+        }[budget]
+    else:
+        calls, pc = {
+            3: (0, target + 2),
+            4: (0, target),
+            5: (1, base),
+            6: (1, base + len(mov) + width),
+            17: (3, target),
+        }[budget]
     assert hits == ["budget_test.Tick"] * calls
     events = [event for event in (run.events or []) if event.event == "api"]
     # The report coalesces consecutive identical API events.
     assert bool(events) == bool(calls)
-    if offset is not None:
-        assert int(run.error.pc) == base + offset
-    elif budget == 3:
-        assert int(run.error.pc) == target + 2
-    elif budget == 4:
-        # Reaching the private trap at the cap must not dispatch the handler.
-        assert int(run.error.pc) == target
+    assert int(run.error.pc) == pc
 
 
 @pytest.mark.parametrize("budget", [4, 5, 7, 8, 9, 10])
@@ -102,8 +112,8 @@ def test_each_public_run_has_a_fresh_run_budget(budget_target):
         assert int(run.error.pc) == base + 1
 
 
-@pytest.mark.parametrize("budget, return_value", [(5, 42), (6, 77)])
-def test_callback_return_is_finalized_at_exact_cap(budget_target, budget, return_value):
+@pytest.mark.parametrize("budget", [5, 6, 7])
+def test_callback_return_is_finalized_at_exact_cap(budget_target, budget):
     se, architecture = budget_target(budget)
     width = 4 if architecture == "x86" else 8
     mov = b"\xb8" if width == 4 else b"\x48\xb8"
@@ -124,7 +134,14 @@ def test_callback_return_is_finalized_at_exact_cap(budget_target, budget, return
     se.mem_write(base + len(mov), target.to_bytes(width, "little"))
     se.run_shellcode(base)
     run = assert_limit(se, budget)
-    assert hits == ["budget_test.Outer"]
-    assert se.reg_read("eax") == return_value
-    expected_pc = callback + 5 if budget == 5 else base + len(mov) + width + 2
+    dispatch_count = 5 if width == 4 else 4
+    if budget == dispatch_count:
+        assert hits == []
+        assert se.reg_read("eax") == target
+        expected_pc = target
+    else:
+        assert hits == ["budget_test.Outer"]
+        before_return = budget == dispatch_count + 1
+        assert se.reg_read("eax") == (42 if before_return else 77)
+        expected_pc = callback + 5 if before_return else base + len(mov) + width + 2
     assert int(run.error.pc) == expected_pc

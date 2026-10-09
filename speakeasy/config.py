@@ -10,6 +10,7 @@ DEFAULT_CONFIG_DATA = {
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",
     "timeout": 60,
+    "max_total_time": 60,
     "max_api_count": 10000,
     "stack_size": 0,
     "system": "windows",
@@ -499,7 +500,8 @@ class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     strict_pe_parsing: bool = Field(
-        default=False, description="Reject malformed optional guest PE import/export metadata."
+        default=False,
+        description="Reject malformed guest PE metadata, bind imports atomically, and stop on startup DLL failure.",
     )
 
     modules_always_exist: bool = Field(
@@ -537,7 +539,16 @@ class SpeakeasyConfig(BaseModel):
     emu_engine: Literal["unicorn"] = Field(
         default=DEFAULT_CONFIG_DATA["emu_engine"], description="Emulation backend identifier."
     )
-    timeout: float = Field(default=DEFAULT_CONFIG_DATA["timeout"], description="Emulation timeout in seconds.")
+    timeout: float = Field(
+        default=DEFAULT_CONFIG_DATA["timeout"],
+        description="Active execution timeout in seconds per Run. 0 disables it.",
+    )
+    max_total_time: float = Field(
+        default=DEFAULT_CONFIG_DATA["max_total_time"],
+        ge=0,
+        allow_inf_nan=False,
+        description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
+    )
     max_api_count: int = Field(
         default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."
     )

@@ -84,6 +84,9 @@ def _map_two_imports(emu, zero_oft, bad_second=False):
 @pytest.mark.parametrize("failure", ["missing", "resolution_error", "bad_rva"])
 def test_second_import_failure_leaves_original_iat_intact(api_emu, monkeypatch, zero_oft, failure):
     emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": True})}
+    )
     address = emu.get_proc("kernel32", "GetTickCount")
     assert address
     base, iat, original = _map_two_imports(emu, zero_oft, bad_second=failure == "bad_rva")
@@ -116,8 +119,12 @@ def test_second_import_failure_leaves_original_iat_intact(api_emu, monkeypatch, 
 
 
 @pytest.mark.parametrize("zero_oft", [False, True])
-def test_commit_fault_restores_all_attempted_iat_writes(api_emu, monkeypatch, zero_oft):
+@pytest.mark.parametrize("strict", [False, True])
+def test_commit_fault_restores_all_attempted_iat_writes(api_emu, monkeypatch, zero_oft, strict):
     emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
     targets = {name: emu.get_proc("kernel32", name) for name in ("GetTickCount", "GetCurrentProcess")}
     assert all(targets.values())
     base, iat, original = _map_two_imports(emu, zero_oft)
@@ -147,3 +154,119 @@ def test_commit_fault_restores_all_attempted_iat_writes(api_emu, monkeypatch, ze
     )
     assert emu._import_bindings[iat] == targets["GetTickCount"]
     assert emu._import_bindings[iat + emu.ptr_size] == targets["GetCurrentProcess"]
+
+
+def _import_descriptor(emu, base):
+    directory = base + 0x98 + (112 if emu.ptr_size == 8 else 96) + 8
+    rva, _ = struct.unpack("<II", emu.mem_read(directory, 8))
+    return directory, base + rva
+
+
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize("zero_oft", [False, True])
+@pytest.mark.parametrize("failure", ["missing", "resolution_error", "bad_rva", "ordinal_bits", "ordinal_zero"])
+def test_mixed_middle_import_preserves_independent_slots(api_emu, monkeypatch, caplog, strict, zero_oft, failure):
+    emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
+    base, iat, original = _map_two_imports(emu, zero_oft)
+    _, descriptor = _import_descriptor(emu, base)
+    ilt, _, _, _, _ = struct.unpack("<5I", emu.mem_read(descriptor, 20))
+    first = int.from_bytes(original[: emu.ptr_size], "little")
+    middle = int.from_bytes(original[emu.ptr_size :], "little")
+    third = descriptor - base + 0x140
+    image_size = int.from_bytes(emu.mem_read(base + 0x98 + 56, 4), "little")
+    if failure == "bad_rva":
+        middle = image_size - 1
+    elif failure.startswith("ordinal"):
+        middle = 1 << (emu.ptr_size * 8 - 1)
+        if failure == "ordinal_bits":
+            middle |= 0x10001
+    original = b"".join(value.to_bytes(emu.ptr_size, "little") for value in (first, middle, third))
+    emu.mem_write(base + third, b"\0\0GetCurrentThread\0")
+    emu.mem_write(iat, original + b"\0" * emu.ptr_size)
+    if ilt:
+        emu.mem_write(base + ilt, original + b"\0" * emu.ptr_size)
+    resolve = emu.get_proc
+    resolutions = []
+
+    def missing_middle(dll, name):
+        resolutions.append(name)
+        if failure == "resolution_error" and name == "GetCurrentProcess":
+            raise WindowsEmuError("independent middle import failed")
+        return 0 if name in ("GetCurrentProcess", "ordinal_0") else resolve(dll, name)
+
+    monkeypatch.setattr(emu, "get_proc", missing_middle)
+    bindings = dict(emu._import_bindings)
+    emu.ensure_pe_import_hooks(base)
+    assert "WARNING" in caplog.text
+    if strict:
+        assert emu.mem_read(iat, len(original)) == original
+        assert emu._import_bindings == bindings
+        assert "GetCurrentThread" not in resolutions
+    else:
+        for index, name in ((0, "GetTickCount"), (2, "GetCurrentThread")):
+            target = resolve("kernel32", name)
+            assert int.from_bytes(emu.mem_read(iat + index * emu.ptr_size, emu.ptr_size), "little") == target
+            assert emu._import_bindings[iat + index * emu.ptr_size] == target
+        assert emu.mem_read(iat + emu.ptr_size, emu.ptr_size) == original[emu.ptr_size : 2 * emu.ptr_size]
+        assert iat + emu.ptr_size not in emu._import_bindings
+        assert "GetCurrentThread" in resolutions
+    if failure == "ordinal_bits":
+        assert not any(name.startswith("ordinal_") for name in resolutions)
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_malformed_first_descriptor_does_not_hide_valid_second(api_emu, caplog, strict):
+    emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
+    base, iat, original = _map_two_imports(emu, False)
+    directory, descriptor = _import_descriptor(emu, base)
+    valid = emu.mem_read(descriptor, 20)
+    emu.mem_write(descriptor + 20, valid + b"\0" * 20)
+    emu.mem_write(descriptor, struct.pack("<5I", 0, 0, 0, 0, 0x80))
+    emu.mem_write(directory + 4, struct.pack("<I", 60))
+
+    emu.ensure_pe_import_hooks(base)
+
+    assert "WARNING" in caplog.text
+    if strict:
+        assert emu.mem_read(iat, len(original)) == original
+    else:
+        assert emu.mem_read(iat, len(original)) == b"".join(
+            emu.get_proc("kernel32", name).to_bytes(emu.ptr_size, "little")
+            for name in ("GetTickCount", "GetCurrentProcess")
+        )
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_injected_non_ascii_dll_name_is_lossless(api_emu, monkeypatch, caplog, strict):
+    emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
+    base, iat, original = _map_two_imports(emu, False)
+    _, descriptor = _import_descriptor(emu, base)
+    dll = struct.unpack("<5I", emu.mem_read(descriptor, 20))[3]
+    emu.mem_write(base + dll, b"caf\xe9.dll\0")
+    calls = []
+    targets = {name: emu.get_proc("kernel32", name) for name in ("GetTickCount", "GetCurrentProcess")}
+
+    def resolve(dll, name):
+        calls.append((dll, name))
+        return targets[name]
+
+    monkeypatch.setattr(emu, "get_proc", resolve)
+    emu.ensure_pe_import_hooks(base)
+    assert "WARNING" in caplog.text
+    if strict:
+        assert calls == []
+        assert emu.mem_read(iat, len(original)) == original
+    else:
+        assert calls == [("café.dll", name) for name in targets]
+        assert emu.mem_read(iat, len(original)) == b"".join(
+            value.to_bytes(emu.ptr_size, "little") for value in targets.values()
+        )

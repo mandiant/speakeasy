@@ -192,8 +192,8 @@ def test_private_traps_never_reach_user_fault_hooks(api_emu):
     api_emu.add_mem_invalid_hook(lambda *args: observed.append(args) or True)
     # An unregistered token is a genuine control-target error, never fake memory.
     invalid = emu.api_registry.trap_base + emu.api_registry.TRAP_SIZE - 1
-    with pytest.raises(uc.UcError):
-        emu._run_api_engine(invalid)
+    emu._run_api_engine(invalid)
+    assert emu.curr_run.error.type == "invalid_fetch"
     assert observed == []
     assert emu.get_address_map(invalid) is None
     assert emu.get_address_map(trap) is None

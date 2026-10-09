@@ -5,8 +5,11 @@ import struct
 import pefile
 import pytest
 
+from speakeasy import common
+from speakeasy.errors import WindowsEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.api_image import ApiExportSpec, build_api_image
+from speakeasy.windows.loaders import ImportEntry, LoadedImage, MemoryRegion
 from tests.handler_harness import alloc, start_process
 
 
@@ -70,8 +73,14 @@ def make_native_dll(emu, path, success=True):
 
 @pytest.mark.parametrize("startup", [True, False, "native"])
 @pytest.mark.parametrize("success", [True, False])
-def test_native_dll_initializes_once_before_guest_call(api_emu, tmp_path, monkeypatch, startup, success):
+@pytest.mark.parametrize("strict", [False, True])
+def test_native_dll_initializes_once_before_guest_call(
+    api_emu, tmp_path, monkeypatch, startup, success, strict, caplog
+):
     emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
     start_process(api_emu)
     emu.alloc_peb(emu.curr_process)
     path = tmp_path / "guest_dependency.dll"
@@ -96,8 +105,19 @@ def test_native_dll_initializes_once_before_guest_call(api_emu, tmp_path, monkey
             assert run.ret_val == 2
             assert module._initialization[emu.curr_process.id] == "ready"
             assert all(entry.trap is None for entry in emu.api_registry.entries.values() if entry.module is module)
-        else:
+        elif strict:
             assert run not in emu.runs
+        else:
+            assert run in emu.runs
+            assert run.error is None
+            assert run.ret_val == 2
+            assert module._initialization[emu.curr_process.id] == "failed"
+            failed = [run for run in emu.runs if run.error and run.error.type == "dll_initialization_failed"]
+            assert len(failed) == 1
+            assert "guest initializer failed" in caplog.text
+            assert emu.load_module_by_name("guest_dependency") is module
+            assert emu._collect_guest_initializers() == []
+            assert int.from_bytes(emu.mem_read(exports["Flag"], 4), "little") == 2
     else:
         name = alloc(api_emu, b"guest_dependency.dll\0")
         return_site = emu.mem_map(0x1000, tag="test.loadlibrary.return")
@@ -141,7 +161,7 @@ def test_native_dll_initializes_once_before_guest_call(api_emu, tmp_path, monkey
         assert int.from_bytes(emu.mem_read(exports["Flag"], 4), "little") == 2
         assert emu.load_library("guest_dependency") == module.base
         assert emu._collect_guest_initializers() == []
-    else:
+    elif startup is not True or strict:
         assert emu.get_mod_by_name("guest_dependency") is None
         assert emu.get_address_map(exports["Flag"]) is None
         assert all(entry.object.DllBase != exports["Flag"] & ~0xFFFF for entry in emu.curr_process.ldr_entries)
@@ -254,6 +274,9 @@ def test_cached_native_init_failure_preserves_other_owner_and_allows_retry(api_e
 
 def test_cached_startup_init_failure_preserves_ready_owner(api_emu, tmp_path, monkeypatch):
     emu = api_emu.emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": True})}
+    )
     start_process(api_emu)
     emu.alloc_peb(emu.curr_process)
     first = emu.curr_process
@@ -279,3 +302,99 @@ def test_cached_startup_init_failure_preserves_ready_owner(api_emu, tmp_path, mo
     assert module.base not in second._peb_modules
     assert module._initialization == {first.id: "ready"}
     assert not any(getattr(queued, "_guest_initialization", None) for queued in emu.run_queue)
+
+
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize("failure", ["missing_native_export", "outside_iat"])
+def test_static_imports_bind_independently_without_fabricating_native_exports(
+    api_emu, tmp_path, monkeypatch, caplog, strict, failure
+):
+    emu = api_emu.emu
+    start_process(api_emu)
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": strict})}
+    )
+    path = tmp_path / "guest_dependency.dll"
+    exports = make_native_dll(emu, path)
+    native_path(emu, monkeypatch, path)
+    dependency = emu.load_module_by_name("guest_dependency")
+    before = list(dependency.get_exports())
+    outside = emu.mem_map(0x1000, tag="test.import.outside")
+    emu.mem_write(outside, b"\x41" * emu.ptr_size)
+    base, _ = emu.get_valid_ranges(0x1000, addr=0x64000000)
+    raw = b"\x41" * 0x1000
+    bad_slot = outside if failure == "outside_iat" else base + emu.ptr_size
+    image = LoadedImage(
+        arch=emu.arch,
+        module_type="dll",
+        name="import_policy",
+        emu_path="import_policy.dll",
+        image_base=base,
+        image_size=len(raw),
+        regions=[MemoryRegion(base, raw, ".data", common.PERM_MEM_RWX)],
+        imports=[
+            ImportEntry(base, "guest_dependency", "GetTickCount"),
+            ImportEntry(bad_slot, "guest_dependency", "MissingExport"),
+            ImportEntry(base + 2 * emu.ptr_size, "guest_dependency", "Flag"),
+        ],
+        exports=[],
+        default_export_mode="native",
+        entry_points=[],
+    )
+
+    if strict:
+        with pytest.raises(WindowsEmuError):
+            emu.load_image(image)
+        assert emu.get_mod_by_name("import_policy") is None
+        assert emu.get_address_map(base) is None
+        assert base not in emu._import_bindings
+    else:
+        module = emu.load_image(image)
+        assert module.base == base
+        for index, name in ((0, "GetTickCount"), (2, "Flag")):
+            slot = base + index * emu.ptr_size
+            assert int.from_bytes(emu.mem_read(slot, emu.ptr_size), "little") == exports[name]
+            assert emu._import_bindings[slot] == exports[name]
+        assert emu.mem_read(base + emu.ptr_size, emu.ptr_size) == b"\x41" * emu.ptr_size
+        assert bad_slot not in emu._import_bindings
+        assert "skipping import" in caplog.text
+    assert emu.mem_read(outside, emu.ptr_size) == b"\x41" * emu.ptr_size
+    assert dependency.get_exports() == before
+    assert emu.get_proc("guest_dependency", "MissingExport") == 0
+    assert all(entry.trap is None for entry in emu.api_registry.entries.values() if entry.module is dependency)
+
+
+def test_failed_startup_dll_does_not_skip_independent_dependency(api_emu, tmp_path, caplog):
+    emu = api_emu.emu
+    start_process(api_emu)
+    emu.alloc_peb(emu.curr_process)
+    first_path = tmp_path / "first.dll"
+    first_exports = make_native_dll(emu, first_path, success=False)
+    first = emu.load_module_by_name("first", native_path=str(first_path))
+    second_path = tmp_path / "second.dll"
+    second_exports = make_native_dll(emu, second_path)
+    second = emu.load_module_by_name("second", native_path=str(second_path))
+    run = Run()
+    run.type = "test.after_failed_dependency"
+    run.start_addr = second_exports["GetTickCount"]
+    run.args = ()
+    run.thread = emu.curr_thread
+    emu.run_queue[:] = [run]
+
+    emu.start()
+
+    assert run.error is None
+    assert run.ret_val == 2
+    assert first._initialization[emu.curr_process.id] == "failed"
+    assert second._initialization[emu.curr_process.id] == "ready"
+    assert emu.get_address_map(first_exports["Flag"]) is not None
+    assert int.from_bytes(emu.mem_read(first_exports["Flag"], 4), "little") == 2
+    assert "guest initializer failed" in caplog.text
+    assert emu._collect_guest_initializers() == []
+    assert emu.load_module_by_name("first") is first
+    # An unrelated runtime load also must not requeue failed startup work.
+    emu.emu_complete = False
+    emu.run_complete = False
+    assert runtime_load(api_emu, "kernel32.dll")
+    assert first._initialization[emu.curr_process.id] == "failed"
+    assert int.from_bytes(emu.mem_read(first_exports["Flag"], 4), "little") == 2

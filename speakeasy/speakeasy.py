@@ -17,6 +17,7 @@ from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
+from speakeasy.windows.winemu import execution_scope
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +308,7 @@ class Speakeasy:
         return self.emu.load_image(image)  # type: ignore[union-attr]
 
     @check_init
+    @execution_scope
     def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
         Run a previously loaded module through the configured emulator
@@ -354,6 +356,7 @@ class Speakeasy:
         return self.emu.load_shellcode(fpath, arch, data=data, filename=filename)  # type: ignore[no-any-return, union-attr]
 
     @check_init
+    @execution_scope
     def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
         """
         Run a previously loaded shellcode blob by address
@@ -441,6 +444,7 @@ class Speakeasy:
         if hasattr(self.emu, "emu_eng") and self.emu.emu_eng is not None:
             self.emu.emu_eng.close()
 
+    @execution_scope
     def call(self, addr: int, params=[]) -> None:
         """
         Start emulating at the specified address

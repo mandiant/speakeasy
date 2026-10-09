@@ -144,6 +144,9 @@ def test_warm_malformed_image_preserves_existing_ownership(warm_emu):
 
 def test_warm_missing_guest_import_rolls_back_loaded_dependency_graph(warm_emu, monkeypatch):
     emu = warm_emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": True})}
+    )
     root, loaded = install_dependency_graph(emu, monkeypatch)
     root.imports.append(ImportEntry(root.image_base + 0x2000 + emu.get_ptr_size(), "rollback_guest", "StrictMissing"))
     before = snapshot(emu)
@@ -229,6 +232,9 @@ def test_failed_graph_restores_new_attachment_of_cached_dependency(warm_emu):
     from speakeasy.windows.objman import Process
 
     emu = warm_emu
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_pe_parsing": True})}
+    )
     first = emu.get_current_process()
     base, _ = emu.get_valid_ranges(0x5000, addr=0x69000000)
     dependency = emu.load_image(guest_image(emu, "cached_guest_dependency", base))

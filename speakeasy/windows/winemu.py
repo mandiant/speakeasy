@@ -8,7 +8,9 @@ import time
 import traceback
 from abc import abstractmethod
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum
+from functools import wraps
 from typing import Any
 
 import unicorn as uc
@@ -47,6 +49,30 @@ DISASM_SIZE = 0x20
 SIGSEGV = 11
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _ExecutionBudget:
+    limit: float
+    elapsed: float = 0.0
+    exhausted: bool = False
+
+
+def execution_scope(func):
+    """Share one active-time cap across every start in a public invocation."""
+
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+        emu = self if isinstance(self, WindowsEmulator) else self.emu
+        if emu is None or getattr(emu, "_execution_budget", None) is not None:
+            return func(self, *args, **kwargs)
+        emu._execution_budget = _ExecutionBudget(emu.config.max_total_time)
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            emu._execution_budget = None
+
+    return wrapped
 
 
 def _normalize_mod_name(name: str) -> str:
@@ -95,6 +121,7 @@ class WindowsEmulator(BinaryEmulator):
         peb_addr: Address of the Process Environment Block
     """
 
+    _execution_budget: _ExecutionBudget | None = None
     peb_addr: int
 
     @abstractmethod
@@ -148,6 +175,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_api_snapshot = None
         self._pending_control = None
         self._pending_exec_recovery: tuple[int, int] | None = None
+        self._pending_trap_fault: tuple[str, int] | None = None
         self._guest_dependencies = []
         self._failed_guest_modules = []
         self._shared_peb_modules = set()
@@ -459,6 +487,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.api_callbacks.clear()
         self._pending_api_entry = None
         self._pending_control = None
+        self._pending_trap_fault = None
         self._pending_exec_recovery = None
         stage = getattr(self.curr_run, "_guest_initialization", None)
         if stage is not None:
@@ -467,20 +496,36 @@ class WindowsEmulator(BinaryEmulator):
                 self.curr_run.error = self.curr_run.error or ErrorInfo(
                     type="dll_initialization_failed", pc=self.get_pc()
                 )
-                if self._detach_failed_guest_initialization(module, pid):
-                    self._failed_guest_modules.append(module)
-                for queued in self.run_queue:
-                    pending = getattr(queued, "_guest_initialization", None)
-                    if pending is not None and pending[3] == pid:
-                        pending[0]._initialization.pop(pid, None)
+                logger.warning(
+                    "guest initializer failed for %s in process %s: %s", module.name, pid, self.curr_run.error.type
+                )
+                if self.config.modules.strict_pe_parsing:
+                    if self._detach_failed_guest_initialization(module, pid):
+                        self._failed_guest_modules.append(module)
+                    for queued in self.run_queue:
+                        pending = getattr(queued, "_guest_initialization", None)
+                        if pending is not None and pending[3] == pid:
+                            pending[0]._initialization.pop(pid, None)
+                    self.run_queue[:] = [
+                        queued
+                        for queued in self.run_queue
+                        if getattr(queued, "_guest_initialization", (None, None, None, None))[3] != pid
+                    ]
+                    self.on_emu_complete()
+                    return None
+                # Keep mapped exports alive for already bound IAT slots, while
+                # recording failure rather than claiming successful attachment.
+                module._initialization[pid] = "failed"
                 self.run_queue[:] = [
                     queued
                     for queued in self.run_queue
-                    if getattr(queued, "_guest_initialization", (None, None, None, None))[3] != pid
+                    if not (
+                        (pending := getattr(queued, "_guest_initialization", None)) is not None
+                        and pending[0] is module
+                        and pending[3] == pid
+                    )
                 ]
-                self.on_emu_complete()
-                return None
-            if last:
+            elif last:
                 module._initialization[pid] = "ready"
         try:
             run = self.run_queue.pop(0)
@@ -658,11 +703,19 @@ class WindowsEmulator(BinaryEmulator):
         started = time.monotonic()
         spent = self.curr_run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
+        deadline_kind = "timeout"
+        total_budget = getattr(self, "_execution_budget", None)
+        if total_budget is not None and total_budget.limit > 0:
+            total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
+            if deadline is None or total_deadline < deadline:
+                deadline = total_deadline
+                deadline_kind = "max_total_time"
         budget = self.config.max_instructions if debugger is not None else count
         used = getattr(self.curr_run, "_budget_instructions", 0)
         remaining = [max(budget - used, 0) if budget > 0 else -1]
         limit = [False]
         origin_run = self.curr_run
+        last_owned_pc = address
         hook = None
 
         def recover_execution():
@@ -674,6 +727,11 @@ class WindowsEmulator(BinaryEmulator):
         def stop_limit(kind):
             if self._pending_api_entry is not None:
                 self.set_pc(self._pending_api_entry.address)
+            if kind == "max_total_time":
+                total_budget.exhausted = True
+                self._cancel_execution_runs()
+                if self.curr_run is origin_run:
+                    origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
             elif self.curr_run is origin_run:
@@ -705,6 +763,9 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_control:
                     if debugger is not None and debugger.has_pending_stop():
                         return
+                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                        stop_limit("max_total_time")
+                        return
                     control, self._pending_control = self._pending_control, None
                     if control in ("run_return", "fault_return"):
                         self.on_run_complete()
@@ -717,7 +778,7 @@ class WindowsEmulator(BinaryEmulator):
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
                 if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit("timeout")
+                    stop_limit(deadline_kind)
                     return
                 if limit[0] or (budget > 0 and remaining[0] <= 0):
                     stop_limit("max_instructions")
@@ -735,7 +796,9 @@ class WindowsEmulator(BinaryEmulator):
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:
                             return
-                        if self._pending_control == "exec_recovery" and exc.errno == uc.UC_ERR_FETCH_PROT:
+                        if self._pending_trap_fault is not None:
+                            pass
+                        elif self._pending_control == "exec_recovery" and exc.errno == uc.UC_ERR_FETCH_PROT:
                             pass
                         elif self._pending_control == "fault_return":
                             pass
@@ -743,6 +806,16 @@ class WindowsEmulator(BinaryEmulator):
                             self._pending_api_entry is None and not self._pending_control
                         ):
                             raise
+                    if self.curr_run is origin_run:
+                        last_owned_pc = self.get_pc()
+                    if self._pending_trap_fault is not None:
+                        self._dispatch_trap_fault()
+                        address = self.get_pc()
+                        if self._pending_fault_stop is not None:
+                            return
+                        if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                            return
+                        continue
                     if self._pending_api_entry is None:
                         candidate = self.api_registry.traps.get(self.get_pc())
                         if candidate is not None:
@@ -757,6 +830,9 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and debugger.has_pending_stop():
                     return
                 if self._pending_control:
+                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                        stop_limit("max_total_time")
+                        return
                     control, self._pending_control = self._pending_control, None
                     if control in ("run_return", "fault_return"):
                         self.on_run_complete()
@@ -770,7 +846,7 @@ class WindowsEmulator(BinaryEmulator):
                         return
                     continue
                 if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit("timeout")
+                    stop_limit(deadline_kind)
                     return
                 if budget > 0 and remaining[0] <= 0:
                     stop_limit("max_instructions")
@@ -794,10 +870,14 @@ class WindowsEmulator(BinaryEmulator):
                 self._pending_api_entry = None
                 self._pending_api_snapshot = None
                 self.prev_pc = entry.address
+                last_owned_pc = entry.address
                 self.handle_import_func(entry.dll, entry.name)
                 if self._pending_fault_stop is not None:
                     return
                 if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
+                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                        stop_limit("max_total_time")
+                        return
                     self.on_run_complete()
                 address = self.get_pc()
                 if self.curr_run is not origin_run:
@@ -805,7 +885,29 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and (debugger.has_pending_stop() or count == 1):
                     return
         finally:
-            origin_run.execution_elapsed = spent + time.monotonic() - started
+            elapsed = time.monotonic() - started
+            origin_run.execution_elapsed = spent + elapsed
+            if total_budget is not None:
+                total_budget.elapsed += elapsed
+                if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
+                    total_budget.exhausted = True
+                    self._cancel_execution_runs()
+                    if origin_run.error is None:
+                        origin_run.error = ErrorInfo(
+                            type="max_total_time", pc=self.get_pc() if self.curr_run is origin_run else last_owned_pc
+                        )
+                    # Completing a run may already have prepared the next one.
+                    # It did not execute and must not appear as a started run.
+                    prepared = self.curr_run
+                    if prepared is not origin_run:
+                        self._cancel_execution_runs(prepared)
+                    if prepared is not origin_run and prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
+                        self.runs[:] = [run for run in self.runs if run is not prepared]
+                        if self.profiler:
+                            self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
+                        self.curr_run = origin_run
+                    if debugger is not None:
+                        debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             for module in self._failed_guest_modules:
                 self._discard_loaded_module(module)
             self._failed_guest_modules.clear()
@@ -814,14 +916,34 @@ class WindowsEmulator(BinaryEmulator):
                     self.emu_eng.hook_remove(hook.handle)
                 self.hooks[common.HOOK_CODE].remove(hook)
 
+    def _cancel_execution_runs(self, prepared=None):
+        """Cancel unexecuted work without leaving DLL attachments initializing."""
+        canceled = [*self.run_queue, *self.suspended_runs]
+        if prepared is not None:
+            canceled.append(prepared)
+        for run in canceled:
+            stage = getattr(run, "_guest_initialization", None)
+            if stage is not None:
+                module, _last, _is_dll, pid = stage
+                if module._initialization.get(pid) == "initializing":
+                    module._initialization.pop(pid, None)
+        self.run_queue.clear()
+        self.suspended_runs.clear()
+
     def resume(self, addr, count=-1):
         timeout = self.config.timeout
         self._run_api_engine(addr, timeout=timeout, count=count)
 
+    @execution_scope
     def start(self, addr=None, size=None):
         """
         Begin emulation executing each run in the specified run queue
         """
+        total_budget = self._execution_budget
+        assert total_budget is not None
+        if total_budget.exhausted:
+            self._cancel_execution_runs()
+            return
         if not self.kernel_mode and self.run_queue:
             initializers = self._collect_guest_initializers()
             queued = []
@@ -900,6 +1022,13 @@ class WindowsEmulator(BinaryEmulator):
                 executing_run = self.curr_run
                 if should_execute:
                     self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count, debugger=debugger)
+                total_budget = getattr(self, "_execution_budget", None)
+                if debugger is None and total_budget is not None and total_budget.exhausted:
+                    self._cancel_execution_runs()
+                    if not self.run_complete:
+                        self.on_run_complete()
+                    self.on_emu_complete()
+                    break
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
                     fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
@@ -908,13 +1037,21 @@ class WindowsEmulator(BinaryEmulator):
                         terminal_signal = fault_stop.signal
                     if stop_reason is not None:
                         debug_action = debugger.command_loop(stop_reason)
-                        if debug_action.kill:
+                        if debug_action.kill and not (total_budget is not None and total_budget.exhausted):
                             return True
                         if debug_action.detach:
                             debugger.close()
                             debugger = None
                             self._stop_on_faults = False
                             timeout = self.config.timeout
+                        if total_budget is not None and total_budget.exhausted:
+                            self._cancel_execution_runs()
+                            if not self.run_complete:
+                                self.on_run_complete()
+                            if debugger is not None and not debug_action.kill:
+                                debugger.notify_exit(0)
+                            self.on_emu_complete()
+                            return True
                         if fault_stop is not None and not self.on_run_complete():
                             break
                         if debugger is None:
@@ -1233,14 +1370,19 @@ class WindowsEmulator(BinaryEmulator):
         """Bind imports of an injected mapped PE using the public API registry.
 
         Validate every RVA against SizeOfImage and bound both table walks.
-        Stage IAT writes until all imports validate; restore attempted writes
-        on a commit fault and publish bindings only after a successful commit.
+        Stage valid IAT writes independently by default; strict PE parsing
+        requires every import to validate. Restore attempted writes on a commit
+        fault and publish bindings only after a successful commit.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
         """
         import struct
 
+        import pefile
+
         ptr_size = self.get_ptr_size()
+        strict = self.config.modules.strict_pe_parsing
+        import_errors = (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError)
         try:
             dos = self.mem_read(base_addr, 0x40)
             if dos[:2] != b"MZ":
@@ -1263,40 +1405,80 @@ class WindowsEmulator(BinaryEmulator):
             if struct.unpack_from("<I", opt, directory_offset - 4)[0] < 2:
                 return
             import_rva, import_size = struct.unpack_from("<II", opt, directory_offset + 8)
-            if not import_rva or not import_size or import_rva + import_size > image_size:
+            if not import_rva and not import_size:
                 return
+            if not import_rva or not import_size or import_rva + import_size > image_size:
+                raise ValueError("import directory outside image")
 
             def read_rva(rva, size):
                 if rva < 0 or size < 0 or rva + size > image_size:
                     raise ValueError("import RVA outside image")
                 return self.mem_read(base_addr + rva, size)
 
-            def read_name(rva):
+            def read_name(rva, *, dll=False):
                 # Bounded byte reads also support names ending at a page boundary.
+                if not 0 <= rva < image_size:
+                    raise ValueError("import name RVA outside image")
                 value = bytearray()
                 for offset in range(min(4096, image_size - rva)):
                     byte = read_rva(rva + offset, 1)
                     if byte == b"\x00":
+                        if not value:
+                            raise ValueError("invalid import name")
+                        if dll:
+                            ascii_name = bytes(byte if byte < 128 else ord("x") for byte in value)
+                            if not pefile.is_valid_dos_filename(ascii_name):
+                                raise ValueError("invalid import DLL name")
+                            try:
+                                return value.decode("ascii")
+                            except UnicodeError:
+                                if strict:
+                                    raise
+                                name = value.decode("latin-1")
+                                logger.warning("non-ASCII injected import DLL name decoded as Latin-1: %r", name)
+                                return name
+                        if not pefile.is_valid_function_name(bytes(value)):
+                            raise ValueError("invalid import function name")
                         return value.decode("ascii")
                     value.extend(byte)
                 raise ValueError("unterminated import name")
 
             pending = []
             for index in range(min(import_size // 20, 4096)):
-                descriptor = read_rva(import_rva + index * 20, 20)
+                try:
+                    descriptor = read_rva(import_rva + index * 20, 20)
+                except import_errors as error:
+                    if strict:
+                        raise
+                    logger.warning("unreadable injected PE import descriptor at %#x: %s", base_addr, error)
+                    break
                 if descriptor == b"\x00" * 20:
                     break
                 ilt_rva, _, _, name_rva, iat_rva = struct.unpack("<5I", descriptor)
-                if not name_rva or not iat_rva:
-                    raise ValueError("incomplete import descriptor")
-                dll_name = read_name(name_rva)
+                try:
+                    if not name_rva or not iat_rva:
+                        raise ValueError("incomplete import descriptor")
+                    dll_name = read_name(name_rva, dll=True)
+                except import_errors as error:
+                    if strict:
+                        raise
+                    logger.warning("skipping injected PE import descriptor %s at %#x: %s", index, base_addr, error)
+                    continue
                 thunk_rva = ilt_rva or iat_rva
                 for offset in range(min(image_size // ptr_size, 65536)):
                     iat = iat_rva + offset * ptr_size
-                    thunk = int.from_bytes(read_rva(thunk_rva + offset * ptr_size, ptr_size), "little")
-                    if not thunk:
+                    try:
+                        thunk = int.from_bytes(read_rva(thunk_rva + offset * ptr_size, ptr_size), "little")
+                        if not thunk:
+                            break
+                        current = int.from_bytes(read_rva(iat, ptr_size), "little")
+                    except import_errors as error:
+                        if strict:
+                            raise
+                        # Without readable slots, the remainder of this table
+                        # cannot be walked safely; other descriptors are independent.
+                        logger.warning("skipping injected PE import table %s at %#x: %s", dll_name, base_addr, error)
                         break
-                    current = int.from_bytes(read_rva(iat, ptr_size), "little")
                     if self._import_bindings.get(base_addr + iat) == current:
                         continue
                     if base_addr + iat in self._import_bindings and (not ilt_rva or current != thunk):
@@ -1306,18 +1488,32 @@ class WindowsEmulator(BinaryEmulator):
                     if not ilt_rva and not thunk & (1 << (ptr_size * 8 - 1)) and thunk >= image_size:
                         # Already bound externally, with no surviving name table.
                         continue
-                    if thunk & (1 << (ptr_size * 8 - 1)):
-                        reference = f"ordinal_{thunk & 0xFFFF}"
-                    else:
-                        reference = read_name(thunk + 2)
-                    address = self.get_proc(dll_name, reference)
-                    if not address:
-                        raise WindowsEmuError(f"unresolved import {dll_name}!{reference}")
+                    try:
+                        if thunk & (1 << (ptr_size * 8 - 1)):
+                            if thunk & ~((1 << (ptr_size * 8 - 1)) | 0xFFFF):
+                                raise ValueError("reserved bits in ordinal import")
+                            reference = f"ordinal_{thunk & 0xFFFF}"
+                        else:
+                            reference = read_name(thunk + 2)
+                        address = self.get_proc(dll_name, reference)
+                        if not address:
+                            raise WindowsEmuError(f"unresolved import {dll_name}!{reference}")
+                        if not 0 <= address < 1 << (ptr_size * 8):
+                            raise ValueError("import address does not fit pointer size")
+                    except import_errors as error:
+                        if strict:
+                            raise
+                        logger.warning("skipping injected PE import slot at %#x: %s", base_addr + iat, error)
+                        continue
                     pending.append((base_addr + iat, current.to_bytes(ptr_size, "little"), address))
                 else:
-                    raise ValueError("unterminated import thunk table")
+                    if strict:
+                        raise ValueError("unterminated import thunk table")
+                    logger.warning("unterminated injected PE import thunk table at %#x", base_addr)
             else:
-                raise ValueError("unterminated import descriptor table")
+                if strict:
+                    raise ValueError("unterminated import descriptor table")
+                logger.warning("unterminated injected PE import descriptor table at %#x", base_addr)
 
             attempted = []
             try:
@@ -1332,11 +1528,11 @@ class WindowsEmulator(BinaryEmulator):
                         self.mem_write(iat, original)
                     except Exception:
                         logger.exception("failed to restore injected PE IAT slot at %#x", iat)
-                logger.debug("failed to commit injected PE import table at %#x", base_addr, exc_info=True)
+                logger.warning("failed to commit injected PE import table at %#x", base_addr, exc_info=True)
                 return
             self._import_bindings.update((iat, address) for iat, _, address in pending)
-        except (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError):
-            logger.debug("invalid injected PE import table at %#x", base_addr, exc_info=True)
+        except import_errors:
+            logger.warning("invalid injected PE import table at %#x", base_addr, exc_info=True)
 
     def get_mod_by_name(self, name):
         name_lower = name.lower()
@@ -1551,10 +1747,19 @@ class WindowsEmulator(BinaryEmulator):
 
         ptr_size = self.get_ptr_size()
         for imp in image.imports:
-            address = self.get_proc(imp.dll_name, imp.func_name)
-            if not address:
-                raise WindowsEmuError(f"unresolved import {imp.dll_name}!{imp.func_name}")
-            self.mem_write(imp.iat_address, address.to_bytes(ptr_size, "little"))
+            try:
+                if not mod.base <= imp.iat_address <= mod.base + mod.image_size - ptr_size:
+                    raise WindowsEmuError("import IAT slot outside image")
+                address = self.get_proc(imp.dll_name, imp.func_name)
+                if not address:
+                    raise WindowsEmuError(f"unresolved import {imp.dll_name}!{imp.func_name}")
+                encoded = address.to_bytes(ptr_size, "little")
+            except (ValueError, OverflowError, uc.UcError, WindowsEmuError) as error:
+                if self.config.modules.strict_pe_parsing:
+                    raise
+                logger.warning("skipping import %s!%s in %s: %s", imp.dll_name, imp.func_name, image.name, error)
+                continue
+            self.mem_write(imp.iat_address, encoded)
             self._import_bindings[imp.iat_address] = address
 
         for entry in tuple(self.api_registry.entries.values()):
@@ -1578,7 +1783,12 @@ class WindowsEmulator(BinaryEmulator):
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
                 self.mem_protect(start, length, perms)
 
-        if is_guest and self.profiler and self.config.analysis.strings and image.regions:
+        if (
+            (is_guest or image.source == "guest_shellcode")
+            and self.profiler
+            and self.config.analysis.strings
+            and image.regions
+        ):
             raw = image.regions[0].data
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
@@ -1898,9 +2108,30 @@ class WindowsEmulator(BinaryEmulator):
                 return True
         if self.api_registry.overlaps_traps(address, size):
             # No fake-page recovery may ever materialize the private reservation.
+            kind = {
+                common.INVALID_MEM_READ: "read",
+                common.INVALID_MEM_WRITE: "write",
+                common.INVALID_MEM_EXEC: "fetch",
+            }.get(self.emu_eng.mem_access.get(access), "read")
+            self._pending_trap_fault = (kind, address)
             self.emu_eng.stop()
             return True
         return False
+
+    def _dispatch_trap_fault(self):
+        """Deliver private-reservation faults after native execution unwinds.
+
+        Unlike ordinary recovery, this path must not map a temporary page at
+        the target. Guest SEH may redirect execution or repair its registers.
+        """
+        kind, address = self._pending_trap_fault
+        self._pending_trap_fault = None
+        self.prev_pc = self.get_pc()
+        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address):
+            self.enable_code_hook()
+            return
+        self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
+        self.end_run_on_fault()
 
     def _api_call_snapshot(self, entry):
         sp = self.get_stack_ptr()
@@ -3467,6 +3698,8 @@ class WindowsEmulator(BinaryEmulator):
 
     def _map_faulting_page_for_exception(self, faulting_address):
         fakeout = faulting_address & 0xFFFFFFFFFFFFF000
+        if self.api_registry.overlaps_traps(fakeout, self.page_size):
+            return
         for base, end, _ in self.get_mem_regions():
             if base <= fakeout <= end:
                 return
