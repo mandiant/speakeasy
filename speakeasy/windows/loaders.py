@@ -286,6 +286,80 @@ class PeLoader:
             raise ValueError("Invalid imported DLL name")
         return dll
 
+    def _static_import_slots(self, pe: Any, entry: Any, parsed: Any, budget: list[int]):
+        """Retain raw thunk positions when pefile filters malformed names."""
+        from types import SimpleNamespace
+
+        import pefile
+
+        width = pe.arch // 8
+        table_rva = entry.struct.OriginalFirstThunk or entry.struct.FirstThunk
+        if table_rva != entry.struct.FirstThunk:
+            # pefile falls back to the IAT when the preferred table is empty
+            # or unreadable. Static symbol addresses track relocation; validate
+            # their slot offsets before using thunk_rva as table-choice evidence.
+            for symbol in parsed:
+                address = getattr(symbol, "address", None)
+                thunk_rva = getattr(symbol, "thunk_rva", None)
+                if address is None or thunk_rva is None:
+                    continue
+                offset = address - pe.base - entry.struct.FirstThunk
+                if (
+                    offset >= 0
+                    and offset % width == 0
+                    and 0 < entry.struct.FirstThunk <= pe.image_size - width - offset
+                    and thunk_rva == entry.struct.FirstThunk + offset
+                ):
+                    table_rva = entry.struct.FirstThunk
+                    break
+        symbols = {symbol.thunk_rva: symbol for symbol in parsed if getattr(symbol, "thunk_rva", None) is not None}
+        index = 0
+        while True:
+            thunk_rva = table_rva + index * width
+            try:
+                if not table_rva or not 0 <= thunk_rva <= pe.image_size - width:
+                    raise ValueError("Import name table lies outside the image")
+                raw = pe.get_data(thunk_rva, width)
+                if len(raw) != width:
+                    raise ValueError("Truncated import name table")
+                value = int.from_bytes(raw, "little")
+            except (ValueError, pefile.PEFormatError) as error:
+                self._optional_error("static import name table", error)
+                return
+            if not value:
+                return
+            # Allow a terminator after exhaustion, but stop on the first
+            # further nonzero thunk: at most one lookahead per descriptor.
+            if not budget[0]:
+                self._optional_error("static import name table", ValueError("Import symbol limit exceeded"))
+                return
+            budget[0] -= 1
+            slot_rva = entry.struct.FirstThunk + index * width
+            index += 1
+            ordinal_flag = 1 << (pe.arch - 1)
+            ordinal = bool(value & ordinal_flag)
+            if ordinal and value & ~(ordinal_flag | 0xFFFF):
+                self._optional_error("static import entry", ValueError("Invalid ordinal import reserved bits"))
+                continue
+            symbol = symbols.get(thunk_rva)
+            if symbol is None:
+                # Recover metadata only; never rewrite guest thunks or IAT bytes.
+                name = None
+                if not ordinal:
+                    try:
+                        if not 0 < value <= pe.image_size - 3:
+                            raise ValueError("Import function name lies outside the image")
+                        raw = pe.get_data(value + 2, min(pefile.MAX_IMPORT_NAME_LENGTH, pe.image_size - value - 2))
+                        terminator = raw.find(b"\0")
+                        if terminator < 0:
+                            raise ValueError("Unterminated imported function name")
+                        name = raw[:terminator]
+                    except (ValueError, pefile.PEFormatError) as error:
+                        self._optional_error("static import entry", error)
+                        continue
+                symbol = SimpleNamespace(import_by_ordinal=ordinal, ordinal=value & 0xFFFF, name=name)
+            yield slot_rva, symbol
+
     def make_image(self) -> LoadedImage:
         import pefile
 
@@ -364,7 +438,27 @@ class PeLoader:
         # Eager delay binding uses exactly the same inventory as ordinary imports.
         # pefile normalizes legacy x86 VA-based delay descriptors to RVAs, but
         # does not relocate delay symbol.address when the image is rebased.
-        for entries, source in ((getattr(pe, "DIRECTORY_ENTRY_IMPORT", ()), "static"), (parsed_delay, "delay")):
+        parsed_static = {
+            entry.struct.get_file_offset(): entry.imports for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", ())
+        }
+        static_entries = ()
+        if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > 1:
+            directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[1]
+            if directory.VirtualAddress:
+                # The names-only pass retains descriptors whose entire symbol
+                # inventory was discarded by pefile's permissive parser.
+                try:
+                    static_entries = (
+                        pe.parse_import_directory(directory.VirtualAddress, directory.Size, dllnames_only=True) or ()
+                    )
+                except pefile.PEFormatError as error:
+                    self._optional_error("static import directory", error)
+        # pefile's > MAX_IMPORT_SYMBOLS guard can retain MAX + 1 symbols.
+        # Preserve that surface with a shared nonzero-slot cap, including
+        # malformed entries. Terminators do not consume it. This bounds our
+        # single-table walk without duplicating pefile's ILT/IAT read counter.
+        static_budget = [pefile.MAX_IMPORT_SYMBOLS + 1]
+        for entries, source in ((static_entries, "static"), (parsed_delay, "delay")):
             for entry in entries:
                 try:
                     dll = self._import_dll_name(pe, entry, source)
@@ -379,9 +473,14 @@ class PeLoader:
                 except ValueError as error:
                     self._optional_error(f"{source} import descriptor", error)
                     continue
-                for index, imp in enumerate(entry.imports):
+                if source == "static":
+                    slots = self._static_import_slots(
+                        pe, entry, parsed_static.get(entry.struct.get_file_offset(), ()), static_budget
+                    )
+                else:
+                    slots = ((iat_rva + index * ptr_size, imp) for index, imp in enumerate(entry.imports))
+                for slot_rva, imp in slots:
                     try:
-                        slot_rva = iat_rva + index * ptr_size
                         if iat_rva == 0 or not 0 <= slot_rva <= pe.image_size - ptr_size:
                             raise ValueError("Import IAT slot lies outside the image")
                         if imp.import_by_ordinal:
@@ -390,6 +489,8 @@ class PeLoader:
                             if not imp.name:
                                 raise ValueError("Missing imported function name")
                             func_name = imp.name.decode("ascii")
+                            if not pefile.is_valid_function_name(imp.name):
+                                raise ValueError("Invalid imported function name")
                         imports.append(ImportEntry(base + slot_rva, dll, func_name, source))
                     except ValueError as error:
                         self._optional_error(f"{source} import entry", error)
@@ -662,13 +763,22 @@ class ApiModuleLoader:
             for name in handler.data if handler is self._api else ():
                 if isinstance(name, str):
                     specs[name] = ApiExportSpec(name, kind="data")
+        image_name = self._name
+        try:
+            image_name.encode("ascii")
+        except UnicodeEncodeError:
+            # The PE export-directory label need not be the loaded filename.
+            # Keep that label ASCII while retaining the actual Unicode module
+            # identity in the registry, loader lists and emulated path.
+            image_name = "speakeasy"
         image = build_api_image(
-            name=self._name,
+            name=image_name,
             arch=self._arch,
             base=self._base,
             emu_path=self._emu_path,
             exports=list(specs.values()) + list(ordinal_only.values()),
         )
+        image.name = self._name
         image.loader = self
         return image
 
