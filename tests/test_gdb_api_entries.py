@@ -190,7 +190,7 @@ _SERVER_SCRIPT = textwrap.dedent(r"""
             "return_value": emu.get_return_val(), "sp": emu.get_stack_ptr(),
             "budget_instructions": getattr(emu.curr_run, "_budget_instructions", 0),
             "instructions": emu.curr_run.instr_cnt,
-            "execution_elapsed": getattr(emu, "_execution_elapsed", 0),
+            "execution_elapsed": emu.curr_run.execution_elapsed,
             "callbacks_pending": len(emu.curr_run.api_callbacks),
             "error_type": emu.curr_run.error.type if emu.curr_run.error else None,
         }))
@@ -296,6 +296,12 @@ def interrupt_api_target(request, tmp_path, config):
 
 @pytest.fixture(params=["x86", "x64"])
 def budget_api_target(request, tmp_path, config):
+    yield from _api_target(request, tmp_path, config, "budget")
+
+
+@pytest.fixture(params=["x86", "x64"])
+def traced_budget_api_target(request, tmp_path, config):
+    config["analysis"]["memory_tracing"] = True
     yield from _api_target(request, tmp_path, config, "budget")
 
 
@@ -554,6 +560,24 @@ def test_gdb_instruction_budget_counts_execution_across_api_breakpoints(budget_a
     assert client.continue_().startswith("T05")
     assert target.registers()[0:2] == (entry, initial_sp - target.ptr_size)
     assert target.counter() == 3
+    report = _kill_limited_target(target)
+    assert report["budget_instructions"] == report["instructions"] == 17
+    assert report["counter"] == len(report["calls"]) == 3
+
+
+@pytest.mark.parametrize("step", [False, True])
+def test_gdb_tracing_stops_at_instruction_budget(traced_budget_api_target, step):
+    target = traced_budget_api_target
+    client = target.client
+    _, initial_sp, _ = target.registers()
+    for _ in range(17 if step else 1):
+        stop = client.step() if step else client.continue_()
+        assert stop.startswith("T05"), (stop, target.registers())
+    assert target.registers()[0:2] == (target.metadata["entry"], initial_sp - target.ptr_size)
+    assert target.counter() == 3
+    # Neither resuming nor stepping an exhausted cap may reach tracing again.
+    assert client.continue_().startswith("T05")
+    assert client.step().startswith("T05")
     report = _kill_limited_target(target)
     assert report["budget_instructions"] == report["instructions"] == 17
     assert report["counter"] == len(report["calls"]) == 3

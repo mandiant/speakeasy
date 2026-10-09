@@ -147,6 +147,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_api_entry = None
         self._pending_api_snapshot = None
         self._pending_control = None
+        self._pending_exec_recovery: tuple[int, int] | None = None
         self._guest_dependencies = []
         self._failed_guest_modules = []
         self._shared_peb_modules = set()
@@ -457,6 +458,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.api_callbacks.clear()
         self._pending_api_entry = None
         self._pending_control = None
+        self._pending_exec_recovery = None
         stage = getattr(self.curr_run, "_guest_initialization", None)
         if stage is not None:
             module, last, is_dll, pid = stage
@@ -640,14 +642,19 @@ class WindowsEmulator(BinaryEmulator):
             self._pending_api_entry = None
             address = pending.address
             self.set_pc(address)
-        if self._pending_control and address not in (
-            winemu.API_CALLBACK_HANDLER_ADDR,
-            self.return_hook,
-            self.exit_hook,
+        if (
+            self._pending_control
+            and self._pending_control != "exec_recovery"
+            and address
+            not in (
+                winemu.API_CALLBACK_HANDLER_ADDR,
+                self.return_hook,
+                self.exit_hook,
+            )
         ):
             self._pending_control = None
         started = time.monotonic()
-        spent = getattr(self, "_execution_elapsed", 0.0)
+        spent = self.curr_run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
         budget = self.config.max_instructions if debugger is not None else count
         used = getattr(self.curr_run, "_budget_instructions", 0)
@@ -655,6 +662,12 @@ class WindowsEmulator(BinaryEmulator):
         limit = [False]
         origin_run = self.curr_run
         hook = None
+
+        def recover_execution():
+            assert self._pending_exec_recovery is not None
+            page, perms = self._pending_exec_recovery
+            self._pending_exec_recovery = None
+            self.mem_protect(page, self.page_size, perms)
 
         def stop_limit(kind):
             if self._pending_api_entry is not None:
@@ -694,7 +707,10 @@ class WindowsEmulator(BinaryEmulator):
                     if control in ("run_return", "fault_return"):
                         self.on_run_complete()
                         return
-                    self._continue_api_callback()
+                    if control == "exec_recovery":
+                        recover_execution()
+                    else:
+                        self._continue_api_callback()
                     address = self.get_pc()
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
@@ -707,14 +723,19 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_api_entry is None and not self._pending_control:
                     try:
                         native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
-                        # Native step count belongs to one debugger action. Other
-                        # budgets are carried by the accounting hook across yields.
-                        native_count = 1 if debugger is not None and count == 1 else 0
+                        # Native count is a ceiling for this invocation, preventing
+                        # tracing hooks from seeing an instruction beyond the cap.
+                        # The hook carries exact consumption across private yields.
+                        native_count = remaining[0] if budget > 0 else 0
+                        if debugger is not None and count == 1:
+                            native_count = min(native_count, 1) if native_count else 1
                         self.emu_eng.start(address, timeout=native_timeout, count=native_count)
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:
                             return
-                        if self._pending_control == "fault_return":
+                        if self._pending_control == "exec_recovery" and exc.errno == uc.UC_ERR_FETCH_PROT:
+                            pass
+                        elif self._pending_control == "fault_return":
                             pass
                         elif exc.errno != uc.UC_ERR_FETCH_UNMAPPED or (
                             self._pending_api_entry is None and not self._pending_control
@@ -738,7 +759,10 @@ class WindowsEmulator(BinaryEmulator):
                     if control in ("run_return", "fault_return"):
                         self.on_run_complete()
                         return
-                    self._continue_api_callback()
+                    if control == "exec_recovery":
+                        recover_execution()
+                    else:
+                        self._continue_api_callback()
                     address = self.get_pc()
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
@@ -760,6 +784,7 @@ class WindowsEmulator(BinaryEmulator):
                         not attrs
                         and not self.get_api_hooks(entry.dll, entry.name)
                         and not self.lookup_api_signature(entry.dll, entry.name)
+                        and not self._can_stub_unknown_api(entry.dll, entry.name)
                     ):
                         self.set_pc(entry.address)
                         debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
@@ -768,6 +793,8 @@ class WindowsEmulator(BinaryEmulator):
                 self._pending_api_snapshot = None
                 self.prev_pc = entry.address
                 self.handle_import_func(entry.dll, entry.name)
+                if self._pending_fault_stop is not None:
+                    return
                 if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
                     self.on_run_complete()
                 address = self.get_pc()
@@ -776,7 +803,7 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and (debugger.has_pending_stop() or count == 1):
                     return
         finally:
-            self._execution_elapsed = spent + time.monotonic() - started
+            origin_run.execution_elapsed = spent + time.monotonic() - started
             for module in self._failed_guest_modules:
                 self._discard_loaded_module(module)
             self._failed_guest_modules.clear()
@@ -891,9 +918,6 @@ class WindowsEmulator(BinaryEmulator):
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
-                if self.profiler and timeout > 0:
-                    if self.profiler.get_run_time() > timeout:
-                        logger.error("* Timeout of %d sec(s) reached.", timeout)
                 if self.curr_run is not executing_run and not self.emu_complete:
                     continue
             except KeyboardInterrupt:
@@ -932,9 +956,6 @@ class WindowsEmulator(BinaryEmulator):
 
                 run = self.on_run_complete()
                 if not run:
-                    break
-                if self.profiler and timeout > 0 and self.profiler.get_run_time() > timeout:
-                    logger.error("* Timeout of %d sec(s) reached.", timeout)
                     break
                 continue
             break
@@ -2155,12 +2176,8 @@ class WindowsEmulator(BinaryEmulator):
                     matches.append(hook)
         return sorted(matches, key=lambda hook: (hook.api_name not in exact_names, hook.registration_sequence))
 
-    def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """
-        Find a usable signature for an import that has no speakeasy handler.
-        Returns None when the function is unknown or its declaration is marked
-        as unsupported.
-        """
+    def _lookup_api_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
+        """Find the authoritative declaration without choosing an execution ABI."""
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         try:
@@ -2169,12 +2186,25 @@ class WindowsEmulator(BinaryEmulator):
                 alt_dll = winemu.normalize_dll_name(dll)
                 if alt_dll.lower() != dll.lower():
                     sig = db.lookup_exact(alt_dll, name, arch)
-            if sig is not None and not sig.supports_emulation(4 if arch == sigdb.ARCH_X86 else 8):
-                logger.debug("signature for %s.%s cannot be emulated safely", dll, name)
-                return None
         except Exception as exc:
             raise WindowsEmuError(f"signature provider failed for {dll}!{name}: {exc}") from exc
         return sig
+
+    def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
+        sig = self._lookup_api_declaration(dll, name)
+        if sig is not None and not sig.supports_emulation(self.get_ptr_size()):
+            logger.debug("signature for %s.%s cannot be emulated safely", dll, name)
+            return None
+        return sig
+
+    def _can_stub_unknown_api(self, dll: str, name: str) -> bool:
+        # Win64 caller cleanup permits an argument-opaque scalar stub. A known
+        # unsupported declaration is not unknown and still requires a handler.
+        return (
+            self.get_ptr_size() == 8
+            and self.config.modules.functions_always_exist
+            and self._lookup_api_declaration(dll, name) is None
+        )
 
     def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
@@ -2323,8 +2353,24 @@ class WindowsEmulator(BinaryEmulator):
         frame = ApiCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
         previous = getattr(self, "_active_api_frame", None)
         self._active_api_frame = frame
+        origin_run = self.curr_run
+        entry_pc = self.get_pc()
         try:
-            return self._dispatch_import_func(dll, name)
+            result = self._dispatch_import_func(dll, name)
+            if (
+                self.curr_run is origin_run
+                and not self.run_complete
+                and not self.emu_complete
+                and self.get_pc() == entry_pc
+                and self.get_stack_ptr() != frame.stack_pointer
+                and not self._pending_control
+                and not origin_run.api_callbacks
+            ):
+                origin_run.error = self.get_error_info("api_handler_did_not_return", entry_pc)
+                origin_run.error.api_name = f"{dll}.{name}"
+                logger.error("API handler %s.%s changed SP without returning", dll, name)
+                self.end_run_on_fault()
+            return result
         finally:
             self._active_api_frame = previous
 
@@ -2457,6 +2503,13 @@ class WindowsEmulator(BinaryEmulator):
             sig = self.lookup_api_signature(dll, name)
             if sig is not None:
                 self.emulate_api_from_signature(dll, name, sig, call_pc)
+            elif self._can_stub_unknown_api(dll, name):
+                logger.warning("Stubbed unknown Win64 API %s with scalar return 1", imp_api)
+                self._active_api_frame.argc = 0
+                self._active_api_frame.convention = _arch.CALL_CONV_STDCALL
+                self._active_api_frame.result = 1
+                self.log_api(call_pc, imp_api, 1, [], run=origin_run)
+                self.do_call_return(0, oret, 1, conv=_arch.CALL_CONV_STDCALL)
             else:
                 error = self.get_error_info("unsupported_api", self.get_pc())
                 logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
@@ -2749,14 +2802,26 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when non-executable code is emulated
         """
-        # Preserve ordinary analysis' legacy recovery for anonymous code,
-        # including empty-stack export invocations. Module/API permissions and
-        # debugger faults are authoritative; no symbol triggers dispatch here.
+        # Ordinary analysis historically recovers execution in non-X guest
+        # sections. Synthetic API protections and debugger stops are always
+        # authoritative; a symbol never causes dispatch from this hook.
+        module = self.get_mod_from_addr(address)
         if (
             not self._stop_on_faults
-            and not self.get_mod_from_addr(address)
+            and not self.config.analysis.enforce_nx
+            and (module is None or module._image.source != "synthetic")
             and not self.api_registry.overlaps_traps(address)
         ):
+            if module is not None and module._image.source == "guest_pe":
+                # Changing protection while Unicorn is handling this fetch can
+                # invalidate its active translation. Apply it after unwinding.
+                native_perms = next(perms for start, end, perms in self.get_mem_regions() if start <= address <= end)
+                perms = next(perms for perms, native in self.emu_eng.perms.items() if native == native_perms)
+                page = address & ~(self.page_size - 1)
+                self._pending_exec_recovery = (page, perms | common.PERM_MEM_EXEC)
+                self._pending_control = "exec_recovery"
+                self.emu_eng.stop()
+                return False
             return True
         error = self.get_error_info("invalid_protect_fetch", address, access_type="fetch")
         self.curr_run.error = error

@@ -106,11 +106,11 @@ def test_nondebug_timeout_reports_completed_handler_and_stops(api_emu, monkeypat
     # Move active time across the deadline during Python dispatch without
     # sleeping or depending on runner speed. Preserve unrelated wall clocks.
     monkeypatch.setattr(winemu, "time", SimpleNamespace(monotonic=lambda: clock[0], time=time.time))
-    emu._execution_elapsed = 0.0
+    origin.execution_elapsed = 0.0
     emu._run_api_engine(caller, timeout=1)
 
     assert hits == ["test_timeout.Tick"]
     assert origin.error.type == "timeout"
     events = [event for event in origin.events if event.event == "api"]
     assert len(events) == 1 and events[0].ret_val == "0x4d"
-    assert emu._execution_elapsed == 2.0
+    assert origin.execution_elapsed == 2.0

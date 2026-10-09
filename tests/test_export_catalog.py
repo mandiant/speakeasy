@@ -272,6 +272,7 @@ class _SignatureProbe:
     """Exercise binding without constructing an emulator or running native code."""
 
     lookup_api_signature = WindowsEmulator.lookup_api_signature
+    _lookup_api_declaration = WindowsEmulator._lookup_api_declaration
 
     def __init__(self, db: sigdb.SignatureDatabase, arch: str) -> None:
         self.db = db
@@ -282,6 +283,9 @@ class _SignatureProbe:
 
     def _get_signature_arch(self) -> str:
         return self.arch
+
+    def get_ptr_size(self) -> int:
+        return 4 if self.arch == "x86" else 8
 
 
 @pytest.mark.parametrize("arch", ["x86", "x64"])

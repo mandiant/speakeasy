@@ -255,6 +255,9 @@ class AnalysisConfig(BaseModel):
     memory_tracing: bool = Field(default=False, description="Enable memory access tracing in reports.")
     strings: bool = Field(default=True, description="Extract strings from input and emulated memory.")
     coverage: bool = Field(default=False, description="Collect executed instruction addresses per run.")
+    enforce_nx: bool = Field(
+        default=False, description="Enforce guest module execute permissions during ordinary analysis."
+    )
 
 
 class ExceptionsConfig(BaseModel):
