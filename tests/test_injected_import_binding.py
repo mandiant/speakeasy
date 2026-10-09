@@ -1,4 +1,4 @@
-"""Import repair of an injected PE binds registry addresses and skips invalid slots."""
+"""Import repair of an injected PE binds registry addresses and follows the PE parsing policy."""
 
 import struct
 
@@ -12,11 +12,17 @@ def api_emu(request):
     return request.getfixturevalue(request.param)
 
 
+def set_strict(emu, strict):
+    emu.config = emu.config.model_copy(
+        update={"modules": emu.config.modules.model_copy(update={"strict_loading": strict})}
+    )
+
+
 def map_injected_pe(emu, names, zero_oft=False, bad_index=None):
     """Map a PE that imports `names` from kernel32 into memory outside the loader.
 
-    The thunk at `bad_index` points past SizeOfImage. Returns the image base
-    and the IAT address.
+    The thunk at `bad_index` points past SizeOfImage. Returns the image base,
+    the IAT address and the original IAT bytes.
     """
     base, _ = emu.get_valid_ranges(0x20000, addr=0x61000000)
     image = build_api_image(name="injected", arch=emu.arch, base=base, emu_path="injected.dll", exports=[])
@@ -41,7 +47,7 @@ def map_injected_pe(emu, names, zero_oft=False, bad_index=None):
     data[iat : iat + len(table)] = table
     assert emu.mem_map(len(data), base=base, tag="test.injected") == base
     emu.mem_write(base, bytes(data))
-    return base, base + iat
+    return base, base + iat, table
 
 
 def read_slots(emu, iat, count):
@@ -51,7 +57,7 @@ def read_slots(emu, iat, count):
 @pytest.mark.parametrize("zero_oft", [False, True])
 def test_injected_import_repair_binds_registry_address_and_keeps_guest_patch(api_emu, zero_oft):
     emu = api_emu.emu
-    base, iat = map_injected_pe(emu, ["GetTickCount"], zero_oft)
+    base, iat, _ = map_injected_pe(emu, ["GetTickCount"], zero_oft)
 
     emu.ensure_pe_import_hooks(base)
     entry = emu.get_proc("kernel32", "GetTickCount")
@@ -66,16 +72,21 @@ def test_injected_import_repair_binds_registry_address_and_keeps_guest_patch(api
     assert read_slots(emu, iat, 1) == [patch]
 
 
-def test_malformed_injected_import_slot_follows_parsing_policy(dll_emu):
+@pytest.mark.parametrize("strict", [False, True])
+def test_malformed_injected_import_slot_follows_parsing_policy(dll_emu, strict):
     emu = dll_emu.emu
+    set_strict(emu, strict)
     names = ["GetTickCount", "GetCurrentProcess", "GetCurrentThread"]
-    base, iat = map_injected_pe(emu, names, bad_index=1)
+    base, iat, original = map_injected_pe(emu, names, bad_index=1)
     thunks = read_slots(emu, iat, 3)
 
     emu.ensure_pe_import_hooks(base)
 
-    assert read_slots(emu, iat, 3) == [
-        emu.get_proc("kernel32", "GetTickCount"),
-        thunks[1],
-        emu.get_proc("kernel32", "GetCurrentThread"),
-    ]
+    if strict:
+        assert emu.mem_read(iat, len(original)) == original
+    else:
+        assert read_slots(emu, iat, 3) == [
+            emu.get_proc("kernel32", "GetTickCount"),
+            thunks[1],
+            emu.get_proc("kernel32", "GetCurrentThread"),
+        ]

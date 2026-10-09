@@ -173,7 +173,7 @@ class Win32Emulator(WindowsEmulator):
 
         self._set_input_metadata(path, data)
 
-        loader = PeLoader(path=path, data=data)
+        loader = PeLoader(path=path, data=data, strict=self.config.modules.strict_loading)
         image = loader.make_image()
         image.name = self.mod_name
         image.emu_path = emu_path

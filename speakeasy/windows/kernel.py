@@ -126,7 +126,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         emu_path = f"{self.get_system_root()}drivers\\{file_name}"
 
-        loader = PeLoader(path=path, data=data)
+        loader = PeLoader(path=path, data=data, strict=self.config.modules.strict_loading)
         image = loader.make_image()
         image.name = mod_name
         image.emu_path = emu_path

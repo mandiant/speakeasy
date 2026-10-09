@@ -122,6 +122,9 @@ def test_public_malformed_optional_pe_inventory_still_executes(malformation, cap
         entry = se.get_report().entry_points[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
         assert caplog.records
+    with Speakeasy(config=configured(**{"modules.strict_loading": True})) as se:
+        with pytest.raises(ValueError):
+            se.load_module(data=data)
 
 
 @pytest.mark.parametrize("oft_zero", [False, True])
@@ -144,6 +147,9 @@ def test_public_filtered_import_does_not_shift_valid_iat_call(oft_zero):
         se.run_module(module)
         entry = se.get_report().entry_points[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
+    with Speakeasy(config=configured(**{"modules.strict_loading": True})) as se:
+        with pytest.raises(ValueError):
+            se.load_module(data=bytes(raw))
 
 
 @pytest.mark.parametrize("architecture", [32, 64])

@@ -3,8 +3,10 @@
 import struct
 
 import pefile
+import pytest
 
 from speakeasy import Speakeasy, common
+from speakeasy.errors import WindowsEmuError
 from speakeasy.windows.api_image import ApiExportSpec, build_api_image
 from speakeasy.windows.loaders import ImportEntry, LoadedImage, MemoryRegion
 from tests.guest_harness import read_pointer
@@ -63,14 +65,16 @@ def make_native_dll(emu, path):
     return exports
 
 
-def native_config(config, tmp_path):
+def native_config(config, tmp_path, strict=False):
     config["modules"]["module_directory_x86"] = str(tmp_path)
     config["modules"]["module_directory_x64"] = str(tmp_path)
+    config["modules"]["strict_loading"] = strict
     return config
 
 
-def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path):
-    se = Speakeasy(config=native_config(config, tmp_path))
+@pytest.mark.parametrize("strict", [False, True], ids=["lenient", "strict"])
+def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path, strict):
+    se = Speakeasy(config=native_config(config, tmp_path, strict))
     try:
         se.load_shellcode(data=b"\xc3", arch="x86")
         exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll")
@@ -93,10 +97,14 @@ def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path):
             entry_points=[],
         )
 
-        se.load_image(image)
-        assert read_pointer(se, base) == exports["GetTickCount"]
-        assert se.mem_read(base + 4, 4) == b"\x41" * 4
-        assert read_pointer(se, base + 8) == exports["Flag"]
+        if strict:
+            with pytest.raises(WindowsEmuError):
+                se.load_image(image)
+        else:
+            se.load_image(image)
+            assert read_pointer(se, base) == exports["GetTickCount"]
+            assert se.mem_read(base + 4, 4) == b"\x41" * 4
+            assert read_pointer(se, base + 8) == exports["Flag"]
         assert "MissingExport" not in {name for _, name in se.get_symbols().values()}
     finally:
         se.shutdown()

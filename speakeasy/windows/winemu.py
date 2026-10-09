@@ -1190,7 +1190,8 @@ class WindowsEmulator(BinaryEmulator):
         """Bind imports of an injected mapped PE using the public API registry.
 
         Validate every RVA against SizeOfImage and bound both table walks.
-        Bind each valid IAT slot independently and skip invalid slots.
+        Stage valid IAT writes independently by default; strict PE parsing
+        requires every import to validate.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
 
@@ -1202,6 +1203,7 @@ class WindowsEmulator(BinaryEmulator):
         import pefile
 
         ptr_size = self.get_ptr_size()
+        strict = self.config.modules.strict_loading
         import_errors = (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError)
         try:
             dos = self.mem_read(base_addr, 0x40)
@@ -1252,6 +1254,8 @@ class WindowsEmulator(BinaryEmulator):
                             try:
                                 return value.decode("ascii")
                             except UnicodeError:
+                                if strict:
+                                    raise
                                 name = value.decode("latin-1")
                                 logger.warning("non-ASCII injected import DLL name decoded as Latin-1: %r", name)
                                 return name
@@ -1266,6 +1270,8 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     descriptor = read_rva(import_rva + index * 20, 20)
                 except import_errors as error:
+                    if strict:
+                        raise
                     logger.warning("unreadable injected PE import descriptor at %#x: %s", base_addr, error)
                     break
                 if descriptor == b"\x00" * 20:
@@ -1276,6 +1282,8 @@ class WindowsEmulator(BinaryEmulator):
                         raise ValueError("incomplete import descriptor")
                     dll_name = read_name(name_rva, dll=True)
                 except import_errors as error:
+                    if strict:
+                        raise
                     logger.warning("skipping injected PE import descriptor %s at %#x: %s", index, base_addr, error)
                     continue
                 thunk_rva = ilt_rva or iat_rva
@@ -1287,6 +1295,8 @@ class WindowsEmulator(BinaryEmulator):
                             break
                         current = int.from_bytes(read_rva(iat, ptr_size), "little")
                     except import_errors as error:
+                        if strict:
+                            raise
                         # Without readable slots, the remainder of this table
                         # cannot be walked safely; other descriptors are independent.
                         logger.warning("skipping injected PE import table %s at %#x: %s", dll_name, base_addr, error)
@@ -1313,12 +1323,18 @@ class WindowsEmulator(BinaryEmulator):
                         if not 0 <= address < 1 << (ptr_size * 8):
                             raise ValueError("import address does not fit pointer size")
                     except import_errors as error:
+                        if strict:
+                            raise
                         logger.warning("skipping injected PE import slot at %#x: %s", base_addr + iat, error)
                         continue
                     pending.append((base_addr + iat, address))
                 else:
+                    if strict:
+                        raise ValueError("unterminated import thunk table")
                     logger.warning("unterminated injected PE import thunk table at %#x", base_addr)
             else:
+                if strict:
+                    raise ValueError("unterminated import descriptor table")
                 logger.warning("unterminated injected PE import descriptor table at %#x", base_addr)
 
             for iat, address in pending:
@@ -1425,6 +1441,8 @@ class WindowsEmulator(BinaryEmulator):
                     raise WindowsEmuError(f"unresolved import {imp.dll_name}!{imp.func_name}")
                 encoded = address.to_bytes(ptr_size, "little")
             except (ValueError, OverflowError, uc.UcError, WindowsEmuError) as error:
+                if self.config.modules.strict_loading:
+                    raise
                 logger.warning("skipping import %s!%s in %s: %s", imp.dll_name, imp.func_name, image.name, error)
                 continue
             self.mem_write(imp.iat_address, encoded)
@@ -2962,7 +2980,12 @@ class WindowsEmulator(BinaryEmulator):
 
         def make_loader(address):
             if native_path:
-                return PeLoader(path=native_path, base_override=address, emu_path=emu_path)
+                return PeLoader(
+                    path=native_path,
+                    base_override=address,
+                    emu_path=emu_path,
+                    strict=self.config.modules.strict_loading,
+                )
             return ApiModuleLoader(
                 name=name,
                 api=handler,

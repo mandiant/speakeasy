@@ -380,9 +380,12 @@ def test_lenient_non_ascii_dll_name_is_lossless(caplog):
 
 
 @pytest.mark.parametrize("mode", ["user", "kernel", "dependency"])
-def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_path):
+@pytest.mark.parametrize("strict", [None, True], ids=["default", "strict"])
+def test_guest_loader_config_controls_optional_parsing(mode, strict, config, tmp_path):
     from speakeasy import Speakeasy
 
+    if strict is not None:
+        config.setdefault("modules", {})["strict_loading"] = strict
     pe = pefile.PE(data=image_bytes(build([])))
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].Size = 64
@@ -396,12 +399,20 @@ def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_pat
             path = tmp_path / "malformed_dependency.dll"
             path.write_bytes(malformed)
 
-            module = se.emu.load_module_by_name(
-                "malformed_dependency", native_path=str(path), base=pe.OPTIONAL_HEADER.ImageBase
-            )
+            def load():
+                return se.emu.load_module_by_name(
+                    "malformed_dependency", native_path=str(path), base=pe.OPTIONAL_HEADER.ImageBase
+                )
         else:
-            module = se.load_module(data=malformed)
-        assert module.base == pe.OPTIONAL_HEADER.ImageBase
+
+            def load():
+                return se.load_module(data=malformed)
+
+        if strict:
+            with pytest.raises(ValueError, match="Delay import directory"):
+                load()
+        else:
+            assert load().base == pe.OPTIONAL_HEADER.ImageBase
         if mode == "kernel":
             assert se.emu.kernel_mode
     finally:

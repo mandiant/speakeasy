@@ -320,6 +320,11 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // instead of failing.
     "modules_always_exist": false,
 
+    // If true, apply strict policies when loading guest PEs:
+    //   - reject malformed PE metadata (delay imports, exports, forwarders),
+    //   - fail a load when any import does not resolve, and leave the IAT unchanged.
+    "strict_loading": false,
+
     // If true, unresolved API imports that are in neither the handlers nor the
     // bundled signature database resolve to dynamic entries that act as stubs
     // (4 stdcall arguments, return value 1). Imports with a known signature are

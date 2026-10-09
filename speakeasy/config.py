@@ -495,6 +495,14 @@ class SystemModuleConfig(BaseModel):
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    strict_loading: bool = Field(
+        default=False,
+        description=(
+            "Apply strict policies when loading guest PEs: reject malformed PE metadata and fail a load when any "
+            "import does not resolve."
+        ),
+    )
+
     modules_always_exist: bool = Field(
         default=False, description="Synthesize unknown modules instead of failing loads."
     )
