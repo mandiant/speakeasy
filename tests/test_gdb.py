@@ -279,6 +279,31 @@ _LIBRARY_LOAD_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_WATCHPOINT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import struct
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\x90" * 12, arch="x86")
+    scratch = se.mem_alloc(0x1000)
+    se.mem_write(scratch, b"\\0" * 4)
+    # inc dword [scratch]; mov eax, 42; ret
+    code = b"\\xff\\x05" + struct.pack("<I", scratch) + b"\\xb8\\x2a\\x00\\x00\\x00\\xc3"
+    se.mem_write(address, code)
+    print(hex(address), hex(scratch), flush=True)
+    se.run_shellcode(address)
+    se.shutdown()
+""")
+
+
 _SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import lzma
@@ -491,6 +516,22 @@ def gdb_library_load_emulator():
     _stop_server(proc)
 
 
+@pytest.fixture
+def gdb_watchpoint_emulator():
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _WATCHPOINT_SERVER_SCRIPT, str(port), config_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    assert proc.stdout is not None
+    address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
+    yield port, proc, address, scratch
+    _stop_server(proc)
+
+
 def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
     import capstone
 
@@ -693,5 +734,36 @@ def test_gdb_hardware_breakpoint_large_range(gdb_emulator):
 
         assert client.query(f"z1,{eip:x},2d000") == "OK"
         assert client.continue_().startswith(("T", "W"))
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize("resume", ["continue", "step"])
+def test_gdb_write_watchpoint_resume_does_not_repeat_guest_side_effect(gdb_watchpoint_emulator, resume):
+    port, proc, address, scratch = gdb_watchpoint_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.read_x86_registers().eip == address
+        assert client.read_memory(scratch, 4) == "00000000"
+        assert client.query(f"Z2,{scratch:x},4") == "OK"
+        stop = client.continue_() if resume == "continue" else client.step()
+        assert stop.startswith("T05") and f"watch:{scratch:x};" in stop, stop
+        # The stop follows the completed write, so resuming does not repeat it.
+        assert client.read_x86_registers().eip == address + 6
+        assert client.read_memory(scratch, 4) == "01000000"
+        assert client.query(f"z2,{scratch:x},4") == "OK"
+        ret = address + 11
+        assert client.query(f"Z0,{ret:x},1") == "OK"
+        stop = client.continue_()
+        assert stop.startswith("T05") and "swbreak:;" in stop, stop
+        regs = client.read_x86_registers()
+        assert (regs.eip, regs.eax) == (ret, 42)
+        assert client.read_memory(scratch, 4) == "01000000"
+        assert client.query(f"z0,{ret:x},1") == "OK"
+        assert client.continue_().startswith("T05")
+        assert client.read_memory(scratch, 4) == "01000000"
+        assert client.continue_() == "W00"
+        assert proc.wait(timeout=10) == 0
     finally:
         client.close()

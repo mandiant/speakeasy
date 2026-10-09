@@ -314,8 +314,16 @@ class GdbServer:
                 return
             self._stop_reason = reason
             self._stop_pending = True
-        if self.emu.emu_eng is not None:
+        # Memory hooks run before the instruction has finished. Stopping here
+        # can leave a committed write at an unchanged PC, so resuming repeats
+        # its side effect. Watch stops are delivered at the next code boundary
+        # or when single-step execution returns naturally.
+        if reason.kind not in ("watch", "rwatch", "awatch") and self.emu.emu_eng is not None:
             self.emu.emu_eng.stop()
+
+    def pending_stop_reason(self) -> StopReason | None:
+        with self._state_lock:
+            return self._stop_reason if self._stop_pending else None
 
     def _on_module_change(self) -> None:
         with self._state_lock:
@@ -359,12 +367,21 @@ class GdbServer:
     def _refresh_hooks(self) -> None:
         self._set_hook_enabled(
             self._code_hook,
-            bool(self._exec_breakpoints) or self._resume_from_breakpoint is not None,
+            bool(
+                self._exec_breakpoints or self._read_watchpoints or self._write_watchpoints or self._access_watchpoints
+            )
+            or self._resume_from_breakpoint is not None,
         )
         self._set_hook_enabled(self._read_hook, bool(self._read_watchpoints or self._access_watchpoints))
         self._set_hook_enabled(self._write_hook, bool(self._write_watchpoints or self._access_watchpoints))
 
     def _on_code(self, _emu: Any, address: int, _size: int) -> bool:
+        reason = self.pending_stop_reason()
+        if reason is not None and reason.kind in ("watch", "rwatch", "awatch"):
+            # The watched instruction completed; leave this next instruction
+            # unexecuted and preserve the original watch reason/address.
+            self.emu.emu_eng.stop()
+            return True
         if self._resume_from_breakpoint == address:
             self._resume_from_breakpoint = None
             return True
