@@ -2546,13 +2546,40 @@ class WindowsEmulator(BinaryEmulator):
         """
         If the supplied address is related to a known symbol, look it up here
         """
-        return self.api_registry.symbol(address)
+        symbol = self.api_registry.symbol(address)
+        if symbol is not None:
+            return symbol
+        if self.api_registry.overlaps_traps(address):
+            return None
+        auxiliary = self.symbols.get(address)
+        return "{}.{}".format(*auxiliary) if auxiliary else None
+
+    def get_symbols(self):
+        """Snapshot public addresses as legacy (dll, name) tuples.
+
+        Registry entries take precedence over auxiliary labels at the same address.
+        Forwarder strings and private dispatch tokens are not public symbols.
+        """
+        from typing import cast
+
+        # The legacy storage annotation says str, but producers store tuples.
+        auxiliary_symbols = cast(dict[int, tuple[str, str]], self.symbols)
+        symbols = {
+            address: value
+            for address, value in auxiliary_symbols.items()
+            if not self.api_registry.overlaps_traps(address)
+            and not (address in self.api_registry.entries and self.api_registry.entries[address].export.forwarder)
+        }
+        symbols.update(
+            (address, (entry.dll, entry.name))
+            for address, entry in self.api_registry.entries.items()
+            if not entry.export.forwarder
+        )
+        return symbols
 
     def get_api_symbols(self):
-        """Snapshot public function/data labels, including dynamic-only entries."""
-        return {
-            address: entry.symbol for address, entry in self.api_registry.entries.items() if not entry.export.forwarder
-        }
+        """Snapshot public function/data and auxiliary symbols as string labels."""
+        return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
 
     def _hook_mem_read(self, emu, access, address, size, value):
         """

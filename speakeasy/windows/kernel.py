@@ -613,32 +613,31 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         km = self.get_kernel_mod()
 
         if self.get_arch() == _arch.ARCH_AMD64 and km.image_size > 0:
-            kbase = km.base
-            km_data = bytes(self.mem_read(kbase, km.image_size))
-            ksc64_off = km_data.find(b"\x00" * 100)
-            if ksc64_off != -1:
-                sdt_entry = km.get_export_by_name("KeServiceDescriptorTable")
-                sdt_addr = sdt_entry.address if sdt_entry else None
-                if sdt_addr:
-                    for i in range(0x20):
-                        self.symbols.update({sdt_addr + i: (km.get_base_name(), "KeServiceDescriptorTable")})
-                    self.symbols.update({sdt_addr: (km.get_base_name(), "KeServiceDescriptorTable.pServiceTable")})
-                    self.symbols.update(
-                        {sdt_addr + 0x10: (km.get_base_name(), "KeServiceDescriptorTable.NumberOfServices")}
-                    )
-                    ksc64_off += 5
+            sdt_entry = km.get_export_by_name("KeServiceDescriptorTable")
+            sdt_addr = sdt_entry.address if sdt_entry else None
+            if sdt_addr:
+                for i in range(0x20):
+                    self.symbols.update({sdt_addr + i: (km.get_base_name(), "KeServiceDescriptorTable")})
+                self.symbols.update({sdt_addr: (km.get_base_name(), "KeServiceDescriptorTable.pServiceTable")})
+                self.symbols.update(
+                    {sdt_addr + 0x10: (km.get_base_name(), "KeServiceDescriptorTable.NumberOfServices")}
+                )
 
-                    ksc64_addr = kbase + ksc64_off
-                    self.symbols.update({ksc64_addr: (km.get_base_name(), "KiSystemCall64")})
+                # Header padding is not code. Keep the compatibility stub in its
+                # own RX allocation near the kernel for the relative SSDT offsets.
+                from speakeasy.common import PERM_MEM_RX
 
-                    self.reg_write(_arch.X86_REG_MSR, (_arch.LSTAR, ksc64_addr))
-                    sdt_offset = (sdt_addr - ksc64_addr) - 7
-                    data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little")
-                    self.mem_write(kbase + ksc64_off, data)
-                    ksc64_off += 7
-                    sdt_offset = sdt_addr - (kbase + ksc64_off)
-                    data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little")
-                    self.mem_write(kbase + ksc64_off, data)
-                    ksc64_off += 7
-                    data = b"\x90\x90\x90\x90\x90\x90\xc3"
-                    self.mem_write(kbase + ksc64_off, data)
+                ksc64_addr = self.mem_map(
+                    self.page_size,
+                    base=km.base + km.image_size,
+                    perms=PERM_MEM_RX,
+                    tag="emu.KiSystemCall64",
+                )
+                self.symbols.update({ksc64_addr: (km.get_base_name(), "KiSystemCall64")})
+                self.reg_write(_arch.X86_REG_MSR, (_arch.LSTAR, ksc64_addr))
+                sdt_offset = sdt_addr - ksc64_addr - 7
+                data = b"\x90\x90\xc3" + sdt_offset.to_bytes(4, "little", signed=True)
+                second_offset = sdt_addr - ksc64_addr - 14
+                data += b"\x90\x90\xc3" + second_offset.to_bytes(4, "little", signed=True)
+                data += b"\x90\x90\x90\x90\x90\x90\xc3"
+                self.mem_write(ksc64_addr, data)
