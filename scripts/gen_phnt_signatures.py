@@ -53,6 +53,15 @@ SKIP_HEADERS = {"phnt.h", "ntintsafe.h", "ntstrsafe.h", "nttypesafe.h"}
 # services are also ntoskrnl exports; speakeasy matches those by name).
 DLL = "ntdll"
 
+# Curated restrictions verified in deps/phnt/ntrtl.h's _WIN64 blocks.
+# This parser does not preprocess architecture guards; other declarations
+# remain unrestricted unless explicitly curated here.
+FUNCTION_ARCHITECTURES = {
+    "RtlWow64GetThreadContext": ("x64",),
+    "RtlWow64SetThreadContext": ("x64",),
+    "RtlGetFunctionTableListHead": ("x64",),
+}
+
 # C / Windows SDK scalar types -> type code. Pointer-sized integers are "p".
 BASE_TYPES: dict[str, str] = {
     "VOID": "v",
@@ -795,6 +804,8 @@ def generate(phnt_root: str) -> tuple[dict, collections.Counter]:
             if entry is None:
                 stats["ignored"] += 1
                 continue
+            if name in FUNCTION_ARCHITECTURES:
+                entry["arch"] = list(FUNCTION_ARCHITECTURES[name])
             if any(e == entry for e in table[name]):
                 stats["duplicates"] += 1
                 continue
