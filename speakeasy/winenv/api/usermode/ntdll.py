@@ -127,7 +127,7 @@ class Ntdll(api.ApiHandler):
 
         if BaseAddress:
             self.mem_write(BaseAddress, hmod.to_bytes(self.get_ptr_size(), "little"))
-        frame = getattr(emu, "_active_api_frame", None)
+        frame = emu._active_api_frame
         if frame is not None and frame.initializers:
             frame.failure_result = 0xC0000142  # STATUS_DLL_INIT_FAILED
             if BaseAddress:

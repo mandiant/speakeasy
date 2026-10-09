@@ -520,7 +520,7 @@ class ApiHandler:
 
         run = self.emu.get_current_run()
 
-        frame = getattr(self.emu, "_active_api_frame", None)
+        frame = self.emu._active_api_frame
         if frame is None:
             frame = ApiCallbackFrame(
                 self.emu.get_stack_ptr(), self.emu.get_ret_address(), len(caller_argv), _arch.CALL_CONV_STDCALL

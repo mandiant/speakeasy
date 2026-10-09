@@ -103,7 +103,7 @@ class ApiRegistry:
     def register_module(self, module: RuntimeModule) -> None:
         by_name = self.names.setdefault(id(module), {})
         by_ordinal = self.ordinals.setdefault(id(module), {})
-        synthetic = getattr(module._image, "source", "guest_pe") == "synthetic"
+        synthetic = module._image.source == "synthetic"
         for export in module.get_exports():
             if not export.address:
                 continue
@@ -135,11 +135,9 @@ class ApiRegistry:
         existing = self.lookup(module, reference)
         if existing is not None:
             return existing
-        if getattr(module._image, "source", "guest_pe") != "synthetic":
+        if module._image.source != "synthetic":
             raise WindowsEmuError("cannot synthesize an export in a guest PE")
         reference = symbol_ref(reference)
-        if isinstance(reference, int) and not 0 < reference <= 0xFFFF:
-            raise WindowsEmuError("invalid export ordinal")
         arena = next((s for s in module.sections if s.name == ".dyn"), None)
         offset = self.dynamic_offsets.get(id(module), 0)
         if arena is None or offset + 32 > arena.virtual_size:

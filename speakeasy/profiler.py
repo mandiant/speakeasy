@@ -119,6 +119,8 @@ class Run:
     def __init__(self):
         self.instr_cnt: int = 0
         self.execution_elapsed: float = 0.0
+        self.budget_instructions: int = 0
+        self.guest_initialization: tuple[Any, bool, bool, int] | None = None
         self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}

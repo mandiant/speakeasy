@@ -64,7 +64,7 @@ def execution_scope(func):
     @wraps(func)
     def wrapped(self, *args, **kwargs):
         emu = self if isinstance(self, WindowsEmulator) else self.emu
-        if emu is None or getattr(emu, "_execution_budget", None) is not None:
+        if emu is None or emu._execution_budget is not None:
             return func(self, *args, **kwargs)
         emu._execution_budget = _ExecutionBudget(emu.config.max_total_time)
         try:
@@ -180,6 +180,8 @@ class WindowsEmulator(BinaryEmulator):
         self._failed_guest_modules = []
         self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
+        self._load_depth: int = 0
+        self._active_api_frame: ApiCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
         self.debug_hook: Any | None = None
@@ -489,7 +491,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_control = None
         self._pending_trap_fault = None
         self._pending_exec_recovery = None
-        stage = getattr(self.curr_run, "_guest_initialization", None)
+        stage = self.curr_run.guest_initialization
         if stage is not None:
             module, last, is_dll, pid = stage
             if self.curr_run.error or (is_dll and not self.get_return_val()):
@@ -503,13 +505,13 @@ class WindowsEmulator(BinaryEmulator):
                     if self._detach_failed_guest_initialization(module, pid):
                         self._failed_guest_modules.append(module)
                     for queued in self.run_queue:
-                        pending = getattr(queued, "_guest_initialization", None)
+                        pending = queued.guest_initialization
                         if pending is not None and pending[3] == pid:
                             pending[0]._initialization.pop(pid, None)
                     self.run_queue[:] = [
                         queued
                         for queued in self.run_queue
-                        if getattr(queued, "_guest_initialization", (None, None, None, None))[3] != pid
+                        if queued.guest_initialization is None or queued.guest_initialization[3] != pid
                     ]
                     self.on_emu_complete()
                     return None
@@ -520,7 +522,7 @@ class WindowsEmulator(BinaryEmulator):
                     queued
                     for queued in self.run_queue
                     if not (
-                        (pending := getattr(queued, "_guest_initialization", None)) is not None
+                        (pending := queued.guest_initialization) is not None
                         and pending[0] is module
                         and pending[3] == pid
                     )
@@ -704,14 +706,14 @@ class WindowsEmulator(BinaryEmulator):
         spent = self.curr_run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
         deadline_kind = "timeout"
-        total_budget = getattr(self, "_execution_budget", None)
+        total_budget = self._execution_budget
         if total_budget is not None and total_budget.limit > 0:
             total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
             if deadline is None or total_deadline < deadline:
                 deadline = total_deadline
                 deadline_kind = "max_total_time"
         budget = self.config.max_instructions if debugger is not None else count
-        used = getattr(self.curr_run, "_budget_instructions", 0)
+        used = self.curr_run.budget_instructions
         remaining = [max(budget - used, 0) if budget > 0 else -1]
         limit = [False]
         origin_run = self.curr_run
@@ -750,7 +752,7 @@ class WindowsEmulator(BinaryEmulator):
                     self.emu_eng.stop()
                     return
                 remaining[0] -= 1
-                origin_run._budget_instructions = getattr(origin_run, "_budget_instructions", 0) + 1
+                origin_run.budget_instructions += 1
                 if not self.config.analysis.memory_tracing:
                     self.curr_run.instr_cnt += 1
 
@@ -922,7 +924,7 @@ class WindowsEmulator(BinaryEmulator):
         if prepared is not None:
             canceled.append(prepared)
         for run in canceled:
-            stage = getattr(run, "_guest_initialization", None)
+            stage = run.guest_initialization
             if stage is not None:
                 module, _last, _is_dll, pid = stage
                 if module._initialization.get(pid) == "initializing":
@@ -954,7 +956,7 @@ class WindowsEmulator(BinaryEmulator):
                 run.args = (module.base, 1, 0)
                 run.thread = self.run_queue[0].thread or self.curr_thread
                 run.process_context = self.curr_process
-                run._guest_initialization = (module, last, is_dll, pid)
+                run.guest_initialization = (module, last, is_dll, pid)
                 queued.append(run)
             self.run_queue[:0] = queued
         try:
@@ -1001,6 +1003,8 @@ class WindowsEmulator(BinaryEmulator):
         """Execute prepared runs, optionally under control of an active GDB session."""
         if debugger is not None:
             assert debug_action is not None
+        total_budget = self._execution_budget
+        assert total_budget is not None
         detached_resume_addr = None
         terminal_signal = 0
         timeout = self.config.timeout
@@ -1022,8 +1026,7 @@ class WindowsEmulator(BinaryEmulator):
                 executing_run = self.curr_run
                 if should_execute:
                     self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count, debugger=debugger)
-                total_budget = getattr(self, "_execution_budget", None)
-                if debugger is None and total_budget is not None and total_budget.exhausted:
+                if debugger is None and total_budget.exhausted:
                     self._cancel_execution_runs()
                     if not self.run_complete:
                         self.on_run_complete()
@@ -1037,14 +1040,14 @@ class WindowsEmulator(BinaryEmulator):
                         terminal_signal = fault_stop.signal
                     if stop_reason is not None:
                         debug_action = debugger.command_loop(stop_reason)
-                        if debug_action.kill and not (total_budget is not None and total_budget.exhausted):
+                        if debug_action.kill and not total_budget.exhausted:
                             return True
                         if debug_action.detach:
                             debugger.close()
                             debugger = None
                             self._stop_on_faults = False
                             timeout = self.config.timeout
-                        if total_budget is not None and total_budget.exhausted:
+                        if total_budget.exhausted:
                             self._cancel_execution_runs()
                             if not self.run_complete:
                                 self.on_run_complete()
@@ -1371,8 +1374,7 @@ class WindowsEmulator(BinaryEmulator):
 
         Validate every RVA against SizeOfImage and bound both table walks.
         Stage valid IAT writes independently by default; strict PE parsing
-        requires every import to validate. Restore attempted writes on a commit
-        fault and publish bindings only after a successful commit.
+        requires every import to validate.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
         """
@@ -1505,7 +1507,7 @@ class WindowsEmulator(BinaryEmulator):
                             raise
                         logger.warning("skipping injected PE import slot at %#x: %s", base_addr + iat, error)
                         continue
-                    pending.append((base_addr + iat, current.to_bytes(ptr_size, "little"), address))
+                    pending.append((base_addr + iat, address))
                 else:
                     if strict:
                         raise ValueError("unterminated import thunk table")
@@ -1515,22 +1517,9 @@ class WindowsEmulator(BinaryEmulator):
                     raise ValueError("unterminated import descriptor table")
                 logger.warning("unterminated injected PE import descriptor table at %#x", base_addr)
 
-            attempted = []
-            try:
-                for iat, original, address in pending:
-                    # Include the failing write: a backend may write partially
-                    # before raising, so its slot also needs restoration.
-                    attempted.append((iat, original))
-                    self.mem_write(iat, address.to_bytes(ptr_size, "little"))
-            except Exception:
-                for iat, original in reversed(attempted):
-                    try:
-                        self.mem_write(iat, original)
-                    except Exception:
-                        logger.exception("failed to restore injected PE IAT slot at %#x", iat)
-                logger.warning("failed to commit injected PE import table at %#x", base_addr, exc_info=True)
-                return
-            self._import_bindings.update((iat, address) for iat, _, address in pending)
+            for iat, address in pending:
+                self.mem_write(iat, address.to_bytes(ptr_size, "little"))
+            self._import_bindings.update(pending)
         except import_errors:
             logger.warning("invalid injected PE import table at %#x", base_addr, exc_info=True)
 
@@ -1550,14 +1539,14 @@ class WindowsEmulator(BinaryEmulator):
 
     def load_image(self, image):
         """Publish a coherent load graph, rolling back module ownership on failure."""
-        outer = not getattr(self, "_load_depth", 0)
+        outer = not self._load_depth
         if outer:
             original_modules = list(self.modules)
             original_maps = {id(mapping) for mapping in self.maps}
             original_bindings = dict(self._import_bindings)
             original_shared = set(self._shared_peb_modules)
             original_attachments = self._snapshot_peb_attachments()
-        self._load_depth = getattr(self, "_load_depth", 0) + 1
+        self._load_depth += 1
         try:
             module = self._load_image(image)
         except Exception:
@@ -2375,7 +2364,7 @@ class WindowsEmulator(BinaryEmulator):
             tid = thread.tid if thread else 0
             pid = process.id if process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            frame = getattr(self, "_active_api_frame", None)
+            frame = self._active_api_frame
             deferred = frame is not None and any(item is frame for item in run.api_callbacks)
             event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=not deferred)
             if deferred:
@@ -2567,12 +2556,12 @@ class WindowsEmulator(BinaryEmulator):
 
     def handle_import_func(self, dll, name):
         frame = ApiCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
-        previous = getattr(self, "_active_api_frame", None)
+        previous = self._active_api_frame
         self._active_api_frame = frame
         origin_run = self.curr_run
         entry_pc = self.get_pc()
         try:
-            result = self._dispatch_import_func(dll, name)
+            self._dispatch_import_func(dll, name, frame)
             if (
                 self.curr_run is origin_run
                 and not self.run_complete
@@ -2586,11 +2575,10 @@ class WindowsEmulator(BinaryEmulator):
                 origin_run.error.api_name = f"{dll}.{name}"
                 logger.error("API handler %s.%s changed SP without returning", dll, name)
                 self.end_run_on_fault()
-            return result
         finally:
             self._active_api_frame = previous
 
-    def _dispatch_import_func(self, dll, name):
+    def _dispatch_import_func(self, dll, name, frame):
         """
         Forward imported functions to the corresponding handler (if any).
         """
@@ -2606,8 +2594,8 @@ class WindowsEmulator(BinaryEmulator):
 
         if func_attrs:
             handler_name, func, argc, conv, ordinal = func_attrs
-            self._active_api_frame.argc = argc
-            self._active_api_frame.convention = conv
+            frame.argc = argc
+            frame.convention = conv
 
             if name.startswith("ordinal_"):
                 name = handler_name
@@ -2656,7 +2644,7 @@ class WindowsEmulator(BinaryEmulator):
 
             ret = self.get_ret_address()
             pc = self.get_pc()
-            self._active_api_frame.result = rv
+            frame.result = rv
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
@@ -2700,11 +2688,11 @@ class WindowsEmulator(BinaryEmulator):
                     hook.call_conv = _arch.CALL_CONV_STDCALL
 
                 argv = self.get_func_argv(hook.call_conv, hook.argc)
-                self._active_api_frame.argc = hook.argc
-                self._active_api_frame.convention = hook.call_conv
+                frame.argc = hook.argc
+                frame.convention = hook.call_conv
                 self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
-                self._active_api_frame.result = rv
+                frame.result = rv
                 ret = self.get_ret_address()
                 self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv), run=origin_run)
                 if self.curr_run is origin_run and self.get_pc() == opc and ret == oret and self.get_stack_ptr() == osp:
@@ -2721,9 +2709,9 @@ class WindowsEmulator(BinaryEmulator):
                 self.emulate_api_from_signature(dll, name, sig, call_pc)
             elif self._can_stub_unknown_api(dll, name):
                 logger.warning("Stubbed unknown Win64 API %s with scalar return 1", imp_api)
-                self._active_api_frame.argc = 0
-                self._active_api_frame.convention = _arch.CALL_CONV_STDCALL
-                self._active_api_frame.result = 1
+                frame.argc = 0
+                frame.convention = _arch.CALL_CONV_STDCALL
+                frame.result = 1
                 self.log_api(call_pc, imp_api, 1, [], run=origin_run)
                 self.do_call_return(0, oret, 1, conv=_arch.CALL_CONV_STDCALL)
             else:
@@ -3264,13 +3252,11 @@ class WindowsEmulator(BinaryEmulator):
                 return 0
             module = self.load_module_by_name(name)
         self._attach_module_to_current_process(module)
-        frame = getattr(self, "_active_api_frame", None)
+        frame = self._active_api_frame
         if frame is not None and not self.kernel_mode:
             # Keep the earliest snapshot for each process across reentrant loads.
-            attachments = frame.loader_attachments
-            tracked = {process.id for process, _ in attachments}
-            attachments.extend(item for item in original_attachments if item[0].id not in tracked)
-            frame.loader_attachments = attachments
+            tracked = {process.id for process, _ in frame.loader_attachments}
+            frame.loader_attachments.extend(item for item in original_attachments if item[0].id not in tracked)
             frame.created_modules.extend(module for module in self.modules if module not in original_modules)
             initializers = self._collect_guest_initializers()
             handler = self.api.load_api_handler("kernel32")

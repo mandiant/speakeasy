@@ -1093,12 +1093,14 @@ class BinaryEmulator(MemoryManager, ABC):
 
         return hook
 
+    def _intercept_api_trap(self, access, address, size):
+        return False
+
     def _hook_mem_invalid_dispatch(self, emu, access, address, size, value):
         """
         This handler will dispatch other invalid memory hooks
         """
-        interceptor = getattr(self, "_intercept_api_trap", None)
-        if interceptor is not None and interceptor(access, address, size):
+        if self._intercept_api_trap(access, address, size):
             return False
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
 
