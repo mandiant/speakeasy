@@ -1,0 +1,28 @@
+{
+  "module": "d3dcompiler_43",
+  "file": "d3dcompiler_43.dll",
+  "arch": "x64",
+  "file_version": "9.29.952.3111",
+  "timestamp": 1274481643,
+  "size_of_image": 2551808,
+  "sha256": "44c3a7e330b54a35a9efa015831392593aa02e7da1460be429d17c3644850e8a",
+  "exports": [
+    {"ordinal": 1, "name": "D3DAssemble"},
+    {"ordinal": 2, "name": "DebugSetMute"},
+    {"ordinal": 3, "name": "D3DCompile"},
+    {"ordinal": 4, "name": "D3DCompressShaders"},
+    {"ordinal": 5, "name": "D3DCreateBlob"},
+    {"ordinal": 6, "name": "D3DDecompressShaders"},
+    {"ordinal": 7, "name": "D3DDisassemble"},
+    {"ordinal": 8, "name": "D3DDisassemble10Effect"},
+    {"ordinal": 9, "name": "D3DGetBlobPart"},
+    {"ordinal": 10, "name": "D3DGetDebugInfo"},
+    {"ordinal": 11, "name": "D3DGetInputAndOutputSignatureBlob"},
+    {"ordinal": 12, "name": "D3DGetInputSignatureBlob"},
+    {"ordinal": 13, "name": "D3DGetOutputSignatureBlob"},
+    {"ordinal": 14, "name": "D3DPreprocess"},
+    {"ordinal": 15, "name": "D3DReflect"},
+    {"ordinal": 16, "name": "D3DReturnFailure1"},
+    {"ordinal": 17, "name": "D3DStripShader"}
+  ]
+}

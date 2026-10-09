@@ -1,0 +1,17 @@
+{
+  "module": "wdmaud",
+  "file": "wdmaud.drv",
+  "arch": "x64",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 350416575,
+  "size_of_image": 290816,
+  "sha256": "5908528e8494e6cb6a3dbf10255dfa153e793fe6e0c52146607c293006bb9637",
+  "exports": [
+    {"ordinal": 1, "name": "DriverProc"},
+    {"ordinal": 2, "name": "midMessage"},
+    {"ordinal": 3, "name": "modMessage"},
+    {"ordinal": 4, "name": "widMessage"},
+    {"ordinal": 5, "name": "wodMessage"},
+    {"ordinal": 6, "name": "mxdMessage"}
+  ]
+}

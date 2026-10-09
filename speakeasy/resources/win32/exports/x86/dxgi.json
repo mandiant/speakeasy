@@ -1,0 +1,16 @@
+{
+  "module": "dxgi",
+  "file": "dxgi.dll",
+  "arch": "x86",
+  "file_version": "10.0.17763.1",
+  "timestamp": 1784327755,
+  "size_of_image": 5881856,
+  "sha256": "a97c07a7bdd2c580461de99bac5c7b8297fe3ac348587d84315bb6f4090ee092",
+  "exports": [
+    {"ordinal": 9, "name": "CreateDXGIFactory"},
+    {"ordinal": 10, "name": "CreateDXGIFactory1"},
+    {"ordinal": 11, "name": "CreateDXGIFactory2"},
+    {"ordinal": 16, "name": "DXGIDeclareAdapterRemovalSupport"},
+    {"ordinal": 17, "name": "DXGIGetDebugInterface1"}
+  ]
+}

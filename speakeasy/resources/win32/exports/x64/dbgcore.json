@@ -1,0 +1,13 @@
+{
+  "module": "dbgcore",
+  "file": "dbgcore.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.7309",
+  "timestamp": 2566198970,
+  "size_of_image": 245760,
+  "sha256": "1a64ea5320f6bbda8396a2b8af9fcb97dd7461657b307aef6ce9ab320bbe0b76",
+  "exports": [
+    {"ordinal": 1, "name": "MiniDumpReadDumpStream"},
+    {"ordinal": 2, "name": "MiniDumpWriteDump"}
+  ]
+}
