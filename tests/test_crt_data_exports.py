@@ -44,6 +44,7 @@ def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, 
     assert module.get_section_for_addr(address).name == ".data"
     assert region_permissions(se, address) == uc.UC_PROT_READ | uc.UC_PROT_WRITE
     assert se.get_symbols()[address] == ("msvcrt", name)
+    assert se.get_api_symbols()[address] == f"msvcrt.{name}"
     parsed = pefile.PE(data=se.mem_read(module.base, module.image_size))
     export = next(e for e in parsed.DIRECTORY_ENTRY_EXPORT.symbols if e.name == name.encode())
     assert module.base + export.address == address
