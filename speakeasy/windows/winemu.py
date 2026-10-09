@@ -2546,6 +2546,10 @@ class WindowsEmulator(BinaryEmulator):
         )
         return symbols
 
+    def get_api_symbols(self):
+        """Snapshot public function/data and auxiliary symbols as string labels."""
+        return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
+
     def _hook_mem_read(self, emu, access, address, size, value):
         """
         Hook each memory read event that occurs. This hook is used to lookup symbols and modules
