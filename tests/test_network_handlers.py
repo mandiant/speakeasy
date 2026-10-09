@@ -142,6 +142,23 @@ def test_getaddrinfo_unknown_service(dll_emu: Speakeasy) -> None:
     assert rv == 10109
 
 
+@pytest.mark.parametrize("ordinal, other", [(177, "freeaddrinfo"), (178, "getaddrinfo"), (180, "inet_ntop")])
+def test_x86_ordinal_call_does_not_reach_another_handler(config: dict[str, Any], ordinal: int, other: str) -> None:
+    # x86 ws2_32 exports getaddrinfo as #177, getnameinfo as #178 and inet_pton as #180.
+    code = b"\xb9\x00\x00\x00\x00" + b"\x51" * 4 + b"\xb8\x00\x00\x00\x00\xff\xd0\xc3"
+    se = Speakeasy(config=config)
+    try:
+        sc_addr = se.load_shellcode(data=code, arch="x86")
+        assert se.emu is not None
+        se.mem_write(sc_addr + 1, se.mem_alloc(0x100).to_bytes(4, "little"))
+        se.mem_write(sc_addr + 10, se.emu.get_proc("ws2_32", f"ordinal_{ordinal}").to_bytes(4, "little"))
+        se.run_shellcode(sc_addr)
+        events = se.get_report().entry_points[0].events or []
+    finally:
+        se.shutdown()
+    assert f"ws2_32.{other}" not in [e.api_name for e in events if e.event == "api"]
+
+
 def _wininet_request(se: Speakeasy, verb: bytes, objname: bytes) -> int:
     inet, _ = call(se, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     server = alloc(se, b"example.com\x00")
