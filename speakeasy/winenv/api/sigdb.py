@@ -304,8 +304,6 @@ class FuncSig:
         On x86, wide integer arguments occupy multiple stack slots, but wide
         returns require EDX:EAX and cannot use the generic return path.
         """
-        if ptr_size not in (4, 8):
-            return False
         arch = ARCH_X86 if ptr_size == 4 else ARCH_X64
         if not self.supports_arch(arch) or self.skip is not None or self.variadic:
             return False
@@ -419,9 +417,10 @@ class SignatureSource(ABC):
     def lookup_exact(self, dll: str, func: str, arch: str) -> FuncSig | None:
         """Return an exact module/name declaration, including unsupported ABIs.
 
-        Custom sources can override this to search their declarations directly.
-        The default validates the existing lookup result without accepting
-        aliases, name substitutions, or architecture-ineligible signatures.
+        Custom sources can override this to search their declarations directly,
+        returning only exact, architecture-eligible matches. The default
+        validates the existing lookup result without accepting aliases, name
+        substitutions, or architecture-ineligible signatures.
         """
         sig = self.lookup(dll, func, arch)
         if sig is not None and normalize_dll(sig.dll) == normalize_dll(dll) and sig.name == func:
@@ -429,7 +428,7 @@ class SignatureSource(ABC):
         return None
 
     def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
-        """Enumerate exact module declarations, independently of ABI support.
+        """Enumerate exact, architecture-eligible module declarations, independently of ABI support.
 
         Lookup-only custom sources contribute no catalog entries by default.
         """
@@ -708,10 +707,9 @@ class SignatureDatabase:
         Unsupported declarations retain source precedence. Explicit alias
         bindings belong to the caller; this method never applies aliases.
         """
-        dll = normalize_dll(dll)
         for source in self.sources:
             sig = source.lookup_exact(dll, func, arch)
-            if sig is not None and normalize_dll(sig.dll) == dll and sig.name == func and sig.supports_arch(arch):
+            if sig is not None:
                 return sig
         return None
 
@@ -719,17 +717,11 @@ class SignatureDatabase:
         """Yield catalog entries in source order, keeping the first exact name.
 
         Membership comes from enumeration, never permissive lookup or an ABI
-        capability check. Each source controls its own declaration order;
-        foreign or architecture-ineligible results cannot claim precedence.
+        capability check. Each source controls its own declaration order.
         """
-        dll = normalize_dll(dll)
         seen: set[str] = set()
         for source in self.sources:
             for sig in source.iter_functions(dll, arch):
-                if not isinstance(sig, FuncSig):
-                    raise TypeError(f"signature source {source.name!r} iter_functions must yield FuncSig records")
-                if normalize_dll(sig.dll) != dll or not sig.supports_arch(arch):
-                    continue
                 if sig.name not in seen:
                     seen.add(sig.name)
                     yield sig
