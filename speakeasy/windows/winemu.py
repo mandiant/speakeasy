@@ -4,6 +4,7 @@ import logging
 import ntpath
 import os
 import shlex
+import time
 import traceback
 from abc import abstractmethod
 from collections.abc import Callable
@@ -45,8 +46,15 @@ SIGSEGV = 11
 logger = logging.getLogger(__name__)
 
 
+MODULE_EXTENSIONS = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
+
+
 def _normalize_mod_name(name: str) -> str:
-    return os.path.splitext(name)[0].lower()
+    # Strip only image extensions so that repeated normalization keeps dotted
+    # module names such as windows.storage intact.
+    name = ntpath.basename(name).lower()
+    root, extension = ntpath.splitext(name)
+    return root if extension in MODULE_EXTENSIONS else name
 
 
 def _module_type_from_path(path: str, default: str = "dll") -> str:
@@ -166,6 +174,7 @@ class WindowsEmulator(BinaryEmulator):
         self.unhandled_exception_filter: int = 0
         self._seh_last_fault: tuple[int, int | None] | None = None
         self._seh_repeat_count: int = 0
+        self._seh_resume_pc: int | None = None
 
         self.fs_addr: int = 0
         self.gs_addr: int = 0
@@ -456,13 +465,13 @@ class WindowsEmulator(BinaryEmulator):
             return None
 
         self.run_complete = False
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
         self.mem_write(mm.base, b"\x00" * mm.size)
-        return self._prepare_run_context(run)
+        prepared = self._prepare_run_context(run)
+        self.emu_eng.stop()
+        return prepared
 
     def call(self, addr, params=[]):
         """
@@ -490,6 +499,9 @@ class WindowsEmulator(BinaryEmulator):
         logger.info("* exec: %s", run.type)
 
         self.curr_run = run
+        self._seh_last_fault = None
+        self._seh_repeat_count = 0
+        self._seh_resume_pc = None
         self.curr_mod = self.get_module_from_addr(run.start_addr)
         if self.profiler:
             self.profiler.add_run(run)
@@ -596,6 +608,57 @@ class WindowsEmulator(BinaryEmulator):
 
         self.mem_write(base, bytes(data))
 
+    def _run_api_engine(self, address, timeout=0, count=-1):
+        """Execute the current run until it ends or reaches its time or instruction limit."""
+        started = time.monotonic()
+        deadline = started + timeout if timeout > 0 else None
+        budget = count
+        remaining = [budget if budget > 0 else -1]
+        limit = [False]
+        origin_run = self.curr_run
+        hook = None
+
+        def stop_limit(kind):
+            if kind == "timeout":
+                logger.error("* Timeout of %d sec(s) reached.", timeout)
+            else:
+                logger.error("* Instruction limit of %d reached.", budget)
+            if self.curr_run is origin_run:
+                if origin_run.error is None:
+                    origin_run.error = ErrorInfo(
+                        type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
+                    )
+                self.on_run_complete()
+
+        if budget > 0:
+
+            def account_instruction(_emu, _address, _size):
+                if remaining[0] <= 0:
+                    limit[0] = True
+                    self.emu_eng.stop()
+                    return
+                remaining[0] -= 1
+                if not self.config.analysis.memory_tracing:
+                    self.curr_run.instr_cnt += 1
+
+            hook = self.add_code_hook(account_instruction)
+        try:
+            native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
+            native_count = remaining[0] if budget > 0 else 0
+            self.emu_eng.start(address, timeout=native_timeout, count=native_count)
+            if self.curr_run is not origin_run or self.emu_complete:
+                return
+            if deadline is not None and time.monotonic() >= deadline:
+                stop_limit("timeout")
+                return
+            if limit[0] or (budget > 0 and remaining[0] <= 0):
+                stop_limit("max_instructions")
+        finally:
+            if hook is not None:
+                if hook.added:
+                    self.emu_eng.hook_remove(hook.handle)
+                self.hooks[common.HOOK_CODE].remove(hook)
+
     def resume(self, addr, count=-1):
         """Resume emulation directly at an address.
 
@@ -615,6 +678,7 @@ class WindowsEmulator(BinaryEmulator):
             return
 
         self.run_complete = False
+        self.emu_complete = False
         self.set_hooks()
         self._set_emu_hooks()
 
@@ -667,7 +731,10 @@ class WindowsEmulator(BinaryEmulator):
                     detached_resume_addr = None
                 instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
                 should_execute = debugger is None or debugger.begin_run(debug_action)
-                if should_execute:
+                executing_run = self.curr_run
+                if should_execute and debugger is None:
+                    self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count)
+                elif should_execute:
                     self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
@@ -689,9 +756,8 @@ class WindowsEmulator(BinaryEmulator):
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
-                if self.profiler and timeout > 0:
-                    if self.profiler.get_run_time() > timeout:
-                        logger.error("* Timeout of %d sec(s) reached.", timeout)
+                if self.curr_run is not executing_run and not self.emu_complete:
+                    continue
             except KeyboardInterrupt:
                 logger.error("* User exited.")
                 if debugger is not None:
@@ -728,9 +794,6 @@ class WindowsEmulator(BinaryEmulator):
 
                 run = self.on_run_complete()
                 if not run:
-                    break
-                if self.profiler and timeout > 0 and self.profiler.get_run_time() > timeout:
-                    logger.error("* Timeout of %d sec(s) reached.", timeout)
                     break
                 continue
             break
@@ -909,7 +972,8 @@ class WindowsEmulator(BinaryEmulator):
         if not p:
             p = self.curr_process
         p.init_peb(user_mods)
-        self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), "little"))
+        if p is self.get_current_process():
+            self.mem_write(self.peb_addr, p.peb.address.to_bytes(self.get_ptr_size(), "little"))
         return p.peb
 
     def init_teb(self, thread, peb):
@@ -1275,7 +1339,9 @@ class WindowsEmulator(BinaryEmulator):
                         self.mem_write(imp.iat_address, data_ptr.to_bytes(ptr_size, "little"))
                     self.import_table.pop(old_sentinel, None)
 
-        if is_primary and self.profiler and self.config.analysis.strings and image.regions:
+        # Static strings describe the input, which is the image whose load runs setup.
+        # Setup and later runs load container and decoy PEs that must not replace them.
+        if is_primary and not self._setup_done and self.profiler and self.config.analysis.strings and image.regions:
             raw = image.regions[0].data
             if raw:
                 self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
@@ -2417,12 +2483,20 @@ class WindowsEmulator(BinaryEmulator):
                 self.on_run_complete()
                 return False
 
+            # Handler instructions are not progress at the original fault site.
+            # After continuation, retain the guard until the guest advances.
+            if self._seh_resume_pc is not None and addr != self._seh_resume_pc:
+                self._seh_last_fault = None
+                self._seh_repeat_count = 0
+                self._seh_resume_pc = None
+
             if self.tmp_maps:
                 for base, size in self.tmp_maps:
                     try:
                         self.mem_unmap(base, size)
                     except Exception:
-                        self.disable_code_hook()
+                        if self._seh_resume_pc is None:
+                            self.disable_code_hook()
                         return True
                 self.tmp_maps = []
 
@@ -2437,7 +2511,8 @@ class WindowsEmulator(BinaryEmulator):
                 return True
 
             self._set_emu_hooks()
-            self.disable_code_hook()
+            if self._seh_resume_pc is None:
+                self.disable_code_hook()
             return True
 
         except Exception as e:
@@ -2467,10 +2542,6 @@ class WindowsEmulator(BinaryEmulator):
         symbol execution tracking, and per-region execution tracking.
         """
         try:
-            if self.config.max_instructions != -1 and self.curr_run.instr_cnt >= self.config.max_instructions:  # type: ignore[union-attr]
-                self.on_run_complete()
-                return False
-
             if logger.isEnabledFor(logging.DEBUG):
                 disasm = self.get_disasm(addr, size)[2]
                 logger.debug("exec: 0x%x %s", addr, disasm)
@@ -2968,9 +3039,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         return (winemu.EMU_RESERVED, winemu.EMU_RESERVED_END)
 
-    def _continue_seh_x86(self):
+    def _continue_seh_x86(self) -> bool:
         """
         Get the next exception handler while processing SEH
+        Return True only when restoring the faulting guest context. Transfers
+        to a filter or handler, and completion, return False.
         """
         thread = self.get_current_thread()
         seh = thread.seh
@@ -2998,7 +3071,7 @@ class WindowsEmulator(BinaryEmulator):
                     self.set_pc(scope_record.record.FilterFunc)
                     seh.last_func = scope_record.record.FilterFunc
                     scope_record.filter_called = True
-                    return
+                    return False
 
                 if (
                     windef.EXCEPTION_EXECUTE_HANDLER == ret_val
@@ -3010,14 +3083,14 @@ class WindowsEmulator(BinaryEmulator):
                         self.set_pc(scope_record.record.HandlerAddress)
                         seh.last_func = scope_record.record.HandlerAddress
                         scope_record.handler_called = True
-                        return
+                        return False
                 elif windef.EXCEPTION_CONTINUE_EXECUTION == ret_val:
                     ctx = seh.context
                     if seh.context_address:
                         _ctx = self.mem_cast(ctx, seh.context_address)
                     self.load_thread_context(_ctx)
                     self.set_pc(ctx.Eip)
-                    return
+                    return True
 
                 elif windef.EXCEPTION_CONTINUE_SEARCH == ret_val:
                     pass
@@ -3027,9 +3100,10 @@ class WindowsEmulator(BinaryEmulator):
         if windef.EXCEPTION_CONTINUE_SEARCH == ret_val and not len(seh.frames):
             ctx = seh.context
             self.set_pc(ctx.Eip)
-            return
+            return True
 
         self.run_complete = True
+        return False
 
     def _map_faulting_page_for_exception(self, faulting_address):
         fakeout = faulting_address & 0xFFFFFFFFFFFFF000
@@ -3042,6 +3116,7 @@ class WindowsEmulator(BinaryEmulator):
     _SEH_MAX_REPEAT = 4
 
     def dispatch_seh(self, except_code, faulting_address=None):
+        self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
             self._seh_repeat_count += 1
@@ -3087,10 +3162,16 @@ class WindowsEmulator(BinaryEmulator):
         return rv
 
     def continue_seh(self):
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
         if self.get_arch() == _arch.ARCH_X86:
-            self._continue_seh_x86()
+            resumed = self._continue_seh_x86()
+            if resumed and not self.run_complete and self._seh_last_fault is not None:
+                if self.get_pc() == self._seh_last_fault[0]:
+                    self._seh_resume_pc = self.get_pc()
+                    self.enable_code_hook()
+                else:
+                    self._seh_last_fault = None
+                    self._seh_repeat_count = 0
+                    self._seh_resume_pc = None
 
     def create_event(self, name=""):
         """

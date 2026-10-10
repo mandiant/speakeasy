@@ -5,7 +5,7 @@ This page covers runtime limits, execution mode, and debugging controls.
 ## Stopping conditions
 
 Primary flags:
-- `--timeout`: wall-clock timeout in seconds
+- `--timeout`: active execution timeout in seconds per run
 - `--max-api-count`: cap API calls per run
 - `--max-instructions`: cap executed instructions per run
 
