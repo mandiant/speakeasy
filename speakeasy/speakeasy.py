@@ -789,12 +789,12 @@ class Speakeasy:
 
     def get_symbols(self) -> dict:
         """
-        Returns a dictionary of symbol information
+        Return a snapshot of public addresses mapped to (dll, name) tuples.
 
-        return:
-            a dictionary of symbol information
+        Includes mapped API entries and auxiliary symbols. Snapshot again after
+        resolving new modules or functions; private dispatch tokens are excluded.
         """
-        return self.emu.symbols  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_symbols()  # type: ignore[no-any-return, union-attr]
 
     def get_ret_address(self) -> int:
         """
@@ -932,6 +932,14 @@ class Speakeasy:
             symbol name
         """
         return self.emu.get_symbol_from_address(address)  # type: ignore[no-any-return, union-attr]
+
+    def get_api_symbols(self) -> dict[int, str]:
+        """Return public addresses mapped to "dll.name" labels, including auxiliary symbols.
+
+        Snapshot again after new modules or functions are resolved. Private
+        dispatch tokens and export-directory forwarder strings are excluded.
+        """
+        return self.emu.get_api_symbols()  # type: ignore[no-any-return, union-attr]
 
     def is_address_valid(self, address: int) -> bool:
         """

@@ -5,10 +5,13 @@ import ntpath
 import os
 import struct
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+
+if TYPE_CHECKING:
+    from speakeasy.winenv.api.sigdb import SignatureDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +162,6 @@ class RuntimeModule:
 
     def is_driver(self) -> bool:
         return self._image.module_type == "driver"
-
-    def is_decoy(self) -> bool:
-        return self._image.module_type == "decoy"
 
     def get_base_name(self) -> str:
         return ntpath.basename(self.emu_path)
@@ -412,6 +412,8 @@ class PeLoader:
             if self._base_override + pe.image_size > 1 << pe.arch:
                 raise ValueError("Rebased PE exceeds architecture address space")
         if self._base_override is not None and self._base_override != pe.base:
+            if not getattr(pe, "DIRECTORY_ENTRY_BASERELOC", None):
+                raise ValueError("Cannot rebase a guest PE without valid relocation data")
             pe.rebase(self._base_override)
 
         module_type = "exe"
@@ -719,152 +721,68 @@ class ShellcodeLoader:
 
 
 class ApiModuleLoader:
-    def __init__(self, *, name: str, api: Any, arch: int, base: int, emu_path: str) -> None:
+    def __init__(
+        self,
+        *,
+        name: str,
+        arch: int,
+        base: int,
+        emu_path: str,
+        signature_db: SignatureDatabase,
+        api: Any = None,
+    ) -> None:
         self._name = name
         self._api = api
         self._arch = arch
         self._base = base
         self._emu_path = emu_path
+        self._signature_db = signature_db
 
     def make_image(self) -> LoadedImage:
-        from speakeasy.windows.common import EXPORTED_FUNCTION, JitPeFile
+        from speakeasy.windows.api_image import ApiExportSpec, build_api_image
 
-        funcs = [(f[4], f[0]) for k, f in self._api.funcs.items() if isinstance(k, str)]
-        data_exports = [k for k, d in self._api.data.items() if isinstance(k, str)]
+        arch_name = "x86" if self._arch == _arch.ARCH_X86 else "x64"
+        handler_ordinals: dict[str, int | None] = {}
+        data_names: set[str] = set()
+        nt_handler = getattr(self._api, "_nt_handler", None)
+        for handler in (self._api, nt_handler):
+            if handler is None:
+                continue
+            for key, func in handler.funcs.items():
+                # Handlers register each ordinal under its name as well.
+                if isinstance(key, int) or (handler is nt_handler and not key.startswith(("Nt", "Zw"))):
+                    continue
+                handler_ordinals[key] = func[4]
+            if handler is self._api:
+                data_names.update(handler.data)
 
-        new = funcs.copy()
-
-        if self._name == "ntdll":
-            nt_handler = getattr(self._api, "_nt_handler", None)
-            if nt_handler:
-                nt_funcs = [(f[4], f[0]) for k, f in nt_handler.funcs.items() if isinstance(k, str)]
-                new = funcs + nt_funcs
-
-        if self._name in ("ntdll", "ntoskrnl"):
-            extra = []
-            for _o, fn in new:
-                if fn.startswith("Nt"):
-                    extra.append((None, "Zw" + fn[2:]))
-                elif fn.startswith("Zw"):
-                    extra.append((None, "Nt" + fn[2:]))
-            new = new + extra
-        else:
-            extra = []
-            for _o, fn in new:
-                extra.append((None, fn + "A"))
-                extra.append((None, fn + "W"))
-            new = new + extra
-
-        func_names = [fn for _o, fn in new]
-        func_names.sort()
-
-        all_exports: list[str] = []
-        ords = [o for o, _fn in funcs if o is not None]
-        if ords:
-            num_exports = max(max(ords) + 1, len(all_exports) + 1)
-            all_exports = [f"ordinal_{i}" for i in range(num_exports)]
-            for o, fn in funcs:
-                if o is not None:
-                    all_exports[o - 1] = fn
-            for fn in func_names:
-                if fn not in all_exports:
-                    all_exports.append(fn)
-        if not all_exports:
-            all_exports = func_names
-        all_exports += data_exports
-
-        jit = JitPeFile(self._arch, base=self._base, mod_name=self._name, exports=all_exports)
-        img_data = jit.basepe.get_memory_mapped_image(max_virtual_address=0xF0000000)
-        image_size = jit.basepe.OPTIONAL_HEADER.SizeOfImage
-
-        text_sect = jit.get_section_by_name(jit.basepe, ".text")
-        text_va = text_sect.VirtualAddress
-        stub_size = len(EXPORTED_FUNCTION[self._arch])
-
-        pe_exports: list[ExportEntry] = []
-        for i, name in enumerate(all_exports):
-            pe_exports.append(
-                ExportEntry(
-                    name=name,
-                    address=self._base + text_va + i * stub_size,
-                    ordinal=i + 1,
-                    execution_mode="intercepted",
-                )
-            )
-
-        sections = []
-        for sect in jit.basepe.sections:
-            sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
-            vs = sect.Misc_VirtualSize
-            sections.append(
-                SectionEntry(
-                    name=sect_name,
-                    virtual_address=sect.VirtualAddress,
-                    virtual_size=vs,
-                    perms=perms_from_section_chars(sect.Characteristics),
-                )
-            )
-
-        region = MemoryRegion(
-            base=self._base,
-            data=bytes(img_data),
-            name="api_module",
-            perms=common.PERM_MEM_RWX,
-        )
-
-        pe_metadata = PeMetadata(
-            subsystem=jit.basepe.OPTIONAL_HEADER.Subsystem,
-            timestamp=jit.basepe.FILE_HEADER.TimeDateStamp,
-            machine=jit.basepe.FILE_HEADER.Machine,
-            magic=jit.basepe.OPTIONAL_HEADER.Magic,
-        )
-
-        return LoadedImage(
+        # Strict enumeration owns surface membership. Lookup is intentionally
+        # permissive for ABI reuse and must never determine exported names.
+        specs = {sig.name: ApiExportSpec(sig.name) for sig in self._signature_db.iter_functions(self._name, arch_name)}
+        specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
+        if self._name == "ntoskrnl":
+            # The kernel exports native services under both prefixes, and
+            # dispatch folds each pair onto one handler.
+            for name in list(handler_ordinals):
+                if name.startswith(("Nt", "Zw")):
+                    alias = ("Zw" if name.startswith("Nt") else "Nt") + name[2:]
+                    specs.setdefault(alias, ApiExportSpec(alias))
+        specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
+        image_name = self._name
+        try:
+            image_name.encode("ascii")
+        except UnicodeEncodeError:
+            # The PE export-directory label need not be the loaded filename.
+            # Keep that label ASCII while retaining the actual Unicode module
+            # identity in the registry, loader lists and emulated path.
+            image_name = "speakeasy"
+        image = build_api_image(
+            name=image_name,
             arch=self._arch,
-            module_type="dll",
-            name=self._name,
+            base=self._base,
             emu_path=self._emu_path,
-            image_base=self._base,
-            image_size=image_size,
-            regions=[region],
-            imports=[],
-            exports=pe_exports,
-            default_export_mode="intercepted",
-            entry_points=[],
-            visible_in_peb=True,
-            loader=self,
-            sections=sections,
-            pe_metadata=pe_metadata,
+            exports=list(specs.values()),
         )
-
-
-class DecoyLoader:
-    def __init__(self, *, name: str, base: int, emu_path: str, image_size: int) -> None:
-        self._name = name
-        self._base = base
-        self._emu_path = emu_path
-        self._image_size = image_size
-
-    def make_image(self) -> LoadedImage:
-        pe_metadata = PeMetadata(
-            subsystem=2,  # IMAGE_SUBSYSTEM_WINDOWS_GUI
-            timestamp=0,
-            machine=0,
-            magic=0,
-        )
-        return LoadedImage(
-            arch=0,
-            module_type="decoy",
-            name=self._name,
-            emu_path=self._emu_path,
-            image_base=self._base,
-            image_size=self._image_size,
-            regions=[],
-            imports=[],
-            exports=[],
-            default_export_mode="intercepted",
-            entry_points=[],
-            visible_in_peb=True,
-            loader=self,
-            pe_metadata=pe_metadata,
-        )
+        image.name = self._name
+        image.loader = self
+        return image

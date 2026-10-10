@@ -317,9 +317,13 @@ class GdbServer:
         # Memory hooks run before the instruction has finished. Stopping here
         # can leave a committed write at an unchanged PC, so resuming repeats
         # its side effect. Watch stops are delivered at the next code boundary
-        # or when single-step execution returns naturally.
+        # or when native single-step/private-trap execution returns naturally.
         if reason.kind not in ("watch", "rwatch", "awatch") and self.emu.emu_eng is not None:
             self.emu.emu_eng.stop()
+
+    def has_pending_stop(self) -> bool:
+        with self._state_lock:
+            return self._stop_pending
 
     def pending_stop_reason(self) -> StopReason | None:
         with self._state_lock:

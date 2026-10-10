@@ -11,6 +11,8 @@ from collections.abc import Callable
 from enum import IntEnum
 from typing import Any
 
+import unicorn as uc
+
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
 import speakeasy.windows.objman as objman
@@ -20,10 +22,11 @@ import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
-from speakeasy.profiler import MemAccess, Run
+from speakeasy.profiler import ApiCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
+from speakeasy.windows.api_registry import ApiRegistry, module_name, symbol_ref
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
@@ -46,15 +49,8 @@ SIGSEGV = 11
 logger = logging.getLogger(__name__)
 
 
-MODULE_EXTENSIONS = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
-
-
 def _normalize_mod_name(name: str) -> str:
-    # Strip only image extensions so that repeated normalization keeps dotted
-    # module names such as windows.storage intact.
-    name = ntpath.basename(name).lower()
-    root, extension = ntpath.splitext(name)
-    return root if extension in MODULE_EXTENSIONS else name
+    return module_name(name)
 
 
 def _module_type_from_path(path: str, default: str = "dll") -> str:
@@ -138,7 +134,6 @@ class WindowsEmulator(BinaryEmulator):
         self.ansi_strings: list[str] = []
         self.unicode_strings: list[str] = []
         self.tmp_maps: list[tuple[int, int]] = []
-        self.impdata_queue: list[tuple[int, int, str, int]] = []
         self.run_queue: list[Run] = []
         self.suspended_runs: list[Run] = []
         self.cd: str = ""
@@ -148,9 +143,14 @@ class WindowsEmulator(BinaryEmulator):
         self.om: objman.ObjectManager | None = None
         self._sigdb: sigdb.SignatureDatabase | None = None
         self._sigfmt: sigfmt.ArgFormatter | None = None
-        self.import_table: dict[int, tuple[str, str]] = {}
-        self._next_sentinel: int = winemu.IMPORT_HOOK_ADDR
-        self.callbacks: list[tuple[int, str, str]] = []
+        self.api_registry = ApiRegistry(self)
+        self._pending_api_entry = None
+        self._pending_api_snapshot = None
+        self._pending_control = None
+        self._pending_exec_recovery: tuple[int, int] | None = None
+        self._pending_trap_fault: tuple[str, int] | None = None
+        self._import_bindings: dict[int, int] = {}
+        self._active_api_frame: ApiCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
         self.debug_hook: Any | None = None
@@ -162,7 +162,6 @@ class WindowsEmulator(BinaryEmulator):
 
         self.run_complete: bool = False
         self.emu_complete: bool = False
-        self.global_data: dict[str, Any] = {}
         self.processes: list[Any] = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
@@ -256,7 +255,11 @@ class WindowsEmulator(BinaryEmulator):
         pc = self.get_pc()
         in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
         if not self._stop_on_faults or in_reserved:
-            self.on_run_complete()
+            # A fault callback still belongs to the native invocation of this
+            # run. Advance only after Unicorn unwinds, even if it raises after
+            # emu_stop; otherwise the old fault can overwrite the next run.
+            self._pending_control = "fault_return"
+            self.emu_eng.stop()
             return
         self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()  # type: ignore[union-attr]
@@ -271,14 +274,6 @@ class WindowsEmulator(BinaryEmulator):
     def disable_code_hook(self):
         if self.tmp_code_hook:
             self.tmp_code_hook.disable()
-
-    def _module_access_hook(self, emu, addr, size):
-        symbol = self.get_symbol_from_address(addr)
-        if symbol:
-            logger.debug("module_access: %s", symbol)
-            mod_name, fn = symbol.split(".")
-            self.handle_import_func(mod_name, fn)
-            return True
 
     def set_mem_tracing_hooks(self):
         if not self.config.analysis.memory_tracing:
@@ -458,6 +453,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         Execute the next run from the emulation queue
         """
+        self.curr_run.api_callbacks.clear()
+        self._pending_api_entry = None
+        self._pending_control = None
+        self._pending_trap_fault = None
+        self._pending_exec_recovery = None
         try:
             run = self.run_queue.pop(0)
         except IndexError:
@@ -608,22 +608,57 @@ class WindowsEmulator(BinaryEmulator):
 
         self.mem_write(base, bytes(data))
 
-    def _run_api_engine(self, address, timeout=0, count=-1):
-        """Execute the current run until it ends or reaches its time or instruction limit."""
+    def _run_api_engine(self, address, timeout=0, count=-1, debugger=None):
+        """Keep one logical execution action across private API trap yields."""
+        pending = self._pending_api_entry
+        if pending is not None and address not in (pending.address, pending.trap):
+            # A debugger register edit abandons the suspended dispatch.
+            self._pending_api_entry = None
+        elif pending is not None and self._api_call_snapshot(pending) != self._pending_api_snapshot:
+            # Patches and frame edits while stopped must execute the revised
+            # public bytes instead of bypassing them through a retained trap.
+            self._pending_api_entry = None
+            address = pending.address
+            self.set_pc(address)
+        if (
+            self._pending_control
+            and self._pending_control != "exec_recovery"
+            and address
+            not in (
+                winemu.API_CALLBACK_HANDLER_ADDR,
+                self.return_hook,
+                self.exit_hook,
+            )
+        ):
+            self._pending_control = None
         started = time.monotonic()
-        deadline = started + timeout if timeout > 0 else None
-        budget = count
-        remaining = [budget if budget > 0 else -1]
+        spent = self.curr_run.execution_elapsed
+        deadline = started + max(timeout - spent, 0) if timeout > 0 else None
+        budget = self.config.max_instructions if debugger is not None else count
+        used = self.curr_run.budget_instructions
+        remaining = [max(budget - used, 0) if budget > 0 else -1]
         limit = [False]
         origin_run = self.curr_run
         hook = None
 
+        def recover_execution():
+            assert self._pending_exec_recovery is not None
+            page, perms = self._pending_exec_recovery
+            self._pending_exec_recovery = None
+            self.mem_protect(page, self.page_size, perms)
+
         def stop_limit(kind):
+            if self._pending_api_entry is not None:
+                self.set_pc(self._pending_api_entry.address)
             if kind == "timeout":
                 logger.error("* Timeout of %d sec(s) reached.", timeout)
             else:
                 logger.error("* Instruction limit of %d reached.", budget)
-            if self.curr_run is origin_run:
+            # A limit that expires while a fault is completing keeps the fault as
+            # the run's error.
+            if debugger is not None:
+                debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
+            elif self.curr_run is origin_run:
                 if origin_run.error is None:
                     origin_run.error = ErrorInfo(
                         type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
@@ -633,27 +668,112 @@ class WindowsEmulator(BinaryEmulator):
         if budget > 0:
 
             def account_instruction(_emu, _address, _size):
+                if debugger is not None and debugger.has_pending_stop():
+                    return
                 if remaining[0] <= 0:
                     limit[0] = True
                     self.emu_eng.stop()
                     return
                 remaining[0] -= 1
+                origin_run.budget_instructions += 1
                 if not self.config.analysis.memory_tracing:
                     self.curr_run.instr_cnt += 1
 
             hook = self.add_code_hook(account_instruction)
         try:
-            native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
-            native_count = remaining[0] if budget > 0 else 0
-            self.emu_eng.start(address, timeout=native_timeout, count=native_count)
-            if self.curr_run is not origin_run or self.emu_complete:
-                return
-            if deadline is not None and time.monotonic() >= deadline:
-                stop_limit("timeout")
-                return
-            if limit[0] or (budget > 0 and remaining[0] <= 0):
-                stop_limit("max_instructions")
+            while not self.emu_complete:
+                if self.exit_event and self.exit_event.is_set():
+                    self.emu_eng.stop()
+                    return
+                if self._pending_control:
+                    if debugger is not None and debugger.has_pending_stop():
+                        return
+                    control, self._pending_control = self._pending_control, None
+                    if control in ("run_return", "fault_return"):
+                        self.on_run_complete()
+                        return
+                    if control == "exec_recovery":
+                        recover_execution()
+                    else:
+                        self._continue_api_callback()
+                    address = self.get_pc()
+                    if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                        return
+                if deadline is not None and time.monotonic() >= deadline:
+                    stop_limit("timeout")
+                    return
+                if limit[0] or (budget > 0 and remaining[0] <= 0):
+                    stop_limit("max_instructions")
+                    return
+                if self._pending_api_entry is None and not self._pending_control:
+                    try:
+                        native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
+                        # Native count is a ceiling for this invocation, preventing
+                        # tracing hooks from seeing an instruction beyond the cap.
+                        # The hook carries exact consumption across private yields.
+                        native_count = remaining[0] if budget > 0 else 0
+                        if debugger is not None and count == 1:
+                            native_count = min(native_count, 1) if native_count else 1
+                        self.emu_eng.start(address, timeout=native_timeout, count=native_count)
+                    except uc.UcError as exc:
+                        if self._pending_fault_stop is not None:
+                            return
+                        if self._pending_trap_fault is not None:
+                            pass
+                        elif self._pending_control == "exec_recovery" and exc.errno == uc.UC_ERR_FETCH_PROT:
+                            pass
+                        elif self._pending_control == "fault_return":
+                            pass
+                        elif exc.errno != uc.UC_ERR_FETCH_UNMAPPED or (
+                            self._pending_api_entry is None and not self._pending_control
+                        ):
+                            raise
+                    if self._pending_trap_fault is not None:
+                        self._dispatch_trap_fault()
+                        address = self.get_pc()
+                        if self._pending_fault_stop is not None:
+                            return
+                        if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                            return
+                        continue
+                    if self._pending_api_entry is None:
+                        candidate = self.api_registry.traps.get(self.get_pc())
+                        if candidate is not None:
+                            self._suspend_api_call(candidate)
+                    if self.get_pc() == winemu.API_CALLBACK_HANDLER_ADDR and self.curr_run.api_callbacks:
+                        self._pending_control = "callback_return"
+                    elif self.get_pc() in (self.return_hook, self.exit_hook):
+                        self._pending_control = "run_return"
+                if self.curr_run is not origin_run or self.emu_complete:
+                    return
+                entry = self._pending_api_entry
+                if debugger is not None and debugger.has_pending_stop():
+                    return
+                if self._pending_control:
+                    continue
+                if deadline is not None and time.monotonic() >= deadline:
+                    stop_limit("timeout")
+                    return
+                if budget > 0 and remaining[0] <= 0:
+                    stop_limit("max_instructions")
+                    return
+                if entry is None:
+                    return
+                self._pending_api_entry = None
+                self._pending_api_snapshot = None
+                self.prev_pc = entry.address
+                self.handle_import_func(entry.dll, entry.name)
+                if self._pending_fault_stop is not None:
+                    return
+                if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
+                    self.on_run_complete()
+                address = self.get_pc()
+                if self.curr_run is not origin_run:
+                    return
+                if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                    return
         finally:
+            origin_run.execution_elapsed = spent + time.monotonic() - started
             if hook is not None:
                 if hook.added:
                     self.emu_eng.hook_remove(hook.handle)
@@ -665,8 +785,11 @@ class WindowsEmulator(BinaryEmulator):
         This low-level API bypasses the GDB command loop; callers that enable
         GDB should drive execution through :meth:`start` instead.
         """
+        if self.curr_run is None:
+            self.curr_run = Run()
+        self.emu_complete = False
         timeout = 0 if self.gdb_port is not None else self.config.timeout
-        self.emu_eng.start(addr, timeout=timeout, count=count)  # type: ignore[union-attr]
+        self._run_api_engine(addr, timeout=timeout, count=count)
 
     def start(self, addr=None, size=None):
         """
@@ -732,10 +855,8 @@ class WindowsEmulator(BinaryEmulator):
                 instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
                 should_execute = debugger is None or debugger.begin_run(debug_action)
                 executing_run = self.curr_run
-                if should_execute and debugger is None:
-                    self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count)
-                elif should_execute:
-                    self.emu_eng.start(resume_addr, timeout=timeout, count=instruction_count)  # type: ignore[union-attr]
+                if should_execute:
+                    self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count, debugger=debugger)
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
                     fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
@@ -1014,7 +1135,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return
 
-    def load_pe(self, path=None, data=None, imp_id=winemu.IMPORT_HOOK_ADDR):
+    def load_pe(self, path=None, data=None):
         """
         Parse a PE that will be used during emulation. PE type and architecture
         are automatically determined.
@@ -1023,7 +1144,7 @@ class WindowsEmulator(BinaryEmulator):
         if not data and not os.path.exists(path):
             raise WindowsEmuError(f"File: {path} not found")
 
-        pe = winemu._PeParser(path=path, data=data, imp_id=imp_id, imp_step=4)
+        pe = winemu._PeParser(path=path, data=data)
 
         pe_type = "unknown"
         if pe.is_driver():
@@ -1065,124 +1186,146 @@ class WindowsEmulator(BinaryEmulator):
                 return m
         return None
 
-    def _alloc_sentinel(self):
-        addr = self._next_sentinel
-        self._next_sentinel += self.get_ptr_size()
-        return addr
-
     def ensure_pe_import_hooks(self, base_addr):
-        """
-        Ensure a PE image in emulated memory has its IAT patched with sentinel
-        values so that API calls are intercepted by speakeasy. Idempotent: IAT
-        entries that already point to a known sentinel are left untouched.
+        """Bind imports of an injected mapped PE using the public API registry.
+
+        Validate every RVA against SizeOfImage and bound both table walks.
+        Bind each valid IAT slot independently and skip invalid slots.
+        A zero OriginalFirstThunk may reuse an already bound IAT; recorded
+        bindings preserve idempotence without interpreting code addresses as RVAs.
 
         Intended for PEs injected via WriteProcessMemory (process hollowing)
         that bypass the normal module loader.
         """
-        import struct as _struct
+        import struct
+
+        import pefile
 
         ptr_size = self.get_ptr_size()
-        is_64 = self.get_arch() == _arch.ARCH_AMD64
-
+        import_errors = (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError)
         try:
-            dos_hdr = self.mem_read(base_addr, 0x40)
-        except Exception:
-            return
-        if dos_hdr[:2] != b"MZ":
-            return
+            dos = self.mem_read(base_addr, 0x40)
+            if dos[:2] != b"MZ":
+                return
+            nt_rva = struct.unpack_from("<I", dos, 0x3C)[0]
+            if nt_rva > 0x100000:
+                return
+            header = self.mem_read(base_addr + nt_rva, 24)
+            if header[:4] != b"PE\x00\x00":
+                return
+            opt_size = struct.unpack_from("<H", header, 20)[0]
+            if opt_size < (0x80 if ptr_size == 8 else 0x70) or opt_size > 0x1000:
+                return
+            opt = self.mem_read(base_addr + nt_rva + 24, opt_size)
+            magic = struct.unpack_from("<H", opt)[0]
+            if magic != (0x20B if ptr_size == 8 else 0x10B):
+                return
+            image_size = struct.unpack_from("<I", opt, 56)[0]
+            directory_offset = 112 if ptr_size == 8 else 96
+            if struct.unpack_from("<I", opt, directory_offset - 4)[0] < 2:
+                return
+            import_rva, import_size = struct.unpack_from("<II", opt, directory_offset + 8)
+            if not import_rva and not import_size:
+                return
+            if not import_rva or not import_size or import_rva + import_size > image_size:
+                raise ValueError("import directory outside image")
 
-        e_lfanew = _struct.unpack_from("<I", dos_hdr, 0x3C)[0]
-        pe_sig_off = base_addr + e_lfanew
+            def read_rva(rva, size):
+                if rva < 0 or size < 0 or rva + size > image_size:
+                    raise ValueError("import RVA outside image")
+                return self.mem_read(base_addr + rva, size)
 
-        try:
-            pe_hdr = self.mem_read(pe_sig_off, 0x18)
-        except Exception:
-            return
-        if pe_hdr[:4] != b"PE\x00\x00":
-            return
+            def read_name(rva, *, dll=False):
+                # Bounded byte reads also support names ending at a page boundary.
+                if not 0 <= rva < image_size:
+                    raise ValueError("import name RVA outside image")
+                value = bytearray()
+                for offset in range(min(4096, image_size - rva)):
+                    byte = read_rva(rva + offset, 1)
+                    if byte == b"\x00":
+                        if not value:
+                            raise ValueError("invalid import name")
+                        if dll:
+                            ascii_name = bytes(byte if byte < 128 else ord("x") for byte in value)
+                            if not pefile.is_valid_dos_filename(ascii_name):
+                                raise ValueError("invalid import DLL name")
+                            try:
+                                return value.decode("ascii")
+                            except UnicodeError:
+                                name = value.decode("latin-1")
+                                logger.warning("non-ASCII injected import DLL name decoded as Latin-1: %r", name)
+                                return name
+                        if not pefile.is_valid_function_name(bytes(value)):
+                            raise ValueError("invalid import function name")
+                        return value.decode("ascii")
+                    value.extend(byte)
+                raise ValueError("unterminated import name")
 
-        opt_off = pe_sig_off + 0x18
-        if is_64:
-            opt_hdr = self.mem_read(opt_off, 0x70 + 16 * 8)
-            import_dir_rva = _struct.unpack_from("<I", opt_hdr, 0x78)[0]
-            import_dir_size = _struct.unpack_from("<I", opt_hdr, 0x7C)[0]
-        else:
-            opt_hdr = self.mem_read(opt_off, 0x60 + 16 * 8)
-            import_dir_rva = _struct.unpack_from("<I", opt_hdr, 0x68)[0]
-            import_dir_size = _struct.unpack_from("<I", opt_hdr, 0x6C)[0]
-
-        if not import_dir_rva or not import_dir_size:
-            return
-
-        import_dir_va = base_addr + import_dir_rva
-        desc_size = 20
-        n_descriptors = 0
-        n_fixups = 0
-
-        while True:
-            desc_off = import_dir_va + n_descriptors * desc_size
-            try:
-                desc = self.mem_read(desc_off, desc_size)
-            except Exception:
-                break
-
-            ilt_rva, _, _, name_rva, iat_rva = _struct.unpack_from("<5I", desc, 0)
-            if not name_rva and not iat_rva:
-                break
-            n_descriptors += 1
-
-            try:
-                dll_bytes = self.mem_read(base_addr + name_rva, 256)
-            except Exception:
-                continue
-            dll_name = dll_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
-
-            thunk_rva = ilt_rva if ilt_rva else iat_rva
-            idx = 0
-            while True:
-                thunk_va = base_addr + thunk_rva + idx * ptr_size
-                iat_va = base_addr + iat_rva + idx * ptr_size
-                idx += 1
-
+            pending = []
+            for index in range(min(import_size // 20, 4096)):
                 try:
-                    thunk_data = self.mem_read(thunk_va, ptr_size)
-                except Exception:
+                    descriptor = read_rva(import_rva + index * 20, 20)
+                except import_errors as error:
+                    logger.warning("unreadable injected PE import descriptor at %#x: %s", base_addr, error)
                     break
-                thunk_val = int.from_bytes(thunk_data, "little")
-                if thunk_val == 0:
+                if descriptor == b"\x00" * 20:
                     break
-
-                iat_data = self.mem_read(iat_va, ptr_size)
-                iat_val = int.from_bytes(iat_data, "little")
-                if iat_val in self.import_table:
+                ilt_rva, _, _, name_rva, iat_rva = struct.unpack("<5I", descriptor)
+                try:
+                    if not name_rva or not iat_rva:
+                        raise ValueError("incomplete import descriptor")
+                    dll_name = read_name(name_rva, dll=True)
+                except import_errors as error:
+                    logger.warning("skipping injected PE import descriptor %s at %#x: %s", index, base_addr, error)
                     continue
-
-                if is_64:
-                    is_ordinal = (thunk_val >> 63) & 1
-                else:
-                    is_ordinal = (thunk_val >> 31) & 1
-
-                if is_ordinal:
-                    ordinal = thunk_val & 0xFFFF
-                    func_name = f"ordinal_{ordinal}"
-                else:
-                    hint_name_rva = thunk_val & 0x7FFFFFFF
+                thunk_rva = ilt_rva or iat_rva
+                for offset in range(min(image_size // ptr_size, 65536)):
+                    iat = iat_rva + offset * ptr_size
                     try:
-                        hint_data = self.mem_read(base_addr + hint_name_rva, 256)
-                    except Exception:
+                        thunk = int.from_bytes(read_rva(thunk_rva + offset * ptr_size, ptr_size), "little")
+                        if not thunk:
+                            break
+                        current = int.from_bytes(read_rva(iat, ptr_size), "little")
+                    except import_errors as error:
+                        # Without readable slots, the remainder of this table
+                        # cannot be walked safely; other descriptors are independent.
+                        logger.warning("skipping injected PE import table %s at %#x: %s", dll_name, base_addr, error)
+                        break
+                    if self._import_bindings.get(base_addr + iat) == current:
                         continue
-                    name_bytes = hint_data[2:]
-                    func_name = name_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+                    if base_addr + iat in self._import_bindings and (not ilt_rva or current != thunk):
+                        # Preserve a guest hook. A separate ILT can identify an
+                        # explicitly restored unbound slot; zero-OFT images cannot.
+                        continue
+                    if not ilt_rva and not thunk & (1 << (ptr_size * 8 - 1)) and thunk >= image_size:
+                        # Already bound externally, with no surviving name table.
+                        continue
+                    try:
+                        if thunk & (1 << (ptr_size * 8 - 1)):
+                            if thunk & ~((1 << (ptr_size * 8 - 1)) | 0xFFFF):
+                                raise ValueError("reserved bits in ordinal import")
+                            reference = f"ordinal_{thunk & 0xFFFF}"
+                        else:
+                            reference = read_name(thunk + 2)
+                        address = self.get_proc(dll_name, reference)
+                        if not address:
+                            raise WindowsEmuError(f"unresolved import {dll_name}!{reference}")
+                        if not 0 <= address < 1 << (ptr_size * 8):
+                            raise ValueError("import address does not fit pointer size")
+                    except import_errors as error:
+                        logger.warning("skipping injected PE import slot at %#x: %s", base_addr + iat, error)
+                        continue
+                    pending.append((base_addr + iat, address))
+                else:
+                    logger.warning("unterminated injected PE import thunk table at %#x", base_addr)
+            else:
+                logger.warning("unterminated injected PE import descriptor table at %#x", base_addr)
 
-                sentinel = self._alloc_sentinel()
-                self.import_table[sentinel] = (_normalize_mod_name(dll_name), func_name)
-                try:
-                    self.mem_write(iat_va, sentinel.to_bytes(ptr_size, "little"))
-                    n_fixups += 1
-                except Exception:
-                    pass
-
-        logger.info("PE import fixups at 0x%x: %d descriptor(s), %d new fixup(s)", base_addr, n_descriptors, n_fixups)
+            for iat, address in pending:
+                self.mem_write(iat, address.to_bytes(ptr_size, "little"))
+            self._import_bindings.update(pending)
+        except import_errors:
+            logger.warning("invalid injected PE import table at %#x", base_addr, exc_info=True)
 
     def get_mod_by_name(self, name):
         name_lower = name.lower()
@@ -1198,12 +1341,22 @@ class WindowsEmulator(BinaryEmulator):
     def get_peb_modules(self):
         return [mod for mod in self.modules if mod.visible_in_peb]
 
+    def _notify_module_change(self):
+        """Notify every observer without letting one failure disrupt publication."""
+        for listener in tuple(self.module_change_listeners):
+            try:
+                listener()
+            except Exception:
+                logger.exception("module change listener failed: %r", listener)
+
     def load_image(self, image):
         import capstone as cs
 
         from speakeasy.windows.loaders import RuntimeModule
 
         valid_arch = image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64)
+        if self.arch and valid_arch and self.arch != image.arch:
+            raise WindowsEmuError("module architecture does not match the emulated process")
         if not self.arch:
             if valid_arch:
                 self.arch = image.arch
@@ -1232,141 +1385,87 @@ class WindowsEmulator(BinaryEmulator):
         self.advance_bootstrap_phase(BootstrapPhase.ENGINE_API_READY)
         self.bootstrap_object_services()
 
-        single_region_pe = (
-            len(image.regions) == 1
-            and image.regions[0].base == image.image_base
-            and image.image_size > len(image.regions[0].data)
-        )
+        if image.source == "synthetic" and not image.image_base:
+            raise WindowsEmuError("synthetic image addresses must be finalized before mapping")
+        requested_base = image.image_base
         for region in image.regions:
-            base = region.base
-            size = image.image_size if single_region_pe else len(region.data)
-            if base == 0:
-                base = self.mem_map(size, tag=f"emu.module.{image.name}")
-                image.image_base = base
-            else:
-                mapped = self.mem_map(size, base=base, tag=f"emu.module.{image.name}")
-                if mapped != base:
-                    raise WindowsEmuError(f"cannot map module {image.name} at {base:#x}: address range is in use")
-            self.mem_write(base, region.data)
-
-        ptr_size = self.get_ptr_size()
-        for imp in image.imports:
-            if imp.source == "delay":
-                continue
-            sentinel = self._alloc_sentinel()
-            self.import_table[sentinel] = (_normalize_mod_name(imp.dll_name), imp.func_name)
-            offset = imp.iat_address
-            try:
-                self.mem_write(offset, sentinel.to_bytes(ptr_size, "little"))
-            except Exception:
-                pass
-
-        from speakeasy.windows.loaders import PeLoader as _PeLoaderType
-
-        if isinstance(image.loader, _PeLoaderType) and image.sections:
-            base = image.image_base
-            first_section_rva = image.sections[0].virtual_address
-            if first_section_rva > 0:
-                aligned_headers = (first_section_rva + self.page_size - 1) & ~(self.page_size - 1)
-                self.mem_protect(base, aligned_headers, common.PERM_MEM_READ)
-
-            page_perms = {}
-            for sect in image.sections:
-                section_addr = base + sect.virtual_address
-                aligned_addr = section_addr & ~(self.page_size - 1)
-                end_addr = section_addr + sect.virtual_size
-                aligned_end = (end_addr + self.page_size - 1) & ~(self.page_size - 1)
-                # PE sections can be smaller than a page and multiple sections can share one page.
-                # Merge permissions per page so a later tiny read-only section does not clobber
-                # earlier writable/executable permissions already required on that same page.
-                for page_base in range(aligned_addr, aligned_end, self.page_size):
-                    page_perms[page_base] = page_perms.get(page_base, 0) | sect.perms
-
-            # Each unicorn mem_protect call splits a region, and the cost grows with the region
-            # count, so protect runs of contiguous same-permission pages with one call each.
-            for run_base, run_size, perms in get_page_protection_runs(page_perms, self.page_size):
-                try:
-                    self.mem_protect(run_base, run_size, perms)
-                except Exception:
-                    for page_base in range(run_base, run_base + run_size, self.page_size):
-                        try:
-                            self.mem_protect(page_base, self.page_size, perms)
-                        except Exception:
-                            pass
+            offset = region.base - requested_base
+            if offset < 0 or offset + len(region.data) > image.image_size:
+                raise WindowsEmuError("module region is outside its image span")
+        base = self.mem_map(
+            image.image_size,
+            base=requested_base or None,
+            tag=f"emu.module.{image.name}",
+            process=self.get_current_process() if self.kernel_mode else None,
+        )
+        if requested_base and base != requested_base:
+            raise WindowsEmuError(f"cannot map module {image.name} at {requested_base:#x}: address range is in use")
+        image.image_base = base
+        for region in image.regions:
+            self.mem_write(base + region.base - requested_base, region.data)
 
         mod = RuntimeModule(image)
-        if image.image_base != 0 and mod.base != image.image_base:
-            mod.base = image.image_base
-
-        is_primary = isinstance(image.loader, _PeLoaderType) or image.module_type == "shellcode"
-
-        mod_base_name = ntpath.basename(image.emu_path)
-        mod_base_name_no_ext = _normalize_mod_name(mod_base_name)
-
-        has_api_exports = False
-        if self.api:
-            for exp in image.exports:
-                if not exp.name:
-                    continue
-                _api_mod, func_attrs = self.api.get_export_func_handler(mod_base_name_no_ext, exp.name)
-                if not func_attrs:
-                    _api_mod, func_attrs = self.normalize_import_miss(mod_base_name_no_ext, exp.name)
-                if func_attrs:
-                    self.symbols[exp.address] = (mod_base_name_no_ext, exp.name)
-                    has_api_exports = True
-                if not is_primary:
-                    _api_mod, data_hndlr = self.api.get_data_export_handler(mod_base_name_no_ext, exp.name)
-                    if data_hndlr and not self.config.analysis.memory_tracing:
-                        self.add_mem_read_hook(cb=self._hook_mem_read, begin=exp.address, end=exp.address)
-                        self.add_mem_write_hook(cb=self._hook_mem_write, begin=exp.address, end=exp.address)
-
-            if not is_primary and has_api_exports and image.regions and not self.config.analysis.memory_tracing:
-                region = image.regions[0]
-                mod_start = region.base if region.base else image.image_base
-                mod_end = mod_start + len(region.data)
-                self.add_code_hook(cb=self._module_access_hook, begin=mod_start, end=mod_end)
-
-            for imp in image.imports:
-                if imp.source == "delay":
-                    continue
-                dll_name = imp.dll_name
-                alt_dll = winemu.normalize_dll_name(dll_name)
-                _api_mod, eh = self.api.get_data_export_handler(dll_name, imp.func_name)
-                if not eh and alt_dll:
-                    _api_mod, eh = self.api.get_data_export_handler(alt_dll, imp.func_name)
-                if eh:
-                    old_sentinel = int.from_bytes(self.mem_read(imp.iat_address, ptr_size), "little")
-                    data_ptr = self.handle_import_data(dll_name, imp.func_name)
-                    sym = f"{dll_name}.{imp.func_name}"
-                    self.global_data[imp.iat_address] = [sym, data_ptr]
-                    if data_ptr is not None:
-                        self.mem_write(imp.iat_address, data_ptr.to_bytes(ptr_size, "little"))
-                    self.import_table.pop(old_sentinel, None)
-
-        # Static strings describe the input, which is the image whose load runs setup.
-        # Setup and later runs load container and decoy PEs that must not replace them.
-        if is_primary and not self._setup_done and self.profiler and self.config.analysis.strings and image.regions:
-            raw = image.regions[0].data
-            if raw:
-                self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
-                self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
-
         self.modules.append(mod)
-        for listener in tuple(self.module_change_listeners):
-            try:
-                listener()
-            except Exception:
-                logger.warning("module change listener failed", exc_info=True)
-
-        if is_primary and not self.stack_base and image.stack_size:
-            stack_size = self.config.stack_size or image.stack_size
-            self.stack_base, _stack_addr = self.alloc_stack(stack_size)
-
+        self.api_registry.register_module(mod)
+        is_guest = image.source == "guest_pe"
+        if is_guest and not self.stack_base and image.stack_size:
+            self.stack_base, _stack_addr = self.alloc_stack(self.config.stack_size or image.stack_size)
         if not self._setup_done:
             self._setup_done = True
             self.setup()
             self.advance_bootstrap_phase(BootstrapPhase.FULL_SETUP_READY)
 
+        ptr_size = self.get_ptr_size()
+        for imp in image.imports:
+            try:
+                if not mod.base <= imp.iat_address <= mod.base + mod.image_size - ptr_size:
+                    raise WindowsEmuError("import IAT slot outside image")
+                address = self.get_proc(imp.dll_name, imp.func_name)
+                if not address:
+                    raise WindowsEmuError(f"unresolved import {imp.dll_name}!{imp.func_name}")
+                encoded = address.to_bytes(ptr_size, "little")
+            except (ValueError, OverflowError, uc.UcError, WindowsEmuError) as error:
+                logger.warning("skipping import %s!%s in %s: %s", imp.dll_name, imp.func_name, image.name, error)
+                continue
+            self.mem_write(imp.iat_address, encoded)
+            self._import_bindings[imp.iat_address] = address
+
+        for entry in tuple(self.api_registry.entries.values()):
+            if entry.export.kind == "data":
+                self._initialize_api_data(entry)
+
+        if image.sections and image.module_type != "shellcode":
+            first_rva = min(section.virtual_address for section in image.sections)
+            if first_rva:
+                self.mem_protect(
+                    mod.base, (first_rva + self.page_size - 1) & ~(self.page_size - 1), common.PERM_MEM_READ
+                )
+            page_perms = {}
+            for section in image.sections:
+                start = (mod.base + section.virtual_address) & ~(self.page_size - 1)
+                end = (mod.base + section.virtual_address + section.virtual_size + self.page_size - 1) & ~(
+                    self.page_size - 1
+                )
+                # PE sections can be smaller than a page and multiple sections can share one page.
+                # Merge permissions per page so a later tiny read-only section does not clobber
+                # earlier writable/executable permissions already required on that same page.
+                for page in range(start, end, self.page_size):
+                    page_perms[page] = page_perms.get(page, 0) | section.perms
+            # Each unicorn mem_protect call splits a region, and the cost grows with the region
+            # count, so protect runs of contiguous same-permission pages with one call each.
+            for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
+                self.mem_protect(start, length, perms)
+
+        if (
+            (is_guest or image.source == "guest_shellcode")
+            and self.profiler
+            and self.config.analysis.strings
+            and image.regions
+        ):
+            raw = image.regions[0].data
+            self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
+            self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
+        self._notify_module_change()
         return mod
 
     def setup(self):
@@ -1566,6 +1665,12 @@ class WindowsEmulator(BinaryEmulator):
     def get_process_peb(self, process):
         return process.peb
 
+    @property
+    def callbacks(self):
+        return [
+            (entry.address, entry.dll, entry.name) for entry in self.api_registry.entries.values() if entry.callback
+        ]
+
     def add_callback(self, mod_name, func_name):
         """
         Adds a callback to the emulation callback list. A "callback" in this
@@ -1574,56 +1679,150 @@ class WindowsEmulator(BinaryEmulator):
         For example, a pointer that is set in a function table
         (e.g. PsSetCreateProcessNotifyRoutine).
         """
-        for addr, mod, fn in self.callbacks:
-            if mod_name == mod and func_name == fn:
-                return addr
+        from speakeasy.windows.loaders import ApiModuleLoader
 
-        if not self.callbacks:
-            curr_idx = winemu.EMU_CALLBACK_RESERVE
-            self.callbacks.append((curr_idx, mod_name, func_name))
-        else:
-            curr_idx = self.callbacks[-1][0]
-            curr_idx += 1
-            self.callbacks.append((curr_idx, mod_name, func_name))
+        module = self.get_mod_by_name("speakeasy_callbacks")
+        if module is None:
+            base, _ = self.get_valid_ranges(0x20000, addr=0x6E000000)
+            image = ApiModuleLoader(
+                name="speakeasy_callbacks",
+                arch=self.arch,
+                base=base,
+                emu_path="speakeasy_callbacks.dll",
+                signature_db=self.get_signature_db(),
+            ).make_image()
+            image.visible_in_peb = False
+            module = self.load_image(image)
+        entry = self.api_registry.dynamic(module, mod_name + "!" + func_name)
+        entry.callback = True
+        entry.binding_module = mod_name
+        entry.binding_name = func_name
+        return entry.address
 
-        return curr_idx
+    def _initialize_api_data(self, entry):
+        if self.bootstrap_phase < BootstrapPhase.FULL_SETUP_READY:
+            return
+        if entry.dll == "ntoskrnl" and not self.kernel_mode:
+            return
+        if entry.initialized or entry.module._image.source != "synthetic":
+            return
+        mod, handler = self.api.get_data_export_handler(entry.dll, entry.name)
+        if handler:
+            address = self.api.call_data_func(mod, handler, entry.address)
+            if address and address != entry.address:
+                raise WindowsEmuError(f"data initializer for {entry.symbol} ignored its provided storage")
+            if not address:
+                return
+        entry.initialized = True
+
+    def resolve_export(self, module, reference, *, allow_dynamic=False, _seen=None, strict=False):
+        reference = symbol_ref(reference)
+        if isinstance(reference, int):
+            if not 0 < reference <= 0xFFFF:
+                return 0
+        elif not isinstance(reference, str) or not reference or "\x00" in reference or len(reference) > 4096:
+            return 0
+        entry = self.api_registry.lookup(module, reference)
+        if entry is None:
+            if strict:
+                return 0
+            hooks = self.get_api_hooks(module.name, str(reference))
+            eligible = allow_dynamic or self.config.modules.functions_always_exist or hooks
+            # Empty placeholder modules deliberately offer dynamic-only functions.
+            eligible = eligible or (module._image.source == "synthetic" and not module.get_exports())
+            if not eligible or module._image.source != "synthetic":
+                return 0
+            try:
+                entry = self.api_registry.dynamic(module, reference)
+            except WindowsEmuError:
+                logger.debug("cannot allocate API entry for %s!%s", module.name, reference, exc_info=True)
+                return 0
+        if entry.export.forwarder:
+            seen = set() if _seen is None else _seen
+            key = (id(module), reference)
+            if key in seen or len(seen) >= 32:
+                return 0
+            seen.add(key)
+            target = entry.export.forwarder
+            if "." not in target:
+                return 0
+            dll, name = target.rsplit(".", 1)
+            target_name = winemu.normalize_dll_name(module_name(dll))
+            target_module = self.get_mod_by_name(target_name)
+            if target_module is None:
+                target_module = self.load_module_by_name(target_name)
+            ref = int(name[1:]) if name.startswith("#") and name[1:].isdigit() else name
+            return self.resolve_export(target_module, ref, _seen=seen, strict=True)
+        if entry.export.kind == "data":
+            self._initialize_api_data(entry)
+        return entry.address
 
     def get_proc(self, mod_name, func_name):
-        """
-        Get a pointer for a supplied function name, similar to how the
-        "GetProcAddress" API functions.
-        """
-        mod_name = _normalize_mod_name(mod_name)
-        for addr, (mod, fn) in self.import_table.items():
-            if mod_name == mod and func_name == fn:
-                return addr
+        """Resolve an explicit import request to stable mapped code or storage."""
+        name = module_name(mod_name)
+        host = winemu.normalize_dll_name(name)
+        module = self.get_mod_by_name(host)
+        if module is None:
+            module = self.load_module_by_name(host)
+        return self.resolve_export(module, func_name, allow_dynamic=True)
 
-        sentinel = self._alloc_sentinel()
-        self.import_table[sentinel] = (mod_name, func_name)
-        return sentinel
+    def _intercept_api_trap(self, access, address, size):
+        if self.emu_eng.mem_access.get(access) == common.INVALID_MEM_EXEC:
+            if address in (self.return_hook, self.exit_hook) and self.curr_run:
+                self._pending_control = "run_return"
+                self.emu_eng.stop()
+                return True
+            if address == winemu.API_CALLBACK_HANDLER_ADDR and self.curr_run and self.curr_run.api_callbacks:
+                self._pending_control = "callback_return"
+                self.emu_eng.stop()
+                return True
+            entry = self.api_registry.traps.get(address)
+            if entry is not None:
+                self._suspend_api_call(entry)
+                self.emu_eng.stop()
+                return True
+        if self.api_registry.overlaps_traps(address, size):
+            # No fake-page recovery may ever materialize the private reservation.
+            kind = {
+                common.INVALID_MEM_READ: "read",
+                common.INVALID_MEM_WRITE: "write",
+                common.INVALID_MEM_EXEC: "fetch",
+            }.get(self.emu_eng.mem_access.get(access), "read")
+            self._pending_trap_fault = (kind, address)
+            self.emu_eng.stop()
+            return True
+        return False
 
-    def handle_import_data(self, mod_name, sym, data_ptr=0):
+    def _dispatch_trap_fault(self):
+        """Deliver private-reservation faults after native execution unwinds.
+
+        Unlike ordinary recovery, this path must not map a temporary page at
+        the target. Guest SEH may redirect execution or repair its registers.
         """
-        Data that is imported (e.g. KeTickCount) is handled with a initializer function.
-        Call it here if there is a handler for the imported variable.
-        """
-        module, func = self.api.get_data_export_handler(mod_name, sym)  # type: ignore[union-attr]
-        if not func:
-            alt_dll = winemu.normalize_dll_name(mod_name)
-            if alt_dll:
-                module, func = self.api.get_data_export_handler(alt_dll, sym)  # type: ignore[union-attr]
-        if not func:
-            module, func = self.api.get_export_func_handler(mod_name, sym)  # type: ignore[union-attr]
-            if not func:
-                module, func = self.normalize_import_miss(mod_name, sym)
-            if not func:
-                return None
+        kind, address = self._pending_trap_fault
+        self._pending_trap_fault = None
+        self.prev_pc = self.get_pc()
+        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address):
+            self.enable_code_hook()
+            return
+        self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
+        self.end_run_on_fault()
 
-            proc_addr = self.get_proc(mod_name, sym)
-            return proc_addr
+    def _api_call_snapshot(self, entry):
+        sp = self.get_stack_ptr()
+        try:
+            return_address = self.mem_read(sp, self.ptr_size)
+        except uc.UcError:
+            return_address = None
+        try:
+            code = self.mem_read(entry.address, 16)
+        except uc.UcError:
+            code = None
+        return sp, return_address, code
 
-        data_addr = self.api.call_data_func(module, func, data_ptr)  # type: ignore[union-attr]
-        return data_addr
+    def _suspend_api_call(self, entry):
+        self._pending_api_entry = entry
+        self._pending_api_snapshot = self._api_call_snapshot(entry)
 
     def _handle_invalid_fetch(self, emu, address, size, value):
         """
@@ -1632,33 +1831,6 @@ class WindowsEmulator(BinaryEmulator):
         if address == self.return_hook or address == self.exit_hook:
             self._unset_emu_hooks()
             return True
-
-        if not self.curr_mod:
-            self.curr_mod = self.get_module_from_addr(self.get_pc())
-
-        if self.curr_mod and hasattr(self.curr_mod, "import_table"):
-            impfunc = self.curr_mod.import_table.get(address)
-            if impfunc:
-                mod_name, func_name = impfunc
-                self._unset_emu_hooks()
-                self.handle_import_func(mod_name, func_name)
-                return True
-
-        impfunc = self.import_table.get(address)
-        if impfunc:
-            mod_name, func_name = impfunc
-            self._unset_emu_hooks()
-            self.handle_import_func(mod_name, func_name)
-            return True
-
-        # dyn_imps merged into import_table — checked above
-
-        # Is the address a callback func ptr?
-        for addr, mod, fn in self.callbacks:
-            if addr == address:
-                self._unset_emu_hooks()
-                self.handle_import_func(mod, fn)
-                return True
 
         # Are there any SEH handlers registered?
         if self.config.exceptions.dispatch_handlers:
@@ -1862,7 +2034,7 @@ class WindowsEmulator(BinaryEmulator):
             text = sigfmt.quote_string(text)
         return f"{arg.name}: {text}" if arg.name is not None else text
 
-    def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg]) -> None:
+    def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg], *, run=None) -> None:
         """
         Log an API call and record it with the profiler
         """
@@ -1870,12 +2042,19 @@ class WindowsEmulator(BinaryEmulator):
 
         rv_str = hex(rv) if rv is not None else None
         logger.info("%s: %s -> %s", hex(pc), repr(call_str), rv_str)
-        if self.profiler and self.curr_run:
-            tick = self.curr_run.instr_cnt
-            tid = self.curr_thread.tid if self.curr_thread else 0
-            pid = self.curr_process.id if self.curr_process else 0
+        run = self.curr_run if run is None else run
+        if self.profiler and run:
+            tick = run.instr_cnt
+            thread = run.thread or self.curr_thread
+            process = run.process_context or (thread.process if thread else None) or self.curr_process
+            tid = thread.tid if thread else 0
+            pid = process.id if process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-            self.profiler.record_api_event(self.curr_run, pos, imp_api, rv, args)
+            frame = self._active_api_frame
+            deferred = frame is not None and any(item is frame for item in run.api_callbacks)
+            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=not deferred)
+            if deferred:
+                frame.event = event
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
         """
@@ -1888,23 +2067,31 @@ class WindowsEmulator(BinaryEmulator):
     def _get_signature_arch(self) -> str:
         return sigdb.ARCH_X86 if self.get_arch() == _arch.ARCH_X86 else sigdb.ARCH_X64
 
-    def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """
-        Find a usable signature for an import that has no speakeasy handler.
-        Returns None when the function is unknown or its declaration is marked
-        as unsupported.
-        """
+    def _lookup_api_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
+        """Find the authoritative declaration without choosing an execution ABI."""
         db = self.get_signature_db()
         arch = self._get_signature_arch()
-        sig = db.lookup(dll, name, arch)
-        if sig is None:
-            alt_dll = winemu.normalize_dll_name(dll)
-            if alt_dll.lower() != dll.lower():
-                sig = db.lookup(alt_dll, name, arch)
-        if sig is not None and sig.skip:
-            logger.debug("signature for %s.%s is unsupported: %s", dll, name, sig.skip)
+        try:
+            sig = db.lookup_exact(dll, name, arch)
+            if sig is None:
+                alt_dll = winemu.normalize_dll_name(dll)
+                if alt_dll.lower() != dll.lower():
+                    sig = db.lookup_exact(alt_dll, name, arch)
+        except Exception as exc:
+            raise WindowsEmuError(f"signature provider failed for {dll}!{name}: {exc}") from exc
+        return sig
+
+    def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
+        sig = self._lookup_api_declaration(dll, name)
+        if sig is not None and not sig.supports_emulation(self.get_ptr_size()):
+            logger.debug("signature for %s.%s cannot be emulated safely", dll, name)
             return None
         return sig
+
+    def _can_stub_unknown_api(self, dll: str, name: str) -> bool:
+        # A known unsupported declaration is not unknown and still requires a
+        # handler.
+        return self.config.modules.functions_always_exist and self._lookup_api_declaration(dll, name) is None
 
     def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
@@ -1915,8 +2102,12 @@ class WindowsEmulator(BinaryEmulator):
         handler. Returns None when the function is unknown, variadic, or its
         declaration does not consume exactly the ``argc`` slots the handler reads.
         """
-        sig = self.lookup_api_signature(dll, name)
-        if sig is None or sig.variadic or sig.slot_count(self.get_ptr_size()) != argc:
+        try:
+            sig = self.get_signature_db().lookup(dll, name, self._get_signature_arch())
+        except Exception:
+            logger.debug("handler argument signature unavailable for %s!%s", dll, name, exc_info=True)
+            return None
+        if sig is None or sig.skip or sig.variadic or sig.slot_count(self.get_ptr_size()) != argc:
             return None
         return sig
 
@@ -2046,12 +2237,38 @@ class WindowsEmulator(BinaryEmulator):
         return self.api_ctx.args.get_report_args()
 
     def handle_import_func(self, dll, name):
+        frame = ApiCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
+        previous = self._active_api_frame
+        self._active_api_frame = frame
+        origin_run = self.curr_run
+        entry_pc = self.get_pc()
+        try:
+            self._dispatch_import_func(dll, name, frame)
+            if (
+                self.curr_run is origin_run
+                and not self.run_complete
+                and not self.emu_complete
+                and self.get_pc() == entry_pc
+                and self.get_stack_ptr() != frame.stack_pointer
+                and not self._pending_control
+                and not origin_run.api_callbacks
+            ):
+                origin_run.error = self.get_error_info("api_handler_did_not_return", entry_pc)
+                origin_run.error.api_name = f"{dll}.{name}"
+                logger.error("API handler %s.%s changed SP without returning", dll, name)
+                self.end_run_on_fault()
+        finally:
+            self._active_api_frame = previous
+
+    def _dispatch_import_func(self, dll, name, frame):
         """
         Forward imported functions to the corresponding handler (if any).
         """
         imp_api = f"{dll}.{name}"
         oret = self.get_ret_address()
         opc = self.get_pc()
+        osp = self.get_stack_ptr()
+        origin_run = self.curr_run
         call_pc = self.prev_pc if self.prev_pc != 0 else oret
         mod, func_attrs = self.api.get_export_func_handler(dll, name)  # type: ignore[union-attr]
         if not func_attrs:
@@ -2059,6 +2276,8 @@ class WindowsEmulator(BinaryEmulator):
 
         if func_attrs:
             handler_name, func, argc, conv, ordinal = func_attrs
+            frame.argc = argc
+            frame.convention = conv
 
             if name.startswith("ordinal_"):
                 name = handler_name
@@ -2095,6 +2314,10 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=ctx)  # type: ignore[union-attr]
                 except Exception as e:
+                    if self._stop_on_faults:
+                        # Let the outer GDB fault path expose the failed frame
+                        # before run cleanup and report signal termination.
+                        raise
                     logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
                     self.curr_run.error = error  # type: ignore[union-attr]
@@ -2103,6 +2326,7 @@ class WindowsEmulator(BinaryEmulator):
 
             ret = self.get_ret_address()
             pc = self.get_pc()
+            frame.result = rv
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
@@ -2110,14 +2334,18 @@ class WindowsEmulator(BinaryEmulator):
                 self._fire_dyn_code_hooks(ret)
 
             # Log the API args and return value
-            self.log_api(call_pc, imp_api, rv, ctx.args.get_report_args())
+            self.log_api(call_pc, imp_api, rv, ctx.args.get_report_args(), run=origin_run)
 
-            if not self.run_complete and ret == oret and pc == opc:
+            if (
+                self.curr_run is origin_run
+                and not self.run_complete
+                and ret == oret
+                and pc == opc
+                and self.get_stack_ptr() == osp
+            ):
                 self.do_call_return(argc, ret, rv, conv=conv)
 
-            # Re-enable the code hook so the next instruction can unmap the
-            # sentinel range again. Otherwise adjacent sentinel calls may
-            # execute bytes in EMU_RESERVED instead of trapping as imports.
+            # Deferred lifecycle/SEH work is processed before guest execution resumes.
             if not self.run_complete:
                 self.enable_code_hook()
 
@@ -2142,13 +2370,18 @@ class WindowsEmulator(BinaryEmulator):
                     hook.call_conv = _arch.CALL_CONV_STDCALL
 
                 argv = self.get_func_argv(hook.call_conv, hook.argc)
+                frame.argc = hook.argc
+                frame.convention = hook.call_conv
                 self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
                 rv = hook.cb(self, imp_api, None, argv)
+                frame.result = rv
                 ret = self.get_ret_address()
-                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv))
-                self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
+                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv), run=origin_run)
+                if self.curr_run is origin_run and self.get_pc() == opc and ret == oret and self.get_stack_ptr() == osp:
+                    self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 if not self.run_complete:
                     self.enable_code_hook()
+                self._check_api_limit(origin_run, imp_api)
                 return
 
             # No handler and no user hook: fall back to the declared signature
@@ -2156,28 +2389,31 @@ class WindowsEmulator(BinaryEmulator):
             sig = self.lookup_api_signature(dll, name)
             if sig is not None:
                 self.emulate_api_from_signature(dll, name, sig, call_pc)
-            elif self.config.modules.functions_always_exist:
-                imp_api = f"{dll}.{name}"
+            elif self._can_stub_unknown_api(dll, name):
+                # Guess a four-argument stdcall function that succeeds so that
+                # execution can continue.
+                logger.warning("Stubbed unknown API %s with return 1", imp_api)
                 conv = _arch.CALL_CONV_STDCALL
                 argc = 4
                 argv = self.get_func_argv(conv, argc)
-                rv = 1
-                ret = self.get_ret_address()
-                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv))
-                self.do_call_return(argc, ret, rv, conv=conv)
-                if not self.run_complete:
-                    self.enable_code_hook()
-                return
+                frame.argc = argc
+                frame.convention = conv
+                frame.result = 1
+                self.log_api(call_pc, imp_api, 1, sigfmt.get_slot_args(argv), run=origin_run)
+                self.do_call_return(argc, oret, 1, conv=conv)
             else:
-                run = self.get_current_run()
                 error = self.get_error_info("unsupported_api", self.get_pc())
                 logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
+                self.log_api(call_pc, imp_api, None, [], run=origin_run)
                 error.api_name = imp_api
                 self.curr_run.error = error  # type: ignore[union-attr]
                 self.on_run_complete()
 
+        self._check_api_limit(origin_run, imp_api)
+
+    def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()
-        if run and run.get_api_count() > self.config.max_api_count:
+        if run is origin_run and run and run.get_api_count() > self.config.max_api_count:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             run.error = ErrorInfo(
                 type="max_api_count",
@@ -2186,6 +2422,33 @@ class WindowsEmulator(BinaryEmulator):
                 last_api=imp_api,
             )
             self.on_run_complete()
+
+    def start_api_callback(self, frame, function, args):
+        """Enter a guest callback on the stack of its API frame."""
+        frame.function = function
+        sp = frame.stack_pointer
+        if self.ptr_size == 8:
+            # Win64 callees expect RSP + 8 to be 16-byte aligned at entry, and
+            # each argument after the fourth occupies one 8-byte stack slot.
+            sp &= ~0xF
+            if max(len(args) - 4, 0) % 2:
+                sp -= 8
+        self.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
+        self.set_pc(function)
+
+    def _continue_api_callback(self):
+        """Resume a typed guest callback continuation outside Unicorn callbacks."""
+        run = self.get_current_run()
+        frame = run.api_callbacks[-1]
+        self.set_stack_ptr(frame.stack_pointer)
+        if frame.pending:
+            function, args = frame.pending.pop(0)
+            self.start_api_callback(frame, function, args)
+        else:
+            run.api_callbacks.pop()
+            if frame.event is not None:
+                frame.event.ret_val = hex(frame.result) if frame.result is not None else None
+            self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
         """
@@ -2207,13 +2470,6 @@ class WindowsEmulator(BinaryEmulator):
                 if address == winemu.SEH_RETURN_ADDR:
                     self.continue_seh()
                     self._unset_emu_hooks()
-                    return True
-                elif address == winemu.API_CALLBACK_HANDLER_ADDR:
-                    run = self.get_current_run()
-                    if run.api_callbacks:
-                        pc, orig_func, args = run.api_callbacks.pop(0)
-                        self.do_call_return(len(args), pc)
-                        self._unset_emu_hooks()
                     return True
                 return self._handle_invalid_fetch(emu, address, size, value)
 
@@ -2259,11 +2515,40 @@ class WindowsEmulator(BinaryEmulator):
         """
         If the supplied address is related to a known symbol, look it up here
         """
-        symbol = None
-        sym = self.symbols.get(address)
-        if sym:
-            symbol = "{}.{}".format(*sym)
-        return symbol
+        symbol = self.api_registry.symbol(address)
+        if symbol is not None:
+            return symbol
+        if self.api_registry.overlaps_traps(address):
+            return None
+        auxiliary = self.symbols.get(address)
+        return "{}.{}".format(*auxiliary) if auxiliary else None
+
+    def get_symbols(self):
+        """Snapshot public addresses as legacy (dll, name) tuples.
+
+        Registry entries take precedence over auxiliary labels at the same address.
+        Forwarder strings and private dispatch tokens are not public symbols.
+        """
+        from typing import cast
+
+        # The legacy storage annotation says str, but producers store tuples.
+        auxiliary_symbols = cast(dict[int, tuple[str, str]], self.symbols)
+        symbols = {
+            address: value
+            for address, value in auxiliary_symbols.items()
+            if not self.api_registry.overlaps_traps(address)
+            and not (address in self.api_registry.entries and self.api_registry.entries[address].export.forwarder)
+        }
+        symbols.update(
+            (address, (entry.dll, entry.name))
+            for address, entry in self.api_registry.entries.items()
+            if not entry.export.forwarder
+        )
+        return symbols
+
+    def get_api_symbols(self):
+        """Snapshot public function/data and auxiliary symbols as string labels."""
+        return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
 
     def _hook_mem_read(self, emu, access, address, size, value):
         """
@@ -2276,33 +2561,11 @@ class WindowsEmulator(BinaryEmulator):
 
             if symbol:
                 logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-                mod = self.get_mod_from_addr(address)
-                if not mod.is_decoy():
-                    mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
-                    if not mac:
-                        mac = MemAccess(sym=symbol)
-                    mac.reads += 1
-                    self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
-                else:
-                    gdata = self.global_data.get(address)
-                    ptr = 0
-                    if gdata:
-                        symbol, ptr = gdata
-
-                    if not ptr:
-                        mn, fn = symbol.split(".")[:2]
-                        data_ptr = self.handle_import_data(mn, fn)
-                        if data_ptr:
-                            pc = self.get_pc()
-                            self.impdata_queue.append((pc, address, symbol, data_ptr))
-                            self.set_pc(pc)
-                        mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
-                        if not mac:
-                            mac = MemAccess(sym=symbol)
-                        mac.reads += 1
-                        self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
-                        self.enable_code_hook()
-                        return True
+                mac = self.curr_run.sym_access.get(address)
+                if not mac:
+                    mac = MemAccess(sym=symbol)
+                mac.reads += 1
+                self.curr_run.sym_access.update({address: mac})
 
             for read_access in self.curr_run.read_cache:  # type: ignore[union-attr]
                 if read_access.base <= address <= (read_access.base + read_access.size) - 1:
@@ -2426,21 +2689,30 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when non-executable code is emulated
         """
-        # Get the symbol that the sample was trying to execute
-        symbol = self.get_symbol_from_address(address)
-        if not symbol:
+        # Ordinary analysis recovers execution in non-X guest sections.
+        # Synthetic API protections and debugger stops are always
+        # authoritative; a symbol never causes dispatch from this hook.
+        module = self.get_mod_from_addr(address)
+        if (
+            not self._stop_on_faults
+            and (module is None or module._image.source != "synthetic")
+            and not self.api_registry.overlaps_traps(address)
+        ):
+            if module is not None and module._image.source == "guest_pe":
+                # Changing protection while Unicorn is handling this fetch can
+                # invalidate its active translation. Apply it after unwinding.
+                native_perms = next(perms for start, end, perms in self.get_mem_regions() if start <= address <= end)
+                perms = next(perms for perms, native in self.emu_eng.perms.items() if native == native_perms)
+                page = address & ~(self.page_size - 1)
+                self._pending_exec_recovery = (page, perms | common.PERM_MEM_EXEC)
+                self._pending_control = "exec_recovery"
+                self.emu_eng.stop()
+                return False
             return True
-
-        mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
-        if not mac:
-            mac = MemAccess(sym=symbol)
-        mac.execs += 1
-        self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
-
-        mod_name, fn = symbol.split(".")
-
-        self.handle_import_func(mod_name, fn)
-        return True
+        error = self.get_error_info("invalid_protect_fetch", address, access_type="fetch")
+        self.curr_run.error = error
+        self.end_run_on_fault()
+        return False
 
     def _handle_invalid_write(self, emu, address, size, value):
         """
@@ -2468,7 +2740,7 @@ class WindowsEmulator(BinaryEmulator):
     def _hook_code_core(self, emu, addr, size):
         """
         Transient code hook for deferred work: SEH dispatch, run lifecycle,
-        temp map cleanup, and import data queue processing. Enabled on demand
+        and temporary fault-map cleanup. Enabled on demand
         and disables itself once the pending work is drained.
         """
         try:
@@ -2503,16 +2775,6 @@ class WindowsEmulator(BinaryEmulator):
                             self.disable_code_hook()
                         return True
                 self.tmp_maps = []
-
-            if len(self.impdata_queue):
-                imp = self.impdata_queue.pop(0)
-                pc, read_addr, sym, data_ptr = imp
-                if data_ptr is None:
-                    return True
-
-                self.global_data.update({read_addr: [sym, data_ptr]})
-                self.mem_write(read_addr, data_ptr.to_bytes(self.get_ptr_size(), "little"))
-                return True
 
             self._set_emu_hooks()
             if self._seh_resume_pc is None:
@@ -2554,16 +2816,11 @@ class WindowsEmulator(BinaryEmulator):
 
             symbol = self.get_symbol_from_address(addr)
             if symbol:
-                mod_name, fn = symbol.split(".")
-
                 mac = self.curr_run.sym_access.get(addr)  # type: ignore[union-attr]
                 if not mac:
                     mac = MemAccess(sym=symbol)
                 mac.execs += 1
                 self.curr_run.sym_access.update({addr: mac})  # type: ignore[union-attr]
-
-                self.handle_import_func(mod_name, fn)
-                return True
 
             self.prev_pc = addr
             self.curr_run.instr_cnt += 1  # type: ignore[union-attr]
@@ -2652,23 +2909,20 @@ class WindowsEmulator(BinaryEmulator):
         return fp
 
     def load_library(self, mod_name):
-        lib = ntpath.basename(mod_name)
-        lib = os.path.splitext(lib)[0]
-
-        existing = self.get_mod_by_name(lib)
-        if existing:
-            return existing.base
-
-        if not self.config.modules.modules_always_exist:
-            return 0
-
-        mod = self.load_module_by_name(lib)
-
-        proc = self.get_current_process()
-        if self.get_address_map(proc.peb_ldr_data.address):
-            proc.add_module_to_peb(mod)
-
-        return mod.base
+        name = winemu.normalize_dll_name(module_name(mod_name))
+        module = self.get_mod_by_name(name)
+        if module is None:
+            known = self.get_native_module_path(name) or self.api.load_api_handler(name)
+            known = known or next(
+                iter(self.get_signature_db().iter_functions(name, "x86" if self.ptr_size == 4 else "x64")), None
+            )
+            if not known and not self.config.modules.modules_always_exist:
+                return 0
+            module = self.load_module_by_name(name)
+            proc = self.get_current_process()
+            if proc is not None and self.get_address_map(proc.peb_ldr_data.address):
+                proc.add_module_to_peb(module)
+        return module.base
 
     def _make_image_at_free_base(self, make_loader: Callable[[int | None], Any], base: int | None):
         """
@@ -2684,40 +2938,36 @@ class WindowsEmulator(BinaryEmulator):
             image = make_loader(free_base).make_image()
         return image
 
-    def load_module_by_name(self, name, emu_path=None, base=None):
-        """
-        Load a module by name using the appropriate loader.
+    def load_module_by_name(self, name, emu_path=None, base=None, native_path=None):
+        """Load one coherent native or catalog-generated module instance."""
+        from speakeasy.windows.loaders import ApiModuleLoader, PeLoader
 
-        Priority: native PE file -> API handler (JIT PE) -> placeholder stub.
-        """
-        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader, PeLoader
-
-        base = base or 0x6F000000
+        name = module_name(name)
+        existing = self.get_mod_by_name(name)
+        if existing is not None:
+            return existing
         if not emu_path:
-            sysdir = self.config.current_dir or "C:\\Windows\\system32"
-            emu_path = sysdir + "\\" + name + ".dll"
+            emu_path = (self.config.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"
+        native_path = native_path or self.get_native_module_path(mod_name=name)
+        if base is None and not native_path:
+            base = 0x6F000000
+        handler = self.api.load_api_handler(name) if self.api else None
+        if handler and name == "ntdll":
+            nt_handler = self.api.load_api_handler("ntoskrnl")
+            if nt_handler:
+                handler._nt_handler = nt_handler
 
-        native_path = self.get_native_module_path(mod_name=name)
-
-        handler = None
-        fallback_path = None
-        if not native_path:
-            handler = self.api.load_api_handler(name) if self.api else None
-            if handler and name == "ntdll":
-                nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
-                if nt_handler:
-                    handler._nt_handler = nt_handler
-            if not handler:
-                fallback_path = self.get_native_module_path(mod_name="default_exe")
-
-        def make_loader(base):
+        def make_loader(address):
             if native_path:
-                return PeLoader(path=native_path, base_override=base, emu_path=emu_path)
-            if handler:
-                return ApiModuleLoader(name=name, api=handler, arch=self.get_arch(), base=base, emu_path=emu_path)
-            if fallback_path:
-                return PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
-            return DecoyLoader(name=name, base=base, emu_path=emu_path, image_size=0x1000)
+                return PeLoader(path=native_path, base_override=address, emu_path=emu_path)
+            return ApiModuleLoader(
+                name=name,
+                api=handler,
+                arch=self.get_arch(),
+                base=address or 0,
+                emu_path=emu_path,
+                signature_db=self.get_signature_db(),
+            )
 
         image = self._make_image_at_free_base(make_loader, base)
         image.name = name
@@ -2759,63 +3009,18 @@ class WindowsEmulator(BinaryEmulator):
         return self._init_module_group(modules_config, default_base=0x6F000000)
 
     def _init_module_group(self, modules_config, default_base=None):
-        from speakeasy.windows.loaders import ApiModuleLoader, DecoyLoader, PeLoader
-
         rtmods = []
         for modconf in modules_config:
-            modname = getattr(modconf, "name", None) or "unknown"
-            base_addr = getattr(modconf, "base_addr", None) or default_base
-            if isinstance(base_addr, str):
-                base_addr = int(base_addr, 16)
-            emu_path = getattr(modconf, "path", None) or (modname + ".dll")
-
-            images = getattr(modconf, "images", []) or []
-            native_path = self.get_native_module_path(mod_name=modname)
-            path = None
-            for img in images:
-                if img.arch == self.get_arch():
-                    path = self.get_native_module_path(mod_name=img.name)
-            if not path:
-                path = native_path
-
-            module_type = _module_type_from_path(emu_path)
-
-            handler = None
-            fallback_path = None
-            if not path:
-                handler = self.api.load_api_handler(modname) if self.api else None
-
-                if handler and modname == "ntdll":
-                    nt_handler = self.api.load_api_handler("ntoskrnl") if self.api else None
-                    if nt_handler:
-                        handler._nt_handler = nt_handler
-
-                if not handler:
-                    fallback_name = "default_driver" if module_type == "driver" else "default_exe"
-                    fallback_path = self.get_native_module_path(mod_name=fallback_name)
-
-            def make_loader(
-                base, path=path, handler=handler, fallback_path=fallback_path, modname=modname, emu_path=emu_path
-            ):
-                if path:
-                    return PeLoader(path=path, base_override=base, emu_path=emu_path)
-                if handler:
-                    return ApiModuleLoader(
-                        name=modname,
-                        api=handler,
-                        arch=self.get_arch(),
-                        base=base or 0,
-                        emu_path=emu_path,
-                    )
-                if fallback_path:
-                    return PeLoader(path=fallback_path, base_override=base, emu_path=emu_path)
-                return DecoyLoader(name=modname, base=base or 0, emu_path=emu_path, image_size=0x1000)
-
-            image = self._make_image_at_free_base(make_loader, base_addr)
-            image.name = modname
-            image.module_type = module_type
-            rtmod = self.load_image(image)
-            rtmods.append(rtmod)
+            name = modconf.name or "unknown"
+            base = modconf.base_addr or default_base
+            if isinstance(base, str):
+                base = int(base, 16)
+            path = modconf.path or name + ".dll"
+            native = None
+            for image in getattr(modconf, "images", ()):
+                if image.arch == self.get_arch():
+                    native = self.get_native_module_path(image.name)
+            rtmods.append(self.load_module_by_name(name, emu_path=path, base=base, native_path=native))
         return rtmods
 
     def get_thread_context(self, thread=None):
@@ -3111,6 +3316,8 @@ class WindowsEmulator(BinaryEmulator):
 
     def _map_faulting_page_for_exception(self, faulting_address):
         fakeout = faulting_address & 0xFFFFFFFFFFFFF000
+        if self.api_registry.overlaps_traps(fakeout, self.page_size):
+            return
         for base, end, _ in self.get_mem_regions():
             if base <= fakeout <= end:
                 return
