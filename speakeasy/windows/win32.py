@@ -173,7 +173,7 @@ class Win32Emulator(WindowsEmulator):
 
         self._set_input_metadata(path, data)
 
-        loader = PeLoader(path=path, data=data)
+        loader = PeLoader(path=path, data=data, strict=self.config.modules.strict_loading)
         image = loader.make_image()
         image.name = self.mod_name
         image.emu_path = emu_path
@@ -492,23 +492,39 @@ class Win32Emulator(WindowsEmulator):
         peb.object.OSBuildNumber = self.config.os_ver.build or 0
         peb.write_back()
 
-        self._ensure_core_dlls_loaded()
         self.mem_map_reserve(proc.peb_ldr_data.address)
-        self.init_peb(self._ordered_peb_modules(), proc=proc)
+        main = proc.pe or next(
+            (module for module in self.modules if module.base == proc.base and module.is_exe()), None
+        )
+        if main is not None and main.visible_in_peb:
+            proc.add_module_to_peb(main)
+        proc.initializing_peb = True
+        try:
+            self._ensure_core_dlls_loaded()
+            self.init_peb(self._ordered_peb_modules(proc, include_defaults=True), proc=proc)
+        finally:
+            proc.initializing_peb = False
 
         return peb
 
-    def _ordered_peb_modules(self):
+    def _ordered_peb_modules(self, proc=None, *, include_defaults=False):
         import os as _os
 
         CORE_ORDER = {"ntdll": 0, "kernel32": 1, "kernelbase": 2}
         mods = self.get_peb_modules()
+        proc = proc or self.get_current_process()
+        attached = set(proc._peb_modules) if proc is not None else set()
         exe_mods = []
         core_mods = []
         other_mods = []
         for m in mods:
+            if m.is_driver():
+                continue
             if m.is_exe():
-                exe_mods.append(m)
+                if proc is not None and (m is proc.pe or m.base == proc.base):
+                    exe_mods.append(m)
+                continue
+            if m.base not in attached and not (include_defaults and m.base in self._shared_peb_modules):
                 continue
             name = (m.name or "").lower()
             if not name:
@@ -526,6 +542,7 @@ class Win32Emulator(WindowsEmulator):
         for dll in CORE_DLLS:
             if not self.get_mod_by_name(dll):
                 self.load_module_by_name(dll)
+            self._shared_peb_modules.add(self.get_mod_by_name(dll).base)
 
     def set_unhandled_exception_handler(self, handler_addr):
         """

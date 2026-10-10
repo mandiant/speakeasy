@@ -10,6 +10,7 @@ DEFAULT_CONFIG_DATA = {
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",
     "timeout": 60,
+    "max_total_time": 0,
     "max_api_count": 10000,
     "stack_size": 0,
     "system": "windows",
@@ -255,6 +256,9 @@ class AnalysisConfig(BaseModel):
     memory_tracing: bool = Field(default=False, description="Enable memory access tracing in reports.")
     strings: bool = Field(default=True, description="Extract strings from input and emulated memory.")
     coverage: bool = Field(default=False, description="Collect executed instruction addresses per run.")
+    enforce_nx: bool = Field(
+        default=False, description="Enforce guest module execute permissions during ordinary analysis."
+    )
 
 
 class ExceptionsConfig(BaseModel):
@@ -495,6 +499,14 @@ class SystemModuleConfig(BaseModel):
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    strict_loading: bool = Field(
+        default=False,
+        description=(
+            "Apply strict policies when loading guest PEs: reject malformed PE metadata, fail a load when any "
+            "import does not resolve, and stop startup when a dependency's DLL initializer fails."
+        ),
+    )
+
     modules_always_exist: bool = Field(
         default=False, description="Synthesize unknown modules instead of failing loads."
     )
@@ -533,6 +545,12 @@ class SpeakeasyConfig(BaseModel):
     timeout: float = Field(
         default=DEFAULT_CONFIG_DATA["timeout"],
         description="Active execution timeout in seconds per Run. 0 disables it.",
+    )
+    max_total_time: float = Field(
+        default=DEFAULT_CONFIG_DATA["max_total_time"],
+        ge=0,
+        allow_inf_nan=False,
+        description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
     )
     max_api_count: int = Field(
         default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."

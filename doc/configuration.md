@@ -22,6 +22,10 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Raise for slow/staged samples. Lower for quick triage.
   "timeout": 60,
 
+  // Active execution cap in seconds across all runs of one run_module,
+  // run_shellcode, or call invocation. 0 disables it.
+  "max_total_time": 0,
+
   // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
   // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
   "max_api_count": 10000,
@@ -49,7 +53,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
     // Enables instruction-address coverage collection per entry point.
     // Useful for diffing runs and rough execution mapping.
-    "coverage": false
+    "coverage": false,
+
+    // If true, execution in non-executable guest module pages stops with a
+    // fault. If false, Speakeasy makes the page executable and continues,
+    // which lets packers run decrypted data sections.
+    "enforce_nx": false
   },
 
   // If true, frees do not immediately remove memory maps.
@@ -319,6 +328,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // If true, loads of unknown modules create empty synthetic API modules
     // instead of failing.
     "modules_always_exist": false,
+
+    // If true, apply strict policies when loading guest PEs:
+    //   - reject malformed PE metadata (delay imports, exports, forwarders),
+    //   - fail a load when any import does not resolve, and leave the IAT unchanged,
+    //   - stop startup when a dependency's DLL initializer fails.
+    "strict_loading": false,
 
     // If true, unresolved API imports that are in neither the handlers nor the
     // bundled signature database resolve to dynamic entries that act as stubs
