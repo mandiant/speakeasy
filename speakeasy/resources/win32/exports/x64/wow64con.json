@@ -1,0 +1,12 @@
+{
+  "module": "wow64con",
+  "file": "wow64con.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32684",
+  "timestamp": 803171982,
+  "size_of_image": 98304,
+  "sha256": "128abe5f7d26e582b59bb5db60bf8ae4a15ba12adaada98a9557ae90863f56bb",
+  "exports": [
+    {"ordinal": 1, "name": "sdwhcon", "kind": "data"}
+  ]
+}

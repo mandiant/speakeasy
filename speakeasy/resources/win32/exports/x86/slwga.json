@@ -1,0 +1,13 @@
+{
+  "module": "slwga",
+  "file": "slwga.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.1",
+  "timestamp": 2218110555,
+  "size_of_image": 94208,
+  "sha256": "968ba657b825961b565799874630a4aad7b71af32532ea9bcd35b1e0f3fc5a9f",
+  "exports": [
+    {"ordinal": 227},
+    {"ordinal": 228, "name": "SLIsGenuineLocal"}
+  ]
+}

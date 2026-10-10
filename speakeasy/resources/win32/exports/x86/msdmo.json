@@ -1,0 +1,26 @@
+{
+  "module": "msdmo",
+  "file": "msdmo.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.1",
+  "timestamp": 721766678,
+  "size_of_image": 36864,
+  "sha256": "b45e237243aba0ce7d247f4bb35560636ba28891d56975eefef11a5cf26e01e3",
+  "exports": [
+    {"ordinal": 1, "name": "DMOEnum"},
+    {"ordinal": 2, "name": "DMOGetName"},
+    {"ordinal": 3, "name": "DMOGetTypes"},
+    {"ordinal": 4, "name": "DMOGuidToStrA"},
+    {"ordinal": 5, "name": "DMOGuidToStrW"},
+    {"ordinal": 6, "name": "DMORegister"},
+    {"ordinal": 7, "name": "DMOStrToGuidA"},
+    {"ordinal": 8, "name": "DMOStrToGuidW"},
+    {"ordinal": 9, "name": "DMOUnregister"},
+    {"ordinal": 10, "name": "MoCopyMediaType"},
+    {"ordinal": 11, "name": "MoCreateMediaType"},
+    {"ordinal": 12, "name": "MoDeleteMediaType"},
+    {"ordinal": 13, "name": "MoDuplicateMediaType"},
+    {"ordinal": 14, "name": "MoFreeMediaType"},
+    {"ordinal": 15, "name": "MoInitMediaType"}
+  ]
+}

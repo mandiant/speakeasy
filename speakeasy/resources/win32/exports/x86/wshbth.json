@@ -1,0 +1,28 @@
+{
+  "module": "wshbth",
+  "file": "wshbth.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.5074",
+  "timestamp": 1426454511,
+  "size_of_image": 73728,
+  "sha256": "83632250da73ec46aef961cb7f3260951aeb08cc9330fd6b4fbcfee394cad212",
+  "exports": [
+    {"ordinal": 1, "name": "NSPStartup"},
+    {"ordinal": 2, "name": "WSHAddressToString"},
+    {"ordinal": 3, "name": "WSHEnumProtocols"},
+    {"ordinal": 4, "name": "WSHGetBroadcastSockaddr"},
+    {"ordinal": 5, "name": "WSHGetProviderGuid"},
+    {"ordinal": 6, "name": "WSHGetSockaddrType"},
+    {"ordinal": 7, "name": "WSHGetSocketInformation"},
+    {"ordinal": 8, "name": "WSHGetWSAProtocolInfo"},
+    {"ordinal": 9, "name": "WSHGetWildcardSockaddr"},
+    {"ordinal": 10, "name": "WSHGetWinsockMapping"},
+    {"ordinal": 11, "name": "WSHIoctl"},
+    {"ordinal": 12, "name": "WSHJoinLeaf"},
+    {"ordinal": 13, "name": "WSHNotify"},
+    {"ordinal": 14, "name": "WSHOpenSocket2"},
+    {"ordinal": 15, "name": "WSHOpenSocket"},
+    {"ordinal": 16, "name": "WSHSetSocketInformation"},
+    {"ordinal": 17, "name": "WSHStringToAddress"}
+  ]
+}

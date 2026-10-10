@@ -1,0 +1,22 @@
+{
+  "module": "cryptbase",
+  "file": "cryptbase.dll",
+  "arch": "x86",
+  "file_version": "10.0.26100.32860",
+  "timestamp": 4220089389,
+  "size_of_image": 40960,
+  "sha256": "00801c40e10388c6ef676e92470d97970fc1994380a5729cfce56ef3b0b42526",
+  "exports": [
+    {"ordinal": 1, "name": "SystemFunction001"},
+    {"ordinal": 2, "name": "SystemFunction002"},
+    {"ordinal": 3, "name": "SystemFunction003"},
+    {"ordinal": 4, "name": "SystemFunction004"},
+    {"ordinal": 5, "name": "SystemFunction005"},
+    {"ordinal": 6, "name": "SystemFunction028"},
+    {"ordinal": 7, "name": "SystemFunction029"},
+    {"ordinal": 8, "name": "SystemFunction034"},
+    {"ordinal": 9, "name": "SystemFunction036"},
+    {"ordinal": 10, "name": "SystemFunction040"},
+    {"ordinal": 11, "name": "SystemFunction041"}
+  ]
+}

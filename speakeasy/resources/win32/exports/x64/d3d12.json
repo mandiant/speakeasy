@@ -1,0 +1,30 @@
+{
+  "module": "d3d12",
+  "file": "d3d12.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32995",
+  "timestamp": 3478612232,
+  "size_of_image": 143360,
+  "sha256": "c7c4b76ca2c7395a0962bf02f286fcc67e86fadf47ad0f29207f9864314e3165",
+  "exports": [
+    {"ordinal": 99},
+    {"ordinal": 100, "name": "SetAppCompatStringPointer"},
+    {"ordinal": 101, "name": "D3D12CreateDevice"},
+    {"ordinal": 102, "name": "D3D12GetDebugInterface"},
+    {"ordinal": 103, "name": "D3D12CoreCreateLayeredDevice"},
+    {"ordinal": 104, "name": "D3D12CoreGetLayeredDeviceSize"},
+    {"ordinal": 105, "name": "D3D12CoreRegisterLayers"},
+    {"ordinal": 106, "name": "D3D12CreateRootSignatureDeserializer"},
+    {"ordinal": 107, "name": "D3D12CreateVersionedRootSignatureDeserializer"},
+    {"ordinal": 108, "name": "D3D12DeviceRemovedExtendedData", "kind": "data"},
+    {"ordinal": 109, "name": "D3D12EnableExperimentalFeatures"},
+    {"ordinal": 110, "name": "D3D12GetInterface"},
+    {"ordinal": 111, "name": "D3D12PIXEventsReplaceBlock"},
+    {"ordinal": 112, "name": "D3D12PIXGetThreadInfo"},
+    {"ordinal": 113, "name": "D3D12PIXNotifyWakeFromFenceSignal"},
+    {"ordinal": 114, "name": "D3D12PIXReportCounter"},
+    {"ordinal": 115, "name": "D3D12SerializeRootSignature"},
+    {"ordinal": 116, "name": "D3D12SerializeVersionedRootSignature"},
+    {"ordinal": 117, "name": "GetBehaviorValue"}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "module": "ci",
+  "file": "ci.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.32995",
+  "timestamp": 3058281514,
+  "size_of_image": 1114112,
+  "sha256": "1503baec05bfe7ddfa0d86ad4c74d692cab4b2cb65aa3f909339bfa70df993ca",
+  "exports": [
+    {"ordinal": 1},
+    {"ordinal": 2},
+    {"ordinal": 3},
+    {"ordinal": 4, "name": "CiCheckSignedFile"},
+    {"ordinal": 5, "name": "CiFindPageHashesInCatalog"},
+    {"ordinal": 6, "name": "CiFindPageHashesInSignedFile"},
+    {"ordinal": 7, "name": "CiFreePolicyInfo"},
+    {"ordinal": 8, "name": "CiGetCertPublisherName"},
+    {"ordinal": 9, "name": "CiGetPEInformation"},
+    {"ordinal": 10, "name": "CiInitialize"},
+    {"ordinal": 11, "name": "CiSetTrustedOriginClaimId"},
+    {"ordinal": 12, "name": "CiValidateFileObject"},
+    {"ordinal": 13, "name": "CiVerifyHashInCatalog"}
+  ]
+}

@@ -322,9 +322,12 @@ RtlGetFunctionTableListHead(
     path = tmp_path / "generated.json.gz"
     gen.write_output(doc, str(path))
     db = sigdb.SignatureDatabase([sigdb.PhntSource(str(path))])
-    assert db.lookup("ntdll", "RtlNoArgs", "x86") is not None
-    assert db.lookup("ntdll", "RtlNoArgs", "x64") is not None
+    x86 = {sig.name for sig in db.iter_functions("ntdll", "x86")}
+    x64 = {sig.name for sig in db.iter_functions("ntdll", "x64")}
+    assert names.isdisjoint(x86)
+    assert names <= x64
+    assert "RtlNoArgs" in x86 & x64
     for name in names:
-        assert db.lookup("ntdll", name, "x86") is None
-        sig = db.lookup("ntdll", name, "x64")
+        assert db.lookup_exact("ntdll", name, "x86") is None
+        sig = db.lookup_exact("ntdll", name, "x64")
         assert sig is not None and sig.arch == ("x64",)

@@ -1,0 +1,28 @@
+{
+  "module": "version",
+  "file": "version.dll",
+  "arch": "x64",
+  "file_version": "10.0.26100.1150",
+  "timestamp": 2275202464,
+  "size_of_image": 45056,
+  "sha256": "cea99f212af557a9613150c5509631403ed0f05f5d9a06ac42039bd59b40e39a",
+  "exports": [
+    {"ordinal": 1, "name": "GetFileVersionInfoA"},
+    {"ordinal": 2, "name": "GetFileVersionInfoByHandle"},
+    {"ordinal": 3, "name": "GetFileVersionInfoExA"},
+    {"ordinal": 4, "name": "GetFileVersionInfoExW"},
+    {"ordinal": 5, "name": "GetFileVersionInfoSizeA"},
+    {"ordinal": 6, "name": "GetFileVersionInfoSizeExA"},
+    {"ordinal": 7, "name": "GetFileVersionInfoSizeExW"},
+    {"ordinal": 8, "name": "GetFileVersionInfoSizeW"},
+    {"ordinal": 9, "name": "GetFileVersionInfoW"},
+    {"ordinal": 10, "name": "VerFindFileA"},
+    {"ordinal": 11, "name": "VerFindFileW"},
+    {"ordinal": 12, "name": "VerInstallFileA"},
+    {"ordinal": 13, "name": "VerInstallFileW"},
+    {"ordinal": 14, "name": "VerLanguageNameA", "forwarder": "KERNEL32.VerLanguageNameA"},
+    {"ordinal": 15, "name": "VerLanguageNameW", "forwarder": "KERNEL32.VerLanguageNameW"},
+    {"ordinal": 16, "name": "VerQueryValueA"},
+    {"ordinal": 17, "name": "VerQueryValueW"}
+  ]
+}
