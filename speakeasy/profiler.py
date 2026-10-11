@@ -101,7 +101,12 @@ class ApiCallbackFrame:
     function: int = 0
     pending: list[tuple[int, tuple[int, ...]]] = field(default_factory=list)
     result: int | None = None
+    initializers: dict[int, tuple[Any, bool, bool, int]] = field(default_factory=dict)
+    failure_result: int = 0
+    failure_writes: list[tuple[int, bytes]] = field(default_factory=list)
     event: ApiEvent | None = None
+    created_modules: list[Any] = field(default_factory=list)
+    loader_attachments: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
 
 
 class Run:
@@ -115,6 +120,7 @@ class Run:
         self.instr_cnt: int = 0
         self.execution_elapsed: float = 0.0
         self.budget_instructions: int = 0
+        self.guest_initialization: tuple[Any, bool, bool, int] | None = None
         self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
