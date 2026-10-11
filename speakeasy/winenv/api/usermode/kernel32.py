@@ -4483,19 +4483,15 @@ class Kernel32(api.ApiHandler):
         );
         """
         dwProcessId, pSessionId = argv
-        rv = False
 
         if pSessionId:
             for p in emu.get_processes():
                 if p.id == dwProcessId:
-                    sessid = p.session
-                    sessid = (sessid).to_bytes(4, "little")
-                    self.mem_write(pSessionId, sessid)
-                    rv = True
-        else:
-            windefs.ERROR_INVALID_PARAMETER
+                    self.mem_write(pSessionId, p.session.to_bytes(4, "little"))
+                    return True
 
-        return rv
+        emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        return False
 
     @apihook("InitializeCriticalSectionEx", argc=3)
     def InitializeCriticalSectionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
