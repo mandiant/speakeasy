@@ -70,34 +70,24 @@ class Ntoskrnl(api.ApiHandler):
         return new
 
     @impdata("IoDriverObjectType")
-    def IoDriverObjectType(self, ptr=0):
+    def IoDriverObjectType(self, ptr):
         """
         Type object used for Driver objects exported by ntoskrnl
         """
-        drv_type = ptr
-        if not ptr:
-            drv_type = self.mem_alloc(0x100, base=None, tag="api.ntoskrnl.IoDriverObjectType")
-        return drv_type
+        return ptr
 
     @impdata("KeTickCount")
-    def KeTickCount(self, ptr=0):
+    def KeTickCount(self, ptr):
         """Tick count exported by ntoskrnl"""
-        ksystime = self.win.KSYSTEM_TIME(self.emu.get_ptr_size())
-        kst = ptr
-
-        if not ptr:
-            kst = self.mem_alloc(self.sizeof(ksystime), base=None, tag="api.ntoskrnl.KeTickCount")
-        return kst
+        return ptr
 
     @impdata("KeServiceDescriptorTable")
-    def KeServiceDescriptorTable(self, ptr=0):
+    def KeServiceDescriptorTable(self, ptr):
         """Kernel table containing SSDT"""
         return self.emu.get_ssdt_ptr()
 
     @impdata("KdDebuggerEnabled")
-    def KdDebuggerEnabled(self, ptr=0):
-        if not ptr:
-            return self.mem_alloc(8, base=None, tag="emu.struct.KdDebuggerEnabled")
+    def KdDebuggerEnabled(self, ptr):
         return ptr
 
     def _read_object_name(self, objattr):
@@ -1784,7 +1774,13 @@ class Ntoskrnl(api.ApiHandler):
         (SystemRoutineName,) = argv
         fn = self.read_unicode_string(SystemRoutineName)
 
-        addr = emu.get_proc("ntoskrnl", fn)
+        addr = 0
+        for name in ("ntoskrnl", "hal"):
+            module = emu.get_mod_by_name(name)
+            if module is not None:
+                addr = emu.resolve_export(module, fn)
+                if addr:
+                    break
         ctx.args[0].display = fn
         return addr
 

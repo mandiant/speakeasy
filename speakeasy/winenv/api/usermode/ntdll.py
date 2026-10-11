@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import binascii
-import os
 import struct
 
 import speakeasy.windows.common as winemu
@@ -160,11 +159,11 @@ class Ntdll(api.ApiHandler):
         mods = emu.get_peb_modules()
         for mod in mods:
             if mod.base == hmod:
-                bn = mod.get_base_name()
-                mname, _ = os.path.splitext(bn)
-                addr = emu.get_proc(mname, proc)
-                rv = ddk.STATUS_SUCCESS
-                self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), "little"))
+                addr = emu.resolve_export(mod, proc)
+                if addr:
+                    rv = ddk.STATUS_SUCCESS
+                    self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), "little"))
+                break
 
         return rv
 

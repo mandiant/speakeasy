@@ -1,6 +1,7 @@
 import logging
 import struct
 from pathlib import Path
+from types import SimpleNamespace
 
 import pefile
 import pytest
@@ -8,9 +9,11 @@ import unicorn as uc
 
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
-from speakeasy.windows.api_image import ApiExportSpec
-from speakeasy.windows.loaders import ApiModuleLoader, ExportEntry, LoadedImage, PeLoader, RuntimeModule
+from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
+from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule
+from speakeasy.winenv.api.sigdb import SignatureDatabase
 from tests.test_api_image import build, image_bytes
+from tests.test_export_catalog import _source
 
 
 def _make_image(
@@ -77,6 +80,7 @@ def test_api_module_loader_make_image():
         arch=_arch.ARCH_X86,
         base=0x76000000,
         emu_path="C:\\Windows\\System32\\kernel32.dll",
+        signature_db=SignatureDatabase([]),
     )
     image = loader.make_image()
     export_names = {exp.name for exp in image.exports if exp.name}
@@ -85,7 +89,9 @@ def test_api_module_loader_make_image():
     assert image.name == "kernel32"
     assert image.image_base == 0x76000000
     assert len(image.exports) > 0
-    assert "CreateFileW" in export_names or "CreateFileWA" in export_names
+    assert "CreateFileW" in export_names
+    assert "CreateFileWA" not in export_names
+    assert "CreateFileWW" not in export_names
     assert "GlobalCounter" in export_names
 
 
@@ -101,6 +107,7 @@ def test_api_module_loader_sections_within_image():
         arch=_arch.ARCH_X86,
         base=0x76000000,
         emu_path="C:\\Windows\\System32\\kernel32.dll",
+        signature_db=SignatureDatabase([]),
     )
     image = loader.make_image()
 
@@ -111,6 +118,36 @@ def test_api_module_loader_sections_within_image():
 
 def _warned(caplog):
     return any(record.levelno == logging.WARNING for record in caplog.records)
+
+
+@pytest.mark.parametrize("architecture,eligible", [(_arch.ARCH_X86, "Only32"), (_arch.ARCH_AMD64, "Only64")])
+def test_api_loader_combines_catalog_and_handler_surfaces(tmp_path, architecture, eligible):
+    source = _source(
+        tmp_path,
+        {
+            "Only32": [{"dll": "examplelib", "arch": ["x86"]}],
+            "Only64": [{"dll": "examplelib", "arch": ["x64"]}],
+            "Unsupported": [{"dll": "examplelib", "skip": "unsupported ABI"}],
+            "Foreign": [{"dll": "otherlib"}],
+            "ExpExample": [{"dll": "examplelib"}],
+        },
+        dll_aliases={"aliaslib": "examplelib"},
+        name_prefixes={"examplelib": ["Exp"]},
+    )
+    database = SignatureDatabase([source])
+    api = SimpleNamespace(funcs={"HandlerOnly": ("HandlerOnly", None, 0, "stdcall", 30)}, data={"Counter": None})
+    image = ApiModuleLoader(
+        name="examplelib", api=api, arch=architecture, base=0x60000000, emu_path="examplelib.dll", signature_db=database
+    ).make_image()
+    exports = {e.name: e for e in image.exports}
+    assert set(exports) == {eligible, "Unsupported", "ExpExample", "HandlerOnly", "Counter"}
+    assert exports["HandlerOnly"].ordinal == 30
+    assert exports["Counter"].kind == "data"
+    # Neither an advisory DLL alias nor permissive ABI reuse adds physical exports.
+    foreign = ApiModuleLoader(
+        name="aliaslib", arch=architecture, base=0x60000000, emu_path="aliaslib.dll", signature_db=database
+    ).make_image()
+    assert foreign.exports == []
 
 
 def test_native_exports_preserve_pe_surface():
@@ -139,15 +176,18 @@ def test_native_exports_preserve_pe_surface():
     assert kinds["Original"] == "function"
 
 
-@pytest.mark.parametrize("mutate", ["machine", "section_extent"])
+@pytest.mark.parametrize("mutate", ["machine", "section_extent", "rebase_without_relocations"])
 def test_loader_safety_checks_apply_in_lenient_mode(mutate):
     pe = pefile.PE(data=image_bytes(build([])))
+    base_override = None
     if mutate == "machine":
         pe.FILE_HEADER.Machine = 0x8664
-    else:
+    elif mutate == "section_extent":
         pe.sections[-1].Misc_VirtualSize = pe.OPTIONAL_HEADER.SizeOfImage
+    else:
+        base_override = 0x60000000
     with pytest.raises(ValueError):
-        PeLoader(data=pe.write()).make_image()
+        PeLoader(data=pe.write(), base_override=base_override).make_image()
 
 
 @pytest.mark.parametrize("filename", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
@@ -323,6 +363,33 @@ def test_lenient_non_ascii_dll_name_is_lossless(caplog):
     assert [e.dll_name for e in static] == ["éormalTarget"]
     assert len(image.imports) == 3
     assert _warned(caplog)
+
+
+@pytest.mark.parametrize("mode", ["user", "kernel", "dependency"])
+def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_path):
+    pe = pefile.PE(data=image_bytes(build([])))
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].VirtualAddress = pe.OPTIONAL_HEADER.SizeOfImage
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[13].Size = 64
+    if mode == "kernel":
+        pe.OPTIONAL_HEADER.Subsystem = 1  # IMAGE_SUBSYSTEM_NATIVE
+    malformed = pe.write()
+    se = Speakeasy(config=config)
+    try:
+        if mode == "dependency":
+            se.load_module(data=image_bytes(build([], base=0x400000)))
+            path = tmp_path / "malformed_dependency.dll"
+            path.write_bytes(malformed)
+
+            module = se.emu.load_module_by_name(
+                "malformed_dependency", native_path=str(path), base=pe.OPTIONAL_HEADER.ImageBase
+            )
+        else:
+            module = se.load_module(data=malformed)
+        assert module.base == pe.OPTIONAL_HEADER.ImageBase
+        if mode == "kernel":
+            assert se.emu.kernel_mode
+    finally:
+        se.shutdown()
 
 
 def two_static_names(architecture, *, oft_zero=False):

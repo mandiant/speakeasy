@@ -185,7 +185,7 @@ def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> No
     assert rv == com.S_OK
     obj = read_ptr(dll_emu, pp)
     query_interface = read_ptr(dll_emu, read_ptr(dll_emu, obj))
-    assert (query_interface, "com_api", "IUnknown.QueryInterface") in dll_emu.emu.callbacks
+    assert dll_emu.emu.get_symbols()[query_interface] == ("com_api", "IUnknown.QueryInterface")
 
 
 def test_rtl_compute_crc32_continues_from_the_initial_value(dll_emu: Speakeasy) -> None:

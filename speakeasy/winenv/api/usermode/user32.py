@@ -91,7 +91,7 @@ class User32(api.ApiHandler):
                 return hook
         return None
 
-    def emit_synthetic_keyboard_hook_event(self, emu, caller_argv):
+    def emit_synthetic_keyboard_hook_event(self, emu):
         hook = self.get_synthetic_keyboard_hook()
         if not hook:
             return None
@@ -116,7 +116,7 @@ class User32(api.ApiHandler):
         self.mem_write(kbd_ptr, kbd.get_bytes())
 
         _, lpfn, _ = hook
-        self.setup_callback(lpfn, (0, wparam, kbd_ptr), caller_argv=caller_argv)
+        self.setup_callback(lpfn, (0, wparam, kbd_ptr))
         return wparam, vkey
 
     def find_string_resource_by_id(self, pe, uID):
@@ -295,7 +295,7 @@ class User32(api.ApiHandler):
         wc = self.sessman.get_window_class(window.class_name)
         if wc and wc.wclass.lpfnWndProc:
             cb_args = (hnd, windefs.WM_PAINT, 0, 0)
-            self.setup_callback(wc.wclass.lpfnWndProc, cb_args, caller_argv=argv)
+            self.setup_callback(wc.wclass.lpfnWndProc, cb_args)
 
         return True
 
@@ -697,7 +697,7 @@ class User32(api.ApiHandler):
                 msg.hwnd = hWnd
                 msg.message = windefs.WM_TIMER
             else:
-                synthetic = self.emit_synthetic_keyboard_hook_event(emu, argv)
+                synthetic = self.emit_synthetic_keyboard_hook_event(emu)
                 if synthetic is None:
                     return False
                 if lpMsg:
@@ -991,7 +991,7 @@ class User32(api.ApiHandler):
 
         hdlg = self.get_handle()
         cb_args = (hdlg, windefs.WM_INITDIALOG, 0, param)
-        self.setup_callback(func, cb_args, caller_argv=argv)
+        self.setup_callback(func, cb_args)
         return hdlg
 
     @apihook("GetMenuInfo", argc=2)

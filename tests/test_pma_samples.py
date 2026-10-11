@@ -17,6 +17,7 @@ CURATED_CASE_NAMES = {
     "pma-12-04-exe",
     "pma-14-01-exe",
     "pma-16-03-exe",
+    "pma-18-03-ocl",
     "pma-21-01-exe",
 }
 

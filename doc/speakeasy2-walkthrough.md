@@ -10,9 +10,9 @@ Speakeasy now targets Python 3.10+ and Unicorn 2.1.4+. Unicorn 2.1.3 and below h
 
 The module system was reorganized around explicit Loader types, a LoadedImage data model, and a consistent RuntimeModule representation. This replaces multiple parallel module registries and consolidates image loading, import hookup, and bookkeeping into one path. The change makes behavior more predictable across PE files, shellcode, decoys, and API modules.
 
-Under the hood, Loader is just the source adapter layer. Each loader type (PE, shellcode, API-generated module, decoy, etc.) takes its own input format and normalizes it into one common LoadedImage object. LoadedImage is intentionally “just data”: arch, base/size, regions to map, imports/exports, section metadata, TLS info, and visibility flags, with no emulator side effects yet.
+Under the hood, Loader is just the source adapter layer. Each loader type (PE, shellcode, API-generated module, etc.) takes its own input format and normalizes it into one common LoadedImage object. LoadedImage is intentionally “just data”: arch, base/size, regions to map, imports/exports, section metadata, TLS info, and visibility flags, with no emulator side effects yet.
 
-The actual side effects happen in `load_image()`, which materializes that data into emulator state: map/write memory, patch IAT entries with sentinels, register imports in the global `import_table`, apply section protections, and install symbol/access hooks. The returned RuntimeModule is the stable runtime handle used everywhere else (`self.modules`, module lookups, PEB population), so the rest of Speakeasy can treat PE files, shellcode, and synthetic modules the same way.
+The actual side effects happen in `load_image()`, which materializes that data into emulator state: map/write memory, bind IAT entries to mapped API entry addresses, register module exports in the session API registry, apply section protections, and publish symbols. The returned RuntimeModule is the stable runtime handle used everywhere else (`self.modules`, module lookups, PEB population), so the rest of Speakeasy can treat PE files, shellcode, and synthetic modules the same way.
 
 ## Docker-style host mounts with --volume
 
@@ -51,7 +51,7 @@ When Speakeasy was first written, many malware samples were still 32-bits. These
 
 ## Hook imports for injected/replaced child processes
 
-Injected PEs written with WriteProcessMemory can bypass normal loader IAT patching, so imports were not always hooked. Speakeasy now parses the in-memory PE import directory and patches IAT slots with sentinel handlers before resumed execution. This restores API interception and trace visibility for hollowed payloads.
+Injected PEs written with WriteProcessMemory can bypass normal loader IAT patching, so imports were not always hooked. Speakeasy now parses the in-memory PE import directory and binds IAT slots to the same mapped API entries used by runtime resolution before resumed execution. This restores API interception and trace visibility for hollowed payloads.
 
 ## Config gate for memory byte capture
 
@@ -243,7 +243,7 @@ For the full reference and caveats, use [doc/gdb.md](gdb.md) and [doc/gdb-exampl
 
 ## Timeout enforcement across multi-run and parent supervision
 
-Timeout handling was tightened so each run has its own active-time budget and configured limits apply consistently across chained entry-point runs and parent-process control logic. This closes cases where retry loops or queue waits could effectively outlive the requested timeout. Users should now see more predictable stop behavior on long or stalled analyses.
+Timeout handling was tightened so each run has its own active-time budget across chained entry-point runs and parent-process control logic. This closes cases where retry loops or queue waits could effectively outlive the requested timeout. Users should now see more predictable stop behavior on long or stalled analyses.
 
 ## Related docs
 
@@ -254,3 +254,5 @@ Timeout handling was tightened so each run has its own active-time budget and co
 - [Report walkthrough](reporting.md)
 - [GDB debugging reference](gdb.md)
 - [Help and troubleshooting](help.md)
+
+See [Unified Windows API addresses](unified-api-addresses.md) for export catalogs, private dispatch and debugger behavior.
