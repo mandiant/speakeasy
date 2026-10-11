@@ -71,7 +71,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         Create a driver object for a loaded driver image
         """
         drv = objman.Driver(emu=self)
-        drv.init_driver_object(name, pe, is_decoy=False)
+        drv.init_driver_object(name, pe)
 
         self.add_object(drv)
 

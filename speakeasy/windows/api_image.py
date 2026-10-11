@@ -218,11 +218,7 @@ def build_api_image(
         image_size=image_size,
         regions=regions,
         imports=[],
-        exports=[
-            ExportEntry(s.name, base + rvas[o], o, "intercepted", kind=s.kind, forwarder=s.forwarder)
-            for s, o in assigned
-        ],
-        default_export_mode="intercepted",
+        exports=[ExportEntry(s.name, base + rvas[o], o, kind=s.kind, forwarder=s.forwarder) for s, o in assigned],
         entry_points=[],
         loader=None,
         sections=sections,

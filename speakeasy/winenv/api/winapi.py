@@ -3,8 +3,6 @@
 import inspect
 import sys
 
-import speakeasy.winenv.arch as _arch
-from speakeasy.errors import ApiEmuError
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.kernelmode import *  # noqa
 from speakeasy.winenv.api.usermode import *  # noqa
@@ -29,17 +27,7 @@ API_HANDLERS = autoload_api_handlers()
 class WindowsApi:
     def __init__(self, emu):
         self.mods = {}
-        self.instances = []
-        self.data = {}
         self.emu = emu
-        arch = self.emu.get_arch()
-
-        if arch == _arch.ARCH_X86:
-            self.ptr_size = 4
-        elif arch == _arch.ARCH_AMD64:
-            self.ptr_size = 8
-        else:
-            raise ApiEmuError("Invalid architecture")
 
     def load_api_handler(self, mod_name):
         for name, hdl in API_HANDLERS:

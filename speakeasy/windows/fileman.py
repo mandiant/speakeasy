@@ -9,8 +9,8 @@ import os
 import shlex
 from typing import Any
 
-import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.config import FileEntryFullPath
 from speakeasy.errors import FileSystemEmuError
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,6 @@ class File:
         self.bytes_written: int = 0
         if data:
             self.data = io.BytesIO(data)
-        self.curr_offset: int = 0
         self.is_dir: bool = False
         self.config: Any = config if config is not None else {}
 
@@ -164,9 +163,6 @@ class File:
 
     def remove_data(self):
         self.data = io.BytesIO(b"")
-
-    def is_directory(self):
-        return self.is_dir
 
     def handle_file_data(self):
         """
@@ -324,26 +320,6 @@ class FileManager:
                 return f
         return None
 
-    def get_all_files(self):
-        return self.files
-
-    def handle_file_data(self, fconf):
-        path = getattr(fconf, "path", None)
-        if path:
-            path = normalize_response_path(path)
-            with open(path, "rb") as f:
-                return f.read()
-        bf = getattr(fconf, "byte_fill", None)
-        if bf:
-            byte = bf.byte if hasattr(bf, "byte") else bf.get("byte")
-            if byte.startswith("0x"):
-                byte = 0xFF & int(byte, 0)
-            else:
-                byte = 0xFF & int(byte, 16)
-            size = bf.size if hasattr(bf, "size") else bf.get("size")
-            b = (byte).to_bytes(1, "little")
-            return b * size
-
     def add_existing_file(self, path, data):
         """
         Register an existing file already included in the emulation space
@@ -381,27 +357,10 @@ class FileManager:
                 if fnmatch.fnmatch(path.lower(), f.emu_path.lower()):
                     return f
 
-        all_modules = self.config.modules
-
-        if self.emu.arch == _arch.ARCH_X86:
-            decoy_dir = all_modules.module_directory_x86 or ""
-        else:
-            decoy_dir = all_modules.module_directory_x64 or ""
-
-        ext = os.path.splitext(path)[1]
-
-        # Check if we can load the contents of a decoy DLL
-        for f in all_modules.user_modules:
-            if f.path == path:
-                newconf = dict()
-                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
-                return newconf
-
-        for f in all_modules.system_modules:
-            if f.path == path:
-                newconf = dict()
-                newconf["path"] = os.path.join(decoy_dir, f.name + ext)
-                return newconf
+        # Configured modules exist on disk, without content.
+        modules = self.config.modules
+        if any(f.path == path for f in (*modules.user_modules, *modules.system_modules)):
+            return FileEntryFullPath(mode="full_path", emu_path=path)
 
         # If no full path handler exists, do we have an extension handler?
         for f in self.file_config.files:

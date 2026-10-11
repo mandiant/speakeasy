@@ -78,7 +78,3 @@ def get_addr_family(define):
 
 def get_sock_type(define):
     return get_define(define, prefix="SOCK_")
-
-
-def get_proto_type(define):
-    return get_define(define, prefix="IPPROTO_")

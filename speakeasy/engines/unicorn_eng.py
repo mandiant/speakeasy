@@ -3,7 +3,6 @@
 # Unicorn specific wrappers and abstraction implemented here
 
 import ctypes as ct
-import platform
 
 import unicorn as uc
 import unicorn.x86_const as u
@@ -27,13 +26,6 @@ uc_engine = ct.c_void_p
 UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
 UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
 hook_id = uc_hook_h()
-
-
-def is_platform_intel():
-    mach = platform.machine()
-    if mach in ("x86_64", "i386", "x86"):
-        return True
-    return False
 
 
 class ToggleableHook:

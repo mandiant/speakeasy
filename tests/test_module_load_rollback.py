@@ -32,8 +32,7 @@ def guest_image(emu, name, base):
             MemoryRegion(base + 0x1000, b"\xc3", ".text", 5),
         ],
         imports=[],
-        exports=[ExportEntry("GuestStep", base + 0x1000, 1, "guest")],
-        default_export_mode="guest",
+        exports=[ExportEntry("GuestStep", base + 0x1000, 1)],
         entry_points=[],
     )
 

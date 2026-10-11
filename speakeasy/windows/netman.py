@@ -9,12 +9,6 @@ from urllib.parse import urlparse
 from speakeasy.errors import NetworkEmuError
 
 
-def is_empty(bio):
-    if len(bio.getbuffer()) == bio.tell():
-        return True
-    return False
-
-
 def normalize_response_path(path):
     def _get_speakeasy_root():
         return os.path.join(os.path.dirname(__file__), os.pardir)
@@ -42,7 +36,6 @@ class Socket:
         self.connected_host: str = ""
         self.connected_port: int = 0
         self.curr_packet: BytesIO = BytesIO(b"")
-        self.packet_queue: list[bytes] = []
 
     def set_connection_info(self, host, port):
         self.connected_host = host
@@ -68,15 +61,6 @@ class Socket:
         elif peek:
             self.curr_packet.seek(-len(data), os.SEEK_CUR)
         return data
-
-
-class WSKSocket(Socket):
-    """
-    Represents a WSK socket used in kernel mode applications
-    """
-
-    def __init__(self, fd, family, stype, protocol, flags):
-        super().__init__(fd, family, stype, protocol, flags)
 
 
 class WininetComponent:
@@ -256,12 +240,6 @@ class WininetInstance(WininetComponent):
         self.flags = flags
         self.sessions: dict[int, WininetSession] = {}
 
-    def get_session(self, sess_handle):
-        self.sessions.get(sess_handle)
-
-    def add_session(self, handle, session):
-        self.sessions.update({handle: session})
-
     def new_session(self, server, port, user, password, service, flags, ctx):
         sess = WininetSession(self.allocator, self, server, port, user, password, service, flags, ctx)
         hdl = sess.get_handle()
@@ -337,12 +315,6 @@ class NetworkManager:
         txt = [t for t in txts if (t.name or "") == "default"]
         if txt:
             return _read_txt_data(txt[0])
-
-    def ip_lookup(self, ip):
-        for item in self.dns:  # type: ignore[union-attr]  # dns may be None but callers check
-            if item["response"] == ip:
-                return item["query"]
-        return None
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
         wini = WininetInstance(self.allocator, user_agent, access, proxy, bypass, flags)

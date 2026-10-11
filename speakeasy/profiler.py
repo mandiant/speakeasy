@@ -41,7 +41,6 @@ from speakeasy.profiler_events import (
     MemProtectEvent,
     MemReadEvent,
     MemWriteEvent,
-    ModuleLoadEvent,
     NetDnsEvent,
     NetHttpEvent,
     NetTrafficEvent,
@@ -70,10 +69,6 @@ from speakeasy.report import (
     StringsReport,
     SymAccessReport,
 )
-
-
-class ProfileError(Exception):
-    pass
 
 
 class MemAccess:
@@ -198,12 +193,6 @@ class Profiler:
         Stop the runtime clock to include in the report
         """
         self.runtime = self.get_run_time()
-
-    def get_epoch_time(self):
-        """
-        Get the current time in epoch format
-        """
-        return int(time.time())
 
     def add_run(self, run: Run) -> None:
         """
@@ -660,19 +649,6 @@ class Profiler:
             faulting_address=faulting_address,
             pc_module=pc_module,
             stack_trace=stack_trace,
-        )
-        run.events.append(event)
-
-    def record_module_load_event(self, run, pos: TracePosition, name, path, base, size):
-        """
-        Log module (PE/DLL) load events
-        """
-        event = ModuleLoadEvent(
-            pos=pos,
-            name=name,
-            path=path,
-            base=hex(base),
-            size=hex(size),
         )
         run.events.append(event)
 

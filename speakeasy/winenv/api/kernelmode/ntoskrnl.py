@@ -1905,11 +1905,7 @@ class Ntoskrnl(api.ApiHandler):
         MappedAsImage &= 0xFF
         ctx.args["MappedAsImage"].display = hex(MappedAsImage)
 
-        rv = 0
-
-        # mod = emu.get_mod_from_addr(Base)
         raise Exception("Unimplemented")
-        return rv
 
     @apihook("ZwOpenEvent", argc=3)
     def ZwOpenEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

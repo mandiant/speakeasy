@@ -7,7 +7,6 @@ from typing import Any
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
-import speakeasy.winenv.defs.windows.windows as windef
 
 
 class HandleAllocator:
@@ -99,9 +98,6 @@ class SEH:
         self.context_address: int = 0
         self.record: Any | None = None
         self.frames: list[SEH.Frame] = []
-        self.last_func: int = 0
-        self.last_exception_code: int = 0
-        self.exception_ptrs: int = 0
         self.handler_ret_val: int | None = None
 
     def set_context(self, context, address=0):
@@ -132,7 +128,6 @@ class KernelObject:
         self.id: int = emu.handle_allocator.allocate_kernel_object_id()
 
         self.nt_types = ntoskrnl
-        self.win_types = windef
 
     def sizeof(self, obj=None):
         if obj:
@@ -269,7 +264,7 @@ class Driver(KernelObject):
         ldte.write_back()
         return ldte
 
-    def init_driver_object(self, name=None, pe=None, is_decoy=True):
+    def init_driver_object(self, name=None, pe=None):
         """
         Initialize the DRIVER_OBJECT
         """
@@ -285,15 +280,6 @@ class Driver(KernelObject):
             drvobj.DriverStart = pe.base
             drvobj.DriverSize = pe.image_size
             drvobj.DriverInit = pe.base + pe.ep
-
-            if is_decoy:
-                ep = pe.base + pe.ep
-                drvobj.MajorFunction[ddk.IRP_MJ_CREATE] = ep + 1
-                drvobj.MajorFunction[ddk.IRP_MJ_READ] = ep + 2
-                drvobj.MajorFunction[ddk.IRP_MJ_WRITE] = ep + 3
-                drvobj.MajorFunction[ddk.IRP_MJ_DEVICE_CONTROL] = ep + 4
-                drvobj.MajorFunction[ddk.IRP_MJ_PNP] = ep + 5
-                drvobj.MajorFunction[ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL] = ep + 6
 
             if not name:
                 drvname = os.path.splitext(pe.path)[0]
@@ -427,7 +413,6 @@ class Thread(KernelObject):
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
         self.object.Data = b"\xff" * self.sizeof()
         self.tid: int = self.id
-        self.modified_pc: bool = False
         self.teb: TEB | None = None
         self.seh: SEH = SEH()
         self.tls: list[int] = []
@@ -443,25 +428,12 @@ class Thread(KernelObject):
         self.write_back()
         self.process: Process | None = None
 
-    def queue_message(self, msg):
-        """
-        Add a GUI message to the thread's message queue
-        """
-        self.message_queue.append(msg)
-
     def get_context(self):
         if self.ctx:
             return self.ctx
         return self.emu.get_thread_context()
 
     def set_context(self, ctx):
-        if self.ctx:
-            if self.emu.get_arch() == _arch.ARCH_AMD64:
-                if ctx.Rip != self.ctx.Rip:
-                    self.modified_pc = True
-            elif self.emu.get_arch() == _arch.ARCH_X86:
-                if ctx.Eip != self.ctx.Eip:
-                    self.modified_pc = True
         self.ctx = ctx
 
     def init_teb(self, teb_addr, peb_addr):
@@ -609,10 +581,6 @@ class Process(KernelObject):
     def get_ep(self):
         if self.pe:
             return self.pe.get_ep()
-
-    def new_thread(self):
-        thr = Thread(self.emu)
-        self.threads.append(thr)
 
     def add_module_to_peb(self, module):
         # One loader entry per mapped image in this process. _peb_modules

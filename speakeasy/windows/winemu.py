@@ -250,9 +250,6 @@ class WindowsEmulator(BinaryEmulator):
 
         self.bootstrap_phase = phase
 
-    def get_bootstrap_phase(self):
-        return self.bootstrap_phase
-
     def validate_bootstrap_phase(self, phase, reason):
         if self.bootstrap_phase < phase:
             raise WindowsEmuError(
@@ -458,12 +455,6 @@ class WindowsEmulator(BinaryEmulator):
             return self.regman.get_key_from_path(path)
         return self.regman.get_key_from_handle(handle)
 
-    def reg_create_key(self, path):
-        """
-        Create a registry key
-        """
-        return self.regman.create_key(path)
-
     def _set_emu_hooks(self):
         """
         Unmap reserved memory space so we can handle events (e.g. import APIs,
@@ -613,12 +604,6 @@ class WindowsEmulator(BinaryEmulator):
         size = obj.sizeof()
         struct_bytes = self.mem_read(addr, size)
         return self.cast(obj, struct_bytes)
-
-    def mem_purge(self):
-        """
-        Unmap all memory chunks
-        """
-        self.purge_memory()
 
     def setup_user_shared_data(self):
         """
@@ -1736,15 +1721,6 @@ class WindowsEmulator(BinaryEmulator):
             sysroot += "\\"
         return sysroot
 
-    def get_windows_dir(self):
-        """
-        Get the path of the "WINDIR" environment variable
-        """
-        sysroot = self.env.get("windir", "C:\\WINDOWS")
-        if not sysroot.endswith("\\"):
-            sysroot += "\\"
-        return sysroot
-
     def get_cd(self):
         """
         Get the path of the current directory
@@ -1797,15 +1773,6 @@ class WindowsEmulator(BinaryEmulator):
     def add_object(self, obj):
         self.validate_object_services("object registration")
         self.om.add_object(obj)  # type: ignore[union-attr]
-
-    def search_path(self, file_name):
-        # For now, return the current directory, add emulated path walking later
-        if "\\" in file_name:
-            return file_name
-        fp = self.get_cd()
-        if not fp.endswith("\\"):
-            fp += "\\"
-        return fp + file_name
 
     def new_object(self, otype):
         self.validate_object_services("object creation")
@@ -2771,13 +2738,6 @@ class WindowsEmulator(BinaryEmulator):
         self.end_run_on_fault()
         return True
 
-    def restart_run(self, run):
-        """
-        Restart the current run
-        """
-        run.instr_cnt = 0
-        self.set_pc(run.start_addr)
-
     def get_symbol_from_address(self, address):
         """
         If the supplied address is related to a known symbol, look it up here
@@ -3077,8 +3037,6 @@ class WindowsEmulator(BinaryEmulator):
                 disasm = self.get_disasm(addr, size)[2]
                 logger.debug("exec: 0x%x %s", addr, disasm)
 
-            self.curr_instr_size = size
-
             symbol = self.get_symbol_from_address(addr)
             if symbol:
                 mac = self.curr_run.sym_access.get(addr)  # type: ignore[union-attr]
@@ -3270,16 +3228,6 @@ class WindowsEmulator(BinaryEmulator):
         # from the BytesIO object
         return mod_file.data.getvalue()
 
-    def init_environment(self, system_modules=None, user_modules=None):
-        if system_modules is None:
-            system_modules = self.config.modules.system_modules
-        if user_modules is None:
-            user_modules = self.config.modules.user_modules
-
-        sys_mods = self._init_module_group(system_modules)
-        self._init_module_group(user_modules, default_base=0x6F000000)
-        return sys_mods
-
     def init_sys_modules(self, modules_config):
         return self._init_module_group(modules_config)
 
@@ -3428,7 +3376,6 @@ class WindowsEmulator(BinaryEmulator):
         exception_list = self._get_exception_list()
         ptr_size = self.get_ptr_size()
 
-        seh.last_exception_code = except_code
         # Create the _EXCEPTION_RECORD
         record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
         record.ExceptionCode = except_code
@@ -3495,7 +3442,7 @@ class WindowsEmulator(BinaryEmulator):
 
             faulting_addr_hex = None
             if except_code == ddk.STATUS_ACCESS_VIOLATION:
-                faulting_addr_hex = hex(self.prev_pc) if hasattr(self, "prev_pc") else None
+                faulting_addr_hex = hex(self.prev_pc)
 
             if self.profiler:
                 tick = run.instr_cnt if run else 0
@@ -3519,12 +3466,6 @@ class WindowsEmulator(BinaryEmulator):
             self.set_pc(entry.Handler)
             return True
         return False
-
-    def get_reserved_ranges(self):
-        """
-        Get the allocated memory ranges that the emulator reserves
-        """
-        return (winemu.EMU_RESERVED, winemu.EMU_RESERVED_END)
 
     def _continue_seh_x86(self) -> bool:
         """
@@ -3556,7 +3497,6 @@ class WindowsEmulator(BinaryEmulator):
                 if not scope_record.filter_called and scope_record.record.FilterFunc:
                     self.set_func_args(sp, winemu.SEH_RETURN_ADDR, conv=_arch.CALL_CONV_STDCALL)
                     self.set_pc(scope_record.record.FilterFunc)
-                    seh.last_func = scope_record.record.FilterFunc
                     scope_record.filter_called = True
                     return False
 
@@ -3568,7 +3508,6 @@ class WindowsEmulator(BinaryEmulator):
                     if not scope_record.handler_called:
                         # If no filter was provided, this is a finally block
                         self.set_pc(scope_record.record.HandlerAddress)
-                        seh.last_func = scope_record.record.HandlerAddress
                         scope_record.handler_called = True
                         return False
                 elif windef.EXCEPTION_CONTINUE_EXECUTION == ret_val:

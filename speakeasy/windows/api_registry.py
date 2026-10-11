@@ -162,7 +162,6 @@ class ApiRegistry:
             name=reference if isinstance(reference, str) else None,
             address=address,
             ordinal=reference if isinstance(reference, int) else 0,
-            execution_mode="intercepted",
             kind="function",
         )
         trap = self._allocate_trap()

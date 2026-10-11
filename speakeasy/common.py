@@ -99,11 +99,6 @@ class Hook:
             return self.cb(self.se_obj, num)
         return True
 
-    def _wrap_in_insn_cb(self, emu, port, size, ctx=None):
-        if self.enabled:
-            return self.cb(self.se_obj, port, size)
-        return True
-
     def _wrap_syscall_insn_cb(self, emu, ctx=None):
         if self.enabled:
             return self.cb(self.se_obj)
