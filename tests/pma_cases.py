@@ -17,6 +17,7 @@ from tests.pma_profiles import (
     profile_pma_1402,
     profile_pma_1603,
     profile_pma_1702,
+    profile_pma_1803_ocl,
 )
 
 PMA_CASES: tuple[PmaCase, ...] = (
@@ -276,5 +277,13 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-21-01-exe",
         sample="Practical Malware Analysis Lab 21-01.exe_",
         expected_apis=("KERNEL32.GetTickCount", "KERNEL32.EncodePointer"),
+    ),
+    PmaCase(
+        name="pma-18-03-ocl",
+        sample="Practical Malware Analysis Lab 18-03.exe_",
+        expected_apis=("WS2_32.WSAStartup", "WS2_32.gethostbyname", "WS2_32.connect", "KERNEL32.CreateProcessA"),
+        indicators=IndicatorExpectations(domains=("www.practicalmalwareanalysis.com",)),
+        allowed_entrypoint_errors=("max_api_count",),
+        profile=profile_pma_1803_ocl,
     ),
 )

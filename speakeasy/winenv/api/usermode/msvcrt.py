@@ -108,27 +108,24 @@ class Msvcrt(api.ApiHandler):
         return struct.unpack("<Q", struct.pack("<d", x))[0]
 
     @impdata("_acmdln")
-    def _acmdln(self, ptr=0):
+    def _acmdln(self, ptr):
         """Command line global CRT variable"""
 
-        cmdln = ptr
         _argv = self.emu.get_argv()
         _argv = " ".join(_argv).encode("utf-8")
 
         ptr_size = self.emu.get_ptr_size()
 
-        if not ptr:
-            cmdln = self.mem_alloc(len(_argv) + ptr_size, base=None, tag="api.msvcrt._acmdln")
-            p_cmdln = cmdln + ptr_size
-            self.emu.mem_write(cmdln, p_cmdln.to_bytes(ptr_size, "little"))
-            self.emu.mem_write(p_cmdln, _argv)
-        return cmdln
+        p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
+        self.emu.mem_write(ptr, p_cmdln.to_bytes(ptr_size, "little"))
+        self.emu.mem_write(p_cmdln, _argv + b"\x00")
+        return ptr
 
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """Command line global CRT variable"""
 
-        cmdln = self._acmdln()
+        cmdln = emu.get_proc("msvcrt", "_acmdln")
 
         return cmdln
 
@@ -396,12 +393,16 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(argc, len(_argv).to_bytes(4, "little"))
         return argc
 
+    @impdata("__initenv")
+    def __initenv(self, ptr):
+        """Writable char ** global, shared with __p___initenv."""
+        self.mem_write(ptr, b"\x00" * self.get_ptr_size())
+        return ptr
+
     @apihook("__p___initenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___initenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """char *** __p___initenv ()"""
-        ptr_size = self.get_ptr_size()
-        ptr = self.mem_alloc(size=ptr_size, tag="api.initenv")
-        return ptr
+        return emu.get_proc("msvcrt", "__initenv")
 
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -869,29 +870,31 @@ class Msvcrt(api.ApiHandler):
     def _set_app_type(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
 
-    @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
-    def __p__fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int* __p__fmode();
-        """
+    @impdata("_fmode")
+    def _fmode(self, ptr):
+        """Writable file-mode global, initialized to _O_TEXT."""
         _O_TEXT = 0x4000
 
-        ptr = self.mem_alloc(4, tag="api.fmode")
-        data = _O_TEXT.to_bytes(4, "little")
-        self.mem_write(ptr, data)
+        self.mem_write(ptr, _O_TEXT.to_bytes(4, "little"))
+        return ptr
+
+    @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int* __p__fmode();"""
+        return emu.get_proc("msvcrt", "_fmode")
+
+    @impdata("_commode")
+    def _commode(self, ptr):
+        """Writable commit-mode global, initialized to _IOCOMMIT."""
+        _IOCOMMIT = 0x4000
+
+        self.mem_write(ptr, _IOCOMMIT.to_bytes(4, "little"))
         return ptr
 
     @apihook("__p__commode", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__commode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int* __p__commode();
-        """
-        _IOCOMMIT = 0x4000
-
-        ptr = self.mem_alloc(4, tag="api.commode")
-        data = _IOCOMMIT.to_bytes(4, "little")
-        self.mem_write(ptr, data)
-        return ptr
+        """int* __p__commode();"""
+        return emu.get_proc("msvcrt", "_commode")
 
     @apihook("_controlfp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1797,6 +1800,7 @@ class Msvcrt(api.ApiHandler):
         # push    eax
         # ret     0
         emu.push_stack(eax)
+        emu.do_call_return(0, eax, conv=e_arch.CALL_CONV_CDECL)
         return
 
     @apihook("wcstombs", argc=3, conv=e_arch.CALL_CONV_CDECL)

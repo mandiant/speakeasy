@@ -1,31 +1,31 @@
 """Test that module names are normalized (case-insensitive, no extension) in get_proc."""
 
-from speakeasy.windows.winemu import _normalize_mod_name
+from speakeasy.windows.api_registry import module_name
 
 
-def test_normalize_mod_name_lowercase():
-    assert _normalize_mod_name("KERNEL32") == "kernel32"
-    assert _normalize_mod_name("Kernel32") == "kernel32"
-    assert _normalize_mod_name("kernel32") == "kernel32"
+def test_module_name_lowercase():
+    assert module_name("KERNEL32") == "kernel32"
+    assert module_name("Kernel32") == "kernel32"
+    assert module_name("kernel32") == "kernel32"
 
 
-def test_normalize_mod_name_strips_extension():
-    assert _normalize_mod_name("kernel32.dll") == "kernel32"
-    assert _normalize_mod_name("kernel32.DLL") == "kernel32"
-    assert _normalize_mod_name("ntdll.dll") == "ntdll"
+def test_module_name_strips_extension():
+    assert module_name("kernel32.dll") == "kernel32"
+    assert module_name("kernel32.DLL") == "kernel32"
+    assert module_name("ntdll.dll") == "ntdll"
 
 
-def test_normalize_mod_name_case_and_extension():
-    assert _normalize_mod_name("KERNEL32.DLL") == "kernel32"
-    assert _normalize_mod_name("Kernel32.Dll") == "kernel32"
+def test_module_name_case_and_extension():
+    assert module_name("KERNEL32.DLL") == "kernel32"
+    assert module_name("Kernel32.Dll") == "kernel32"
 
 
-def test_normalize_mod_name_no_extension():
-    assert _normalize_mod_name("kernel32") == "kernel32"
+def test_module_name_no_extension():
+    assert module_name("kernel32") == "kernel32"
 
 
-def test_normalize_mod_name_preserves_dotted_names():
-    assert _normalize_mod_name("api-ms-win-crt-runtime-l1-1-0.dll") == "api-ms-win-crt-runtime-l1-1-0"
+def test_module_name_preserves_dotted_names():
+    assert module_name("api-ms-win-crt-runtime-l1-1-0.dll") == "api-ms-win-crt-runtime-l1-1-0"
 
 
 def test_get_proc_case_insensitive(config, load_test_bin, run_test):
@@ -38,6 +38,6 @@ def test_get_proc_case_insensitive(config, load_test_bin, run_test):
     assert api_calls[2].ret_val != "0x0"
 
 
-def test_normalize_mod_name_is_idempotent_for_dotted_names():
-    assert _normalize_mod_name("windows.storage.dll") == "windows.storage"
-    assert _normalize_mod_name("windows.storage") == "windows.storage"
+def test_module_name_is_idempotent_for_dotted_names():
+    assert module_name("windows.storage.dll") == "windows.storage"
+    assert module_name("windows.storage") == "windows.storage"

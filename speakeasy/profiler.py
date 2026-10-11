@@ -6,6 +6,7 @@ __report_version__ = "5.0.0"
 import hashlib
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from typing import Any
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
@@ -89,6 +90,20 @@ class MemAccess:
         self.execs = 0
 
 
+@dataclass
+class ApiCallbackFrame:
+    """Original API call state retained while its guest callbacks execute."""
+
+    stack_pointer: int
+    return_address: int
+    argc: int = 0
+    convention: int | None = None
+    function: int = 0
+    pending: list[tuple[int, tuple[int, ...]]] = field(default_factory=list)
+    result: int | None = None
+    event: ApiEvent | None = None
+
+
 class Run:
     """
     This class represents the basic execution primative for the emulation engine
@@ -98,6 +113,8 @@ class Run:
 
     def __init__(self):
         self.instr_cnt: int = 0
+        self.execution_elapsed: float = 0.0
+        self.budget_instructions: int = 0
         self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
@@ -110,7 +127,7 @@ class Run:
         self.unique_apis: list[str] = []
         self.api_hash = hashlib.sha256()
         self.stack: MemAccess | None = None
-        self.api_callbacks: list[tuple[int, str, list[Any] | tuple[Any, ...]]] = []
+        self.api_callbacks: list[ApiCallbackFrame] = []
         self.exec_cache: deque[MemAccess] = deque(maxlen=4)
         self.read_cache: deque[MemAccess] = deque(maxlen=4)
         self.write_cache: deque[MemAccess] = deque(maxlen=4)
@@ -232,7 +249,9 @@ class Profiler:
         name: str,
         ret: int | None,
         args: list[ApiArg],
-    ) -> None:
+        *,
+        deduplicate: bool = True,
+    ) -> ApiEvent:
         """
         Log a call to an OS API. This includes arguments, return address, and return value.
 
@@ -252,7 +271,7 @@ class Profiler:
 
         shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
-        if not any(
+        if not deduplicate or not any(
             e.pos.pc == event.pos.pc
             and e.api_name == event.api_name
             and [(a.name, a.type, a.display) for a in e.args] == shown
@@ -260,6 +279,7 @@ class Profiler:
             for e in recent_events
         ):
             run.events.append(event)
+        return event
 
     def record_file_access_event(
         self,

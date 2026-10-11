@@ -122,6 +122,7 @@ class EmuEngine:
             common.PERM_MEM_WRITE: uc.UC_PROT_WRITE,
             common.PERM_MEM_RW: uc.UC_PROT_READ | uc.UC_PROT_WRITE,
             common.PERM_MEM_RX: uc.UC_PROT_READ | uc.UC_PROT_EXEC,
+            common.PERM_MEM_WRITE | common.PERM_MEM_EXEC: uc.UC_PROT_WRITE | uc.UC_PROT_EXEC,
             common.PERM_MEM_RWX: uc.UC_PROT_ALL,
         }
 

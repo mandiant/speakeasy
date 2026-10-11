@@ -28,23 +28,18 @@ GDT_FLAGS = Enum()
 GDT_FLAGS.Ring3 = 0x3
 GDT_FLAGS.Ring0 = 0
 
-IMPORT_HOOK_ADDR = 0xFEEDFACE
 DEFAULT_LOAD_ADDR = 0x40000
 
 PAGE_SIZE = 0x1000
 
 EMU_RESERVED = 0xFEEDF000
 EMU_RESERVE_SIZE = 0x4000
-DYM_IMP_RESERVE = EMU_RESERVED + 0x1000
-EMU_CALLBACK_RESERVE = DYM_IMP_RESERVE + 0x1000
-EMU_SYSCALL_RESERVE = EMU_CALLBACK_RESERVE + 0x1000
 
 EMU_RESERVED_END = EMU_RESERVED + EMU_RESERVE_SIZE
 EMU_RETURN_ADDR = EMU_RESERVED
 EXIT_RETURN_ADDR = EMU_RETURN_ADDR + 1
 SEH_RETURN_ADDR = EMU_RETURN_ADDR + 4
 API_CALLBACK_HANDLER_ADDR = EMU_RETURN_ADDR + 8
-IMPORT_HOOK_ADDR = EMU_RETURN_ADDR + 12
 
 # Common blank DOS header
 DOS_HEADER = (
@@ -181,15 +176,13 @@ class _PeParser(pefile.PE):
     Represents PE files loaded into the emulator
     """
 
-    def __init__(self, path=None, data=None, imp_id=IMPORT_HOOK_ADDR, imp_step=4, emu_path="", fast_load=False):
+    def __init__(self, path=None, data=None, emu_path="", fast_load=False):
         super().__init__(name=path, data=data, fast_load=fast_load)
 
         if 0 == self.OPTIONAL_HEADER.ImageBase:
             self.relocate_image(DEFAULT_LOAD_ADDR)
             super().__init__(name=None, data=self.write())
 
-        self.imp_id = imp_id
-        self.imp_step = imp_step
         self.file_size = 0
         self.base = self.OPTIONAL_HEADER.ImageBase
         self.hash = self._hash_pe(path=path, data=data)
@@ -198,7 +191,6 @@ class _PeParser(pefile.PE):
         self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
         # self.mapped_image = None
         self.image_size = self.OPTIONAL_HEADER.SizeOfImage
-        self.import_table = {}
         self.is_mapped = True
         self.pe_sections = self._get_pe_sections()
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -213,8 +205,6 @@ class _PeParser(pefile.PE):
             self.ptr_size = 4
         else:
             self.ptr_size = 8
-
-        self._patch_imports()
 
     def get_tls_callbacks(self):
         """
@@ -320,27 +310,6 @@ class _PeParser(pefile.PE):
         else:
             raise ValueError(f"Unsupported architecture: 0x{magic:x}")
 
-    def _patch_imports(self):
-        """
-        Imports are patched with invalid memory addresses. When the API is called
-        by the emulated binary, the invalid memory fetch callback will trigger,
-        allowing us to handle the Windows API within the emulator
-        """
-        if not self.imports:
-            return
-
-        if not self.mapped_image:
-            raise ValueError("PE image has not been mapped yet")
-
-        for addr, imp in self.imports.items():
-            tmp = bytearray(self.mapped_image)
-            offset = addr - self.base
-            tmp[offset : offset + self.ptr_size] = self.imp_id.to_bytes(self.ptr_size, "little")
-            self.mapped_image = bytes(tmp)
-
-            self.import_table.update({self.imp_id: imp})
-            self.imp_id += self.imp_step
-
     def get_export_by_name(self, name):
         for exp in self.get_exports():
             if name == exp.name:
@@ -402,7 +371,6 @@ class _PeParser(pefile.PE):
         self.pe_sections = self._get_pe_sections()
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
-        self._patch_imports()
 
         return
 

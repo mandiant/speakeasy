@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.profiler import Run
+from speakeasy.profiler import ApiCallbackFrame, Run
 from speakeasy.windows import objman
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
@@ -50,7 +50,7 @@ def object_attributes(se: Speakeasy, name: str) -> int:
 
 def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str | int, str]]:
     """
-    Call a handler with the context dispatch builds. A variadic handler reads
+    Call a handler with the context and frame that dispatch builds. A variadic handler reads
     ``argv`` from the stack. Return the handler result and the displays, by
     parameter name, or by slot index for a call without a signature.
     """
@@ -70,7 +70,12 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
     else:
         args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
     ctx = ApiContext(func_name=f"{dll}.{name}", args=args)
-    rv = func(mod, emu, list(argv), ctx)
+    previous = emu._active_api_frame
+    emu._active_api_frame = ApiCallbackFrame(emu.get_stack_ptr(), return_address=0)
+    try:
+        rv = func(mod, emu, list(argv), ctx)
+    finally:
+        emu._active_api_frame = previous
     return rv, {i if a.name is None else a.name: a.display for i, a in enumerate(args.get_report_args())}
 
 
