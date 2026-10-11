@@ -7,6 +7,7 @@ import textwrap
 import time
 from dataclasses import dataclass
 
+import capstone
 import pytest
 
 TESTS_DIR = os.path.dirname(__file__)
@@ -533,8 +534,6 @@ def gdb_watchpoint_emulator():
 
 
 def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
-    import capstone
-
     client = GdbRspClient(gdb_emulator)
     try:
         client.query_halt_reason()

@@ -12,6 +12,7 @@ import pefile
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+from speakeasy.windows.common import ImageSectionCharacteristics, _PeParser
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,6 @@ class SectionEntry:
 
 
 def perms_from_section_chars(chars: int) -> int:
-    from speakeasy.windows.common import ImageSectionCharacteristics
-
     perms = common.PERM_MEM_NONE
     if chars & ImageSectionCharacteristics.IMAGE_SCN_MEM_READ:
         perms |= common.PERM_MEM_READ
@@ -364,8 +363,6 @@ class PeLoader:
             yield slot_rva, symbol
 
     def make_image(self) -> LoadedImage:
-        from speakeasy.windows.common import _PeParser
-
         class InventoryParser(_PeParser):
             # PeLoader builds these inventories from the raw pefile entries.
             # Avoid legacy eager UTF-8 decoding before our policy can run.

@@ -17,6 +17,7 @@ from speakeasy.config import SpeakeasyConfig, get_default_config_dict
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
+from speakeasy.windows.common import _PeParser
 from speakeasy.windows.winemu import execution_scope
 
 logger = logging.getLogger(__name__)
@@ -111,8 +112,6 @@ class Speakeasy:
 
         """
         if not is_raw_code:
-            from speakeasy.windows.common import _PeParser
-
             pe = _PeParser(path=path, data=data)
             # Get the machine type we only support x86/x64 atm
             mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()

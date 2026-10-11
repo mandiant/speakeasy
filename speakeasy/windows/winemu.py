@@ -12,8 +12,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import wraps
+from types import MethodType
 from typing import Any, cast
 
+import capstone as cs
 import pefile
 import unicorn as uc
 
@@ -36,12 +38,14 @@ from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
-from speakeasy.windows.loaders import PeLoader, get_prot_string
+from speakeasy.windows.ioman import IoManager
+from speakeasy.windows.loaders import PeLoader, RuntimeModule, get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
+from speakeasy.winenv.api.winapi import WindowsApi
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -429,8 +433,6 @@ class WindowsEmulator(BinaryEmulator):
             return rv, outbuf
 
         if self._io_manager is None:
-            from speakeasy.windows.ioman import IoManager
-
             self._io_manager = IoManager()
 
         return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
@@ -621,9 +623,6 @@ class WindowsEmulator(BinaryEmulator):
         self._populate_user_shared_data(0x7FFE0000)
 
     def _populate_user_shared_data(self, base):
-        import struct
-        import time
-
         now_100ns = int(time.time() * 10_000_000) + 116444736000000000
         tick_ms = int(time.monotonic() * 1000) & 0xFFFFFFFF
 
@@ -1260,8 +1259,6 @@ class WindowsEmulator(BinaryEmulator):
         Initialize implicit thread local storage. Meant to be
         called after init_teb.
         """
-        from speakeasy.windows.loaders import RuntimeModule
-
         ptrsz = self.get_ptr_size()
         run = self.curr_run
         module = self.get_mod_from_addr(run.start_addr)  # type: ignore[union-attr]
@@ -1589,10 +1586,6 @@ class WindowsEmulator(BinaryEmulator):
         return result
 
     def _load_image(self, image):
-        import capstone as cs
-
-        from speakeasy.windows.loaders import RuntimeModule
-
         valid_arch = image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64)
         if self.arch and valid_arch and self.arch != image.arch:
             raise WindowsEmuError("module architecture does not match the emulated process")
@@ -1617,8 +1610,6 @@ class WindowsEmulator(BinaryEmulator):
                 self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
 
         if not self.api:
-            from speakeasy.winenv.api.winapi import WindowsApi
-
             self.api = WindowsApi(self)
 
         self.advance_bootstrap_phase(BootstrapPhase.ENGINE_API_READY)
@@ -2515,8 +2506,6 @@ class WindowsEmulator(BinaryEmulator):
             self.hammer.handle_import_func(imp_api, conv, argc)
             hooks = self.get_api_hooks(dll, name)
             if hooks:
-                from types import MethodType
-
                 hooked_func = MethodType(func, mod)
                 orig = lambda args: hooked_func(self, args, ctx)  # noqa
                 # Hooks execute in FIFO order (first registered, first called).

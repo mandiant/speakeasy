@@ -3,6 +3,7 @@
 import pytest
 
 from speakeasy.windows.common import normalize_dll_name
+from speakeasy.windows.winemu import WindowsEmulator
 
 SENTINEL_HANDLER = ("handler", lambda: None, 4, "stdcall", None)
 
@@ -29,8 +30,6 @@ class FakeEmulator:
         self.api = HandlerTable(handler_entries)
 
     def normalize_import_miss(self, dll, name):
-        from speakeasy.windows.winemu import WindowsEmulator
-
         return WindowsEmulator.normalize_import_miss(self, dll, name)
 
 
