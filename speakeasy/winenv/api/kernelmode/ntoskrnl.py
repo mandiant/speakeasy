@@ -1691,11 +1691,7 @@ class Ntoskrnl(api.ApiHandler):
 
             obj = self.get_object_from_name(name)
             if not obj:
-                # Is this a driver?
-                if name.lower().startswith(r"\driver"):
-                    obj = emu.create_driver_object(name)
-                else:
-                    rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
+                rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
         if obj:
             rv = ddk.STATUS_SUCCESS
             self.mem_write(objptr, obj.address.to_bytes(self.get_ptr_size(), "little"))

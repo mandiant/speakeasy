@@ -65,18 +65,11 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         self.irql = irql
 
-    def create_driver_object(self, name=None, pe=None):
+    def create_driver_object(self, pe, name=None):
         """
-        Create a driver object for the driver that is going to be emulated
+        Create a driver object for a loaded driver image
         """
-        from speakeasy.windows.common import _PeParser
-
         drv = objman.Driver(emu=self)
-
-        if not pe:
-            default_path = self.get_native_module_path("default_sys")
-            pe = _PeParser(path=default_path)
-
         drv.init_driver_object(name, pe, is_decoy=False)
 
         self.add_object(drv)
