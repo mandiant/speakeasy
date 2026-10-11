@@ -6960,12 +6960,16 @@ class Kernel32(api.ApiHandler):
 
     @apihook("FlsGetValue2", argc=1)
     def FlsGetValue2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        fls_index = argv[0]
-        try:
-            val = emu.get_fls_value(fls_index)
-            return val if val else 0x1000
-        except Exception:
-            return 0x1000
+        """
+        PVOID FlsGetValue2(
+          DWORD dwFlsIndex
+        );
+        """
+        (dwFlsIndex,) = argv
+        fls = emu.get_current_thread().fls
+        if dwFlsIndex < len(fls):
+            return fls[dwFlsIndex]
+        return 0
 
     @apihook("RtlCaptureContext", argc=1)
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
