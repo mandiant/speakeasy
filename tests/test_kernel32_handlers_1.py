@@ -500,3 +500,27 @@ def test_get_tick_count64_sets_the_high_half_on_x86(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "kernel32", "GetTickCount64", [])
     assert rv == 20
     assert emu.reg_read(e_arch.X86_REG_EDX) == 1
+
+
+def test_process_id_to_session_id(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    proc = emu.get_current_process()
+    out = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "kernel32", "ProcessIdToSessionId", [proc.id, out])[0] is True
+    assert struct.unpack("<I", dll_emu.mem_read(out, 4))[0] == proc.session
+
+
+@pytest.mark.parametrize("pid, has_out", [(0xFFFF0, True), (None, False)])
+def test_process_id_to_session_id_failure_sets_the_last_error(
+    dll_emu: Speakeasy, pid: int | None, has_out: bool
+) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    emu.set_last_error(0)
+    out = alloc(dll_emu, b"\xcc" * 4) if has_out else 0
+    pid = emu.get_current_process().id if pid is None else pid
+    assert call(dll_emu, "kernel32", "ProcessIdToSessionId", [pid, out])[0] is False
+    assert emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
