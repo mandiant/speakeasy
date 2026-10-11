@@ -479,3 +479,21 @@ def test_sprintf_writes_one_percent_for_escape_without_arguments(
     buf = alloc(driver_emu, b"\xcc" * 16)
     assert call(driver_emu, "ntoskrnl", api, [buf, *head, alloc(driver_emu, fmt)])[0] == 4
     assert driver_emu.mem_read(buf, len(out)) == out
+
+
+def test_ob_reference_object_by_name_finds_a_configured_driver(driver_emu: Speakeasy) -> None:
+    emu = driver_emu.emu
+    assert emu is not None
+    out = alloc(driver_emu, b"\xcc" * 4)
+    argv = [unicode_string(driver_emu, "\\Driver\\Disk"), 0, 0, 0, 0, 0, 0, out]
+    assert call(driver_emu, "ntoskrnl", "ObReferenceObjectByName", argv)[0] == ddk.STATUS_SUCCESS
+    drv = emu.get_object_from_addr(struct.unpack("<I", driver_emu.mem_read(out, 4))[0])
+    assert isinstance(drv, objman.Driver)
+    assert drv.name == "\\Driver\\Disk"
+
+
+def test_ob_reference_object_by_name_rejects_an_unknown_driver(driver_emu: Speakeasy) -> None:
+    out = alloc(driver_emu, b"\xcc" * 4)
+    argv = [unicode_string(driver_emu, "\\Driver\\NoSuchDriver"), 0, 0, 0, 0, 0, 0, out]
+    assert call(driver_emu, "ntoskrnl", "ObReferenceObjectByName", argv)[0] == ddk.STATUS_OBJECT_NAME_NOT_FOUND
+    assert driver_emu.mem_read(out, 4) == b"\xcc" * 4
