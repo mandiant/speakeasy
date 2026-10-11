@@ -21,6 +21,7 @@ FILE_MAP_READ = 0x04
 FILE_MAP_ALL_ACCESS = 0xF001F
 GENERIC_READ = 0x80000000
 OPEN_EXISTING = 3
+SEC_IMAGE = 0x1000000
 
 
 @pytest.fixture
@@ -28,6 +29,14 @@ def file_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes], tmp_
     host = tmp_path / "data.bin"
     host.write_bytes(b"".join(struct.pack("<I", i) for i in range(0x8000)))
     config["filesystem"]["files"].insert(0, {"mode": "full_path", "emu_path": "c:\\data.bin", "path": str(host)})
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.fixture
+def pe_file_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes], tmp_path: Path) -> Iterator[Speakeasy]:
+    host = tmp_path / "image.dll"
+    host.write_bytes(load_test_bin("dll_test_x64.dll.xz"))
+    config["filesystem"]["files"].insert(0, {"mode": "full_path", "emu_path": "c:\\image.dll", "path": str(host)})
     yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
 
 
@@ -566,3 +575,16 @@ def test_module32_first_fills_the_module_entry(
     assert read_ptr(names - ptr) == module.base
     assert read_str(names, 256) == module.name
     assert read_str(names + 256 * cw, 260) == module.emu_path
+
+
+def test_map_view_of_image_section_keeps_the_input_metadata(pe_file_emu: Speakeasy) -> None:
+    emu = pe_file_emu.emu
+    assert emu is not None and emu.profiler is not None
+    before = dict(emu.profiler.meta)
+    assert before["arch"] == "x86"
+    name = alloc(pe_file_emu, b"c:\\image.dll\x00")
+    hfile, _ = call(pe_file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
+    hmap, _ = call(pe_file_emu, "kernel32", "CreateFileMappingA", [hfile, 0, 0x02 | SEC_IMAGE, 0, 0, 0])
+    view, _ = call(pe_file_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_READ, 0, 0, 0])
+    assert pe_file_emu.mem_read(view, 2) == b"MZ"
+    assert emu.profiler.meta == before

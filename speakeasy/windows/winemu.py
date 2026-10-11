@@ -1016,41 +1016,13 @@ class WindowsEmulator(BinaryEmulator):
 
     def load_pe(self, path=None, data=None, imp_id=winemu.IMPORT_HOOK_ADDR):
         """
-        Parse a PE that will be used during emulation. PE type and architecture
-        are automatically determined.
+        Parse a PE file or buffer without loading it into the emulator
         """
 
         if not data and not os.path.exists(path):
             raise WindowsEmuError(f"File: {path} not found")
 
-        pe = winemu._PeParser(path=path, data=data, imp_id=imp_id, imp_step=4)
-
-        pe_type = "unknown"
-        if pe.is_driver():
-            pe_type = "driver"
-        elif pe.is_dll():
-            pe_type = "dll"
-        elif pe.is_exe():
-            pe_type = "exe"
-
-        arch = "unknown"
-        if pe.arch == _arch.ARCH_AMD64:
-            arch = "x64"
-        elif pe.arch == _arch.ARCH_X86:
-            arch = "x86"
-
-        self.input = {
-            "path": pe.path,
-            "sha256": pe.hash,
-            "size": pe.file_size,
-            "arch": arch,
-            "filetype": pe_type,
-            "emu_version": self.get_emu_version(),
-            "os_run": self.get_osver_string(),
-        }
-        if self.profiler:
-            self.profiler.add_input_metadata(self.input)
-        return pe
+        return winemu._PeParser(path=path, data=data, imp_id=imp_id, imp_step=4)
 
     def get_mod_from_addr(self, addr):
         if self.curr_mod:
