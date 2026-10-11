@@ -649,6 +649,23 @@ class Kernel32(api.ApiHandler):
         rv = True
         return rv
 
+    def _write_module_entry(self, emu, ctx, mod32, module, pid):
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
+        enc = "utf-16le" if cw == 2 else "utf-8"
+
+        mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
+        data = self.mem_cast(mod, mod32)
+        mod.th32ProcessID = pid
+        mod.modBaseAddr = module.base
+        mod.modBaseSize = module.image_size
+        mod.hModule = module.base
+        mod.szModule = module.name[: k32types.MAX_MODULE_NAME32].encode(enc) + b"\x00" * cw
+        mod.szExePath = module.emu_path[: k32types.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        self.mem_write(mod32, self.get_bytes(data))
+
     @apihook("Module32First", argc=2)
     def Module32First(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -672,28 +689,8 @@ class Kernel32(api.ApiHandler):
         snap[k32types.TH32CS_SNAPMODULE][0] = 1
         module = snap[k32types.TH32CS_SNAPMODULE][1][0]
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
-
-        mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
-        data = self.mem_cast(mod, mod32)
-        if cw == 2:
-            if hasattr(module, "decoy_path"):
-                mod.szExePath = module.decoy_path.encode("utf-16le") + b"\x00"
-            mod.szModule = module.name.encode("utf-16le") + b"\x00"
-        else:
-            if hasattr(module, "decoy_path"):
-                mod.szExePath = module.decoy_path.encode("utf-8") + b"\x00"
-            mod.szModule = module.name.encode("utf-8") + b"\x00"
-
-        mod.modBaseAddr = module.base
-        mod.modBaseSize = module.image_size
-        mod.th32ProcessID = snap[k32types.TH32CS_SNAPMODULE][2]
-        self.mem_write(mod32, self.get_bytes(data))
-        rv = True
-        return rv
+        self._write_module_entry(emu, ctx, mod32, module, snap[k32types.TH32CS_SNAPMODULE][2])
+        return True
 
     @apihook("Module32Next", argc=2)
     def Module32Next(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -719,28 +716,8 @@ class Kernel32(api.ApiHandler):
         if index >= len(snap[k32types.TH32CS_SNAPMODULE][1]):
             return rv
         module = snap[k32types.TH32CS_SNAPMODULE][1][index]
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
-
-        mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
-        data = self.mem_cast(mod, mod32)
-        if cw == 2:
-            if hasattr(module, "decoy_path"):
-                mod.szExePath = module.decoy_path.encode("utf-16le") + b"\x00"
-            mod.szModule = module.name.encode("utf-16le") + b"\x00"
-        else:
-            if hasattr(module, "decoy_path"):
-                mod.szExePath = module.decoy_path.encode("utf-8") + b"\x00"
-            mod.szModule = module.name.encode("utf-8") + b"\x00"
-
-        mod.modBaseAddr = module.base
-        mod.modBaseSize = module.image_size
-        mod.th32ProcessID = snap[k32types.TH32CS_SNAPMODULE][2]
-        self.mem_write(mod32, self.get_bytes(data))
-        rv = True
-        return rv
+        self._write_module_entry(emu, ctx, mod32, module, snap[k32types.TH32CS_SNAPMODULE][2])
+        return True
 
     @apihook("OpenProcess", argc=3)
     def OpenProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
