@@ -103,7 +103,7 @@ class MODULEENTRY32(EmuStruct):
         self.ProccntUsage = ct.c_uint32
         self.modBaseAddr = Ptr
         self.modBaseSize = ct.c_uint32
-        self.hModule = ct.c_uint32
+        self.hModule = Ptr
         self.szModule = ct.c_uint8 * ((MAX_MODULE_NAME32 + 1) * width)
         self.szExePath = ct.c_uint8 * (MAX_PATH * width)
 

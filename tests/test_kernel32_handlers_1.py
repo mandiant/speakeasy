@@ -536,3 +536,33 @@ def test_fls_get_value2_reads_the_slot_without_setting_the_last_error(dll_emu: S
     assert call(dll_emu, "kernel32", "FlsGetValue2", [index])[0] == 0x12345678
     assert call(dll_emu, "kernel32", "FlsGetValue2", [index + 100])[0] == 0
     assert emu.get_last_error() == 0x57
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", 4), ("dll64_emu", 8)])
+@pytest.mark.parametrize("walk, cw", [("Module32First", 1), ("Module32FirstW", 2)])
+def test_module32_first_fills_the_module_entry(
+    request: pytest.FixtureRequest, fixture: str, ptr: int, walk: str, cw: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    emu = se.emu
+    assert emu is not None
+    module = emu.get_peb_modules()[0]
+    hsnap, _ = call(se, "kernel32", "CreateToolhelp32Snapshot", [0x8, 0])
+    entry = alloc(se, b"\xcc" * 0x800)
+    assert call(se, "kernel32", walk, [hsnap, entry])[0]
+
+    def read_ptr(offset: int) -> int:
+        return int.from_bytes(se.mem_read(entry + offset, ptr), "little")
+
+    def read_str(offset: int, chars: int) -> str:
+        raw = se.mem_read(entry + offset, chars * cw)
+        text = raw.decode("utf-16le" if cw == 2 else "latin-1")
+        return text[: text.index("\x00")]
+
+    head = 0x14 if ptr == 4 else 0x18
+    names = head + 3 * ptr if ptr == 4 else 0x30
+    assert read_ptr(head) == module.base
+    assert read_ptr(names - ptr) == module.base
+    assert read_str(names, 256) == module.name
+    assert read_str(names + 256 * cw, 260) == module.emu_path
