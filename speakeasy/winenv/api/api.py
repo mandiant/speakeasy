@@ -161,15 +161,10 @@ class ApiHandler:
 
         return datatmp
 
-    @staticmethod
-    def get_api_name(func):
-        return func.__apihook__[0]
-
     def __init__(self, emu):
         super().__init__()
         self.funcs = {}
         self.data = {}
-        self.mod_name = ""
         self.emu = emu
         arch = self.emu.get_arch()
 
@@ -248,7 +243,6 @@ class ApiHandler:
             return obj.cast(bytez)
         else:
             raise ApiEmuError("Invalid object")
-        return obj
 
     def write_back(self, addr, obj):
         bytez = self.get_bytes(obj)

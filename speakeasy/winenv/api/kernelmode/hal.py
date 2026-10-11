@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ntoskrnl as w
 from speakeasy.winenv.api import api
 
 
@@ -21,8 +20,6 @@ class Hal(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.emu = emu
-
-        self.win = w
 
         super().__get_hook_attrs__(self)
 

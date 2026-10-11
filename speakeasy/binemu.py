@@ -61,8 +61,6 @@ class BinaryEmulator(MemoryManager, ABC):
 
         self.stack_base: int = 0
         self.page_size: int | None = None
-        self.inst_count: int = 0
-        self.curr_instr_size: int = 0
         self.disasm_eng: Any = None
         self.builtin_hooks_set: bool = False
         self.emu_eng: unicorn_eng.EmuEngine | None = None
@@ -73,8 +71,6 @@ class BinaryEmulator(MemoryManager, ABC):
         self.profiler: Profiler = Profiler()
 
         self.runtime: float = 0
-
-        self.emu_version = self.get_emu_version()
 
     def get_profiler(self) -> Profiler:
         """
@@ -497,40 +493,6 @@ class BinaryEmulator(MemoryManager, ABC):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             self.reg_write(e_arch.AMD64_REG_RSP, addr)
 
-    def format_stack(self, num_ptrs):
-        """
-        Get the stack and format it for display
-        """
-        out: list[tuple] = []
-        sp = self.get_stack_ptr()
-        for i in range(num_ptrs):
-            try:
-                ptr = self.mem_read(sp, self.get_ptr_size())
-            except Exception:
-                return out
-            ptr = int.from_bytes(ptr, "little")
-            tag = self.get_address_tag(ptr)
-            out.append((sp, ptr, tag))
-            sp += self.get_ptr_size()
-        return out
-
-    def print_stack(self, num_ptrs):
-        """
-        This a debug function used to print the current stack state
-        """
-        ptrs = self.format_stack(num_ptrs)
-        print("Stack:")
-        print("***********************")
-        for p in ptrs:
-            sp, ptr, tag = p
-            if tag:
-                fmt = f"sp=0x{sp:x}:\t0x{ptr:x}\t->\t{tag}"
-            else:
-                fmt = f"sp=0x{sp:x}:\t0x{ptr:x}\t"
-
-            print(fmt.expandtabs(5))
-            sp += self.get_ptr_size()
-
     def get_stack_trace(self, num_ptrs=16):
         """
         Get the current stack state
@@ -688,25 +650,6 @@ class BinaryEmulator(MemoryManager, ABC):
         Get the current emulated architecture
         """
         return self.arch
-
-    def get_arch_name(self):
-        """
-        Get the name of current emulated architecture
-        """
-        if self.arch == e_arch.ARCH_AMD64:
-            return "amd64"
-        elif self.arch == e_arch.ARCH_X86:
-            return "x86"
-        return ""
-
-    def eval_emu_var(self):
-        """
-        Used to expand variables supplied in the emulator config file. This
-        might be useful for accessing files that are a relative path of the
-        speakeasy package.
-        For example:
-            $ROOT$: This variable corresponds to the package root for speakeasy
-        """
 
     def read_mem_string(self, address, width=1, max_chars=0):
         """

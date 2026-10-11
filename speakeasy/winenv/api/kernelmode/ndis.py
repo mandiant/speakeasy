@@ -2,7 +2,6 @@
 
 import speakeasy.winenv.defs.ndis.ndis as ndis
 import speakeasy.winenv.defs.nt.ddk as ddk
-import speakeasy.winenv.defs.nt.ntoskrnl as nt
 
 from .. import api
 
@@ -33,7 +32,6 @@ class Ndis(api.ApiHandler):
 
         self.emu = emu
 
-        self.win = nt
         self.ndis = ndis
         super().__get_hook_attrs__(self)
 

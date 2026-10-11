@@ -20,7 +20,6 @@ from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import WindowsEmulator
 from speakeasy.winenv.api.winapi import WindowsApi
 
-DLL_PROCESS_DETACH = 0
 DLL_PROCESS_ATTACH = 1
 
 MAX_EXPORTS_TO_EMULATE = 10
@@ -364,14 +363,6 @@ class Win32Emulator(WindowsEmulator):
             mod_hash = mod_hash.hexdigest()  # type: ignore[assignment]
             self.mod_name = mod_hash
             self.file_name = f"{self.mod_name}.exe"
-        self.bin_base_name = os.path.basename(self.file_name)
-
-    def emulate_module(self, path):
-        """
-        Load and emulate binary from the given path
-        """
-        mod = self.load_module(path)
-        self.run_module(mod)
 
     def load_shellcode(self, path, arch, data=None, filename=None):
         from speakeasy.windows.loaders import ShellcodeLoader

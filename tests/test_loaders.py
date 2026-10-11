@@ -32,7 +32,6 @@ def _make_image(
         regions=[],
         imports=[],
         exports=exports or [],
-        default_export_mode="intercepted",
         entry_points=[],
         visible_in_peb=True,
         tls_callbacks=[],
@@ -42,8 +41,8 @@ def _make_image(
 
 def test_runtime_module_export_lookup_and_base_name():
     exports = [
-        ExportEntry(name="DllMain", address=0x401000, ordinal=1, execution_mode="intercepted"),
-        ExportEntry(name="Init", address=0x402000, ordinal=2, execution_mode="intercepted"),
+        ExportEntry(name="DllMain", address=0x401000, ordinal=1),
+        ExportEntry(name="Init", address=0x402000, ordinal=2),
     ]
     mod = RuntimeModule(_make_image(exports=exports))
 
@@ -170,7 +169,6 @@ def test_native_exports_preserve_pe_surface():
         for s in independent.DIRECTORY_ENTRY_EXPORT.symbols
     }
     assert image.regions[0].data == independent.get_memory_mapped_image()
-    assert all(e.execution_mode == "guest" for e in image.exports)
     kinds = {e.name: e.kind for e in image.exports}
     assert kinds["Data"] == "data"
     assert kinds["Original"] == "function"

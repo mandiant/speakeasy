@@ -14,10 +14,6 @@ FWP_E_LAYER_NOT_FOUND = 0x80320004
 FWP_E_SUBLAYER_NOT_FOUND = 0x80320007
 
 
-class NetIoEmuError(Exception):
-    pass
-
-
 class Fwpkclnt(api.ApiHandler):
     """
     Fwpkclnt is the Windows driver that implements the Windows Filtering Platform.

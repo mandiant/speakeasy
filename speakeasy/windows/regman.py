@@ -114,7 +114,6 @@ class RegistryManager:
         self.reg_handles = {}
         self.keys = []
         self.config = config
-        self.reg_tree = []
         self.allocator = allocator
 
         for hk in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):

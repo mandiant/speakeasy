@@ -9,7 +9,6 @@ MEM_WRITE = "mem_write"
 MEM_READ = "mem_read"
 MEM_PROTECT = "mem_protect"
 MEM_FREE = "mem_free"
-MODULE_LOAD = "module_load"
 THREAD_INJECT = "thread_inject"
 THREAD_CREATE = "thread_create"
 
@@ -27,12 +26,8 @@ REG_LIST = "reg_list_subkeys"
 REG_CREATE = "reg_create_key"
 
 # network events
-NET_DNS = "net_dns"
-NET_TRAFFIC = "net_traffic"
-NET_HTTP = "net_http"
 
 # exception events
-EXCEPTION = "exception"
 
 # api events
 API = "api"

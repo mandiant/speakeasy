@@ -157,14 +157,3 @@ class SessionManager:
 
     def get_current_station(self):
         return self.curr_station
-
-    def get_gui_object(self, handle):
-        for hsess, sess in self.sessions.items():
-            if hsess == handle:
-                return sess
-            for hstat, stat in sess.stations.items():
-                if hstat == handle:
-                    return stat
-                for hdesk, desk in stat.desktops.items():
-                    if hdesk == handle:
-                        return desk

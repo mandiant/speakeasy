@@ -102,7 +102,6 @@ class ExportEntry:
     name: str | None
     address: int
     ordinal: int
-    execution_mode: str
     kind: str = "function"
     forwarder: str | None = None
 
@@ -118,7 +117,6 @@ class LoadedImage:
     regions: list[MemoryRegion]
     imports: list[ImportEntry]
     exports: list[ExportEntry]
-    default_export_mode: str
     entry_points: list[int]
     visible_in_peb: bool = True
     stack_size: int = 0x12000
@@ -535,7 +533,6 @@ class PeLoader:
                             name=name,
                             address=exp.address + base,
                             ordinal=exp.ordinal,
-                            execution_mode="guest",
                             kind=kind,
                             forwarder=forwarder,
                         )
@@ -655,7 +652,6 @@ class PeLoader:
             regions=[region],
             imports=imports,
             exports=exports,
-            default_export_mode="guest",
             entry_points=entry_points,
             visible_in_peb=True,
             stack_size=max(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0, 0x12000),
@@ -691,7 +687,6 @@ class ShellcodeLoader:
             regions=[region],
             imports=[],
             exports=[],
-            default_export_mode="intercepted",
             entry_points=[],
             visible_in_peb=False,
             loader=self,

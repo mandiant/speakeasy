@@ -105,10 +105,6 @@ def normalize_dll_name(name):
     return ret
 
 
-class PeParseException(Exception):
-    pass
-
-
 class _PeParser(pefile.PE):
     """
     Represents PE files loaded into the emulator
@@ -127,10 +123,7 @@ class _PeParser(pefile.PE):
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
         self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
-        # self.mapped_image = None
         self.image_size = self.OPTIONAL_HEADER.SizeOfImage
-        self.is_mapped = True
-        self.pe_sections = self._get_pe_sections()
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
         self.stack_commit = self.OPTIONAL_HEADER.SizeOfStackCommit
         self.path = ""
@@ -143,32 +136,6 @@ class _PeParser(pefile.PE):
             self.ptr_size = 4
         else:
             self.ptr_size = 8
-
-    def get_tls_callbacks(self):
-        """
-        Get the TLS callbacks for a PE (if any)
-        """
-        max_tls_callbacks = 100
-        callbacks = []
-        if hasattr(self, "DIRECTORY_ENTRY_TLS"):
-            rva = self.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks - self.OPTIONAL_HEADER.ImageBase
-
-            for i in range(max_tls_callbacks):
-                ptr = self.get_data(rva + self.ptr_size * i, self.ptr_size)
-                ptr = int.from_bytes(ptr, "little")
-                if ptr == 0:
-                    break
-                callbacks.append(ptr)
-        return callbacks
-
-    def get_resource_dir_rva(self):
-        res_dir_rva = 0
-        for dd in self.OPTIONAL_HEADER.DATA_DIRECTORY:
-            if dd.name == "IMAGE_DIRECTORY_ENTRY_RESOURCE":
-                res_dir_rva = dd.VirtualAddress
-                break
-
-        return res_dir_rva
 
     def _hash_pe(self, path=None, data=None):
         hasher = hashlib.sha256()
@@ -225,19 +192,6 @@ class _PeParser(pefile.PE):
             exports.append(entry)
         return exports
 
-    def _get_pe_sections(self):
-        pe = self
-        sections = []
-        for section in pe.sections:
-            sect = (section.Name, section.VirtualAddress, section.Misc_VirtualSize, section.SizeOfRawData)
-            sections.append(sect)
-        return sections
-
-    def get_section_by_name(self, name):
-        sect = [s for s in self.sections if s.Name.decode("utf-8").strip("\x00") == name]
-        if sect:
-            return sect[0]
-
     def _get_architecture(self):
         # 0x010b: PE32, 0x020b: PE32+ (64 bit)
         magic = self.OPTIONAL_HEADER.Magic
@@ -252,15 +206,6 @@ class _PeParser(pefile.PE):
         for exp in self.get_exports():
             if name == exp.name:
                 return exp.address
-
-    def get_raw_data(self):
-        return self.get_memory_mapped_image()
-
-    def find_bytes(self, pattern, offset=0):
-        return self.get_raw_data().find(pattern, offset)
-
-    def set_bytes(self, offset, pattern):
-        self.set_bytes_at_offset(offset, pattern)
 
     def get_base_name(self):
         fn = os.path.basename(self.path)
@@ -291,9 +236,6 @@ class _PeParser(pefile.PE):
                 return True
         return False
 
-    def has_reloc_table(self):
-        return len(self.OPTIONAL_HEADER.DATA_DIRECTORY) >= 6 and self.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size > 0
-
     def rebase(self, to):
         self.relocate_image(to)
 
@@ -303,7 +245,6 @@ class _PeParser(pefile.PE):
         # After relocation, generate a new memory mapped image
         self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
 
-        self.pe_sections = self._get_pe_sections()
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
 

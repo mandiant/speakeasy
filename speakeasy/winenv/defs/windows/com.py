@@ -148,14 +148,6 @@ def get_iid(define):
     return get_define_str(define, prefix="IID_")
 
 
-def get_rpc_authlevel(define):
-    return get_define_int(define, prefix="RPC_C_AUTHN_LEVEL_")
-
-
-def get_rcp_implevel(define):
-    return get_define_int(define, prefix="RPC_C_IMP_LEVEL_")
-
-
 def convert_guid_bytes_to_str(guid_bytes):
     u = uuid.UUID(bytes_le=guid_bytes)
     return (f"{{{u}}}").upper()

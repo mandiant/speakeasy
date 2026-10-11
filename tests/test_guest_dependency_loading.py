@@ -201,7 +201,6 @@ def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path):
                 ImportEntry(base + 8, "guest_dependency", "Flag"),
             ],
             exports=[],
-            default_export_mode="native",
             entry_points=[],
         )
 
