@@ -524,3 +524,15 @@ def test_process_id_to_session_id_failure_sets_the_last_error(
     pid = emu.get_current_process().id if pid is None else pid
     assert call(dll_emu, "kernel32", "ProcessIdToSessionId", [pid, out])[0] is False
     assert emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
+def test_fls_get_value2_reads_the_slot_without_setting_the_last_error(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    index, _ = call(dll_emu, "kernel32", "FlsAlloc", [0])
+    assert call(dll_emu, "kernel32", "FlsSetValue", [index, 0x12345678])[0]
+    emu.set_last_error(0x57)
+    assert call(dll_emu, "kernel32", "FlsGetValue2", [index])[0] == 0x12345678
+    assert call(dll_emu, "kernel32", "FlsGetValue2", [index + 100])[0] == 0
+    assert emu.get_last_error() == 0x57
