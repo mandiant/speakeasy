@@ -79,7 +79,7 @@ class EmuStruct(metaclass=CMeta):
     # to assign structures even if the types are identical on the surface.
     # ctypes will test the id (address) of the type to make sure they match
     # upon assignment. Otherwise we will hit spurious TypeErrors.
-    __types__: dict[str, type] = {}
+    __types__: dict[tuple, type] = {}
 
     class FilteredStruct(ct.Structure):
         def __hash__(self):
@@ -275,14 +275,15 @@ class EmuStruct(metaclass=CMeta):
         Factory used to generate ctypes structures using the ctypes metaclass
         """
         _type_name = f"ct{name}{self.__ptrsize__}"
-        _type = EmuStruct.__types__.get(_type_name)
+        key = (_type_name, self.get_pack(), tuple(self.__fields__))
+        _type = EmuStruct.__types__.get(key)
         if not _type:
             _type = type(
                 _type_name,
                 (self.__class__.FilteredStruct,),
                 {"_pack_": self.get_pack(), "_layout_": "ms", "_fields_": self.__fields__},
             )
-            EmuStruct.__types__[_type_name] = _type
+            EmuStruct.__types__[key] = _type
         return _type
 
     def __init_struct(self):

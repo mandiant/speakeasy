@@ -57,3 +57,17 @@ def test_32bit_emit():
 
     bytez = top.get_bytes()
     assert bytez == EXPECTED_32BIT_BYTES
+
+
+class WIDE_OR_NARROW(EmuStruct):
+    def __init__(self, ptr_size, width):
+        super().__init__(ptr_size)
+        self.Size = ct.c_uint32
+        self.Name = ct.c_uint8 * (4 * width)
+
+
+def test_struct_layout_follows_constructor_arguments():
+    assert WIDE_OR_NARROW(4, 1).sizeof() == 8
+    assert WIDE_OR_NARROW(4, 2).sizeof() == 12
+    assert WIDE_OR_NARROW(4, 1).sizeof() == 8
+    assert type(WIDE_OR_NARROW(4, 2).get_cstruct()) is type(WIDE_OR_NARROW(4, 2).get_cstruct())
