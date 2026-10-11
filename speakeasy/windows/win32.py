@@ -11,9 +11,11 @@ import speakeasy.winenv.arch as _arch
 from speakeasy.errors import Win32EmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
+from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import (
     PeLoader,
     RuntimeModule,
+    ShellcodeLoader,
     get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
@@ -194,8 +196,6 @@ class Win32Emulator(WindowsEmulator):
     def _set_input_metadata(self, path, data):
         if not self.profiler:
             return
-        from speakeasy.windows.common import _PeParser
-
         pe = _PeParser(path=path, data=data, fast_load=True)
         pe_type = "unknown"
         if pe.is_driver():
@@ -365,8 +365,6 @@ class Win32Emulator(WindowsEmulator):
             self.file_name = f"{self.mod_name}.exe"
 
     def load_shellcode(self, path, arch, data=None, filename=None):
-        from speakeasy.windows.loaders import ShellcodeLoader
-
         self._init_name(path, data, filename=filename)
         if arch == "x86":
             arch = _arch.ARCH_X86
@@ -499,8 +497,6 @@ class Win32Emulator(WindowsEmulator):
         return peb
 
     def _ordered_peb_modules(self, proc=None, *, include_defaults=False):
-        import os as _os
-
         CORE_ORDER = {"ntdll": 0, "kernel32": 1, "kernelbase": 2}
         mods = self.get_peb_modules()
         proc = proc or self.get_current_process()
@@ -520,7 +516,7 @@ class Win32Emulator(WindowsEmulator):
             name = (m.name or "").lower()
             if not name:
                 bn = m.get_base_name()
-                name = _os.path.splitext(bn)[0].lower() if bn else ""
+                name = os.path.splitext(bn)[0].lower() if bn else ""
             if name in CORE_ORDER:
                 core_mods.append((CORE_ORDER[name], m))
             else:

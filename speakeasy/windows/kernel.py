@@ -13,6 +13,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.ioman import IoManager
+from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import BootstrapPhase, WindowsEmulator
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
@@ -95,8 +96,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.setup_user_shared_data()
 
     def load_module(self, path=None, data=None, filename=None):
-        from speakeasy.windows.loaders import PeLoader
-
         if filename:
             file_name = ntpath.basename(filename)
             mod_name = os.path.splitext(file_name)[0]

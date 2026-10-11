@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from speakeasy import Speakeasy
 from speakeasy.config import SpeakeasyConfig
+from tests.test_guest_dependency_loading import make_native_dll
 
 
 def last_error(se):
@@ -76,8 +77,6 @@ def test_self_respawning_threads_stop_at_cap(config):
 
 
 def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
-    from tests.test_guest_dependency_loading import make_native_dll
-
     config.update(timeout=5, max_total_time=0.05)
     config["modules"]["module_directory_x86"] = str(tmp_path)
     se = Speakeasy(config=config)
