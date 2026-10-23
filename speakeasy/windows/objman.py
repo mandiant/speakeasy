@@ -416,6 +416,7 @@ class Thread(KernelObject):
         self.teb: TEB | None = None
         self.seh: SEH = SEH()
         self.tls: list[int] = []
+        self.static_tls: dict[str, int] = {}
         self.message_queue: list[Any] = []
         self.ctx: Any = self.emu.get_thread_context()
         self.fls: list[int] = []
@@ -450,15 +451,19 @@ class Thread(KernelObject):
         return self.teb.read_back()
 
     def init_tls(self, data: bytes, modname: str):
-        """Give the thread a copy of the static TLS data of the module at TLS index 0."""
-        ptrsz = self.emu.get_ptr_size()
-
-        block = self.emu.mem_map(max(len(data), 1), tag=f"emu.tls.{modname}.data")
-        if data:
-            self.emu.mem_write(block, data)
-
-        slots = self.emu.mem_map(ptrsz, tag=f"emu.tls.{modname}")
-        self.emu.mem_write(slots, block.to_bytes(ptrsz, "little"))
+        """
+        Give the thread a copy of the static TLS data of the module at TLS index 0.
+        The thread keeps the copy for later runs of the same module.
+        """
+        slots = self.static_tls.get(modname)
+        if slots is None:
+            ptrsz = self.emu.get_ptr_size()
+            block = self.emu.mem_map(max(len(data), 1), tag=f"emu.tls.{modname}.data")
+            if data:
+                self.emu.mem_write(block, data)
+            slots = self.emu.mem_map(ptrsz, tag=f"emu.tls.{modname}")
+            self.emu.mem_write(slots, block.to_bytes(ptrsz, "little"))
+            self.static_tls[modname] = slots
 
         self.teb.object.ThreadLocalStoragePointer = slots
         self.teb.write_back()
