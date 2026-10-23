@@ -581,3 +581,19 @@ def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speak
     rw = unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
     assert [permissions(base + offset) for offset in (0, 0x3FFC, 0x4010)] == [rw, rw, rw]
     assert permissions(base + 0x5000) == unicorn.UC_PROT_NONE
+
+
+@pytest.mark.parametrize(
+    "protect, expected",
+    [
+        (windefs.PAGE_WRITECOPY, unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE),
+        (windefs.PAGE_EXECUTE_WRITECOPY, unicorn.UC_PROT_ALL),
+    ],
+    ids=["PAGE_WRITECOPY", "PAGE_EXECUTE_WRITECOPY"],
+)
+def test_virtual_protect_write_copy_is_readable_and_writable(emu: Speakeasy, protect: int, expected: int) -> None:
+    assert emu.emu is not None
+    base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x1000, windefs.MEM_COMMIT, windefs.PAGE_READONLY])
+    old = alloc(emu, b"\x00" * 4)
+    assert call(emu, "kernel32", "VirtualProtect", [base, 0x1000, protect, old])[0]
+    assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == expected
