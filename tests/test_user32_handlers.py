@@ -365,3 +365,17 @@ def test_window_from_point_returns_the_desktop_window(request: pytest.FixtureReq
     se: Speakeasy = request.getfixturevalue(fixture)
     desktop, _ = call(se, "user32", "GetDesktopWindow", [])
     assert call(se, "user32", "WindowFromPoint", [10, 20])[0] == desktop
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_register_class_without_ex_registers_the_window_procedure(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    name = "Edp Notify".encode("utf-16le") + b"\x00\x00"
+    fmt = "<IIii6I" if se.emu.get_ptr_size() == 4 else "<I4xQii6Q"
+    wc = struct.pack(fmt, 0, 0x401000, 0, 0, 0, 0, 0, 0, 0, alloc(se, name))
+    atom, _ = call(se, "user32", "RegisterClassW", [alloc(se, wc)])
+    assert atom
+    hwnd, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert call(se, "user32", "UpdateWindow", [hwnd])[0]
+    assert [cb.function for cb in se.emu.get_current_run().api_callbacks] == [0x401000]
