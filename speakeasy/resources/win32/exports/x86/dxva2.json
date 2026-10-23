@@ -1,6 +1,7 @@
 {
   "module": "dxva2",
   "file": "dxva2.dll",
+  "export_name": "dxva2.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 1077072181,

@@ -1,6 +1,7 @@
 {
   "module": "hid",
   "file": "hid.dll",
+  "export_name": "HID.DLL",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 444819168,

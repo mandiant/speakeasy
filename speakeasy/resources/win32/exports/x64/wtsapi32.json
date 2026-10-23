@@ -1,6 +1,7 @@
 {
   "module": "wtsapi32",
   "file": "wtsapi32.dll",
+  "export_name": "WTSAPI32.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 2440066378,

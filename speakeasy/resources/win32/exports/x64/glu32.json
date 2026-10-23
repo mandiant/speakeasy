@@ -1,6 +1,7 @@
 {
   "module": "glu32",
   "file": "glu32.dll",
+  "export_name": "GLU32.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32234",
   "timestamp": 1716210108,

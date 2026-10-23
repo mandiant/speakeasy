@@ -1,6 +1,7 @@
 {
   "module": "mfplat",
   "file": "mfplat.dll",
+  "export_name": "MFPlat.DLL",
   "arch": "x86",
   "file_version": "10.0.26100.32684",
   "timestamp": 1615113185,

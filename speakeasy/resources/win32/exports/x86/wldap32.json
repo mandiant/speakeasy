@@ -1,6 +1,7 @@
 {
   "module": "wldap32",
   "file": "wldap32.dll",
+  "export_name": "WLDAP32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32684",
   "timestamp": 2594447839,

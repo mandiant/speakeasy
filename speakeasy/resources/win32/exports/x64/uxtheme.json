@@ -1,6 +1,7 @@
 {
   "module": "uxtheme",
   "file": "uxtheme.dll",
+  "export_name": "UxTheme.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 118237616,

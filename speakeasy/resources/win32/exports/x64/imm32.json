@@ -1,6 +1,7 @@
 {
   "module": "imm32",
   "file": "imm32.dll",
+  "export_name": "IMM32.dll",
   "arch": "x64",
   "file_version": "10.0.26100.7309",
   "timestamp": 4254795612,

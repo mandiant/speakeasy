@@ -1,6 +1,7 @@
 {
   "module": "ws2_32",
   "file": "ws2_32.dll",
+  "export_name": "WS2_32.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32684",
   "timestamp": 1278851949,

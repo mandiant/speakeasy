@@ -1,6 +1,7 @@
 {
   "module": "setupapi",
   "file": "setupapi.dll",
+  "export_name": "SETUPAPI.dll",
   "arch": "x64",
   "file_version": "10.0.26100.7309",
   "timestamp": 2422295078,

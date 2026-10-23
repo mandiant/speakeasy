@@ -1,6 +1,7 @@
 {
   "module": "cryptbase",
   "file": "cryptbase.dll",
+  "export_name": "CRYPTBASE.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 1312530440,

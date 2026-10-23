@@ -1,6 +1,7 @@
 {
   "module": "wlanapi",
   "file": "wlanapi.dll",
+  "export_name": "wlanapi.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 3586646154,

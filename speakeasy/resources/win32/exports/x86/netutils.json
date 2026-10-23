@@ -1,6 +1,7 @@
 {
   "module": "netutils",
   "file": "netutils.dll",
+  "export_name": "netutils.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1882",
   "timestamp": 800894005,

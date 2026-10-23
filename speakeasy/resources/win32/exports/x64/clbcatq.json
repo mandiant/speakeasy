@@ -1,6 +1,7 @@
 {
   "module": "clbcatq",
   "file": "clbcatq.dll",
+  "export_name": "CLBCatQ.DLL",
   "arch": "x64",
   "file_version": "2001.12.10941.16384",
   "timestamp": 4165252965,

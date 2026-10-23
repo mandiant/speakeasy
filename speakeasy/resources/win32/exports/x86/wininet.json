@@ -1,6 +1,7 @@
 {
   "module": "wininet",
   "file": "wininet.dll",
+  "export_name": "WININET.dll",
   "arch": "x86",
   "file_version": "11.0.26100.32995",
   "timestamp": 2457763150,

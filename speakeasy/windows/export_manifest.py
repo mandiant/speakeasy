@@ -51,6 +51,9 @@ class ExportManifest(BaseModel):
 
     module: str = Field(min_length=1, description="Lower-case file stem. It is also the manifest file name.")
     file: str = Field(min_length=1, description="File name of the source binary, for example `kernel32.dll`.")
+    export_name: str = Field(
+        min_length=1, description="Name field of the export directory, for example `KERNEL32.dll`."
+    )
     arch: Literal["x86", "x64"] = Field(description="Architecture of the source binary. It is also the directory name.")
     file_version: str | None = Field(description="FileVersion from the version resource, if the binary has one.")
     timestamp: int = Field(ge=0, description="TimeDateStamp from the PE file header.")

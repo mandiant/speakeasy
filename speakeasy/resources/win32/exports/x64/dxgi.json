@@ -1,6 +1,7 @@
 {
   "module": "dxgi",
   "file": "dxgi.dll",
+  "export_name": "DXGI.DLL",
   "arch": "x64",
   "file_version": "10.0.17763.1",
   "timestamp": 1784327712,

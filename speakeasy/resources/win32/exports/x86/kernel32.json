@@ -1,6 +1,7 @@
 {
   "module": "kernel32",
   "file": "kernel32.dll",
+  "export_name": "KERNEL32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 435343599,

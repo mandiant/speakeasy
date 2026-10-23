@@ -1,6 +1,7 @@
 {
   "module": "propsys",
   "file": "propsys.dll",
+  "export_name": "PROPSYS.dll",
   "arch": "x64",
   "file_version": "7.0.26100.32995",
   "timestamp": 3471967069,

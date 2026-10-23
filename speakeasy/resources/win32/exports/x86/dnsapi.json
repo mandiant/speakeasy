@@ -1,6 +1,7 @@
 {
   "module": "dnsapi",
   "file": "dnsapi.dll",
+  "export_name": "DNSAPI.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 3633502029,

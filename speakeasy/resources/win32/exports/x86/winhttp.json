@@ -1,6 +1,7 @@
 {
   "module": "winhttp",
   "file": "winhttp.dll",
+  "export_name": "WINHTTP.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32860",
   "timestamp": 2762649287,

@@ -1,6 +1,7 @@
 {
   "module": "comdlg32",
   "file": "comdlg32.dll",
+  "export_name": "COMDLG32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 3215004630,

@@ -1,6 +1,7 @@
 {
   "module": "d3d10core",
   "file": "d3d10core.dll",
+  "export_name": "D3D10CORE.DLL",
   "arch": "x86",
   "file_version": "10.0.17763.1",
   "timestamp": 1784327755,

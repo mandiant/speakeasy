@@ -1,6 +1,7 @@
 {
   "module": "mobilenetworking",
   "file": "mobilenetworking.dll",
+  "export_name": "MobileNetworking.dll",
   "arch": "x64",
   "file_version": "10.0.26100.7309",
   "timestamp": 1514940093,

@@ -1,6 +1,7 @@
 {
   "module": "wow64base",
   "file": "wow64base.dll",
+  "export_name": "wow64base.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32684",
   "timestamp": 703042672,
