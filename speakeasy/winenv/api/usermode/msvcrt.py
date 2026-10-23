@@ -2415,6 +2415,21 @@ class Msvcrt(api.ApiHandler):
         stream, buf, mode, size = argv
         return 0 if stream and mode in (_IOFBF, _IONBF, _IOLBF) else -1
 
+    @apihook("_getpid", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _getpid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _getpid( void );"""
+        return emu.get_current_process().id
+
+    @apihook("setbuf", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def setbuf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void setbuf(
+           FILE *stream,
+           char *buffer
+        );
+        """
+        return
+
     @apihook("sscanf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sscanf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
