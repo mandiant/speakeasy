@@ -2209,6 +2209,10 @@ class WindowsEmulator(BinaryEmulator):
         if name.endswith("A") or name.endswith("W"):
             alt_imp_api = name[:-1]
 
+        # The private CRT exports _o_ copies of public CRT functions
+        if name.startswith("_o_"):
+            alt_imp_api = name[3:]
+
         # Handle Zw*/Nt* function overlap
         if dll.lower().startswith("ntoskrnl"):
             if name.startswith("Zw"):

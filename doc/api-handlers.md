@@ -12,6 +12,8 @@ Handler rules:
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
 
+When a module has no handler for a name, Speakeasy tries related names. A handler without the `A` or `W` suffix serves both variants, `Nt` and `Zw` names share a handler, and ntdll falls back to the ntoskrnl handlers. All C runtime DLLs use the msvcrt handlers, and an `_o_` export of the private CRT uses the handler of the name without that prefix.
+
 ## Example: HeapAlloc in kernel32
 
 ```python
