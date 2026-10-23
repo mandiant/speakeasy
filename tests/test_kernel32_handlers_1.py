@@ -58,6 +58,25 @@ def test_map_view_of_pagefile_section_maps_the_whole_section(dll_emu: Speakeasy)
     assert dll_emu.mem_read(view + 0xF000, 3) == b"end"
 
 
+@pytest.mark.parametrize(("base", "mapped"), [(0, True), (0x30000000, True), (0x30001000, False)])
+def test_map_view_of_file_ex_maps_at_the_requested_base(dll_emu: Speakeasy, base: int, mapped: bool) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    hmap, _ = call(
+        dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x1000, 0]
+    )
+    view, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, base])
+    if not mapped:
+        assert view == 0
+        assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+        return
+    assert view == (base or view) != 0
+    dll_emu.mem_write(view, b"data")
+    again, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, view])
+    assert again == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+
+
 def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
     name = alloc(file_emu, b"c:\\data.bin\x00")
     hfile, _ = call(file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
