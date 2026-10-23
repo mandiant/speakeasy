@@ -31,7 +31,6 @@ class Ws2_32(api.ApiHandler):
         self.funcs: dict[str, Any] = {}
         self.data: dict[str, Any] = {}
         self.addr_bufs: dict[str, int] = {}
-        self.last_error: int = 0
         self.win: Any | None = None
         self.netman = emu.get_network_manager()
         self.wstypes = wstypes
@@ -248,8 +247,15 @@ class Ws2_32(api.ApiHandler):
         """
         (iError,) = argv
 
-        self.last_error = iError
+        emu.set_last_error(iError)
         return
+
+    @apihook("WSAGetLastError", argc=0, ordinal=111)
+    def WSAGetLastError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int WSAGetLastError();
+        """
+        return emu.get_last_error() or 0
 
     @apihook("gethostname", argc=2, ordinal=57)
     def gethostname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
