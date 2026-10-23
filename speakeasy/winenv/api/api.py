@@ -7,6 +7,7 @@ import re
 import struct
 from dataclasses import dataclass, field
 
+import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy.errors import ApiEmuError
@@ -279,7 +280,7 @@ class ApiHandler:
     def heap_alloc(self, size, heap):
         return self.emu.heap_alloc(size, heap)
 
-    def mem_alloc(self, size, base=None, tag=None, flags=0, perms=0, shared=False, process=None):
+    def mem_alloc(self, size, base=None, tag=None, flags=0, perms=common.PERM_MEM_RWX, shared=False, process=None):
         return self.emu.mem_map(size, base=base, tag=tag, flags=flags, perms=perms, shared=shared, process=process)
 
     def mem_free(self, addr):
