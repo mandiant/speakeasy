@@ -483,6 +483,56 @@ class Ws2_32(api.ApiHandler):
 
         return new_sock.fd
 
+    def write_sockaddr(self, emu, name, namelen, host, port):
+        size = self.wstypes.sockaddr_in(emu.get_ptr_size()).sizeof()
+        if not name or not namelen or int.from_bytes(self.mem_read(namelen, 4), "little") < size:
+            emu.set_last_error(winsock.WSAEFAULT)
+            return winsock.SOCKET_ERROR
+        sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
+        sockaddr.sin_family = winsock.AF_INET
+        sockaddr.sin_addr = int.from_bytes(inet_aton(host), "little")
+        sockaddr.sin_port = htons(port)
+        self.mem_write(name, sockaddr.get_bytes())
+        self.mem_write(namelen, size.to_bytes(4, "little"))
+        return 0
+
+    @apihook("getpeername", argc=3, ordinal=5)
+    def getpeername(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int getpeername(
+            SOCKET   s,
+            sockaddr *name,
+            int      *namelen
+        );
+        """
+        s, name, namelen = argv
+        socket = self.netman.get_socket(s)
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
+        if not socket.connected_host:
+            emu.set_last_error(winsock.WSAENOTCONN)
+            return winsock.SOCKET_ERROR
+        return self.write_sockaddr(emu, name, namelen, socket.connected_host, socket.connected_port)
+
+    @apihook("getsockname", argc=3, ordinal=6)
+    def getsockname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int getsockname(
+            SOCKET   s,
+            sockaddr *name,
+            int      *namelen
+        );
+        """
+        s, name, namelen = argv
+        socket = self.netman.get_socket(s)
+        if not socket:
+            emu.set_last_error(winsock.WSAENOTSOCK)
+            return winsock.SOCKET_ERROR
+        adapters = emu.config.network.adapters
+        host = next((a.ip_address for a in adapters if a.ip_address), "127.0.0.1")
+        return self.write_sockaddr(emu, name, namelen, host, 49152 + socket.fd % 16384)
+
     @apihook("inet_ntoa", argc=1, ordinal=12)
     def inet_ntoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
