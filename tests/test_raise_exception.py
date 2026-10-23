@@ -17,7 +17,7 @@ def session(config):
         yield se
 
 
-def load_guest(se, *, register=True, flags=1):
+def load_guest(se, *, register=True, flags=0):
     """
     Load code that raises 0x0EEDFADE with two parameters under one SEH
     registration. The handler copies the code, flags, parameter count and
@@ -52,11 +52,23 @@ def test_raise_exception_calls_the_seh_handler_and_continues(session):
     run = session.get_report().entry_points[0]
     assert run.error is None
     assert run.ret_val == 42
-    assert struct.unpack("<5I", session.mem_read(data, 20)) == (0x0EEDFADE, 1, 2, 0x1111, 0x2222)
+    assert struct.unpack("<5I", session.mem_read(data, 20)) == (0x0EEDFADE, 0, 2, 0x1111, 0x2222)
+
+
+def test_handler_cannot_continue_a_noncontinuable_exception(session):
+    code, data = load_guest(session, flags=1)
+
+    session.run_shellcode(code)
+
+    run = session.get_report().entry_points[0]
+    assert struct.unpack("<2I", session.mem_read(data, 8)) == (0x0EEDFADE, 1)
+    assert run.error is not None
+    assert run.error.type == "unhandled_exception"
+    assert run.ret_val != 42
 
 
 def test_continuable_exception_without_a_handler_returns(session):
-    code, data = load_guest(session, register=False, flags=0)
+    code, data = load_guest(session, register=False)
 
     session.run_shellcode(code)
 

@@ -1,15 +1,16 @@
-// x64 SEH cases for speakeasy's exception dispatch. main returns a bitmask
-// with one bit per case that behaves as it does on Windows (0xFF: all).
+// SEH cases for speakeasy's exception dispatch, on x64 and x86. main returns
+// a bitmask with one bit per case that behaves as it does on Windows (0xFF: all).
+// x64 uses __C_specific_handler, x86 the _except_handler3 of msvcrt.
 //
-// Built without a CRT or SDK, against import libraries for the few imports:
-//   printf 'LIBRARY KERNEL32.dll\nEXPORTS\nRaiseException\nAddVectoredExceptionHandler\nRtlMoveMemory\nSetThreadContext\n' > kernel32.def
-//   printf 'LIBRARY VCRUNTIME140.dll\nEXPORTS\n__C_specific_handler\n' > vcruntime140.def
-//   llvm-dlltool -m i386:x86-64 -d kernel32.def -l kernel32.lib
-//   llvm-dlltool -m i386:x86-64 -d vcruntime140.def -l vcruntime140.lib
-//   clang-cl --target=x86_64-pc-windows-msvc /O1 /GS- /c seh_test_x64.c
-//   lld-link /nodefaultlib /entry:main /subsystem:console seh_test_x64.obj kernel32.lib vcruntime140.lib
+// Built without a CRT or SDK, against import libraries for the few imports;
+// build_seh_cases.sh in this directory builds both.
+
 typedef unsigned long DWORD;
+#ifdef _WIN64
 typedef unsigned long long ULONG_PTR;
+#else
+typedef unsigned long ULONG_PTR;
+#endif
 
 typedef struct {
     DWORD ExceptionCode;
@@ -35,15 +36,30 @@ void *__cdecl _exception_info(void);
 #define EXCEPTION_EXECUTE_HANDLER 1
 #define EXCEPTION_CONTINUE_SEARCH 0
 #define EXCEPTION_CONTINUE_EXECUTION (-1)
+// Offsets in CONTEXT of the instruction pointer (IP), stack pointer (SP) and return value (AX)
+#ifdef _WIN64
+#define CONTEXT_SIZE 0x4D0
 #define CONTEXT_FLAGS 0x30
 #define CONTEXT_EFLAGS 0x44
 #define CONTEXT_DR0 0x48
 #define CONTEXT_DR6 0x68
 #define CONTEXT_DR7 0x70
-#define CONTEXT_RAX 0x78
-#define CONTEXT_RSP 0x98
-#define CONTEXT_RIP 0xF8
+#define CONTEXT_AX 0x78
+#define CONTEXT_SP 0x98
+#define CONTEXT_IP 0xF8
 #define CONTEXT_DEBUG_REGISTERS 0x100010
+#else
+#define CONTEXT_SIZE 0x2CC
+#define CONTEXT_FLAGS 0x00
+#define CONTEXT_DR0 0x04
+#define CONTEXT_DR6 0x14
+#define CONTEXT_DR7 0x18
+#define CONTEXT_AX 0xB0
+#define CONTEXT_IP 0xB8
+#define CONTEXT_EFLAGS 0xC0
+#define CONTEXT_SP 0xC4
+#define CONTEXT_DEBUG_REGISTERS 0x10010
+#endif
 #define RESUME_FLAG 0x10000
 #define FIELD(context, offset) (*(ULONG_PTR *)((unsigned char *)(context) + (offset)))
 
@@ -110,7 +126,7 @@ __declspec(noinline) static int continue_execution(void) {
 static long __stdcall skip_int3(EXCEPTION_POINTERS *info) {
     if (info->ExceptionRecord->ExceptionCode != 0x80000003)
         return EXCEPTION_CONTINUE_SEARCH;
-    *(ULONG_PTR *)(info->ContextRecord + CONTEXT_RIP) += 1;
+    FIELD(info->ContextRecord, CONTEXT_IP) += 1;
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
@@ -157,7 +173,7 @@ static volatile int breakpoint_hits, resume_at_breakpoint;
 static long __stdcall on_breakpoint(EXCEPTION_POINTERS *info) {
     unsigned char *context = info->ContextRecord;
     if (info->ExceptionRecord->ExceptionCode != 0x80000004 ||
-        FIELD(context, CONTEXT_RIP) != (ULONG_PTR)breakpoint_target || !(FIELD(context, CONTEXT_DR6) & 1))
+        FIELD(context, CONTEXT_IP) != (ULONG_PTR)breakpoint_target || !(FIELD(context, CONTEXT_DR6) & 1))
         return EXCEPTION_CONTINUE_SEARCH;
     breakpoint_hits++;
     if (resume_at_breakpoint) {
@@ -165,14 +181,14 @@ static long __stdcall on_breakpoint(EXCEPTION_POINTERS *info) {
         *(DWORD *)(context + CONTEXT_EFLAGS) |= RESUME_FLAG;
     } else {
         // return 42 from the target instead of running it
-        FIELD(context, CONTEXT_RAX) = 42;
-        FIELD(context, CONTEXT_RIP) = *(ULONG_PTR *)FIELD(context, CONTEXT_RSP);
-        FIELD(context, CONTEXT_RSP) += 8;
+        FIELD(context, CONTEXT_AX) = 42;
+        FIELD(context, CONTEXT_IP) = *(ULONG_PTR *)FIELD(context, CONTEXT_SP);
+        FIELD(context, CONTEXT_SP) += sizeof(ULONG_PTR);
     }
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-static __declspec(align(16)) unsigned char debug_context[0x4D0];
+static __declspec(align(16)) unsigned char debug_context[CONTEXT_SIZE];
 
 // a hardware execute breakpoint set with SetThreadContext, caught by a vectored handler
 __declspec(noinline) static int hardware_breakpoint(void) {

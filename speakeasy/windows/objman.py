@@ -73,46 +73,6 @@ class Console:
         return self.allocator.allocate_console_handle()
 
 
-class SEH:
-    """
-    Implements the structures needed to support SEH handling during emulation
-    """
-
-    class ScopeRecord:
-        def __init__(self, record):
-            self.record = record
-            self.filter_called = False
-            self.handler_called = False
-
-    class Frame:
-        def __init__(self, entry, scope_table, scope_records):
-            self.entry = entry
-            self.scope_table = scope_table
-            self.scope_records = []
-            for rec in scope_records:
-                SEH.ScopeRecord(rec)
-                self.scope_records.append(SEH.ScopeRecord(rec))
-            self.searched = False
-
-    def __init__(self):
-        self.context: Any | None = None
-        self.context_address: int = 0
-        self.record: Any | None = None
-        self.frames: list[SEH.Frame] = []
-        self.handler_ret_val: int | None = None
-
-    def set_context(self, context, address=0):
-        self.context = context
-        self.context_address = address
-
-    def clear_frames(self):
-        self.frames = []
-
-    def add_frame(self, entry, scope_table, records):
-        frame = SEH.Frame(entry, scope_table, records)
-        self.frames.append(frame)
-
-
 class KernelObject:
     """
     Base class for Kernel objects managed by the object manager
@@ -415,7 +375,6 @@ class Thread(KernelObject):
         self.object.Data = b"\xff" * self.sizeof()
         self.tid: int = self.id
         self.teb: TEB | None = None
-        self.seh: SEH = SEH()
         self.tls: list[int] = []
         self.static_tls: dict[str, int] = {}
         self.message_queue: list[Any] = []

@@ -8,6 +8,7 @@ import struct
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import speakeasy.windows.seh32 as seh32
 import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
@@ -1560,71 +1561,16 @@ class Msvcrt(api.ApiHandler):
     @apihook("_except_handler4_common", argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler4_common(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _CRTIMP  __C_specific_handler(
-        _In_    struct _EXCEPTION_RECORD   *ExceptionRecord,
-        _In_    void                       *EstablisherFrame,
-        _Inout_ struct _CONTEXT            *ContextRecord,
-        _Inout_ struct _DISPATCHER_CONTEXT *DispatcherContext
+        EXCEPTION_DISPOSITION _except_handler4_common(
+            PUINT_PTR CookiePointer,
+            PCOOKIE_CHECK CookieCheckFunction,
+            PEXCEPTION_RECORD ExceptionRecord,
+            PEXCEPTION_REGISTRATION_RECORD EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PVOID DispatcherContext
         );
         """
-        # Inferred from the SEH teardowns described here:
-        # https://bytepointer.com/resources/pietrek_crash_course_depths_of_win32_seh.htm
-        # http://www.openrce.org/articles/full_view/21
-
-        # Two additional arguments are pushed to the function to check security cookies
-        cookie_ptr, cookie_func, record, frame, context, dispath_ctx = argv
-        rv = 0
-
-        cookie = self.mem_read(cookie_ptr, 4)
-        cookie = int.from_bytes(cookie, "little")
-
-        thread = emu.get_current_thread()
-
-        # Break down the exception records into something more manageable
-        curr_frame = frame
-        seh = thread.seh
-
-        _ctx = self.wintypes.CONTEXT(emu.get_ptr_size())
-        _ctx = self.mem_cast(_ctx, context)
-
-        seh.set_context(_ctx, address=context)
-        seh.record = record
-
-        seh.clear_frames()
-
-        while curr_frame != 0:
-            reg = self.wintypes.EXCEPTION_REGISTRATION(emu.get_ptr_size())
-            reg = self.mem_cast(reg, curr_frame)
-
-            scope_table = reg.ScopeTable ^ cookie
-
-            st = self.wintypes.EH4_SCOPETABLE(emu.get_ptr_size())
-            st = self.mem_cast(st, scope_table)
-
-            rec = self.wintypes.EH4_SCOPETABLE_RECORD(emu.get_ptr_size())
-            # The trylevel will tell us what scope record to get
-            scope_record_offset = scope_table + st.sizeof()
-            tl = reg.TryLevel
-            if reg.TryLevel & 0x80000000:
-                tl = -0x100000000 + reg.TryLevel
-
-            if tl == -2:  # -2 is the outermost scope
-                tl = 0
-
-            scope_record_offset += rec.sizeof() * tl
-            rec = self.mem_cast(rec, scope_record_offset)
-
-            seh.add_frame(
-                reg,
-                st,
-                [
-                    rec,
-                ],
-            )
-
-            curr_frame = reg.Next
-
-        return rv
+        return seh32.except_handler4_common(emu, *argv)
 
     @apihook("_seh_filter_exe", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_exe(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1656,15 +1602,14 @@ class Msvcrt(api.ApiHandler):
     @apihook("_except_handler3", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _except_handler3(
-        PEXCEPTION_RECORD exception_record,
-        PEXCEPTION_REGISTRATION registration,
-        PCONTEXT context,
-        PEXCEPTION_REGISTRATION dispatcher
+        EXCEPTION_DISPOSITION _except_handler3(
+            PEXCEPTION_RECORD ExceptionRecord,
+            PEXCEPTION_REGISTRATION_RECORD EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PVOID DispatcherContext
         );
         """
-        rv = 1
-        return rv
+        return seh32.except_handler3(emu, *argv)
 
     @apihook("_seh_filter_dll", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_dll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

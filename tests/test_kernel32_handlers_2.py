@@ -378,10 +378,11 @@ def test_rtl_capture_context_fills_one_context(request: pytest.FixtureRequest, f
     se.emu.reg_write(e_arch.X86_REG_ECX if size == 0x2CC else e_arch.AMD64_REG_RCX, other)
     record = alloc(se, b"\xcc" * (size + 0x40))
     call(se, "kernel32", "RtlCaptureContext", [record])
+    # ContextFlags is CONTEXT_FULL (with segments on x64), and the registers are the caller's
     if size == 0x2CC:
-        assert se.mem_read(record, size) == b"\x00" * size
+        assert int.from_bytes(se.mem_read(record, 4), "little") == 0x10007
+        assert int.from_bytes(se.mem_read(record + 0xAC, 4), "little") == other
     else:
-        # ContextFlags is CONTEXT_FULL | CONTEXT_SEGMENTS, and the registers are the caller's
         assert int.from_bytes(se.mem_read(record + 0x30, 4), "little") == 0x10000F
         assert int.from_bytes(se.mem_read(record + 0x80, 8), "little") == other
     assert se.mem_read(record + size, 0x40) == b"\xcc" * 0x40
