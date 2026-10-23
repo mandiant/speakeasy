@@ -6,6 +6,7 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
+from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
     EINVAL,
     ENOENT,
@@ -978,3 +979,38 @@ def test_wcschr_finds_the_first_match_or_the_terminator(dll_emu: Speakeasy, c: i
 def test_wide_startup_initializers_succeed(dll_emu: Speakeasy, api: str) -> None:
     argv = [] if api == "_initialize_wide_environment" else [1]
     assert call(dll_emu, "msvcrt", api, argv)[0] == 0
+
+
+def test_wide_environ_points_at_wide_key_value_strings(dll_emu: Speakeasy) -> None:
+    pp = call(dll_emu, "msvcrt", "__p__wenviron", [])[0]
+    envp = int.from_bytes(dll_emu.mem_read(pp, 4), "little")
+    first = int.from_bytes(dll_emu.mem_read(envp, 4), "little")
+    assert "=" in dll_emu.read_mem_string(first, 2)
+
+
+@pytest.mark.parametrize(
+    "size, rv, out",
+    [
+        (6, 0, "abcde\x00".encode("utf-16le")),
+        (5, ERANGE, "\x00b\x00".encode("utf-16le") + b"\xcc" * 6),
+        (0, EINVAL, "ab\x00".encode("utf-16le") + b"\xcc" * 6),
+    ],
+)
+def test_wcscat_s_appends_only_when_the_result_fits(dll_emu: Speakeasy, size: int, rv: int, out: bytes) -> None:
+    dest = alloc(dll_emu, "ab\x00".encode("utf-16le") + b"\xcc" * 6)
+    src = alloc(dll_emu, "cde\x00".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "wcscat_s", [dest, size, src])[0] == rv
+    assert dll_emu.mem_read(dest, 12) == out
+
+
+def test_query_perf_counter_returns_64_bits_at_the_reported_frequency(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+
+    def query(api: str) -> int:
+        low = call(dll_emu, "msvcrt", api, [])[0]
+        return dll_emu.emu.reg_read(e_arch.X86_REG_EDX) << 32 | low
+
+    assert query("_Query_perf_frequency") == 10_000_000
+    first = query("_Query_perf_counter")
+    assert first > 0xFFFFFFFF
+    assert query("_Query_perf_counter") > first

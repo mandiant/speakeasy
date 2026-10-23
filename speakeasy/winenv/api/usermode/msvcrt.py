@@ -29,6 +29,8 @@ S_IFREG_RW = 0x81B6
 DRIVE_C = 2
 RAND_BASE = 0
 TICK_BASE = 86400000  # 1 day in millisecs
+PERF_COUNTER_BASE = 0x5FD27D571F
+PERF_FREQUENCY = 10_000_000
 
 # Signal types
 SIGINT = 2  # interrupt
@@ -274,6 +276,7 @@ class Msvcrt(api.ApiHandler):
         self.wintypes = windef
 
         self.tick_counter: int = TICK_BASE
+        self.perf_counter: int = PERF_COUNTER_BASE
         self.errno_t: int | None = None
         self.file_streams: dict[int, Any] = {}
         self.signal_handlers: dict[int, int] = {}
@@ -696,6 +699,18 @@ class Msvcrt(api.ApiHandler):
     def __p__environ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """char *** __p__environ ()"""
         return emu.get_proc("msvcrt", "_environ")
+
+    @impdata("_wenviron")
+    def _wenviron(self, ptr):
+        """Writable wchar_t ** global, shared with __p__wenviron."""
+        envp = self._get_initial_wide_environment(self.emu, [])
+        self.mem_write(ptr, envp.to_bytes(self.get_ptr_size(), "little"))
+        return ptr
+
+    @apihook("__p__wenviron", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__wenviron(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """wchar_t *** __p__wenviron ()"""
+        return emu.get_proc("msvcrt", "_wenviron")
 
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1233,6 +1248,23 @@ class Msvcrt(api.ApiHandler):
         self.tick_counter += 200
 
         return self.tick_counter
+
+    def return_int64(self, emu, value: int) -> int:
+        if emu.get_arch() == e_arch.ARCH_X86:
+            emu.reg_write(e_arch.X86_REG_EDX, value >> 32)
+            return value & 0xFFFFFFFF
+        return value
+
+    @apihook("_Query_perf_frequency", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _Query_perf_frequency(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """long long _Query_perf_frequency();"""
+        return self.return_int64(emu, PERF_FREQUENCY)
+
+    @apihook("_Query_perf_counter", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _Query_perf_counter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """long long _Query_perf_counter();"""
+        self.perf_counter += PERF_FREQUENCY // 50
+        return self.return_int64(emu, self.perf_counter)
 
     @apihook("srand", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def srand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2006,6 +2038,31 @@ class Msvcrt(api.ApiHandler):
         new = (s1 + s2).encode("utf-16le")
         self.mem_write(_str1, new + b"\x00\x00")
         return _str1
+
+    @apihook("wcscat_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcscat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcscat_s(
+           wchar_t *strDestination,
+           size_t numberOfElements,
+           const wchar_t *strSource
+        );
+        """
+        dest, size, src = argv
+        if not dest or not size:
+            return EINVAL
+        if not src:
+            self.mem_write(dest, b"\x00\x00")
+            return EINVAL
+        s1 = self.read_wide_string(dest)
+        s2 = self.read_wide_string(src)
+        ctx.args[0].display = s1
+        ctx.args[2].display = s2
+        if len(s1) + len(s2) >= size:
+            self.mem_write(dest, b"\x00\x00")
+            return ERANGE
+        self.write_wide_string(s1 + s2 + "\x00", dest)
+        return 0
 
     @apihook("wcslen", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
