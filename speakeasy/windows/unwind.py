@@ -70,6 +70,30 @@ def read_runtime_function(read: Reader, image_base: int, address: int) -> Runtim
     return RuntimeFunction(image_base, address, begin, end, unwind_info)
 
 
+@dataclass(frozen=True)
+class FunctionTable:
+    """
+    A table of RUNTIME_FUNCTIONs registered at runtime, for code outside loaded images:
+    from RtlAddFunctionTable, or with a callback from RtlInstallFunctionTableCallback.
+    """
+
+    identifier: int  # the table's address, or the callback table's identifier
+    base: int
+    begin: int  # the addresses it covers
+    end: int
+    count: int = 0
+    callback: int = 0
+
+
+def search_function_table(read: Reader, table: FunctionTable, pc: int) -> RuntimeFunction | None:
+    """Find pc in a registered table, whose entries need not be sorted."""
+    entries = read(table.identifier, 12 * table.count)
+    for i, (begin, end, _) in enumerate(struct.iter_unpack("<III", entries)):
+        if begin <= pc - table.base < end:
+            return read_runtime_function(read, table.base, table.identifier + 12 * i)
+    return None
+
+
 def lookup_function_entry(read: Reader, image_base: int, pc: int) -> RuntimeFunction | None:
     """Binary search the image's .pdata for the function containing pc."""
     if read(image_base, 2) != b"MZ":
