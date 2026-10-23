@@ -842,3 +842,35 @@ def test_map_view_of_image_section_keeps_the_input_metadata(pe_file_emu: Speakea
     view, _ = call(pe_file_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_READ, 0, 0, 0])
     assert pe_file_emu.mem_read(view, 2) == b"MZ"
     assert emu.profiler.meta == before
+
+
+RSMB = 0x52534D42
+
+
+def get_smbios_structure_types(table: bytes) -> list[int]:
+    types = []
+    offset = 0
+    while offset < len(table):
+        kind, length = table[offset], table[offset + 1]
+        types.append(kind)
+        end = table.index(b"\x00\x00", offset + length)
+        offset = end + 2
+    assert offset == len(table)
+    return types
+
+
+def test_get_system_firmware_table_returns_a_raw_smbios_table(dll_emu: Speakeasy) -> None:
+    size, _ = call(dll_emu, "kernel32", "GetSystemFirmwareTable", [RSMB, 0, 0, 0])
+    buf = alloc(dll_emu, b"\x00" * size)
+    assert call(dll_emu, "kernel32", "GetSystemFirmwareTable", [RSMB, 0, buf, size])[0] == size
+    data = dll_emu.mem_read(buf, size)
+    length = struct.unpack("<I", data[4:8])[0]
+    assert length == size - 8
+    assert get_smbios_structure_types(data[8:]) == [0, 1, 127]
+
+
+def test_get_system_firmware_table_with_a_small_buffer_returns_the_size(dll_emu: Speakeasy) -> None:
+    size, _ = call(dll_emu, "kernel32", "GetSystemFirmwareTable", [RSMB, 0, 0, 0])
+    buf = alloc(dll_emu, b"\xcc" * 8)
+    assert call(dll_emu, "kernel32", "GetSystemFirmwareTable", [RSMB, 0, buf, 8])[0] == size
+    assert dll_emu.mem_read(buf, 8) == b"\xcc" * 8
