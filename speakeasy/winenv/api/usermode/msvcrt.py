@@ -2103,6 +2103,17 @@ class Msvcrt(api.ApiHandler):
         """
         return 1
 
+    @apihook("_ismbblead", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _ismbblead(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _ismbblead(
+            unsigned int c
+        );
+
+        The C locale has no lead bytes.
+        """
+        return 0
+
     @apihook("localeconv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def localeconv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
