@@ -709,3 +709,19 @@ def test_isspace_rejects_other_characters(dll_emu: Speakeasy, c: int) -> None:
 @pytest.mark.parametrize("fd", [0, 1, 2, 7])
 def test_isatty_reports_no_console(dll_emu: Speakeasy, fd: int) -> None:
     assert call(dll_emu, "msvcrt", "_isatty", [fd])[0] == 0
+
+
+def test_crtdll_get_main_args_fills_the_arguments(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    out = alloc(dll_emu, b"\xcc" * 12)
+    call(dll_emu, "crtdll", "__GetMainArgs", [out, out + 4, out + 8, 0])
+    argc, argv, envp = struct.unpack("<III", dll_emu.mem_read(out, 12))
+    assert argc == len(dll_emu.emu.get_argv())
+    assert dll_emu.mem_read(argv + 4 * argc, 4) == b"\x00" * 4
+    assert envp != 0xCCCCCCCC
+
+
+def test_crtdll_uses_the_msvcrt_handlers(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "crtdll", "memset", [buf, 0x41, 3])[0] == buf
+    assert dll_emu.mem_read(buf, 4) == b"AAA\xcc"
