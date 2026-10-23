@@ -173,6 +173,9 @@ class Kernel32(api.ApiHandler):
             new = windefs.PAGE_NOACCESS
         return new
 
+    def get_max_application_address(self, emu):
+        return 0x7FFEFFFF if emu.get_ptr_size() == 4 else 0x7FFFFFFEFFFF
+
     def map_view_access_to_emu_perms(self, desired_access, mapping_protect):
         perms = 0
 
@@ -1409,8 +1412,27 @@ class Kernel32(api.ApiHandler):
 
         mm = emu.get_address_map(lpAddress)
         if not mm:
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-            return rv
+            page = lpAddress & ~0xFFF
+            reserve = emu.get_reserve_map(lpAddress)
+            if reserve:
+                mbi.BaseAddress = page
+                mbi.AllocationBase = reserve.base
+                mbi.RegionSize = reserve.base + reserve.size - page
+                mbi.State = windefs.MEM_RESERVE
+            else:
+                end = self.get_max_application_address(emu) + 1
+                if lpAddress >= end:
+                    emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+                    return rv
+                for m in [*emu.get_mem_maps(), *emu.mem_reserves]:
+                    if page < m.base < end:
+                        end = m.base
+                mbi.BaseAddress = page
+                mbi.RegionSize = end - page
+                mbi.State = windefs.MEM_FREE
+                mbi.Protect = windefs.PAGE_NOACCESS
+            self.mem_write(lpBuffer, mbi.get_bytes())
+            return mbi.sizeof()
 
         base, size, prot = mm.base, mm.size, mm.prot
         uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
@@ -3621,6 +3643,7 @@ class Kernel32(api.ApiHandler):
         si = self.k32types.SYSTEM_INFO(ptr_size)
         si.dwPageSize = 0x1000
         si.lpMinimumApplicationAddress = 0x10000
+        si.lpMaximumApplicationAddress = self.get_max_application_address(emu)
         si.dwActiveProcessorMask = 0x3
         si.dwNumberOfProcessors = 2
         si.dwAllocationGranularity = 0x10000
@@ -3628,11 +3651,9 @@ class Kernel32(api.ApiHandler):
 
         if ptr_size == 4:
             si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_INTEL
-            si.lpMaximumApplicationAddress = 0x7FFEFFFF
             si.dwProcessorType = k32types.PROCESSOR_INTEL_PENTIUM
         else:
             si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_AMD64
-            si.lpMaximumApplicationAddress = 0x7FFFFFFEFFFF
             si.dwProcessorType = k32types.PROCESSOR_AMD_X8664
 
         self.mem_write(lpSystemInfo, si.get_bytes())
