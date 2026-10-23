@@ -3486,14 +3486,44 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwNumberOfBytesToMap
         );
         """
-        hmap, access, offset_high, offset_low, bytes_to_map = argv
+        return self.map_view(emu, *argv, 0)
 
+    @apihook("MapViewOfFileEx", argc=6)
+    def MapViewOfFileEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LPVOID MapViewOfFileEx(
+          HANDLE hFileMappingObject,
+          DWORD  dwDesiredAccess,
+          DWORD  dwFileOffsetHigh,
+          DWORD  dwFileOffsetLow,
+          SIZE_T dwNumberOfBytesToMap,
+          LPVOID lpBaseAddress
+        );
+        """
+        return self.map_view(emu, *argv)
+
+    def map_view(self, emu, hmap, access, offset_high, offset_low, bytes_to_map, base_address):
+        """
+        Map a view of a file mapping at ``base_address``, or at any free
+        address when ``base_address`` is 0.
+        """
         fman = emu.get_file_manager()
         mapping = fman.get_mapping_from_handle(hmap)
         tag_prefix = "api.MapViewOfFile"
         buf = 0
 
-        if mapping:
+        def get_view_range(size):
+            if not base_address:
+                base, size = emu.get_valid_ranges(size)
+                while base and base & 0xFFF:
+                    base, size = emu.get_valid_ranges(size)
+                return base, size
+            base, size = emu.get_valid_ranges(size, base_address)
+            return (base, size) if base == base_address else (0, size)
+
+        if mapping and base_address & 0xFFFF:
+            emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+        elif mapping:
             f = mapping.backed_file
             full_offset = (offset_high << 32) | offset_low
             size = 0
@@ -3516,9 +3546,10 @@ class Kernel32(api.ApiHandler):
                 if pe_mapping:
                     # Now map the file as PE file
                     pe = emu.load_pe(data=data)
-                    base, size = emu.get_valid_ranges(pe.image_size)
-                    while base and base & 0xFFF:
-                        base, size = emu.get_valid_ranges(size)
+                    base, size = get_view_range(pe.image_size)
+                    if not base:
+                        emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                        return 0
 
                     emu.mem_map(pe.image_size, base=base, perms=view_perms, tag=f"{tag_prefix}.{fname}.0x{base:x}")
                     mapping.add_view(base, full_offset, size, access)
@@ -3526,9 +3557,10 @@ class Kernel32(api.ApiHandler):
                     buf = base
                 else:
                     # Just copy the bytes as they are
-                    base, size = emu.get_valid_ranges(len(data))
-                    while base and base & 0xFFF:
-                        base, size = emu.get_valid_ranges(size)
+                    base, size = get_view_range(len(data))
+                    if not base:
+                        emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                        return 0
 
                     buf = self.mem_alloc(base=base, size=size, perms=view_perms, shared=True)
                     mm = emu.get_address_map(buf)
@@ -3539,7 +3571,10 @@ class Kernel32(api.ApiHandler):
             else:
                 if not bytes_to_map:
                     bytes_to_map = mapping.size - full_offset
-                base, size = emu.get_valid_ranges(bytes_to_map)
+                base, size = get_view_range(bytes_to_map)
+                if not base:
+                    emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                    return 0
                 buf = self.mem_alloc(base=base, size=size, perms=view_perms, tag=tag_prefix, shared=True)
                 emu.set_last_error(windefs.ERROR_SUCCESS)
                 mapping.add_view(buf, full_offset, size, access)
