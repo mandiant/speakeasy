@@ -504,6 +504,21 @@ def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> Non
     assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.is_admin), 4)
 
 
+def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy) -> None:
+    assert admin_emu.emu is not None
+    start_process(admin_emu)
+    ret_len = alloc(admin_emu, b"\xcc" * 4)
+    rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 25, 0, 0, ret_len])
+    assert (rv, _last_error(admin_emu), _dword(admin_emu, ret_len)) == (0, windefs.ERROR_INSUFFICIENT_BUFFER, 20)
+
+    info = alloc(admin_emu, b"\xcc" * 20)
+    rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 25, info, 20, ret_len])
+    sid, attributes = struct.unpack("<2I", admin_emu.mem_read(info, 8))
+    level = 0x3000 if admin_emu.emu.config.user.is_admin else 0x2000
+    assert (rv, sid, attributes) == (1, info + 8, 0x20)
+    assert admin_emu.mem_read(sid, 12) == bytes([1, 1]) + (16).to_bytes(6, "big") + struct.pack("<I", level)
+
+
 def test_enum_services_status_returns_no_services(dll_emu: Speakeasy) -> None:
     outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(3)]
     rv, _ = call(dll_emu, "advapi32", "EnumServicesStatusA", [0x1234, 0x30, 3, 0, 0, *outs])
