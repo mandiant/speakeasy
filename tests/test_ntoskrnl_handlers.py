@@ -506,3 +506,36 @@ def test_ps_get_process_id_reads_the_eprocess(driver_emu: Speakeasy) -> None:
     pid, _ = call(driver_emu, "ntoskrnl", "PsGetProcessId", [proc.address])
     assert pid == proc.pid
     assert call(driver_emu, "ntoskrnl", "PsGetProcessId", [0x1234])[0] == 0
+
+
+def open_section(se: Speakeasy, name: str) -> tuple[int, bytes]:
+    phnd = alloc(se, b"\xcc" * 4)
+    rv, _ = call(se, "ntdll", "NtOpenSection", [phnd, 4, object_attributes(se, name)])
+    return rv, se.mem_read(phnd, 4)
+
+
+def test_nt_open_section_denies_physical_memory(dll_emu: Speakeasy) -> None:
+    assert open_section(dll_emu, "\\Device\\PhysicalMemory") == (ddk.STATUS_ACCESS_DENIED, b"\xcc" * 4)
+
+
+def test_nt_open_section_reports_a_missing_section(dll_emu: Speakeasy) -> None:
+    assert open_section(dll_emu, "\\BaseNamedObjects\\NoSuchSection") == (
+        ddk.STATUS_OBJECT_NAME_NOT_FOUND,
+        b"\xcc" * 4,
+    )
+
+
+def test_nt_open_section_opens_a_named_section(dll_emu: Speakeasy) -> None:
+    phnd = alloc(dll_emu, b"\0" * 4)
+    size = alloc(dll_emu, struct.pack("<Q", 0x1000))
+    oa = object_attributes(dll_emu, "\\BaseNamedObjects\\Shared")
+    rv, _ = call(dll_emu, "ntdll", "NtCreateSection", [phnd, 0xF001F, oa, size, 4, 0x8000000, 0])
+    assert rv == ddk.STATUS_SUCCESS
+
+    rv, handle = open_section(dll_emu, "\\Sessions\\1\\BaseNamedObjects\\shared")
+    assert rv == ddk.STATUS_SUCCESS
+    mapping = dll_emu.emu.get_file_manager().get_mapping_from_handle(int.from_bytes(handle, "little"))
+    created = dll_emu.emu.get_file_manager().get_mapping_from_handle(
+        int.from_bytes(dll_emu.mem_read(phnd, 4), "little")
+    )
+    assert mapping is created is not None

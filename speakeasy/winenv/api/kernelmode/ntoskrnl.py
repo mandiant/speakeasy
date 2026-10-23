@@ -3200,6 +3200,32 @@ class Ntoskrnl(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
+    @apihook("ZwOpenSection", argc=3)
+    def ZwOpenSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS ZwOpenSection(
+            PHANDLE            SectionHandle,
+            ACCESS_MASK        DesiredAccess,
+            POBJECT_ATTRIBUTES ObjectAttributes
+        );
+        """
+        SectionHandle, DesiredAccess, ObjectAttributes = argv
+        if not SectionHandle or not ObjectAttributes:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        oa = self.mem_cast(self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size()), ObjectAttributes)
+        name = self.read_unicode_string(oa.ObjectName) if oa.ObjectName else ""
+        ctx.args["ObjectAttributes"].display = name
+        if name.lower() == "\\device\\physicalmemory":
+            return ddk.STATUS_ACCESS_DENIED
+
+        hmap = emu.get_file_manager().open_mapping(name)
+        if hmap is None:
+            return ddk.STATUS_OBJECT_NAME_NOT_FOUND
+        self.mem_write(SectionHandle, hmap.to_bytes(self.get_ptr_size(), byteorder="little"))
+        ctx.args["SectionHandle"].display = hex(hmap)
+        return ddk.STATUS_SUCCESS
+
     @apihook("ZwUnmapViewOfSection", argc=2)
     def ZwUnmapViewOfSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
