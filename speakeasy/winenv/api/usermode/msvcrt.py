@@ -1954,6 +1954,15 @@ class Msvcrt(api.ApiHandler):
 
         return self.errno_t
 
+    @apihook("___lc_codepage_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def ___lc_codepage_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT ___lc_codepage_func(void);
+
+        The C locale has code page 0.
+        """
+        return 0
+
     @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
