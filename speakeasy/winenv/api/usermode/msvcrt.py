@@ -2623,6 +2623,53 @@ class Msvcrt(api.ApiHandler):
         """
         return self.stat_file(argv, ctx, True, True, True)
 
+    def delete_file(self, emu, argv, ctx, wide):
+        (path_ptr,) = argv
+        path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
+        ctx.args[0].display = path
+
+        if not emu.does_file_exist(path):
+            self.set_errno(ENOENT)
+            return -1
+        emu.file_delete(path)
+        return 0
+
+    @apihook("_unlink", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _unlink(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _unlink(
+            const char *filename
+        );
+        """
+        return self.delete_file(emu, argv, ctx, False)
+
+    @apihook("_wunlink", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wunlink(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wunlink(
+            const wchar_t *filename
+        );
+        """
+        return self.delete_file(emu, argv, ctx, True)
+
+    @apihook("remove", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def remove(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int remove(
+            const char *path
+        );
+        """
+        return self.delete_file(emu, argv, ctx, False)
+
+    @apihook("_wremove", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wremove(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wremove(
+            const wchar_t *path
+        );
+        """
+        return self.delete_file(emu, argv, ctx, True)
+
     @apihook("fflush", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def fflush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
