@@ -228,6 +228,8 @@ class AdvApi32(api.ApiHandler):
                 value_data = int.from_bytes(raw[:8].ljust(8, b"\x00"), "little")
             else:
                 value_data = raw
+            if isinstance(value_data, str):
+                ctx.args["lpData"].display = value_data
 
         value = key.get_value(value_name)
         if value:
