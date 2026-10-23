@@ -463,3 +463,32 @@ def test_select_reports_readable_and_writable_sockets_without_errors(dll_emu: Sp
     assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, writefds])[0] == 1
     assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, exceptfds])[0] == 0
 
+
+def test_getpeername_returns_the_connected_address(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    s, _ = call(dll_emu, "ws2_32", "socket", [2, 1, 6])
+    name = alloc(dll_emu, b"\xcc" * 16)
+    name_len = alloc(dll_emu, struct.pack("<I", 16))
+    assert call(dll_emu, "ws2_32", "getpeername", [s, name, name_len])[0] == 0xFFFFFFFF
+    assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10057
+
+    peer = alloc(dll_emu, struct.pack("<H", 2) + struct.pack(">H", 8080) + bytes([10, 1, 2, 3]) + b"\x00" * 8)
+    assert call(dll_emu, "ws2_32", "connect", [s, peer, 16])[0] == 0
+    assert call(dll_emu, "ws2_32", "getpeername", [s, name, name_len])[0] == 0
+    assert dll_emu.mem_read(name, 8) == dll_emu.mem_read(peer, 8)
+
+
+def test_getsockname_returns_the_adapter_address(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    s, _ = call(dll_emu, "ws2_32", "socket", [2, 1, 6])
+    name = alloc(dll_emu, b"\xcc" * 16)
+    name_len = alloc(dll_emu, struct.pack("<I", 8))
+    assert call(dll_emu, "ws2_32", "getsockname", [s, name, name_len])[0] == 0xFFFFFFFF
+    assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10014
+
+    dll_emu.mem_write(name_len, struct.pack("<I", 16))
+    assert call(dll_emu, "ws2_32", "getsockname", [s, name, name_len])[0] == 0
+    family, port, addr = struct.unpack("<H2s4s", dll_emu.mem_read(name, 8))
+    assert (family, addr) == (2, bytes([127, 0, 0, 1]))
+    assert struct.unpack(">H", port)[0] >= 49152
+    assert struct.unpack("<I", dll_emu.mem_read(name_len, 4))[0] == 16
