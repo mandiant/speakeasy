@@ -13,10 +13,13 @@ import speakeasy.common as common
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 PAGE_READWRITE = 0x04
+MEM_COMMIT = 0x1000
+MEM_RESERVE = 0x2000
 FILE_MAP_READ = 0x04
 FILE_MAP_ALL_ACCESS = 0xF001F
 GENERIC_READ = 0x80000000
@@ -75,6 +78,30 @@ def test_map_view_of_file_ex_maps_at_the_requested_base(dll_emu: Speakeasy, base
     again, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, view])
     assert again == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+
+
+def test_unmap_view_of_section_frees_a_view_of_the_current_process(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hmap, _ = call(
+        dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x1000, 0]
+    )
+    view, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, 0x30000000])
+    rv, _ = call(dll_emu, "ntdll", "NtUnmapViewOfSection", [0xFFFFFFFF, view + 4])
+    assert rv == ddk.STATUS_SUCCESS
+    rv, _ = call(dll_emu, "ntdll", "NtUnmapViewOfSection", [0xFFFFFFFF, view])
+    assert rv == ddk.STATUS_NOT_MAPPED_VIEW
+    again, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, view])
+    assert again == view
+
+
+def test_unmap_view_of_section_frees_the_main_image(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    base = dll_emu.emu.get_current_process().base
+    rv, _ = call(dll_emu, "ntdll", "ZwUnmapViewOfSection", [0xFFFFFFFF, base])
+    assert rv == ddk.STATUS_SUCCESS
+    rv, _ = call(dll_emu, "kernel32", "VirtualAlloc", [base, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+    assert rv == base
 
 
 def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
