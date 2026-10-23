@@ -6,6 +6,7 @@ import logging
 import multiprocessing as mp
 import os
 import shlex
+import sys
 import time
 
 from rich.console import Console
@@ -52,6 +53,7 @@ def emulate_binary(
     setup_logging(verbose)
 
     report = None
+    error = None
     se = None
     try:
         se = Speakeasy(
@@ -80,12 +82,15 @@ def emulate_binary(
                 emulate_children=emulate_children,
                 entry_point=entry_point,
             )
+    except Exception as err:
+        logger.debug("emulation failed", exc_info=True)
+        error = str(err) or type(err).__name__
     finally:
-        if se is not None:
+        if se is not None and se.emu is not None:
             report = se.get_json_report()
-        q.put(report)
+        q.put((report, error))
 
-        if dropped_files_path and se is not None:
+        if dropped_files_path and se is not None and se.emu is not None:
             data = se.create_file_archive()
             if data:
                 logger.info("* Saving dropped files archive to %s", dropped_files_path)
@@ -95,7 +100,7 @@ def emulate_binary(
                 logger.info("* No dropped files found")
 
 
-def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> None:
+def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> str | None:
     target = args.target
     output = args.output
     dropped_files_path = args.dropped_files_path
@@ -163,7 +168,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             gdb_port=gdb_port,
             gdb_host=gdb_host,
         )
-        report = q.get()
+        result = q.get()
     else:
         p = mp.Process(
             target=emulate_binary,
@@ -188,19 +193,19 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         )
         p.start()
 
-        report = None
+        result = None
         start_time = time.time()
         while True:
             if timeout and timeout < (time.time() - start_time):
                 evt.set()
                 logger.error("* Child process timeout reached after %d seconds", timeout)
                 try:
-                    report = q.get(timeout=5)
+                    result = q.get(timeout=5)
                 except mp.queues.Empty:  # type: ignore[attr-defined]
                     pass
                 break
             try:
-                report = q.get(timeout=1)
+                result = q.get(timeout=1)
                 break
             except mp.queues.Empty:  # type: ignore[attr-defined]
                 if not p.is_alive():
@@ -209,17 +214,20 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
                 evt.set()
                 logger.error("\n* User exited")
                 try:
-                    report = q.get(timeout=5)
+                    result = q.get(timeout=5)
                 except mp.queues.Empty:  # type: ignore[attr-defined]
                     pass
                 break
 
     logger.info("* Finished emulating")
+    report, error = result or (None, None)
 
     if report and output:
         logger.info("* Saving emulation report to %s", output)
         with open(output, "w") as f:
             f.write(report)
+
+    return error
 
 
 def main():
@@ -351,7 +359,10 @@ def main():
     if args.dump_default_config:
         print(json.dumps(get_default_config_dict(), indent=4))
         return
-    run_main(parser, args, config_specs)
+    error = run_main(parser, args, config_specs)
+    if error:
+        logger.error("error: %s", error)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
