@@ -3340,6 +3340,16 @@ class Kernel32(api.ApiHandler):
         """
         return False
 
+    @apihook("IsDBCSLeadByteEx", argc=2)
+    def IsDBCSLeadByteEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL IsDBCSLeadByteEx(
+            UINT CodePage,
+            BYTE TestChar
+        );
+        """
+        return False
+
     @apihook("SetEnvironmentVariable", argc=2)
     def SetEnvironmentVariable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
