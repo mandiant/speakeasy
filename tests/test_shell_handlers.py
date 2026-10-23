@@ -154,6 +154,25 @@ def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) ->
     assert rv == len(proc.path)
 
 
+def test_psapi_enum_process_modules_ex_lists_the_modules(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    current = 0xFFFFFFFF
+    list_modules_all = 3
+
+    expected = alloc(dll_emu, b"\x00" * 64)
+    expected_needed = alloc(dll_emu, b"\x00" * 4)
+    call(dll_emu, "psapi", "EnumProcessModules", [current, expected, 64, expected_needed])
+    mods = alloc(dll_emu, b"\x00" * 64)
+    needed = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "psapi", "EnumProcessModulesEx", [current, mods, 64, needed, list_modules_all])
+
+    assert rv == 1
+    assert dll_emu.mem_read(needed, 4) == dll_emu.mem_read(expected_needed, 4)
+    assert dll_emu.mem_read(mods, 64) == dll_emu.mem_read(expected, 64)
+    assert struct.unpack("<I", dll_emu.mem_read(mods, 4))[0] == dll_emu.emu.get_current_process().base
+
+
 def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     clsid = alloc(dll_emu, uuid.UUID(com.CLSID_WbemLocator).bytes_le)
     out = alloc(dll_emu, b"\x00" * 4)
