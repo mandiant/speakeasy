@@ -237,6 +237,41 @@ def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     assert rv is True
 
 
+def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
+    start_process(se)
+    app = alloc(se, b"c:\\Windows\\system32\\cmd.exe\x00")
+    si = alloc(se, b"\x00" * 0x44)
+    pi = alloc(se, b"\x00" * 0x10)
+    ok, _ = call(se, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, windefs.CREATE_SUSPENDED, 0, 0, si, pi])
+    assert ok
+    hproc, hthread = struct.unpack("<II", se.mem_read(pi, 8))
+    return hproc, hthread
+
+
+def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    _, hthread = create_suspended_child(dll_emu)
+    queued = len(dll_emu.emu.run_queue)
+    rv, _ = call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    assert rv == 1
+    assert len(dll_emu.emu.run_queue) == queued
+    assert len(dll_emu.emu.child_processes) == 1
+
+
+def test_resume_thread_starts_a_child_after_write_process_memory(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    hproc, hthread = create_suspended_child(dll_emu)
+    child = dll_emu.emu.child_processes[0]
+    data = alloc(dll_emu, b"\x90" * 4)
+    ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, data + 0x100, data, 4, 0])
+    assert ok
+    queued = len(dll_emu.emu.run_queue)
+    call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    assert len(dll_emu.emu.run_queue) == queued + 1
+    assert dll_emu.emu.run_queue[-1].process_context is child
+    assert dll_emu.emu.child_processes == []
+
+
 TH32CS_SNAPALL = 0xF
 
 
