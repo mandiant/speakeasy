@@ -11,7 +11,7 @@ from speakeasy.windows.loaders import ImportEntry, LoadedImage, MemoryRegion
 from tests.guest_harness import Deref, get_api, guest_call, read_pointer
 
 
-def make_native_dll(emu, path, result=1):
+def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False):
     base, _ = emu.get_valid_ranges(0x20000, addr=0x62000000)
     image = build_api_image(
         name="guest_dependency",
@@ -23,6 +23,7 @@ def make_native_dll(emu, path, result=1):
             ApiExportSpec("TlsCallback"),
             ApiExportSpec("GetTickCount"),
             ApiExportSpec("Flag", kind="data"),
+            *([ApiExportSpec("Forwarded", forwarder="kernel32.GetTickCount")] if forwarder else []),
         ],
     )
     exports = {entry.name: entry.address for entry in image.exports}
@@ -57,7 +58,7 @@ def make_native_dll(emu, path, result=1):
         exports["TlsCallback"].to_bytes(emu.ptr_size, "little") + b"\0" * emu.ptr_size
     )
     pe = pefile.PE(data=bytes(data))
-    pe.OPTIONAL_HEADER.AddressOfEntryPoint = exports["Initializer"] - base
+    pe.OPTIONAL_HEADER.AddressOfEntryPoint = exports["Initializer"] - base if entry_point else 0
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress = tls_rva
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].Size = len(tls)
     path.write_bytes(pe.write())
@@ -228,3 +229,38 @@ def test_all_entrypoints_skips_data_exports(config, tmp_path):
 
     assert "export.GetTickCount" in runs
     assert "export.Flag" not in runs
+
+
+def test_all_entrypoints_skips_forwarded_exports(config, tmp_path):
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch="x86")
+        make_native_dll(se.emu, tmp_path / "guest_dependency.dll", forwarder=True)
+    finally:
+        se.shutdown()
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
+        se.run_module(module, all_entrypoints=True)
+        runs = [ep.ep_type for ep in se.get_report().entry_points]
+
+    assert "export.GetTickCount" in runs
+    assert "export.Forwarded" not in runs
+
+
+def test_dll_without_an_entry_point_runs_only_its_exports(config, tmp_path):
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch="x86")
+        make_native_dll(se.emu, tmp_path / "guest_dependency.dll", entry_point=False)
+    finally:
+        se.shutdown()
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
+        se.run_module(module, all_entrypoints=True)
+        entries = se.get_report().entry_points
+
+    assert [ep.ep_type for ep in entries if not ep.ep_type.startswith("export.")] == ["tls_callback_0"]
+    assert "export.GetTickCount" in [ep.ep_type for ep in entries]
+    assert all(ep.error is None for ep in entries)
