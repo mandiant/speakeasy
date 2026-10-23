@@ -487,3 +487,14 @@ def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, alloc(dll_emu, b"Soft\x00"))
     assert (rv, path) == (windefs.ERROR_FILE_NOT_FOUND, None)
+
+
+def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    cmd = alloc(dll_emu, b'"" arg\x00')
+    si = alloc(dll_emu, b"\x00" * 0x44)
+    pi = alloc(dll_emu, b"\x00" * 0x10)
+    ok, _ = call(dll_emu, "advapi32", "CreateProcessAsUserA", [0, 0, cmd, 0, 0, 0, 0, 0, 0, si, pi])
+    assert ok == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND

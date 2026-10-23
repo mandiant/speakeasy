@@ -26,7 +26,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
-from speakeasy.errors import WindowsEmuError
+from speakeasy.errors import FileSystemEmuError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import ApiCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
@@ -1801,10 +1801,10 @@ class WindowsEmulator(BinaryEmulator):
         # Setting posix to false makes shlex not treat '\' as an
         # escape character, but if each token was surrounded with
         # quotes, those are kept, so we have to delete them
-        file_path = shlex.split(path, posix=False)[0]
-
-        if file_path[0] == '"' and file_path[len(file_path) - 1] == '"':
-            file_path = file_path[1:-1]
+        tokens = shlex.split(path or "", posix=False)
+        file_path = tokens[0].strip('"') if tokens else ""
+        if not file_path:
+            raise FileSystemEmuError("process creation needs a program name")
 
         p = self.om.new_object(objman.Process)  # type: ignore[union-attr]
 

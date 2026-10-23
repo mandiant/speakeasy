@@ -14,7 +14,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.errors import ApiEmuError
+from speakeasy.errors import ApiEmuError, FileSystemEmuError
 from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_READ,
@@ -832,8 +832,10 @@ class Kernel32(api.ApiHandler):
         if lpCmdLine:
             cmd = self.read_mem_string(lpCmdLine, 1)
             ctx.args["lpCmdLine"].display = cmd
-            app = cmd.split()[0]
-            proc = emu.create_process(path=app, cmdline=cmd)
+            try:
+                proc = emu.create_process(path=cmd, cmdline=cmd)
+            except FileSystemEmuError:
+                return windefs.ERROR_FILE_NOT_FOUND
             self.record_process_event(proc, PROC_CREATE)
             rv = 32
 
@@ -944,7 +946,11 @@ class Kernel32(api.ApiHandler):
             def_flags = " | ".join(def_flags)
             ctx.args["dwCreationFlags"].display = def_flags
 
-        proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
+        try:
+            proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
+        except FileSystemEmuError:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
         proc_hnd = self.get_object_handle(proc)
 
         thread = proc.threads[0]

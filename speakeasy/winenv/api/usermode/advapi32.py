@@ -11,6 +11,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 
 from .. import api
@@ -1468,7 +1469,11 @@ class AdvApi32(api.ApiHandler):
                 appstr = cmdstr.split(" ")[0]
             ctx.args["lpCommandLine"].display = cmdstr
 
-        proc = emu.create_process(path=appstr, cmdline=cmdstr)
+        try:
+            proc = emu.create_process(path=appstr, cmdline=cmdstr)
+        except FileSystemEmuError:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
         proc_hnd = self.get_object_handle(proc)
 
         thread = proc.threads[0]
