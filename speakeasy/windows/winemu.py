@@ -2028,7 +2028,7 @@ class WindowsEmulator(BinaryEmulator):
         kind, address = self._pending_trap_fault
         self._pending_trap_fault = None
         self.prev_pc = self.get_pc()
-        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address):
+        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, kind):
             self.enable_code_hook()
             return
         self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
@@ -2060,7 +2060,7 @@ class WindowsEmulator(BinaryEmulator):
 
         # Are there any SEH handlers registered?
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "fetch")
             if rv:
                 return True
 
@@ -2902,7 +2902,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "read")
             if rv:
                 return True
         fakeout = address & 0xFFFFFFFFFFFFF000
@@ -2955,7 +2955,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address)
+            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "write")
             if rv:
                 return True
 
@@ -3550,7 +3550,7 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None):
+    def dispatch_seh(self, except_code, faulting_address=None, access_type=None):
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3565,6 +3565,13 @@ class WindowsEmulator(BinaryEmulator):
         if self.get_arch() == _arch.ARCH_X86:
             rv = self._dispatch_seh_x86(except_code)
         if not rv and self.unhandled_exception_filter:
+            # The run ends when the filter returns, so the fault is the error of the run.
+            if self.curr_run is not None and self.curr_run.error is None:
+                self.curr_run.error = self.get_error_info(
+                    f"invalid_{access_type}" if access_type else "unhandled_exception",
+                    self.get_pc() if faulting_address is None else faulting_address,
+                    access_type=access_type,
+                )
             record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
             record.ExceptionCode = except_code
             record.ExceptionFlags = 0
