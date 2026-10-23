@@ -4,6 +4,7 @@ import ntpath
 import os
 from typing import Any
 
+import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
@@ -418,6 +419,7 @@ class Thread(KernelObject):
         self.tls: list[int] = []
         self.static_tls: dict[str, int] = {}
         self.message_queue: list[Any] = []
+        self.debug_registers: dict[str, int] = dict.fromkeys(thread_context.DEBUG_REGISTERS, 0)
         self.ctx: Any = self.emu.get_thread_context()
         self.fls: list[int] = []
         self.suspend_count: int = 0

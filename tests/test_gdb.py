@@ -202,11 +202,12 @@ _MEMORY_FAULT_SERVER_SCRIPT = textwrap.dedent("""\
     port = int(sys.argv[1])
     config_path = sys.argv[2]
     shellcode = bytes.fromhex(sys.argv[3])
+    arch = sys.argv[4]
     with open(config_path) as f:
         cfg = json.load(f)
 
     se = Speakeasy(config=cfg, gdb_port=port)
-    address = se.load_shellcode(data=shellcode, arch="x86")
+    address = se.load_shellcode(data=shellcode, arch=arch)
     print(hex(address), flush=True)
     se.run_shellcode(address)
     se.shutdown()
@@ -463,8 +464,9 @@ def gdb_fault_emulator():
 def gdb_memory_fault_emulator(request):
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
+    shellcode, _, arch = request.param.partition(":")
     proc = subprocess.Popen(
-        [sys.executable, "-c", _MEMORY_FAULT_SERVER_SCRIPT, str(port), config_path, request.param],
+        [sys.executable, "-c", _MEMORY_FAULT_SERVER_SCRIPT, str(port), config_path, shellcode, arch or "x86"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -650,6 +652,23 @@ def test_gdb_stops_at_handled_memory_fault(gdb_memory_fault_emulator, fault_offs
         assert client.continue_().startswith("T0b")
         expected_pc = 0x10 if fault_offset is None else address + fault_offset
         assert client.read_x86_registers().eip == expected_pc
+        assert client.continue_() == "X0b"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "gdb_memory_fault_emulator",
+    [pytest.param("cc:amd64", id="int3"), pytest.param("0f0b:amd64", id="ud2")],
+    indirect=True,
+)
+def test_gdb_stops_at_unhandled_x64_cpu_exception(gdb_memory_fault_emulator):
+    port, proc, address = gdb_memory_fault_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
         assert client.continue_() == "X0b"
         assert proc.wait(timeout=10) == 0
     finally:

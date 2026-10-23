@@ -21,9 +21,10 @@ context:
 
 Emulation is never nested: each guest call runs in the normal run loop on the
 stack of the handler's frame and returns to GUEST_CALLBACK_RETURN_ADDR, where the
-handler continues. The emulator only calls into this module in three places:
-when an API handler returns a generator (start_api_handler), when a guest call
-returns (resume), and to unwind through handler frames (unwind_frame).
+handler continues. The emulator only calls into this module where an API
+handler returns a generator (start_api_handler) or a Resume, such as NtContinue
+(transfer), where a guest call returns (resume), and to unwind through handler
+frames (unwind_frame).
 """
 
 from collections.abc import Generator
@@ -111,15 +112,21 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
 
     run.guest_callbacks.remove(frame)
     if isinstance(result, Resume):
-        while run.guest_callbacks and run.guest_callbacks[-1].stack_pointer < result.context.Rsp:
-            run.guest_callbacks.pop()
-        emu.load_thread_context(result.context)
+        transfer(emu, result.context)
         return
     frame.result = result
     if frame.event is not None:
         frame.event.ret_val = hex(result) if result is not None else None
     emu.set_stack_ptr(frame.stack_pointer)
     emu.do_call_return(frame.argc, frame.return_address, result, conv=frame.convention)
+
+
+def transfer(emu, context) -> None:
+    """Continue the guest at a CONTEXT64, abandoning the guest callback frames on the stack below it."""
+    callbacks = emu.get_current_run().guest_callbacks
+    while callbacks and callbacks[-1].stack_pointer < context.Rsp:
+        callbacks.pop()
+    emu.load_thread_context(context)
 
 
 def current(emu) -> HandlerState:

@@ -21,9 +21,11 @@ import unicorn as uc
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.cpu_exceptions as cpu_exceptions
 import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.objman as objman
 import speakeasy.windows.seh64 as seh64
+import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
@@ -70,6 +72,20 @@ class _ExecutionBudget:
     exhausted: bool = False
 
 
+@dataclass(frozen=True)
+class PendingCpuException:
+    """A CPU exception raised in a Unicorn hook, dispatched after native execution unwinds."""
+
+    exception: cpu_exceptions.CpuException
+    error_type: str  # the run's error if no handler takes it
+    interrupt_num: int | None = None
+    access_type: str | None = None
+    rax: int | None = None  # restored before dispatch, since IN overwrites it
+    # (page, perms) of a guard page, whose protection the access restores
+    guard_page: tuple[int, int] | None = None
+
+
+# Guest memory errors of API handlers, by the access they fail
 def execution_scope(func):
     """Share one active-time cap across every start in a public invocation."""
 
@@ -207,6 +223,9 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_control = None
         self._pending_exec_recovery: tuple[int, int] | None = None
         self._pending_trap_fault: tuple[str, int] | None = None
+        self._pending_cpu_exception: PendingCpuException | None = None
+        # Guard pages, mapped without access, with the protection their first access restores
+        self.guard_pages: dict[int, int] = {}
         self._guest_dependencies = []
         self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
@@ -509,6 +528,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_api_entry = None
         self._pending_control = None
         self._pending_trap_fault = None
+        self._pending_cpu_exception = None
         self._pending_exec_recovery = None
         stage = self.curr_run.guest_initialization
         if stage is not None:
@@ -728,6 +748,8 @@ class WindowsEmulator(BinaryEmulator):
         used = self.curr_run.budget_instructions
         remaining = [max(budget - used, 0) if budget > 0 else -1]
         limit = [False]
+        # The last instruction the accounting hook saw start, when there is one
+        last_executed: list[int | None] = [None]
         origin_run = self.curr_run
         hook = None
 
@@ -772,6 +794,7 @@ class WindowsEmulator(BinaryEmulator):
                     self.emu_eng.stop()
                     return
                 remaining[0] -= 1
+                last_executed[0] = _address
                 origin_run.budget_instructions += 1
                 if not self.config.analysis.memory_tracing:
                     self.curr_run.instr_cnt += 1
@@ -818,7 +841,7 @@ class WindowsEmulator(BinaryEmulator):
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:
                             return
-                        if self._pending_trap_fault is not None:
+                        if self._pending_trap_fault is not None or self._pending_cpu_exception is not None:
                             pass
                         elif self._pending_control == "exec_recovery" and exc.errno == uc.UC_ERR_FETCH_PROT:
                             pass
@@ -828,6 +851,26 @@ class WindowsEmulator(BinaryEmulator):
                             self._pending_api_entry is None and not self._pending_control
                         ):
                             raise
+                    if (
+                        self._pending_cpu_exception is None
+                        and self.curr_run is origin_run
+                        and self._stopped_at_hlt(
+                            deadline, limit[0], last_executed[0] if hook else None, native_count, debugger
+                        )
+                    ):
+                        self._raise_cpu_exception(
+                            cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction"
+                        )
+                    if self._pending_cpu_exception is not None:
+                        self._dispatch_cpu_exception()
+                        address = self.get_pc()
+                        if self._pending_fault_stop is not None:
+                            return
+                        if self.curr_run is not origin_run or self.emu_complete:
+                            return
+                        if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                            return
+                        continue
                     if self._pending_trap_fault is not None:
                         self._dispatch_trap_fault()
                         address = self.get_pc()
@@ -2085,6 +2128,116 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
         self.end_run_on_fault()
 
+    def _raise_cpu_exception(self, exception, error_type, **details):
+        """From a Unicorn hook: stop and dispatch exception once native execution unwinds."""
+        self._pending_cpu_exception = PendingCpuException(exception, error_type, **details)
+        self.emu_eng.stop()
+
+    def _dispatch_cpu_exception(self):
+        pending, self._pending_cpu_exception = self._pending_cpu_exception, None
+        exception = pending.exception
+        if pending.rax is not None:
+            self.reg_write(_arch.AMD64_REG_RAX, pending.rax)
+        if pending.guard_page is not None:
+            page, perms = pending.guard_page
+            self.mem_protect(page, self.page_size, perms)
+        self.set_pc(exception.pc)
+        self.prev_pc = exception.pc
+        faulting_address = exception.params[1] if pending.access_type else None
+        dispatch = self.config.exceptions.dispatch_handlers
+        if dispatch and self.dispatch_seh(exception.code, faulting_address, pending.access_type, exception=exception):
+            return
+        error_address = exception.address if faulting_address is None else faulting_address
+        self.curr_run.error = self.get_error_info(pending.error_type, error_address, access_type=pending.access_type)
+        self.curr_run.error.interrupt_num = pending.interrupt_num
+        self.end_run_on_fault()
+
+    def _can_raise_api_fault(self):
+        return not self.kernel_mode and self.get_arch() == _arch.ARCH_AMD64 and self.config.exceptions.dispatch_handlers
+
+    def _raise_api_fault(self, frame, access_type, address):
+        """
+        Raise an access violation in the caller of an API whose handler touched an invalid
+        guest pointer, as the API's own code would. Return False when no handler looks at it.
+        """
+        params = (cpu_exceptions.ACCESS_CODES[access_type], address)
+        try:
+            guest_callbacks.start(self, frame, seh64.raise_exception(self, ddk.STATUS_ACCESS_VIOLATION, 0, params))
+        except seh64.UnhandledException:
+            self.get_current_run().guest_callbacks.remove(frame)
+            return False
+        return True
+
+    def set_guard_pages(self, address, size, perms):
+        """Map pages without access until their first access, which restores perms and raises an exception."""
+        base = address & ~(self.page_size - 1)
+        end = address + size
+        for page in range(base, end, self.page_size):
+            self.guard_pages[page] = perms
+        self.mem_protect(base, end - base, common.PERM_MEM_NONE)
+
+    def clear_guard_pages(self, address, size):
+        for page in range(address & ~(self.page_size - 1), address + size, self.page_size):
+            self.guard_pages.pop(page, None)
+
+    def _raise_protection_fault(self, address, access_type):
+        """From a Unicorn hook: raise the exception for an access that page protections deny."""
+        page = address & ~(self.page_size - 1)
+        pc = address if access_type == "fetch" else self.get_pc()
+        perms = self.guard_pages.pop(page, None)
+        if perms is not None:
+            exception = cpu_exceptions.memory_fault(
+                pc, address, access_type, code=cpu_exceptions.STATUS_GUARD_PAGE_VIOLATION
+            )
+            self._raise_cpu_exception(
+                exception, "guard_page_violation", access_type=access_type, guard_page=(page, perms)
+            )
+        else:
+            exception = cpu_exceptions.memory_fault(pc, address, access_type)
+            self._raise_cpu_exception(exception, f"invalid_protect_{access_type}", access_type=access_type)
+        return False
+
+    def _stopped_at_hlt(self, deadline, limited, last_executed, counted, debugger):
+        """
+        Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
+        Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran:
+        the last instruction the accounting hook saw, or with nothing else that stops the engine.
+        """
+        if self.kernel_mode or self.get_arch() != _arch.ARCH_AMD64 or not self.config.exceptions.dispatch_handlers:
+            return False
+        if limited or self._pending_api_entry is not None or self._pending_control:
+            return False
+        if deadline is not None and time.monotonic() >= deadline:
+            return False
+        pc = self.get_pc()
+        if last_executed is not None:
+            if last_executed != pc - 1:
+                return False
+        elif counted or debugger is not None or (self.exit_event and self.exit_event.is_set()):
+            return False
+        try:
+            return self.mem_read(pc - 1, 1) == b"\xf4"
+        except uc.UcError:
+            return False
+
+    def _hook_invalid_instruction(self, emu):
+        if not self.config.exceptions.dispatch_handlers:
+            return False
+        pc = self.get_pc()
+        exception = cpu_exceptions.from_invalid_instruction(pc, self.mem_read(pc, 1))
+        self._raise_cpu_exception(exception, "Invalid instruction (UC_ERR_INSN_INVALID)")
+        return False
+
+    def _hook_in_instruction(self, uc_engine, port, size, user_data):
+        rax = self.reg_read(_arch.AMD64_REG_RAX)
+        self._raise_cpu_exception(
+            cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction", rax=rax
+        )
+        return rax & 0xFFFFFFFF
+
+    def _hook_out_instruction(self, uc_engine, port, size, value, user_data):
+        self._raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction")
+
     def _api_call_snapshot(self, entry):
         sp = self.get_stack_ptr()
         try:
@@ -2618,8 +2771,12 @@ class WindowsEmulator(BinaryEmulator):
                         # Let the outer GDB fault path expose the failed frame
                         # before run cleanup and report signal termination.
                         raise
-                    logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     desc, address, access_type = get_handler_fault(e, self.get_pc())
+                    if access_type and self._can_raise_api_fault():
+                        self.log_api(call_pc, imp_api, None, ctx.args.get_report_args(), run=origin_run)
+                        if self._raise_api_fault(frame, access_type, address):
+                            return
+                    logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
                     error = self.get_error_info(
                         desc, address, traceback=traceback.format_exc(), access_type=access_type
                     )
@@ -2629,6 +2786,9 @@ class WindowsEmulator(BinaryEmulator):
 
             if isinstance(rv, Generator):
                 rv = guest_callbacks.start_api_handler(self, frame, rv)
+            elif isinstance(rv, guest_callbacks.Resume):
+                guest_callbacks.transfer(self, rv.context)
+                rv = None
 
             ret = self.get_ret_address()
             pc = self.get_pc()
@@ -2803,7 +2963,11 @@ class WindowsEmulator(BinaryEmulator):
                 return self._handle_invalid_read(emu, address, size, value)
 
             elif access == common.INVAL_PERM_MEM_EXEC:
+                if address & ~(self.page_size - 1) in self.guard_pages:
+                    return self._raise_protection_fault(address, "fetch")
                 return self._handle_prot_fetch(emu, address, size, value)
+            elif access == common.INVAL_PERM_MEM_READ and not self.kernel_mode:
+                return self._raise_protection_fault(address, "read")
             elif access == common.INVALID_MEM_WRITE:
                 fakeout = address & 0xFFFFFFFFFFFFF000
                 self.mem_map(self.page_size, base=fakeout)
@@ -2820,10 +2984,13 @@ class WindowsEmulator(BinaryEmulator):
             return False
 
     def _handle_prot_write(self, emu, address, size, value):
-        if size <= 8 and self._unprotect_resource_write(address):
+        guarded = address & ~(self.page_size - 1) in self.guard_pages
+        if not guarded and size <= 8 and self._unprotect_resource_write(address):
             # Unicorn drops a store that a protection hook handles, so do the store here.
             self.mem_write(address, (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little"))
             return True
+        if not self.kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
+            return self._raise_protection_fault(address, "write")
 
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
@@ -3419,6 +3586,10 @@ class WindowsEmulator(BinaryEmulator):
                 ctx.SegFs = self.reg_read(_arch.X86_REG_FS)
                 ctx.SegGs = self.reg_read(_arch.X86_REG_GS)
                 ctx.SegEs = self.reg_read(_arch.X86_REG_ES)
+                ctx.ContextFlags = thread_context.CONTEXT_ALL
+                thread = self.get_current_thread()
+                if thread is not None:
+                    thread_context.get_debug_registers(thread, ctx)
         return ctx
 
     def load_thread_context(self, ctx, thread=None):
@@ -3469,6 +3640,9 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_FS, ctx.SegFs)
             self.reg_write(_arch.X86_REG_GS, ctx.SegGs)
             self.reg_write(_arch.X86_REG_ES, ctx.SegEs)
+            thread = self.get_current_thread()
+            if thread is not None and thread_context.has(ctx.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
+                thread_context.set_debug_registers(thread, ctx)
 
     def _get_exception_list(self):
         """
@@ -3659,7 +3833,16 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, flags=0, params=(), check_repeat=True):
+    def dispatch_seh(
+        self,
+        except_code,
+        faulting_address=None,
+        access_type=None,
+        flags=0,
+        params=(),
+        check_repeat=True,
+        exception=None,
+    ):
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if check_repeat:
@@ -3675,7 +3858,14 @@ class WindowsEmulator(BinaryEmulator):
         if self.get_arch() == _arch.ARCH_X86:
             rv = self._dispatch_seh_x86(except_code, flags, params)
         elif self.get_arch() == _arch.ARCH_AMD64:
-            rv = seh64.dispatch_fault(self, except_code, faulting_address, access_type)
+            if exception is None:
+                pc = self.get_pc()
+                exception = (
+                    cpu_exceptions.memory_fault(pc, faulting_address, access_type)
+                    if faulting_address is not None
+                    else cpu_exceptions.CpuException(except_code, pc, pc)
+                )
+            rv = seh64.dispatch_fault(self, exception)
         if not rv and self.unhandled_exception_filter:
             # The run ends when the filter returns, so the fault is the error of the run.
             if self.curr_run is not None and self.curr_run.error is None:
@@ -3692,9 +3882,13 @@ class WindowsEmulator(BinaryEmulator):
             for i, param in enumerate(params):
                 record.ExceptionInformation[i] = param
 
+            record_bytes = record.get_bytes()
+            if exception is not None and self.get_arch() == _arch.ARCH_AMD64:
+                record_bytes = seh64.exception_record(exception.code, 0, exception.address, exception.params)
+
             exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
             p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
-            prec = self.mem_map(record.sizeof(), tag="emu.struct.EXCEPTION_RECORD")
+            prec = self.mem_map(len(record_bytes), tag="emu.struct.EXCEPTION_RECORD")
             ctx = self.get_thread_context()
             pctx = self.mem_map(ctx.sizeof(), tag="emu.struct.EXCEPTION_CONTEXT")
 
@@ -3702,7 +3896,7 @@ class WindowsEmulator(BinaryEmulator):
             exp_ptrs.ContextRecord = pctx
 
             self.mem_write(p_exp_ptrs, exp_ptrs.get_bytes())
-            self.mem_write(prec, record.get_bytes())
+            self.mem_write(prec, record_bytes)
             self.mem_write(pctx, ctx.get_bytes())
 
             sp = self.get_stack_ptr()
@@ -3720,14 +3914,23 @@ class WindowsEmulator(BinaryEmulator):
     def continue_seh(self):
         if self.get_arch() == _arch.ARCH_X86:
             resumed = self._continue_seh_x86()
-            if resumed and not self.run_complete and self._seh_last_fault is not None:
-                if self.get_pc() == self._seh_last_fault[0]:
-                    self._seh_resume_pc = self.get_pc()
-                    self.enable_code_hook()
-                else:
-                    self._seh_last_fault = None
-                    self._seh_repeat_count = 0
-                    self._seh_resume_pc = None
+            if resumed and not self.run_complete:
+                self.note_seh_resume(self.get_pc())
+
+    def note_seh_resume(self, pc):
+        """
+        A handler continues execution at pc. Resuming elsewhere than the fault is progress;
+        at the fault, the guard against repeating it holds until execution moves on.
+        """
+        if self._seh_last_fault is None:
+            return
+        if pc == self._seh_last_fault[0]:
+            self._seh_resume_pc = pc
+            self.enable_code_hook()
+        else:
+            self._seh_last_fault = None
+            self._seh_repeat_count = 0
+            self._seh_resume_pc = None
 
     def create_event(self, name=""):
         """
@@ -3758,19 +3961,32 @@ class WindowsEmulator(BinaryEmulator):
         hnd = self.om.get_handle(mtx)  # type: ignore[union-attr]
         return hnd, mtx
 
-    def _hook_invalid_instruction(self, emu):
-        if self.config.exceptions.dispatch_handlers:
-            self.prev_pc = self.get_pc()
-            return self.dispatch_seh(ddk.STATUS_ILLEGAL_INSTRUCTION)
-        return False
-
     def _hook_interrupt(self, emu, intnum):
         """
         Called when software interrupts occur
         """
-        # x64 handlers are found by unwinding, so any exception may have one
-        has_handlers = self.get_arch() == _arch.ARCH_AMD64 or self._get_exception_list()
-        if has_handlers and self.config.exceptions.dispatch_handlers:
+        if (
+            not self.kernel_mode
+            and self.get_arch() == _arch.ARCH_AMD64
+            and self.config.exceptions.dispatch_handlers
+            and intnum != 0x29
+        ):
+            pc = self.get_pc()
+            try:
+                code_bytes = self.mem_read(pc - 2, 2)
+            except uc.UcError:
+                code_bytes = b""
+            trap_flag = bool(self.reg_read(_arch.X86_REG_EFLAGS) & seh64.TRAP_FLAG)
+            exception = cpu_exceptions.from_interrupt(
+                intnum, pc, code_bytes, self.reg_read(_arch.AMD64_REG_RAX), trap_flag
+            )
+            if exception is None:
+                self.set_pc(cpu_exceptions.skip_debug_service(pc))
+            else:
+                self._raise_cpu_exception(exception, "unhandled_interrupt", interrupt_num=intnum)
+            return True
+
+        if self._get_exception_list() and self.config.exceptions.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2D:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT

@@ -4,8 +4,11 @@ import binascii
 import struct
 
 import speakeasy.windows.common as winemu
+import speakeasy.windows.seh64 as seh64
+import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 
@@ -58,6 +61,68 @@ class Ntdll(api.ApiHandler):
         emu.add_vectored_exception_handler(First, Handler)
 
         return Handler
+
+    @apihook("RtlRaiseException", argc=1)
+    def RtlRaiseException(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """VOID RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);"""
+        if emu.get_arch() == e_arch.ARCH_AMD64 and emu.config.exceptions.dispatch_handlers:
+            return seh64.rtl_raise_exception(emu, argv[0])
+
+    @apihook("RtlCaptureContext", argc=1)
+    def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """VOID RtlCaptureContext(PCONTEXT ContextRecord);"""
+        if emu.get_arch() == e_arch.ARCH_AMD64 and argv[0]:
+            seh64.capture_context(emu, argv[0])
+
+    @apihook("RtlRestoreContext", argc=2)
+    def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """VOID RtlRestoreContext(PCONTEXT ContextRecord, PEXCEPTION_RECORD ExceptionRecord);"""
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            return seh64.restore_context(emu, argv[0])
+
+    @apihook("NtContinue", argc=2)
+    def NtContinue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """NTSTATUS NtContinue(PCONTEXT ContextRecord, BOOLEAN TestAlert);"""
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            return seh64.restore_context(emu, argv[0])
+        return ddk.STATUS_NOT_SUPPORTED
+
+    @apihook("RtlLookupFunctionEntry", argc=3)
+    def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """PRUNTIME_FUNCTION RtlLookupFunctionEntry(DWORD64 ControlPc, PDWORD64 ImageBase, PVOID HistoryTable);"""
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return 0
+        return seh64.lookup_function_entry(emu, argv[0], argv[1])
+
+    @apihook("RtlVirtualUnwind", argc=8)
+    def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PEXCEPTION_ROUTINE RtlVirtualUnwind(DWORD HandlerType, DWORD64 ImageBase, DWORD64 ControlPc,
+            PRUNTIME_FUNCTION FunctionEntry, PCONTEXT ContextRecord, PVOID *HandlerData,
+            PDWORD64 EstablisherFrame, PKNONVOLATILE_CONTEXT_POINTERS ContextPointers);
+        """
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return 0
+        return seh64.virtual_unwind(emu, *argv[:7])
+
+    @apihook("RtlUnwindEx", argc=6)
+    def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID RtlUnwindEx(PVOID TargetFrame, PVOID TargetIp, PEXCEPTION_RECORD ExceptionRecord,
+            PVOID ReturnValue, PCONTEXT ContextRecord, PUNWIND_HISTORY_TABLE HistoryTable);
+        """
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            return seh64.rtl_unwind_ex(emu, *argv[:4])
+
+    @apihook("__C_specific_handler", argc=4)
+    def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        EXCEPTION_DISPOSITION __C_specific_handler(PEXCEPTION_RECORD ExceptionRecord,
+            PVOID EstablisherFrame, PCONTEXT ContextRecord, PDISPATCHER_CONTEXT DispatcherContext);
+        """
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return windefs.ExceptionContinueSearch
+        return seh64.c_specific_handler(emu, *argv)
 
     @apihook("NtYieldExecution", argc=0)
     def NtYieldExecution(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -1,8 +1,8 @@
 // x64 SEH cases for speakeasy's exception dispatch. main returns a bitmask
-// with one bit per case that behaves as it does on Windows (0x3F: all).
+// with one bit per case that behaves as it does on Windows (0x7F: all).
 //
 // Built without a CRT or SDK, against import libraries for the few imports:
-//   printf 'LIBRARY KERNEL32.dll\nEXPORTS\nRaiseException\nAddVectoredExceptionHandler\n' > kernel32.def
+//   printf 'LIBRARY KERNEL32.dll\nEXPORTS\nRaiseException\nAddVectoredExceptionHandler\nRtlMoveMemory\n' > kernel32.def
 //   printf 'LIBRARY VCRUNTIME140.dll\nEXPORTS\n__C_specific_handler\n' > vcruntime140.def
 //   llvm-dlltool -m i386:x86-64 -d kernel32.def -l kernel32.lib
 //   llvm-dlltool -m i386:x86-64 -d vcruntime140.def -l vcruntime140.lib
@@ -13,6 +13,11 @@ typedef unsigned long long ULONG_PTR;
 
 typedef struct {
     DWORD ExceptionCode;
+    DWORD ExceptionFlags;
+    void *ExceptionRecord;
+    void *ExceptionAddress;
+    DWORD NumberParameters;
+    ULONG_PTR ExceptionInformation[15];
 } EXCEPTION_RECORD;
 
 typedef struct {
@@ -22,7 +27,9 @@ typedef struct {
 
 __declspec(dllimport) void __stdcall RaiseException(DWORD, DWORD, DWORD, const ULONG_PTR *);
 __declspec(dllimport) void *__stdcall AddVectoredExceptionHandler(DWORD, long(__stdcall *)(EXCEPTION_POINTERS *));
+__declspec(dllimport) void __stdcall RtlMoveMemory(void *, const void *, ULONG_PTR);
 unsigned long __cdecl _exception_code(void);
+void *__cdecl _exception_info(void);
 
 #define EXCEPTION_EXECUTE_HANDLER 1
 #define EXCEPTION_CONTINUE_SEARCH 0
@@ -115,7 +122,24 @@ __declspec(noinline) static int caught_by_caller(void) {
     return 0;
 }
 
+__declspec(noinline) static int is_bad_read(EXCEPTION_POINTERS *info, ULONG_PTR address) {
+    EXCEPTION_RECORD *record = info->ExceptionRecord;
+    return record->ExceptionCode == 0xC0000005 && record->ExceptionInformation[0] == 0 &&
+           record->ExceptionInformation[1] == address;
+}
+
+// an API that reads a bad pointer faults in its caller
+__declspec(noinline) static int fault_in_api(void) {
+    char buffer[4];
+    __try {
+        RtlMoveMemory(buffer, (void *)0x10, sizeof(buffer));
+    } __except (is_bad_read(_exception_info(), 0x10)) {
+        return 1;
+    }
+    return 0;
+}
+
 int main(void) {
     return raise_caught() | filter_then_finally() << 1 | access_violation(0) << 2 | continue_execution() << 3 |
-           vectored_int3() << 4 | caught_by_caller() << 5;
+           vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6;
 }

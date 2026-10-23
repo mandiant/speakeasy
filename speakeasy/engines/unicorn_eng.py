@@ -24,6 +24,7 @@ from speakeasy.errors import EmuEngineError
 
 uc_engine = ct.c_void_p
 UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
+UC_HOOK_INSN_OUT_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_uint32, ct.c_int, ct.c_uint32, ct.c_void_p)
 UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
 hook_id = uc_hook_h()
 
@@ -226,6 +227,8 @@ class EmuEngine:
         if hook_type == uc.UC_HOOK_INSN:
             if arg1 == u.UC_X86_INS_IN:  # IN instruction
                 cb = ct.cast(UC_HOOK_INSN_IN_CB(cb), UC_HOOK_INSN_IN_CB)
+            elif arg1 == u.UC_X86_INS_OUT:  # OUT instruction
+                cb = ct.cast(UC_HOOK_INSN_OUT_CB(cb), UC_HOOK_INSN_OUT_CB)
             elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):  # SYSCALL/SYSENTER
                 cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
         elif hook_type == uc.UC_HOOK_CODE:

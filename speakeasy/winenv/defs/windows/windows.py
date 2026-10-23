@@ -50,6 +50,7 @@ PAGE_NOACCESS = 0x01
 PAGE_READONLY = 0x02
 PAGE_READWRITE = 0x04
 PAGE_WRITECOPY = 0x08
+PAGE_GUARD = 0x100
 
 # File creation dispositions
 CREATE_ALWAYS = 2
@@ -290,8 +291,16 @@ class CONTEXT64(EmuStruct):
         self.Xmm13 = M128A
         self.Xmm14 = M128A
         self.Xmm15 = M128A
+        # The rest of the 512-byte FltSave area that Header, Legacy and Xmm0-15 overlay
+        self.FltSaveReserved = ct.c_uint8 * 96
 
         self.VectorRegister = M128A * 26
+        self.VectorControl = ct.c_uint64
+        self.DebugControl = ct.c_uint64
+        self.LastBranchToRip = ct.c_uint64
+        self.LastBranchFromRip = ct.c_uint64
+        self.LastExceptionToRip = ct.c_uint64
+        self.LastExceptionFromRip = ct.c_uint64
         self.VectorControl = ct.c_uint64
         self.DebugControl = ct.c_uint64
         self.LastBranchToRip = ct.c_uint64
