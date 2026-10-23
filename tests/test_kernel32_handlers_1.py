@@ -104,6 +104,20 @@ def test_unmap_view_of_section_frees_the_main_image(dll_emu: Speakeasy) -> None:
     assert rv == base
 
 
+def test_virtual_alloc_at_an_address_in_use_fails(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    base = dll_emu.emu.get_current_process().base
+    rv, _ = call(dll_emu, "kernel32", "VirtualAlloc", [base, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+
+
+def test_virtual_alloc_at_a_free_address_uses_that_address(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "kernel32", "VirtualAlloc", [0x30000000, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+    assert rv == 0x30000000
+
+
 def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
     name = alloc(file_emu, b"c:\\data.bin\x00")
     hfile, _ = call(file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
