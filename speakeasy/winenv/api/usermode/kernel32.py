@@ -974,6 +974,13 @@ class Kernel32(api.ApiHandler):
         self.record_process_event(proc, PROC_CREATE)
         return rv
 
+    def commit_pages(self, emu, mm, address, size, protect):
+        """Apply the protection of a commit to the pages of an existing allocation, and return the first page."""
+        base = address & ~0xFFF
+        end = min((address + size + 0xFFF) & ~0xFFF, mm.base + mm.size)
+        emu.mem_protect(base, end - base, self.win_perms_to_emu_perms(protect))
+        return base
+
     @apihook("VirtualAlloc", argc=4)
     def VirtualAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """LPVOID WINAPI VirtualAlloc(
@@ -998,6 +1005,8 @@ class Kernel32(api.ApiHandler):
         mm = emu.get_address_map(lpAddress)
         if mm and mm.tag and mm.tag.startswith(tag_prefix):
             buf = lpAddress
+            if flAllocationType & windefs.MEM_COMMIT:
+                buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
         else:
             if dwSize:
                 if lpAddress:
@@ -1075,6 +1084,8 @@ class Kernel32(api.ApiHandler):
         mm = emu.get_address_map(lpAddress)
         if mm and mm.tag and mm.tag.startswith(tag_prefix):
             buf = lpAddress
+            if flAllocationType & windefs.MEM_COMMIT:
+                buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
         else:
             if dwSize:
                 if lpAddress:

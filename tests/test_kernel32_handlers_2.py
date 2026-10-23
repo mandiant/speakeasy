@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.winenv import arch as e_arch
@@ -554,3 +555,21 @@ def test_init_once_execute_once_runs_the_init_function_once(base_config: dict[st
         assert struct.unpack("<II", se.mem_read(out, 8)) == (1, 1)
     finally:
         se.shutdown()
+
+
+def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+
+    def permissions(address: int) -> int:
+        return next(p for start, end, p in emu.emu.get_mem_regions() if start <= address <= end)
+
+    base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x100000, windefs.MEM_RESERVE, windefs.PAGE_NOACCESS])
+    assert base
+    assert permissions(base) == unicorn.UC_PROT_NONE
+    committed, _ = call(
+        emu, "kernel32", "VirtualAlloc", [base + 0x10, 0x4000, windefs.MEM_COMMIT, windefs.PAGE_READWRITE]
+    )
+    assert committed == base
+    rw = unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
+    assert [permissions(base + offset) for offset in (0, 0x3FFC, 0x4010)] == [rw, rw, rw]
+    assert permissions(base + 0x5000) == unicorn.UC_PROT_NONE
