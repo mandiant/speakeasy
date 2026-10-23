@@ -377,6 +377,13 @@ def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_
     assert se.mem_read(decimal_point, 2) == b".\x00"
 
 
+def test_setlocale_reports_the_c_locale(dll_emu: Speakeasy) -> None:
+    rv, displays = call(dll_emu, "msvcrt", "setlocale", [0, alloc(dll_emu, b"\x00")])
+    assert dll_emu.mem_read(rv, 2) == b"C\x00"
+    assert displays[1] == ""
+    assert call(dll_emu, "msvcrt", "setlocale", [0, 0])[0] == rv
+
+
 def test_fgets_reads_one_line_at_a_time(dll_emu: Speakeasy) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\lines.txt\x00")
     stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"w+\x00")])
