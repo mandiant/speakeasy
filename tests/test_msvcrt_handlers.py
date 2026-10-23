@@ -1,7 +1,18 @@
+import struct
+
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.winenv.api.usermode.msvcrt import ERANGE, SIG_DFL, SIG_ERR, SIG_IGN, SIGINT, SIGSEGV, STRUNCATE
+from speakeasy.winenv.api.usermode.msvcrt import (
+    ERANGE,
+    SIG_DFL,
+    SIG_ERR,
+    SIG_IGN,
+    SIGINT,
+    SIGSEGV,
+    STRUNCATE,
+    scan_c_format,
+)
 from tests.handler_harness import alloc, call
 
 
@@ -452,3 +463,44 @@ def test_strtol_writes_a_pointer_sized_endptr_on_x64(dll64_emu: Speakeasy) -> No
     end = alloc(dll64_emu, b"\xcc" * 9)
     call(dll64_emu, "msvcrt", "strtol", [src, end, 10])
     assert dll64_emu.mem_read(end, 9) == (src + 2).to_bytes(8, "little") + b"\xcc"
+
+
+def i32(v: int) -> bytes:
+    return (v & 0xFFFFFFFF).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize(
+    "text, fmt, values, rv",
+    [
+        (b"12 abc 0x1f", b"%d %s %x", [i32(12), b"abc\x00", i32(0x1F)], 3),
+        (b"http://example.com/a", b"%15[^\n/:]:%3[/]%[^\n]", [b"http\x00", b"//\x00", b"example.com/a\x00"], 3),
+        (b"12345", b"%2d%3d", [i32(12), i32(345)], 2),
+        (b" x", b"%c", [b" "], 1),
+        (b"abc123", b"%[a-z]%d", [b"abc\x00", i32(123)], 2),
+        (b"010 0x10 -3", b"%i %i %u", [i32(8), i32(16), i32(-3)], 3),
+        (b"-1 7", b"%hhd %lld", [b"\xff", (7).to_bytes(8, "little")], 2),
+        (b"1.5 2.25", b"%f %lf", [struct.pack("<f", 1.5), struct.pack("<d", 2.25)], 2),
+        (b"key=val", b"%*[^=]=%n%s", [i32(4), b"val\x00"], 1),
+        (b"50%", b"%d%%", [i32(50)], 1),
+        (b"abc", b"%d", [], 0),
+        (b"7 abc", b"%d %d", [i32(7)], 1),
+        (b"", b"%d", [], -1),
+        (b"   ", b" %s", [], -1),
+    ],
+)
+def test_scan_c_format_matches_the_crt(text: bytes, fmt: bytes, values: list[bytes], rv: int) -> None:
+    assert scan_c_format(text, fmt, 4) == (values, rv)
+
+
+def test_scan_c_format_stores_pointers_at_pointer_size() -> None:
+    assert scan_c_format(b"1234abcd", b"%p", 8) == ([(0x1234ABCD).to_bytes(8, "little")], 1)
+
+
+def test_sscanf_writes_through_the_variadic_pointers(dll_emu: Speakeasy) -> None:
+    method, path, major, minor = (alloc(dll_emu, b"\xcc" * 16) for _ in range(4))
+    text = alloc(dll_emu, b"GET /index.html HTTP/1.1\x00")
+    fmt = alloc(dll_emu, b"%7s %15s HTTP/%d.%d\x00")
+    assert call(dll_emu, "msvcrt", "sscanf", [text, fmt, method, path, major, minor])[0] == 4
+    assert dll_emu.mem_read(method, 4) == b"GET\x00"
+    assert dll_emu.mem_read(path, 12) == b"/index.html\x00"
+    assert dll_emu.mem_read(major, 5) + dll_emu.mem_read(minor, 5) == i32(1) + b"\xcc" + i32(1) + b"\xcc"
