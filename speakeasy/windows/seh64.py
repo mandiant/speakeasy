@@ -1,11 +1,12 @@
 """
-x64 exception dispatch, after ntdll's RtlDispatchException and RtlUnwindEx.
+x64 exception dispatch, after ntdll's RtlDispatchException and RtlUnwindEx: handlers
+come from the unwind data of the frames on the stack.
 
-Everything x64 exception-specific lives here. The entry points are
-dispatch_fault, for CPU exceptions, and the API handlers raise_exception,
-rtl_unwind_ex and c_specific_handler. These are generator handlers (see guest_callbacks.py):
-they yield a GuestCall for each vectored handler, language handler, filter and
-__finally block they run, and are sent back its return value.
+The entry points are dispatch_fault, for CPU exceptions, and the API handlers
+raise_exception, rtl_unwind_ex and c_specific_handler. These are generator
+handlers (see guest_callbacks.py): they yield a GuestCall for each vectored
+handler, language handler, filter and __finally block they run, and are sent
+back its return value. What x86 shares is in seh.py.
 
 Data that guest handlers see (EXCEPTION_RECORD, CONTEXT, DISPATCHER_CONTEXT)
 lives on the guest stack below the handler's frame, as it does on Windows.
@@ -13,7 +14,6 @@ lives on the guest stack below the handler's frame, as it does on Windows.
 See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64
 """
 
-import ctypes as ct
 import struct
 from collections import namedtuple
 from collections.abc import Iterator
@@ -22,31 +22,27 @@ import unicorn as uc
 
 import speakeasy.windows.common as winemu
 import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.thread_context as thread_context
-import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.windows.seh as seh
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.profiler import GuestCallbackFrame
 from speakeasy.windows import unwind
-from speakeasy.windows.cpu_exceptions import STATUS_GUARD_PAGE_VIOLATION, CpuException
-from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
+from speakeasy.windows.cpu_exceptions import CpuException
+from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
+from speakeasy.windows.seh import (
+    EXCEPTION_EXECUTE_HANDLER,
+    EXCEPTION_EXIT_UNWIND,
+    EXCEPTION_RECORD64,
+    EXCEPTION_TARGET_UNWIND,
+    EXCEPTION_UNWINDING,
+    STATUS_UNWIND,
+    UNWINDING,
+    UnhandledException,
+    as_long,
+    read_context,
+    resume_at,
+)
 
-EXCEPTION_NONCONTINUABLE = 0x01
-EXCEPTION_UNWINDING = 0x02
-EXCEPTION_EXIT_UNWIND = 0x04
-EXCEPTION_TARGET_UNWIND = 0x20
-
-# Verdicts of exception filters and vectored handlers, as LONGs
-EXCEPTION_CONTINUE_EXECUTION = -1
-EXCEPTION_CONTINUE_SEARCH = 0
-EXCEPTION_EXECUTE_HANDLER = 1
-
-STATUS_UNWIND = 0xC0000027
-STATUS_NONCONTINUABLE_EXCEPTION = 0xC0000025
 STATUS_INVALID_UNWIND_TARGET = 0xC0000029
 
-# EXCEPTION_RECORD64: code, flags, nested record, address, parameter count, 15 parameters
-EXCEPTION_RECORD = struct.Struct("<IIQQI4x15Q")
 DISPATCHER_CONTEXT = struct.Struct("<9QII")
 DispatcherContext = namedtuple(
     "DispatcherContext",
@@ -55,44 +51,9 @@ DispatcherContext = namedtuple(
 )
 SCOPE_INDEX_OFFSET = 9 * 8
 
-MAX_FRAMES = 256
-
-TRAP_FLAG = 0x100
-
-MEMORY_FAULTS = (ddk.STATUS_ACCESS_VIOLATION, STATUS_GUARD_PAGE_VIOLATION)
-
-
-class UnhandledException(guest_callbacks.CallbackError):
-    kind = "unhandled_exception"
-
-    def __init__(self, code: int, address: int):
-        super().__init__(f"unhandled exception 0x{code:x} at 0x{address:x}", address)
-        self.code = code
-
-
-def as_long(value: int) -> int:
-    """A guest return value as a 32-bit LONG, e.g. an exception filter's verdict."""
-    return ct.c_int32(value).value
-
 
 def copy_context(ctx):
     return windefs.CONTEXT64(8).cast(ctx.get_bytes())
-
-
-def read_context(emu, address: int):
-    return emu.mem_cast(windefs.CONTEXT64(8), address)
-
-
-def register_state(ctx) -> dict[str, str]:
-    """The general purpose registers of ctx, formatted like the emulator's register state."""
-    names = ("Rsp", "Rbp", "Rip", "Rsi", "Rdi", "Rax", "Rbx", "Rcx", "Rdx") + tuple(f"R{i}" for i in range(8, 16))
-    return {name.lower(): f"{getattr(ctx, name):#018x}" for name in names}
-
-
-def resume_at(emu, ctx) -> Resume:
-    """Continue the guest at ctx once the exception is handled."""
-    emu.note_seh_resume(ctx.Rip)
-    return Resume(ctx)
 
 
 def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
@@ -119,7 +80,7 @@ def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.Ru
     the guest state they interrupted, so a walk from a handler continues into the
     frames that raised the exception, as it does through KiUserExceptionDispatcher.
     """
-    for _ in range(MAX_FRAMES):
+    for _ in range(seh.MAX_FRAMES):
         pc = ctx.Rip
         if pc == winemu.GUEST_CALLBACK_RETURN_ADDR:
             guest_callbacks.unwind_frame(emu, ctx)
@@ -155,43 +116,18 @@ def _dispatcher_context(fn, frame_ctx, info, context: int, target_ip: int = 0) -
     return DISPATCHER_CONTEXT.pack(*dc)
 
 
-def exception_record(code: int, flags: int, address: int, params=()) -> bytes:
-    params = list(params)[:15]
-    return EXCEPTION_RECORD.pack(code, flags, 0, address, len(params), *params, *[0] * (15 - len(params)))
-
-
 def dispatch_fault(emu, exception: CpuException) -> bool:
-    """
-    Dispatch a CPU exception like KiUserExceptionDispatcher: on the stack of the
-    faulting thread. Return False when no handler takes it.
-    """
-    ctx = emu.get_thread_context()
-    ctx.Rip = exception.pc
-    if exception.code == ddk.STATUS_SINGLE_STEP:
-        ctx.EFlags &= ~TRAP_FLAG
-    # Handlers run with the trap flag clear
-    emu.reg_write(_arch.X86_REG_EFLAGS, emu.reg_read(_arch.X86_REG_EFLAGS) & ~TRAP_FLAG)
-
-    def dispatch() -> GeneratorHandler:
-        context = guest_callbacks.alloca(emu, ctx.get_bytes())
-        guest_callbacks.current(emu).context = context  # an unwind through this frame continues at the fault
-        record = guest_callbacks.alloca(emu, exception_record(exception.code, 0, exception.address, exception.params))
-        return (yield from dispatch_exception(emu, record, context))
-
-    frame = GuestCallbackFrame(stack_pointer=ctx.Rsp, return_address=0)
-    try:
-        guest_callbacks.start(emu, frame, dispatch())
-    except UnhandledException:
-        emu.get_current_run().guest_callbacks.remove(frame)
-        return False
-    return True
+    return seh.dispatch_fault(emu, exception, dispatch_exception)
 
 
 def raise_exception(emu, code: int, flags: int = 0, params=()) -> GeneratorHandler:
-    """RaiseException: dispatch an exception raised by the caller of the API."""
-    ctx = guest_callbacks.caller_context(emu)
-    record = guest_callbacks.alloca(emu, exception_record(code, flags, ctx.Rip, params))
-    return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
+    """RaiseException"""
+    return seh.raise_exception(emu, code, flags, params, dispatch_exception)
+
+
+def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
+    """RtlRaiseException"""
+    return seh.rtl_raise_exception(emu, record, dispatch_exception)
 
 
 def rtl_unwind_ex(emu, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
@@ -203,28 +139,9 @@ def rtl_unwind_ex(emu, target_frame: int, target_ip: int, record: int, return_va
 
 def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
     """RtlDispatchException: offer the exception to vectored, then frame-based handlers."""
-    code, flags, _, address, _, *information = EXCEPTION_RECORD.unpack(emu.mem_read(record, EXCEPTION_RECORD.size))
-    pointers = guest_callbacks.alloca(emu, struct.pack("<QQ", record, context))
-    recorded = False
-
-    def offer(handler: int) -> None:
-        """Report the exception once, when the first handler receives it."""
-        nonlocal recorded
-        if not recorded:
-            # the parameters of these are the access type and the address
-            faulting_address = information[1] if code in MEMORY_FAULTS else None
-            emu.record_exception(code, address, handler, register_state(read_context(emu, context)), faulting_address)
-            recorded = True
-
-    def resume():
-        if flags & EXCEPTION_NONCONTINUABLE:
-            raise UnhandledException(STATUS_NONCONTINUABLE_EXCEPTION, address)
-        return resume_at(emu, read_context(emu, context))
-
-    for handler in list(emu.veh_handlers):
-        offer(handler)
-        if as_long((yield GuestCall(handler, (pointers,)))) == EXCEPTION_CONTINUE_EXECUTION:
-            return resume()
+    exception = seh.Dispatch(emu, record, context)
+    if (yield from exception.vectored()):
+        return exception.resume()
 
     ctx = read_context(emu, context)
     unwound = guest_callbacks.alloca(emu, ctx.get_bytes())
@@ -234,14 +151,12 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
             continue
         emu.mem_write(unwound, ctx.get_bytes())
         emu.mem_write(dispatcher_context, _dispatcher_context(fn, frame_ctx, info, unwound))
-        offer(info.handler)
+        exception.offer(info.handler)
         disposition = yield GuestCall(info.handler, (record, info.establisher_frame, context, dispatcher_context))
         if disposition == windefs.ExceptionContinueExecution:
-            return resume()
+            return exception.resume()
         # ExceptionContinueSearch; nested and collided unwinds are not distinguished
-
-    # The caller runs the top-level filter (SetUnhandledExceptionFilter), if any.
-    raise UnhandledException(code, address)
+    return (yield from exception.unhandled())
 
 
 def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
@@ -250,11 +165,11 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
     target frame at target_ip with return_value in rax.
     """
     if record:
-        fields = list(EXCEPTION_RECORD.unpack(emu.mem_read(record, EXCEPTION_RECORD.size)))
+        fields = seh.read_record(emu, record)
     else:
         fields = [STATUS_UNWIND, 0, 0, ctx.Rip, 0] + [0] * 15
     fields[1] |= EXCEPTION_UNWINDING if target_frame else EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND
-    record = guest_callbacks.alloca(emu, EXCEPTION_RECORD.pack(*fields))
+    record = guest_callbacks.alloca(emu, EXCEPTION_RECORD64.pack(*fields))
     unwound = guest_callbacks.alloca(emu, ctx.get_bytes())
     dispatcher_context = guest_callbacks.alloca(emu, bytes(DISPATCHER_CONTEXT.size))
 
@@ -263,7 +178,7 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
         if info.handler:
             if is_target:
                 fields[1] |= EXCEPTION_TARGET_UNWIND
-                emu.mem_write(record, EXCEPTION_RECORD.pack(*fields))
+                emu.mem_write(record, EXCEPTION_RECORD64.pack(*fields))
             emu.mem_write(unwound, frame_ctx.get_bytes())
             emu.mem_write(dispatcher_context, _dispatcher_context(fn, frame_ctx, info, unwound, target_ip))
             yield GuestCall(info.handler, (record, info.establisher_frame, unwound, dispatcher_context))
@@ -286,7 +201,7 @@ def c_specific_handler(
     scopes = list(struct.iter_unpack("<IIII", emu.mem_read(dc.HandlerData + 4, 16 * count)))
     pc = dc.ControlPc - image_base
 
-    if not flags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND):
+    if not flags & UNWINDING:
         pointers = guest_callbacks.alloca(emu, struct.pack("<QQ", record, context))
         for begin, end, filter_rva, target in scopes[dc.ScopeIndex :]:
             if not (begin <= pc < end and target):
@@ -316,25 +231,6 @@ def c_specific_handler(
 
 
 # API implementations that kernel32 and ntdll share
-
-
-def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
-    """RtlRaiseException: dispatch the caller's record, raised at the caller."""
-    ctx = guest_callbacks.caller_context(emu)
-    emu.write_ptr(record + 16, ctx.Rip)  # ExceptionAddress
-    return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
-
-
-def capture_context(emu, address: int) -> None:
-    """RtlCaptureContext: the context of the caller."""
-    context = guest_callbacks.caller_context(emu)
-    context.ContextFlags = thread_context.CONTEXT_FULL | thread_context.CONTEXT_SEGMENTS
-    emu.mem_write(address, context.get_bytes())
-
-
-def restore_context(emu, address: int) -> Resume:
-    """RtlRestoreContext and NtContinue: continue at a context."""
-    return Resume(read_context(emu, address))
 
 
 def lookup_function_entry(emu, pc: int, image_base_out: int) -> int:

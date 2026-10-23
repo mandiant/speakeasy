@@ -4,6 +4,8 @@ import binascii
 import struct
 
 import speakeasy.windows.common as winemu
+import speakeasy.windows.seh as seh
+import speakeasy.windows.seh32 as seh32
 import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -65,27 +67,25 @@ class Ntdll(api.ApiHandler):
     @apihook("RtlRaiseException", argc=1)
     def RtlRaiseException(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """VOID RtlRaiseException(PEXCEPTION_RECORD ExceptionRecord);"""
-        if emu.get_arch() == e_arch.ARCH_AMD64 and emu.config.exceptions.dispatch_handlers:
-            return seh64.rtl_raise_exception(emu, argv[0])
+        if emu.config.exceptions.dispatch_handlers:
+            return emu.exception_dispatcher().rtl_raise_exception(emu, argv[0])
 
     @apihook("RtlCaptureContext", argc=1)
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """VOID RtlCaptureContext(PCONTEXT ContextRecord);"""
-        if emu.get_arch() == e_arch.ARCH_AMD64 and argv[0]:
-            seh64.capture_context(emu, argv[0])
+        if argv[0]:
+            seh.capture_context(emu, argv[0])
 
     @apihook("RtlRestoreContext", argc=2)
     def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """VOID RtlRestoreContext(PCONTEXT ContextRecord, PEXCEPTION_RECORD ExceptionRecord);"""
         if emu.get_arch() == e_arch.ARCH_AMD64:
-            return seh64.restore_context(emu, argv[0])
+            return seh.restore_context(emu, argv[0])
 
     @apihook("NtContinue", argc=2)
     def NtContinue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """NTSTATUS NtContinue(PCONTEXT ContextRecord, BOOLEAN TestAlert);"""
-        if emu.get_arch() == e_arch.ARCH_AMD64:
-            return seh64.restore_context(emu, argv[0])
-        return ddk.STATUS_NOT_SUPPORTED
+        return seh.restore_context(emu, argv[0])
 
     @apihook("RtlAddFunctionTable", argc=3)
     def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -128,6 +128,12 @@ class Ntdll(api.ApiHandler):
         if emu.get_arch() != e_arch.ARCH_AMD64:
             return 0
         return seh64.virtual_unwind(emu, *argv[:7])
+
+    @apihook("RtlUnwind", argc=4)
+    def RtlUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """VOID RtlUnwind(PVOID TargetFrame, PVOID TargetIp, PEXCEPTION_RECORD ExceptionRecord, PVOID ReturnValue);"""
+        if emu.get_arch() == e_arch.ARCH_X86:
+            return seh32.rtl_unwind(emu, *argv)
 
     @apihook("RtlUnwindEx", argc=6)
     def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -2,6 +2,8 @@
 
 import copy
 
+import pytest
+
 DISPATCH_SCRIPT = [
     "Hello emulator\n",
     "First access violation\r\n",
@@ -52,8 +54,8 @@ def test_seh_without_dispatch(config, load_test_bin, run_test):
     assert error.instr == "mov dword ptr [0], 0x14"
 
 
-# Bits of the return value of seh_test_x64.exe, one per case
-X64_CASES = {
+# Bits of the return value of seh_cases.c, one per case
+SEH_CASES = {
     0x01: "RaiseException caught by __except(1)",
     0x02: "filter function, then __finally during the unwind",
     0x04: "access violation in a leaf function",
@@ -65,14 +67,15 @@ X64_CASES = {
 }
 
 
-def test_seh_dispatch_x64(config, load_test_bin, run_test):
+@pytest.mark.parametrize("arch", ["x64", "x86"])
+def test_seh_cases(config, load_test_bin, run_test, arch):
     cfg = copy.deepcopy(config)
     cfg["exceptions"]["dispatch_handlers"] = True
-    report = run_test(cfg, load_test_bin("seh_test_x64.exe.xz"))
+    report = run_test(cfg, load_test_bin(f"seh_cases_{arch}.exe.xz"))
 
     ep = report.entry_points[0]
     assert ep.error is None
-    failed = [case for bit, case in X64_CASES.items() if not ep.ret_val & bit]
+    failed = [case for bit, case in SEH_CASES.items() if not ep.ret_val & bit]
     assert not failed
 
     exceptions = [(e.exception_code, e.faulting_address) for e in ep.events or [] if e.event == "exception"]
@@ -92,7 +95,7 @@ def test_seh_dispatch_x64(config, load_test_bin, run_test):
 def test_seh_without_dispatch_x64(config, load_test_bin, run_test):
     cfg = copy.deepcopy(config)
     cfg["exceptions"]["dispatch_handlers"] = False
-    report = run_test(cfg, load_test_bin("seh_test_x64.exe.xz"))
+    report = run_test(cfg, load_test_bin("seh_cases_x64.exe.xz"))
 
     error = report.entry_points[0].error
     assert error.type == "invalid_write"

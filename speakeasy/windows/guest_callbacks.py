@@ -31,18 +31,22 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
 
+import speakeasy.windows.thread_context as thread_context
 from speakeasy.profiler import GuestCallbackFrame
+from speakeasy.winenv.arch import CALL_CONV_STDCALL
 
 
 @dataclass(frozen=True)
 class GuestCall:
     function: int
     args: tuple[int, ...] = ()
+    # (register, value) pairs to set for the call, such as the frame pointer of x86 SEH filters
+    registers: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
 class Resume:
-    """Continue the guest at a CONTEXT64, abandoning the stack below it."""
+    """Continue the guest at a CONTEXT, abandoning the stack below it."""
 
     context: Any
 
@@ -54,6 +58,8 @@ class CallbackError(Exception):
     """A generator handler failure that ends the run with an error of type ``kind``."""
 
     kind = "callback_error"
+    access_type: str | None = None
+    pc: int | None = None  # where the error happened, when that is not the current pc
 
     def __init__(self, message: str, address: int):
         super().__init__(message)
@@ -96,7 +102,9 @@ def resume(emu, frame: GuestCallbackFrame) -> None:
 def _fail(emu, e: CallbackError) -> None:
     run = emu.get_current_run()
     run.guest_callbacks.clear()
-    run.error = emu.get_error_info(e.kind, e.address)
+    if e.pc is not None:
+        emu.set_pc(e.pc)
+    run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type)
     emu.end_run_on_fault()
 
 
@@ -108,6 +116,8 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
         result = done.value
     else:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
+        for register, value in call.registers:
+            emu.reg_write(register, value)
         return
 
     run.guest_callbacks.remove(frame)
@@ -122,9 +132,9 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
 
 
 def transfer(emu, context) -> None:
-    """Continue the guest at a CONTEXT64, abandoning the guest callback frames on the stack below it."""
+    """Continue the guest at a CONTEXT, abandoning the guest callback frames on the stack below it."""
     callbacks = emu.get_current_run().guest_callbacks
-    while callbacks and callbacks[-1].stack_pointer < context.Rsp:
+    while callbacks and callbacks[-1].stack_pointer < thread_context.stack_pointer(context):
         callbacks.pop()
     emu.load_thread_context(context)
 
@@ -149,8 +159,10 @@ def caller_context(emu):
     handler before its first guest call, while the registers are still the caller's.
     """
     ctx = emu.get_thread_context()
-    ctx.Rip = emu.get_ret_address()
-    ctx.Rsp = emu.get_stack_ptr() + emu.get_ptr_size()
+    frame = emu._active_api_frame
+    # A stdcall API on x86 pops its arguments
+    args = frame.argc * 4 if emu.get_ptr_size() == 4 and frame and frame.convention == CALL_CONV_STDCALL else 0
+    thread_context.set_control(ctx, emu.get_ret_address(), emu.get_stack_ptr() + emu.get_ptr_size() + args)
     return ctx
 
 

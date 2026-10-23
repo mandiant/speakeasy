@@ -10,6 +10,8 @@ import time
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.seh as seh
+import speakeasy.windows.seh32 as seh32
 import speakeasy.windows.seh64 as seh64
 import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as e_arch
@@ -38,7 +40,6 @@ LOCALE_USER_DEFAULT = 0x400
 LOCALE_SYSTEM_DEFAULT = 0x0800
 
 SEC_IMAGE = 0x1000000
-EXCEPTION_NONCONTINUABLE = 0x1
 CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
 
 FILE_MAP_COPY = 0x0001
@@ -5311,19 +5312,12 @@ class Kernel32(api.ApiHandler):
         if not obj:
             return False
 
-        if emu.get_arch() == e_arch.ARCH_AMD64:
-            # Fill only the sections ContextFlags asks for; the current thread's are live
-            target = seh64.read_context(emu, lpContext)
-            source = emu.get_thread_context() if obj is emu.get_current_thread() else obj.get_context()
-            thread_context.get_debug_registers(obj, source)
-            thread_context.copy_sections(source, target, target.ContextFlags)
-            self.mem_write(lpContext, target.get_bytes())
-            return True
-
-        context = obj.get_context()
-
-        self.mem_write(lpContext, context.get_bytes())
-
+        # Fill only the sections ContextFlags asks for; the current thread's are live
+        target = seh.read_context(emu, lpContext)
+        source = emu.get_thread_context() if obj is emu.get_current_thread() else obj.get_context()
+        thread_context.get_debug_registers(obj, source)
+        thread_context.copy_sections(source, target, target.ContextFlags)
+        self.mem_write(lpContext, target.get_bytes())
         return True
 
     @apihook("SetThreadContext", argc=2)
@@ -5348,9 +5342,7 @@ class Kernel32(api.ApiHandler):
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
-            if emu.get_arch() == e_arch.ARCH_AMD64 and thread_context.has(
-                _context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS
-            ):
+            if thread_context.has(_context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
                 emu.set_debug_registers(obj, _context)
             if obj.process:
                 obj.process.is_modified = True
@@ -5654,16 +5646,8 @@ class Kernel32(api.ApiHandler):
             return
 
         count = min(nNumberOfArguments, 15) if lpArguments else 0
-        params = [emu.read_ptr(lpArguments + i * emu.get_ptr_size()) for i in range(count)]
-        if emu.get_arch() == e_arch.ARCH_AMD64:
-            return seh64.raise_exception(emu, dwExceptionCode, dwExceptionFlags, params)
-
-        emu.do_call_return(len(argv), emu.get_ret_address(), conv=e_arch.CALL_CONV_STDCALL)
-        emu.prev_pc = emu.get_pc()
-        handled = emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params, check_repeat=False)
-        if not handled and dwExceptionFlags & EXCEPTION_NONCONTINUABLE:
-            emu.curr_run.error = emu.get_error_info("unhandled_exception", emu.get_pc())
-            emu.on_run_complete()
+        params = [emu.read_ptr(lpArguments + emu.get_ptr_size() * i) for i in range(count)]
+        return emu.exception_dispatcher().raise_exception(emu, dwExceptionCode, dwExceptionFlags, params)
 
     @apihook("VerSetConditionMask", argc=4)
     def VerSetConditionMask(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6781,7 +6765,8 @@ class Kernel32(api.ApiHandler):
           PVOID ReturnValue
         );
         """
-        return
+        if emu.get_arch() == e_arch.ARCH_X86:
+            return seh32.rtl_unwind(emu, *argv)
 
     @apihook("RtlUnwindEx", argc=6)
     def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7239,21 +7224,8 @@ class Kernel32(api.ApiHandler):
           PCONTEXT ContextRecord
         );
         """
-        ptr = argv[0]
-        if ptr and emu.get_arch() == e_arch.ARCH_AMD64:
-            return seh64.capture_context(emu, ptr)
-        if ptr:
-            try:
-                ctx_buf = b"\x00" * (0x4D0 if emu.get_ptr_size() == 8 else 0x2CC)
-                try:
-                    self.emu.mem_write(ptr, ctx_buf)
-                except Exception:
-                    base_addr = ptr & ~0xFFF
-                    self.emu.mem_map(0x1000, base_addr)
-                    self.emu.mem_write(ptr, ctx_buf)
-            except Exception:
-                pass
-        return True
+        if argv[0]:
+            seh.capture_context(emu, argv[0])
 
     @apihook("RtlRestoreContext", argc=2)
     def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7266,7 +7238,7 @@ class Kernel32(api.ApiHandler):
         ContextRecord, _ = argv
         if emu.get_arch() != e_arch.ARCH_AMD64:
             return
-        return seh64.restore_context(emu, ContextRecord)
+        return seh.restore_context(emu, ContextRecord)
 
     @apihook("RtlAddFunctionTable", argc=3)
     def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

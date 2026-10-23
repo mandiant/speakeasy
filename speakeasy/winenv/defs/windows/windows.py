@@ -225,6 +225,7 @@ class CONTEXT(EmuStruct):
         self.EFlags = ct.c_uint32
         self.Esp = ct.c_uint32
         self.SegSs = ct.c_uint32
+        self.ExtendedRegisters = ct.c_uint8 * 512
 
 
 class CONTEXT64(EmuStruct):
