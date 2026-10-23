@@ -1963,6 +1963,15 @@ class Msvcrt(api.ApiHandler):
         """
         return 0
 
+    @apihook("___mb_cur_max_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def ___mb_cur_max_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int ___mb_cur_max_func(void);
+
+        The C locale has single-byte characters.
+        """
+        return 1
+
     @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
