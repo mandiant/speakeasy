@@ -358,3 +358,10 @@ def test_amsg_exit_ends_the_process(dll_emu: Speakeasy) -> None:
     assert not dll_emu.emu.run_complete
     call(dll_emu, "msvcrt", "_amsg_exit", [8])
     assert dll_emu.emu.run_complete
+
+
+def test_abort_ends_the_process(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    assert not dll_emu.emu.run_complete
+    call(dll_emu, "msvcrt", "abort", [])
+    assert dll_emu.emu.run_complete
