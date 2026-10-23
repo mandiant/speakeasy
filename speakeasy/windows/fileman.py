@@ -107,10 +107,7 @@ class File:
         return self.allocator.allocate_file_handle()
 
     def get_hash(self):
-        h = hashlib.sha256()
-        data = self.get_data(reset_pointer=True)
-        h.update(data)
-        return h.hexdigest()
+        return hashlib.sha256(self.get_contents()).hexdigest()
 
     def get_size(self):
         return self.get_buffer().seek(0, io.SEEK_END)
@@ -146,6 +143,18 @@ class File:
         buf = self.get_buffer()
         buf.seek(0, io.SEEK_END)
         buf.write(data)
+        self.bytes_written += len(data)
+        if self.origin:
+            self.origin.bytes_written += len(data)
+
+    def write_data(self, data):
+        """
+        Write data at the file pointer and move the file pointer past it.
+        """
+        buf = self.get_buffer()
+        buf.seek(self.pos)
+        buf.write(data)
+        self.pos = buf.tell()
         self.bytes_written += len(data)
         if self.origin:
             self.origin.bytes_written += len(data)
@@ -279,7 +288,7 @@ class FileManager:
                 yield (child, is_dir)
 
     def get_dropped_files(self):
-        return [f for f in self.files if f.bytes_written == f.get_size()]
+        return [f for f in self.files if f.bytes_written >= f.get_size()]
 
     def open_mapping(self, name):
         """

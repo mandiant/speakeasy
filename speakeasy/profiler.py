@@ -226,10 +226,7 @@ class Profiler:
 
     def record_dropped_files_event(self, run, files):
         for f in files:
-            data = f.get_data()
-            if data is None:
-                continue
-
+            data = f.get_contents()
             _hash = f.get_hash()
             data_ref = None
             if len(data) <= MAX_EMBEDDED_FILE_SIZE:

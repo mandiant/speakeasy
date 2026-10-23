@@ -4090,7 +4090,7 @@ class Kernel32(api.ApiHandler):
         if f:
             path = f.path
             if data:
-                f.add_data(data)
+                f.write_data(data)
                 self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=num_bytes)
 
                 data_hex = data.hex()
