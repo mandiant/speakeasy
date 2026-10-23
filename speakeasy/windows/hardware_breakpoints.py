@@ -32,7 +32,7 @@ class HardwareBreakpoints:
     def __init__(self, emu):
         self.emu = emu
         self.hooks: dict[int, object] = {}
-        self.resume_at: int | None = None  # the resume flag lets this address run once
+        self.resume: tuple[object, int] | None = None  # a thread and the breakpoint the resume flag skips
 
     def update(self) -> None:
         """Hook the current thread's enabled execute breakpoints, and unhook the rest."""
@@ -45,11 +45,18 @@ class HardwareBreakpoints:
         for address in wanted.keys() - self.hooks.keys():
             self.hooks[address] = self.emu.add_code_hook(self._hit, begin=address, end=address)
 
+    def resume_at(self, address: int) -> None:
+        """The current thread continues at address with the resume flag: run it without breaking."""
+        self.resume = None
+        if address in self.hooks:
+            self.resume = (self.emu.get_current_thread(), address)
+
     def _hit(self, emu, address, size, ctx=None):
-        if self.resume_at == address:
-            self.resume_at = None
-            return
         thread = self.emu.get_current_thread()
+        if self.resume is not None:
+            resume, self.resume = self.resume, None
+            if resume == (thread, address):
+                return
         index = execute_breakpoints(thread.debug_registers).get(address) if thread is not None else None
         if index is None:
             return

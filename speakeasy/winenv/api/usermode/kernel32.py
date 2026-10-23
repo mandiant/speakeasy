@@ -5335,15 +5335,14 @@ class Kernel32(api.ApiHandler):
         if not obj:
             return False
 
-        if emu.get_arch() == e_arch.ARCH_AMD64:
-            context = windefs.CONTEXT64(emu.get_ptr_size())
-        else:
-            context = windefs.CONTEXT(emu.get_ptr_size())
         if lpContext:
-            _context = self.mem_cast(context, lpContext)
-            obj.set_context(_context)
-            if thread_context.has(_context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
-                emu.set_debug_registers(obj, _context)
+            # Change only the sections ContextFlags selects
+            context = seh.read_context(emu, lpContext)
+            stored = obj.get_context()
+            thread_context.copy_sections(context, stored, context.ContextFlags)
+            obj.set_context(stored)
+            if thread_context.has(context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
+                emu.set_debug_registers(obj, context)
             if obj.process:
                 obj.process.is_modified = True
 

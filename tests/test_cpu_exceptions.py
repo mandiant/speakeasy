@@ -1,6 +1,7 @@
 """x64 CPU exceptions reach guest handlers with the code and addresses Windows reports."""
 
 import struct
+from functools import partial
 
 import pytest
 
@@ -110,14 +111,16 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error):
 MEM_COMMIT_RESERVE = 0x3000
 PAGE_NOACCESS = 0x01
 PAGE_READONLY = 0x02
+PAGE_EXECUTE_READ = 0x20
 PAGE_EXECUTE_READWRITE = 0x40
 PAGE_GUARD = 0x100
 
 
-def run_with_page(config, protect, access, step=0):
+def run_with_page(config, protect, access, step=0, before=None):
     """
     Allocate a page with protect, then run access against it, its address in rax,
     under a vectored handler. Return the run, the page, and the handler's record.
+    before is a protection and an access to run first.
     """
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
@@ -135,7 +138,12 @@ def run_with_page(config, protect, access, step=0):
             store=page,
         )
         setup += b"\x48\xa1" + struct.pack("<Q", page) + b"\xc6\x00\xc3"  # mov rax, [page]; mov byte [rax], ret
-        setup += guest_call(8, get_api(se, "kernel32", "VirtualProtect"), Deref(page), 0x1000, protect, data + 0x108)
+        protect_page = partial(guest_call, 8, get_api(se, "kernel32", "VirtualProtect"), Deref(page), 0x1000)
+        if before:
+            protect_first, access_first = before
+            setup += protect_page(protect_first, data + 0x108)
+            setup += b"\x48\xa1" + struct.pack("<Q", page) + access_first  # mov rax, [page]
+        setup += protect_page(protect, data + 0x108)
         setup += guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
         setup += b"\x48\xa1" + struct.pack("<Q", page)  # mov rax, [page]
         se.mem_write(code, setup + access + RETURN_42)
@@ -154,6 +162,21 @@ def test_guard_page_raises_once_on_execute(config):
     assert run.ret_val == 42
     assert record == (STATUS_GUARD_PAGE_VIOLATION, page, 8, page)
     assert [e.exception_code for e in run.events or [] if e.event == "exception"] == ["0x80000001"]
+
+
+def test_guard_page_raises_on_execute_of_code_that_ran(config):
+    before = (PAGE_EXECUTE_READ, b"\xff\xd0")  # call rax
+    run, page, record = run_with_page(config, PAGE_EXECUTE_READ | PAGE_GUARD, b"\xff\xd0\xff\xd0", before=before)
+    assert run.error is None
+    assert record == (STATUS_GUARD_PAGE_VIOLATION, page, 8, page)
+
+
+def test_guard_page_raises_on_read_of_memory_read_before(config):
+    before = (PAGE_READONLY, b"\x8a\x00")  # mov al, [rax]
+    run, page, record = run_with_page(config, PAGE_READONLY | PAGE_GUARD, b"\x8a\x00", before=before)
+    assert run.error is None
+    assert record[0] == STATUS_GUARD_PAGE_VIOLATION
+    assert record[2:] == (0, page)
 
 
 def test_guard_page_raises_on_read(config):
@@ -237,6 +260,33 @@ def test_handled_exception_can_repeat_at_one_address(config):
         assert len([e for e in run.events or [] if e.event == "exception"]) == 6
 
 
+def test_exception_continued_with_nt_continue_can_repeat(config):
+    # for (ecx = 6; ecx; ecx--) int3;  under a handler that skips the int3 with NtContinue
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        handler = code + 0x1000
+        nt_continue = get_api(se, "ntdll", "NtContinue")
+        se.mem_write(
+            handler,
+            b"\x48\x8b\x49\x08"  # mov rcx, [rcx + 8]  (ContextRecord)
+            + b"\x48\xff\x81\xf8\x00\x00\x00"  # inc qword [rcx + Rip]
+            + b"\x31\xd2\x48\x83\xec\x28"  # xor edx, edx; sub rsp, 0x28
+            + b"\x48\xb8"
+            + struct.pack("<Q", nt_continue)
+            + b"\xff\xd0",  # call NtContinue
+        )
+        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        loop = b"\xb9\x06\x00\x00\x00\xcc\xff\xc9\x75\xfb"  # mov ecx, 6; int3; dec ecx; jnz int3
+        se.mem_write(code, setup + loop + RETURN_42)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.ret_val == 42
+        assert len([e for e in run.events or [] if e.event == "exception"]) == 6
+
+
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
     # mov al, 0xf4 stopped by the instruction limit right after it
     config.update(max_instructions=1)
@@ -250,7 +300,8 @@ def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
         assert run.error.type == "max_instructions"
 
 
-def test_guard_on_commit_of_a_reservation(config):
+@pytest.mark.parametrize("size", [0x1000, 0x10])
+def test_guard_on_commit_of_a_reservation(config, size):
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
         data = se.mem_alloc(0x1000)
@@ -260,7 +311,7 @@ def test_guard_on_commit_of_a_reservation(config):
             return guest_call(8, get_api(se, "kernel32", name), *args, **kw)
 
         body = call("VirtualAlloc", 0, 0x1000, 0x2000, PAGE_READONLY, store=page)  # MEM_RESERVE
-        body += call("VirtualAlloc", Deref(page), 0x1000, 0x1000, PAGE_READONLY | PAGE_GUARD)  # MEM_COMMIT
+        body += call("VirtualAlloc", Deref(page), size, 0x1000, PAGE_READONLY | PAGE_GUARD)  # MEM_COMMIT
         body += b"\x48\xa1" + struct.pack("<Q", page) + b"\x8a\x00"  # read the page
         se.mem_write(code, body + RETURN_42)
 

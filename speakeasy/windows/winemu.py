@@ -2186,7 +2186,7 @@ class WindowsEmulator(BinaryEmulator):
     def set_guard_pages(self, address, size, perms):
         """Map pages without access until their first access, which restores perms and raises an exception."""
         base = address & ~(self.page_size - 1)
-        end = address + size
+        end = (address + size + self.page_size - 1) & ~(self.page_size - 1)
         for page in range(base, end, self.page_size):
             self.guard_pages[page] = perms
         self.mem_protect(base, end - base, common.PERM_MEM_NONE)
@@ -3650,7 +3650,8 @@ class WindowsEmulator(BinaryEmulator):
         if thread is not None and thread_context.has(ctx.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
             self.set_debug_registers(thread, ctx)
         if ctx.EFlags & hardware_breakpoints.RESUME_FLAG:
-            self.hardware_breakpoints.resume_at = thread_context.instruction_pointer(ctx)
+            self.reg_write(_arch.X86_REG_EFLAGS, ctx.EFlags & ~hardware_breakpoints.RESUME_FLAG)
+            self.hardware_breakpoints.resume_at(thread_context.instruction_pointer(ctx))
 
     def _get_exception_list(self):
         """
