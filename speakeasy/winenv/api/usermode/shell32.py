@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 from typing import Any
 
+import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler_events import PROC_CREATE
@@ -354,3 +355,26 @@ class Shell32(api.ApiHandler):
 
         emu.write_mem_string(path, pszPath, self.get_char_width(ctx))
         return 0
+
+    @apihook("SHGetKnownFolderPath", argc=4)
+    def SHGetKnownFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT SHGetKnownFolderPath(
+          REFKNOWNFOLDERID rfid,
+          DWORD            dwFlags,
+          HANDLE           hToken,
+          PWSTR            *ppszPath
+        );
+        """
+        rfid, _flags, _token, ppszPath = argv
+        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
+        folder = shell32_defs.KNOWN_FOLDERS.get(guid)
+        ctx.args["rfid"].display = folder[0] if folder else guid
+        ptr = 0
+        if folder:
+            path = (folder[1].format(user=emu.config.user.name) + "\x00").encode("utf-16le")
+            ptr = self.mem_alloc(len(path), tag="api.SHGetKnownFolderPath")
+            self.mem_write(ptr, path)
+        if ppszPath:
+            self.mem_write(ppszPath, ptr.to_bytes(emu.get_ptr_size(), "little"))
+        return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
