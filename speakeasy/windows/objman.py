@@ -449,17 +449,19 @@ class Thread(KernelObject):
     def get_teb(self):
         return self.teb.read_back()
 
-    def init_tls(self, tls_dir, modname):
+    def init_tls(self, data: bytes, modname: str):
+        """Give the thread a copy of the static TLS data of the module at TLS index 0."""
         ptrsz = self.emu.get_ptr_size()
 
-        tls_dirp = self.emu.mem_map(ptrsz, tag=f"emu.tls.{modname}")
+        block = self.emu.mem_map(max(len(data), 1), tag=f"emu.tls.{modname}.data")
+        if data:
+            self.emu.mem_write(block, data)
 
-        self.emu.mem_write(tls_dirp, tls_dir)
+        slots = self.emu.mem_map(ptrsz, tag=f"emu.tls.{modname}")
+        self.emu.mem_write(slots, block.to_bytes(ptrsz, "little"))
 
-        self.teb.object.ThreadLocalStoragePointer = tls_dirp
+        self.teb.object.ThreadLocalStoragePointer = slots
         self.teb.write_back()
-
-        return
 
 
 class Token(KernelObject):
