@@ -725,3 +725,11 @@ def test_crtdll_uses_the_msvcrt_handlers(dll_emu: Speakeasy) -> None:
     buf = alloc(dll_emu, b"\xcc" * 4)
     assert call(dll_emu, "crtdll", "memset", [buf, 0x41, 3])[0] == buf
     assert dll_emu.mem_read(buf, 4) == b"AAA\xcc"
+
+
+@pytest.mark.parametrize("dll", ["api-ms-win-crt-private-l1-1-0", "ucrtbase", "msvcrt"])
+def test_private_crt_exports_use_the_public_handlers(dll_emu: Speakeasy, dll: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, dll, "_o_memset", [buf, 0x41, 3])[0] == buf
+    assert dll_emu.mem_read(buf, 4) == b"AAA\xcc"
+    assert call(dll_emu, dll, "_o__initialize_onexit_table", [buf])[0] == 0
