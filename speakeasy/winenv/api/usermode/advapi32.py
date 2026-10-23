@@ -20,6 +20,8 @@ from .. import api
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 TOKEN_USER = 1
+TOKEN_INTEGRITY_LEVEL = 25
+SE_GROUP_INTEGRITY = 0x20
 
 
 class AdvApi32(api.ApiHandler):
@@ -1334,9 +1336,14 @@ class AdvApi32(api.ApiHandler):
         hnd, info_class, info, info_len, ret_len = argv
         rv = True
 
-        if info_class == TOKEN_USER:
+        if info_class in (TOKEN_USER, TOKEN_INTEGRITY_LEVEL):
             ptr_size = emu.get_ptr_size()
-            str_sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+            if info_class == TOKEN_USER:
+                str_sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+                attributes = 0
+            else:
+                str_sid = "S-1-16-12288" if emu.config.user.is_admin else "S-1-16-8192"
+                attributes = SE_GROUP_INTEGRITY
             sid = self.get_bytes(windefs.convert_sid_str_to_struct(ptr_size, str_sid))
             size = 2 * ptr_size + len(sid)
             if ret_len:
@@ -1344,7 +1351,8 @@ class AdvApi32(api.ApiHandler):
             if not info or info_len < size:
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 return False
-            self.mem_write(info, (info + 2 * ptr_size).to_bytes(ptr_size, "little") + b"\0" * ptr_size + sid)
+            label = (info + 2 * ptr_size).to_bytes(ptr_size, "little") + attributes.to_bytes(ptr_size, "little")
+            self.mem_write(info, label + sid)
             return True
 
         if not info_len:
