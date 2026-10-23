@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import struct
+
 from .. import api
 
 
@@ -210,7 +212,18 @@ class GDI32(api.ApiHandler):
           [in]  DWORD            offset
         );
         """
-        return 0
+        hdc, pbmi, usage, ppvBits, hSection, offset = argv
+        width, height, _, bit_count = struct.unpack("<iiHH", self.mem_read(pbmi + 4, 12))
+        bits = 0
+        hbm = 0
+        if width > 0 and height != 0 and bit_count in (1, 4, 8, 16, 24, 32):
+            size = (width * bit_count + 31) // 32 * 4 * abs(height)
+            bits = self.mem_alloc(size, tag="api.gdi32.CreateDIBSection")
+            self.mem_write(bits, b"\x00" * size)
+            hbm = self.get_handle()
+        if ppvBits:
+            self.mem_write(ppvBits, bits.to_bytes(emu.get_ptr_size(), "little"))
+        return hbm
 
     @apihook("CreateDCA", argc=4)
     def CreateDCA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
