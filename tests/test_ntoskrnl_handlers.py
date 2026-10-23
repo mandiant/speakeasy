@@ -497,3 +497,12 @@ def test_ob_reference_object_by_name_rejects_an_unknown_driver(driver_emu: Speak
     argv = [unicode_string(driver_emu, "\\Driver\\NoSuchDriver"), 0, 0, 0, 0, 0, 0, out]
     assert call(driver_emu, "ntoskrnl", "ObReferenceObjectByName", argv)[0] == ddk.STATUS_OBJECT_NAME_NOT_FOUND
     assert driver_emu.mem_read(out, 4) == b"\xcc" * 4
+
+
+def test_ps_get_process_id_reads_the_eprocess(driver_emu: Speakeasy) -> None:
+    set_current_system_thread(driver_emu)
+    emu = driver_emu.emu
+    proc = emu.get_current_process()
+    pid, _ = call(driver_emu, "ntoskrnl", "PsGetProcessId", [proc.address])
+    assert pid == proc.pid
+    assert call(driver_emu, "ntoskrnl", "PsGetProcessId", [0x1234])[0] == 0

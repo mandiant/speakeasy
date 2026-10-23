@@ -2486,6 +2486,17 @@ class Ntoskrnl(api.ApiHandler):
         pid = getattr(p, "pid", None)
         return pid if pid is not None else 4
 
+    @apihook("PsGetProcessId", argc=1)
+    def PsGetProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE PsGetProcessId(
+            PEPROCESS Process
+        );
+        """
+        (Process,) = argv
+        proc = self.get_object_from_addr(Process)
+        return getattr(proc, "pid", 0)
+
     @apihook("NtSetInformationThread", argc=4)
     def NtSetInformationThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
