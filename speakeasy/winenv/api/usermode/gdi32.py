@@ -185,7 +185,7 @@ class GDI32(api.ApiHandler):
         HDC hdc
         );
         """
-        return 0
+        return self.get_handle()
 
     @apihook("GetDIBits", argc=7)
     def GetDIBits(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
