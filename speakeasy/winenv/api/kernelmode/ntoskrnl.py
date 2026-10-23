@@ -340,6 +340,38 @@ class Ntoskrnl(api.ApiHandler):
 
         ctx.args["SourceString"].display = uni_str
 
+    @apihook("RtlDuplicateUnicodeString", argc=3)
+    def RtlDuplicateUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlDuplicateUnicodeString(
+            ULONG Flags,
+            PCUNICODE_STRING StringIn,
+            PUNICODE_STRING StringOut
+        );
+        """
+        NULL_TERMINATE, ALLOCATE_NULL_STRING = 1, 2
+        flags, src_str, dest_str = argv
+        if not src_str or not dest_str or flags == ALLOCATE_NULL_STRING or flags > 3:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        src = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), src_str)
+        if src.Length > src.MaximumLength or (src.Length and not src.Buffer):
+            return ddk.STATUS_INVALID_PARAMETER
+
+        data = self.mem_read(src.Buffer, src.Length) if src.Length else b""
+        ctx.args["StringIn"].display = data.decode("utf-16le", "replace")
+
+        dest = self.win.UNICODE_STRING(emu.get_ptr_size())
+        if data or flags == NULL_TERMINATE | ALLOCATE_NULL_STRING:
+            if flags & NULL_TERMINATE:
+                data += b"\x00\x00"
+            dest.Buffer = self.mem_alloc(len(data), tag="api.struct.UNICODE_STRING")
+            self.mem_write(dest.Buffer, data)
+            dest.Length = src.Length
+            dest.MaximumLength = len(data)
+        self.mem_write(dest_str, self.get_bytes(dest))
+        return ddk.STATUS_SUCCESS
+
     @apihook("RtlFreeUnicodeString", argc=1)
     def RtlFreeUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
