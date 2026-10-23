@@ -347,3 +347,7 @@ def test_fputc_writes_the_low_byte_of_a_sign_extended_char(dll_emu: Speakeasy, c
 
 def test_lc_codepage_is_the_c_locale(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "___lc_codepage_func", [])[0] == 0
+
+
+def test_mb_cur_max_is_one_byte_in_the_c_locale(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "___mb_cur_max_func", [])[0] == 1
