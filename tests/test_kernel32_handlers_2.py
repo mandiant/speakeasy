@@ -483,3 +483,33 @@ def test_get_volume_information_writes_the_out_params(emu: Speakeasy, name: str,
     assert emu.mem_read(fs_name, 5 * width) == "NTFS\x00".encode(enc)
 
     assert call(emu, "kernel32", name, [root, 0, 0, serial, 0, 0, 0, 0])[0]
+
+
+@pytest.mark.parametrize(
+    "s1, n1, s2, n2, ignore_case, rv",
+    [
+        ("abc", -1, "abc", -1, 0, 2),
+        ("abc", -1, "ABC", -1, 0, 3),
+        ("abc", -1, "ABC", -1, 1, 2),
+        ("ab", -1, "abc", -1, 0, 1),
+        ("abcX", 3, "abcY", 3, 0, 2),
+        ("a\0b", 3, "a\0c", 3, 0, 1),
+        ("", 0, "", -1, 0, 2),
+        ("é", -1, "É", -1, 1, 2),
+    ],
+)
+def test_compare_string_ordinal_compares_code_units(
+    dll_emu: Speakeasy, s1: str, n1: int, s2: str, n2: int, ignore_case: int, rv: int
+) -> None:
+    p1 = alloc(dll_emu, f"{s1}\0".encode("utf-16le"))
+    p2 = alloc(dll_emu, f"{s2}\0".encode("utf-16le"))
+    args = [p1, n1 & 0xFFFFFFFF, p2, n2 & 0xFFFFFFFF, ignore_case]
+    assert call(dll_emu, "kernel32", "CompareStringOrdinal", args)[0] == rv
+
+
+def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    p = alloc(dll_emu, "a\0".encode("utf-16le"))
+    assert call(dll_emu, "kernel32", "CompareStringOrdinal", [p, 0xFFFFFFFE, p, 1, 0])[0] == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
