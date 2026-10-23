@@ -225,6 +225,7 @@ class Win32Emulator(WindowsEmulator):
             self.stop()
             raise Win32EmuError("Module not found")
 
+        startup = []
         # Check if any TLS callbacks exist, these run before the module's entry point
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
@@ -235,6 +236,7 @@ class Win32Emulator(WindowsEmulator):
                 run.type = f"tls_callback_{i}"
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
+                startup.append(run)
 
         if entry_point is not None:
             ep = module.base + entry_point
@@ -257,6 +259,7 @@ class Win32Emulator(WindowsEmulator):
 
         if entry_point is not None or module.is_exe() or ep != module.base:
             self.add_run(run)
+            startup.append(run)
 
         if all_entrypoints:
             # Only emulate a subset of all the exported functions
@@ -293,7 +296,7 @@ class Win32Emulator(WindowsEmulator):
                     # be called yet
                     self.add_run(run)
 
-        return
+        return startup
 
     def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None):
         """
@@ -302,7 +305,7 @@ class Win32Emulator(WindowsEmulator):
         Arguments:
             module: Module to emulate
         """
-        self.prepare_module_for_emulation(module, all_entrypoints, entry_point=entry_point)
+        startup = self.prepare_module_for_emulation(module, all_entrypoints, entry_point=entry_point)
 
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
@@ -320,8 +323,8 @@ class Win32Emulator(WindowsEmulator):
         self.curr_process.threads.append(t)  # type: ignore[union-attr]
         self.curr_thread = t
 
-        if self.run_queue:
-            self.run_queue[0].thread = t
+        for run in startup:
+            run.thread = t
 
         peb = self.alloc_peb(self.curr_process)
 
@@ -339,7 +342,8 @@ class Win32Emulator(WindowsEmulator):
             child = self.child_processes.pop(0)
 
             child.pe = self.load_module(data=child.pe_data)
-            self.prepare_module_for_emulation(child.pe, all_entrypoints)
+            for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
+                run.thread = child.threads[0]
 
             self.command_line = child.cmdline
 
