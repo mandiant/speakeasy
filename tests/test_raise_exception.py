@@ -17,7 +17,7 @@ def session(config):
         yield se
 
 
-def load_guest(se, *, register=True):
+def load_guest(se, *, register=True, flags=1):
     """
     Load code that raises 0x0EEDFADE with two parameters under one SEH
     registration. The handler copies the code, flags, parameter count and
@@ -32,7 +32,7 @@ def load_guest(se, *, register=True):
     se.mem_write(params, dword(0x1111) + dword(0x2222))
     raise_exception = se.emu.get_proc("kernel32", "RaiseException")
     setup = b"\x64\xc7\x05" + dword(0) + dword(registration) if register else b""
-    call = b"\x68" + dword(params) + b"\x6a\x02\x6a\x01\x68" + dword(0x0EEDFADE)
+    call = b"\x68" + dword(params) + b"\x6a\x02\x6a" + bytes([flags]) + b"\x68" + dword(0x0EEDFADE)
     call += b"\xb8" + dword(raise_exception) + b"\xff\xd0"
     finish = b"\x64\xc7\x05" + dword(0) + dword(0) + b"\xb8" + dword(42) + b"\xc3"
     se.mem_write(code, setup + call + finish)
@@ -55,8 +55,8 @@ def test_raise_exception_calls_the_seh_handler_and_continues(session):
     assert struct.unpack("<5I", session.mem_read(data, 20)) == (0x0EEDFADE, 1, 2, 0x1111, 0x2222)
 
 
-def test_raise_exception_without_a_handler_returns(session):
-    code, data = load_guest(session, register=False)
+def test_continuable_exception_without_a_handler_returns(session):
+    code, data = load_guest(session, register=False, flags=0)
 
     session.run_shellcode(code)
 
@@ -64,3 +64,14 @@ def test_raise_exception_without_a_handler_returns(session):
     assert run.error is None
     assert run.ret_val == 42
     assert session.mem_read(data, 4) == b"\x00" * 4
+
+
+def test_noncontinuable_exception_without_a_handler_ends_the_run(session):
+    code, data = load_guest(session, register=False, flags=1)
+
+    session.run_shellcode(code)
+
+    run = session.get_report().entry_points[0]
+    assert run.error is not None
+    assert run.error.type == "unhandled_exception"
+    assert run.ret_val != 42
