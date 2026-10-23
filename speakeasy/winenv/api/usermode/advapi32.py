@@ -1117,7 +1117,9 @@ class AdvApi32(api.ApiHandler):
         (count,) = argv
         return 8 + 4 * (count & 0xFF)
 
-    def get_sid_length(self, sid):
+    def get_sid_length(self, emu, sid):
+        if not sid or not emu.is_address_valid(sid + 1):
+            return 0
         return 8 + 4 * self.mem_read(sid + 1, 1)[0]
 
     @apihook("GetLengthSid", argc=1)
@@ -1128,7 +1130,7 @@ class AdvApi32(api.ApiHandler):
         );
         """
         (sid,) = argv
-        return self.get_sid_length(sid) if sid else 0
+        return self.get_sid_length(emu, sid)
 
     @apihook("IsValidSid", argc=1)
     def IsValidSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1138,7 +1140,7 @@ class AdvApi32(api.ApiHandler):
         );
         """
         (sid,) = argv
-        if not sid:
+        if not self.get_sid_length(emu, sid):
             return False
         revision, count = self.mem_read(sid, 2)
         return revision == 1 and count <= 15
@@ -1153,7 +1155,10 @@ class AdvApi32(api.ApiHandler):
         );
         """
         dst_len, dst, src = argv
-        size = self.get_sid_length(src)
+        size = self.get_sid_length(emu, src)
+        if not size:
+            emu.set_last_error(windefs.ERROR_INVALID_SID)
+            return False
         if dst_len < size:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return False
@@ -1345,15 +1350,10 @@ class AdvApi32(api.ApiHandler):
         );
         """
         sid1, sid2 = argv
-        rv = False
-
-        if sid1 and sid2:
-            s1 = self.mem_read(sid1, self.get_sid_length(sid1))
-            s2 = self.mem_read(sid2, self.get_sid_length(sid2))
-            if s1 == s2:
-                rv = True
-
-        return rv
+        len1, len2 = self.get_sid_length(emu, sid1), self.get_sid_length(emu, sid2)
+        if not len1 or len1 != len2:
+            return False
+        return self.mem_read(sid1, len1) == self.mem_read(sid2, len2)
 
     @apihook("GetSidIdentifierAuthority", argc=1)
     def GetSidIdentifierAuthority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
