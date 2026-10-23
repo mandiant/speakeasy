@@ -387,3 +387,14 @@ def test_strdup_copies_the_bytes_to_a_new_buffer(dll_emu: Speakeasy) -> None:
     assert dst not in (0, src)
     assert dll_emu.mem_read(dst, 4) == b"a\xe9b\x00"
     assert call(dll_emu, "msvcrt", "_strdup", [0])[0] == 0
+
+
+def test_realloc_keeps_the_contents(dll_emu: Speakeasy) -> None:
+    first, _ = call(dll_emu, "msvcrt", "realloc", [0, 4])
+    dll_emu.mem_write(first, b"abcd")
+    grown, _ = call(dll_emu, "msvcrt", "realloc", [first, 0x2000])
+    assert dll_emu.mem_read(grown, 4) == b"abcd"
+    dll_emu.mem_write(grown + 0x1FFC, b"wxyz")
+    shrunk, _ = call(dll_emu, "msvcrt", "realloc", [grown, 2])
+    assert dll_emu.mem_read(shrunk, 2) == b"ab"
+    assert call(dll_emu, "msvcrt", "realloc", [shrunk, 0])[0] == 0
