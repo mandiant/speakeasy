@@ -740,3 +740,57 @@ def test_strchr_finds_bytes_and_terminator(dll_emu: Speakeasy, api: str, c: int,
     s = alloc(dll_emu, b"a\xe9bc\x00")
     result, _ = call(dll_emu, "msvcrt", api, [s, c])
     assert result == (0 if offset is None else s + offset)
+
+
+def _common_format(
+    se: Speakeasy, api: str, size: int, fmt: str, value: int, count: int | None = None
+) -> tuple[int, int]:
+    wide = "w" in api.removeprefix("__stdio_common_v")
+    buf = alloc(se, b"\xcc" * 16)
+    pfmt = alloc(se, (fmt + "\0").encode("utf-16le" if wide else "latin-1"))
+    va = alloc(se, struct.pack("<I", value))
+    sizes = [size] if count is None else [size, count]
+    rv, _ = call(se, "msvcrt", api, [0, 0, buf, *sizes, pfmt, 0, va])
+    return rv, buf
+
+
+def test_stdio_common_vswprintf_writes_wide_text(dll_emu: Speakeasy) -> None:
+    rv, buf = _common_format(dll_emu, "__stdio_common_vswprintf", 8, "n=%d", 7)
+    assert rv == 3
+    assert dll_emu.mem_read(buf, 10) == "n=7\0".encode("utf-16le") + b"\xcc\xcc"
+
+
+@pytest.mark.parametrize("api, width", [("__stdio_common_vsprintf_s", 1), ("__stdio_common_vswprintf_s", 2)])
+def test_stdio_common_vsprintf_s_empties_the_buffer_when_the_text_does_not_fit(
+    dll_emu: Speakeasy, api: str, width: int
+) -> None:
+    rv, buf = _common_format(dll_emu, api, 4, "n=%d", 7)
+    assert rv == 3
+    assert dll_emu.mem_read(buf, 4 * width) == "n=7\0".encode("utf-16le" if width == 2 else "latin-1")
+    rv, buf = _common_format(dll_emu, api, 3, "n=%d", 7)
+    assert rv & 0xFFFFFFFF == 0xFFFFFFFF
+    assert dll_emu.mem_read(buf, width + 1) == b"\x00" * width + b"\xcc"
+
+
+TRUNCATE = 0xFFFFFFFF
+
+
+@pytest.mark.parametrize(
+    "api, size, count, rv, text",
+    [
+        ("__stdio_common_vsnprintf_s", 8, TRUNCATE, 7, "value=7"),
+        ("__stdio_common_vsnprintf_s", 4, TRUNCATE, -1, "val"),
+        ("__stdio_common_vsnprintf_s", 8, 2, -1, "va"),
+        ("__stdio_common_vsnprintf_s", 4, 6, -1, ""),
+        ("__stdio_common_vsnwprintf_s", 4, TRUNCATE, -1, "val"),
+        ("__stdio_common_vsnwprintf_s", 8, 7, 7, "value=7"),
+    ],
+)
+def test_stdio_common_vsnprintf_s_limits_the_count(
+    dll_emu: Speakeasy, api: str, size: int, count: int, rv: int, text: str
+) -> None:
+    result, buf = _common_format(dll_emu, api, size, "value=%d", 7, count)
+    encoding = "utf-16le" if "w" in api.removeprefix("__stdio_common_v") else "latin-1"
+    data = (text + "\0").encode(encoding)
+    assert result & 0xFFFFFFFF == rv & 0xFFFFFFFF
+    assert dll_emu.mem_read(buf, len(data)) == data
