@@ -330,3 +330,31 @@ def test_char_next_stops_at_the_nul(dll_emu: Speakeasy, name: str, cw: int) -> N
     assert rv == s + cw
     rv, _ = call(dll_emu, "user32", name, [rv])
     assert rv == s + cw
+
+
+def bitmap_info(width: int, height: int, bit_count: int) -> bytes:
+    return struct.pack("<IiiHHIIiiII", 40, width, height, 1, bit_count, 0, 0, 0, 0, 0, 0)
+
+
+@pytest.mark.parametrize(
+    "width, height, bit_count, size",
+    [(16, 16, 24, 48 * 16), (3, -2, 24, 12 * 2), (10, 1, 1, 4), (5, 4, 32, 80)],
+)
+def test_create_dib_section_returns_zeroed_bits(
+    dll_emu: Speakeasy, width: int, height: int, bit_count: int, size: int
+) -> None:
+    bmi = alloc(dll_emu, bitmap_info(width, height, bit_count))
+    ppv = alloc(dll_emu, b"\xcc" * 4)
+    hbm, _ = call(dll_emu, "gdi32", "CreateDIBSection", [0, bmi, 0, ppv, 0, 0])
+    assert hbm
+    bits = struct.unpack("<I", dll_emu.mem_read(ppv, 4))[0]
+    assert dll_emu.mem_read(bits, size) == b"\x00" * size
+
+
+@pytest.mark.parametrize("width, height, bit_count", [(0, 16, 24), (16, 0, 24), (16, 16, 7)])
+def test_create_dib_section_rejects_a_bad_header(dll_emu: Speakeasy, width: int, height: int, bit_count: int) -> None:
+    bmi = alloc(dll_emu, bitmap_info(width, height, bit_count))
+    ppv = alloc(dll_emu, b"\xcc" * 4)
+    hbm, _ = call(dll_emu, "gdi32", "CreateDIBSection", [0, bmi, 0, ppv, 0, 0])
+    assert hbm == 0
+    assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
