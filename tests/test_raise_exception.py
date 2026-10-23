@@ -91,3 +91,50 @@ def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):
     assert run.error is None
     assert run.ret_val == 42
     assert struct.unpack("<2I", session.mem_read(data, 8)) == (0x0EEDFADE, data + 0x100)
+
+
+def test_exceptions_caught_by_unwinding_can_repeat_from_one_call_site(session):
+    """
+    Raise the same exception from the same call site in a loop. The handler
+    counts the exception and resumes at the loop head with the saved stack,
+    as a C++ catch block does after it unwinds.
+    """
+    code = session.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+    data = session.mem_alloc(0x1000)
+    handler = code + 0x100
+    registration = data + 0x100
+    saved_esp = data + 0x300
+    session.mem_write(registration, dword(0xFFFFFFFF) + dword(handler))
+    raise_exception = session.emu.get_proc("kernel32", "RaiseException")
+    register = b"\x64\xc7\x05" + dword(0) + dword(registration)
+    setup = register + b"\x89\x25" + dword(saved_esp)
+    loop = code + len(setup)
+    call = b"\x68" + dword(0) + b"\x6a\x00\x6a\x01\x68" + dword(0xE06D7363)
+    call += b"\xb8" + dword(raise_exception) + b"\xff\xd0"
+    check = b"\x83\x3d" + dword(data) + b"\x08\x73" + bytes([len(call)])
+    finish = b"\x64\xc7\x05" + dword(0) + dword(0) + b"\xb8" + dword(42) + b"\xc3"
+    session.mem_write(code, setup + check + call + finish)
+    handler_code = b"\xff\x05" + dword(data) + b"\x8b\x25" + dword(saved_esp) + register
+    handler_code += b"\xb8" + dword(loop) + b"\xff\xe0"
+    session.mem_write(handler, handler_code)
+
+    session.run_shellcode(code)
+
+    run = session.get_report().entry_points[0]
+    assert run.error is None
+    assert run.ret_val == 42
+    assert struct.unpack("<I", session.mem_read(data, 4))[0] == 8
+
+
+def test_exception_event_records_the_return_address_of_the_call(session):
+    code, _ = load_guest(session)
+    setup_size, call_size = 11, 21
+    return_address = code + setup_size + call_size
+
+    session.run_shellcode(code)
+
+    run = session.get_report().entry_points[0]
+    events = [e for e in run.events or [] if e.event == "exception"]
+    assert len(events) == 1
+    assert events[0].pos.pc == return_address
+    assert events[0].instr.startswith("mov dword ptr fs:[0]")
