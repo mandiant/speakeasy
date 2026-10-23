@@ -22,6 +22,7 @@ FORMAT_SPEC = re.compile(
     r"%(?P<flags>[-+ #0]*)(?P<width>\*|\d+)?(?:\.(?P<precision>\*|\d*))?"
     r"(?P<length>hh|h|ll|l|L|I64|I32|I|q|z|j|t|w)?(?P<conv>[diouxXeEfFgGaAcCsSpPnZ%])"
 )
+MAX_FORMAT_FIELD = 0x10000
 INT_BITS = {"hh": 8, "h": 16, "ll": 64, "I64": 64, "q": 64, "j": 64}
 
 
@@ -581,6 +582,10 @@ class ApiHandler:
             if precision == "*":
                 value = to_signed(next_value(sizes.pop(0)), 32)
                 precision = str(value) if value >= 0 else None
+            if width:
+                width = str(min(int(width), MAX_FORMAT_FIELD))
+            if precision:
+                precision = str(min(int(precision), MAX_FORMAT_FIELD))
             fmt = f"%{flags}{width}" + (f".{precision}" if precision is not None else "")
             size = sizes.pop(0)
             value = next_value(size)
