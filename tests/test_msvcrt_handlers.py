@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.api.usermode.msvcrt import (
@@ -605,3 +606,10 @@ def test_unlink_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test
         assert call(se, "msvcrt", "_unlink", [alloc(se, b"c:\\missing\\file.dat\x00")])[0] == -1
         errno_ptr, _ = call(se, "msvcrt", "_errno", [])
         assert int.from_bytes(se.mem_read(errno_ptr, 4), "little") == ENOENT
+
+
+@pytest.mark.parametrize("size", [0x10, 0x6000])
+def test_operator_new_returns_writable_memory(dll_emu: Speakeasy, size: int) -> None:
+    ptr, _ = call(dll_emu, "msvcrt", "??2@YAPAXI@Z", [size])
+    perms = [p for begin, end, p in dll_emu.emu.emu_eng.mem_regions() if begin <= ptr and ptr + size - 1 <= end]
+    assert perms == [unicorn.UC_PROT_ALL]
