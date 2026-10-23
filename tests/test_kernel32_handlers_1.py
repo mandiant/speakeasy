@@ -293,6 +293,64 @@ def test_resume_thread_starts_a_child_after_write_process_memory(dll_emu: Speake
     assert dll_emu.emu.child_processes == []
 
 
+def write_with_nt_write_virtual_memory(se: Speakeasy, hproc: int, hthread: int) -> None:
+    data = alloc(se, b"\x90" * 4)
+    rv, _ = call(se, "ntdll", "NtWriteVirtualMemory", [hproc, data + 0x100, data, 4, 0])
+    assert rv == 0
+
+
+def set_context_with(dll: str, api: str) -> Callable[[Speakeasy, int, int], None]:
+    def change(se: Speakeasy, hproc: int, hthread: int) -> None:
+        context = alloc(se, b"\x00" * 0x2CC)
+        rv, _ = call(se, dll, api, [hthread, context])
+        assert rv == (0 if dll == "ntdll" else 1)
+
+    return change
+
+
+def map_view_with_nt_map_view_of_section(se: Speakeasy, hproc: int, hthread: int) -> None:
+    phnd = alloc(se, b"\x00" * 4)
+    size = alloc(se, struct.pack("<Q", 0x1000))
+    rv, _ = call(se, "ntdll", "NtCreateSection", [phnd, 0xF001F, 0, size, 0x40, 0x8000000, 0])
+    assert rv == 0
+    (hsect,) = struct.unpack("<I", se.mem_read(phnd, 4))
+    base = alloc(se, b"\x00" * 4)
+    view_size = alloc(se, b"\x00" * 4)
+    rv, _ = call(se, "ntdll", "NtMapViewOfSection", [hsect, hproc, base, 0, 0, 0, view_size, 1, 0, 0x40])
+    assert rv == 0
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(write_with_nt_write_virtual_memory, id="NtWriteVirtualMemory"),
+        pytest.param(set_context_with("ntdll", "NtSetContextThread"), id="NtSetContextThread"),
+        pytest.param(set_context_with("kernel32", "Wow64SetThreadContext"), id="Wow64SetThreadContext"),
+        pytest.param(map_view_with_nt_map_view_of_section, id="NtMapViewOfSection"),
+    ],
+)
+def test_resume_thread_starts_a_child_after_an_ntdll_change(
+    dll_emu: Speakeasy, change: Callable[[Speakeasy, int, int], None]
+) -> None:
+    assert dll_emu.emu is not None
+    hproc, hthread = create_suspended_child(dll_emu)
+    child = dll_emu.emu.child_processes[0]
+    change(dll_emu, hproc, hthread)
+    queued = len(dll_emu.emu.run_queue)
+    call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    assert len(dll_emu.emu.run_queue) == queued + 1
+    assert dll_emu.emu.run_queue[-1].process_context is child
+
+
+def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    _, hthread = create_suspended_child(dll_emu)
+    map_view_with_nt_map_view_of_section(dll_emu, 0xFFFFFFFF, hthread)
+    queued = len(dll_emu.emu.run_queue)
+    call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    assert len(dll_emu.emu.run_queue) == queued
+
+
 TH32CS_SNAPALL = 0xF
 
 

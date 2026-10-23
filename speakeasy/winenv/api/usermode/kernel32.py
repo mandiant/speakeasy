@@ -5231,6 +5231,28 @@ class Kernel32(api.ApiHandler):
 
         return True
 
+    @apihook("Wow64SetThreadContext", argc=2)
+    def Wow64SetThreadContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL Wow64SetThreadContext(
+            HANDLE              hThread,
+            const WOW64_CONTEXT *lpContext
+        );
+        """
+        hThread, lpContext = argv
+
+        obj = self.get_object_from_handle(hThread)
+        if not obj:
+            return False
+
+        if lpContext:
+            if emu.get_arch() == e_arch.ARCH_X86:
+                obj.set_context(self.mem_cast(windefs.CONTEXT(emu.get_ptr_size()), lpContext))
+            if obj.process:
+                obj.process.is_modified = True
+
+        return True
+
     @apihook("CompareFileTime", argc=2)
     def CompareFileTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

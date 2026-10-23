@@ -1472,6 +1472,7 @@ class Ntoskrnl(api.ApiHandler):
             if lpNumberOfBytesWritten:
                 bw = (len(data)).to_bytes(self.get_ptr_size(), "little")
                 self.mem_write(lpNumberOfBytesWritten, bw)
+            obj.is_modified = True
         else:
             rv = ddk.STATUS_INVALID_PARAMETER
 
@@ -3338,6 +3339,8 @@ class Ntoskrnl(api.ApiHandler):
             if BaseAddress and buf:
                 rv = ddk.STATUS_SUCCESS
                 self.mem_write(BaseAddress, buf.to_bytes(emu.get_ptr_size(), "little"))
+                if proc_obj and proc_obj is not emu.get_current_process():
+                    proc_obj.is_modified = True
 
             for base, view in sect.views.items():
                 if base != buf and view.size == size and full_offset == view.offset:
@@ -3401,10 +3404,15 @@ class Ntoskrnl(api.ApiHandler):
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
-        context = windefs.CONTEXT(emu.get_ptr_size())
+        if emu.get_arch() == _arch.ARCH_AMD64:
+            context = windefs.CONTEXT64(emu.get_ptr_size())
+        else:
+            context = windefs.CONTEXT(emu.get_ptr_size())
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
+            if obj.process:
+                obj.process.is_modified = True
 
         return ddk.STATUS_SUCCESS
 
