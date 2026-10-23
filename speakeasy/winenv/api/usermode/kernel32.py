@@ -7268,6 +7268,30 @@ class Kernel32(api.ApiHandler):
             return
         return seh64.restore_context(emu, ContextRecord)
 
+    @apihook("RtlAddFunctionTable", argc=3)
+    def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """BOOLEAN RtlAddFunctionTable(PRUNTIME_FUNCTION FunctionTable, DWORD EntryCount, DWORD64 BaseAddress);"""
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return False
+        return seh64.add_function_table(emu, *argv)
+
+    @apihook("RtlInstallFunctionTableCallback", argc=6)
+    def RtlInstallFunctionTableCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOLEAN RtlInstallFunctionTableCallback(DWORD64 TableIdentifier, DWORD64 BaseAddress, DWORD Length,
+            PGET_RUNTIME_FUNCTION_CALLBACK Callback, PVOID Context, PCWSTR OutOfProcessCallbackDll);
+        """
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return False
+        return seh64.install_function_table_callback(emu, *argv[:4])
+
+    @apihook("RtlDeleteFunctionTable", argc=1)
+    def RtlDeleteFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """BOOLEAN RtlDeleteFunctionTable(PRUNTIME_FUNCTION FunctionTable);"""
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return False
+        return seh64.delete_function_table(emu, argv[0])
+
     @apihook("RtlLookupFunctionEntry", argc=3)
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

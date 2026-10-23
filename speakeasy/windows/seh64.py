@@ -95,6 +95,22 @@ def resume_at(emu, ctx) -> Resume:
     return Resume(ctx)
 
 
+def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
+    """
+    RtlLookupFunctionEntry: the unwind data of the function at pc, from a loaded image,
+    else from a table registered at runtime. Callback tables are not called: their
+    functions unwind as leaf functions.
+    """
+    module = emu.get_module_from_addr(pc)
+    fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
+    if fn:
+        return fn
+    for table in emu.function_tables:
+        if table.begin <= pc < table.end and not table.callback:
+            return unwind.search_function_table(emu.mem_read, table, pc)
+    return None
+
+
 def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.RuntimeFunction, unwind.FrameInfo]]:
     """
     Unwind ctx in place, yielding (frame context, function, frame info) for each frame with unwind data.
@@ -112,8 +128,7 @@ def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.Ru
             return
         frame_ctx = copy_context(ctx)
         try:
-            module = emu.get_module_from_addr(pc)
-            fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
+            fn = find_function(emu, pc)
             if not fn:
                 unwind.unwind_leaf(emu.mem_read, ctx)
                 continue
@@ -324,8 +339,7 @@ def restore_context(emu, address: int) -> Resume:
 
 def lookup_function_entry(emu, pc: int, image_base_out: int) -> int:
     """RtlLookupFunctionEntry"""
-    module = emu.get_module_from_addr(pc)
-    fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
+    fn = find_function(emu, pc)
     if not fn:
         return 0
     if image_base_out:
@@ -344,3 +358,31 @@ def virtual_unwind(
     emu.write_ptr(handler_data_out, info.handler_data)
     emu.write_ptr(frame_out, info.establisher_frame)
     return info.handler
+
+
+def add_function_table(emu, table: int, count: int, base: int) -> bool:
+    """RtlAddFunctionTable"""
+    entries = list(struct.iter_unpack("<III", emu.mem_read(table, 12 * count))) if count else []
+    if not entries:
+        return False
+    begin = base + min(b for b, _, _ in entries)
+    end = base + max(e for _, e, _ in entries)
+    emu.function_tables.append(unwind.FunctionTable(table, base, begin, end, count=count))
+    return True
+
+
+def install_function_table_callback(emu, identifier: int, base: int, length: int, callback: int) -> bool:
+    """RtlInstallFunctionTableCallback"""
+    if identifier & 3 != 3:  # the low bits mark a callback table
+        return False
+    emu.function_tables.append(unwind.FunctionTable(identifier, base, base, base + length, callback=callback))
+    return True
+
+
+def delete_function_table(emu, identifier: int) -> bool:
+    """RtlDeleteFunctionTable"""
+    for table in emu.function_tables:
+        if table.identifier == identifier:
+            emu.function_tables.remove(table)
+            return True
+    return False

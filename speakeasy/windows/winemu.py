@@ -27,6 +27,7 @@ import speakeasy.windows.hardware_breakpoints as hardware_breakpoints
 import speakeasy.windows.objman as objman
 import speakeasy.windows.seh64 as seh64
 import speakeasy.windows.thread_context as thread_context
+import speakeasy.windows.unwind as unwind
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
@@ -228,6 +229,8 @@ class WindowsEmulator(BinaryEmulator):
         # Guard pages, mapped without access, with the protection their first access restores
         self.guard_pages: dict[int, int] = {}
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
+        # Unwind data registered at runtime for code outside loaded images
+        self.function_tables: list[unwind.FunctionTable] = []
         self._guest_dependencies = []
         self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
@@ -2803,7 +2806,7 @@ class WindowsEmulator(BinaryEmulator):
             mm = self.get_address_map(ret)
 
             # Is this function being called from a dynamcially allocated memory segment?
-            if mm and "virtualalloc" in mm.tag.lower():
+            if mm and mm.tag and "virtualalloc" in mm.tag.lower():
                 self._fire_dyn_code_hooks(ret)
 
             # Log the API args and return value
