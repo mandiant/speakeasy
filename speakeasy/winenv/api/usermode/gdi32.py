@@ -4,6 +4,8 @@ import struct
 
 from .. import api
 
+MAX_DIB_SIZE = 0x8000000
+
 
 class GDI32(api.ApiHandler):
     """
@@ -216,10 +218,9 @@ class GDI32(api.ApiHandler):
         width, height, _, bit_count = struct.unpack("<iiHH", self.mem_read(pbmi + 4, 12))
         bits = 0
         hbm = 0
-        if width > 0 and height != 0 and bit_count in (1, 4, 8, 16, 24, 32):
-            size = (width * bit_count + 31) // 32 * 4 * abs(height)
+        size = (width * bit_count + 31) // 32 * 4 * abs(height)
+        if width > 0 and height != 0 and bit_count in (1, 4, 8, 16, 24, 32) and size <= MAX_DIB_SIZE:
             bits = self.mem_alloc(size, tag="api.gdi32.CreateDIBSection")
-            self.mem_write(bits, b"\x00" * size)
             hbm = self.get_handle()
         if ppvBits:
             self.mem_write(ppvBits, bits.to_bytes(emu.get_ptr_size(), "little"))

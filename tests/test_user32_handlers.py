@@ -351,7 +351,9 @@ def test_create_dib_section_returns_zeroed_bits(
     assert dll_emu.mem_read(bits, size) == b"\x00" * size
 
 
-@pytest.mark.parametrize("width, height, bit_count", [(0, 16, 24), (16, 0, 24), (16, 16, 7)])
+@pytest.mark.parametrize(
+    "width, height, bit_count", [(0, 16, 24), (16, 0, 24), (16, 16, 7), (0x7FFFFFFF, 0x7FFFFFFF, 32)]
+)
 def test_create_dib_section_rejects_a_bad_header(dll_emu: Speakeasy, width: int, height: int, bit_count: int) -> None:
     bmi = alloc(dll_emu, bitmap_info(width, height, bit_count))
     ppv = alloc(dll_emu, b"\xcc" * 4)
