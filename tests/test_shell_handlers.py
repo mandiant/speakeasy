@@ -13,6 +13,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import com
+from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, start_process
 
 
@@ -374,3 +375,32 @@ def test_enum_processes_reports_bytes_written(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "psapi", "EnumProcesses", [pids, 4, needed])[0] == 1
     assert int.from_bytes(dll_emu.mem_read(needed, 4), "little") == 4
     assert dll_emu.mem_read(pids + 4, 4) == b"\xcc" * 4
+
+
+@pytest.mark.parametrize(
+    ("dll", "api", "module"),
+    [("kernel32", "K32GetModuleInformation", None), ("psapi", "GetModuleInformation", "kernel32")],
+)
+def test_get_module_information_describes_the_module(
+    dll_emu: Speakeasy, dll: str, api: str, module: str | None
+) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    mod = (
+        dll_emu.emu.get_mod_by_name(module)
+        if module
+        else dll_emu.emu.get_mod_from_addr(dll_emu.emu.get_current_process().base)
+    )
+    info = alloc(dll_emu, b"\xcc" * 12)
+    rv, _ = call(dll_emu, dll, api, [0xFFFFFFFF, mod.base if module else 0, info, 12])
+    assert rv == 1
+    assert struct.unpack("<III", dll_emu.mem_read(info, 12)) == (mod.base, mod.image_size, mod.get_ep())
+
+
+def test_get_module_information_needs_room_for_the_structure(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    info = alloc(dll_emu, b"\xcc" * 12)
+    rv, _ = call(dll_emu, "kernel32", "K32GetModuleInformation", [0xFFFFFFFF, 0, info, 8])
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER

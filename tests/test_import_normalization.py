@@ -191,3 +191,10 @@ def test_kernel32_registry_functions_use_advapi32_handlers(dll, func):
 def test_kernel32_non_registry_function_does_not_use_advapi32_handlers():
     emu = FakeEmulator([("advapi32", "RegisterEventSource"), ("advapi32", "OpenProcessToken")])
     assert emu.normalize_import_miss("kernel32", "OpenProcessToken")[1] is None
+
+
+@pytest.mark.parametrize("func", ["K32GetModuleBaseNameA", "K32GetModuleBaseNameW", "K32GetModuleInformation"])
+def test_kernel32_k32_aliases_use_psapi(func):
+    emu = FakeEmulator([("psapi", "GetModuleBaseName"), ("psapi", "GetModuleInformation")])
+    _mod, attrs = emu.normalize_import_miss("kernel32", func)
+    assert attrs is not None
