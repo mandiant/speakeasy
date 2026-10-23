@@ -55,6 +55,9 @@ DISASM_SIZE = 0x20
 # GDB signal number reported for memory faults
 SIGSEGV = 11
 
+# Upper bound on the static TLS data copied for each thread
+TLS_TEMPLATE_MAX = 0x1000000
+
 logger = logging.getLogger(__name__)
 
 
@@ -1277,7 +1280,6 @@ class WindowsEmulator(BinaryEmulator):
         Initialize implicit thread local storage. Meant to be
         called after init_teb.
         """
-        ptrsz = self.get_ptr_size()
         run = self.curr_run
         module = self.get_mod_from_addr(run.start_addr)  # type: ignore[union-attr]
 
@@ -1285,19 +1287,46 @@ class WindowsEmulator(BinaryEmulator):
             if isinstance(module, RuntimeModule):
                 modname = ntpath.basename(module.emu_path)
                 if module._image and module._image.tls_directory_va:
-                    tls_dirp = module._image.tls_directory_va
-                    tls_dir = self.mem_read(tls_dirp, ptrsz)
-                    thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+                    data = self.read_tls_template(module._image.tls_directory_va)
+                    thread.init_tls(data, os.path.splitext(modname)[0])
             else:
                 modname = module.emu_path
                 tokens = modname.split("\\")
                 modname = tokens[len(tokens) - 1]
                 tls_dirp = module.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
                 tls_dirp += module.OPTIONAL_HEADER.ImageBase
-                tls_dir = self.mem_read(tls_dirp, ptrsz)
-                thread.init_tls(tls_dir, os.path.splitext(modname)[0])
+                data = self.read_tls_template(tls_dirp)
+                thread.init_tls(data, os.path.splitext(modname)[0])
 
         return
+
+    def read_tls_template(self, tls_dirp: int) -> bytes:
+        """
+        Return the initial TLS data of a module, from its IMAGE_TLS_DIRECTORY.
+
+        Set the TLS index of the module to 0. A directory with an invalid range gives an empty template.
+        """
+        ptrsz = self.get_ptr_size()
+        fmt = "<4QI" if ptrsz == 8 else "<5I"
+        try:
+            start, end, index_addr, _, zero_fill = struct.unpack(fmt, self.mem_read(tls_dirp, struct.calcsize(fmt)))
+        except Exception:
+            return b""
+        size = end - start if start <= end else 0
+        if size + zero_fill > TLS_TEMPLATE_MAX:
+            size, zero_fill = 0, 0
+        data = b""
+        if size:
+            try:
+                data = bytes(self.mem_read(start, size))
+            except Exception:
+                data = b""
+        if index_addr:
+            try:
+                self.mem_write(index_addr, b"\0\0\0\0")
+            except Exception:
+                pass
+        return data + b"\0" * zero_fill
 
     def load_pe(self, path=None, data=None):
         """
