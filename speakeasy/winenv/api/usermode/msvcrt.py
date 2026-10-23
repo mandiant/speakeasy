@@ -231,6 +231,7 @@ class Msvcrt(api.ApiHandler):
         self.file_streams: dict[int, Any] = {}
         self.signal_handlers: dict[int, int] = {}
         self.lconv: int | None = None
+        self.locale_name: int | None = None
         self.strerror_buf: int | None = None
         self.iob: int | None = None
 
@@ -2413,6 +2414,24 @@ class Msvcrt(api.ApiHandler):
         data += b".\x00\x00\x00" + ".".encode("utf-16le") + b"\x00\x00" + b"\x00\x00"
         self.mem_write(self.lconv, data)
         return self.lconv
+
+    @apihook("setlocale", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def setlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *setlocale(
+            int category,
+            const char *locale
+        );
+
+        The emulated CRT stays in the C locale, so every call returns "C".
+        """
+        category, locale = argv
+        if locale:
+            ctx.args[1].display = self.read_cstr(locale).decode("latin-1")
+        if not self.locale_name:
+            self.locale_name = self.mem_alloc(2, tag="api.msvcrt.setlocale")
+            self.mem_write(self.locale_name, b"C\x00")
+        return self.locale_name
 
     @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
