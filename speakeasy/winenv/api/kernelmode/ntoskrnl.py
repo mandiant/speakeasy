@@ -446,6 +446,42 @@ class Ntoskrnl(api.ApiHandler):
                 logger.exception(str(e))
         self.mem_free(P)
 
+    @apihook("IoAllocateWorkItem", argc=1)
+    def IoAllocateWorkItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PIO_WORKITEM IoAllocateWorkItem(
+            PDEVICE_OBJECT DeviceObject
+        );
+        """
+        (DeviceObject,) = argv
+        ptr_size = emu.get_ptr_size()
+        item = self.pool_alloc(0, ptr_size * 8, "IoWk")
+        self.mem_write(item, DeviceObject.to_bytes(ptr_size, "little"))
+        return item
+
+    @apihook("IoQueueWorkItem", argc=4)
+    def IoQueueWorkItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID IoQueueWorkItem(
+            PIO_WORKITEM IoWorkItem,
+            PIO_WORKITEM_ROUTINE WorkerRoutine,
+            WORK_QUEUE_TYPE QueueType,
+            PVOID Context
+        );
+        """
+        IoWorkItem, WorkerRoutine, QueueType, Context = argv
+        device = int.from_bytes(self.mem_read(IoWorkItem, emu.get_ptr_size()), "little")
+        self.setup_callback(WorkerRoutine, (device, Context))
+
+    @apihook("IoFreeWorkItem", argc=1)
+    def IoFreeWorkItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID IoFreeWorkItem(
+            PIO_WORKITEM IoWorkItem
+        );
+        """
+        self.mem_free(argv[0])
+
     @apihook("ExAllocatePool", argc=2)
     def ExAllocatePool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2593,6 +2629,15 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         return rv
+
+    @apihook("IoRegisterLastChanceShutdownNotification", argc=1)
+    def IoRegisterLastChanceShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS IoRegisterLastChanceShutdownNotification(
+          PDEVICE_OBJECT DeviceObject
+        );
+        """
+        return ddk.STATUS_SUCCESS
 
     @apihook("IoUnregisterShutdownNotification", argc=1)
     def IoUnregisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
