@@ -539,3 +539,18 @@ def test_nt_open_section_opens_a_named_section(dll_emu: Speakeasy) -> None:
         int.from_bytes(dll_emu.mem_read(phnd, 4), "little")
     )
     assert mapping is created is not None
+
+
+def test_x86_ke_query_performance_counter_returns_in_edx_eax(driver_emu: Speakeasy) -> None:
+    freq = alloc(driver_emu, b"\x00" * 8)
+    rv, _ = call(driver_emu, "hal", "KeQueryPerformanceCounter", [freq])
+    assert driver_emu.emu is not None
+    counter = driver_emu.emu.reg_read(_arch.X86_REG_EDX) << 32 | rv
+    assert counter > 0xFFFFFFFF
+    assert struct.unpack("<Q", driver_emu.mem_read(freq, 8))[0] == 10_000_000
+
+
+def test_x64_ke_query_performance_counter_accepts_a_null_frequency(driver64_emu: Speakeasy) -> None:
+    first, _ = call(driver64_emu, "hal", "KeQueryPerformanceCounter", [0])
+    second, _ = call(driver64_emu, "hal", "KeQueryPerformanceCounter", [0])
+    assert 0 < first < second
