@@ -6556,6 +6556,21 @@ class Kernel32(api.ApiHandler):
         """
         return
 
+    @apihook("__C_specific_handler", argc=4)
+    def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        EXCEPTION_DISPOSITION __C_specific_handler(
+            PEXCEPTION_RECORD ExceptionRecord,
+            PVOID EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PDISPATCHER_CONTEXT DispatcherContext
+        );
+
+        The scope table filters are not run, so no __except block of the frame
+        handles the exception.
+        """
+        return windefs.ExceptionContinueSearch
+
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
