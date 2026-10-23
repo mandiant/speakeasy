@@ -4,6 +4,8 @@ import copy
 
 import pytest
 
+from speakeasy import Speakeasy
+
 DISPATCH_SCRIPT = [
     "Hello emulator\n",
     "First access violation\r\n",
@@ -100,3 +102,22 @@ def test_seh_without_dispatch_x64(config, load_test_bin, run_test):
     error = report.entry_points[0].error
     assert error.type == "invalid_write"
     assert error.instr == "mov dword ptr [0], 1"
+
+
+# al-khaser (https://github.com/LordNoteworthy/al-khaser), anti-analysis checks built
+# by MSVC in the project's CI. Its MemoryBreakpoints_PageGuard check calls into a
+# PAGE_GUARD page under __try, and reports a debugger unless the guard page violation
+# reaches the __except block: through __C_specific_handler on x64, SEH4 on x86.
+AL_KHASER_PAGE_GUARD = {"x64": 0x9250, "x86": 0xAC20}
+
+
+@pytest.mark.parametrize("arch", ["x64", "x86"])
+def test_al_khaser_page_guard(config, load_test_bin, arch):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(f"al-khaser_{arch}.exe.xz"))
+        se.run_module(module, entry_point=AL_KHASER_PAGE_GUARD[arch])
+        ep = next(e for e in se.get_report().entry_points if e.ep_type == "module_entry")
+
+    assert ep.error is None
+    assert ep.ret_val == 0  # FALSE: no debugger
+    assert [e.exception_code for e in ep.events or [] if e.event == "exception"] == ["0x80000001"]
