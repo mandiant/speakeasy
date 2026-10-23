@@ -234,7 +234,8 @@ class _PeParser(pefile.PE):
             dll, func = imp
             if dll == "mscoree" and func in ["_CorExeMain", "_CorDllMain"]:
                 return True
-        return False
+        directories = self.OPTIONAL_HEADER.DATA_DIRECTORY
+        return len(directories) > 14 and bool(directories[14].VirtualAddress and directories[14].Size)
 
     def rebase(self, to):
         self.relocate_image(to)

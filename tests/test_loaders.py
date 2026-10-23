@@ -9,9 +9,11 @@ import unicorn as uc
 
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
+from speakeasy.errors import NotSupportedError
 from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
 from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule
 from speakeasy.winenv.api.sigdb import SignatureDatabase
+from tests.pe_builder import build_pe
 from tests.test_api_image import build, image_bytes
 from tests.test_export_catalog import _source
 
@@ -436,3 +438,10 @@ def test_unreadable_lookup_table_falls_back_to_iat_after_rebase():
     image = PeLoader(data=raw, base_override=0x60000000).make_image()
     assert static_imports(image) == [("Normal", data + 0x340), ("Survivor", data + 0x344)]
     assert image.regions[0].data == expected.get_memory_mapped_image()[: image.image_size]
+
+
+def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) -> None:
+    image, _ = build_pe(data=b"\0" * 0x48, extra_dirs={14: (0x2000, 0x48)})
+    se = Speakeasy(config=config)
+    with pytest.raises(NotSupportedError):
+        se.load_module(data=image)
