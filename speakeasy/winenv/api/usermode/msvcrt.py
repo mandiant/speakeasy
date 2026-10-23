@@ -1379,6 +1379,23 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dst, data)
         return dst
 
+    @apihook("memchr", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def memchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *memchr(
+            const void *buffer,
+            int c,
+            size_t count
+        );
+        """
+        buf, c, count = argv
+        needle = bytes([c & 0xFF])
+        for off in range(0, count, 0x1000):
+            i = self.mem_read(buf + off, min(0x1000, count - off)).find(needle)
+            if i >= 0:
+                return buf + off + i
+        return 0
+
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

@@ -406,3 +406,12 @@ def test_getenv_ignores_case_and_returns_null_when_missing(dll_emu: Speakeasy) -
     rv, _ = call(dll_emu, "msvcrt", "getenv", [alloc(dll_emu, name.upper().encode() + b"\x00")])
     assert dll_emu.mem_read(rv, len(value) + 1) == value.encode() + b"\x00"
     assert call(dll_emu, "msvcrt", "getenv", [alloc(dll_emu, b"NO_SUCH_VARIABLE\x00")])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "c, count, offset", [(ord("c"), 8, 3), (0x163, 8, 3), (0, 8, 2), (ord("c"), 3, None), (ord("q"), 8, None)]
+)
+def test_memchr_searches_count_bytes(dll_emu: Speakeasy, c: int, count: int, offset: int | None) -> None:
+    buf = alloc(dll_emu, b"ab\x00cdefg")
+    rv, _ = call(dll_emu, "msvcrt", "memchr", [buf, c, count])
+    assert rv == (0 if offset is None else buf + offset)
