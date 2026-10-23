@@ -1914,6 +1914,37 @@ class Kernel32(api.ApiHandler):
 
         return rv
 
+    @apihook("CompareStringOrdinal", argc=5)
+    def CompareStringOrdinal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int CompareStringOrdinal(
+          LPCWCH lpString1,
+          int    cchCount1,
+          LPCWCH lpString2,
+          int    cchCount2,
+          BOOL   bIgnoreCase
+        );
+        """
+        string1, count1, string2, count2, ignore_case = argv
+        units = []
+        for i, (ptr, count) in enumerate(((string1, count1), (string2, count2))):
+            count = ct.c_int32(count).value
+            if count < -1 or (not ptr and count):
+                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+                return 0
+            data = b""
+            if count == -1:
+                while (unit := self.mem_read(ptr + len(data), 2)) != b"\x00\x00":
+                    data += unit
+            elif count:
+                data = self.mem_read(ptr, 2 * count)
+            ctx.args[2 * i].display = data.decode("utf-16le", "replace")
+            chars = [chr(c) for c in struct.unpack(f"<{len(data) // 2}H", data)]
+            if ignore_case:
+                chars = [c.upper() if len(c.upper()) == 1 else c for c in chars]
+            units.append(chars)
+        return 2 + (units[0] > units[1]) - (units[0] < units[1])
+
     @apihook("QueryDosDevice", argc=3)
     def QueryDosDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """Return synthetic DOS device mappings as an ANSI or wide MULTI_SZ."""
