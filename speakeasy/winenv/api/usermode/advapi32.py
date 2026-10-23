@@ -1077,15 +1077,88 @@ class AdvApi32(api.ApiHandler):
             PSID                      *pSid
         );
         """
-        auth, count, sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, pSid = argv
-        rv = False
+        auth, count, *subauthorities, pSid = argv
+        count &= 0xFF
+        if not pSid or not auth or count > 8:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
 
-        if pSid:
-            sid = self.mem_alloc(0x100, tag="api.struct.SID")
-            self.mem_write(pSid, sid.to_bytes(emu.get_ptr_size(), "little"))
-            rv = True
+        sid = self.mem_alloc(0x100, tag="api.struct.SID")
+        data = bytes([1, count]) + self.mem_read(auth, 6)
+        data += b"".join((sa & 0xFFFFFFFF).to_bytes(4, "little") for sa in subauthorities[:count])
+        self.mem_write(sid, data)
+        self.mem_write(pSid, sid.to_bytes(emu.get_ptr_size(), "little"))
+        return True
 
-        return rv
+    @apihook("InitializeSid", argc=3)
+    def InitializeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL InitializeSid(
+            PSID                      Sid,
+            PSID_IDENTIFIER_AUTHORITY pIdentifierAuthority,
+            BYTE                      nSubAuthorityCount
+        );
+        """
+        sid, auth, count = argv
+        count &= 0xFF
+        if not sid or not auth or count > 15:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
+        self.mem_write(sid, bytes([1, count]) + self.mem_read(auth, 6))
+        return True
+
+    @apihook("GetSidLengthRequired", argc=1)
+    def GetSidLengthRequired(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetSidLengthRequired(
+            UCHAR nSubAuthorityCount
+        );
+        """
+        (count,) = argv
+        return 8 + 4 * (count & 0xFF)
+
+    def get_sid_length(self, sid):
+        return 8 + 4 * self.mem_read(sid + 1, 1)[0]
+
+    @apihook("GetLengthSid", argc=1)
+    def GetLengthSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetLengthSid(
+            PSID pSid
+        );
+        """
+        (sid,) = argv
+        return self.get_sid_length(sid) if sid else 0
+
+    @apihook("IsValidSid", argc=1)
+    def IsValidSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL IsValidSid(
+            PSID pSid
+        );
+        """
+        (sid,) = argv
+        if not sid:
+            return False
+        revision, count = self.mem_read(sid, 2)
+        return revision == 1 and count <= 15
+
+    @apihook("CopySid", argc=3)
+    def CopySid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CopySid(
+            DWORD nDestinationSidLength,
+            PSID  pDestinationSid,
+            PSID  pSourceSid
+        );
+        """
+        dst_len, dst, src = argv
+        size = self.get_sid_length(src)
+        if dst_len < size:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return False
+        self.mem_write(dst, self.mem_read(src, size))
+        return True
 
     @apihook("CheckTokenMembership", argc=3)
     def CheckTokenMembership(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1275,8 +1348,8 @@ class AdvApi32(api.ApiHandler):
         rv = False
 
         if sid1 and sid2:
-            s1 = self.mem_read(sid1, 8 + 4 * self.mem_read(sid1 + 1, 1)[0])
-            s2 = self.mem_read(sid2, 8 + 4 * self.mem_read(sid2 + 1, 1)[0])
+            s1 = self.mem_read(sid1, self.get_sid_length(sid1))
+            s2 = self.mem_read(sid2, self.get_sid_length(sid2))
             if s1 == s2:
                 rv = True
 
