@@ -2213,6 +2213,25 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(mbstr, s[:count])
         return min(len(s), count)
 
+    @apihook("mbstowcs", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def mbstowcs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t mbstowcs(
+            wchar_t *wcstr,
+            const char *mbstr,
+            size_t count
+        );
+        """
+        wcstr, mbstr, count = argv
+
+        s = self.read_cstr(mbstr, max_chars=count if wcstr else 0)
+        ctx.args[1].display = s.decode("latin-1")
+        if not wcstr:
+            return len(s)
+        ws = s.decode("latin-1").encode("utf-16le")
+        self.mem_write(wcstr, ws + b"\x00\x00" if len(s) < count else ws)
+        return len(s)
+
     @apihook("_stricmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _stricmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
