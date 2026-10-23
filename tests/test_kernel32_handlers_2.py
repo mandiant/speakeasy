@@ -338,6 +338,14 @@ def test_get_file_attributes_ex(strict_fs_emu: Speakeasy) -> None:
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
+@pytest.mark.parametrize("api", ["GetFileAttributesA", "GetFileAttributesExA"])
+def test_get_file_attributes_of_a_null_path_fails(emu: Speakeasy, api: str) -> None:
+    argv = [0] if api == "GetFileAttributesA" else [0, 0, alloc(emu, b"\x00" * 36)]
+    rv, _ = call(emu, "kernel32", api, argv)
+    assert rv == (windefs.INVALID_FILE_ATTRIBUTES if api == "GetFileAttributesA" else 0)
+    assert last_error(emu) == windefs.ERROR_PATH_NOT_FOUND
+
+
 def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert emu.emu is not None
     handle, _ = call(emu, "kernel32", "AddVectoredExceptionHandler", [1, 0x401000])

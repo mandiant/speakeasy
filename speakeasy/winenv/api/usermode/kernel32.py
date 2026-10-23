@@ -3611,6 +3611,9 @@ class Kernel32(api.ApiHandler):
         (fn,) = argv
         cw = self.get_char_width(ctx)
         rv = windefs.INVALID_FILE_ATTRIBUTES
+        if not fn:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return rv
         target = self.read_mem_string(fn, cw)
         ctx.args["lpFileName"].display = target
         if self.does_file_exist(target):
@@ -3627,6 +3630,10 @@ class Kernel32(api.ApiHandler):
         );
         """
         lpFileName, fInfoLevelId, lpFileInformation = argv
+
+        if not lpFileName:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return False
 
         cw = self.get_char_width(ctx)
 
