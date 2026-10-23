@@ -1732,10 +1732,6 @@ class Msvcrt(api.ApiHandler):
     def terminate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         self.exit_process()
 
-    @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
-    def _crt_atexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
-
     @apihook("_initialize_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
