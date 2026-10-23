@@ -1712,7 +1712,7 @@ class Msvcrt(api.ApiHandler):
             return 0
         dst = self.heap_alloc(size, heap="HeapAlloc")
         if mem:
-            old = next((n for a, n, _ in emu.heap_allocs if a == mem), None)
+            old = next((n for a, n, _ in reversed(emu.heap_allocs) if a == mem), None)
             if old is None:
                 mm = emu.get_address_map(mem)
                 old = mm.base + mm.size - mem if mm else 0
