@@ -1,10 +1,13 @@
 import json
+import multiprocessing as mp
+import os
 import struct
 import subprocess
 import sys
 
 import pytest
 
+from speakeasy.cli import wait_for_child
 from tests.pe_builder import build_pe
 
 
@@ -72,3 +75,24 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
         ("module_entry", "timeout"),
         ("thread", "timeout"),
     ]
+
+
+@pytest.mark.parametrize("code", [0, 3])
+def test_a_child_that_exits_without_a_result_is_an_error(code):
+    q: mp.Queue = mp.Queue()
+    p = mp.Process(target=os._exit, args=(code,))
+    p.start()
+
+    report, error = wait_for_child(q, p, mp.Event(), wall_limit=0)
+
+    assert report is None
+    assert error == f"emulation process exited with code {code} and sent no report"
+
+
+def test_the_result_of_a_child_is_returned():
+    q: mp.Queue = mp.Queue()
+    q.put(("{}", None))
+    p = mp.Process(target=os._exit, args=(0,))
+    p.start()
+
+    assert wait_for_child(q, p, mp.Event(), wall_limit=0) == ("{}", None)
