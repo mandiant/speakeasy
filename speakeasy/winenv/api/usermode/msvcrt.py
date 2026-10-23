@@ -12,6 +12,7 @@ from speakeasy.profiler_events import FILE_WRITE
 
 from .. import api
 
+ENOENT = 2
 EINVAL = 22
 ERANGE = 34
 STRUNCATE = 80
@@ -19,6 +20,8 @@ _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
 
 TIME_BASE = 1576292568
+S_IFREG_RW = 0x81B6
+DRIVE_C = 2
 RAND_BASE = 0
 TICK_BASE = 86400000  # 1 day in millisecs
 
@@ -2529,6 +2532,96 @@ class Msvcrt(api.ApiHandler):
         self.file_streams.pop(stream, None)
         self.mem_free(stream)
         return 0
+
+    def set_errno(self, value):
+        self._errno(self.emu, [])
+        self.mem_write(self.errno_t, value.to_bytes(4, "little"))
+
+    def stat_file(self, argv, ctx, wide, size64, time64):
+        """
+        Fill a struct _stat* for an emulated file.
+
+        The variants differ in the width of st_size and of the three time
+        fields. st_size and the times follow 4 bytes of padding when they are
+        64-bit.
+        """
+        path_ptr, buf = argv
+        path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
+        ctx.args[0].display = path
+
+        hfile = self.file_open(path)
+        if hfile is None:
+            self.set_errno(ENOENT)
+            return -1
+        size = self.file_get(hfile).get_size()
+
+        data = struct.pack("<IHHhhhxxI", DRIVE_C, 0, S_IFREG_RW, 1, 0, 0, DRIVE_C)
+        data += struct.pack("<4xq", size) if size64 else struct.pack("<i", size)
+        data += struct.pack("<3q" if time64 else "<3i", TIME_BASE, TIME_BASE, TIME_BASE)
+        if size64 or time64:
+            data += b"\x00" * (-len(data) % 8)
+        self.mem_write(buf, data)
+        return 0
+
+    @apihook("_stat", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _stat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _stat(
+            const char *path,
+            struct _stat *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, False, False, self.get_ptr_size() == 8)
+
+    @apihook("_stati64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _stati64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _stati64(
+            const char *path,
+            struct _stati64 *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, False, True, self.get_ptr_size() == 8)
+
+    @apihook("_stat64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _stat64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _stat64(
+            const char *path,
+            struct __stat64 *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, False, True, True)
+
+    @apihook("_wstat", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wstat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wstat(
+            const wchar_t *path,
+            struct _stat *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, True, False, self.get_ptr_size() == 8)
+
+    @apihook("_wstati64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wstati64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wstati64(
+            const wchar_t *path,
+            struct _stati64 *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, True, True, self.get_ptr_size() == 8)
+
+    @apihook("_wstat64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wstat64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wstat64(
+            const wchar_t *path,
+            struct __stat64 *buffer
+        );
+        """
+        return self.stat_file(argv, ctx, True, True, True)
 
     @apihook("fflush", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def fflush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

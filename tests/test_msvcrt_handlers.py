@@ -1,9 +1,12 @@
 import struct
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.api.usermode.msvcrt import (
+    ENOENT,
     ERANGE,
     SIG_DFL,
     SIG_ERR,
@@ -13,7 +16,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     STRUNCATE,
     scan_c_format,
 )
-from tests.handler_harness import alloc, call
+from tests.handler_harness import alloc, call, load_emu
 
 
 @pytest.mark.parametrize(
@@ -532,3 +535,50 @@ def test_sscanf_writes_through_the_variadic_pointers(dll_emu: Speakeasy) -> None
     assert dll_emu.mem_read(method, 4) == b"GET\x00"
     assert dll_emu.mem_read(path, 12) == b"/index.html\x00"
     assert dll_emu.mem_read(major, 5) + dll_emu.mem_read(minor, 5) == i32(1) + b"\xcc" + i32(1) + b"\xcc"
+
+
+@pytest.mark.parametrize(
+    "emu_name, api, size_fmt, time_fmt, length",
+    [
+        ("dll_emu", "_stat", "<20xi", "<24x3i", 36),
+        ("dll_emu", "_stati64", "<24xq", "<32x3i", 48),
+        ("dll_emu", "_stat64", "<24xq", "<32x3q", 56),
+        ("dll64_emu", "_stat", "<20xi", "<24x3q", 48),
+        ("dll64_emu", "_stati64", "<24xq", "<32x3q", 56),
+    ],
+)
+def test_stat_fills_the_struct_for_an_emulated_file(
+    request: pytest.FixtureRequest, emu_name: str, api: str, size_fmt: str, time_fmt: str, length: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    buf = alloc(se, b"\xcc" * 64)
+    path = alloc(se, b"c:\\programdata\\mydir\\myfile.bin\x00")
+
+    assert call(se, "msvcrt", api, [path, buf])[0] == 0
+
+    data = se.mem_read(buf, 64)
+    assert struct.unpack_from("<HhI", data, 6)[0:2] == (0x81B6, 1)
+    assert struct.unpack_from(size_fmt, data)[0] == 512
+    times = struct.unpack_from(time_fmt, data)
+    assert times[0] == times[1] == times[2] > 0
+    assert data[length:] == b"\xcc" * (64 - length)
+
+
+def test_wstati64_reads_a_wide_path(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\x00" * 48)
+    path = alloc(dll_emu, "c:\\programdata\\mydir\\myfile.bin\x00".encode("utf-16le"))
+
+    assert call(dll_emu, "msvcrt", "_wstati64", [path, buf])[0] == 0
+    assert struct.unpack_from("<q", dll_emu.mem_read(buf, 48), 24)[0] == 512
+
+
+def test_stat_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
+    files = config["filesystem"]["files"]
+    files[:] = [f for f in files if f["mode"] != "default"]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        buf = alloc(se, b"\x00" * 48)
+        path = alloc(se, b"c:\\missing\\file.dat\x00")
+
+        assert call(se, "msvcrt", "_stati64", [path, buf])[0] == -1
+        errno_ptr, _ = call(se, "msvcrt", "_errno", [])
+        assert int.from_bytes(se.mem_read(errno_ptr, 4), "little") == ENOENT
