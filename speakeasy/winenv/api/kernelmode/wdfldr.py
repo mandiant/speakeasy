@@ -16,7 +16,6 @@ from .. import api
 class WdfDriver:
     def __init__(self):
         self.reg_path: int | None = None
-        self.typed_context_worker: int | None = None
         self.queues: dict[int, int] = {}
         self.driver_object_addr: int | None = None
         self.driver_object: Any | None = None
@@ -70,6 +69,7 @@ class Wdfldr(api.ApiHandler):
         self.usb_pipes: dict[int, WdfUsbPipe] = {}
         self.usb_interfaces: dict[int, WdfUsbInterface] = {}
         self.handles: dict[int, Any] = {}
+        self.typed_contexts: dict[tuple[int, int], int] = {}
         self.types = wdf
         self.func_table = self.types.WDFFUNCTIONS(emu.get_ptr_size())
         self.func_table_ptr: int | None = None
@@ -353,15 +353,16 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, Handle, TypeInfo = argv
+        if not TypeInfo:
+            return 0
 
-        driver = self.wdf_drivers.get(DriverGlobals)
-
-        if not driver.typed_context_worker:
-            size = self.types.WDF_COMPONENT_GLOBALS(emu.get_ptr_size()).sizeof()
-            driver.typed_context_worker = self.mem_alloc(size, tag="api.struct.WDF_TYPED_CONTEXT_WORKER")
-        rv = driver.typed_context_worker
-
-        return rv
+        ps = emu.get_ptr_size()
+        unique = emu.read_ptr(TypeInfo + 3 * ps) or TypeInfo
+        key = (Handle, unique)
+        if key not in self.typed_contexts:
+            size = emu.read_ptr(unique + 2 * ps) or ps
+            self.typed_contexts[key] = self.mem_alloc(size, tag="api.struct.WDF_OBJECT_CONTEXT")
+        return self.typed_contexts[key]
 
     @apihook("WdfDriverOpenParametersRegistryKey", argc=5)
     def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
