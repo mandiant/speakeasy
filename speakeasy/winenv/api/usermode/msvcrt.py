@@ -1156,9 +1156,13 @@ class Msvcrt(api.ApiHandler):
         value = int.from_bytes(self.mem_read(timer, self.get_time_size(emu)), "little", signed=True)
         if value < 0:
             return 0
+        try:
+            t = datetime.fromtimestamp(value, timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return 0
         if self.tm_buf is None:
             self.tm_buf = self.mem_alloc(36, tag="api.msvcrt.tm")
-        self.mem_write(self.tm_buf, get_struct_tm(datetime.fromtimestamp(value, timezone.utc)))
+        self.mem_write(self.tm_buf, get_struct_tm(t))
         return self.tm_buf
 
     @apihook("localtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
