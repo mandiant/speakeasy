@@ -427,20 +427,12 @@ class Ws2_32(api.ApiHandler):
         nfds, readfds, writefds, exceptfds, timeout = argv
         fd_count = 0
 
-        if readfds:
-            fds = self.mem_read(readfds, 4)
-            fds = int.from_bytes(fds, "little")
-            fd_count += fds
-
-        if writefds:
-            fds = self.mem_read(writefds, 4)
-            fds = int.from_bytes(fds, "little")
-            fd_count += fds
+        for fds in (readfds, writefds):
+            if fds:
+                fd_count += int.from_bytes(self.mem_read(fds, 4), "little")
 
         if exceptfds:
-            fds = self.mem_read(exceptfds, 4)
-            fds = int.from_bytes(fds, "little")
-            fd_count += fds
+            self.mem_write(exceptfds, b"\x00" * 4)
 
         return fd_count
 
@@ -581,7 +573,12 @@ class Ws2_32(api.ApiHandler):
         );
         """
         sock, fd_set = argv
-        return 1
+        if not fd_set:
+            return 0
+        ptr_size = emu.get_ptr_size()
+        count = min(int.from_bytes(self.mem_read(fd_set, 4), "little"), 64)
+        fds = self.mem_read(fd_set + ptr_size, count * ptr_size)
+        return int(any(int.from_bytes(fds[i : i + ptr_size], "little") == sock for i in range(0, len(fds), ptr_size)))
 
     @apihook("shutdown", argc=2, ordinal=22)
     def shutdown(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
