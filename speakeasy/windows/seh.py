@@ -211,4 +211,4 @@ def capture_context(emu, address: int) -> None:
 
 def restore_context(emu, address: int) -> Resume:
     """RtlRestoreContext and NtContinue: continue at a context."""
-    return Resume(read_context(emu, address))
+    return resume_at(emu, read_context(emu, address))
