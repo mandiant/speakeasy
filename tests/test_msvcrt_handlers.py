@@ -760,6 +760,13 @@ def test_time_conversion_fills_struct_tm(dll_emu: Speakeasy, api: str) -> None:
     assert call(dll_emu, "msvcrt", api, [0])[0] == 0
 
 
+@pytest.mark.parametrize("api", ["localtime", "gmtime"])
+@pytest.mark.parametrize("value", [1 << 62, (1 << 63) - 1])
+def test_time_conversion_of_an_out_of_range_time_returns_null(dll64_emu: Speakeasy, api: str, value: int) -> None:
+    t = alloc(dll64_emu, value.to_bytes(8, "little"))
+    assert call(dll64_emu, "msvcrt", api, [t])[0] == 0
+
+
 def test_mktime_normalizes_the_fields(dll_emu: Speakeasy) -> None:
     tm = alloc(dll_emu, struct.pack("<9i", 65, 3, 3, 29, 13, 99, 0, 0, -1))
     assert call(dll_emu, "msvcrt", "mktime", [tm])[0] == 951782400 + 3 * 3600 + 4 * 60 + 5
