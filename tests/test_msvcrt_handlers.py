@@ -365,3 +365,20 @@ def test_abort_ends_the_process(dll_emu: Speakeasy) -> None:
     assert not dll_emu.emu.run_complete
     call(dll_emu, "msvcrt", "abort", [])
     assert dll_emu.emu.run_complete
+
+
+def test_fwrite_writes_to_a_file_stream(dll_emu: Speakeasy) -> None:
+    path = alloc(dll_emu, b"c:\\users\\public\\out.bin\x00")
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"wb\x00")])
+    assert stream
+
+    assert call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"abcdef"), 2, 3, stream])[0] == 3
+    out = alloc(dll_emu, b"\x00" * 16)
+    assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, stream])[0] == 6
+    assert dll_emu.mem_read(out, 6) == b"abcdef"
+
+
+def test_fwrite_shows_console_output_as_text(dll_emu: Speakeasy) -> None:
+    rv, displays = call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, "héllo".encode()), 1, 6, 1])
+    assert rv == 6
+    assert displays[0] == "héllo"

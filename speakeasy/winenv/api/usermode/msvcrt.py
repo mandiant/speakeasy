@@ -8,6 +8,7 @@ from typing import Any
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
+from speakeasy.profiler_events import FILE_WRITE
 
 from .. import api
 
@@ -2154,6 +2155,33 @@ class Msvcrt(api.ApiHandler):
 
         self.mem_write(ptr, data)
         return len(data) // size
+
+    @apihook("fwrite", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def fwrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t fwrite(
+            const void *buffer,
+            size_t size,
+            size_t count,
+            FILE *stream
+            );
+        """
+        buffer, size, count, stream = argv
+        if not buffer or size == 0 or count == 0:
+            return 0
+
+        data = self.mem_read(buffer, size * count)
+        hfile = self.file_streams.get(stream)
+        fobj = self.file_get(hfile) if hfile is not None else None
+        if hfile is None or not fobj:
+            ctx.args[0].display = data.decode("utf-8", errors="replace")
+            return count
+
+        ctx.args[0].display = f"{hex(buffer)} ({data.hex()[:0x20]})"
+        ctx.args[3].display = hex(hfile)
+        fobj.add_data(data)
+        self.record_file_access_event(fobj.path, FILE_WRITE, data=data, buffer=buffer, size=len(data))
+        return count
 
     @apihook("fputc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fputc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
