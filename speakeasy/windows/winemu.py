@@ -3309,7 +3309,7 @@ class WindowsEmulator(BinaryEmulator):
         # This file could have been read from, so don't mess
         # with its file offset pointer. Just get the raw bytes
         # from the BytesIO object
-        return mod_file.data.getvalue()
+        return mod_file.get_contents()
 
     def init_sys_modules(self, modules_config):
         return self._init_module_group(modules_config)
