@@ -1,6 +1,7 @@
 {
   "module": "ktmw32",
   "file": "ktmw32.dll",
+  "export_name": "ktmw32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 607432210,

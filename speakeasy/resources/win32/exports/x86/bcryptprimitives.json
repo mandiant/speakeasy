@@ -1,6 +1,7 @@
 {
   "module": "bcryptprimitives",
   "file": "bcryptprimitives.dll",
+  "export_name": "bcryptPrimitives.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32860",
   "timestamp": 4165741636,

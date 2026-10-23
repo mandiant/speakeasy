@@ -1,6 +1,7 @@
 {
   "module": "mmdevapi",
   "file": "mmdevapi.dll",
+  "export_name": "MMDevAPI.DLL",
   "arch": "x64",
   "file_version": "10.0.26100.32234",
   "timestamp": 2842541597,

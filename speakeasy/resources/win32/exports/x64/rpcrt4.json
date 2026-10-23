@@ -1,6 +1,7 @@
 {
   "module": "rpcrt4",
   "file": "rpcrt4.dll",
+  "export_name": "RPCRT4.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 2471951194,

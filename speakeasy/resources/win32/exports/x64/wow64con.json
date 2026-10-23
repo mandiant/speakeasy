@@ -1,6 +1,7 @@
 {
   "module": "wow64con",
   "file": "wow64con.dll",
+  "export_name": "wow64con.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32684",
   "timestamp": 803171982,

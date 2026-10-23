@@ -12,6 +12,8 @@ The files were extracted once with `pefile`, from every PE file in those directo
 4. `kind` is `data` when the RVA is in a section without `IMAGE_SCN_MEM_EXECUTE`. Otherwise it is `function`.
 5. Exports are sorted by ordinal, then by name. Each export is on its own line, so diffs stay small.
 
+`export_name` is the Name field of the export directory, for example `KERNEL32.dll`. Speakeasy writes it into the export directory of the synthetic module, because some code finds a module by this name.
+
 There are no files for the CRT modules other than `msvcrt` (`ucrtbase`, `vcruntime*`, `msvcp*`, `msvcr*`, `crtdll`) or for `wsock32`. Speakeasy maps those names to `msvcrt` and `ws2_32` before it looks for a manifest.
 
 There is no generator script. To add or correct a module, edit its file or write a new one with the same format:
@@ -20,6 +22,7 @@ There is no generator script. To add or correct a module, edit its file or write
 {
   "module": "ws2_32",
   "file": "ws2_32.dll",
+  "export_name": "WS2_32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32684",
   "timestamp": 314141788,

@@ -291,7 +291,7 @@ class ApiModuleLoader:
                         specs.setdefault(alias, ApiExportSpec(alias))
             specs.update({name: ApiExportSpec(name, kind="data") for name in data_names})
             exports = list(specs.values())
-        image_name = self._name
+        image_name = manifest.export_name if manifest is not None else self._name
         try:
             image_name.encode("ascii")
         except UnicodeEncodeError:

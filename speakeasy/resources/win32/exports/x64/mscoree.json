@@ -1,6 +1,7 @@
 {
   "module": "mscoree",
   "file": "mscoree.dll",
+  "export_name": "mscoree.dll",
   "arch": "x64",
   "file_version": "10.0.26100.3624",
   "timestamp": 25280579,

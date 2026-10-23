@@ -1,6 +1,7 @@
 {
   "module": "cabinet",
   "file": "cabinet.dll",
+  "export_name": "Cabinet.dll",
   "arch": "x86",
   "file_version": "5.0.1.1",
   "timestamp": 3426052160,

@@ -1,6 +1,7 @@
 {
   "module": "ntdll",
   "file": "ntdll.dll",
+  "export_name": "ntdll.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 1182225725,

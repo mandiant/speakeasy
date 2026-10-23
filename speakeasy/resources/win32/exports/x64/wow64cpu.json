@@ -1,6 +1,7 @@
 {
   "module": "wow64cpu",
   "file": "wow64cpu.dll",
+  "export_name": "wow64cpu.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32684",
   "timestamp": 888087288,

@@ -1,6 +1,7 @@
 {
   "module": "coremessaging",
   "file": "coremessaging.dll",
+  "export_name": "CoreMessaging.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32684",
   "timestamp": 2949351616,

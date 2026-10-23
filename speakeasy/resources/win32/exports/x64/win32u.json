@@ -1,6 +1,7 @@
 {
   "module": "win32u",
   "file": "win32u.dll",
+  "export_name": "win32u.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 1480902944,

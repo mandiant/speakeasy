@@ -1,6 +1,7 @@
 {
   "module": "vulkan-1",
   "file": "vulkan-1.dll",
+  "export_name": "vulkan-shim.dll",
   "arch": "x64",
   "file_version": null,
   "timestamp": 1784719748,

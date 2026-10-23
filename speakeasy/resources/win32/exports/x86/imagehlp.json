@@ -1,6 +1,7 @@
 {
   "module": "imagehlp",
   "file": "imagehlp.dll",
+  "export_name": "imagehlp.dll",
   "arch": "x86",
   "file_version": "10.0.26100.4202",
   "timestamp": 3079445247,

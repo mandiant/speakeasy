@@ -1,6 +1,7 @@
 {
   "module": "hal",
   "file": "hal.dll",
+  "export_name": "HAL.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 3632383754,

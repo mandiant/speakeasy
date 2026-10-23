@@ -1,6 +1,7 @@
 {
   "module": "gdi32full",
   "file": "gdi32full.dll",
+  "export_name": "gdi32full.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 4103737707,

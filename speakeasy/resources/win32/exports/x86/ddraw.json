@@ -1,6 +1,7 @@
 {
   "module": "ddraw",
   "file": "ddraw.dll",
+  "export_name": "DDRAW.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 1811115158,

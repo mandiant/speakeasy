@@ -1,6 +1,7 @@
 {
   "module": "pdh",
   "file": "pdh.dll",
+  "export_name": "pdh.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 2546061522,

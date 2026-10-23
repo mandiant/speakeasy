@@ -1,6 +1,7 @@
 {
   "module": "x3daudio1_7",
   "file": "x3daudio1_7.dll",
+  "export_name": "X3DAudio1_7.dll",
   "arch": "x64",
   "file_version": "9.28.1886.0",
   "timestamp": 1265305278,

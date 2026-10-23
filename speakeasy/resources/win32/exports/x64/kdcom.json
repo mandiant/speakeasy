@@ -1,6 +1,7 @@
 {
   "module": "kdcom",
   "file": "kdcom.dll",
+  "export_name": "kdcom.dll",
   "arch": "x64",
   "file_version": "10.0.26100.1882",
   "timestamp": 2946219595,

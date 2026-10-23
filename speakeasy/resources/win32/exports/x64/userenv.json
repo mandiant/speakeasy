@@ -1,6 +1,7 @@
 {
   "module": "userenv",
   "file": "userenv.dll",
+  "export_name": "USERENV.dll",
   "arch": "x64",
   "file_version": "10.0.26100.7309",
   "timestamp": 2486835439,

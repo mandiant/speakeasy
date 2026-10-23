@@ -1,6 +1,7 @@
 {
   "module": "urlmon",
   "file": "urlmon.dll",
+  "export_name": "urlmon.dll",
   "arch": "x64",
   "file_version": "11.0.26100.32995",
   "timestamp": 418102033,

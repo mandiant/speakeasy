@@ -1,6 +1,7 @@
 {
   "module": "slwga",
   "file": "slwga.dll",
+  "export_name": "SLWGA.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 2218110555,

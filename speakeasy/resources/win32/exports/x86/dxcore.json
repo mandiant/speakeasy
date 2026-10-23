@@ -1,6 +1,7 @@
 {
   "module": "dxcore",
   "file": "dxcore.dll",
+  "export_name": "dxcore.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 1796751377,

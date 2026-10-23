@@ -1,6 +1,7 @@
 {
   "module": "d3d9",
   "file": "d3d9.dll",
+  "export_name": "D3D9.DLL",
   "arch": "x64",
   "file_version": "10.0.17763.1",
   "timestamp": 1784327712,

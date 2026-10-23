@@ -1,6 +1,7 @@
 {
   "module": "d3dcompiler_43",
   "file": "d3dcompiler_43.dll",
+  "export_name": "D3DCOMPILER_43.dll",
   "arch": "x64",
   "file_version": "9.29.952.3111",
   "timestamp": 1274481643,

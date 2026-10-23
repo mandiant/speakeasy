@@ -1,6 +1,7 @@
 {
   "module": "msvcrt",
   "file": "msvcrt.dll",
+  "export_name": "msvcrt.dll",
   "arch": "x64",
   "file_version": "7.0.26100.32684",
   "timestamp": 3953054410,

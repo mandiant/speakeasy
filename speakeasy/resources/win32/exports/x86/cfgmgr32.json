@@ -1,6 +1,7 @@
 {
   "module": "cfgmgr32",
   "file": "cfgmgr32.dll",
+  "export_name": "CFGMGR32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 757213122,

@@ -1,6 +1,7 @@
 {
   "module": "rasadhlp",
   "file": "rasadhlp.dll",
+  "export_name": "rasadhlp.dll",
   "arch": "x86",
   "file_version": "10.0.26100.6584",
   "timestamp": 2585993304,

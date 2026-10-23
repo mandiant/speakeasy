@@ -1,6 +1,7 @@
 {
   "module": "rstrtmgr",
   "file": "rstrtmgr.dll",
+  "export_name": "RstrtMgr.DLL",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 3867729134,

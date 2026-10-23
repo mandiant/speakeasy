@@ -1,6 +1,7 @@
 {
   "module": "wow64",
   "file": "wow64.dll",
+  "export_name": "wow64.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 3208500488,
