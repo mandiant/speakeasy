@@ -272,7 +272,9 @@ def test_gdb_steps_api_entry_before_dispatch_and_returns_once(api_target):
         pc, sp, result = target.registers()
         if pc == return_address:
             break
-        assert entry < pc < entry + 16 and sp == entry_sp, (hex(pc), hex(entry))
+        # The x86 entry pushes and pops EBP like the Windows prologue.
+        prologue_sp = entry_sp - 4 if target.ptr_size == 4 else entry_sp
+        assert entry < pc < entry + 16 and sp in (entry_sp, prologue_sp), (hex(pc), hex(entry))
         assert target.counter() == 0
     else:
         pytest.fail("stepping did not complete the API call")
