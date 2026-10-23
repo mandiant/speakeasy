@@ -255,7 +255,8 @@ class Win32Emulator(WindowsEmulator):
             run.type = "module_entry"
             run.args = [self.mem_map(8, tag=f"emu.module_arg_{i}") for i in range(4)]
 
-        self.add_run(run)
+        if entry_point is not None or module.is_exe() or ep != module.base:
+            self.add_run(run)
 
         if all_entrypoints:
             # Only emulate a subset of all the exported functions
@@ -266,7 +267,11 @@ class Win32Emulator(WindowsEmulator):
             if exports:
                 args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
                 for exp in exports:
-                    if exp.name in ("DllMain",) or getattr(exp, "kind", "function") == "data":
+                    if (
+                        exp.name in ("DllMain",)
+                        or getattr(exp, "kind", "function") == "data"
+                        or getattr(exp, "forwarder", None)
+                    ):
                         continue
                     run = Run()
                     if exp.name:
