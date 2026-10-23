@@ -1022,6 +1022,9 @@ class Kernel32(api.ApiHandler):
                     test = emu.virtual_mem_base
                 size = dwSize
                 base, size = emu.get_valid_ranges(size, addr=test)
+                if lpAddress and base != test:
+                    emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                    return 0
                 while base and base & 0xFFF:
                     base, size = emu.get_valid_ranges(size, addr=test)
                     test += PAGE_SIZE
