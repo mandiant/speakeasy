@@ -1677,6 +1677,47 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dst, data)
         return dst
 
+    def dupenv(self, emu, argv, ctx, width):
+        buffer, count, name = argv
+        key = self.read_mem_string(name, width) if name else ""
+        ctx.args[2].display = key
+        if not buffer or not name:
+            self.set_errno(EINVAL)
+            return EINVAL
+        ptr_size = self.get_ptr_size()
+        val = next((v for k, v in emu.get_env().items() if k.lower() == key.lower()), None)
+        dst = 0
+        if val is not None:
+            data = (val + "\x00").encode("utf-16le" if width == 2 else "latin-1")
+            dst = self.heap_alloc(len(data), heap="HeapAlloc")
+            self.mem_write(dst, data)
+        self.mem_write(buffer, dst.to_bytes(ptr_size, "little"))
+        if count:
+            self.mem_write(count, (len(val) + 1 if val is not None else 0).to_bytes(ptr_size, "little"))
+        return 0
+
+    @apihook("_dupenv_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _dupenv_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _dupenv_s(
+            char **buffer,
+            size_t *numberOfElements,
+            const char *varname
+        );
+        """
+        return self.dupenv(emu, argv, ctx, 1)
+
+    @apihook("_wdupenv_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wdupenv_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _wdupenv_s(
+            wchar_t **buffer,
+            size_t *numberOfElements,
+            const wchar_t *varname
+        );
+        """
+        return self.dupenv(emu, argv, ctx, 2)
+
     @apihook("memchr", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -3019,6 +3060,30 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(buf, data + b"\x00")
         ctx.args[0].display = data.decode("utf-8", errors="replace")
         return buf
+
+    @apihook("fgetc", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def fgetc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fgetc(
+            FILE *stream
+            );
+
+        A stream that is not from fopen, such as stdin, is at end of file.
+        """
+        (stream,) = argv
+        hfile = self.file_streams.get(stream)
+        fobj = self.file_get(hfile) if hfile is not None else None
+        data = fobj.get_data(size=1) if fobj else b""
+        return data[0] if data else -1
+
+    @apihook("getc", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def getc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int getc(
+            FILE *stream
+            );
+        """
+        return self.fgetc(emu, argv, ctx)
 
     @apihook("fwrite", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def fwrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
