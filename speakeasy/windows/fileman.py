@@ -40,6 +40,16 @@ class MapView:
         self.process = process
 
 
+def get_object_name_key(name):
+    name = name.lower()
+    if "basenamedobjects\\" in name:
+        name = name.split("basenamedobjects\\", 1)[1]
+    for prefix in ("global\\", "local\\"):
+        if name.startswith(prefix):
+            name = name[len(prefix) :]
+    return name
+
+
 class FileMap:
     """
     Represents a memory mapped file
@@ -288,6 +298,18 @@ class FileManager:
 
     def get_dropped_files(self):
         return [f for f in self.files if f.bytes_written == f.get_size()]
+
+    def open_mapping(self, name):
+        """
+        Open a new handle to the named file mapping, or return None when no mapping has the name.
+        """
+        key = get_object_name_key(name)
+        for fm in list(self.file_maps.values()):
+            if fm.name and get_object_name_key(fm.name) == key:
+                hnd = fm.get_handle()
+                self.file_maps[hnd] = fm
+                return hnd
+        return None
 
     def get_mapping_from_handle(self, handle):
         return self.file_maps.get(handle)
