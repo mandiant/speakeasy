@@ -36,6 +36,7 @@ LOCALE_USER_DEFAULT = 0x400
 LOCALE_SYSTEM_DEFAULT = 0x0800
 
 SEC_IMAGE = 0x1000000
+EXCEPTION_NONCONTINUABLE = 0x1
 
 FILE_MAP_COPY = 0x0001
 FILE_MAP_WRITE = 0x0002
@@ -5507,7 +5508,10 @@ class Kernel32(api.ApiHandler):
         count = min(nNumberOfArguments, 15) if lpArguments else 0
         params = [emu.read_ptr(lpArguments + i * 4) for i in range(count)]
         emu.do_call_return(len(argv), emu.get_ret_address(), conv=e_arch.CALL_CONV_STDCALL)
-        emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params)
+        handled = emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params)
+        if not handled and dwExceptionFlags & EXCEPTION_NONCONTINUABLE:
+            emu.curr_run.error = emu.get_error_info("unhandled_exception", emu.get_pc())
+            emu.on_run_complete()
 
     @apihook("VerSetConditionMask", argc=4)
     def VerSetConditionMask(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
