@@ -33,16 +33,16 @@ Kernel modules and user modules without a manifest use the signature catalog. Wi
 
 ## Public entries and private dispatch
 
-Each synthesized function occupies a 32-byte slot. The first 16 bytes are NOP padding for patches, and the public entry starts at offset 16. The original entry is stack-neutral:
+Each synthesized function occupies a 32-byte slot. The first 16 bytes are NOP padding for patches, and the public entry starts at offset 16. When the original entry reaches its jump, the stack, registers and flags are as they were at the entry:
 
 | Architecture | Public bytes |
 | --- | --- |
-| x86 | `8B FF` (`mov edi,edi`), `0F 1F 00` (NOP), then `E9 rel32` |
+| x86 | `8B FF 55 8B EC` (`mov edi,edi; push ebp; mov ebp,esp`), `5D` (`pop ebp`), then `E9 rel32` |
 | x64 | `66 90`, followed by `FF 25 00 00 00 00` and an embedded 64-bit target |
 
 The jump goes to a unique, permanently unmapped private token. The private reservation is 1 MiB with 16-byte token spacing. It is separate from the SEH and other control addresses. Allocation is monotonic, including after a failed load, so retired tokens cannot become a different API.
 
-The invalid-memory dispatcher recognizes private controls before user fault hooks. An expected API fetch stops Unicorn and returns control to the outer execution loop. Python dispatch then runs outside the native callback. This avoids mapping fake API pages and makes breakpoint, step, interrupt and library-notification ordering explicit. Unregistered targets or data accesses in the reservation suspend native execution and deliver an ordinary access violation to guest SEH outside the callback. Unhandled accesses produce `invalid_read`, `invalid_write` or `invalid_fetch`. SEH can redirect PC or repair registers, but exception recovery never maps the reservation. The first five x86 bytes comprise whole instructions, allowing a five-byte inline hook to copy them into a trampoline and resume at the jump.
+The invalid-memory dispatcher recognizes private controls before user fault hooks. An expected API fetch stops Unicorn and returns control to the outer execution loop. Python dispatch then runs outside the native callback. This avoids mapping fake API pages and makes breakpoint, step, interrupt and library-notification ordering explicit. Unregistered targets or data accesses in the reservation suspend native execution and deliver an ordinary access violation to guest SEH outside the callback. Unhandled accesses produce `invalid_read`, `invalid_write` or `invalid_fetch`. SEH can redirect PC or repair registers, but exception recovery never maps the reservation. The first five x86 bytes are the Windows hot-patch prologue. Inline hooks that match this prologue copy it into a trampoline and resume at `pop ebp`, which restores the stack and EBP before the jump.
 
 A host or debugger patch invalidates Unicorn's translated code cache. Patching a public entry to return or jump elsewhere executes those guest bytes and can bypass handler dispatch. A suspended call retains its entry bytes, SP and return slot; editing its frame or public code abandons the retained dispatch and executes the revised entry.
 
