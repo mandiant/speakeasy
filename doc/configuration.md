@@ -65,7 +65,7 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   "snapshot_memory_regions": false,
 
   "exceptions": {
-    // If true, emulate exception-handler dispatch (SEH/VEH-like paths).
+    // If true, emulate exception-handler dispatch (SEH/VEH-like paths, see exceptions.md).
     // If false, faulting paths stop sooner and are easier to localize.
     "dispatch_handlers": true
   },

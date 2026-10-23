@@ -31,6 +31,10 @@ Why execution stops:
 
 Queued runs (for example additional entry points) can still execute. `modules.functions_always_exist` forces these calls through as 4-argument stdcall stubs returning 1.
 
+## Exceptions
+
+Exceptions reach the sample's own handlers, with the limits listed in [Exception dispatch](exceptions.md).
+
 ## Environmental requirements
 
 A sample may expect files, registry keys, network responses, loaded modules, or runtime structures that are not present in the active profile. These misses can look like anti-analysis behavior even when the issue is configuration drift.
@@ -42,6 +46,7 @@ Use config and CLI overrides to model the expected environment before concluding
 - [Project README](../README.md)
 - [Documentation index](index.md)
 - [Configuration walkthrough](configuration.md)
+- [Exception dispatch](exceptions.md)
 - [CLI environment overrides](cli-environment-overrides.md)
 - [Adding API handlers](api-handlers.md)
 - [Help and troubleshooting](help.md)
