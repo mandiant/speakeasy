@@ -1361,6 +1361,24 @@ class Msvcrt(api.ApiHandler):
             self.mem_free(mem)
         return dst
 
+    @apihook("getenv", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def getenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *getenv(
+            const char *varname
+        );
+        """
+        (name,) = argv
+        key = self.read_cstr(name).decode("latin-1")
+        ctx.args[0].display = key
+        val = next((v for k, v in emu.get_env().items() if k.lower() == key.lower()), None)
+        if val is None:
+            return 0
+        data = val.encode("latin-1") + b"\x00"
+        dst = self.heap_alloc(len(data), heap="HeapAlloc")
+        self.mem_write(dst, data)
+        return dst
+
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
