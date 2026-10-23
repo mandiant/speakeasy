@@ -198,17 +198,27 @@ class User32(api.ApiHandler):
         );
         """
         (Arg1,) = argv
-        wclass = windefs.WNDCLASSEX(emu.get_ptr_size())
-        wclass = self.mem_cast(wclass, Arg1)
+        return self.register_window_class(windefs.WNDCLASSEX(emu.get_ptr_size()), Arg1, ctx)
+
+    @apihook("RegisterClass", argc=1)
+    def RegisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ATOM RegisterClass(
+            const WNDCLASSA *lpWndClass
+        );
+        """
+        (lpWndClass,) = argv
+        return self.register_window_class(windefs.WNDCLASS(emu.get_ptr_size()), lpWndClass, ctx)
+
+    def register_window_class(self, wclass, address, ctx):
+        wclass = self.mem_cast(wclass, address)
 
         cn = None
         cw = self.get_char_width(ctx)
         if wclass.lpszClassName > 0xFFFF:
             cn = self.read_mem_string(wclass.lpszClassName, cw)
 
-        atom = self.sessman.create_window_class(wclass, cn)
-
-        return atom
+        return self.sessman.create_window_class(wclass, cn)
 
     @apihook("UnregisterClass", argc=2)
     def UnregisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
