@@ -582,3 +582,26 @@ def test_stat_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_b
         assert call(se, "msvcrt", "_stati64", [path, buf])[0] == -1
         errno_ptr, _ = call(se, "msvcrt", "_errno", [])
         assert int.from_bytes(se.mem_read(errno_ptr, 4), "little") == ENOENT
+
+
+@pytest.mark.parametrize("api, enc", [("_unlink", "latin-1"), ("_wunlink", "utf-16le"), ("remove", "latin-1")])
+def test_unlink_deletes_a_written_file(dll_emu: Speakeasy, api: str, enc: str) -> None:
+    assert dll_emu.emu is not None
+    name = "c:\\users\\public\\drop.bin"
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [alloc(dll_emu, name.encode() + b"\x00"), alloc(dll_emu, b"wb\x00")])
+    call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"MZ"), 1, 2, stream])
+    call(dll_emu, "msvcrt", "fclose", [stream])
+    assert [f.path for f in dll_emu.get_dropped_files()] == [name]
+
+    path = alloc(dll_emu, (name + "\x00").encode(enc))
+    assert call(dll_emu, "msvcrt", api, [path])[0] == 0
+    assert dll_emu.get_dropped_files() == []
+
+
+def test_unlink_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
+    files = config["filesystem"]["files"]
+    files[:] = [f for f in files if f["mode"] != "default"]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        assert call(se, "msvcrt", "_unlink", [alloc(se, b"c:\\missing\\file.dat\x00")])[0] == -1
+        errno_ptr, _ = call(se, "msvcrt", "_errno", [])
+        assert int.from_bytes(se.mem_read(errno_ptr, 4), "little") == ENOENT
