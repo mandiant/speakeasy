@@ -72,6 +72,9 @@ def test_normalize_dll_name_apiset_extensions():
     assert normalize_dll_name("ext-ms-win-rtcore-gdi-object-l1-1-0") == "gdi32"
     assert normalize_dll_name("api-ms-win-eventing-classicprovider-l1-1-0") == "advapi32"
     assert normalize_dll_name("ext-ms-win-shell-shell32-l1-2-0") == "ext-ms-win-shell-shell32-l1-2-0"
+    assert normalize_dll_name("api-ms-win-shell-shellfolders-l1-1-0") == "shell32"
+    assert normalize_dll_name("api-ms-win-core-shlwapi-legacy-l1-1-0") == "shlwapi"
+    assert normalize_dll_name("api-ms-win-core-shlwapi-obsolete-l1-1-0") == "shlwapi"
 
 
 def test_normalize_dll_name_crt():
