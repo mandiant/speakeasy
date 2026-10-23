@@ -1,7 +1,7 @@
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.winenv.api.usermode.msvcrt import ERANGE, STRUNCATE
+from speakeasy.winenv.api.usermode.msvcrt import ERANGE, SIG_DFL, SIG_ERR, SIG_IGN, SIGINT, SIGSEGV, STRUNCATE
 from tests.handler_harness import alloc, call
 
 
@@ -325,3 +325,14 @@ def test_snwprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Spea
 def test_printf_counts_one_character_for_percent_escape(dll_emu: Speakeasy) -> None:
     fmt = alloc(dll_emu, b"100%%\n\0")
     assert call(dll_emu, "msvcrt", "printf", [fmt])[0] == 5
+
+
+def test_signal_returns_the_previous_handler_of_each_signal(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "signal", [SIGSEGV, 0x401000])[0] == SIG_DFL
+    assert call(dll_emu, "msvcrt", "signal", [SIGSEGV, SIG_IGN])[0] == 0x401000
+    assert call(dll_emu, "msvcrt", "signal", [SIGINT, SIG_IGN])[0] == SIG_DFL
+    assert call(dll_emu, "msvcrt", "signal", [SIGSEGV, SIG_DFL])[0] == SIG_IGN
+
+
+def test_signal_rejects_an_unknown_signal(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "signal", [5, SIG_IGN])[0] == SIG_ERR

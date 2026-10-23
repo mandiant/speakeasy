@@ -64,6 +64,7 @@ class Msvcrt(api.ApiHandler):
         self.tick_counter: int = TICK_BASE
         self.errno_t: int | None = None
         self.file_streams: dict[int, Any] = {}
+        self.signal_handlers: dict[int, int] = {}
 
         super().__get_hook_attrs__(self)
 
@@ -2141,9 +2142,10 @@ class Msvcrt(api.ApiHandler):
             int (*func)(int, int)
         );
         """
-        sig, _ = argv
+        sig, func = argv
 
-        if sig in [SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT]:
-            return SIG_IGN
-        else:
+        if sig not in [SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT]:
             return SIG_ERR
+        previous = self.signal_handlers.get(sig, SIG_DFL)
+        self.signal_handlers[sig] = func
+        return previous
