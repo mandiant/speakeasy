@@ -1032,6 +1032,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.append(hex(opts))
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
+        self.write_stream(stream, fin.encode("latin-1", "replace"))
 
         rv = len(fin)
         return rv
@@ -1054,6 +1055,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
+        self.write_stream(stream, fin.encode("latin-1", "replace"))
         return len(fin)
 
     @apihook("fwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -1074,6 +1076,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
+        self.write_stream(stream, fin.encode("latin-1", "replace"))
         return len(fin)
 
     @apihook("vfprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -1093,6 +1096,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
+        self.write_stream(stream, fin.encode("latin-1", "replace"))
         return len(fin)
 
     @apihook("printf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -3471,17 +3475,27 @@ class Msvcrt(api.ApiHandler):
             return 0
 
         data = self.mem_read(buffer, size * count)
-        hfile = self.file_streams.get(stream)
-        fobj = self.file_get(hfile) if hfile is not None else None
-        if hfile is None or not fobj:
+        hfile = self.write_stream(stream, data, buffer)
+        if hfile is None:
             ctx.args[0].display = data.decode("utf-8", errors="replace")
             return count
 
         ctx.args[0].display = f"{hex(buffer)} ({data.hex()[:0x20]})"
         ctx.args[3].display = hex(hfile)
+        return count
+
+    def write_stream(self, stream, data, buffer=0):
+        """
+        Append ``data`` to the file that ``stream`` writes to.
+        Return the file handle, or None when the stream has no file.
+        """
+        hfile = self.file_streams.get(stream)
+        fobj = self.file_get(hfile) if hfile is not None else None
+        if hfile is None or not fobj:
+            return None
         fobj.add_data(data)
         self.record_file_access_event(fobj.path, FILE_WRITE, data=data, buffer=buffer, size=len(data))
-        return count
+        return hfile
 
     @apihook("fputc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fputc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3491,9 +3505,10 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
         );
         """
-        c, _ = argv
+        c, stream = argv
         c &= 0xFF
         ctx.args[0].display = chr(c) if c < 0x80 else f"\\x{c:02x}"
+        self.write_stream(stream, bytes([c]))
         return c
 
     @apihook("fputs", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -3504,8 +3519,10 @@ class Msvcrt(api.ApiHandler):
             FILE *stream
         );
         """
-        s, _ = argv
-        ctx.args[0].display = self.read_cstr(s).decode("utf-8", "ignore")
+        s, stream = argv
+        data = self.read_cstr(s)
+        ctx.args[0].display = data.decode("utf-8", "ignore")
+        self.write_stream(stream, data, s)
         return 0
 
     @apihook("_fullpath", argc=3, conv=e_arch.CALL_CONV_CDECL)
