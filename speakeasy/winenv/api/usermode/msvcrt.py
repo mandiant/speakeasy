@@ -2234,6 +2234,64 @@ class Msvcrt(api.ApiHandler):
 
         return len(fin) if len(fin) <= count else -1
 
+    def stdio_common_format(self, emu, argv, ctx, width, secure=False, max_count=False):
+        """
+        Format into a buffer for the __stdio_common_v*printf* family. The
+        64-bit options take two slots on x86. The _s variants empty the
+        buffer when the text does not fit, and the n variants also limit the
+        text to a count of characters, where _TRUNCATE allows truncation.
+        """
+        options = argv[0]
+        first = 1 if emu.get_arch() == e_arch.ARCH_AMD64 else 2
+        fields = argv[first : first + (6 if max_count else 5)]
+        if max_count:
+            buffer, size, count, _format, _, argptr = fields
+        else:
+            buffer, size, _format, _, argptr = fields
+            count = None
+        fmt_str = self.read_mem_string(_format, width)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        vargs = self.va_args(argptr, fmt_cnt)
+
+        fin = self.do_str_format(fmt_str, vargs, wide=width == 2)
+        ctx.args[first + len(fields) - 3].display = fmt_str
+        encoding = "utf-16le" if width == 2 else "utf-8"
+
+        if secure:
+            if not buffer or not size:
+                return -1
+            truncate = count == (1 << (self.get_ptr_size() * 8)) - 1
+            text = fin if count is None or truncate else fin[:count]
+            if len(text) < size:
+                out, rv = text, len(fin) if text == fin else -1
+            elif truncate:
+                out, rv = text[: size - 1], -1
+            else:
+                out, rv = "", -1
+            self.mem_write(buffer, (out + "\x00").encode(encoding))
+            ctx.args[first].display = out
+            return rv
+
+        if not buffer and not size:
+            return len(fin)
+
+        if options & _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR:
+            out = fin[: size - 1] + "\x00"
+            rv = len(fin)
+        elif options & _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION:
+            out = fin[:size] if len(fin) >= size else fin + "\x00"
+            rv = len(fin) if len(fin) <= size else -1
+        else:
+            out = fin[: size - 1] + "\x00"
+            rv = len(fin) if len(fin) < size else -1
+
+        if size:
+            self.mem_write(buffer, out.encode(encoding))
+            ctx.args[first].display = out.rstrip("\x00")
+
+        return rv
+
     @apihook("__stdio_common_vsprintf", argc=7, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2246,34 +2304,79 @@ class Msvcrt(api.ApiHandler):
             va_list argptr
         );
         """
-        options = argv[0]
-        first = 1 if emu.get_arch() == e_arch.ARCH_AMD64 else 2
-        buffer, count, _format, _, argptr = argv[first : first + 5]
-        fmt_str = self.read_mem_string(_format, 1)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
+        return self.stdio_common_format(emu, argv, ctx, 1)
 
-        vargs = self.va_args(argptr, fmt_cnt)
+    @apihook("__stdio_common_vswprintf", argc=7, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vswprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vswprintf(
+            unsigned int64 Options,
+            wchar_t *Buffer,
+            size_t BufferCount,
+            const wchar_t *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        return self.stdio_common_format(emu, argv, ctx, 2)
 
-        fin = self.do_str_format(fmt_str, vargs)
-        ctx.args[first + 2].display = fmt_str
-        if not buffer and not count:
-            return len(fin)
+    @apihook("__stdio_common_vsprintf_s", argc=7, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vsprintf_s(
+            unsigned int64 Options,
+            char *Buffer,
+            size_t BufferCount,
+            const char *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        return self.stdio_common_format(emu, argv, ctx, 1, secure=True)
 
-        if options & _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR:
-            out = fin[: count - 1] + "\x00"
-            rv = len(fin)
-        elif options & _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION:
-            out = fin[:count] if len(fin) >= count else fin + "\x00"
-            rv = len(fin) if len(fin) <= count else -1
-        else:
-            out = fin[: count - 1] + "\x00"
-            rv = len(fin) if len(fin) < count else -1
+    @apihook("__stdio_common_vswprintf_s", argc=7, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vswprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vswprintf_s(
+            unsigned int64 Options,
+            wchar_t *Buffer,
+            size_t BufferCount,
+            const wchar_t *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        return self.stdio_common_format(emu, argv, ctx, 2, secure=True)
 
-        if count:
-            self.mem_write(buffer, out.encode("utf-8"))
-            ctx.args[first].display = out.rstrip("\x00")
+    @apihook("__stdio_common_vsnprintf_s", argc=8, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vsnprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vsnprintf_s(
+            unsigned int64 Options,
+            char *Buffer,
+            size_t BufferCount,
+            size_t MaxCount,
+            const char *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        return self.stdio_common_format(emu, argv, ctx, 1, secure=True, max_count=True)
 
-        return rv
+    @apihook("__stdio_common_vsnwprintf_s", argc=8, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vsnwprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vsnwprintf_s(
+            unsigned int64 Options,
+            wchar_t *Buffer,
+            size_t BufferCount,
+            size_t MaxCount,
+            const wchar_t *format,
+            locale_t Locale,
+            va_list argptr
+        );
+        """
+        return self.stdio_common_format(emu, argv, ctx, 2, secure=True, max_count=True)
 
     @apihook("_strcmpi", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _strcmpi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
