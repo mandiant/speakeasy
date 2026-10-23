@@ -66,6 +66,7 @@ class Msvcrt(api.ApiHandler):
         self.errno_t: int | None = None
         self.file_streams: dict[int, Any] = {}
         self.signal_handlers: dict[int, int] = {}
+        self.lconv: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -1990,6 +1991,32 @@ class Msvcrt(api.ApiHandler):
         The C locale has single-byte characters.
         """
         return 1
+
+    @apihook("localeconv", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def localeconv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct lconv *localeconv(void);
+
+        The struct has 10 char pointers, 8 chars, and 8 wchar_t pointers. The
+        C locale has "." as the decimal point, empty strings for the other
+        strings, and CHAR_MAX for the chars.
+        """
+        if self.lconv:
+            return self.lconv
+
+        ptr_size = self.get_ptr_size()
+        fmt = "<" + ("Q" if ptr_size == 8 else "I")
+        size = 18 * ptr_size + 8
+        self.lconv = self.mem_alloc(size + 10, tag="api.msvcrt.localeconv")
+        dot, empty, wdot, wempty = (self.lconv + size + off for off in (0, 2, 4, 8))
+        narrow = [dot] + [empty] * 9
+        wide = [wdot] + [wempty] * 7
+        data = b"".join(struct.pack(fmt, p) for p in narrow)
+        data += b"\x7f" * 8
+        data += b"".join(struct.pack(fmt, p) for p in wide)
+        data += b".\x00\x00\x00" + ".".encode("utf-16le") + b"\x00\x00" + b"\x00\x00"
+        self.mem_write(self.lconv, data)
+        return self.lconv
 
     @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
