@@ -336,3 +336,10 @@ def test_signal_returns_the_previous_handler_of_each_signal(dll_emu: Speakeasy) 
 
 def test_signal_rejects_an_unknown_signal(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "signal", [5, SIG_IGN])[0] == SIG_ERR
+
+
+@pytest.mark.parametrize("c", [0xFFFFFFE2, 0xE2])
+def test_fputc_writes_the_low_byte_of_a_sign_extended_char(dll_emu: Speakeasy, c: int) -> None:
+    rv, displays = call(dll_emu, "msvcrt", "fputc", [c, 0])
+    assert rv == 0xE2
+    assert displays[0] == "\\xe2"

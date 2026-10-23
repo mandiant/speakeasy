@@ -2128,6 +2128,8 @@ class Msvcrt(api.ApiHandler):
         );
         """
         c, _ = argv
+        c &= 0xFF
+        ctx.args[0].display = chr(c) if c < 0x80 else f"\\x{c:02x}"
         return c
 
     @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
