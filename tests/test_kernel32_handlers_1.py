@@ -622,6 +622,27 @@ def test_fls_get_value2_reads_the_slot_without_setting_the_last_error(dll_emu: S
     assert emu.get_last_error() == 0x57
 
 
+def test_fls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    first = emu.get_current_thread()
+    indexes = [call(dll_emu, "kernel32", "FlsAlloc", [0])[0] for _ in range(2)]
+    assert indexes[0] != indexes[1]
+    assert call(dll_emu, "kernel32", "FlsSetValue", [indexes[1], 0x1111])[0]
+
+    second = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=0x1000)
+    emu.set_current_thread(second)
+    assert call(dll_emu, "kernel32", "FlsGetValue", [indexes[1]])[0] == 0
+    assert call(dll_emu, "kernel32", "FlsSetValue", [indexes[1], 0x2222])[0]
+    assert call(dll_emu, "kernel32", "FlsGetValue", [indexes[1]])[0] == 0x2222
+    assert call(dll_emu, "kernel32", "FlsGetValue2", [indexes[1]])[0] == 0x2222
+    assert not call(dll_emu, "kernel32", "FlsSetValue", [indexes[1] + 100, 0x3333])[0]
+
+    emu.set_current_thread(first)
+    assert call(dll_emu, "kernel32", "FlsGetValue", [indexes[1]])[0] == 0x1111
+
+
 @pytest.mark.parametrize("fixture, ptr", [("dll_emu", 4), ("dll64_emu", 8)])
 @pytest.mark.parametrize("walk, cw", [("Module32First", 1), ("Module32FirstW", 2)])
 def test_module32_first_fills_the_module_entry(

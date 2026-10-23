@@ -67,6 +67,7 @@ class Kernel32(api.ApiHandler):
         self.find_volumes = {}
         self.snapshots = {}
         self.tls_count = 0
+        self.fls_count = 0
         self.tick_counter = 86400000  # 1 day in millisecs
         self.perf_counter = 0x5FD27D571F
 
@@ -2503,13 +2504,8 @@ class Kernel32(api.ApiHandler):
         );
         """
 
-        thread = emu.get_current_thread()
-        fls = thread.fls
-
-        fls.append(0)
-        thread.fls = fls
-        idx = len(fls) - 1
-
+        idx = self.fls_count
+        self.fls_count += 1
         return idx
 
     @apihook("FlsSetValue", argc=2)
@@ -2527,10 +2523,8 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         fls = thread.fls
 
-        if len(fls) == 0:
-            fls.append(0)
-
-        if dwFlsIndex < len(fls):
+        if dwFlsIndex < max(self.fls_count, 1):
+            fls.extend([0] * (dwFlsIndex + 1 - len(fls)))
             fls[dwFlsIndex] = lpFlsData
             thread.fls = fls
             rv = 1
@@ -2553,8 +2547,9 @@ class Kernel32(api.ApiHandler):
         thread = emu.get_current_thread()
         fls = thread.fls
 
-        if dwFlsIndex < len(fls):
-            rv = fls[dwFlsIndex]
+        if dwFlsIndex < max(self.fls_count, 1):
+            if dwFlsIndex < len(fls):
+                rv = fls[dwFlsIndex]
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
