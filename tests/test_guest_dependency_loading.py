@@ -214,6 +214,80 @@ def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path):
         se.shutdown()
 
 
+def jump_to(ptr_size, target):
+    if ptr_size == 4:
+        return b"\xb8" + struct.pack("<I", target) + b"\xff\xe0"
+    return b"\x48\xb8" + struct.pack("<Q", target) + b"\xff\xe0"
+
+
+@pytest.mark.parametrize("module_type", ["dll", "exe"])
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, arch, module_type):
+    path = tmp_path / "guest_dependency.dll"
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch=arch)
+        exports = make_native_dll(se.emu, path)
+    finally:
+        se.shutdown()
+    if module_type == "exe":
+        pe = pefile.PE(str(path))
+        pe.FILE_HEADER.Characteristics &= ~pefile.IMAGE_CHARACTERISTICS["IMAGE_FILE_DLL"]
+        path.write_bytes(pe.write())
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(path=str(path))
+        ptr = se.get_ptr_size()
+        ret = b"\xc2\x0c\x00" if ptr == 4 else b"\xc3"
+        data = se.mem_alloc(0x1000, base=0x20000000)
+        index, result, callback, entry = data, data + 8, data + 0x100, data + 0x400
+        se.mem_write(result, b"\xcc" * ptr)
+        program = guest_call(ptr, get_api(se, "kernel32", "TlsAlloc"), store=index)
+        program += guest_call(ptr, get_api(se, "kernel32", "TlsSetValue"), Deref(index), 0x1234)
+        se.mem_write(callback, program + ret)
+        program = guest_call(ptr, get_api(se, "kernel32", "TlsGetValue"), Deref(index), store=result)
+        se.mem_write(entry, program + b"\xb8\x01\x00\x00\x00" + ret)
+        se.mem_write(exports["TlsCallback"], jump_to(ptr, callback))
+        se.mem_write(exports["Initializer"], jump_to(ptr, entry))
+
+        se.run_module(module)
+
+        assert [ep.error for ep in se.get_report().entry_points] == [None, None]
+        assert read_pointer(se, result) == 0x1234
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tmp_path, arch):
+    path = tmp_path / "guest_dependency.dll"
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch=arch)
+        exports = make_native_dll(se.emu, path)
+    finally:
+        se.shutdown()
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(path=str(path))
+        result = se.mem_alloc(0x100, base=0x20000000)
+        if se.get_ptr_size() == 4:
+            block = b"\x64\xa1\x2c\x00\x00\x00\x8b\x00"
+            callback = block + b"\xc7\x00\x34\x12\x00\x00\xc2\x0c\x00"
+            entry = block + b"\x8b\x00\xa3" + struct.pack("<I", result) + b"\xb8\x01\x00\x00\x00\xc2\x0c\x00"
+        else:
+            block = b"\x65\x48\x8b\x04\x25\x58\x00\x00\x00\x48\x8b\x00"
+            callback = block + b"\xc7\x00\x34\x12\x00\x00\xc3"
+            entry = block + b"\x8b\x00\xa3" + struct.pack("<Q", result) + b"\xb8\x01\x00\x00\x00\xc3"
+        se.mem_write(result + 0x40, callback)
+        se.mem_write(result + 0x80, entry)
+        se.mem_write(exports["TlsCallback"], jump_to(se.get_ptr_size(), result + 0x40))
+        se.mem_write(exports["Initializer"], jump_to(se.get_ptr_size(), result + 0x80))
+
+        se.run_module(module)
+
+        assert [ep.error for ep in se.get_report().entry_points] == [None, None]
+        assert int.from_bytes(se.mem_read(result, 4), "little") == 0x1234
+
+
 def test_all_entrypoints_skips_data_exports(config, tmp_path):
     se = Speakeasy(config=config)
     try:

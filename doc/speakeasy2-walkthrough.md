@@ -204,7 +204,7 @@ A concrete run against `tests/bins/dll_test_x86.dll.xz` produced section-level c
 
 ## Unique TID/PID attribution per entry-point run
 
-Each entry-point evaluation now gets distinct thread attribution, and entry-point records include pid/tid metadata. TLS callbacks, module entry, and export runs can be separated by execution context instead of being merged under one thread identity. This improves timeline interpretation for multi-run samples.
+Entry-point records include pid/tid metadata. TLS callbacks and the module entry run on the main thread, so the entry sees the TLS slots and static TLS data that the callbacks set, as on Windows. Each export run gets its own thread, so export calls can be separated by execution context in timelines of multi-run samples.
 
 Here is a real `entry_points` excerpt from a run of `dll_test_x86.dll` with `all_entrypoints=True`. The important part is that each run has its own `tid`, so module entry and each export call can be separated cleanly in timelines and downstream tooling.
 
