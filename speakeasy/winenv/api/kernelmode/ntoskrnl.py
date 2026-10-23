@@ -52,7 +52,7 @@ class Ntoskrnl(api.ApiHandler):
         Maps Windows permissions to emulator engine permissions
         """
         new = 0
-        if win_perms & windefs.PAGE_EXECUTE_READWRITE:
+        if win_perms & (windefs.PAGE_EXECUTE_READWRITE | windefs.PAGE_EXECUTE_WRITECOPY):
             new = common.PERM_MEM_RWX
         elif win_perms & windefs.PAGE_NOACCESS:
             new = common.PERM_MEM_NONE
@@ -63,9 +63,10 @@ class Ntoskrnl(api.ApiHandler):
                 win_perms & windefs.PAGE_EXECUTE_READ
                 or win_perms & windefs.PAGE_READONLY
                 or win_perms & windefs.PAGE_READWRITE
+                or win_perms & windefs.PAGE_WRITECOPY
             ):  # noqa
                 new |= common.PERM_MEM_READ
-            if win_perms & windefs.PAGE_READWRITE:
+            if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
                 new |= common.PERM_MEM_WRITE
         return new
 
