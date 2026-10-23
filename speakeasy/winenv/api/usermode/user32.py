@@ -1296,6 +1296,15 @@ class User32(api.ApiHandler):
         """
         return 0
 
+    @apihook("GetClipboardData", argc=1)
+    def GetClipboardData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE GetClipboardData(
+          [in] UINT uFormat
+        );
+        """
+        return 0
+
     @apihook("IsWindow", argc=1)
     def IsWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

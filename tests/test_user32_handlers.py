@@ -379,3 +379,10 @@ def test_register_class_without_ex_registers_the_window_procedure(request: pytes
     hwnd, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert call(se, "user32", "UpdateWindow", [hwnd])[0]
     assert [cb.function for cb in se.emu.get_current_run().api_callbacks] == [0x401000]
+
+
+def test_clipboard_reports_no_text(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    cf_unicodetext = 13
+    assert call(dll_emu, "user32", "IsClipboardFormatAvailable", [cf_unicodetext])[0] == 0
+    assert call(dll_emu, "user32", "GetClipboardData", [cf_unicodetext])[0] == 0
