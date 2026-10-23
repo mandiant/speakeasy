@@ -280,3 +280,28 @@ def test_wdf_usb_configured_pipe_out_of_range(any_driver_emu: Speakeasy, with_in
     assert rv == 0
     if with_info:
         assert any_driver_emu.mem_read(info, 0x20) == b"\xcc" * 0x20
+
+
+def _context_type_info(se: Speakeasy, size: int, unique: int = 0) -> int:
+    ps = _ptr_size(se)
+    info = alloc(se, b"\x00" * 5 * ps)
+    unique = unique or info
+    fields = [5 * ps, 0, size, unique, 0]
+    se.mem_write(info, b"".join(f.to_bytes(ps, "little") for f in fields))
+    return info
+
+
+def test_wdf_typed_context_has_the_size_of_its_type(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    driver_globals = _wdf_driver(se)
+    big = _context_type_info(se, 0x2000)
+    alias = _context_type_info(se, 0x2000, unique=big)
+    small = _context_type_info(se, 0x10)
+
+    def context(handle: int, info: int) -> int:
+        return call(se, "wdfldr", "WdfObjectGetTypedContextWorker", [driver_globals, handle, info])[0]
+
+    first = context(8, big)
+    se.mem_write(first + 0x1FFC, b"\x01\x02\x03\x04")
+    assert context(8, big) == context(8, alias) == first
+    assert len({first, context(8, small), context(12, big)}) == 3
