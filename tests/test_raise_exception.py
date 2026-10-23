@@ -75,3 +75,19 @@ def test_noncontinuable_exception_without_a_handler_ends_the_run(session):
     assert run.error is not None
     assert run.error.type == "unhandled_exception"
     assert run.ret_val != 42
+
+
+def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):
+    code, data = load_guest(session)
+    # Borland C++ handlers read the dispatcher arguments through EBP, as the frame of ExecuteHandler2 leaves it.
+    handler_code = b"\x8b\x4d\x08\x8b\x01\xa3" + dword(data)
+    handler_code += b"\x8b\x45\x0c\xa3" + dword(data + 4)
+    handler_code += b"\x31\xc0\xc3"
+    session.mem_write(code + 0x100, handler_code)
+
+    session.run_shellcode(code)
+
+    run = session.get_report().entry_points[0]
+    assert run.error is None
+    assert run.ret_val == 42
+    assert struct.unpack("<2I", session.mem_read(data, 8)) == (0x0EEDFADE, data + 0x100)
