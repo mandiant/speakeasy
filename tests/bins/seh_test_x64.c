@@ -1,8 +1,8 @@
 // x64 SEH cases for speakeasy's exception dispatch. main returns a bitmask
-// with one bit per case that behaves as it does on Windows (0x7F: all).
+// with one bit per case that behaves as it does on Windows (0xFF: all).
 //
 // Built without a CRT or SDK, against import libraries for the few imports:
-//   printf 'LIBRARY KERNEL32.dll\nEXPORTS\nRaiseException\nAddVectoredExceptionHandler\nRtlMoveMemory\n' > kernel32.def
+//   printf 'LIBRARY KERNEL32.dll\nEXPORTS\nRaiseException\nAddVectoredExceptionHandler\nRtlMoveMemory\nSetThreadContext\n' > kernel32.def
 //   printf 'LIBRARY VCRUNTIME140.dll\nEXPORTS\n__C_specific_handler\n' > vcruntime140.def
 //   llvm-dlltool -m i386:x86-64 -d kernel32.def -l kernel32.lib
 //   llvm-dlltool -m i386:x86-64 -d vcruntime140.def -l vcruntime140.lib
@@ -28,13 +28,24 @@ typedef struct {
 __declspec(dllimport) void __stdcall RaiseException(DWORD, DWORD, DWORD, const ULONG_PTR *);
 __declspec(dllimport) void *__stdcall AddVectoredExceptionHandler(DWORD, long(__stdcall *)(EXCEPTION_POINTERS *));
 __declspec(dllimport) void __stdcall RtlMoveMemory(void *, const void *, ULONG_PTR);
+__declspec(dllimport) int __stdcall SetThreadContext(void *, const void *);
 unsigned long __cdecl _exception_code(void);
 void *__cdecl _exception_info(void);
 
 #define EXCEPTION_EXECUTE_HANDLER 1
 #define EXCEPTION_CONTINUE_SEARCH 0
 #define EXCEPTION_CONTINUE_EXECUTION (-1)
+#define CONTEXT_FLAGS 0x30
+#define CONTEXT_EFLAGS 0x44
+#define CONTEXT_DR0 0x48
+#define CONTEXT_DR6 0x68
+#define CONTEXT_DR7 0x70
+#define CONTEXT_RAX 0x78
+#define CONTEXT_RSP 0x98
 #define CONTEXT_RIP 0xF8
+#define CONTEXT_DEBUG_REGISTERS 0x100010
+#define RESUME_FLAG 0x10000
+#define FIELD(context, offset) (*(ULONG_PTR *)((unsigned char *)(context) + (offset)))
 
 static volatile int trace;
 
@@ -139,7 +150,48 @@ __declspec(noinline) static int fault_in_api(void) {
     return 0;
 }
 
+__declspec(noinline) static int breakpoint_target(void) { return 1; }
+
+static volatile int breakpoint_hits, resume_at_breakpoint;
+
+static long __stdcall on_breakpoint(EXCEPTION_POINTERS *info) {
+    unsigned char *context = info->ContextRecord;
+    if (info->ExceptionRecord->ExceptionCode != 0x80000004 ||
+        FIELD(context, CONTEXT_RIP) != (ULONG_PTR)breakpoint_target || !(FIELD(context, CONTEXT_DR6) & 1))
+        return EXCEPTION_CONTINUE_SEARCH;
+    breakpoint_hits++;
+    if (resume_at_breakpoint) {
+        // run the instruction at the breakpoint once without breaking again
+        *(DWORD *)(context + CONTEXT_EFLAGS) |= RESUME_FLAG;
+    } else {
+        // return 42 from the target instead of running it
+        FIELD(context, CONTEXT_RAX) = 42;
+        FIELD(context, CONTEXT_RIP) = *(ULONG_PTR *)FIELD(context, CONTEXT_RSP);
+        FIELD(context, CONTEXT_RSP) += 8;
+    }
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+static __declspec(align(16)) unsigned char debug_context[0x4D0];
+
+// a hardware execute breakpoint set with SetThreadContext, caught by a vectored handler
+__declspec(noinline) static int hardware_breakpoint(void) {
+    int (*volatile target)(void) = breakpoint_target;
+    AddVectoredExceptionHandler(1, on_breakpoint);
+    *(DWORD *)(debug_context + CONTEXT_FLAGS) = CONTEXT_DEBUG_REGISTERS;
+    FIELD(debug_context, CONTEXT_DR0) = (ULONG_PTR)breakpoint_target;
+    FIELD(debug_context, CONTEXT_DR7) = 1;  // local enable, break on execution
+    SetThreadContext((void *)-2, debug_context);
+    int hooked = target() == 42;
+    resume_at_breakpoint = 1;
+    int resumed = target() == 1;
+    FIELD(debug_context, CONTEXT_DR7) = 0;
+    SetThreadContext((void *)-2, debug_context);
+    int cleared = target() == 1;
+    return hooked && resumed && cleared && breakpoint_hits == 2;
+}
+
 int main(void) {
     return raise_caught() | filter_then_finally() << 1 | access_violation(0) << 2 | continue_execution() << 3 |
-           vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6;
+           vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6 | hardware_breakpoint() << 7;
 }

@@ -917,6 +917,12 @@ class BinaryEmulator(MemoryManager, ABC):
 
         return hook
 
+    def remove_code_hook(self, hook):
+        """Remove a hook that add_code_hook returned"""
+        if hook.added:
+            self.emu_eng.hook_remove(hook.handle)
+        self.hooks[common.HOOK_CODE].remove(hook)
+
     def _fire_dyn_code_hooks(self, addr):
         profiler = self.get_profiler()
         mm = self.get_address_map(addr)

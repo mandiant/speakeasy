@@ -23,6 +23,7 @@ import speakeasy.common as common
 import speakeasy.windows.common as winemu
 import speakeasy.windows.cpu_exceptions as cpu_exceptions
 import speakeasy.windows.guest_callbacks as guest_callbacks
+import speakeasy.windows.hardware_breakpoints as hardware_breakpoints
 import speakeasy.windows.objman as objman
 import speakeasy.windows.seh64 as seh64
 import speakeasy.windows.thread_context as thread_context
@@ -226,6 +227,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_cpu_exception: PendingCpuException | None = None
         # Guard pages, mapped without access, with the protection their first access restores
         self.guard_pages: dict[int, int] = {}
+        self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
         self._guest_dependencies = []
         self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
@@ -960,9 +962,7 @@ class WindowsEmulator(BinaryEmulator):
                     if debugger is not None:
                         debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             if hook is not None:
-                if hook.added:
-                    self.emu_eng.hook_remove(hook.handle)
-                self.hooks[common.HOOK_CODE].remove(hook)
+                self.remove_code_hook(hook)
 
     def _cancel_execution_runs(self, prepared=None):
         """Cancel unexecuted work without leaving DLL attachments initializing."""
@@ -1234,6 +1234,13 @@ class WindowsEmulator(BinaryEmulator):
         Set the current thread
         """
         self.curr_thread = thread
+        self.hardware_breakpoints.update()
+
+    def set_debug_registers(self, thread, ctx):
+        """Give thread the debug registers of ctx, which arm its hardware breakpoints."""
+        thread_context.set_debug_registers(thread, ctx)
+        if thread is self.get_current_thread():
+            self.hardware_breakpoints.update()
 
     def _setup_gdt(self, arch):
         """
@@ -3642,7 +3649,9 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_ES, ctx.SegEs)
             thread = self.get_current_thread()
             if thread is not None and thread_context.has(ctx.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
-                thread_context.set_debug_registers(thread, ctx)
+                self.set_debug_registers(thread, ctx)
+            if ctx.EFlags & hardware_breakpoints.RESUME_FLAG:
+                self.hardware_breakpoints.resume_at = ctx.Rip
 
     def _get_exception_list(self):
         """
