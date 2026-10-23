@@ -337,6 +337,20 @@ class Msvcrt(api.ApiHandler):
         self.emu.mem_write(p_cmdln, _argv + b"\x00")
         return ptr
 
+    @impdata("_wcmdln")
+    def _wcmdln(self, ptr):
+        """Wide command line global CRT variable"""
+        data = (" ".join(self.emu.get_argv()) + "\x00").encode("utf-16le")
+        p_cmdln = self.mem_alloc(len(data), tag="api.msvcrt.command_line")
+        self.emu.mem_write(ptr, p_cmdln.to_bytes(self.emu.get_ptr_size(), "little"))
+        self.emu.mem_write(p_cmdln, data)
+        return ptr
+
+    @apihook("__p__wcmdln", argc=0)
+    def __p__wcmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """Wide command line global CRT variable"""
+        return emu.get_proc("msvcrt", "_wcmdln")
+
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """Command line global CRT variable"""
@@ -1038,6 +1052,26 @@ class Msvcrt(api.ApiHandler):
         ctx.args.append(fin)
         return len(fin)
 
+    @apihook("fwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def fwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fwprintf(
+            FILE *stream,
+            const wchar_t *format,
+            ...
+            );
+        """
+        stream, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
+        fmt_str = self.read_wide_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
+        fin = self.do_str_format(fmt_str, _argv, wide=True)
+        ctx.args.clear()
+        ctx.args.append(hex(stream))
+        ctx.args.append(fin)
+        return len(fin)
+
     @apihook("vfprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def vfprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1365,6 +1399,29 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(dest, b"\x00")
             return ERANGE
         self.mem_write(dest, s + b"\x00")
+        return 0
+
+    @apihook("wcscpy_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcscpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcscpy_s(
+           wchar_t *dest,
+           rsize_t dest_size,
+           const wchar_t *src
+        );
+        """
+        dest, size, src = argv
+        if not dest or not size:
+            return EINVAL
+        if not src:
+            self.mem_write(dest, b"\x00\x00")
+            return EINVAL
+        ws = self.read_wide_string(src)
+        ctx.args[2].display = ws
+        if len(ws) >= size:
+            self.mem_write(dest, b"\x00\x00")
+            return ERANGE
+        self.write_wide_string(ws + "\x00", dest)
         return 0
 
     @apihook("wcscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
