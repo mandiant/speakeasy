@@ -160,6 +160,7 @@ def dispatch_fault(emu, exception: CpuException, dispatch_exception: Dispatcher)
         record = exception_record(emu, exception.code, 0, exception.address, exception.params)
         return (yield from dispatch_exception(emu, guest_callbacks.alloca(emu, record), context))
 
+    guest_callbacks.drop_abandoned(emu, thread_context.stack_pointer(ctx))
     frame = GuestCallbackFrame(stack_pointer=thread_context.stack_pointer(ctx), return_address=0)
     try:
         guest_callbacks.start(emu, frame, dispatch())

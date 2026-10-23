@@ -44,6 +44,8 @@ class HardwareBreakpoints:
             self.emu.remove_code_hook(self.hooks.pop(address))
         for address in wanted.keys() - self.hooks.keys():
             self.hooks[address] = self.emu.add_code_hook(self._hit, begin=address, end=address)
+            # Code that already ran was translated without the hook
+            self.emu.emu_eng.invalidate_translations(address, address + 1)
 
     def resume_at(self, address: int) -> None:
         """The current thread continues at address with the resume flag: run it without breaking."""

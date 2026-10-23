@@ -185,9 +185,13 @@ class EmuEngine:
         result = self.emu.mem_protect(addr, size, perm)  # type: ignore[union-attr]
         # Unicorn keeps translations and TLB entries made under the old protections,
         # which would let code run or memory be read that the new ones deny.
-        self.emu.ctl_remove_cache(addr, addr + size)  # type: ignore[union-attr]
+        self.invalidate_translations(addr, addr + size)
         self.emu.ctl(uc.UC_CTL_TLB_FLUSH, uc.UC_CTL_IO_WRITE)  # type: ignore[union-attr]
         return result
+
+    def invalidate_translations(self, begin, end):
+        """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it"""
+        self.emu.ctl_remove_cache(begin, end)  # type: ignore[union-attr]
 
     def reg_write(self, reg, val):
         """Modify register values"""
@@ -253,9 +257,6 @@ class EmuEngine:
             rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value, None, begin, end)
         if rv != uc.UC_ERR_OK:
             raise uc.UcError(rv)
-        if hook_type == uc.UC_HOOK_CODE and begin <= end:
-            # Code translated before the hook was added would not call it
-            self.emu.ctl_remove_cache(begin, end + 1)  # type: ignore[union-attr]
 
         th = ToggleableHook(cb)
         self._callbacks.update({hook_id.value: th})

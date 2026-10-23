@@ -132,11 +132,20 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
 
 
 def transfer(emu, context) -> None:
-    """Continue the guest at a CONTEXT, abandoning the guest callback frames on the stack below it."""
-    callbacks = emu.get_current_run().guest_callbacks
-    while callbacks and callbacks[-1].stack_pointer < thread_context.stack_pointer(context):
-        callbacks.pop()
+    """Continue the guest at a CONTEXT."""
+    drop_abandoned(emu, thread_context.stack_pointer(context))
     emu.load_thread_context(context)
+
+
+def drop_abandoned(emu, sp: int) -> None:
+    """
+    Drop the frames at or below sp, where the guest runs: it left their guest calls
+    without returning, as a handler that continues in an __except block leaves the
+    dispatch of its exception.
+    """
+    callbacks = emu.get_current_run().guest_callbacks
+    while callbacks and callbacks[-1].stack_pointer <= sp:
+        callbacks.pop()
 
 
 def current(emu) -> HandlerState:
