@@ -213,6 +213,24 @@ class Ntoskrnl(api.ApiHandler):
 
         return len(fin) if len(fin) <= count else -1
 
+    @apihook("_vsnwprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
+    def _vsnwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _vsnwprintf(
+            wchar_t *buffer,
+            size_t count,
+            const wchar_t *format,
+            va_list argptr
+        );
+        """
+        buffer, count, _format, argptr = argv
+        fmt_str = self.read_wide_string(_format)
+        vargs = self.va_args(argptr, self.get_va_arg_count(fmt_str))
+        fin = self.do_str_format(fmt_str, vargs, wide=True)
+        ctx.args[0].display = fin[:count]
+        ctx.args[2].display = fmt_str
+        return self._write_counted_string(fin, buffer, count, 2)
+
     @apihook("vsprintf_s", argc=4, conv=_arch.CALL_CONV_CDECL)
     def vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
