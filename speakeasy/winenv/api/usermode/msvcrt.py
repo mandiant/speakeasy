@@ -2348,6 +2348,37 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(ptr, data)
         return len(data) // size
 
+    @apihook("fgets", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def fgets(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *fgets(
+            char *str,
+            int numChars,
+            FILE *stream
+            );
+
+        A stream that is not from fopen, such as stdin, is at end of file.
+        """
+        buf, num_chars, stream = argv
+        num_chars &= 0xFFFFFFFF
+        hfile = self.file_streams.get(stream)
+        fobj = self.file_get(hfile) if hfile is not None else None
+        if not buf or not 1 < num_chars < 0x80000000 or not fobj:
+            return 0
+
+        pos = fobj.tell()
+        data = fobj.get_data(size=num_chars - 1)
+        if not data:
+            return 0
+
+        newline = data.find(b"\n")
+        if newline != -1:
+            data = data[: newline + 1]
+        fobj.seek(pos + len(data), io.SEEK_SET)
+        self.mem_write(buf, data + b"\x00")
+        ctx.args[0].display = data.decode("utf-8", errors="replace")
+        return buf
+
     @apihook("fwrite", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def fwrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

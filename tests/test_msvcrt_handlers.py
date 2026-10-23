@@ -364,3 +364,18 @@ def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_
     lconv, _ = call(se, "msvcrt", "localeconv", [])
     decimal_point = int.from_bytes(se.mem_read(lconv, ptr_size), "little")
     assert se.mem_read(decimal_point, 2) == b".\x00"
+
+
+def test_fgets_reads_one_line_at_a_time(dll_emu: Speakeasy) -> None:
+    path = alloc(dll_emu, b"c:\\users\\public\\lines.txt\x00")
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"w+\x00")])
+    call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"PING\nSTATUS"), 1, 11, stream])
+    buf = alloc(dll_emu, b"\xcc" * 16)
+
+    assert call(dll_emu, "msvcrt", "fgets", [buf, 16, stream])[0] == buf
+    assert dll_emu.mem_read(buf, 6) == b"PING\n\x00"
+    assert call(dll_emu, "msvcrt", "fgets", [buf, 4, stream])[0] == buf
+    assert dll_emu.mem_read(buf, 4) == b"STA\x00"
+    assert call(dll_emu, "msvcrt", "fgets", [buf, 16, stream])[0] == buf
+    assert dll_emu.mem_read(buf, 4) == b"TUS\x00"
+    assert call(dll_emu, "msvcrt", "fgets", [buf, 16, stream])[0] == 0
