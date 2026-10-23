@@ -12,12 +12,14 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 
 from .. import api
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
+TOKEN_USER = 1
 
 
 class AdvApi32(api.ApiHandler):
@@ -1330,6 +1332,19 @@ class AdvApi32(api.ApiHandler):
         hnd, info_class, info, info_len, ret_len = argv
         rv = True
 
+        if info_class == TOKEN_USER:
+            ptr_size = emu.get_ptr_size()
+            str_sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+            sid = self.get_bytes(windefs.convert_sid_str_to_struct(ptr_size, str_sid))
+            size = 2 * ptr_size + len(sid)
+            if ret_len:
+                self.mem_write(ret_len, size.to_bytes(4, "little"))
+            if not info or info_len < size:
+                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                return False
+            self.mem_write(info, (info + 2 * ptr_size).to_bytes(ptr_size, "little") + b"\0" * ptr_size + sid)
+            return True
+
         if not info_len:
             rv = False
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -1340,6 +1355,30 @@ class AdvApi32(api.ApiHandler):
             self.mem_write(ret_len, (4).to_bytes(4, "little"))
 
         return rv
+
+    @apihook("ConvertSidToStringSid", argc=2)
+    def ConvertSidToStringSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL ConvertSidToStringSidA(
+          [in]  PSID  Sid,
+          [out] LPSTR *StringSid
+        );
+        """
+        sid, string_sid = argv
+        length = self.get_sid_length(emu, sid)
+        if not length or not string_sid:
+            emu.set_last_error(windefs.ERROR_INVALID_SID if not length else windefs.ERROR_INVALID_PARAMETER)
+            return False
+
+        data = self.mem_read(sid, length)
+        subauthorities = struct.unpack_from(f"<{data[1]}I", data, 8)
+        text = "-".join(["S", str(data[0]), str(int.from_bytes(data[2:8], "big")), *map(str, subauthorities)])
+        cw = self.get_char_width(ctx)
+        buf = self.heap_alloc((len(text) + 1) * cw, heap="LocalAlloc")
+        self.write_mem_string(text, buf, cw)
+        self.mem_write(string_sid, buf.to_bytes(emu.get_ptr_size(), "little"))
+        ctx.args["Sid"].display = text
+        return True
 
     @apihook("EqualSid", argc=2)
     def EqualSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
