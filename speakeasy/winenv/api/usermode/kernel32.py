@@ -45,6 +45,31 @@ FILE_MAP_EXECUTE = 0x0020
 FILE_MAP_ALL_ACCESS = 0xF001F
 
 
+RSMB_PROVIDER = 0x52534D42
+
+
+def get_smbios_structure(kind: int, handle: int, formatted: bytes, strings: list[str]) -> bytes:
+    header = struct.pack("<BBH", kind, 4 + len(formatted), handle)
+    text = b"".join(s.encode("ascii") + b"\x00" for s in strings) or b"\x00"
+    return header + formatted + text + b"\x00"
+
+
+def get_raw_smbios_data() -> bytes:
+    bios = get_smbios_structure(
+        0, 0, struct.pack("<BBHBBQ", 1, 2, 0xF000, 3, 0xFF, 0x08), ["Dell Inc.", "1.20.0", "03/14/2023"]
+    )
+    uuid = bytes.fromhex("4c4c4544004a3510804bb4c04f4e4433")
+    system = get_smbios_structure(
+        1,
+        1,
+        struct.pack("<BBBB16sBBB", 1, 2, 3, 4, uuid, 6, 5, 6),
+        ["Dell Inc.", "OptiPlex 7090", "1.0", "7J5D3N3", "0A6F", "OptiPlex"],
+    )
+    end = get_smbios_structure(127, 0xFFFF, b"", [])
+    tables = bios + system + end
+    return struct.pack("<BBBBI", 0, 3, 3, 0, len(tables)) + tables
+
+
 class Kernel32(api.ApiHandler):
     """
     Implements exported functions from kernel32.dll
@@ -5697,8 +5722,13 @@ class Kernel32(api.ApiHandler):
             DWORD BufferSize
         );
         """
-        # Stub
         sig, tid, firm_buf, buf_size = argv
+
+        if sig == RSMB_PROVIDER:
+            table = get_raw_smbios_data()
+            if firm_buf and buf_size >= len(table):
+                self.mem_write(firm_buf, table)
+            return len(table)
 
         if not firm_buf:
             rv = 0x100
