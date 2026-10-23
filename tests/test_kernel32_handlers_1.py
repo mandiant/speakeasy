@@ -594,6 +594,35 @@ def test_virtual_query_reports_the_section_of_a_loaded_image(
     assert (base_address, allocation_base, region_size, protect_field) == (image + base, image, size, protect)
 
 
+def test_virtual_query_reports_free_memory_up_to_the_next_allocation(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    gap = 0x60000000
+    assert all(dll_emu.emu.get_address_map(a) is None for a in range(gap, gap + 0x10000, 0x1000))
+    dll_emu.emu.mem_map(0x1000, base=gap + 0x10000)
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQuery", [gap + 0x2010, mbi, 28])[0] == 28
+    base_address, allocation_base, _, region_size, state, protect, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
+    assert (base_address, allocation_base, region_size) == (gap + 0x2000, 0, 0xE000)
+    assert (state, protect) == (windefs.MEM_FREE, windefs.PAGE_NOACCESS)
+
+
+def test_virtual_query_reports_reserved_memory(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    base = dll_emu.emu.mem_reserve(0x3000, base=0x60000000)
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQuery", [base + 0x1010, mbi, 28])[0] == 28
+    base_address, allocation_base, _, region_size, state, _, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
+    assert (base_address, allocation_base, region_size, state) == (base + 0x1000, base, 0x2000, MEM_RESERVE)
+
+
+def test_virtual_query_rejects_addresses_above_the_application_range(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQuery", [0x7FFF0000, mbi, 28])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
 Y2K_FILETIME = 125911584000000000
 
 
