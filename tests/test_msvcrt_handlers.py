@@ -855,3 +855,39 @@ def test_p_wcmdln_points_at_the_wide_command_line(dll_emu: Speakeasy) -> None:
     cmdln = dll_emu.mem_read(p, 0x200)
     text = cmdln[: next(i for i in range(0, len(cmdln), 2) if cmdln[i : i + 2] == b"\0\0")].decode("utf-16le")
     assert text == " ".join(dll_emu.emu.get_argv())
+
+
+def test_fileno_returns_the_descriptor_of_a_standard_stream(dll_emu: Speakeasy) -> None:
+    stdout = call(dll_emu, "msvcrt", "__acrt_iob_func", [1])[0]
+    iob = call(dll_emu, "msvcrt", "__iob_func", [])[0]
+    assert call(dll_emu, "msvcrt", "_fileno", [stdout])[0] == 1
+    assert call(dll_emu, "msvcrt", "_fileno", [iob + 2 * 0x20])[0] == 2
+    assert call(dll_emu, "msvcrt", "_fileno", [alloc(dll_emu, b"\0" * 0x20)])[0] == -1
+
+
+@pytest.mark.parametrize("fd, result", [(0, 0), (7, -1)])
+def test_read_gives_end_of_file_on_stdin_and_fails_on_other_descriptors(
+    dll_emu: Speakeasy, fd: int, result: int
+) -> None:
+    assert call(dll_emu, "msvcrt", "_read", [fd, alloc(dll_emu, b"\0" * 8), 8])[0] == result
+
+
+def test_mutex_functions_of_the_cpp_runtime_succeed_at_once(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    mtx = alloc(dll_emu, b"\0" * 0x50)
+    call(dll_emu, "msvcrt", "_Mtx_init_in_situ", [mtx, 2])
+    results = [call(dll_emu, "msvcrt", name, [mtx])[0] for name in ("_Mtx_lock", "_Mtx_trylock", "_Mtx_unlock")]
+    call(dll_emu, "msvcrt", "_Mtx_destroy_in_situ", [mtx])
+    assert results == [0, 0, 0]
+    assert call(dll_emu, "msvcrt", "_Thrd_id", [])[0] == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
+
+
+@pytest.mark.parametrize("name", ["__telemetry_main_invoke_trigger", "__telemetry_main_return_trigger"])
+def test_telemetry_triggers_are_accepted(dll_emu: Speakeasy, name: str) -> None:
+    call(dll_emu, "msvcrt", name, [0x10000000])
+
+
+@pytest.mark.parametrize("fd, result", [(1, 0x4000), (7, -1)])
+def test_setmode_returns_text_mode_for_a_standard_descriptor(dll_emu: Speakeasy, fd: int, result: int) -> None:
+    o_u16text = 0x20000
+    assert call(dll_emu, "msvcrt", "_setmode", [fd, o_u16text])[0] == result

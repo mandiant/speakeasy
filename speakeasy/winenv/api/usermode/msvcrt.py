@@ -15,8 +15,11 @@ from speakeasy.profiler_events import FILE_WRITE
 from .. import api
 
 ENOENT = 2
+EBADF = 9
 EINVAL = 22
 ERANGE = 34
+THRD_SUCCESS = 0
+O_TEXT = 0x4000
 STRUNCATE = 80
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
@@ -2184,6 +2187,99 @@ class Msvcrt(api.ApiHandler):
         """
         # Standard streams are files, as kernel32.GetFileType reports
         return 0
+
+    @apihook("_fileno", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _fileno(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _fileno(FILE *stream);
+        """
+        (stream,) = argv
+        if stream in (self.stdin, self.stdout, self.stderr):
+            return stream
+        if self.iob:
+            index, rest = divmod(stream - self.iob, 0x30 if self.get_ptr_size() == 8 else 0x20)
+            if not rest and index in (self.stdin, self.stdout, self.stderr):
+                return index
+        self.set_errno(EINVAL)
+        return -1
+
+    @apihook("_setmode", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _setmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _setmode(int fd, int mode);
+        """
+        fd, mode = argv
+        if fd in (self.stdin, self.stdout, self.stderr):
+            return O_TEXT
+        self.set_errno(EBADF)
+        return -1
+
+    @apihook("_read", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _read(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _read(int fd, void *buffer, unsigned int count);
+        """
+        fd, buf, count = argv
+        if fd == self.stdin:
+            return 0
+        self.set_errno(EBADF)
+        return -1
+
+    @apihook("_Mtx_init_in_situ", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _Mtx_init_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _Mtx_init_in_situ(_Mtx_t mtx, int type);
+        """
+        return
+
+    @apihook("_Mtx_destroy_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Mtx_destroy_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _Mtx_destroy_in_situ(_Mtx_t mtx);
+        """
+        return
+
+    @apihook("_Mtx_lock", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Mtx_lock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Mtx_lock(_Mtx_t mtx);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Mtx_trylock", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Mtx_trylock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Mtx_trylock(_Mtx_t mtx);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Mtx_unlock", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Mtx_unlock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Mtx_unlock(_Mtx_t mtx);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Thrd_id", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _Thrd_id(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_id_t _Thrd_id(void);
+        """
+        return emu.get_current_thread().id
+
+    @apihook("__telemetry_main_invoke_trigger", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __telemetry_main_invoke_trigger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __telemetry_main_invoke_trigger(HINSTANCE instance);
+        """
+        return
+
+    @apihook("__telemetry_main_return_trigger", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __telemetry_main_return_trigger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __telemetry_main_return_trigger(HINSTANCE instance);
+        """
+        return
 
     @apihook("setvbuf", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def setvbuf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
