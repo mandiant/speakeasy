@@ -423,3 +423,16 @@ def test_get_module_information_needs_room_for_the_structure(dll_emu: Speakeasy)
     rv, _ = call(dll_emu, "kernel32", "K32GetModuleInformation", [0xFFFFFFFF, 0, info, 8])
     assert rv == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
+
+
+@pytest.mark.parametrize("name, argv", [("SetupDiEnumDeviceInfo", [0]), ("SetupDiEnumDeviceInterfaces", [0, 0, 0])])
+def test_setupapi_device_enumeration_is_empty(dll_emu: Speakeasy, name: str, argv: list[int]) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    hdevinfo = 0x238
+    data = alloc(dll_emu, struct.pack("<I", 0x20) + b"\x00" * 0x1C)
+
+    rv, _ = call(dll_emu, "setupapi", name, [hdevinfo, *argv, data])
+
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_ITEMS
