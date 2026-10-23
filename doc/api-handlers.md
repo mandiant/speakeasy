@@ -12,7 +12,7 @@ Handler rules:
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
 
-When a module has no handler for a name, Speakeasy tries related names. A handler without the `A` or `W` suffix serves both variants, `Nt` and `Zw` names share a handler, and ntdll falls back to the ntoskrnl handlers. All C runtime DLLs use the msvcrt handlers, and an `_o_` export of the private CRT uses the handler of the name without that prefix. An API set uses the handlers of the module that implements it: `api-ms-win-core-com-*` uses ole32, `api-ms-win-core-winrt-*` uses combase, the other `api-ms-win-core-*` sets use kernel32, `api-ms-win-eventing-*` uses advapi32, and the `ext-ms-win` ntuser and gdi sets use user32 and gdi32. A function that win32metadata declares only under an API set counts as a declaration of the module that the set maps to.
+When a module has no handler for a name, Speakeasy tries related names. A handler without the `A` or `W` suffix serves both variants, `Nt` and `Zw` names share a handler, ntdll falls back to the ntoskrnl handlers, and the registry functions that kernel32 exports (`Reg*`) fall back to the advapi32 handlers. All C runtime DLLs use the msvcrt handlers, and an `_o_` export of the private CRT uses the handler of the name without that prefix. An API set uses the handlers of the module that implements it: `api-ms-win-core-com-*` uses ole32, `api-ms-win-core-winrt-*` uses combase, the other `api-ms-win-core-*` sets use kernel32, `api-ms-win-eventing-*` uses advapi32, and the `ext-ms-win` ntuser and gdi sets use user32 and gdi32. A function that win32metadata declares only under an API set counts as a declaration of the module that the set maps to.
 
 ## Example: HeapAlloc in kernel32
 

@@ -169,3 +169,22 @@ def test_ntoskrnl_zw_to_nt(emu):
 def test_ntoskrnl_direct(emu):
     _mod, attrs = emu.normalize_import_miss("ntoskrnl", "ZwCreateFile")
     assert attrs is not None
+
+
+@pytest.mark.parametrize(
+    "dll, func",
+    [
+        ("kernel32", "RegGetValueW"),
+        ("KERNEL32", "RegOpenKeyExA"),
+        ("api-ms-win-core-registry-l1-1-0", "RegQueryValueExW"),
+    ],
+)
+def test_kernel32_registry_functions_use_advapi32_handlers(dll, func):
+    emu = FakeEmulator([("advapi32", "RegGetValue"), ("advapi32", "RegOpenKeyEx"), ("advapi32", "RegQueryValueEx")])
+    _mod, attrs = emu.normalize_import_miss(dll, func)
+    assert attrs is not None, f"({dll}, {func}) should resolve to advapi32"
+
+
+def test_kernel32_non_registry_function_does_not_use_advapi32_handlers():
+    emu = FakeEmulator([("advapi32", "RegisterEventSource"), ("advapi32", "OpenProcessToken")])
+    assert emu.normalize_import_miss("kernel32", "OpenProcessToken")[1] is None
