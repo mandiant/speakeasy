@@ -430,6 +430,13 @@ def test_wcsnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected:
     assert rv == expected
 
 
+@pytest.mark.parametrize(("limit", "expected"), [(3, 3), (8, 8), (20, 8)])
+def test_strnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected: int) -> None:
+    s = alloc(driver_emu, b"abcdefgh\0")
+    rv, _ = call(driver_emu, "ntoskrnl", "strnlen", [s, limit])
+    assert rv == expected
+
+
 @pytest.mark.parametrize(("length", "status"), [(8, ddk.STATUS_SUCCESS), (4, ddk.STATUS_INFO_LENGTH_MISMATCH)])
 def test_x64_zw_query_information_process_wow64(driver64_emu: Speakeasy, length: int, status: int) -> None:
     driver64_emu.emu.get_current_process()
@@ -628,3 +635,46 @@ def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_
 )
 def test_shutdown_notification_registration_succeeds(driver_emu: Speakeasy, name: str) -> None:
     assert call(driver_emu, "ntoskrnl", name, [0x7000])[0] == ddk.STATUS_SUCCESS
+
+
+def test_ke_query_system_time_precise_writes_the_system_time(driver_emu: Speakeasy) -> None:
+    assert driver_emu.emu is not None
+    out = alloc(driver_emu, b"\x00" * 8)
+    call(driver_emu, "ntoskrnl", "KeQuerySystemTimePrecise", [out])
+    assert struct.unpack("<Q", driver_emu.mem_read(out, 8))[0] == driver_emu.emu.get_system_time()
+
+
+TRUNCATE = 0xFFFFFFFF
+
+
+@pytest.mark.parametrize(
+    ("size", "count", "rv", "written"),
+    [
+        (16, TRUNCATE, 5, b"ab-42\0"),
+        (4, TRUNCATE, -1, b"ab-\0"),
+        (16, 3, -1, b"ab-\0"),
+        (6, 5, 5, b"ab-42\0"),
+        (4, 8, -1, b"\0"),
+    ],
+)
+@pytest.mark.parametrize("name", ["_snprintf_s", "_vsnprintf_s"])
+def test_snprintf_s_always_ends_the_string(
+    driver_emu: Speakeasy, name: str, size: int, count: int, rv: int, written: bytes
+) -> None:
+    out = alloc(driver_emu, b"\xee" * 32)
+    args = [alloc(driver_emu, b"ab\0"), 42]
+    if name.startswith("_v"):
+        args = [alloc(driver_emu, struct.pack("<2I", *args))]
+    result, _ = call(driver_emu, "ntoskrnl", name, [out, size, count, alloc(driver_emu, b"%s-%d\0"), *args])
+    assert result & 0xFFFFFFFF == rv & 0xFFFFFFFF
+    assert driver_emu.mem_read(out, len(written) + 1) == written + b"\xee"
+
+
+@pytest.mark.parametrize(("name", "head"), [("vDbgPrintEx", []), ("vDbgPrintExWithPrefix", ["[drv] "])])
+def test_vdbgprintex_formats_the_message(driver_emu: Speakeasy, name: str, head: list[str]) -> None:
+    prefix = [alloc(driver_emu, (h + "\0").encode()) for h in head]
+    fmt = alloc(driver_emu, b"%s=%d\0")
+    args = alloc(driver_emu, struct.pack("<2I", alloc(driver_emu, b"pid\0"), 4))
+    rv, displays = call(driver_emu, "ntoskrnl", name, [*prefix, 0x4D, 3, fmt, args])
+    assert rv == ddk.STATUS_SUCCESS
+    assert "".join(head) + "pid=4" in displays.values()
