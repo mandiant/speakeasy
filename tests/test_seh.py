@@ -61,6 +61,7 @@ X64_CASES = {
     0x10: "vectored handler steps over int3",
     0x20: "exception caught in the caller's frame",
     0x40: "bad pointer read by an API faults in its caller",
+    0x80: "hardware breakpoint from SetThreadContext, resume flag, and disarming",
 }
 
 
@@ -83,6 +84,8 @@ def test_seh_dispatch_x64(config, load_test_bin, run_test):
         ("0x80000003", None),
         ("0xe0000005", None),
         ("0xc0000005", "0x10"),
+        ("0x80000004", None),
+        ("0x80000004", None),
     ]
 
 

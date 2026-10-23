@@ -5351,7 +5351,7 @@ class Kernel32(api.ApiHandler):
             if emu.get_arch() == e_arch.ARCH_AMD64 and thread_context.has(
                 _context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS
             ):
-                thread_context.set_debug_registers(obj, _context)
+                emu.set_debug_registers(obj, _context)
             if obj.process:
                 obj.process.is_modified = True
 
