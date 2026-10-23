@@ -1126,6 +1126,7 @@ class Kernel32(api.ApiHandler):
                 bw = (len(data)).to_bytes(self.get_ptr_size(), "little")
                 self.mem_write(lpNumberOfBytesWritten, bw)
             rv = True
+            obj.is_modified = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -1292,6 +1293,8 @@ class Kernel32(api.ApiHandler):
         if not emu.resume_thread(obj):
             context = obj.get_context()
             proc = obj.process
+            if proc in emu.child_processes and not proc.is_modified:
+                return rv
             if emu.get_arch() == e_arch.ARCH_AMD64:
                 start_addr = context.Rip
                 if not start_addr and context.Rcx:
@@ -5202,6 +5205,8 @@ class Kernel32(api.ApiHandler):
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
+            if obj.process:
+                obj.process.is_modified = True
 
         return True
 

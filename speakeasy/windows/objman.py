@@ -504,6 +504,7 @@ class Process(KernelObject):
         emu.add_object(self.token)
         self.pe: Any | None = pe
         self.pe_data: bytes | None = None
+        self.is_modified = False
 
         self.stdin = (0xF000) + 1
         self.stdout = (0xF000) + 2
