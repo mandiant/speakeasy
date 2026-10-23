@@ -1,5 +1,7 @@
 import pytest
 
+from speakeasy import Speakeasy
+
 
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz"])
 def test_argv_exe(config, load_test_bin, run_test, bin_file):
@@ -19,3 +21,18 @@ def test_argv_exe(config, load_test_bin, run_test, bin_file):
         fmt_str = p.args[2].display
         test_str = f"argv[{i}] = argument_{i}\n"
         assert test_str == fmt_str
+
+
+def test_argv_input_cmndline(config, load_test_bin):
+    argument = ["My", "name", "is", "Don"]
+    data = load_test_bin("argv_test_x86.exe.xz")
+    speak = Speakeasy(config=config, argv=argument)
+
+    try:
+        module = speak.load_module(data=data)
+        speak.run_module(module, all_entrypoints=True)
+        cmndline = speak.emu.curr_process.cmdline
+    finally:
+        speak.shutdown()
+    assert cmndline.endswith(" ".join(argument))
+    assert "svchost" not in cmndline
