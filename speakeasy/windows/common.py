@@ -109,6 +109,12 @@ def normalize_dll_name(name):
     elif name.lower().startswith("api-ms-win-eventing"):
         ret = "advapi32"
 
+    elif name.lower().startswith("api-ms-win-shell-shellfolders"):
+        ret = "shell32"
+
+    elif name.lower().startswith("api-ms-win-core-shlwapi"):
+        ret = "shlwapi"
+
     elif name.lower().startswith("api-ms-win-core-com-l"):
         ret = "ole32"
 

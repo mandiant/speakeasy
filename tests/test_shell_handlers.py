@@ -107,6 +107,31 @@ def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) 
     assert read_wstr(dll_emu, out) == f"C:\\Users\\{dll_emu.emu.config.user.name}\\AppData\\Roaming"
 
 
+@pytest.mark.parametrize(
+    ("folder", "expected"),
+    [
+        ("62ab5d82-fdc1-4dc3-a9dd-070d1d495d97", "C:\\ProgramData"),
+        ("3eb685db-65f9-4cf6-a03a-e3ef65729f3d", "C:\\Users\\{user}\\AppData\\Roaming"),
+    ],
+)
+def test_sh_get_known_folder_path_allocates_the_path(dll_emu: Speakeasy, folder: str, expected: str) -> None:
+    assert dll_emu.emu is not None
+    rfid = alloc(dll_emu, uuid.UUID(folder).bytes_le)
+    out = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "api-ms-win-shell-shellfolders-l1-1-0", "SHGetKnownFolderPath", [rfid, 0, 0, out])
+    assert rv == 0
+    path = struct.unpack("<I", dll_emu.mem_read(out, 4))[0]
+    assert read_wstr(dll_emu, path) == expected.format(user=dll_emu.emu.config.user.name)
+
+
+def test_sh_get_known_folder_path_fails_for_an_unknown_folder(dll_emu: Speakeasy) -> None:
+    rfid = alloc(dll_emu, uuid.UUID("00000000-1111-2222-3333-444444444444").bytes_le)
+    out = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "SHGetKnownFolderPath", [rfid, 0, 0, out])
+    assert rv == 0x80070002
+    assert dll_emu.mem_read(out, 4) == b"\x00" * 4
+
+
 def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
