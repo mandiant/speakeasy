@@ -2307,9 +2307,22 @@ class WindowsEmulator(BinaryEmulator):
                 alt_dll = winemu.normalize_dll_name(dll)
                 if alt_dll.lower() != dll.lower():
                     sig = db.get_functions(alt_dll, arch).get(name)
+            if sig is None:
+                sig = self._lookup_api_set_declaration(dll, name)
         except Exception as exc:
             raise WindowsEmuError(f"signature provider failed for {dll}!{name}: {exc}") from exc
         return sig
+
+    def _lookup_api_set_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
+        """Find a declaration that win32metadata files under an API set that maps to ``dll``."""
+        db = self.get_signature_db()
+        arch = self._get_signature_arch()
+        sig = db.lookup(dll, name, arch)
+        if sig is None or not sig.dll.lower().startswith("api-ms-win-"):
+            return None
+        if winemu.normalize_dll_name(sig.dll).lower() != winemu.normalize_dll_name(dll).lower():
+            return None
+        return db.get_functions(sig.dll, arch).get(name)
 
     def lookup_api_signature(self, dll: str, name: str) -> sigdb.FuncSig | None:
         sig = self._lookup_api_declaration(dll, name)

@@ -99,6 +99,22 @@ def normalize_dll_name(name):
     elif name.lower().startswith(("winsock", "wsock32")):
         ret = "ws2_32"
 
+    # API sets use the handlers of the module that implements them
+    elif name.lower().startswith(("ext-ms-win-ntuser", "ext-ms-win-rtcore-ntuser")):
+        ret = "user32"
+
+    elif name.lower().startswith(("ext-ms-win-gdi", "ext-ms-win-rtcore-gdi")):
+        ret = "gdi32"
+
+    elif name.lower().startswith("api-ms-win-eventing"):
+        ret = "advapi32"
+
+    elif name.lower().startswith("api-ms-win-core-com-l"):
+        ret = "ole32"
+
+    elif name.lower().startswith("api-ms-win-core-winrt"):
+        ret = "combase"
+
     elif name.lower().startswith("api-ms-win-core"):
         ret = "kernel32"
 
