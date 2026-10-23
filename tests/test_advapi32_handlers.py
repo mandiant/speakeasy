@@ -606,3 +606,34 @@ def test_sid_functions_reject_an_unmapped_sid(dll_emu: Speakeasy) -> None:
     assert not call(dll_emu, "advapi32", "EqualSid", [sid, alloc(dll_emu, _sid(32, 544))])[0]
     assert not call(dll_emu, "advapi32", "CopySid", [20, alloc(dll_emu, b"\x00" * 20), sid])[0]
     assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_get_token_information_returns_the_user_sid(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    start_process(se)
+    ptr_size = se.emu.get_ptr_size()
+    ret_len = alloc(se, b"\xcc" * 4)
+
+    rv, _ = call(se, "advapi32", "GetTokenInformation", [0x1234, 1, 0, 0, ret_len])
+    assert (rv, _last_error(se), _dword(se, ret_len)) == (0, windefs.ERROR_INSUFFICIENT_BUFFER, 2 * ptr_size + 28)
+
+    info = alloc(se, b"\xcc" * _dword(se, ret_len))
+    rv, _ = call(se, "advapi32", "GetTokenInformation", [0x1234, 1, info, _dword(se, ret_len), ret_len])
+    sid = int.from_bytes(se.mem_read(info, ptr_size), "little")
+    assert (rv, sid) == (1, info + 2 * ptr_size)
+    authority = bytes([1, 5]) + (5).to_bytes(6, "big")
+    assert se.mem_read(sid, 28) == authority + struct.pack("<5I", 21, 1111111111, 2222222222, 3333333333, 1001)
+
+
+@pytest.mark.parametrize("api, encoding", [("ConvertSidToStringSidA", "utf-8"), ("ConvertSidToStringSidW", "utf-16le")])
+def test_convert_sid_to_string_sid_allocates_the_string(dll_emu: Speakeasy, api: str, encoding: str) -> None:
+    start_process(dll_emu)
+    out = alloc(dll_emu, b"\x00" * 4)
+    assert call(dll_emu, "advapi32", api, [alloc(dll_emu, _sid(32, 544)), out])[0]
+    text = "S-1-5-32-544\0".encode(encoding)
+    assert dll_emu.mem_read(_dword(dll_emu, out), len(text)) == text
+
+    assert not call(dll_emu, "advapi32", api, [0xA530, out])[0]
+    assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
