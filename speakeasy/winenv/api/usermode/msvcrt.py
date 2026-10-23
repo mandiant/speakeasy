@@ -8,6 +8,7 @@ import struct
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.profiler_events import FILE_WRITE
@@ -1637,6 +1638,20 @@ class Msvcrt(api.ApiHandler):
         rv = 1
 
         return rv
+
+    @apihook("__C_specific_handler", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        EXCEPTION_DISPOSITION __C_specific_handler(
+            PEXCEPTION_RECORD ExceptionRecord,
+            PVOID EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PDISPATCHER_CONTEXT DispatcherContext
+        );
+        """
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return windef.ExceptionContinueSearch
+        return seh64.c_specific_handler(emu, *argv)
 
     @apihook("_except_handler3", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

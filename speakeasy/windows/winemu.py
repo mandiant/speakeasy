@@ -8,7 +8,7 @@ import struct
 import time
 import traceback
 from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import wraps
@@ -21,14 +21,16 @@ import unicorn as uc
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.objman as objman
+import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import FileSystemEmuError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
-from speakeasy.profiler import ApiCallbackFrame, MemAccess, Run
+from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
@@ -209,7 +211,7 @@ class WindowsEmulator(BinaryEmulator):
         self._shared_peb_modules = set()
         self._import_bindings: dict[int, int] = {}
         self._load_depth: int = 0
-        self._active_api_frame: ApiCallbackFrame | None = None
+        self._active_api_frame: GuestCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
         self.debug_hook: Any | None = None
@@ -501,9 +503,9 @@ class WindowsEmulator(BinaryEmulator):
         """
         Execute the next run from the emulation queue
         """
-        for frame in self.curr_run.api_callbacks:
+        for frame in self.curr_run.guest_callbacks:
             self._rollback_guest_load(frame)
-        self.curr_run.api_callbacks.clear()
+        self.curr_run.guest_callbacks.clear()
         self._pending_api_entry = None
         self._pending_control = None
         self._pending_trap_fault = None
@@ -706,7 +708,7 @@ class WindowsEmulator(BinaryEmulator):
             and self._pending_control != "exec_recovery"
             and address
             not in (
-                winemu.API_CALLBACK_HANDLER_ADDR,
+                winemu.GUEST_CALLBACK_RETURN_ADDR,
                 self.return_hook,
                 self.exit_hook,
             )
@@ -793,7 +795,7 @@ class WindowsEmulator(BinaryEmulator):
                     if control == "exec_recovery":
                         recover_execution()
                     else:
-                        self._continue_api_callback()
+                        self._continue_guest_callback()
                     address = self.get_pc()
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
@@ -838,7 +840,7 @@ class WindowsEmulator(BinaryEmulator):
                         candidate = self.api_registry.traps.get(self.get_pc())
                         if candidate is not None:
                             self._suspend_api_call(candidate)
-                    if self.get_pc() == winemu.API_CALLBACK_HANDLER_ADDR and self.curr_run.api_callbacks:
+                    if self.get_pc() == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run.guest_callbacks:
                         self._pending_control = "callback_return"
                     elif self.get_pc() in (self.return_hook, self.exit_hook):
                         self._pending_control = "run_return"
@@ -2047,7 +2049,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._pending_control = "run_return"
                 self.emu_eng.stop()
                 return True
-            if address == winemu.API_CALLBACK_HANDLER_ADDR and self.curr_run and self.curr_run.api_callbacks:
+            if address == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run and self.curr_run.guest_callbacks:
                 self._pending_control = "callback_return"
                 self.emu_eng.stop()
                 return True
@@ -2338,7 +2340,7 @@ class WindowsEmulator(BinaryEmulator):
             pid = process.id if process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
             frame = self._active_api_frame
-            deferred = frame is not None and any(item is frame for item in run.api_callbacks)
+            deferred = frame is not None and any(item is frame for item in run.guest_callbacks)
             event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=not deferred)
             if deferred:
                 frame.event = event
@@ -2537,7 +2539,7 @@ class WindowsEmulator(BinaryEmulator):
         return self.api_ctx.args.get_report_args()
 
     def handle_import_func(self, dll, name):
-        frame = ApiCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
+        frame = GuestCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
         previous = self._active_api_frame
         self._active_api_frame = frame
         origin_run = self.curr_run
@@ -2551,7 +2553,7 @@ class WindowsEmulator(BinaryEmulator):
                 and self.get_pc() == entry_pc
                 and self.get_stack_ptr() != frame.stack_pointer
                 and not self._pending_control
-                and not origin_run.api_callbacks
+                and not origin_run.guest_callbacks
             ):
                 origin_run.error = self.get_error_info("api_handler_did_not_return", entry_pc)
                 origin_run.error.api_name = f"{dll}.{name}"
@@ -2624,6 +2626,9 @@ class WindowsEmulator(BinaryEmulator):
                     self.curr_run.error = error  # type: ignore[union-attr]
                     self.on_run_complete()
                     return
+
+            if isinstance(rv, Generator):
+                rv = guest_callbacks.start_api_handler(self, frame, rv)
 
             ret = self.get_ret_address()
             pc = self.get_pc()
@@ -2729,23 +2734,26 @@ class WindowsEmulator(BinaryEmulator):
         # the low byte decides success.
         return bool(self.get_return_val() & 0xFF)
 
-    def start_api_callback(self, frame, function, args):
-        """Enter a guest callback on the stack of its API frame."""
+    def start_guest_callback(self, frame, function, args, sp=None):
+        """Enter a guest callback on the stack of its frame, or below sp."""
         frame.function = function
-        sp = frame.stack_pointer
+        sp = frame.stack_pointer if sp is None else sp
         if self.ptr_size == 8:
             # Win64 callees expect RSP + 8 to be 16-byte aligned at entry, and
             # each argument after the fourth occupies one 8-byte stack slot.
             sp &= ~0xF
             if max(len(args) - 4, 0) % 2:
                 sp -= 8
-        self.set_func_args(sp, winemu.API_CALLBACK_HANDLER_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
+        self.set_func_args(sp, winemu.GUEST_CALLBACK_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
         self.set_pc(function)
 
-    def _continue_api_callback(self):
+    def _continue_guest_callback(self):
         """Resume a typed guest callback continuation outside Unicorn callbacks."""
         run = self.get_current_run()
-        frame = run.api_callbacks[-1]
+        frame = run.guest_callbacks[-1]
+        if frame.handler is not None:
+            guest_callbacks.resume(self, frame)
+            return
         stage = frame.initializers.get(frame.function)
         if stage is not None:
             module, last, is_dll, pid = stage
@@ -2761,9 +2769,9 @@ class WindowsEmulator(BinaryEmulator):
         self.set_stack_ptr(frame.stack_pointer)
         if frame.pending:
             function, args = frame.pending.pop(0)
-            self.start_api_callback(frame, function, args)
+            self.start_guest_callback(frame, function, args)
         else:
-            run.api_callbacks.pop()
+            run.guest_callbacks.pop()
             if frame.event is not None:
                 frame.event.ret_val = hex(frame.result) if frame.result is not None else None
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
@@ -3473,6 +3481,42 @@ class WindowsEmulator(BinaryEmulator):
         teb = teb.read_back()
         return teb.object.NtTib.ExceptionList
 
+    def record_exception(self, code, address, handler, registers, faulting_address=None):
+        """Log an exception at address that is offered to a guest handler, and record it in the report."""
+        try:
+            _, _, instr = self.get_disasm(address, DISASM_SIZE)
+        except Exception as e:
+            logger.error(str(e))
+            instr = "disasm_failed"
+        pc_module = self._resolve_module_offset(address)
+        handler_module = self._resolve_module_offset(handler)
+        handler_desc = f"0x{handler:x}" + (f" ({handler_module})" if handler_module else "")
+        logger.info(
+            '0x%x: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
+            address,
+            code,
+            handler_desc,
+            instr,
+            pc_module or f"0x{address:x}",
+            "  ".join(f"{k}={v}" for k, v in registers.items()),
+        )
+        if self.profiler:
+            run = self.get_current_run()
+            tick = run.instr_cnt if run else 0
+            tid = self.curr_thread.tid if self.curr_thread else 0
+            pid = self.curr_process.id if self.curr_process else 0
+            self.profiler.record_exception_event(
+                run,
+                TracePosition(tick=tick, tid=tid, pid=pid, pc=address),
+                instr,
+                code,
+                handler,
+                registers,
+                faulting_address=hex(faulting_address) if faulting_address is not None else None,
+                pc_module=pc_module,
+                stack_trace=self.get_stack_trace(),
+            )
+
     def _dispatch_seh_x86(self, except_code, flags=0, params=()):
         """
         Get the initial SEH handler when dispatching a CPU exception
@@ -3530,54 +3574,8 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_EBP, frame)
             self.set_func_args(frame, winemu.SEH_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
 
-            run = self.get_current_run()
-            regs = self.get_register_state()
-
-            pc = self.prev_pc
-            try:
-                mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
-            except Exception as e:
-                logger.error(str(e))
-                instr = "disasm_failed"
-
-            pc_module = self._resolve_module_offset(pc)
-            stack_trace = self.get_stack_trace()
-            handler_module = self._resolve_module_offset(entry.Handler)
-
-            pc_desc = pc_module or f"0x{pc:x}"
-            handler_desc = f"0x{entry.Handler:x}"
-            if handler_module:
-                handler_desc = f"{handler_desc} ({handler_module})"
-            logger.info(
-                '0x%x: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
-                pc,
-                except_code,
-                handler_desc,
-                instr,
-                pc_desc,
-                "  ".join(f"{k}={v}" for k, v in regs.items()),
-            )
-
-            faulting_addr_hex = None
-            if except_code == ddk.STATUS_ACCESS_VIOLATION:
-                faulting_addr_hex = hex(self.prev_pc)
-
-            if self.profiler:
-                tick = run.instr_cnt if run else 0
-                tid = self.curr_thread.tid if self.curr_thread else 0
-                pid = self.curr_process.id if self.curr_process else 0
-                pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-                self.profiler.record_exception_event(
-                    run,
-                    pos,
-                    instr,
-                    except_code,
-                    entry.Handler,
-                    regs,
-                    faulting_address=faulting_addr_hex,
-                    pc_module=pc_module,
-                    stack_trace=stack_trace,
-                )
+            faulting_address = self.prev_pc if except_code == ddk.STATUS_ACCESS_VIOLATION else None
+            self.record_exception(except_code, self.prev_pc, entry.Handler, self.get_register_state(), faulting_address)
 
             # EBX clobber, -1 is what I observed inside a VM
             self.reg_write(_arch.X86_REG_EBX, 0xFFFFFFFF)
@@ -3676,6 +3674,8 @@ class WindowsEmulator(BinaryEmulator):
         rv = False
         if self.get_arch() == _arch.ARCH_X86:
             rv = self._dispatch_seh_x86(except_code, flags, params)
+        elif self.get_arch() == _arch.ARCH_AMD64:
+            rv = seh64.dispatch_fault(self, except_code, faulting_address, access_type)
         if not rv and self.unhandled_exception_filter:
             # The run ends when the filter returns, so the fault is the error of the run.
             if self.curr_run is not None and self.curr_run.error is None:
@@ -3768,8 +3768,9 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when software interrupts occur
         """
-        exception_list = self._get_exception_list()
-        if exception_list and self.config.exceptions.dispatch_handlers:
+        # x64 handlers are found by unwinding, so any exception may have one
+        has_handlers = self.get_arch() == _arch.ARCH_AMD64 or self._get_exception_list()
+        if has_handlers and self.config.exceptions.dispatch_handlers:
             # Catch software breakpoint interrupts
             if intnum == 3 or intnum == 0x2D:
                 self.curr_exception_code = ddk.STATUS_BREAKPOINT

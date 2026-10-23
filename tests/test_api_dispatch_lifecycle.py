@@ -89,7 +89,7 @@ def test_nested_dialog_callbacks_return_to_their_api_callers(config, architectur
 
 
 @pytest.mark.parametrize("argc", [4, 5, 6])
-def test_x64_api_callback_entry_stack_is_aligned(config, argc):
+def test_x64_guest_callback_entry_stack_is_aligned(config, argc):
     with Speakeasy(config=config) as se:
         base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
         data = se.mem_alloc(0x1000)

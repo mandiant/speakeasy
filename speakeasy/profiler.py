@@ -86,8 +86,8 @@ class MemAccess:
 
 
 @dataclass
-class ApiCallbackFrame:
-    """Original API call state retained while its guest callbacks execute."""
+class GuestCallbackFrame:
+    """State retained while guest callbacks run: the API call that started them, if any."""
 
     stack_pointer: int
     return_address: int
@@ -102,6 +102,8 @@ class ApiCallbackFrame:
     event: ApiEvent | None = None
     created_modules: list[Any] = field(default_factory=list)
     loader_attachments: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
+    # Set while a generator handler (speakeasy.windows.guest_callbacks) runs on this frame
+    handler: Any = None
 
 
 class Run:
@@ -128,7 +130,7 @@ class Run:
         self.unique_apis: list[str] = []
         self.api_hash = hashlib.sha256()
         self.stack: MemAccess | None = None
-        self.api_callbacks: list[ApiCallbackFrame] = []
+        self.guest_callbacks: list[GuestCallbackFrame] = []
         self.exec_cache: deque[MemAccess] = deque(maxlen=4)
         self.read_cache: deque[MemAccess] = deque(maxlen=4)
         self.write_cache: deque[MemAccess] = deque(maxlen=4)
