@@ -81,92 +81,9 @@ class Wdfldr(api.ApiHandler):
         return self.curr_handle
 
     def set_func_table(self, emu):
-        addr = emu.add_callback(Wdfldr.name, self.WdfDriverCreate.__apihook__[0])
-        self.func_table.pfnWdfDriverCreate = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceInitSetPnpPowerEventCallbacks.__apihook__[0])
-        self.func_table.pfnWdfDeviceInitSetPnpPowerEventCallbacks = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceInitSetRequestAttributes.__apihook__[0])
-        self.func_table.pfnWdfDeviceInitSetRequestAttributes = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceInitSetFileObjectConfig.__apihook__[0])
-        self.func_table.pfnWdfDeviceInitSetFileObjectConfig = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceInitSetIoType.__apihook__[0])
-        self.func_table.pfnWdfDeviceInitSetIoType = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceCreate.__apihook__[0])
-        self.func_table.pfnWdfDeviceCreate = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfObjectGetTypedContextWorker.__apihook__[0])
-        self.func_table.pfnWdfObjectGetTypedContextWorker = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDriverOpenParametersRegistryKey.__apihook__[0])
-        self.func_table.pfnWdfDriverOpenParametersRegistryKey = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfRegistryQueryULong.__apihook__[0])
-        self.func_table.pfnWdfRegistryQueryULong = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfRegistryClose.__apihook__[0])
-        self.func_table.pfnWdfRegistryClose = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceSetPnpCapabilities.__apihook__[0])
-        self.func_table.pfnWdfDeviceSetPnpCapabilities = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfIoQueueCreate.__apihook__[0])
-        self.func_table.pfnWdfIoQueueCreate = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfIoQueueReadyNotify.__apihook__[0])
-        self.func_table.pfnWdfIoQueueReadyNotify = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceCreateDeviceInterface.__apihook__[0])
-        self.func_table.pfnWdfDeviceCreateDeviceInterface = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceWdmGetAttachedDevice.__apihook__[0])
-        self.func_table.pfnWdfDeviceWdmGetAttachedDevice = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfDeviceWdmGetDeviceObject.__apihook__[0])
-        self.func_table.pfnWdfDeviceWdmGetDeviceObject = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceCreateWithParameters.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceCreateWithParameters = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceGetDeviceDescriptor.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceGetDeviceDescriptor = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceRetrieveConfigDescriptor.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceRetrieveConfigDescriptor = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfMemoryCreate.__apihook__[0])
-        self.func_table.pfnWdfMemoryCreate = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceSelectConfig.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceSelectConfig = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceGetNumInterfaces.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceGetNumInterfaces = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetDeviceRetrieveInformation.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetDeviceRetrieveInformation = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbInterfaceGetNumSettings.__apihook__[0])
-        self.func_table.pfnWdfUsbInterfaceGetNumSettings = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbInterfaceSelectSetting.__apihook__[0])
-        self.func_table.pfnWdfUsbInterfaceSelectSetting = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbInterfaceGetNumConfiguredPipes.__apihook__[0])
-        self.func_table.pfnWdfUsbInterfaceGetNumConfiguredPipes = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbInterfaceGetConfiguredPipe.__apihook__[0])
-        self.func_table.pfnWdfUsbInterfaceGetConfiguredPipe = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbTargetPipeGetInformation.__apihook__[0])
-        self.func_table.pfnWdfUsbTargetPipeGetInformation = addr
-
-        addr = emu.add_callback(Wdfldr.name, self.WdfUsbInterfaceGetInterfaceNumber.__apihook__[0])
-        self.func_table.pfnWdfUsbInterfaceGetInterfaceNumber = addr
+        for field, _ in self.func_table.__fields__:
+            if field.startswith("pfn"):
+                setattr(self.func_table, field, emu.add_callback(Wdfldr.name, field.removeprefix("pfn")))
 
         self.mem_write(self.func_table_ptr, self.func_table.get_bytes())
 
