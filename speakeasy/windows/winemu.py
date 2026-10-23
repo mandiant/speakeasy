@@ -2271,6 +2271,10 @@ class WindowsEmulator(BinaryEmulator):
             mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
         if not func_attrs and alt_imp_dll and alt_imp_api:
             mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
+        if not func_attrs and alt_imp_dll.lower() == "kernel32" and name.startswith("Reg"):
+            for func in (name, alt_imp_api):
+                if func and not func_attrs:
+                    mod, func_attrs = self.api.get_export_func_handler("advapi32", func)  # type: ignore[union-attr]
         return mod, func_attrs
 
     def read_unicode_string(self, addr):
