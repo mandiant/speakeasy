@@ -434,3 +434,12 @@ def test_gethostname_fills_an_exact_buffer(dll_emu: Speakeasy) -> None:
     buf = alloc(dll_emu, b"\xcc" * 64)
     assert call(dll_emu, "ws2_32", "gethostname", [buf, len(host) + 1])[0] == 0
     assert dll_emu.mem_read(buf, len(host) + 2) == host + b"\x00\xcc"
+
+
+def test_wsa_get_last_error_returns_the_socket_error(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    name = alloc(dll_emu, struct.pack("<HH4s8x", 2, 0x5000, bytes([127, 0, 0, 1])))
+    assert call(dll_emu, "ws2_32", "connect", [0x1234, name, 16])[0] == 0xFFFFFFFF
+    assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10038
+    call(dll_emu, "ws2_32", "WSASetLastError", [10060])
+    assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10060
