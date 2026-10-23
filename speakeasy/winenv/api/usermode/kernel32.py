@@ -1389,12 +1389,18 @@ class Kernel32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return rv
 
-        mbi.BaseAddress = mm.base
+        base, size, prot = mm.base, mm.size, mm.prot
+        uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
+        for begin, end, uc_perms in emu.get_mem_regions():
+            if begin <= lpAddress <= end:
+                base, size, prot = begin, end + 1 - begin, uc_to_perms.get(uc_perms, prot)
+                break
+        mbi.BaseAddress = base
         mbi.AllocationBase = mm.base
         mbi.AllocationProtect = self.emu_perms_to_win_perms(mm.prot)
-        mbi.RegionSize = mm.size
+        mbi.RegionSize = size
         mbi.State = windefs.MEM_COMMIT
-        mbi.Protect = self.emu_perms_to_win_perms(mm.prot)
+        mbi.Protect = self.emu_perms_to_win_perms(prot)
         mbi.Type = 0
 
         self.mem_write(lpBuffer, mbi.get_bytes())
