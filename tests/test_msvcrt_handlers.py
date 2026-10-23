@@ -343,3 +343,7 @@ def test_fputc_writes_the_low_byte_of_a_sign_extended_char(dll_emu: Speakeasy, c
     rv, displays = call(dll_emu, "msvcrt", "fputc", [c, 0])
     assert rv == 0xE2
     assert displays[0] == "\\xe2"
+
+
+def test_lc_codepage_is_the_c_locale(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "___lc_codepage_func", [])[0] == 0
