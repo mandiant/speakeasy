@@ -280,6 +280,7 @@ class Msvcrt(api.ApiHandler):
         self.lconv: int | None = None
         self.locale_name: int | None = None
         self.strerror_buf: int | None = None
+        self.lc_locale_names: int | None = None
         self.iob: int | None = None
         self.winmain_command_lines: dict[int, int] = {}
         self.tm_buf: int | None = None
@@ -2030,6 +2031,24 @@ class Msvcrt(api.ApiHandler):
         """
         return
 
+    @apihook("_lock_file", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _lock_file(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _lock_file(
+            FILE* file
+        );
+        """
+        return
+
+    @apihook("_unlock_file", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _unlock_file(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _unlock_file(
+            FILE* file
+        );
+        """
+        return
+
     @apihook("_ltoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _ltoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2993,6 +3012,17 @@ class Msvcrt(api.ApiHandler):
         The C locale has code page 0.
         """
         return 0
+
+    @apihook("___lc_locale_name_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def ___lc_locale_name_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t** ___lc_locale_name_func(void);
+
+        The C locale has no name for any category.
+        """
+        if not self.lc_locale_names:
+            self.lc_locale_names = self.mem_alloc(6 * emu.get_ptr_size(), tag="api.msvcrt.lc_locale_names")
+        return self.lc_locale_names
 
     @apihook("___mb_cur_max_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def ___mb_cur_max_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
