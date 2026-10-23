@@ -116,6 +116,25 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(buf, out)
         return len(string) if len(string) <= count else -1
 
+    def _write_secure_counted_string(self, string, buf, size, count):
+        """
+        Write ``string`` the way _snprintf_s does: the buffer always ends
+        with a NUL, a ``count`` of _TRUNCATE truncates to the buffer size,
+        and a string that does not fit in the buffer leaves it empty.
+        """
+        if not buf or not size:
+            return -1
+        truncate = count == (1 << (self.emu.get_ptr_size() * 8)) - 1
+        limit = size - 1 if truncate else min(count, size - 1)
+        if len(string) <= limit:
+            self.write_string(string, buf)
+            return len(string)
+        if truncate or count < size:
+            self.write_string(string[:limit], buf)
+        else:
+            self.mem_write(buf, b"\x00")
+        return -1
+
     @apihook("ObfDereferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ObfDereferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -185,6 +204,39 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args.append(fin)
 
         return len(fin)
+
+    @apihook("vDbgPrintEx", argc=4, conv=_arch.CALL_CONV_CDECL)
+    def vDbgPrintEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS vDbgPrintEx(
+          ULONG   ComponentId,
+          ULONG   Level,
+          PCCH    Format,
+          va_list arglist
+        );
+        """
+        cid, level, fmt, arglist = argv
+        fmt_str = self.read_string(fmt)
+        vargs = self.va_args(arglist, self.get_va_arg_count(fmt_str))
+        ctx.args[2].display = self.do_str_format(fmt_str, vargs)
+        return ddk.STATUS_SUCCESS
+
+    @apihook("vDbgPrintExWithPrefix", argc=5, conv=_arch.CALL_CONV_CDECL)
+    def vDbgPrintExWithPrefix(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS vDbgPrintExWithPrefix(
+          PCCH    Prefix,
+          ULONG   ComponentId,
+          ULONG   Level,
+          PCCH    Format,
+          va_list arglist
+        );
+        """
+        prefix, cid, level, fmt, arglist = argv
+        fmt_str = self.read_string(fmt)
+        vargs = self.va_args(arglist, self.get_va_arg_count(fmt_str))
+        ctx.args[3].display = self.read_string(prefix) + self.do_str_format(fmt_str, vargs)
+        return ddk.STATUS_SUCCESS
 
     @apihook("_vsnprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
     def _vsnprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -966,6 +1018,45 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(fin)
         return self._write_counted_string(fin, buf, cnt, 1)
+
+    @apihook("_snprintf_s", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
+    def _snprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _snprintf_s(
+            char *buffer,
+            size_t sizeOfBuffer,
+            size_t count,
+            const char *format [,
+            argument] ...
+            );
+        """
+        buf, size, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 4)
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+        _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 4 + fmt_cnt)[4:]
+        fin = self.do_str_format(fmt_str, _argv)
+
+        ctx.args.clear()
+        ctx.args.append(fin)
+        return self._write_secure_counted_string(fin, buf, size, cnt)
+
+    @apihook("_vsnprintf_s", argc=5, conv=_arch.CALL_CONV_CDECL)
+    def _vsnprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _vsnprintf_s(
+            char *buffer,
+            size_t sizeOfBuffer,
+            size_t count,
+            const char *format,
+            va_list argptr
+        );
+        """
+        buf, size, cnt, fmt, argptr = argv
+        fmt_str = self.read_mem_string(fmt, 1)
+        vargs = self.va_args(argptr, self.get_va_arg_count(fmt_str))
+        fin = self.do_str_format(fmt_str, vargs)
+        ctx.args[3].display = fmt_str
+        return self._write_secure_counted_string(fin, buf, size, cnt)
 
     @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
     def wcslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1884,6 +1975,15 @@ class Ntoskrnl(api.ApiHandler):
         data = data.to_bytes(8, "little")
         self.mem_write(CurrentTime, data)
 
+    @apihook("KeQuerySystemTimePrecise", argc=1)
+    def KeQuerySystemTimePrecise(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void KeQuerySystemTimePrecise(
+            PLARGE_INTEGER CurrentTime
+        );
+        """
+        self.KeQuerySystemTime(emu, argv, ctx)
+
     @apihook("RtlTimeToTimeFields", argc=2)
     def RtlTimeToTimeFields(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2598,6 +2698,22 @@ class Ntoskrnl(api.ApiHandler):
 
         nts = ddk.STATUS_SUCCESS
         return nts
+
+    @apihook("strnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
+    def strnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t strnlen(
+           const char *str,
+           size_t numberOfElements
+        );
+        """
+        src, num_elements = argv
+        ctx.args[0].display = self.read_mem_string(src, 1, max_chars=num_elements)
+
+        rv = 0
+        while rv < num_elements and self.mem_read(src + rv, 1) != b"\x00":
+            rv += 1
+        return rv
 
     @apihook("wcsnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
     def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
