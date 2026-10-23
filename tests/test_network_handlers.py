@@ -443,3 +443,23 @@ def test_wsa_get_last_error_returns_the_socket_error(dll_emu: Speakeasy) -> None
     assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10038
     call(dll_emu, "ws2_32", "WSASetLastError", [10060])
     assert call(dll_emu, "ws2_32", "WSAGetLastError", [])[0] == 10060
+
+
+def fd_set(se: Speakeasy, *socks: int) -> int:
+    return alloc(se, struct.pack(f"<I{len(socks)}I", len(socks), *socks))
+
+
+def test_wsa_fd_is_set_checks_the_set(dll_emu: Speakeasy) -> None:
+    fds = fd_set(dll_emu, 0x40, 0x44)
+    assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, fds])[0] == 1
+    assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x48, fds])[0] == 0
+    assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, fd_set(dll_emu)])[0] == 0
+
+
+def test_select_reports_readable_and_writable_sockets_without_errors(dll_emu: Speakeasy) -> None:
+    readfds, writefds, exceptfds = fd_set(dll_emu, 0x44), fd_set(dll_emu, 0x44), fd_set(dll_emu, 0x44)
+    rv, _ = call(dll_emu, "ws2_32", "select", [0, readfds, writefds, exceptfds, 0])
+    assert rv == 2
+    assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, writefds])[0] == 1
+    assert call(dll_emu, "ws2_32", "__WSAFDIsSet", [0x44, exceptfds])[0] == 0
+
