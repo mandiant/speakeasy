@@ -87,6 +87,37 @@ SYS_ERRLIST = [
 ]
 
 
+DIGITS = b"0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def get_digit(c: bytes, base: int) -> int:
+    d = DIGITS.find(c.lower()) if len(c) == 1 else -1
+    return d if d < base else -1
+
+
+def parse_c_integer(text: bytes, base: int, width: int = 0) -> tuple[int, int]:
+    """
+    Parse an integer like strtol, from at most ``width`` bytes when ``width`` is
+    not 0. Return the value and the number of bytes used. With no digits, the
+    number of bytes used is 0.
+    """
+    if width:
+        text = text[:width]
+    i = len(text) - len(text.lstrip(b" \t\n\v\f\r"))
+    sign = -1 if text[i : i + 1] == b"-" else 1
+    i += text[i : i + 1] in (b"+", b"-")
+    if base in (0, 16) and text[i : i + 2].lower() == b"0x" and get_digit(text[i + 2 : i + 3], 16) >= 0:
+        base, i = 16, i + 2
+    elif base == 0:
+        base = 8 if text[i : i + 1] == b"0" else 10
+    start = i
+    val = 0
+    while (d := get_digit(text[i : i + 1], base)) >= 0:
+        val = val * base + d
+        i += 1
+    return (sign * val, i) if i > start else (0, 0)
+
+
 class Msvcrt(api.ApiHandler):
     """
     Implements functions from various versions of the C runtime on Windows
@@ -1395,6 +1426,36 @@ class Msvcrt(api.ApiHandler):
             if i >= 0:
                 return buf + off + i
         return 0
+
+    @apihook("strtol", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strtol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        long strtol(
+            const char *strSource,
+            char **endptr,
+            int base
+        );
+        """
+        src, endptr, base = argv
+        val, used = parse_c_integer(self.read_cstr(src), base)
+        if endptr:
+            emu.write_ptr(endptr, src + used)
+        return max(-0x80000000, min(val, 0x7FFFFFFF))
+
+    @apihook("strtoul", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strtoul(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned long strtoul(
+            const char *strSource,
+            char **endptr,
+            int base
+        );
+        """
+        src, endptr, base = argv
+        val, used = parse_c_integer(self.read_cstr(src), base)
+        if endptr:
+            emu.write_ptr(endptr, src + used)
+        return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
 
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
