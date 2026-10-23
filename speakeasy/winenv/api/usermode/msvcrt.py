@@ -704,6 +704,22 @@ class Msvcrt(api.ApiHandler):
         ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
         return next((i for i, c in enumerate(_s) if c in _charset), len(_s))
 
+    @apihook("strpbrk", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strpbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *strpbrk(
+           const char *str,
+           const char *strCharSet
+        );
+        """
+        s, charset = argv
+
+        _s = self.read_cstr(s)
+        _charset = set(self.read_cstr(charset))
+        ctx.args[0].display = _s.decode("utf-8", "ignore")
+        ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
+        return next((s + i for i, c in enumerate(_s) if c in _charset), 0)
+
     @apihook("wcsstr", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcsstr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
