@@ -73,3 +73,17 @@ def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, 
     assert se.get_report().entry_points[-1].error is None
     assert se.reg_read(result) == address
     assert int.from_bytes(se.mem_read(address, width), "little") == value
+
+
+def test_environ_points_to_the_environment_block(crt_session):
+    se = crt_session
+    emu = se.emu
+    ptr_size = emu.get_ptr_size()
+    se.call(emu.get_proc("msvcrt", "__p__environ"))
+    assert se.get_report().entry_points[-1].error is None
+    address = se.reg_read("rax" if ptr_size == 8 else "eax")
+    assert address == emu.get_proc("msvcrt", "_environ")
+    envp = int.from_bytes(se.mem_read(address, ptr_size), "little")
+    first = int.from_bytes(se.mem_read(envp, ptr_size), "little")
+    name, _, value = se.mem_read(first, 0x100).split(b"\x00")[0].partition(b"=")
+    assert emu.get_env()[name.decode()] == value.decode()

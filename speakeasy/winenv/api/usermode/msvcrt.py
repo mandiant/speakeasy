@@ -465,6 +465,18 @@ class Msvcrt(api.ApiHandler):
         """char *** __p___initenv ()"""
         return emu.get_proc("msvcrt", "__initenv")
 
+    @impdata("_environ")
+    def _environ(self, ptr):
+        """Writable char ** global, shared with __p__environ."""
+        envp = self._get_initial_narrow_environment(self.emu, [])
+        self.mem_write(ptr, envp.to_bytes(self.get_ptr_size(), "little"))
+        return ptr
+
+    @apihook("__p__environ", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__environ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """char *** __p__environ ()"""
+        return emu.get_proc("msvcrt", "_environ")
+
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """char** _get_initial_narrow_environment ()"""
