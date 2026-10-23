@@ -3518,7 +3518,13 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(exception_list - ptr_size, p_exp_ptrs_bytes)
 
             args = [prec, exception_list, pctx, 0]
-            self.set_func_args(sp, winemu.SEH_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
+            # Lay out the ExecuteHandler2 frame: some handlers, such as the Borland C++ one,
+            # read the dispatcher arguments through EBP.
+            self.set_func_args(sp, winemu.SEH_RETURN_ADDR, *args, entry.Handler, conv=_arch.CALL_CONV_STDCALL)
+            frame = self.get_stack_ptr() - ptr_size
+            self.mem_write(frame, self.reg_read(_arch.X86_REG_EBP).to_bytes(ptr_size, "little"))
+            self.reg_write(_arch.X86_REG_EBP, frame)
+            self.set_func_args(frame, winemu.SEH_RETURN_ADDR, *args, conv=_arch.CALL_CONV_STDCALL)
 
             run = self.get_current_run()
             regs = self.get_register_state()
