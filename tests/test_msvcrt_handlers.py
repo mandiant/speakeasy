@@ -446,6 +446,16 @@ def test_realloc_keeps_the_contents(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "realloc", [shrunk, 0])[0] == 0
 
 
+def test_realloc_uses_the_size_of_the_current_block_at_a_reused_address(dll_emu: Speakeasy) -> None:
+    large, _ = call(dll_emu, "msvcrt", "malloc", [0x2000])
+    call(dll_emu, "msvcrt", "free", [large])
+    small, _ = call(dll_emu, "msvcrt", "malloc", [0x1000])
+    assert small == large
+    dll_emu.mem_write(small, b"\x5a" * 0x1000)
+    grown, _ = call(dll_emu, "msvcrt", "realloc", [small, 0x3000])
+    assert dll_emu.mem_read(grown, 0x1000) == b"\x5a" * 0x1000
+
+
 def test_getenv_ignores_case_and_returns_null_when_missing(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     name, value = next(iter(dll_emu.emu.get_env().items()))
