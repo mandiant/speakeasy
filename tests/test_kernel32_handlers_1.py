@@ -629,6 +629,17 @@ def test_virtual_query_reports_reserved_memory(dll_emu: Speakeasy) -> None:
     assert (base_address, allocation_base, region_size, state) == (base + 0x1000, base, 0x2000, MEM_RESERVE)
 
 
+def test_virtual_query_reports_committed_reserved_memory(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    base = dll_emu.emu.mem_reserve(0x1000, base=0x60000000)
+    dll_emu.emu.mem_map_reserve(base)
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQuery", [base + 0x10, mbi, 28])[0] == 28
+    base_address, _, allocation_protect, _, state, protect, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
+    assert (base_address, state) == (base, windefs.MEM_COMMIT)
+    assert allocation_protect == protect == windefs.PAGE_EXECUTE_READWRITE
+
+
 def test_virtual_query_rejects_addresses_above_the_application_range(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
