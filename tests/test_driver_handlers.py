@@ -305,3 +305,19 @@ def test_wdf_typed_context_has_the_size_of_its_type(any_driver_emu: Speakeasy) -
     se.mem_write(first + 0x1FFC, b"\x01\x02\x03\x04")
     assert context(8, big) == context(8, alias) == first
     assert len({first, context(8, small), context(12, big)}) == 3
+
+
+def test_wdf_function_table_has_an_entry_for_every_function(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    ps = _ptr_size(se)
+    bind_info = wdf.WDF_BIND_INFO(ps)
+    bind_info.FuncTable = alloc(se, b"\x00" * ps)
+    globals_ptr = alloc(se, b"\x00" * ps)
+    call(se, "wdfldr", "WdfVersionBind", [0, 0, alloc(se, bind_info.get_bytes()), globals_ptr])
+    functions = wdf.WDFFUNCTIONS(ps)
+    names = [field for field, _ in functions.__fields__ if field.startswith("pfn")]
+    assert len(names) > 300
+    functions = se.emu.mem_cast(functions, _read_ptr(se, bind_info.FuncTable))
+    slots = [getattr(functions, name) for name in names]
+    assert 0 not in slots
+    assert len(set(slots)) == len(names)
