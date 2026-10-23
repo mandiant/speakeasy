@@ -517,3 +517,47 @@ def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -
     ok, _ = call(dll_emu, "advapi32", "CreateProcessAsUserA", [0, 0, cmd, 0, 0, 0, 0, 0, 0, si, pi])
     assert ok == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+
+
+def _enum_services(se: Speakeasy, api: str, state: int, size: int) -> tuple[int, int, int, int]:
+    buf = alloc(se, b"\x00" * max(size, 1))
+    needed, returned, resume = (alloc(se, b"\x00" * 4) for _ in range(3))
+    rv, _ = call(se, "advapi32", api, [0x7D20, adv32defs.SERVICE_WIN32, state, buf, size, needed, returned, resume])
+    return rv, buf, _dword(se, needed), _dword(se, returned)
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize("api, encoding", [("EnumServicesStatusA", "utf-8"), ("EnumServicesStatusW", "utf-16le")])
+@pytest.mark.parametrize("state, status", [(adv32defs.SERVICE_ACTIVE, 4), (adv32defs.SERVICE_INACTIVE, 1)])
+def test_enum_services_status_lists_services_in_the_state(
+    request: pytest.FixtureRequest, emu_name: str, api: str, encoding: str, state: int, status: int
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    ptr = se.get_ptr_size()
+    entry_size = 2 * ptr + 28 + (4 if ptr == 8 else 0)
+
+    rv, buf, needed, returned = _enum_services(se, api, state, 0x4800)
+
+    assert (rv, needed) == (1, 0)
+    assert returned > 0
+    for index in range(returned):
+        entry = buf + index * entry_size
+        name = int.from_bytes(se.mem_read(entry, ptr), "little")
+        display = int.from_bytes(se.mem_read(entry + ptr, ptr), "little")
+        service_type, current_state = struct.unpack("<II", se.mem_read(entry + 2 * ptr, 8))
+        assert se.read_mem_string(name, 2 if encoding == "utf-16le" else 1)
+        assert se.read_mem_string(display, 2 if encoding == "utf-16le" else 1)
+        assert service_type & adv32defs.SERVICE_WIN32
+        assert current_state == status
+
+
+def test_enum_services_status_reports_the_size_for_a_small_buffer(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    rv, _, needed, returned = _enum_services(dll_emu, "EnumServicesStatusA", adv32defs.SERVICE_STATE_ALL, 0)
+
+    assert (rv, returned) == (0, 0)
+    assert needed > 0
+    assert _last_error(dll_emu) == windefs.ERROR_MORE_DATA
+
+    rv, _, _, returned = _enum_services(dll_emu, "EnumServicesStatusA", adv32defs.SERVICE_STATE_ALL, needed)
+    assert rv == 1 and returned > 0

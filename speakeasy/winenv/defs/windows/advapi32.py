@@ -18,6 +18,31 @@ SERVICE_ACTIVE = 0x1
 SERVICE_INACTIVE = 0x2
 SERVICE_STATE_ALL = 0x3
 
+SERVICE_WIN32_OWN_PROCESS = 0x10
+SERVICE_WIN32_SHARE_PROCESS = 0x20
+
+SERVICE_STOPPED = 0x1
+SERVICE_RUNNING = 0x4
+
+SERVICE_ACCEPT_STOP = 0x1
+
+# Win32 services that EnumServicesStatus reports: (name, display name, type, state)
+EMULATED_SERVICES = (
+    ("Dhcp", "DHCP Client", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("Dnscache", "DNS Client", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("EventLog", "Windows Event Log", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("LanmanServer", "Server", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("LanmanWorkstation", "Workstation", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("Schedule", "Task Scheduler", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("Winmgmt", "Windows Management Instrumentation", SERVICE_WIN32_SHARE_PROCESS, SERVICE_RUNNING),
+    ("Fax", "Fax", SERVICE_WIN32_OWN_PROCESS, SERVICE_STOPPED),
+    ("RemoteRegistry", "Remote Registry", SERVICE_WIN32_SHARE_PROCESS, SERVICE_STOPPED),
+    ("SNMPTRAP", "SNMP Trap", SERVICE_WIN32_OWN_PROCESS, SERVICE_STOPPED),
+    ("TapiSrv", "Telephony", SERVICE_WIN32_SHARE_PROCESS, SERVICE_STOPPED),
+    ("WebClient", "WebClient", SERVICE_WIN32_SHARE_PROCESS, SERVICE_STOPPED),
+    ("seclogon", "Secondary Logon", SERVICE_WIN32_SHARE_PROCESS, SERVICE_STOPPED),
+)
+
 
 class SERVICE_TABLE_ENTRY(EmuStruct):
     def __init__(self, ptr_size):
