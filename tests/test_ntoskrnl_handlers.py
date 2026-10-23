@@ -215,6 +215,47 @@ def test_rtl_copy_unicode_string_empties_the_destination_for_a_null_source(drive
 
 
 @pytest.mark.parametrize(
+    ("flags", "text", "max_length", "terminated"),
+    [
+        (0, "hello", 10, False),
+        (1, "hello", 12, True),
+        (3, "", 2, True),
+    ],
+)
+def test_rtl_duplicate_unicode_string_allocates_a_copy(
+    driver_emu: Speakeasy, flags: int, text: str, max_length: int, terminated: bool
+) -> None:
+    src = unicode_string(driver_emu, text)
+    out = alloc(driver_emu, b"\xee" * 8)
+    assert call(driver_emu, "ntoskrnl", "RtlDuplicateUnicodeString", [flags, src, out])[0] == ddk.STATUS_SUCCESS
+    data = text.encode("utf-16le")
+    length, maximum, buf = struct.unpack("<HHI", driver_emu.mem_read(out, 8))
+    assert (length, maximum) == (len(data), max_length)
+    assert buf != struct.unpack("<I", driver_emu.mem_read(src + 4, 4))[0]
+    assert driver_emu.mem_read(buf, length) == data
+    if terminated:
+        assert driver_emu.mem_read(buf + length, 2) == b"\x00\x00"
+
+
+@pytest.mark.parametrize(("flags", "text"), [(1, ""), (0, "")])
+def test_rtl_duplicate_unicode_string_returns_a_null_string_for_empty_input(
+    driver_emu: Speakeasy, flags: int, text: str
+) -> None:
+    out = alloc(driver_emu, b"\xee" * 8)
+    src = unicode_string(driver_emu, text)
+    assert call(driver_emu, "ntoskrnl", "RtlDuplicateUnicodeString", [flags, src, out])[0] == ddk.STATUS_SUCCESS
+    assert driver_emu.mem_read(out, 8) == b"\x00" * 8
+
+
+@pytest.mark.parametrize(("flags", "has_out"), [(2, True), (4, True), (1, False)])
+def test_rtl_duplicate_unicode_string_rejects_bad_parameters(driver_emu: Speakeasy, flags: int, has_out: bool) -> None:
+    out = alloc(driver_emu, b"\xee" * 8) if has_out else 0
+    src = unicode_string(driver_emu, "hello")
+    rv = call(driver_emu, "ntoskrnl", "RtlDuplicateUnicodeString", [flags, src, out])[0]
+    assert rv == ddk.STATUS_INVALID_PARAMETER
+
+
+@pytest.mark.parametrize(
     ("count", "fmt", "args", "rv", "written"),
     [
         (4, "%s-%s", ["AAAAAAAA", "BBBBBBBB"], -1, "AAAA"),
