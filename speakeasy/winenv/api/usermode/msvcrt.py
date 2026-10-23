@@ -495,6 +495,14 @@ class Msvcrt(api.ApiHandler):
 
         self.exit_process()
 
+    @apihook("abort", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def abort(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void abort(void);
+        """
+
+        self.exit_process()
+
     @apihook("_XcptFilter", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _XcptFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
