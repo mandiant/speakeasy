@@ -528,6 +528,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         if not self.builtin_hooks_set:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
             self.add_interrupt_hook(cb=self._hook_interrupt)
+            self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
             self.builtin_hooks_set = True
 
         self.set_mem_tracing_hooks()
