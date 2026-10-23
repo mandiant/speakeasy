@@ -415,3 +415,40 @@ def test_memchr_searches_count_bytes(dll_emu: Speakeasy, c: int, count: int, off
     buf = alloc(dll_emu, b"ab\x00cdefg")
     rv, _ = call(dll_emu, "msvcrt", "memchr", [buf, c, count])
     assert rv == (0 if offset is None else buf + offset)
+
+
+@pytest.mark.parametrize(
+    "text, base, value, used",
+    [
+        (b"  -0x1Fz", 0, -31, 7),
+        (b"077", 0, 63, 3),
+        (b"077", 10, 77, 3),
+        (b"0x", 16, 0, 1),
+        (b"zz", 36, 1295, 2),
+        (b"+12 ", 10, 12, 3),
+        (b"abc", 10, 0, 0),
+        (b"-", 10, 0, 0),
+        (b"99999999999", 10, 0x7FFFFFFF, 11),
+        (b"-99999999999", 10, -0x80000000, 12),
+    ],
+)
+def test_strtol_parses_like_the_crt(dll_emu: Speakeasy, text: bytes, base: int, value: int, used: int) -> None:
+    src = alloc(dll_emu, text + b"\x00")
+    end = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "msvcrt", "strtol", [src, end, base])[0] == value
+    assert dll_emu.mem_read(end, 4) == (src + used).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize(
+    "text, base, value",
+    [(b"ff", 16, 255), (b"-1", 10, 0xFFFFFFFF), (b"4294967295", 10, 0xFFFFFFFF), (b"4294967296", 10, 0xFFFFFFFF)],
+)
+def test_strtoul_wraps_negative_values_and_saturates(dll_emu: Speakeasy, text: bytes, base: int, value: int) -> None:
+    assert call(dll_emu, "msvcrt", "strtoul", [alloc(dll_emu, text + b"\x00"), 0, base])[0] == value
+
+
+def test_strtol_writes_a_pointer_sized_endptr_on_x64(dll64_emu: Speakeasy) -> None:
+    src = alloc(dll64_emu, b"12x\x00")
+    end = alloc(dll64_emu, b"\xcc" * 9)
+    call(dll64_emu, "msvcrt", "strtol", [src, end, 10])
+    assert dll64_emu.mem_read(end, 9) == (src + 2).to_bytes(8, "little") + b"\xcc"
