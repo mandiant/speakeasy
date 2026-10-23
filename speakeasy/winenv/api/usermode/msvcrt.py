@@ -2252,6 +2252,15 @@ class Msvcrt(api.ApiHandler):
         self.mem_free(stream)
         return 0
 
+    @apihook("fflush", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def fflush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fflush(
+            FILE *stream
+            );
+        """
+        return 0
+
     @apihook("fseek", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def fseek(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
