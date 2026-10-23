@@ -3338,7 +3338,14 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         ProcessHandle, BaseAddress = argv
-        return 0
+        current = emu.get_current_process()
+        if ProcessHandle != self.get_max_int() and self.get_object_from_handle(ProcessHandle) is not current:
+            return ddk.STATUS_SUCCESS
+        mm = emu.get_address_map(BaseAddress)
+        if not mm:
+            return ddk.STATUS_NOT_MAPPED_VIEW
+        self.mem_free(mm.base)
+        return ddk.STATUS_SUCCESS
 
     @apihook("ZwMapViewOfSection", argc=10)
     def ZwMapViewOfSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

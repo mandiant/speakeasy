@@ -333,16 +333,6 @@ class Ntdll(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("NtUnmapViewOfSection", argc=2)
-    def NtUnmapViewOfSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        NTSTATUS NtUnmapViewOfSection(
-            HANDLE ProcessHandle,
-            PVOID  BaseAddress
-        );
-        """
-        return ddk.STATUS_SUCCESS
-
     @apihook("LdrAccessResource", argc=4)
     def LdrAccessResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
