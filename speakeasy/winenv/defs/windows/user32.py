@@ -62,6 +62,21 @@ class USEROBJECTFLAGS(EmuStruct):
         self.dwFlags = ct.c_uint32
 
 
+class WNDCLASS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.style = ct.c_uint32
+        self.lpfnWndProc = Ptr
+        self.cbClsExtra = ct.c_uint32
+        self.cbWndExtra = ct.c_uint32
+        self.hInstance = Ptr
+        self.hIcon = Ptr
+        self.hCursor = Ptr
+        self.hbrBackground = Ptr
+        self.lpszMenuName = Ptr
+        self.lpszClassName = Ptr
+
+
 class WNDCLASSEX(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
