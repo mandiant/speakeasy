@@ -16,6 +16,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     SIGINT,
     SIGSEGV,
     STRUNCATE,
+    get_full_path,
     get_winmain_command_line,
     scan_c_format,
 )
@@ -733,3 +734,58 @@ def test_private_crt_exports_use_the_public_handlers(dll_emu: Speakeasy, dll: st
     assert call(dll_emu, dll, "_o_memset", [buf, 0x41, 3])[0] == buf
     assert dll_emu.mem_read(buf, 4) == b"AAA\xcc"
     assert call(dll_emu, dll, "_o__initialize_onexit_table", [buf])[0] == 0
+
+
+def test_sleep_returns(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "crtdll", "_sleep", [1000])[0] is None
+
+
+@pytest.mark.parametrize("api", ["localtime", "gmtime"])
+def test_time_conversion_fills_struct_tm(dll_emu: Speakeasy, api: str) -> None:
+    t = alloc(dll_emu, (951782400 + 3 * 3600 + 4 * 60 + 5).to_bytes(4, "little"))
+    rv, _ = call(dll_emu, "msvcrt", api, [t])
+    # 2000-02-29 03:04:05 UTC, a Tuesday, day 59 of the year
+    assert struct.unpack("<9i", dll_emu.mem_read(rv, 36)) == (5, 4, 3, 29, 1, 100, 2, 59, 0)
+    assert call(dll_emu, "msvcrt", api, [0])[0] == 0
+
+
+def test_mktime_normalizes_the_fields(dll_emu: Speakeasy) -> None:
+    tm = alloc(dll_emu, struct.pack("<9i", 65, 3, 3, 29, 13, 99, 0, 0, -1))
+    assert call(dll_emu, "msvcrt", "mktime", [tm])[0] == 951782400 + 3 * 3600 + 4 * 60 + 5
+    assert struct.unpack("<9i", dll_emu.mem_read(tm, 36)) == (5, 4, 3, 29, 1, 100, 2, 59, 0)
+
+
+def test_mktime_rejects_a_time_before_the_epoch(dll_emu: Speakeasy) -> None:
+    tm = alloc(dll_emu, struct.pack("<9i", 0, 0, 0, 1, 0, 60, 0, 0, 0))
+    assert call(dll_emu, "msvcrt", "mktime", [tm])[0] == -1
+
+
+def test_fputs_reports_the_string(dll_emu: Speakeasy) -> None:
+    rv, displays = call(dll_emu, "msvcrt", "fputs", [alloc(dll_emu, b"hi there\x00"), 0x1000])
+    assert rv == 0
+    assert displays[0] == "hi there"
+
+
+@pytest.mark.parametrize(
+    "cwd, path, full",
+    [
+        ("C:\\work", "a\\..\\b.txt", "C:\\work\\b.txt"),
+        ("C:\\work", "\\x\\y", "C:\\x\\y"),
+        ("C:\\work", "D:\\p\\.\\q", "D:\\p\\q"),
+        ("C:\\", "f", "C:\\f"),
+    ],
+)
+def test_full_path_resolves_relative_paths(cwd: str, path: str, full: str) -> None:
+    assert get_full_path(cwd, path) == full
+
+
+def test_fullpath_writes_into_the_buffer(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    full = get_full_path(dll_emu.emu.get_cd(), "a.txt").encode() + b"\x00"
+    buf = alloc(dll_emu, b"\xcc" * 0x100)
+    assert call(dll_emu, "msvcrt", "_fullpath", [buf, alloc(dll_emu, b"a.txt\x00"), 0x100])[0] == buf
+    assert dll_emu.mem_read(buf, len(full)) == full
+    assert call(dll_emu, "msvcrt", "_fullpath", [buf, alloc(dll_emu, b"a.txt\x00"), 3])[0] == 0
+    rv, _ = call(dll_emu, "msvcrt", "_fullpath", [0, alloc(dll_emu, b"a.txt\x00"), 0])
+    assert rv not in (0, buf)
+    assert dll_emu.mem_read(rv, len(full)) == full
