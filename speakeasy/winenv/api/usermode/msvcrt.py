@@ -191,6 +191,15 @@ class Msvcrt(api.ApiHandler):
         (func,) = argv
         return func
 
+    @apihook("atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def atexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int atexit(
+            void (__cdecl *func)(void)
+        );
+        """
+        return 0
+
     @apihook("mbstowcs_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def mbstowcs_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
