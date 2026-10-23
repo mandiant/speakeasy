@@ -3370,10 +3370,10 @@ class WindowsEmulator(BinaryEmulator):
         teb = teb.read_back()
         return teb.object.NtTib.ExceptionList
 
-    def _dispatch_seh_x86(self, except_code):
+    def _dispatch_seh_x86(self, except_code, flags=0, params=()):
         """
         Get the initial SEH handler when dispatching a CPU exception
-        that occurs during emulation
+        that occurs during emulation, or an exception that the guest raises
         """
 
         thread = self.get_current_thread()
@@ -3386,9 +3386,11 @@ class WindowsEmulator(BinaryEmulator):
         # Create the _EXCEPTION_RECORD
         record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
         record.ExceptionCode = except_code
-        record.ExceptionFlags = 0
+        record.ExceptionFlags = flags
         record.ExceptionAddress = self.get_pc()
-        record.NumberParameters = 0
+        record.NumberParameters = len(params)
+        for i, param in enumerate(params):
+            record.ExceptionInformation[i] = param
 
         ereg = self.wintypes.EXCEPTION_REGISTRATION(self.get_ptr_size())
         if exception_list:
@@ -3550,7 +3552,7 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None, access_type=None):
+    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, flags=0, params=()):
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3563,7 +3565,7 @@ class WindowsEmulator(BinaryEmulator):
 
         rv = False
         if self.get_arch() == _arch.ARCH_X86:
-            rv = self._dispatch_seh_x86(except_code)
+            rv = self._dispatch_seh_x86(except_code, flags, params)
         if not rv and self.unhandled_exception_filter:
             # The run ends when the filter returns, so the fault is the error of the run.
             if self.curr_run is not None and self.curr_run.error is None:
@@ -3574,9 +3576,11 @@ class WindowsEmulator(BinaryEmulator):
                 )
             record = self.wintypes.EXCEPTION_RECORD(self.get_ptr_size())
             record.ExceptionCode = except_code
-            record.ExceptionFlags = 0
+            record.ExceptionFlags = flags
             record.ExceptionAddress = self.get_pc()
-            record.NumberParameters = 0
+            record.NumberParameters = len(params)
+            for i, param in enumerate(params):
+                record.ExceptionInformation[i] = param
 
             exp_ptrs = self.wintypes.EXCEPTION_POINTERS(self.get_ptr_size())
             p_exp_ptrs = self.mem_map(exp_ptrs.sizeof(), tag="emu.struct.EXCEPTION_POINTERS")
