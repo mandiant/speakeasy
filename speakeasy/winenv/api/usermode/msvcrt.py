@@ -2849,6 +2849,8 @@ class Msvcrt(api.ApiHandler):
         """
         wcstr, mbstr, count = argv
 
+        if wcstr and not count:
+            return 0
         s = self.read_cstr(mbstr, max_chars=count if wcstr else 0)
         ctx.args[1].display = s.decode("latin-1")
         if not wcstr:

@@ -198,6 +198,7 @@ def test_wcstombs_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
         (b"hi", 8, 2, "hi\0"),
         (b"hello", 3, 3, "hel"),
         (b"caf\xe9", 8, 4, "caf\xe9\0"),
+        (b"hello", 0, 0, ""),
     ],
 )
 def test_mbstowcs_converts_at_most_count_chars(
