@@ -3006,6 +3006,9 @@ class WindowsEmulator(BinaryEmulator):
                         if self._seh_resume_pc is None:
                             self.disable_code_hook()
                         return True
+                    mapping = self.get_address_map(base)
+                    if mapping is not None and mapping.base == base:
+                        self.maps.remove(mapping)
                 self.tmp_maps = []
 
             self._set_emu_hooks()
