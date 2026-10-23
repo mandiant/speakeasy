@@ -26,6 +26,8 @@ from speakeasy.volumes import apply_volumes
 
 logger = logging.getLogger(__name__)
 
+CHILD_EXIT_GRACE = 5
+
 
 def setup_logging(verbose: bool) -> None:
     root = logging.getLogger("speakeasy")
@@ -100,6 +102,21 @@ def emulate_binary(
                 logger.info("* No dropped files found")
 
 
+def get_child_result(q, p, wait):
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            return q.get(timeout=max(min(deadline - time.monotonic(), 1), 0.01))
+        except mp.queues.Empty:  # type: ignore[attr-defined]
+            if not p.is_alive():
+                try:
+                    return q.get(timeout=1)
+                except mp.queues.Empty:  # type: ignore[attr-defined]
+                    return None
+            if time.monotonic() >= deadline:
+                return None
+
+
 def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> str | None:
     target = args.target
     output = args.output
@@ -140,7 +157,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         parser.error(f"Invalid active configuration: {err}")
 
     active_cfg = validated.model_dump(mode="python")
-    timeout = float(validated.timeout)
+    wall_limit = max(validated.timeout, validated.max_total_time) if validated.timeout else 0
 
     if target and not os.path.isfile(target):
         parser.error(f"Target file not found: {target}")
@@ -196,28 +213,26 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         result = None
         start_time = time.time()
         while True:
-            if timeout and timeout < (time.time() - start_time):
+            if wall_limit and wall_limit < (time.time() - start_time):
                 evt.set()
-                logger.error("* Child process timeout reached after %d seconds", timeout)
-                try:
-                    result = q.get(timeout=5)
-                except mp.queues.Empty:  # type: ignore[attr-defined]
-                    pass
+                logger.error("* Child process timeout reached after %d seconds", wall_limit)
+                result = get_child_result(q, p, CHILD_EXIT_GRACE)
                 break
             try:
-                result = q.get(timeout=1)
-                break
-            except mp.queues.Empty:  # type: ignore[attr-defined]
-                if not p.is_alive():
+                result = get_child_result(q, p, 1)
+                if result is not None or not p.is_alive():
                     break
             except KeyboardInterrupt:
                 evt.set()
                 logger.error("\n* User exited")
-                try:
-                    result = q.get(timeout=5)
-                except mp.queues.Empty:  # type: ignore[attr-defined]
-                    pass
+                result = get_child_result(q, p, CHILD_EXIT_GRACE)
                 break
+
+        if result is None:
+            p.join(CHILD_EXIT_GRACE)
+            if p.is_alive():
+                p.terminate()
+        p.join()
 
     logger.info("* Finished emulating")
     report, error = result or (None, None)

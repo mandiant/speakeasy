@@ -1,3 +1,5 @@
+import json
+import struct
 import subprocess
 import sys
 
@@ -42,3 +44,31 @@ def test_cli_reports_a_load_error_and_exits_nonzero(tmp_path, mode):
     assert "error: .NET assemblies are not currently supported" in result.stderr
     assert "Traceback" not in result.stderr
     assert not output.exists()
+
+
+def spinning_threads(base, iat):
+    spin = base + 0x1000 + 21
+    code = b"\x6a\x00" * 3 + b"\x68" + struct.pack("<I", spin) + b"\x6a\x00" * 2
+    code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateThread"])
+    return code + b"\xeb\xfe"
+
+
+def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
+    image, _ = build_pe(text=spinning_threads, imports={"kernel32.dll": ["CreateThread"]})
+    target = tmp_path / "spin.exe"
+    target.write_bytes(image)
+    output = tmp_path / "report.json"
+
+    subprocess.run(
+        [sys.executable, "-m", "speakeasy.cli", "-t", str(target), "-o", str(output)]
+        + ["--timeout", "1", "--max-total-time", "20"],
+        check=False,
+        capture_output=True,
+        timeout=60,
+    )
+
+    report = json.loads(output.read_text())
+    assert [(ep["ep_type"], ep["error"]["type"]) for ep in report["entry_points"]] == [
+        ("module_entry", "timeout"),
+        ("thread", "timeout"),
+    ]

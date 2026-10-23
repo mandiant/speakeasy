@@ -12,6 +12,8 @@ Primary flags:
 
 Use these together to bound long-running or looping samples.
 
+The CLI emulates in a child process. It stops that process after the larger of `--timeout` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop.
+
 ## Execution mode controls
 
 Primary flags:
