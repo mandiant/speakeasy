@@ -395,3 +395,19 @@ def test_api_set_declarations_belong_to_the_host_module(config: dict[str, Any]) 
         assert not emu.has_api_signature("combase", "PathCchCombine")
     finally:
         se.shutdown()
+
+
+def test_struct_argument_passed_by_value_is_emulated(config: dict[str, Any]) -> None:
+    """A COORD passed by value takes one stack slot and renders as a struct."""
+    report, _ = _run_x86_call(config, "SetConsoleScreenBufferSize", [0x7, 0x00190050])
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    events = _api_events(report)
+    assert [e.api_name for e in events] == ["kernel32.SetConsoleScreenBufferSize", "kernel32.ExitProcess"]
+    assert [(a.name, a.type, a.display) for a in events[0].args] == [
+        ("hConsoleOutput", "handle", "0x7"),
+        ("dwSize", "struct", "{X: 0x50, Y: 0x19}"),
+    ]
+    assert events[0].ret_val == "0x1"
+    assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
