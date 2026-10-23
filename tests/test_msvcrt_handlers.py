@@ -789,3 +789,36 @@ def test_fullpath_writes_into_the_buffer(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "msvcrt", "_fullpath", [0, alloc(dll_emu, b"a.txt\x00"), 0])
     assert rv not in (0, buf)
     assert dll_emu.mem_read(rv, len(full)) == full
+
+
+@pytest.mark.parametrize("api", ["fgetc", "getc"])
+def test_fgetc_reads_one_byte_and_then_eof(dll_emu: Speakeasy, api: str) -> None:
+    path = alloc(dll_emu, b"c:\\users\\public\\chars.txt\x00")
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"w+\x00")])
+    call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"\xffA"), 1, 2, stream])
+
+    assert call(dll_emu, "msvcrt", api, [stream])[0] == 0xFF
+    assert call(dll_emu, "msvcrt", api, [stream])[0] == ord("A")
+    assert call(dll_emu, "msvcrt", api, [stream])[0] & 0xFFFFFFFF == 0xFFFFFFFF
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize("api, width", [("_dupenv_s", 1), ("_wdupenv_s", 2)])
+def test_dupenv_s_copies_the_value(request: pytest.FixtureRequest, emu_name: str, api: str, width: int) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    encoding = "utf-16le" if width == 2 else "latin-1"
+    name, value = next(iter(se.emu.get_env().items()))
+    out = alloc(se, b"\xcc" * ptr_size)
+    count = alloc(se, b"\xcc" * ptr_size)
+
+    assert call(se, "msvcrt", api, [out, count, alloc(se, (name.upper() + "\0").encode(encoding))])[0] == 0
+    copy = int.from_bytes(se.mem_read(out, ptr_size), "little")
+    assert se.mem_read(copy, (len(value) + 1) * width) == (value + "\0").encode(encoding)
+    assert int.from_bytes(se.mem_read(count, ptr_size), "little") == len(value) + 1
+
+    assert call(se, "msvcrt", api, [out, count, alloc(se, "NO_SUCH_VARIABLE\0".encode(encoding))])[0] == 0
+    assert se.mem_read(out, ptr_size) == b"\0" * ptr_size
+    assert se.mem_read(count, ptr_size) == b"\0" * ptr_size
+    assert call(se, "msvcrt", api, [0, count, alloc(se, (name + "\0").encode(encoding))])[0] == EINVAL
