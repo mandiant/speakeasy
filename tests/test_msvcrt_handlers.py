@@ -351,3 +351,10 @@ def test_lc_codepage_is_the_c_locale(dll_emu: Speakeasy) -> None:
 
 def test_mb_cur_max_is_one_byte_in_the_c_locale(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "___mb_cur_max_func", [])[0] == 1
+
+
+def test_amsg_exit_ends_the_process(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    assert not dll_emu.emu.run_complete
+    call(dll_emu, "msvcrt", "_amsg_exit", [8])
+    assert dll_emu.emu.run_complete

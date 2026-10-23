@@ -485,6 +485,16 @@ class Msvcrt(api.ApiHandler):
 
         self.exit_process()
 
+    @apihook("_amsg_exit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _amsg_exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _amsg_exit(
+           int rterrnum
+        );
+        """
+
+        self.exit_process()
+
     @apihook("_XcptFilter", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _XcptFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
