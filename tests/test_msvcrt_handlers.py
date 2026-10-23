@@ -7,6 +7,7 @@ import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.api.usermode.msvcrt import (
+    EINVAL,
     ENOENT,
     ERANGE,
     SIG_DFL,
@@ -15,9 +16,10 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     SIGINT,
     SIGSEGV,
     STRUNCATE,
+    get_winmain_command_line,
     scan_c_format,
 )
-from tests.handler_harness import alloc, call, load_emu
+from tests.handler_harness import alloc, call, load_emu, start_process
 
 
 @pytest.mark.parametrize(
@@ -613,3 +615,97 @@ def test_operator_new_returns_writable_memory(dll_emu: Speakeasy, size: int) -> 
     ptr, _ = call(dll_emu, "msvcrt", "??2@YAPAXI@Z", [size])
     perms = [p for begin, end, p in dll_emu.emu.emu_eng.mem_regions() if begin <= ptr and ptr + size - 1 <= end]
     assert perms == [unicorn.UC_PROT_ALL]
+
+
+@pytest.mark.parametrize(
+    "cmdline, tail",
+    [
+        ('"C:\\Program Files\\a.exe" -x  y', "-x  y"),
+        ("a.exe\t -x", "-x"),
+        ("a.exe", ""),
+        ('"a b.exe', ""),
+        ("", ""),
+    ],
+)
+def test_winmain_command_line_skips_the_program_name(cmdline: str, tail: str) -> None:
+    assert get_winmain_command_line(cmdline) == tail
+
+
+@pytest.mark.parametrize("api, width", [("_get_narrow_winmain_command_line", 1), ("_get_wide_winmain_command_line", 2)])
+def test_get_winmain_command_line_points_after_the_program_name(dll_emu: Speakeasy, api: str, width: int) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    dll_emu.emu.get_current_process().cmdline = '"C:\\x y\\a.exe" -v one'
+    rv, _ = call(dll_emu, "msvcrt", api, [])
+    assert call(dll_emu, "msvcrt", api, [])[0] == rv
+    encoded = "-v one".encode("utf-16le" if width == 2 else "utf-8")
+    assert dll_emu.mem_read(rv, len(encoded) + width) == encoded + b"\x00" * width
+
+
+def test_rand_s_writes_a_value(dll_emu: Speakeasy) -> None:
+    out = alloc(dll_emu, b"\xcc" * 8)
+    assert call(dll_emu, "msvcrt", "rand_s", [out])[0] == 0
+    first = dll_emu.mem_read(out, 4)
+    assert call(dll_emu, "msvcrt", "rand_s", [out])[0] == 0
+    assert dll_emu.mem_read(out, 4) != first
+    assert dll_emu.mem_read(out + 4, 4) == b"\xcc" * 4
+    assert call(dll_emu, "msvcrt", "rand_s", [0])[0] == EINVAL
+
+
+@pytest.mark.parametrize("mode, rv", [(0, 0), (0x40, 0), (4, 0), (3, -1)])
+def test_setvbuf_accepts_only_known_modes(dll_emu: Speakeasy, mode: int, rv: int) -> None:
+    assert call(dll_emu, "msvcrt", "setvbuf", [0x1000, 0, mode, 0x200])[0] == rv
+
+
+def test_mbsdup_copies_the_string(dll_emu: Speakeasy) -> None:
+    src = alloc(dll_emu, b"\x82\xa0abc\x00")
+    rv, _ = call(dll_emu, "msvcrt", "_mbsdup", [src])
+    assert rv not in (0, src)
+    assert dll_emu.mem_read(rv, 6) == b"\x82\xa0abc\x00"
+    assert call(dll_emu, "msvcrt", "_mbsdup", [0])[0] == 0
+
+
+@pytest.mark.parametrize("c, offset", [("\\", 7), ("a", 0), ("Q", None), ("\0", 9)])
+def test_wcsrchr_returns_the_last_match(dll_emu: Speakeasy, c: str, offset: int | None) -> None:
+    s = alloc(dll_emu, "a\\b\\c\\d\\e\0".encode("utf-16le"))
+    rv, _ = call(dll_emu, "msvcrt", "wcsrchr", [s, ord(c)])
+    assert rv == (0 if offset is None else s + offset * 2)
+
+
+@pytest.mark.parametrize(
+    "size, rv, out",
+    [
+        (8, 0, b"hello\x00\xcc\xcc"),
+        (6, 0, b"hello\x00\xcc\xcc"),
+        (5, ERANGE, b"\x00ello\xcc\xcc\xcc"),
+        (0, EINVAL, b"\xcc" * 8),
+    ],
+)
+def test_strcpy_s_copies_only_when_the_string_fits(dll_emu: Speakeasy, size: int, rv: int, out: bytes) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 8)
+    src = alloc(dll_emu, b"hello\x00")
+    if size == 5:
+        dll_emu.mem_write(dest, b"xello")
+    assert call(dll_emu, "msvcrt", "strcpy_s", [dest, size, src])[0] == rv
+    assert dll_emu.mem_read(dest, 8) == out
+
+
+def test_strcpy_s_without_a_source_clears_the_destination(dll_emu: Speakeasy) -> None:
+    dest = alloc(dll_emu, b"abc\x00")
+    assert call(dll_emu, "msvcrt", "strcpy_s", [dest, 4, 0])[0] == EINVAL
+    assert dll_emu.mem_read(dest, 2) == b"\x00b"
+
+
+@pytest.mark.parametrize("c", [" ", "\t", "\n", "\v", "\f", "\r"])
+def test_isspace_accepts_white_space(dll_emu: Speakeasy, c: str) -> None:
+    assert call(dll_emu, "msvcrt", "isspace", [ord(c)])[0] != 0
+
+
+@pytest.mark.parametrize("c", [0, ord("a"), ord("_"), 0xA0, 0xFFFFFFFF])
+def test_isspace_rejects_other_characters(dll_emu: Speakeasy, c: int) -> None:
+    assert call(dll_emu, "msvcrt", "isspace", [c])[0] == 0
+
+
+@pytest.mark.parametrize("fd", [0, 1, 2, 7])
+def test_isatty_reports_no_console(dll_emu: Speakeasy, fd: int) -> None:
+    assert call(dll_emu, "msvcrt", "_isatty", [fd])[0] == 0

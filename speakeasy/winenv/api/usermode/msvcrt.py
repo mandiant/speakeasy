@@ -207,6 +207,16 @@ def scan_c_format(text: bytes, fmt: bytes, ptr_size: int) -> tuple[list[bytes], 
     return out, assigned
 
 
+def get_winmain_command_line(cmdline: str) -> str:
+    """Get the part of a command line that the CRT passes to WinMain, after the program name."""
+    if cmdline.startswith('"'):
+        end = cmdline.find('"', 1)
+        pos = len(cmdline) if end < 0 else end + 1
+    else:
+        pos = next((i for i, c in enumerate(cmdline) if c in " \t"), len(cmdline))
+    return cmdline[pos:].lstrip(" \t")
+
+
 class Msvcrt(api.ApiHandler):
     """
     Implements functions from various versions of the C runtime on Windows
@@ -237,6 +247,7 @@ class Msvcrt(api.ApiHandler):
         self.locale_name: int | None = None
         self.strerror_buf: int | None = None
         self.iob: int | None = None
+        self.winmain_command_lines: dict[int, int] = {}
 
         super().__get_hook_attrs__(self)
 
@@ -301,6 +312,26 @@ class Msvcrt(api.ApiHandler):
         cmdln = emu.get_proc("msvcrt", "_acmdln")
 
         return cmdln
+
+    def get_winmain_command_line_ptr(self, emu, width: int) -> int:
+        ptr = self.winmain_command_lines.get(width)
+        if ptr is None:
+            tail = get_winmain_command_line(emu.get_current_process().cmdline)
+            data = (tail + "\x00").encode("utf-16le" if width == 2 else "utf-8")
+            ptr = self.mem_alloc(len(data), tag="api.msvcrt.winmain_command_line")
+            self.mem_write(ptr, data)
+            self.winmain_command_lines[width] = ptr
+        return ptr
+
+    @apihook("_get_narrow_winmain_command_line", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _get_narrow_winmain_command_line(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """char* _get_narrow_winmain_command_line();"""
+        return self.get_winmain_command_line_ptr(emu, 1)
+
+    @apihook("_get_wide_winmain_command_line", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _get_wide_winmain_command_line(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """wchar_t* _get_wide_winmain_command_line();"""
+        return self.get_winmain_command_line_ptr(emu, 2)
 
     @apihook("_onexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _onexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1137,6 +1168,18 @@ class Msvcrt(api.ApiHandler):
 
         return self.rand_int
 
+    @apihook("rand_s", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def rand_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t rand_s(unsigned int* randomValue);
+        """
+        (out,) = argv
+        if not out:
+            return EINVAL
+        self.rand_int += 1
+        self.mem_write(out, (self.rand_int & 0xFFFFFFFF).to_bytes(4, "little"))
+        return 0
+
     @apihook("__set_app_type", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __set_app_type(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1198,6 +1241,29 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dest, s + b"\x00")
         ctx.args[1].display = s.decode("utf-8", "ignore")
         return dest
+
+    @apihook("strcpy_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strcpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t strcpy_s(
+           char *dest,
+           rsize_t dest_size,
+           const char *src
+        );
+        """
+        dest, size, src = argv
+        if not dest or not size:
+            return EINVAL
+        if not src:
+            self.mem_write(dest, b"\x00")
+            return EINVAL
+        s = self.read_cstr(src)
+        ctx.args[2].display = s.decode("utf-8", "ignore")
+        if len(s) >= size:
+            self.mem_write(dest, b"\x00")
+            return ERANGE
+        self.mem_write(dest, s + b"\x00")
+        return 0
 
     @apihook("wcscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1459,6 +1525,15 @@ class Msvcrt(api.ApiHandler):
         dst = self.heap_alloc(len(data), heap="HeapAlloc")
         self.mem_write(dst, data)
         return dst
+
+    @apihook("_mbsdup", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsdup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsdup(
+            const unsigned char *strSource
+        );
+        """
+        return self._strdup(emu, argv, ctx)
 
     @apihook("realloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1843,6 +1918,20 @@ class Msvcrt(api.ApiHandler):
 
         return cstr + offset if offset >= 0 else 0
 
+    @apihook("wcsrchr", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcsrchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *wcsrchr(
+            const wchar_t *str,
+            wchar_t c
+            );
+        """
+        wstr, c = argv
+        hay = self.read_mem_string(wstr, 2) + "\x00"
+        offset = hay.rfind(chr(c & 0xFFFF))
+        ctx.args[0].display = hay[:-1]
+        return wstr + offset * 2 if offset >= 0 else 0
+
     @apihook("_ftol", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _ftol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1877,6 +1966,38 @@ class Msvcrt(api.ApiHandler):
         """
         (c,) = argv
         return int(48 <= c <= 57)
+
+    @apihook("isspace", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isspace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int isspace(
+            int c
+            );
+        """
+        (c,) = argv
+        return int(0 <= c < 0x100 and c in SCANF_SPACE)
+
+    @apihook("_isatty", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _isatty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _isatty(int fd);
+        """
+        # Standard streams are files, as kernel32.GetFileType reports
+        return 0
+
+    @apihook("setvbuf", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def setvbuf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int setvbuf(
+           FILE *stream,
+           char *buffer,
+           int mode,
+           size_t size
+        );
+        """
+        _IOFBF, _IONBF, _IOLBF = 0, 4, 0x40
+        stream, buf, mode, size = argv
+        return 0 if stream and mode in (_IOFBF, _IONBF, _IOLBF) else -1
 
     @apihook("sscanf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sscanf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
