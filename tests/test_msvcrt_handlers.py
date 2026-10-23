@@ -186,6 +186,27 @@ def test_wcstombs_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
 
 
 @pytest.mark.parametrize(
+    "text, count, rv, written",
+    [
+        (b"hi", 8, 2, "hi\0"),
+        (b"hello", 3, 3, "hel"),
+        (b"caf\xe9", 8, 4, "caf\xe9\0"),
+    ],
+)
+def test_mbstowcs_converts_at_most_count_chars(
+    dll_emu: Speakeasy, text: bytes, count: int, rv: int, written: str
+) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    assert call(dll_emu, "msvcrt", "mbstowcs", [buf, alloc(dll_emu, text + b"\x00"), count])[0] == rv
+    data = written.encode("utf-16le")
+    assert dll_emu.mem_read(buf, len(data) + 1) == data + b"\xcc"
+
+
+def test_mbstowcs_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "mbstowcs", [0, alloc(dll_emu, b"hello\x00"), 0])[0] == 5
+
+
+@pytest.mark.parametrize(
     "size, count, rv, converted, written",
     [
         (8, None, 0, 3, "hi\0"),
