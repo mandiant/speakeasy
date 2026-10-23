@@ -104,6 +104,10 @@ class Psapi(api.ApiHandler):
 
         return 1
 
+    @apihook("EnumProcessModulesEx", argc=5)
+    def EnumProcessModulesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.EnumProcessModules(emu, argv[:4], ctx)
+
     @apihook("GetModuleBaseName", argc=4)
     def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         hProcess, hModule, lpBaseName, nSize = argv
