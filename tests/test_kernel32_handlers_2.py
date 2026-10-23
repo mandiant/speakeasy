@@ -513,3 +513,44 @@ def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> 
     assert call(dll_emu, "kernel32", "CompareStringOrdinal", [p, 0xFFFFFFFE, p, 1, 0])[0] == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
+def test_init_once_execute_once_runs_the_init_function_once(base_config: dict[str, Any]) -> None:
+    se = Speakeasy(config=base_config)
+    try:
+        sc = se.load_shellcode(data=b"\xc3" * 0x200, arch="x86")
+        init_once, out, record, slot, fn = sc + 0x180, sc + 0x190, sc + 0x1A0, sc + 0x1B0, sc + 0x100
+
+        def execute(result: int) -> bytes:
+            return (
+                b"\x6a\x00"  # push 0
+                + b"\x68\x34\x12\x00\x00"  # push 0x1234
+                + b"\x68"
+                + struct.pack("<I", fn)
+                + b"\x68"
+                + struct.pack("<I", init_once)
+                + b"\xff\x15"
+                + struct.pack("<I", slot)  # call [slot]
+                + b"\xa3"
+                + struct.pack("<I", result)  # mov [result], eax
+            )
+
+        code = execute(out) + execute(out + 4) + b"\xc3"
+        callback = (
+            b"\xff\x05"
+            + struct.pack("<I", record)  # inc dword [record]
+            + b"\x8b\x44\x24\x08"  # mov eax, [esp+8]
+            + b"\xa3"
+            + struct.pack("<I", record + 4)  # mov [record+4], eax
+            + b"\xb8\x01\x00\x00\x00"  # mov eax, 1
+            + b"\xc2\x0c\x00"  # ret 0xc
+        )
+        se.mem_write(sc, code)
+        se.mem_write(fn, callback)
+        se.mem_write(init_once, b"\x00" * 0x30)
+        se.mem_write(slot, struct.pack("<I", se.emu.get_proc("kernel32", "InitOnceExecuteOnce")))
+        se.run_shellcode(sc)
+        assert struct.unpack("<II", se.mem_read(record, 8)) == (1, 0x1234)
+        assert struct.unpack("<II", se.mem_read(out, 8)) == (1, 1)
+    finally:
+        se.shutdown()

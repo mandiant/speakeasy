@@ -7006,6 +7006,27 @@ class Kernel32(api.ApiHandler):
             self.mem_write(fPending, (1).to_bytes(4, "little"))
         return 1
 
+    @apihook("InitOnceExecuteOnce", argc=4)
+    def InitOnceExecuteOnce(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL InitOnceExecuteOnce(
+            [in, out]           PINIT_ONCE    InitOnce,
+            [in]                PINIT_ONCE_FN InitFn,
+            [in, out, optional] PVOID         Parameter,
+            [in, out, optional] LPVOID        *Context
+        );
+
+        The result of InitFn is not read back, so the initialization always succeeds.
+        """
+        InitOnce, InitFn, Parameter, Context = argv
+        ptr_size = emu.get_ptr_size()
+        state = int.from_bytes(self.mem_read(InitOnce, ptr_size), "little")
+        if state & 3 == 2:
+            return 1
+        self.mem_write(InitOnce, (2).to_bytes(ptr_size, "little"))
+        self.setup_callback(InitFn, (InitOnce, Parameter, Context))
+        return 1
+
     @apihook("FlsGetValue2", argc=1)
     def FlsGetValue2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
