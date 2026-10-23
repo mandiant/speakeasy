@@ -518,6 +518,17 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    @apihook("__GetMainArgs", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def __GetMainArgs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __GetMainArgs(
+            int * _Argc,
+            char *** _Argv,
+            char *** _Env,
+            int _DoWildCard);
+        """
+        self.__getmainargs(emu, [*argv, 0], ctx)
+
     @apihook("__wgetmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def __wgetmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
