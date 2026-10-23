@@ -2,8 +2,10 @@
 
 import io
 import math
+import ntpath
 import re
 import struct
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import speakeasy.winenv.arch as e_arch
@@ -217,6 +219,35 @@ def get_winmain_command_line(cmdline: str) -> str:
     return cmdline[pos:].lstrip(" \t")
 
 
+def get_full_path(cwd: str, path: str) -> str:
+    """Resolve a path against a current directory, as the CRT _fullpath does."""
+    drive, rest = ntpath.splitdrive(path)
+    if not drive:
+        path = (
+            ntpath.join(ntpath.splitdrive(cwd)[0] + "\\", rest)
+            if rest.startswith(("\\", "/"))
+            else ntpath.join(cwd, path)
+        )
+    return ntpath.normpath(path)
+
+
+def get_struct_tm(t: datetime) -> bytes:
+    """Encode a time as a C struct tm."""
+    tt = t.timetuple()
+    return struct.pack(
+        "<9i",
+        tt.tm_sec,
+        tt.tm_min,
+        tt.tm_hour,
+        tt.tm_mday,
+        tt.tm_mon - 1,
+        tt.tm_year - 1900,
+        (tt.tm_wday + 1) % 7,
+        tt.tm_yday - 1,
+        0,
+    )
+
+
 class Msvcrt(api.ApiHandler):
     """
     Implements functions from various versions of the C runtime on Windows
@@ -248,6 +279,7 @@ class Msvcrt(api.ApiHandler):
         self.strerror_buf: int | None = None
         self.iob: int | None = None
         self.winmain_command_lines: dict[int, int] = {}
+        self.tm_buf: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -322,6 +354,13 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(ptr, data)
             self.winmain_command_lines[width] = ptr
         return ptr
+
+    @apihook("_sleep", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _sleep(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _sleep(unsigned long duration);
+        """
+        return
 
     @apihook("_get_narrow_winmain_command_line", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_narrow_winmain_command_line(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1064,6 +1103,58 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(destTime, out_time.to_bytes(self.get_ptr_size(), "little"))
 
         return out_time
+
+    def get_time_size(self, emu) -> int:
+        # x86 msvcrt.dll uses a 32-bit time_t
+        return emu.get_ptr_size()
+
+    def write_struct_tm(self, timer: int, emu) -> int:
+        if not timer:
+            return 0
+        value = int.from_bytes(self.mem_read(timer, self.get_time_size(emu)), "little", signed=True)
+        if value < 0:
+            return 0
+        if self.tm_buf is None:
+            self.tm_buf = self.mem_alloc(36, tag="api.msvcrt.tm")
+        self.mem_write(self.tm_buf, get_struct_tm(datetime.fromtimestamp(value, timezone.utc)))
+        return self.tm_buf
+
+    @apihook("localtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def localtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct tm *localtime(const time_t *sourceTime);
+        """
+        # The emulated time zone is UTC
+        (timer,) = argv
+        return self.write_struct_tm(timer, emu)
+
+    @apihook("gmtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def gmtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct tm *gmtime(const time_t *sourceTime);
+        """
+        (timer,) = argv
+        return self.write_struct_tm(timer, emu)
+
+    @apihook("mktime", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def mktime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        time_t mktime(struct tm *timeptr);
+        """
+        (tm,) = argv
+        sec, minute, hour, mday, mon, year = struct.unpack("<6i", self.mem_read(tm, 24))
+        year, mon = year + 1900 + mon // 12, mon % 12
+        try:
+            t = datetime(year, mon + 1, 1, tzinfo=timezone.utc) + timedelta(
+                days=mday - 1, hours=hour, minutes=minute, seconds=sec
+            )
+        except (ValueError, OverflowError):
+            return -1
+        value = int(t.timestamp())
+        if value < 0 or value >= 1 << (8 * self.get_time_size(emu) - 1):
+            return -1
+        self.mem_write(tm, get_struct_tm(t))
+        return value
 
     @apihook("_strtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2968,6 +3059,38 @@ class Msvcrt(api.ApiHandler):
         c &= 0xFF
         ctx.args[0].display = chr(c) if c < 0x80 else f"\\x{c:02x}"
         return c
+
+    @apihook("fputs", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fputs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fputs(
+            const char *str,
+            FILE *stream
+        );
+        """
+        s, _ = argv
+        ctx.args[0].display = self.read_cstr(s).decode("utf-8", "ignore")
+        return 0
+
+    @apihook("_fullpath", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _fullpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *_fullpath(
+           char *absPath,
+           const char *relPath,
+           size_t maxLength
+        );
+        """
+        abs_path, rel_path, max_length = argv
+        rel = self.read_cstr(rel_path).decode("utf-8", "ignore") if rel_path else ""
+        ctx.args[1].display = rel
+        full = get_full_path(emu.get_cd(), rel or ".").encode("utf-8") + b"\x00"
+        if not abs_path:
+            abs_path = self.heap_alloc(len(full), heap="HeapAlloc")
+        elif len(full) > max_length:
+            return 0
+        self.mem_write(abs_path, full)
+        return abs_path
 
     @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
