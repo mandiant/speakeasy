@@ -2553,6 +2553,13 @@ class Ntoskrnl(api.ApiHandler):
         (DeviceObject,) = argv
         return ddk.STATUS_SUCCESS
 
+    @apihook("KeGetCurrentIrql", argc=0)
+    def KeGetCurrentIrql(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        KIRQL KeGetCurrentIrql();
+        """
+        return self.get_current_irql()
+
     @apihook("KeAcquireSpinLockRaiseToDpc", argc=1)
     def KeAcquireSpinLockRaiseToDpc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
