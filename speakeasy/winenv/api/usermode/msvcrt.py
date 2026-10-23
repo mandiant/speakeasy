@@ -115,6 +115,7 @@ class Msvcrt(api.ApiHandler):
         self.signal_handlers: dict[int, int] = {}
         self.lconv: int | None = None
         self.strerror_buf: int | None = None
+        self.iob: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -591,6 +592,23 @@ class Msvcrt(api.ApiHandler):
         (fd,) = argv
 
         return fd
+
+    @apihook("__iob_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __iob_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        FILE *__iob_func(void);
+
+        Return the _iob array of stdin, stdout, and stderr. A FILE is 0x20
+        bytes on x86 and 0x30 bytes on x64, and _file is its fifth field.
+        """
+        if self.iob:
+            return self.iob
+
+        size, file_offset = (0x30, 0x1C) if self.get_ptr_size() == 8 else (0x20, 0x10)
+        self.iob = self.mem_alloc(size * 3, tag="api.msvcrt._iob")
+        for fd in (self.stdin, self.stdout, self.stderr):
+            self.mem_write(self.iob + fd * size + file_offset, fd.to_bytes(4, "little"))
+        return self.iob
 
     @apihook("pow", argc=2, conv=e_arch.CALL_CONV_FLOAT)
     def pow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
