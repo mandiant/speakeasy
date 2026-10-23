@@ -2,7 +2,7 @@
 
 import pytest
 
-from speakeasy.winenv.api.api import ApiHandler
+from speakeasy.winenv.api.api import MAX_FORMAT_FIELD, ApiHandler
 
 
 class FakeFormatApi:
@@ -145,3 +145,10 @@ def test_wide_functions_swap_the_default_string_width(api):
 )
 def test_va_arg_count_counts_argument_slots(ptr_size, fmt, slots):
     assert ApiHandler.get_va_arg_count(FakeFormatApi(ptr_size), fmt) == slots
+
+
+@pytest.mark.parametrize("fmt", ["%*d", "%.*d", "%2147483647d", "%.2147483647f"])
+def test_a_field_width_or_precision_is_capped(api, fmt):
+    args = [0x7FFFFFFF, 1] if "*" in fmt else [1]
+
+    assert len(do_format(api, fmt, args)) <= MAX_FORMAT_FIELD + 2
