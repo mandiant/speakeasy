@@ -237,6 +237,27 @@ def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     assert rv is True
 
 
+@pytest.mark.parametrize("cmdline", [b'"" "C:\\Windows\\system32\\sample" myarg1', b"   "])
+def test_create_process_without_program_name_fails(dll_emu: Speakeasy, cmdline: bytes) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    cmd = alloc(dll_emu, cmdline + b"\x00")
+    si = alloc(dll_emu, b"\x00" * 0x44)
+    pi = alloc(dll_emu, b"\xcc" * 0x10)
+    ok, _ = call(dll_emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])
+    assert ok == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+    assert dll_emu.mem_read(pi, 0x10) == b"\xcc" * 0x10
+    assert dll_emu.emu.child_processes == []
+
+
+def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    cmd = alloc(dll_emu, b'"" arg\x00')
+    rv, _ = call(dll_emu, "kernel32", "WinExec", [cmd, 0])
+    assert rv == windefs.ERROR_FILE_NOT_FOUND
+
+
 def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
     start_process(se)
     app = alloc(se, b"c:\\Windows\\system32\\cmd.exe\x00")
