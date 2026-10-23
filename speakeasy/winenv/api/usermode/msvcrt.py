@@ -2162,6 +2162,20 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = hay[:-1]
         return wstr + offset * 2 if offset >= 0 else 0
 
+    @apihook("wcschr", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcschr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *wcschr(
+            const wchar_t *str,
+            wchar_t c
+            );
+        """
+        wstr, c = argv
+        hay = self.read_mem_string(wstr, 2) + "\x00"
+        offset = hay.find(chr(c & 0xFFFF))
+        ctx.args[0].display = hay[:-1]
+        return wstr + offset * 2 if offset >= 0 else 0
+
     @apihook("_ftol", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _ftol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2185,6 +2199,28 @@ class Msvcrt(api.ApiHandler):
         (c,) = argv
         if ord("A") <= c <= ord("Z"):
             c += 0x20
+        return c
+
+    @apihook("towlower", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def towlower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wint_t towlower(wint_t c);
+        """
+        (c,) = argv
+        c &= 0xFFFF
+        if ord("A") <= c <= ord("Z"):
+            c += 0x20
+        return c
+
+    @apihook("towupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def towupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wint_t towupper(wint_t c);
+        """
+        (c,) = argv
+        c &= 0xFFFF
+        if ord("a") <= c <= ord("z"):
+            c -= 0x20
         return c
 
     @apihook("isdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -2676,6 +2712,14 @@ class Msvcrt(api.ApiHandler):
     @apihook("_configure_narrow_argv", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configure_narrow_argv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
+
+    @apihook("_initialize_wide_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _initialize_wide_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return 0
+
+    @apihook("_configure_wide_argv", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _configure_wide_argv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return 0
 
     @apihook("_set_fmode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
