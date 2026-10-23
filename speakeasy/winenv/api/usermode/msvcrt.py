@@ -1339,6 +1339,28 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dst, data)
         return dst
 
+    @apihook("realloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *realloc(
+            void *memblock,
+            size_t size
+        );
+        """
+        mem, size = argv
+        if mem and not size:
+            self.mem_free(mem)
+            return 0
+        dst = self.heap_alloc(size, heap="HeapAlloc")
+        if mem:
+            old = next((n for a, n, _ in emu.heap_allocs if a == mem), None)
+            if old is None:
+                mm = emu.get_address_map(mem)
+                old = mm.base + mm.size - mem if mm else 0
+            self.mem_write(dst, self.mem_read(mem, min(old, size)))
+            self.mem_free(mem)
+        return dst
+
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
