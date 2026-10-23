@@ -594,3 +594,15 @@ def test_enum_services_status_reports_the_size_for_a_small_buffer(dll_emu: Speak
 
     rv, _, _, returned = _enum_services(dll_emu, "EnumServicesStatusA", adv32defs.SERVICE_STATE_ALL, needed)
     assert rv == 1 and returned > 0
+
+
+def test_sid_functions_reject_an_unmapped_sid(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    sid = 0xA530
+    assert not dll_emu.emu.is_address_valid(sid)
+
+    assert call(dll_emu, "advapi32", "GetLengthSid", [sid])[0] == 0
+    assert not call(dll_emu, "advapi32", "IsValidSid", [sid])[0]
+    assert not call(dll_emu, "advapi32", "EqualSid", [sid, alloc(dll_emu, _sid(32, 544))])[0]
+    assert not call(dll_emu, "advapi32", "CopySid", [20, alloc(dll_emu, b"\x00" * 20), sid])[0]
+    assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
