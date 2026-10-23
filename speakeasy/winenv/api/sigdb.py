@@ -299,9 +299,10 @@ class FuncSig:
         """Whether the current generic integer-slot executor can use this ABI.
 
         This conservative capability check does not affect catalog membership
-        or handler/hook availability. Floating-point and aggregate transport,
-        variadic calls, and non-cdecl/stdcall conventions need explicit support.
-        On x86, wide integer arguments occupy multiple stack slots, but wide
+        or handler/hook availability. Floating-point transport, aggregate
+        returns, variadic calls, and non-cdecl/stdcall conventions need
+        explicit support. On x86, wide integer and aggregate arguments occupy
+        multiple stack slots; on x64, an aggregate argument takes one slot. Wide
         returns require EDX:EAX and cannot use the generic return path.
         """
         arch = ARCH_X86 if ptr_size == 4 else ARCH_X64
@@ -314,7 +315,7 @@ class FuncSig:
                 return False
             if ParamSig("", self.ret).size(ptr_size) > ptr_size:
                 return False
-        return all(param.kind in EMULATION_SCALAR_KINDS for param in self.params)
+        return all(param.kind in EMULATION_SCALAR_KINDS + AGGREGATE_KINDS for param in self.params)
 
     def slot_layout(self, ptr_size: int) -> list[int]:
         return [p.slots(ptr_size) for p in self.params]
