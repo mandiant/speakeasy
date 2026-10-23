@@ -415,6 +415,25 @@ def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: in
     assert struct.unpack("<I", dll_emu.mem_read(mbi + 20, 4))[0] == protect
 
 
+@pytest.mark.parametrize(
+    "offset, base, size, protect",
+    [
+        (0x10, 0x0, 0x1000, windefs.PAGE_READONLY),
+        (0x1010, 0x1000, 0x1000, windefs.PAGE_EXECUTE_READ),
+        (0x3010, 0x3000, 0x1000, windefs.PAGE_READWRITE),
+        (0x5010, 0x4000, 0x3000, windefs.PAGE_READONLY),
+    ],
+)
+def test_virtual_query_reports_the_section_of_a_loaded_image(
+    dll_emu: Speakeasy, offset: int, base: int, size: int, protect: int
+) -> None:
+    image = 0x10000000
+    mbi = alloc(dll_emu, b"\x00" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQuery", [image + offset, mbi, 28])[0] == 28
+    base_address, allocation_base, _, region_size, _, protect_field, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
+    assert (base_address, allocation_base, region_size, protect_field) == (image + base, image, size, protect)
+
+
 Y2K_FILETIME = 125911584000000000
 
 
