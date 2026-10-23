@@ -2,6 +2,8 @@
 
 import ntpath
 
+import speakeasy.winenv.defs.windows.windows as windefs
+
 from .. import api
 
 
@@ -157,3 +159,31 @@ class Psapi(api.ApiHandler):
 
         self.mem_write(lpFilename, output)
         return len(truncated)
+
+    @apihook("GetModuleInformation", argc=4)
+    def GetModuleInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL GetModuleInformation(
+          HANDLE       hProcess,
+          HMODULE      hModule,
+          LPMODULEINFO lpmodinfo,
+          DWORD        cb
+        );
+        """
+        hProcess, hModule, lpmodinfo, cb = argv
+        ptr_size = self.get_ptr_size()
+        if cb < ptr_size * 3:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+
+        proc = self._get_process(hProcess)
+        if proc and not hModule:
+            hModule = next(iter(self._get_process_module_bases(proc)), 0)
+        mod = emu.get_mod_from_addr(hModule) if proc else None
+        if not mod or mod.base != hModule:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        info = b"".join(v.to_bytes(ptr_size, "little") for v in (mod.base, mod.image_size, mod.get_ep()))
+        self.mem_write(lpmodinfo, info)
+        return 1
