@@ -89,6 +89,15 @@ def test_reg_create_key_without_a_subkey_returns_the_key(dll_emu: Speakeasy) -> 
     assert (rv, _dword(dll_emu, phk)) == (windefs.ERROR_SUCCESS, HKEY_CURRENT_USER)
 
 
+@pytest.mark.parametrize(("api", "encoding"), [("RegSetValueExA", "utf-8"), ("RegSetValueExW", "utf-16le")])
+def test_reg_set_value_shows_string_data(dll_emu: Speakeasy, api: str, encoding: str) -> None:
+    hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Evil")
+    data = "wlogon.dll\x00".encode(encoding)
+    rv, displays = call(dll_emu, "advapi32", api, [hkey, 0, 0, 1, alloc(dll_emu, data), len(data)])
+    assert rv == windefs.ERROR_SUCCESS
+    assert displays["lpData"] == "wlogon.dll"
+
+
 @pytest.mark.parametrize("api", ["RegQueryValueExA", "RegGetValueA"])
 def test_reg_query_without_a_value_name_reads_the_default_value(dll_emu: Speakeasy, api: str) -> None:
     hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Evil")
