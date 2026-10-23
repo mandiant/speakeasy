@@ -266,13 +266,16 @@ def test_rtl_duplicate_unicode_string_rejects_bad_parameters(driver_emu: Speakea
         (16, "hello", [], 5, "hello\0"),
     ],
 )
-@pytest.mark.parametrize("width", [1, 2])
+@pytest.mark.parametrize(
+    ("name", "width"), [("_snprintf", 1), ("_snwprintf", 2), ("_vsnprintf", 1), ("_vsnwprintf", 2)]
+)
 def test_snprintf_writes_at_most_count_characters(
-    driver_emu: Speakeasy, width: int, count: int, fmt: str, args: list, rv: int, written: str
+    driver_emu: Speakeasy, name: str, width: int, count: int, fmt: str, args: list, rv: int, written: str
 ) -> None:
     enc = "utf-8" if width == 1 else "utf-16le"
-    name = "_snprintf" if width == 1 else "_snwprintf"
     argv = [alloc(driver_emu, (a + "\0").encode(enc)) if isinstance(a, str) else a for a in args]
+    if name.startswith("_v"):
+        argv = [alloc(driver_emu, struct.pack(f"<{len(argv)}I", *argv) or b"\0" * 4)]
     out = alloc(driver_emu, b"\xee" * 64)
     result, _ = call(driver_emu, "ntoskrnl", name, [out, count, alloc(driver_emu, (fmt + "\0").encode(enc)), *argv])
     assert result == rv
