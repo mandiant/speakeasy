@@ -5587,7 +5587,8 @@ class Kernel32(api.ApiHandler):
         count = min(nNumberOfArguments, 15) if lpArguments else 0
         params = [emu.read_ptr(lpArguments + i * 4) for i in range(count)]
         emu.do_call_return(len(argv), emu.get_ret_address(), conv=e_arch.CALL_CONV_STDCALL)
-        handled = emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params)
+        emu.prev_pc = emu.get_pc()
+        handled = emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params, check_repeat=False)
         if not handled and dwExceptionFlags & EXCEPTION_NONCONTINUABLE:
             emu.curr_run.error = emu.get_error_info("unhandled_exception", emu.get_pc())
             emu.on_run_complete()

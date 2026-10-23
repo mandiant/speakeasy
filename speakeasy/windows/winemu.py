@@ -3661,16 +3661,17 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, flags=0, params=()):
+    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, flags=0, params=(), check_repeat=True):
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
-        if fault_key == self._seh_last_fault:
-            self._seh_repeat_count += 1
-            if self._seh_repeat_count >= self._SEH_MAX_REPEAT:
-                return False
-        else:
-            self._seh_last_fault = fault_key
-            self._seh_repeat_count = 1
+        if check_repeat:
+            if fault_key == self._seh_last_fault:
+                self._seh_repeat_count += 1
+                if self._seh_repeat_count >= self._SEH_MAX_REPEAT:
+                    return False
+            else:
+                self._seh_last_fault = fault_key
+                self._seh_repeat_count = 1
 
         rv = False
         if self.get_arch() == _arch.ARCH_X86:
