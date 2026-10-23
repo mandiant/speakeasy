@@ -604,3 +604,27 @@ def test_x64_ke_get_current_irql_reports_the_emulator_irql(driver64_emu: Speakea
     assert driver64_emu.emu is not None
     driver64_emu.emu.set_current_irql(ddk.DISPATCH_LEVEL)
     assert call(driver64_emu, "ntoskrnl", "KeGetCurrentIrql", [])[0] == ddk.DISPATCH_LEVEL
+
+
+def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_emu: Speakeasy) -> None:
+    assert driver_emu.emu is not None
+    device = 0x7000
+    item = call(driver_emu, "ntoskrnl", "IoAllocateWorkItem", [device])[0]
+    assert item
+    call(driver_emu, "ntoskrnl", "IoQueueWorkItem", [item, 0x401000, 1, 0x1234])
+    assert [cb.function for cb in driver_emu.emu.get_current_run().api_callbacks] == [0x401000]
+    sp = driver_emu.emu.get_stack_ptr()
+    assert struct.unpack("<3I", driver_emu.mem_read(sp, 12))[1:] == (device, 0x1234)
+    call(driver_emu, "ntoskrnl", "IoFreeWorkItem", [item])
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "IoRegisterShutdownNotification",
+        "IoRegisterLastChanceShutdownNotification",
+        "IoUnregisterShutdownNotification",
+    ],
+)
+def test_shutdown_notification_registration_succeeds(driver_emu: Speakeasy, name: str) -> None:
+    assert call(driver_emu, "ntoskrnl", name, [0x7000])[0] == ddk.STATUS_SUCCESS
