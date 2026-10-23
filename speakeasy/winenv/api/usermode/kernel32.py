@@ -6746,7 +6746,7 @@ class Kernel32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         path = self.read_mem_string(lpPathName, cw)
-        prefix = self.read_mem_string(lpPrefixString, cw)
+        prefix = self.read_mem_string(lpPrefixString, cw) if lpPrefixString else ""
 
         unique = uUnique & 0xFFFF
         create = not unique

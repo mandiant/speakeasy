@@ -55,11 +55,10 @@ def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu.get_file_manager().get_file_from_path("C:\\tmp\\abc1A2B.TMP") is None
 
 
-def test_get_temp_file_name_creates_a_unique_file(dll_emu: Speakeasy) -> None:
+def test_get_temp_file_name_without_a_prefix_creates_a_unique_file(dll_emu: Speakeasy) -> None:
     path = alloc(dll_emu, b"C:\\tmp\\\x00")
-    prefix = alloc(dll_emu, b"\x00")
     out = alloc(dll_emu, b"\x00" * 260)
-    rv, displays = call(dll_emu, "kernel32", "GetTempFileNameA", [path, prefix, 0, out])
+    rv, displays = call(dll_emu, "kernel32", "GetTempFileNameA", [path, 0, 0, out])
     assert 0 < rv <= 0xFFFF
     assert displays["lpTempFileName"] == f"C:\\tmp\\{rv:X}.TMP"
     assert dll_emu.emu is not None
