@@ -79,25 +79,27 @@ class File:
     def __init__(self, allocator, path, config=None, data=b""):
         self.allocator = allocator
         self.path: str = path
-        self.data: io.BytesIO | bytes | None = None
+        self.data: io.BytesIO | None = None
+        self.pos: int = 0
+        self.origin: File | None = None
         self.bytes_written: int = 0
         if data:
             self.data = io.BytesIO(data)
         self.is_dir: bool = False
         self.config: Any = config if config is not None else {}
 
+    def get_buffer(self) -> io.BytesIO:
+        if self.data is None:
+            self.data = self.handle_file_data() if self.config else io.BytesIO()
+        return self.data
+
     def duplicate(self):
-        if not self.data and self.config:
-            self.data = self.handle_file_data()
-
-        if isinstance(self.data, io.BytesIO):
-            data = self.data.getvalue()
-        elif isinstance(self.data, bytes):
-            data = self.data
-        else:
-            data = b""
-
-        new = File(self.allocator, self.path, config=self.config, data=data)
+        """
+        Get a new file object for another handle: it shares the contents and has its own position.
+        """
+        new = File(self.allocator, self.path, config=self.config)
+        new.data = self.get_buffer()
+        new.origin = self.origin or self
         new.is_dir = self.is_dir
         return new
 
@@ -111,68 +113,48 @@ class File:
         return h.hexdigest()
 
     def get_size(self):
-        if not self.data and self.config:
-            self.data = self.handle_file_data()
-        if not self.data:
-            return 0
-        off = self.data.tell()
-        self.data.seek(0, io.SEEK_SET)
-        size = len(self.data.read())
-        self.data.seek(off, io.SEEK_SET)
-        return size
+        return self.get_buffer().seek(0, io.SEEK_END)
 
     def get_data(self, size=-1, reset_pointer=False):
-        if not self.data and self.config:
-            self.data = self.handle_file_data()
-
-        if not self.data:
-            return b""
-
-        off = self.data.tell()
-        if off == self.get_size():
-            if reset_pointer:
-                # Reset the file pointer
-                self.data.seek(0)
-            else:
+        buf = self.get_buffer()
+        if self.pos == self.get_size():
+            if not reset_pointer:
                 return b""
-
-        return self.data.read(size)
+            self.pos = 0
+        buf.seek(self.pos)
+        data = buf.read(size)
+        self.pos = buf.tell()
+        return data
 
     def get_contents(self):
         """
         Return all the file data and keep the file pointer.
         """
-        off = self.tell()
-        self.seek(0, io.SEEK_SET)
-        data = self.get_data()
-        self.seek(off, io.SEEK_SET)
-        return data
+        return self.get_buffer().getvalue()
 
     def seek(self, offset, whence):
         if whence not in [io.SEEK_CUR, io.SEEK_SET, io.SEEK_END]:
             return
-        if not self.data and self.config:
-            self.data = self.handle_file_data()
-        if not self.data:
-            self.data = io.BytesIO()
-        self.data.seek(offset, whence)
+        buf = self.get_buffer()
+        buf.seek(self.pos)
+        self.pos = buf.seek(offset, whence)
 
     def tell(self):
-        if self.data:
-            return self.data.tell()
-        return 0
+        return self.pos
 
     def add_data(self, data):
-        if not self.data:
-            self.data = io.BytesIO()
-        off = self.data.tell()
-        self.data.seek(0, io.SEEK_END)
-        self.data.write(data)
-        self.data.seek(off, io.SEEK_SET)
+        buf = self.get_buffer()
+        buf.seek(0, io.SEEK_END)
+        buf.write(data)
         self.bytes_written += len(data)
+        if self.origin:
+            self.origin.bytes_written += len(data)
 
     def remove_data(self):
-        self.data = io.BytesIO(b"")
+        buf = self.get_buffer()
+        buf.seek(0)
+        buf.truncate()
+        self.pos = 0
 
     def handle_file_data(self):
         """
