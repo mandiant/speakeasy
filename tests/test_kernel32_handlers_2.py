@@ -597,3 +597,32 @@ def test_virtual_protect_write_copy_is_readable_and_writable(emu: Speakeasy, pro
     old = alloc(emu, b"\x00" * 4)
     assert call(emu, "kernel32", "VirtualProtect", [base, 0x1000, protect, old])[0]
     assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == expected
+
+
+GENERIC_WRITE = 0x40000000
+
+
+def test_writes_through_a_reopened_file_reach_the_file(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\drop.bin\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, OPEN_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"MZ\x90\x00"), 4, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    hnd = open_file(se, "c:\\drop.bin")
+    buf = alloc(se, b"\x00" * 8)
+    assert call(se, "kernel32", "ReadFile", [hnd, buf, 8, written, 0])[0]
+    assert se.mem_read(buf, 4) == b"MZ\x90\x00"
+    assert [f.get_contents() for f in se.get_dropped_files()] == [b"MZ\x90\x00"]
+
+
+def test_each_handle_to_a_file_has_its_own_position(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    first = open_file(se, BYTE_FILL_PATH)
+    second = open_file(se, BYTE_FILL_PATH)
+    assert call(se, "kernel32", "SetFilePointer", [first, 16, 0, FILE_BEGIN])[0] == 16
+    assert call(se, "kernel32", "SetFilePointer", [second, 0, 0, FILE_CURRENT])[0] == 0
