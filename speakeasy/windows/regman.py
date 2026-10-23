@@ -97,10 +97,9 @@ class RegKey:
         return self.values
 
     def get_value(self, val_name):
-        if not val_name:
-            val_name = "default"
+        names = (val_name.lower(),) if val_name else ("", "default")
         for v in self.values:
-            if val_name.lower() == v.get_name().lower():
+            if v.get_name().lower() in names:
                 return v
 
 

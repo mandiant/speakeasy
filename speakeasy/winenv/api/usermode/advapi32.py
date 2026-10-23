@@ -137,9 +137,10 @@ class AdvApi32(api.ApiHandler):
         rv = windefs.ERROR_SUCCESS
 
         cw = self.get_char_width(ctx)
+        value_name = ""
         if lpValueName:
-            lpValueName = self.read_mem_string(lpValueName, cw)
-            ctx.args["lpValueName"].display = lpValueName
+            value_name = self.read_mem_string(lpValueName, cw)
+            ctx.args["lpValueName"].display = value_name
 
         length = 0
         if lpcbData:
@@ -149,7 +150,7 @@ class AdvApi32(api.ApiHandler):
 
         key = self.reg_get_key(hKey)
         if key:
-            val = key.get_value(lpValueName)
+            val = key.get_value(value_name)
             if val:
                 self.write_value_type(val, lpType, ctx.args["lpType"])
                 output = val.get_bytes(cw)
@@ -179,7 +180,7 @@ class AdvApi32(api.ApiHandler):
             self.record_registry_access_event(
                 kp,
                 REG_READ,
-                value_name=lpValueName,
+                value_name=value_name,
                 data=output,
                 size=length,
                 buffer=lpData,
@@ -1723,9 +1724,10 @@ class AdvApi32(api.ApiHandler):
             lpSubKey = self.read_mem_string(lpSubKey, cw)
             ctx.args["lpSubKey"].display = lpSubKey
 
+        value_name = ""
         if lpValue:
-            lpValue = self.read_mem_string(lpValue, cw)
-            ctx.args["lpValue"].display = lpValue
+            value_name = self.read_mem_string(lpValue, cw)
+            ctx.args["lpValue"].display = value_name
 
         length = 0
         if lpcbData:
@@ -1739,7 +1741,7 @@ class AdvApi32(api.ApiHandler):
                 return windefs.ERROR_FILE_NOT_FOUND
             key = self.reg_get_key(hnd)
         if key:
-            val = key.get_value(lpValue)
+            val = key.get_value(value_name)
             if val:
                 self.write_value_type(val, lpType, ctx.args["pdwType"])
                 output = val.get_bytes(cw)
@@ -1764,7 +1766,7 @@ class AdvApi32(api.ApiHandler):
             self.record_registry_access_event(
                 kp,
                 REG_READ,
-                value_name=lpValue,
+                value_name=value_name,
                 data=output,
                 size=length,
                 buffer=lpData,
