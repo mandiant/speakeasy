@@ -21,6 +21,7 @@ This page maps common tasks to the right Speakeasy documentation.
 - [Configuration walkthrough](configuration.md)
 - [Report walkthrough](reporting.md)
 - [Memory management](memory.md)
+- [Exception dispatch](exceptions.md)
 - [Limitations](limitations.md)
 
 ## Debugging
