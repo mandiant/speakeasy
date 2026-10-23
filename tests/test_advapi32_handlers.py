@@ -89,6 +89,25 @@ def test_reg_create_key_without_a_subkey_returns_the_key(dll_emu: Speakeasy) -> 
     assert (rv, _dword(dll_emu, phk)) == (windefs.ERROR_SUCCESS, HKEY_CURRENT_USER)
 
 
+@pytest.mark.parametrize("api", ["RegQueryValueExA", "RegGetValueA"])
+def test_reg_query_without_a_value_name_reads_the_default_value(dll_emu: Speakeasy, api: str) -> None:
+    hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Evil")
+    data = b"payload\x00"
+    rv, _ = call(dll_emu, "advapi32", "RegSetValueExA", [hkey, 0, 0, 1, alloc(dll_emu, data), len(data)])
+    assert rv == windefs.ERROR_SUCCESS
+
+    buf = alloc(dll_emu, b"\x00" * 0x20)
+    size = alloc(dll_emu, struct.pack("<I", 0x20))
+    if api == "RegQueryValueExA":
+        argv = [hkey, 0, 0, 0, buf, size]
+    else:
+        argv = [hkey, 0, 0, 0xFFFF, 0, buf, size]
+    rv, _ = call(dll_emu, "advapi32", api, argv)
+
+    assert rv == windefs.ERROR_SUCCESS
+    assert dll_emu.mem_read(buf, len(data)) == data
+
+
 def _open_key(se: Speakeasy, api: str, hkey: int, subkey: int) -> tuple[int, str | None]:
     """Open ``subkey`` below ``hkey`` and return the status and the path of the new handle."""
     assert se.emu is not None
