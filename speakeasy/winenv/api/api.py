@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import struct
 from dataclasses import dataclass, field
 
 import speakeasy.winenv.arch as _arch
@@ -14,6 +16,29 @@ from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 
 logger = logging.getLogger(__name__)
+
+FORMAT_SPEC = re.compile(
+    r"%(?P<flags>[-+ #0]*)(?P<width>\*|\d+)?(?:\.(?P<precision>\*|\d*))?"
+    r"(?P<length>hh|h|ll|l|L|I64|I32|I|q|z|j|t|w)?(?P<conv>[diouxXeEfFgGaAcCsSpPnZ%])"
+)
+INT_BITS = {"hh": 8, "h": 16, "ll": 64, "I64": 64, "q": 64, "j": 64}
+
+
+def get_format_slot_sizes(spec: re.Match, ptr_size: int) -> list[int]:
+    """
+    Get the size in bytes of each argument that one printf conversion reads,
+    in order: the width, the precision and then the value.
+    """
+    sizes = [ptr_size] * [spec["width"], spec["precision"]].count("*")
+    conv, length = spec["conv"], spec["length"]
+    if conv in "diouxX":
+        bits = INT_BITS.get(length, ptr_size * 8 if length in ("I", "z", "t") else 32)
+        sizes.append(max(ptr_size, bits // 8))
+    elif conv in "eEfFgGaA":
+        sizes.append(8)
+    elif conv != "%":
+        sizes.append(ptr_size)
+    return sizes
 
 
 class HandlerArg:
@@ -481,16 +506,11 @@ class ApiHandler:
 
     def get_va_arg_count(self, fmt):
         """
-        Get the number of arguments in the variable argument list
+        Get the number of pointer-sized argument slots that a printf format reads
         """
-
-        # Ignore escapes
-        i = fmt.count("%%")
-        c = fmt.count("%")
-
-        if self.get_ptr_size() != 8:
-            c += fmt.count("%ll")
-        return c - 2 * i
+        ptr_size = self.get_ptr_size()
+        sizes = (size for spec in FORMAT_SPEC.finditer(fmt) for size in get_format_slot_sizes(spec, ptr_size))
+        return sum(size // ptr_size for size in sizes)
 
     def va_args(self, va_list, num_args):
         """
@@ -525,94 +545,70 @@ class ApiHandler:
         """
         Format a string similar to msvcrt.printf. With ``wide``, %s and %S
         follow the wide-character functions: %s is a wide string and %S is
-        an ANSI string, unless an h or l prefix gives the width.
+        an ANSI string, unless an h or l prefix gives the width. Missing
+        arguments read as 0.
         """
+        ptr_size = self.get_ptr_size()
+        slots = list(argv)
 
-        # Skip over the format string
-        args = list(argv)
-        new = list(string)
-        curr_fmt = ""
-        new_fmts = []
+        def next_value(size):
+            value = 0
+            for i in range(size // ptr_size):
+                value |= (slots.pop(0) if slots else 0) << (i * ptr_size * 8)
+            return value
 
-        # Very brittle format string parser, should improve later
-        inside_fmt = False
-        # Characters spliced out of new so far; every positional edit below must subtract it
-        removed = 0
-        for i, c in enumerate(string):
-            if c == "%":
-                if inside_fmt:
-                    inside_fmt = False
+        def to_signed(value, bits):
+            value &= (1 << bits) - 1
+            return value - (1 << bits) if value >> (bits - 1) else value
+
+        out = []
+        pos = 0
+        for spec in FORMAT_SPEC.finditer(string):
+            out.append(string[pos : spec.start()])
+            pos = spec.end()
+            conv, length = spec["conv"], spec["length"]
+            if conv == "%":
+                out.append("%")
+                continue
+
+            flags, width, precision = spec["flags"], spec["width"] or "", spec["precision"]
+            sizes = get_format_slot_sizes(spec, ptr_size)
+            if width == "*":
+                value = to_signed(next_value(sizes.pop(0)), 32)
+                flags += "-" if value < 0 else ""
+                width = str(abs(value))
+            if precision == "*":
+                value = to_signed(next_value(sizes.pop(0)), 32)
+                precision = str(value) if value >= 0 else None
+            fmt = f"%{flags}{width}" + (f".{precision}" if precision is not None else "")
+            size = sizes.pop(0)
+            value = next_value(size)
+            bits = INT_BITS.get(length, size * 8 if length in ("I", "z", "t") else 32)
+
+            if conv in "di":
+                out.append((fmt + "d") % to_signed(value, bits))
+            elif conv in "ouxX":
+                out.append((fmt + conv.replace("u", "d")) % (value & ((1 << bits) - 1)))
+            elif conv in "eEfFgG":
+                out.append((fmt + conv) % struct.unpack("<d", struct.pack("<Q", value))[0])
+            elif conv in "aA":
+                text = struct.unpack("<d", struct.pack("<Q", value))[0].hex()
+                out.append(text.upper() if conv == "A" else text)
+            elif conv in "pP":
+                out.append((fmt + ("x" if conv == "p" else "X")) % value)
+            elif conv in "cCsSZ":
+                is_wide = length in ("l", "w") or (length != "h" and (conv in "CS") != wide)
+                if conv in "cC":
+                    out.append((fmt + "c") % chr(value & (0xFFFF if is_wide else 0xFF)))
+                elif not value:
+                    out.append((fmt + "s") % "(null)")
+                elif conv == "Z":
+                    count = int.from_bytes(self.mem_read(value, 2), "little")
+                    buf = int.from_bytes(self.mem_read(value + ptr_size, ptr_size), "little")
+                    text = self.mem_read(buf, count).decode("utf-16le" if is_wide else "latin-1", "replace")
+                    out.append((fmt + "s") % text)
                 else:
-                    inside_fmt = True
-
-            if inside_fmt:
-                if c == "S":
-                    if wide and "l" not in string[string.rfind("%", 0, i) : i]:
-                        s = self.read_string(args.pop(0))
-                    else:
-                        s = self.read_wide_string(args.pop(0))
-                    new_fmts.append(s)
-                    new[i - removed] = "s"
-                    inside_fmt = False
-
-                elif c == "s":
-                    if curr_fmt.startswith("w"):
-                        s = self.read_wide_string(args.pop(0))
-                        new[i - 1 - removed] = "\xff"
-                        curr_fmt = ""
-                        new_fmts.append(s)
-                    elif wide and "h" not in string[string.rfind("%", 0, i) : i]:
-                        s = self.read_wide_string(args.pop(0))
-                        new_fmts.append(s)
-                    else:
-                        s = self.read_string(args.pop(0))
-                        new_fmts.append(s)
-                elif c in ("x", "X", "d", "u", "i"):
-                    if curr_fmt.startswith("ll"):
-                        if self.get_ptr_size() == 8:
-                            new_fmts.append(args.pop(0))
-                        else:
-                            low = args.pop(0)
-                            high = args.pop(0)
-                            new_fmts.append(high << 32 | low)
-                        start = i - removed
-                        new = new[: start - 2] + new[start:]
-                        removed += 2
-                        curr_fmt = ""
-                    elif curr_fmt.startswith(("z", "j", "t")):
-                        if self.get_ptr_size() == 8:
-                            new_fmts.append(args.pop(0))
-                        else:
-                            new_fmts.append(0xFFFFFFFF & args.pop(0))
-                        start = i - removed
-                        new = new[: start - 1] + new[start:]
-                        removed += 1
-                        curr_fmt = ""
-                    else:
-                        new_fmts.append(0xFFFFFFFF & args.pop(0))
-                elif c == "c":
-                    new_fmts.append(0xFF & args.pop(0))
-                elif c == "P":
-                    new[i - removed] = "X"
-                    new_fmts.append(args.pop(0))
-                elif c == "p":
-                    new[i - removed] = "x"
-                    new_fmts.append(args.pop(0))
-                elif c == "l":
-                    curr_fmt += c
-                elif c in ("z", "j", "t"):
-                    curr_fmt += c
-                elif c == "w":
-                    curr_fmt += c
-
-            if inside_fmt and c in "diuoxXfFeEgGaAcspn":
-                inside_fmt = False
-
-            if not args:
-                break
-
-        new = "".join(new)  # type: ignore[assignment]  # intentional list-to-str reuse
-        new = new.replace("\xff", "")  # type: ignore[attr-defined]  # new is str after join above
-        new = new % tuple(new_fmts)
-
-        return new
+                    text = self.read_wide_string(value) if is_wide else self.read_string(value)
+                    out.append((fmt + "s") % text)
+        out.append(string[pos:])
+        return "".join(out)
