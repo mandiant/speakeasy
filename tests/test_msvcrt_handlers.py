@@ -382,3 +382,13 @@ def test_fwrite_shows_console_output_as_text(dll_emu: Speakeasy) -> None:
     rv, displays = call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, "héllo".encode()), 1, 6, 1])
     assert rv == 6
     assert displays[0] == "héllo"
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    lconv, _ = call(se, "msvcrt", "localeconv", [])
+    decimal_point = int.from_bytes(se.mem_read(lconv, ptr_size), "little")
+    assert se.mem_read(decimal_point, 2) == b".\x00"
