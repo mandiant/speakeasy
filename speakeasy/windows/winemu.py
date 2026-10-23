@@ -3757,6 +3757,12 @@ class WindowsEmulator(BinaryEmulator):
         hnd = self.om.get_handle(mtx)  # type: ignore[union-attr]
         return hnd, mtx
 
+    def _hook_invalid_instruction(self, emu):
+        if self.config.exceptions.dispatch_handlers:
+            self.prev_pc = self.get_pc()
+            return self.dispatch_seh(ddk.STATUS_ILLEGAL_INSTRUCTION)
+        return False
+
     def _hook_interrupt(self, emu, intnum):
         """
         Called when software interrupts occur
