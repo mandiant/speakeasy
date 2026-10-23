@@ -85,3 +85,63 @@ def test_wide_s_after_ll_splice_lands_in_correct_slot(api):
 
 def test_percent_escapes_are_preserved(api):
     assert do_format(api, "100%% %zu", [7]) == "100% 7"
+
+
+@pytest.mark.parametrize(
+    "fmt, args, expected",
+    [
+        ("%hhd", [0x1FF], "-1"),
+        ("%hhu", [0x1FF], "255"),
+        ("%hd", [0x18000], "-32768"),
+        ("%d", [0xFFFFFFFF], "-1"),
+        ("%ld", [0xFFFFFFFE], "-2"),
+        ("%5d|%-5d|%05x", [7, 7, 0xAB], "    7|7    |000ab"),
+        ("%*d", [4, 7], "   7"),
+        ("%-*d|", [-4, 7], "7   |"),
+        ("%.*s", [3, 0x500000], "hel"),
+        ("%c%c", [ord("o"), ord("k")], "ok"),
+        ("%I64x", [0x1122334455667788], "1122334455667788"),
+        ("%Iu", [0x1122334455667788], str(0x1122334455667788)),
+        ("%o", [8], "10"),
+        ("%.2f", [0x400921FB54442D18], "3.14"),
+        ("%g", [0x3FF8000000000000], "1.5"),
+        ("%s", [0], "(null)"),
+        ("%hs", [0x500000], "hello"),
+        ("%d%n!", [1, 0x700000], "1!"),
+        ("%y %d", [5], "%y 5"),
+        ("%d %d", [5], "5 0"),
+    ],
+)
+def test_conversions_follow_the_msvc_printf_rules(api, fmt, args, expected):
+    api.strings[0x500000] = b"hello"
+
+    assert do_format(api, fmt, args) == expected
+
+
+def test_x86_64_bit_values_take_two_slots():
+    api = FakeFormatApi(ptr_size=4)
+
+    assert do_format(api, "%I64x %.1f %d", [0x55667788, 0x11223344, 0, 0x3FF80000, 7]) == "1122334455667788 1.5 7"
+
+
+def test_wide_functions_swap_the_default_string_width(api):
+    api.strings[0x500000] = b"narrow"
+    api.strings[0x600000] = "wide".encode("utf-16le")
+
+    assert ApiHandler.do_str_format(
+        api, "%s %S %hs %ls %C", [0x600000, 0x500000, 0x500000, 0x600000, 0x41], wide=True
+    ) == ("wide narrow narrow wide A")
+
+
+@pytest.mark.parametrize(
+    "ptr_size, fmt, slots",
+    [
+        (4, "%d %s", 2),
+        (4, "%lld %f %I64x", 6),
+        (4, "%*.*s %%", 3),
+        (8, "%lld %f %I64x", 3),
+        (8, "100%% %hhd %n", 2),
+    ],
+)
+def test_va_arg_count_counts_argument_slots(ptr_size, fmt, slots):
+    assert ApiHandler.get_va_arg_count(FakeFormatApi(ptr_size), fmt) == slots
