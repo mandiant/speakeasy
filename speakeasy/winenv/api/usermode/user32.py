@@ -60,7 +60,8 @@ class User32(api.ApiHandler):
         self.win: Any | None = None
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
-        self.timer_count: int = 0
+        self.timers: list[tuple[int, int, int]] = []
+        self.next_timer: int = 0
         self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
         self.synthetic_async_keys = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index = 0
@@ -692,10 +693,14 @@ class User32(api.ApiHandler):
         try:
             msg = t.message_queue.pop(0)
         except IndexError:
-            if self.timer_count > 0:
+            if self.timers:
+                hwnd, tid, proc = self.timers[self.next_timer % len(self.timers)]
+                self.next_timer += 1
                 msg = windefs.MSG(emu.get_ptr_size())
-                msg.hwnd = hWnd
+                msg.hwnd = hwnd
                 msg.message = windefs.WM_TIMER
+                msg.wParam = tid
+                msg.lParam = proc
             else:
                 synthetic = self.emit_synthetic_keyboard_hook_event(emu)
                 if synthetic is None:
@@ -736,6 +741,16 @@ class User32(api.ApiHandler):
         msg = windefs.MSG(emu.get_ptr_size())
         msg = self.mem_cast(msg, lpMsg)
 
+        if msg.message == windefs.WM_TIMER and msg.lParam:
+            self.setup_callback(msg.lParam, (msg.hwnd, msg.message, msg.wParam, msg.time))
+            return 0
+        wndproc = self.wndprocs.get(msg.hwnd)
+        window = self.sessman.get_window(msg.hwnd)
+        if not wndproc and window:
+            wc = self.sessman.get_window_class(window.class_name)
+            wndproc = wc.wclass.lpfnWndProc if wc else 0
+        if wndproc:
+            self.setup_callback(wndproc, (msg.hwnd, msg.message, msg.wParam, msg.lParam))
         return 0
 
     @apihook("GetForegroundWindow", argc=0)
@@ -1366,9 +1381,14 @@ class User32(api.ApiHandler):
           TIMERPROC lpTimerFunc
         );
         """
-        self.timer_count += 1
-
-        return self.get_handle()
+        hWnd, nIDEvent, uElapse, lpTimerFunc = argv
+        if hWnd:
+            self.timers = [t for t in self.timers if t[:2] != (hWnd, nIDEvent)]
+            self.timers.append((hWnd, nIDEvent, lpTimerFunc))
+            return nIDEvent
+        tid = self.get_handle()
+        self.timers.append((0, tid, lpTimerFunc))
+        return tid
 
     @apihook("KillTimer", argc=2)
     def KillTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1378,8 +1398,8 @@ class User32(api.ApiHandler):
           UINT_PTR uIDEvent
         );
         """
-        self.timer_count -= 1
-
+        hWnd, uIDEvent = argv
+        self.timers = [t for t in self.timers if t[:2] != (hWnd, uIDEvent)]
         return True
 
     @apihook("OpenDesktop", argc=4)

@@ -29,6 +29,46 @@ def test_get_message_writes_one_msg(request: pytest.FixtureRequest, fixture: str
     assert rv == 0
 
 
+def get_timer_message(se: Speakeasy) -> tuple[int, int, int, int]:
+    assert se.emu is not None
+    ps = se.emu.get_ptr_size()
+    buf = alloc(se, b"\x00" * 0x30)
+    rv, _ = call(se, "user32", "GetMessageA", [buf, 0, 0, 0])
+    assert rv
+    hwnd, message, wparam, lparam = (int.from_bytes(se.mem_read(buf + i * ps, ps), "little") for i in range(4))
+    assert message & 0xFFFFFFFF == 0x113
+    call(se, "user32", "DispatchMessageA", [buf])
+    return hwnd, wparam, lparam, se.emu.get_current_run().api_callbacks[-1].function
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_timer_messages_call_the_timer_proc(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    tid, _ = call(se, "user32", "SetTimer", [0, 0, 10, 0x401000])
+    assert tid
+    assert get_timer_message(se) == (0, tid, 0x401000, 0x401000)
+
+
+def test_timer_messages_without_a_proc_go_to_the_window_proc(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    atom = register_class(dll_emu, b"mycls", 0x402000)
+    hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, atom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert call(dll_emu, "user32", "SetTimer", [hwnd, 7, 10, 0])[0] == 7
+    assert get_timer_message(dll_emu) == (hwnd, 7, 0, 0x402000)
+
+
+def test_timer_messages_rotate_and_stop_after_kill_timer(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    first, _ = call(dll_emu, "user32", "SetTimer", [0, 0, 10, 0x401000])
+    second, _ = call(dll_emu, "user32", "SetTimer", [0, 0, 10, 0x401100])
+    assert [get_timer_message(dll_emu)[1] for _ in range(3)] == [first, second, first]
+    assert call(dll_emu, "user32", "KillTimer", [0, first])[0]
+    assert [get_timer_message(dll_emu)[1] for _ in range(2)] == [second, second]
+    call(dll_emu, "user32", "KillTimer", [0, second])
+    assert not call(dll_emu, "user32", "GetMessageA", [alloc(dll_emu, b"\x00" * 0x30), 0, 0, 0])[0]
+
+
 def register_class(se: Speakeasy, name: bytes | int, wndproc: int) -> int:
     assert se.emu is not None
     p = "I" if se.emu.get_ptr_size() == 4 else "Q"
