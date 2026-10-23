@@ -60,6 +60,7 @@ X64_CASES = {
     0x08: "filter returns EXCEPTION_CONTINUE_EXECUTION",
     0x10: "vectored handler steps over int3",
     0x20: "exception caught in the caller's frame",
+    0x40: "bad pointer read by an API faults in its caller",
 }
 
 
@@ -81,6 +82,7 @@ def test_seh_dispatch_x64(config, load_test_bin, run_test):
         ("0xe0000003", None),
         ("0x80000003", None),
         ("0xe0000005", None),
+        ("0xc0000005", "0x10"),
     ]
 
 

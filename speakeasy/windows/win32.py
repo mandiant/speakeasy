@@ -5,6 +5,8 @@ import ntpath
 import os
 import shlex
 
+from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
+
 import speakeasy.common as common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
@@ -654,6 +656,10 @@ class Win32Emulator(WindowsEmulator):
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
             self.add_interrupt_hook(cb=self._hook_interrupt)
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
+            if self.get_arch() == _arch.ARCH_AMD64 and self.config.exceptions.dispatch_handlers:
+                # User mode cannot execute these; Windows raises an exception instead
+                self.emu_eng.hook_add(htype=common.HOOK_INSN, cb=self._hook_in_instruction, arg1=UC_X86_INS_IN)
+                self.emu_eng.hook_add(htype=common.HOOK_INSN, cb=self._hook_out_instruction, arg1=UC_X86_INS_OUT)
             self.builtin_hooks_set = True
 
         self.set_mem_tracing_hooks()

@@ -11,7 +11,7 @@ import time
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
 import speakeasy.windows.seh64 as seh64
-import speakeasy.windows.unwind as unwind
+import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
@@ -39,6 +39,7 @@ LOCALE_SYSTEM_DEFAULT = 0x0800
 
 SEC_IMAGE = 0x1000000
 EXCEPTION_NONCONTINUABLE = 0x1
+CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
 
 FILE_MAP_COPY = 0x0001
 FILE_MAP_WRITE = 0x0002
@@ -162,6 +163,12 @@ class Kernel32(api.ApiHandler):
 
         self.heaps.append(heap)
         return heap
+
+    def get_thread_from_handle(self, emu, handle):
+        """The thread of a handle, including the pseudo handle of the current thread."""
+        if (handle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE:
+            return emu.get_current_thread()
+        return self.get_object_from_handle(handle)
 
     def win_perms_to_emu_perms(self, win_perms):
         new = 0
@@ -1010,7 +1017,11 @@ class Kernel32(api.ApiHandler):
         """Apply the protection of a commit to the pages of an existing allocation, and return the first page."""
         base = address & ~0xFFF
         end = min((address + size + 0xFFF) & ~0xFFF, mm.base + mm.size)
-        emu.mem_protect(base, end - base, self.win_perms_to_emu_perms(protect))
+        perms = self.win_perms_to_emu_perms(protect)
+        emu.clear_guard_pages(base, end - base)
+        emu.mem_protect(base, end - base, perms)
+        if protect & windefs.PAGE_GUARD:
+            emu.set_guard_pages(base, end - base, perms)
         return base
 
     @apihook("VirtualAlloc", argc=4)
@@ -1058,6 +1069,8 @@ class Kernel32(api.ApiHandler):
 
                 emu_perms = self.win_perms_to_emu_perms(flProtect)
                 buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
+                if flProtect & windefs.PAGE_GUARD:
+                    emu.set_guard_pages(buf, size, emu_perms)
 
                 proc = emu.get_current_process()
                 if proc:
@@ -1137,6 +1150,8 @@ class Kernel32(api.ApiHandler):
                 buf = self.mem_alloc(
                     base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms, process=obj
                 )
+                if flProtect & windefs.PAGE_GUARD and obj is emu.get_current_process():
+                    emu.set_guard_pages(buf, size, emu_perms)
                 mm = emu.get_address_map(buf)
 
                 self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect)
@@ -1475,7 +1490,11 @@ class Kernel32(api.ApiHandler):
         mbi.AllocationProtect = self.emu_perms_to_win_perms(mm.prot)
         mbi.RegionSize = size
         mbi.State = windefs.MEM_COMMIT
-        mbi.Protect = self.emu_perms_to_win_perms(prot)
+        page = lpAddress & ~(PAGE_SIZE - 1)
+        if page in emu.guard_pages:
+            mbi.Protect = self.emu_perms_to_win_perms(emu.guard_pages[page]) | windefs.PAGE_GUARD
+        else:
+            mbi.Protect = self.emu_perms_to_win_perms(prot)
         mbi.Type = 0
 
         self.mem_write(lpBuffer, mbi.get_bytes())
@@ -1521,7 +1540,13 @@ class Kernel32(api.ApiHandler):
             if remainder:
                 size += 0x1000
 
+            old_prot &= ~windefs.PAGE_GUARD
+            if addr in emu.guard_pages:
+                old_prot |= windefs.PAGE_GUARD
             emu.mem_protect(addr, size, new)
+            emu.clear_guard_pages(addr, size)
+            if flNewProtect & windefs.PAGE_GUARD:
+                emu.set_guard_pages(addr, size, new)
             mm.prot = new
             self.mem_write(lpflOldProtect, old_prot.to_bytes(4, "little"))
             return 1
@@ -1576,6 +1601,7 @@ class Kernel32(api.ApiHandler):
         for m in maps:
             if m.base == lpAddress:
                 m.free = True
+                emu.clear_guard_pages(m.base, dwSize or m.size)
                 rv = True
                 break
 
@@ -5281,9 +5307,18 @@ class Kernel32(api.ApiHandler):
 
         hThread, lpContext = argv
 
-        obj = self.get_object_from_handle(hThread)
+        obj = self.get_thread_from_handle(emu, hThread)
         if not obj:
             return False
+
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            # Fill only the sections ContextFlags asks for; the current thread's are live
+            target = seh64.read_context(emu, lpContext)
+            source = emu.get_thread_context() if obj is emu.get_current_thread() else obj.get_context()
+            thread_context.get_debug_registers(obj, source)
+            thread_context.copy_sections(source, target, target.ContextFlags)
+            self.mem_write(lpContext, target.get_bytes())
+            return True
 
         context = obj.get_context()
 
@@ -5302,7 +5337,7 @@ class Kernel32(api.ApiHandler):
 
         hThread, lpContext = argv
 
-        obj = self.get_object_from_handle(hThread)
+        obj = self.get_thread_from_handle(emu, hThread)
         if not obj:
             return False
 
@@ -5313,6 +5348,10 @@ class Kernel32(api.ApiHandler):
         if lpContext:
             _context = self.mem_cast(context, lpContext)
             obj.set_context(_context)
+            if emu.get_arch() == e_arch.ARCH_AMD64 and thread_context.has(
+                _context.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS
+            ):
+                thread_context.set_debug_registers(obj, _context)
             if obj.process:
                 obj.process.is_modified = True
 
@@ -7195,7 +7234,14 @@ class Kernel32(api.ApiHandler):
 
     @apihook("RtlCaptureContext", argc=1)
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID RtlCaptureContext(
+          PCONTEXT ContextRecord
+        );
+        """
         ptr = argv[0]
+        if ptr and emu.get_arch() == e_arch.ARCH_AMD64:
+            return seh64.capture_context(emu, ptr)
         if ptr:
             try:
                 ctx_buf = b"\x00" * (0x4D0 if emu.get_ptr_size() == 8 else 0x2CC)
@@ -7209,6 +7255,19 @@ class Kernel32(api.ApiHandler):
                 pass
         return True
 
+    @apihook("RtlRestoreContext", argc=2)
+    def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID RtlRestoreContext(
+          PCONTEXT ContextRecord,
+          _EXCEPTION_RECORD *ExceptionRecord
+        );
+        """
+        ContextRecord, _ = argv
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return
+        return seh64.restore_context(emu, ContextRecord)
+
     @apihook("RtlLookupFunctionEntry", argc=3)
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -7219,12 +7278,9 @@ class Kernel32(api.ApiHandler):
         );
         """
         ControlPc, ImageBase, _ = argv
-        module = emu.get_module_from_addr(ControlPc)
-        fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, ControlPc)
-        if not fn:
+        if emu.get_arch() != e_arch.ARCH_AMD64:
             return 0
-        emu.write_ptr(ImageBase, fn.image_base)
-        return fn.address
+        return seh64.lookup_function_entry(emu, ControlPc, ImageBase)
 
     @apihook("RtlVirtualUnwind", argc=8)
     def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7240,14 +7296,9 @@ class Kernel32(api.ApiHandler):
           PKNONVOLATILE_CONTEXT_POINTERS ContextPointers
         );
         """
-        HandlerType, ImageBase, ControlPc, FunctionEntry, ContextRecord, HandlerData, EstablisherFrame, _ = argv
-        fn = unwind.read_runtime_function(emu.mem_read, ImageBase, FunctionEntry)
-        context = seh64.read_context(emu, ContextRecord)
-        info = unwind.virtual_unwind(emu.mem_read, fn, ControlPc, context, HandlerType)
-        emu.mem_write(ContextRecord, context.get_bytes())
-        emu.write_ptr(HandlerData, info.handler_data)
-        emu.write_ptr(EstablisherFrame, info.establisher_frame)
-        return info.handler
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return 0
+        return seh64.virtual_unwind(emu, *argv[:7])
 
     @apihook("MulDiv", argc=3)
     def MulDiv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

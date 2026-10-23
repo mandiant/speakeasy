@@ -22,10 +22,13 @@ import unicorn as uc
 
 import speakeasy.windows.common as winemu
 import speakeasy.windows.guest_callbacks as guest_callbacks
+import speakeasy.windows.thread_context as thread_context
+import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler import GuestCallbackFrame
 from speakeasy.windows import unwind
+from speakeasy.windows.cpu_exceptions import STATUS_GUARD_PAGE_VIOLATION, CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
 
 EXCEPTION_NONCONTINUABLE = 0x01
@@ -54,6 +57,10 @@ SCOPE_INDEX_OFFSET = 9 * 8
 
 MAX_FRAMES = 256
 
+TRAP_FLAG = 0x100
+
+MEMORY_FAULTS = (ddk.STATUS_ACCESS_VIOLATION, STATUS_GUARD_PAGE_VIOLATION)
+
 
 class UnhandledException(guest_callbacks.CallbackError):
     kind = "unhandled_exception"
@@ -80,6 +87,12 @@ def register_state(ctx) -> dict[str, str]:
     """The general purpose registers of ctx, formatted like the emulator's register state."""
     names = ("Rsp", "Rbp", "Rip", "Rsi", "Rdi", "Rax", "Rbx", "Rcx", "Rdx") + tuple(f"R{i}" for i in range(8, 16))
     return {name.lower(): f"{getattr(ctx, name):#018x}" for name in names}
+
+
+def resume_at(emu, ctx) -> Resume:
+    """Continue the guest at ctx once the exception is handled."""
+    emu.note_seh_resume(ctx.Rip)
+    return Resume(ctx)
 
 
 def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.RuntimeFunction, unwind.FrameInfo]]:
@@ -132,22 +145,22 @@ def exception_record(code: int, flags: int, address: int, params=()) -> bytes:
     return EXCEPTION_RECORD.pack(code, flags, 0, address, len(params), *params, *[0] * (15 - len(params)))
 
 
-def dispatch_fault(emu, code: int, faulting_address: int | None = None, access_type: str | None = None) -> bool:
+def dispatch_fault(emu, exception: CpuException) -> bool:
     """
     Dispatch a CPU exception like KiUserExceptionDispatcher: on the stack of the
     faulting thread. Return False when no handler takes it.
     """
     ctx = emu.get_thread_context()
-    if code == ddk.STATUS_BREAKPOINT:
-        ctx.Rip -= 1  # Windows reports the address of the int3, Unicorn the one after it
-    params = ()
-    if code == ddk.STATUS_ACCESS_VIOLATION and faulting_address is not None:
-        params = ({"read": 0, "write": 1, "fetch": 8}.get(access_type, 0), faulting_address)
+    ctx.Rip = exception.pc
+    if exception.code == ddk.STATUS_SINGLE_STEP:
+        ctx.EFlags &= ~TRAP_FLAG
+    # Handlers run with the trap flag clear
+    emu.reg_write(_arch.X86_REG_EFLAGS, emu.reg_read(_arch.X86_REG_EFLAGS) & ~TRAP_FLAG)
 
     def dispatch() -> GeneratorHandler:
         context = guest_callbacks.alloca(emu, ctx.get_bytes())
         guest_callbacks.current(emu).context = context  # an unwind through this frame continues at the fault
-        record = guest_callbacks.alloca(emu, exception_record(code, 0, ctx.Rip, params))
+        record = guest_callbacks.alloca(emu, exception_record(exception.code, 0, exception.address, exception.params))
         return (yield from dispatch_exception(emu, record, context))
 
     frame = GuestCallbackFrame(stack_pointer=ctx.Rsp, return_address=0)
@@ -183,15 +196,15 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
         """Report the exception once, when the first handler receives it."""
         nonlocal recorded
         if not recorded:
-            # an access violation's parameters are the access type and the address
-            faulting_address = information[1] if code == ddk.STATUS_ACCESS_VIOLATION else None
+            # the parameters of these are the access type and the address
+            faulting_address = information[1] if code in MEMORY_FAULTS else None
             emu.record_exception(code, address, handler, register_state(read_context(emu, context)), faulting_address)
             recorded = True
 
     def resume():
         if flags & EXCEPTION_NONCONTINUABLE:
             raise UnhandledException(STATUS_NONCONTINUABLE_EXCEPTION, address)
-        return Resume(read_context(emu, context))
+        return resume_at(emu, read_context(emu, context))
 
     for handler in list(emu.veh_handlers):
         offer(handler)
@@ -241,7 +254,7 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
             yield GuestCall(info.handler, (record, info.establisher_frame, unwound, dispatcher_context))
         if is_target:
             frame_ctx.Rip, frame_ctx.Rax = target_ip, return_value
-            return Resume(frame_ctx)
+            return resume_at(emu, frame_ctx)
     raise UnhandledException(STATUS_INVALID_UNWIND_TARGET, target_ip)
 
 
@@ -285,3 +298,49 @@ def c_specific_handler(
             emu.mem_write(dispatcher_context + SCOPE_INDEX_OFFSET, struct.pack("<I", index + 1))
             yield GuestCall(image_base + handler, (1, establisher_frame))  # AbnormalTermination() is TRUE
     return windefs.ExceptionContinueSearch
+
+
+# API implementations that kernel32 and ntdll share
+
+
+def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
+    """RtlRaiseException: dispatch the caller's record, raised at the caller."""
+    ctx = guest_callbacks.caller_context(emu)
+    emu.write_ptr(record + 16, ctx.Rip)  # ExceptionAddress
+    return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
+
+
+def capture_context(emu, address: int) -> None:
+    """RtlCaptureContext: the context of the caller."""
+    context = guest_callbacks.caller_context(emu)
+    context.ContextFlags = thread_context.CONTEXT_FULL | thread_context.CONTEXT_SEGMENTS
+    emu.mem_write(address, context.get_bytes())
+
+
+def restore_context(emu, address: int) -> Resume:
+    """RtlRestoreContext and NtContinue: continue at a context."""
+    return Resume(read_context(emu, address))
+
+
+def lookup_function_entry(emu, pc: int, image_base_out: int) -> int:
+    """RtlLookupFunctionEntry"""
+    module = emu.get_module_from_addr(pc)
+    fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
+    if not fn:
+        return 0
+    if image_base_out:
+        emu.write_ptr(image_base_out, fn.image_base)
+    return fn.address
+
+
+def virtual_unwind(
+    emu, handler_type: int, image_base: int, pc: int, entry: int, context: int, handler_data_out: int, frame_out: int
+) -> int:
+    """RtlVirtualUnwind: unwind the CONTEXT at context by one frame, and return the frame's handler."""
+    fn = unwind.read_runtime_function(emu.mem_read, image_base, entry)
+    ctx = read_context(emu, context)
+    info = unwind.virtual_unwind(emu.mem_read, fn, pc, ctx, handler_type)
+    emu.mem_write(context, ctx.get_bytes())
+    emu.write_ptr(handler_data_out, info.handler_data)
+    emu.write_ptr(frame_out, info.establisher_frame)
+    return info.handler
