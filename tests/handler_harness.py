@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.profiler import ApiCallbackFrame, Run
+from speakeasy.profiler import GuestCallbackFrame, Run
 from speakeasy.windows import objman
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
@@ -71,7 +71,7 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
         args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
     ctx = ApiContext(func_name=f"{dll}.{name}", args=args)
     previous = emu._active_api_frame
-    emu._active_api_frame = ApiCallbackFrame(emu.get_stack_ptr(), return_address=0)
+    emu._active_api_frame = GuestCallbackFrame(emu.get_stack_ptr(), return_address=0)
     try:
         rv = func(mod, emu, list(argv), ctx)
     finally:

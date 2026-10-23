@@ -537,11 +537,11 @@ class ApiHandler:
         run = self.emu.get_current_run()
 
         frame = self.emu._active_api_frame
-        if any(item is frame for item in run.api_callbacks):
+        if any(item is frame for item in run.guest_callbacks):
             frame.pending.append((func, tuple(args)))
             return
-        self.emu.start_api_callback(frame, func, args)
-        run.api_callbacks.append(frame)
+        self.emu.start_guest_callback(frame, func, args)
+        run.guest_callbacks.append(frame)
 
     def do_str_format(self, string, argv, wide=False):
         """

@@ -50,3 +50,45 @@ def test_seh_without_dispatch(config, load_test_bin, run_test):
 
     assert error.type == "invalid_write"
     assert error.instr == "mov dword ptr [0], 0x14"
+
+
+# Bits of the return value of seh_test_x64.exe, one per case
+X64_CASES = {
+    0x01: "RaiseException caught by __except(1)",
+    0x02: "filter function, then __finally during the unwind",
+    0x04: "access violation in a leaf function",
+    0x08: "filter returns EXCEPTION_CONTINUE_EXECUTION",
+    0x10: "vectored handler steps over int3",
+    0x20: "exception caught in the caller's frame",
+}
+
+
+def test_seh_dispatch_x64(config, load_test_bin, run_test):
+    cfg = copy.deepcopy(config)
+    cfg["exceptions"]["dispatch_handlers"] = True
+    report = run_test(cfg, load_test_bin("seh_test_x64.exe.xz"))
+
+    ep = report.entry_points[0]
+    assert ep.error is None
+    failed = [case for bit, case in X64_CASES.items() if not ep.ret_val & bit]
+    assert not failed
+
+    exceptions = [(e.exception_code, e.faulting_address) for e in ep.events or [] if e.event == "exception"]
+    assert exceptions == [
+        ("0xe0000001", None),
+        ("0xe0000002", None),
+        ("0xc0000005", "0x0"),
+        ("0xe0000003", None),
+        ("0x80000003", None),
+        ("0xe0000005", None),
+    ]
+
+
+def test_seh_without_dispatch_x64(config, load_test_bin, run_test):
+    cfg = copy.deepcopy(config)
+    cfg["exceptions"]["dispatch_handlers"] = False
+    report = run_test(cfg, load_test_bin("seh_test_x64.exe.xz"))
+
+    error = report.entry_points[0].error
+    assert error.type == "invalid_write"
+    assert error.instr == "mov dword ptr [0], 1"

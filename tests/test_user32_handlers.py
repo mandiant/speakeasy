@@ -38,7 +38,7 @@ def get_timer_message(se: Speakeasy) -> tuple[int, int, int, int]:
     hwnd, message, wparam, lparam = (int.from_bytes(se.mem_read(buf + i * ps, ps), "little") for i in range(4))
     assert message & 0xFFFFFFFF == 0x113
     call(se, "user32", "DispatchMessageA", [buf])
-    return hwnd, wparam, lparam, se.emu.get_current_run().api_callbacks[-1].function
+    return hwnd, wparam, lparam, se.emu.get_current_run().guest_callbacks[-1].function
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
@@ -101,7 +101,7 @@ def test_create_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
     assert hwnd
     rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
     assert rv
-    assert [cb.function for cb in dll_emu.emu.get_current_run().api_callbacks] == [0x401000]
+    assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
 
 
 def test_update_window_with_an_unknown_class(dll_emu: Speakeasy) -> None:
@@ -388,7 +388,7 @@ def test_register_class_without_ex_registers_the_window_procedure(request: pytes
     assert atom
     hwnd, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert call(se, "user32", "UpdateWindow", [hwnd])[0]
-    assert [cb.function for cb in se.emu.get_current_run().api_callbacks] == [0x401000]
+    assert [cb.function for cb in se.emu.get_current_run().guest_callbacks] == [0x401000]
 
 
 def test_clipboard_reports_no_text(dll_emu: Speakeasy) -> None:

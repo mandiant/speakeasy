@@ -619,7 +619,7 @@ def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_
     item = call(driver_emu, "ntoskrnl", "IoAllocateWorkItem", [device])[0]
     assert item
     call(driver_emu, "ntoskrnl", "IoQueueWorkItem", [item, 0x401000, 1, 0x1234])
-    assert [cb.function for cb in driver_emu.emu.get_current_run().api_callbacks] == [0x401000]
+    assert [cb.function for cb in driver_emu.emu.get_current_run().guest_callbacks] == [0x401000]
     sp = driver_emu.emu.get_stack_ptr()
     assert struct.unpack("<3I", driver_emu.mem_read(sp, 12))[1:] == (device, 0x1234)
     call(driver_emu, "ntoskrnl", "IoFreeWorkItem", [item])

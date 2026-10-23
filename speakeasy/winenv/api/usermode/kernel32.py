@@ -10,6 +10,8 @@ import time
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.seh64 as seh64
+import speakeasy.windows.unwind as unwind
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
@@ -5609,11 +5611,14 @@ class Kernel32(api.ApiHandler):
         );
         """
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
-        if emu.get_arch() != e_arch.ARCH_X86 or not emu.config.exceptions.dispatch_handlers:
+        if not emu.config.exceptions.dispatch_handlers:
             return
 
         count = min(nNumberOfArguments, 15) if lpArguments else 0
-        params = [emu.read_ptr(lpArguments + i * 4) for i in range(count)]
+        params = [emu.read_ptr(lpArguments + i * emu.get_ptr_size()) for i in range(count)]
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            return seh64.raise_exception(emu, dwExceptionCode, dwExceptionFlags, params)
+
         emu.do_call_return(len(argv), emu.get_ret_address(), conv=e_arch.CALL_CONV_STDCALL)
         emu.prev_pc = emu.get_pc()
         handled = emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params, check_repeat=False)
@@ -6739,6 +6744,21 @@ class Kernel32(api.ApiHandler):
         """
         return
 
+    @apihook("RtlUnwindEx", argc=6)
+    def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID RtlUnwindEx(
+          PVOID TargetFrame,
+          PVOID TargetIp,
+          PEXCEPTION_RECORD ExceptionRecord,
+          PVOID ReturnValue,
+          PCONTEXT ContextRecord,
+          PUNWIND_HISTORY_TABLE HistoryTable
+        );
+        """
+        TargetFrame, TargetIp, ExceptionRecord, ReturnValue, _, _ = argv
+        return seh64.rtl_unwind_ex(emu, TargetFrame, TargetIp, ExceptionRecord, ReturnValue)
+
     @apihook("__C_specific_handler", argc=4)
     def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -6749,10 +6769,12 @@ class Kernel32(api.ApiHandler):
             PDISPATCHER_CONTEXT DispatcherContext
         );
 
-        The scope table filters are not run, so no __except block of the frame
-        handles the exception.
+        On x86 the scope table filters are not run, so no __except block of the
+        frame handles the exception.
         """
-        return windefs.ExceptionContinueSearch
+        if emu.get_arch() != e_arch.ARCH_AMD64:
+            return windefs.ExceptionContinueSearch
+        return seh64.c_specific_handler(emu, *argv)
 
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7189,7 +7211,43 @@ class Kernel32(api.ApiHandler):
 
     @apihook("RtlLookupFunctionEntry", argc=3)
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return 0
+        """
+        PRUNTIME_FUNCTION RtlLookupFunctionEntry(
+          DWORD64 ControlPc,
+          PDWORD64 ImageBase,
+          PUNWIND_HISTORY_TABLE HistoryTable
+        );
+        """
+        ControlPc, ImageBase, _ = argv
+        module = emu.get_module_from_addr(ControlPc)
+        fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, ControlPc)
+        if not fn:
+            return 0
+        emu.write_ptr(ImageBase, fn.image_base)
+        return fn.address
+
+    @apihook("RtlVirtualUnwind", argc=8)
+    def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PEXCEPTION_ROUTINE RtlVirtualUnwind(
+          DWORD HandlerType,
+          DWORD64 ImageBase,
+          DWORD64 ControlPc,
+          PRUNTIME_FUNCTION FunctionEntry,
+          PCONTEXT ContextRecord,
+          PVOID *HandlerData,
+          PDWORD64 EstablisherFrame,
+          PKNONVOLATILE_CONTEXT_POINTERS ContextPointers
+        );
+        """
+        HandlerType, ImageBase, ControlPc, FunctionEntry, ContextRecord, HandlerData, EstablisherFrame, _ = argv
+        fn = unwind.read_runtime_function(emu.mem_read, ImageBase, FunctionEntry)
+        context = seh64.read_context(emu, ContextRecord)
+        info = unwind.virtual_unwind(emu.mem_read, fn, ControlPc, context, HandlerType)
+        emu.mem_write(ContextRecord, context.get_bytes())
+        emu.write_ptr(HandlerData, info.handler_data)
+        emu.write_ptr(EstablisherFrame, info.establisher_frame)
+        return info.handler
 
     @apihook("MulDiv", argc=3)
     def MulDiv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
