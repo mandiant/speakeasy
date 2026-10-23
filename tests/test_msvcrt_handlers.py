@@ -398,3 +398,11 @@ def test_realloc_keeps_the_contents(dll_emu: Speakeasy) -> None:
     shrunk, _ = call(dll_emu, "msvcrt", "realloc", [grown, 2])
     assert dll_emu.mem_read(shrunk, 2) == b"ab"
     assert call(dll_emu, "msvcrt", "realloc", [shrunk, 0])[0] == 0
+
+
+def test_getenv_ignores_case_and_returns_null_when_missing(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    name, value = next(iter(dll_emu.emu.get_env().items()))
+    rv, _ = call(dll_emu, "msvcrt", "getenv", [alloc(dll_emu, name.upper().encode() + b"\x00")])
+    assert dll_emu.mem_read(rv, len(value) + 1) == value.encode() + b"\x00"
+    assert call(dll_emu, "msvcrt", "getenv", [alloc(dll_emu, b"NO_SUCH_VARIABLE\x00")])[0] == 0
