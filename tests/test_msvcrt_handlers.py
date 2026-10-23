@@ -915,3 +915,40 @@ def test_lc_locale_name_func_gives_the_c_locale_names(request: pytest.FixtureReq
 @pytest.mark.parametrize("name", ["_lock_file", "_unlock_file"])
 def test_file_locks_are_accepted(dll_emu: Speakeasy, name: str) -> None:
     call(dll_emu, "msvcrt", name, [alloc(dll_emu, b"\x00" * 0x20)])
+
+
+def put_with(api: str) -> Callable[[Speakeasy, int], None]:
+    def write(se: Speakeasy, stream: int) -> None:
+        if api == "fputs":
+            call(se, "msvcrt", "fputs", [alloc(se, b"id=7\x00"), stream])
+        elif api == "fputc":
+            for c in b"id=7":
+                call(se, "msvcrt", "fputc", [c, stream])
+        elif api == "fprintf":
+            call(se, "msvcrt", "fprintf", [stream, alloc(se, b"%s=%d\x00"), alloc(se, b"id\x00"), 7])
+        elif api == "fwprintf":
+            call(
+                se,
+                "msvcrt",
+                "fwprintf",
+                [stream, alloc(se, "%s=%d\x00".encode("utf-16le")), alloc(se, "id\x00".encode("utf-16le")), 7],
+            )
+        elif api == "vfprintf":
+            va = alloc(se, struct.pack("<II", alloc(se, b"id\x00"), 7))
+            call(se, "msvcrt", "vfprintf", [stream, alloc(se, b"%s=%d\x00"), va])
+        elif api == "__stdio_common_vfprintf":
+            va = alloc(se, struct.pack("<II", alloc(se, b"id\x00"), 7))
+            call(se, "msvcrt", api, [0, 0, stream, alloc(se, b"%s=%d\x00"), 0, va])
+
+    return write
+
+
+@pytest.mark.parametrize("api", ["fputs", "fputc", "fprintf", "fwprintf", "vfprintf", "__stdio_common_vfprintf"])
+def test_text_output_reaches_a_file_stream(dll_emu: Speakeasy, api: str) -> None:
+    path = alloc(dll_emu, b"c:\\users\\public\\run.bat\x00")
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"w+\x00")])
+    put_with(api)(dll_emu, stream)
+    out = alloc(dll_emu, b"\x00" * 16)
+
+    assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, stream])[0] == 4
+    assert dll_emu.mem_read(out, 4) == b"id=7"
