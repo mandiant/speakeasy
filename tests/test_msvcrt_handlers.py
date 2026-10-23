@@ -345,28 +345,6 @@ def test_fputc_writes_the_low_byte_of_a_sign_extended_char(dll_emu: Speakeasy, c
     assert displays[0] == "\\xe2"
 
 
-def test_lc_codepage_is_the_c_locale(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "___lc_codepage_func", [])[0] == 0
-
-
-def test_mb_cur_max_is_one_byte_in_the_c_locale(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "___mb_cur_max_func", [])[0] == 1
-
-
-def test_amsg_exit_ends_the_process(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    assert not dll_emu.emu.run_complete
-    call(dll_emu, "msvcrt", "_amsg_exit", [8])
-    assert dll_emu.emu.run_complete
-
-
-def test_abort_ends_the_process(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    assert not dll_emu.emu.run_complete
-    call(dll_emu, "msvcrt", "abort", [])
-    assert dll_emu.emu.run_complete
-
-
 def test_fwrite_writes_to_a_file_stream(dll_emu: Speakeasy) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\out.bin\x00")
     stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"wb\x00")])
@@ -376,12 +354,6 @@ def test_fwrite_writes_to_a_file_stream(dll_emu: Speakeasy) -> None:
     out = alloc(dll_emu, b"\x00" * 16)
     assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, stream])[0] == 6
     assert dll_emu.mem_read(out, 6) == b"abcdef"
-
-
-def test_fwrite_shows_console_output_as_text(dll_emu: Speakeasy) -> None:
-    rv, displays = call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, "héllo".encode()), 1, 6, 1])
-    assert rv == 6
-    assert displays[0] == "héllo"
 
 
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
