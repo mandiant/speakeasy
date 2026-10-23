@@ -3508,7 +3508,8 @@ class Kernel32(api.ApiHandler):
           SIZE_T dwNumberOfBytesToMap
         );
         """
-        return self.map_view(emu, *argv, 0)
+        hmap, access, offset_high, offset_low, bytes_to_map = argv
+        return self.map_view(emu, hmap, access, offset_high, offset_low, bytes_to_map, 0)
 
     @apihook("MapViewOfFileEx", argc=6)
     def MapViewOfFileEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
