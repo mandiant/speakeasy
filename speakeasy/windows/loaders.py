@@ -121,6 +121,7 @@ class LoadedImage:
     stack_size: int = 0x12000
     tls_callbacks: list[int] = field(default_factory=list)
     tls_directory_va: int | None = None
+    resource_directory: tuple[int, int] | None = None
     loader: Loader | None = None
     sections: list[SectionEntry] = field(default_factory=list)
     pe_metadata: PeMetadata | None = None
@@ -538,6 +539,11 @@ class PeLoader:
                 except ValueError as error:
                     self._optional_error("export entry", error)
 
+        resource_directory = None
+        resources = pe.OPTIONAL_HEADER.DATA_DIRECTORY[2]
+        if resources.VirtualAddress and resources.Size:
+            resource_directory = (resources.VirtualAddress + base, resources.Size)
+
         tls_callbacks: list[int] = []
         tls_directory_va: int | None = None
         ptr_size = 4 if pe.arch == _arch.ARCH_X86 else 8
@@ -654,6 +660,7 @@ class PeLoader:
             stack_size=max(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0, 0x12000),
             tls_callbacks=tls_callbacks,
             tls_directory_va=tls_directory_va,
+            resource_directory=resource_directory,
             loader=self,
             sections=sections,
             pe_metadata=pe_metadata,

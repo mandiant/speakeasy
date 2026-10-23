@@ -2781,6 +2781,11 @@ class WindowsEmulator(BinaryEmulator):
             return False
 
     def _handle_prot_write(self, emu, address, size, value):
+        if size <= 8 and self._unprotect_resource_write(address):
+            # Unicorn drops a store that a protection hook handles, so do the store here.
+            self.mem_write(address, (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little"))
+            return True
+
         fakeout = address & 0xFFFFFFFFFFFFF000
         self.mem_map(self.page_size, base=fakeout)
 
@@ -2789,6 +2794,24 @@ class WindowsEmulator(BinaryEmulator):
 
         self.tmp_maps.append((fakeout, self.page_size))
         self.end_run_on_fault()
+        return True
+
+    def _unprotect_resource_write(self, address: int) -> bool:
+        """
+        Make the resource pages of an image writable when the guest writes into its resource data.
+
+        The unhandled exception filter of Windows does the same for an access violation in resource data.
+        """
+        module = self.get_mod_from_addr(address)
+        image = getattr(module, "_image", None)
+        if image is None or image.resource_directory is None:
+            return False
+        start, size = image.resource_directory
+        if not start <= address < start + size:
+            return False
+        base = start & ~0xFFF
+        end = min((start + size + 0xFFF) & ~0xFFF, module.base + module.image_size)
+        self.mem_protect(base, end - base, common.PERM_MEM_RW)
         return True
 
     def get_symbol_from_address(self, address):
