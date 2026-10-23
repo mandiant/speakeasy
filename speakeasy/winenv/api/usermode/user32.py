@@ -468,6 +468,18 @@ class User32(api.ApiHandler):
         rv = 0
         return rv
 
+    @apihook("WindowFromPoint", argc=2)
+    def WindowFromPoint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HWND WindowFromPoint(
+          POINT Point
+        );
+
+        Point is passed by value: two stack slots on x86, one register on x64.
+        argc=2 covers the x86 layout.
+        """
+        return self.sessman.get_current_desktop().desktop_window.get_handle()
+
     @apihook("GetAsyncKeyState", argc=1)
     def GetAsyncKeyState(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
