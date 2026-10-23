@@ -266,7 +266,7 @@ class Win32Emulator(WindowsEmulator):
             if exports:
                 args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
                 for exp in exports:
-                    if exp.name in ("DllMain",):
+                    if exp.name in ("DllMain",) or getattr(exp, "kind", "function") == "data":
                         continue
                     run = Run()
                     if exp.name:
