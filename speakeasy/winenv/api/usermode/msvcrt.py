@@ -118,6 +118,92 @@ def parse_c_integer(text: bytes, base: int, width: int = 0) -> tuple[int, int]:
     return (sign * val, i) if i > start else (0, 0)
 
 
+SCANF_SPEC = re.compile(rb"%(\*?)(\d*)(hh|h|ll|l|L|I64|I32|I|j|z|t)?([%diouxXpneEfgGaAcs]|\[\^?\]?[^\]]*\])")
+SCANF_FLOAT = re.compile(rb"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+SCANF_SPACE = b" \t\n\v\f\r"
+
+
+def get_scanf_set(spec: bytes) -> tuple[set[int], bool]:
+    """Return the bytes of a %[...] set and whether the set is negated."""
+    negate = spec.startswith(b"[^")
+    body = spec[2 if negate else 1 : -1]
+    chars: set[int] = set()
+    i = 0
+    while i < len(body):
+        if i + 2 < len(body) and body[i + 1 : i + 2] == b"-":
+            chars.update(range(min(body[i], body[i + 2]), max(body[i], body[i + 2]) + 1))
+            i += 3
+        else:
+            chars.add(body[i])
+            i += 1
+    return chars, negate
+
+
+def scan_c_format(text: bytes, fmt: bytes, ptr_size: int) -> tuple[list[bytes], int]:
+    """
+    Match ``text`` against a narrow scanf format. Return the bytes to store for
+    each conversion that takes a pointer, in argument order, and the scanf
+    return value. The integer, float, %s, %c, %[...] and %n conversions are
+    supported, with widths, %* and length modifiers.
+    """
+    out: list[bytes] = []
+    pos = i = assigned = 0
+    while i < len(fmt):
+        if fmt[i] in SCANF_SPACE:
+            pos = len(text) - len(text[pos:].lstrip(SCANF_SPACE))
+            i += 1
+            continue
+        m = SCANF_SPEC.match(fmt, i) if fmt[i : i + 1] == b"%" else None
+        if m is None or m.group(4) == b"%":
+            literal = fmt[i + 1] if m else fmt[i]
+            if m:
+                pos = len(text) - len(text[pos:].lstrip(SCANF_SPACE))
+            if pos >= len(text):
+                return out, assigned or -1
+            if text[pos] != literal:
+                break
+            pos, i = pos + 1, (m.end() if m else i + 1)
+            continue
+        i = m.end()
+        suppress, width, mod, conv = m.group(1), int(m.group(2) or 0), m.group(3) or b"", m.group(4)
+        size = {b"hh": 1, b"h": 2, b"ll": 8, b"I64": 8, b"j": 8, b"I": ptr_size, b"z": ptr_size, b"t": ptr_size}.get(
+            mod, 4
+        )
+        if conv == b"n":
+            out.append((pos & ((1 << (8 * size)) - 1)).to_bytes(size, "little"))
+            continue
+        if conv[:1] not in (b"c", b"["):
+            pos = len(text) - len(text[pos:].lstrip(SCANF_SPACE))
+        if pos >= len(text):
+            return out, assigned or -1
+        rest = text[pos : pos + width] if width else text[pos:]
+        if conv in b"diouxXp":
+            base = {b"d": 10, b"i": 0, b"o": 8, b"u": 10}.get(conv, 16)
+            val, used = parse_c_integer(rest, base)
+            size = ptr_size if conv == b"p" else size
+            data = (val & ((1 << (8 * size)) - 1)).to_bytes(size, "little")
+        elif conv in b"eEfgGaA":
+            fm = SCANF_FLOAT.match(rest)
+            used = fm.end() if fm else 0
+            data = struct.pack("<d" if mod in (b"l", b"L") else "<f", float(rest[:used])) if used else b""
+        elif conv == b"c":
+            used = width or 1
+            data = rest[:used]
+            if len(data) < used:
+                break
+        else:
+            chars, negate = get_scanf_set(conv) if conv != b"s" else (set(SCANF_SPACE), True)
+            used = next((k for k, b in enumerate(rest) if (b in chars) == negate), len(rest))
+            data = rest[:used] + b"\x00"
+        if not used:
+            break
+        pos += used
+        if not suppress:
+            out.append(data)
+            assigned += 1
+    return out, assigned
+
+
 class Msvcrt(api.ApiHandler):
     """
     Implements functions from various versions of the C runtime on Windows
@@ -1793,7 +1879,16 @@ class Msvcrt(api.ApiHandler):
         """
         int sscanf ( const char * s, const char * format, ...);
         """
-        return
+        buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
+        text, fmt_str = self.read_cstr(buf), self.read_cstr(fmt)
+        values, rv = scan_c_format(text, fmt_str, emu.get_ptr_size())
+        ptrs = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2 + len(values))[2:]
+        for ptr, data in zip(ptrs, values):
+            self.mem_write(ptr, data)
+        ctx.args.clear()
+        ctx.args.append(text.decode("latin-1"))
+        ctx.args.append(fmt_str.decode("latin-1"))
+        return rv
 
     @apihook("strchr", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
