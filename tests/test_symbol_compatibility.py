@@ -1,5 +1,8 @@
 """Public symbol snapshots and kernel auxiliary symbols."""
 
+import copy
+import struct
+
 import unicorn as uc
 
 from speakeasy import Speakeasy
@@ -19,8 +22,8 @@ def test_legacy_tuple_snapshot_tracks_mapped_dynamic_and_data_symbols(dll_emu):
     assert dynamic not in before
     assert se.get_api_symbols() == {a: "{}.{}".format(*v) for a, v in symbols.items()}
     assert se.get_symbol_from_address(address + 2) == "kernel32.GetTickCount+0x2"
-    assert se.mem_read(address, 6) == b"\x8b\xff\x0f\x1f\x00\xe9"
-    trap = address + 10 + int.from_bytes(se.mem_read(address + 6, 4), "little", signed=True)
+    assert se.mem_read(address, 7) == b"\x8b\xff\x55\x8b\xec\x5d\xe9"
+    trap = address + 11 + int.from_bytes(se.mem_read(address + 7, 4), "little", signed=True)
     assert trap not in symbols
     assert se.get_symbol_from_address(trap) is None
     symbols.clear()
@@ -60,3 +63,35 @@ def test_kernel_auxiliary_symbols_and_syscall_stub_outside_image(config, load_te
         for offset in (0, 7):
             displacement = int.from_bytes(se.mem_read(stub + offset + 3, 4), "little", signed=True)
             assert stub + offset + 7 + displacement == sdt
+
+
+def test_inline_hook_trampoline_reaches_the_handler(base_config):
+    se = Speakeasy(config=copy.deepcopy(base_config))
+    try:
+        sc = se.load_shellcode(data=b"\xc3" * 0x60, arch="x86")
+        entry = se.emu.get_proc("kernel32", "GetCurrentProcess")
+        out = sc + 0x40
+        code = (
+            b"\xbd\x68\x24\x57\x13"  # mov ebp, 0x13572468
+            + b"\x89\xe3"  # mov ebx, esp
+            + b"\xe8"
+            + struct.pack("<i", 0x20 - 0xC)  # call trampoline
+            + b"\xa3"
+            + struct.pack("<I", out)  # mov [out], eax
+            + b"\x89\x2d"
+            + struct.pack("<I", out + 4)  # mov [out+4], ebp
+            + b"\x29\xe3"  # sub ebx, esp
+            + b"\x89\x1d"
+            + struct.pack("<I", out + 8)  # mov [out+8], ebx
+            + b"\xc3"
+        )
+        assert len(code) == 0x20
+        trampoline = sc + 0x20
+        prologue = se.mem_read(entry, 5)
+        assert prologue == b"\x8b\xff\x55\x8b\xec"
+        jump = b"\xe9" + struct.pack("<i", entry + 5 - (trampoline + 10))
+        se.mem_write(sc, code + prologue + jump)
+        se.run_shellcode(sc)
+        assert struct.unpack("<III", se.mem_read(out, 12)) == (0xFFFFFFFF, 0x13572468, 0)
+    finally:
+        se.shutdown()
