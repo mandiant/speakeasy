@@ -1,6 +1,7 @@
 {
   "module": "d3d11",
   "file": "d3d11.dll",
+  "export_name": "D3D11.DLL",
   "arch": "x86",
   "file_version": "10.0.17763.1",
   "timestamp": 1784327755,

@@ -1,6 +1,7 @@
 {
   "module": "wer",
   "file": "wer.dll",
+  "export_name": "wer.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 3279750230,

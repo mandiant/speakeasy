@@ -1,6 +1,7 @@
 {
   "module": "usp10",
   "file": "usp10.dll",
+  "export_name": "USP10.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 2967274549,

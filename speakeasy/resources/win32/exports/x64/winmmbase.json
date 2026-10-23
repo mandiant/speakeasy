@@ -1,6 +1,7 @@
 {
   "module": "winmmbase",
   "file": "winmmbase.dll",
+  "export_name": "WINMMBASE.dll",
   "arch": "x64",
   "file_version": "10.0.26100.7309",
   "timestamp": 3109115769,

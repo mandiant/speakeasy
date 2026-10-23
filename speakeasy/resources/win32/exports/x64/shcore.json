@@ -1,6 +1,7 @@
 {
   "module": "shcore",
   "file": "shcore.dll",
+  "export_name": "SHCORE.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 132313613,

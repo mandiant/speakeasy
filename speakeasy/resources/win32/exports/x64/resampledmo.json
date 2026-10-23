@@ -1,6 +1,7 @@
 {
   "module": "resampledmo",
   "file": "resampledmo.dll",
+  "export_name": "ResampleDmo.DLL",
   "arch": "x64",
   "file_version": "10.0.26100.32234",
   "timestamp": 2654934739,

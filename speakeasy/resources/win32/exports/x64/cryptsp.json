@@ -1,6 +1,7 @@
 {
   "module": "cryptsp",
   "file": "cryptsp.dll",
+  "export_name": "CRYPTSP.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 4017142902,

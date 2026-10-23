@@ -1,6 +1,7 @@
 {
   "module": "d3d10warp",
   "file": "d3d10warp.dll",
+  "export_name": "d3d10warp.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 2474649195,

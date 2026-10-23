@@ -1,6 +1,7 @@
 {
   "module": "powrprof",
   "file": "powrprof.dll",
+  "export_name": "POWRPROF.dll",
   "arch": "x64",
   "file_version": "10.0.26100.3912",
   "timestamp": 2858637235,

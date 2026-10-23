@@ -1,6 +1,7 @@
 {
   "module": "d3dcompiler_47",
   "file": "d3dcompiler_47.dll",
+  "export_name": "D3DCOMPILER_47.dll",
   "arch": "x86",
   "file_version": "10.0.26100.6725",
   "timestamp": 1127578587,

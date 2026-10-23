@@ -1,6 +1,7 @@
 {
   "module": "advapi32",
   "file": "advapi32.dll",
+  "export_name": "ADVAPI32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32234",
   "timestamp": 3451984211,

@@ -1,6 +1,7 @@
 {
   "module": "msdmo",
   "file": "msdmo.dll",
+  "export_name": "msdmo.dll",
   "arch": "x64",
   "file_version": "10.0.26100.1150",
   "timestamp": 1845182731,

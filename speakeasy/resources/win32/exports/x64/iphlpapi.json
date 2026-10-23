@@ -1,6 +1,7 @@
 {
   "module": "iphlpapi",
   "file": "iphlpapi.dll",
+  "export_name": "IPHLPAPI.DLL",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 1842669011,

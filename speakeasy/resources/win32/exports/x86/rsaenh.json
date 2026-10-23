@@ -1,6 +1,7 @@
 {
   "module": "rsaenh",
   "file": "rsaenh.dll",
+  "export_name": "RSAENH.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7019",
   "timestamp": 3625425929,

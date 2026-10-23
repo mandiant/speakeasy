@@ -1,6 +1,7 @@
 {
   "module": "fwpuclnt",
   "file": "fwpuclnt.dll",
+  "export_name": "fwpuclnt.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 870133984,

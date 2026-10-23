@@ -1,6 +1,7 @@
 {
   "module": "uiautomationcore",
   "file": "uiautomationcore.dll",
+  "export_name": "UIAutomationCore.DLL",
   "arch": "x86",
   "file_version": "7.2.26100.7309",
   "timestamp": 294250224,

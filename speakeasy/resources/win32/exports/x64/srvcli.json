@@ -1,6 +1,7 @@
 {
   "module": "srvcli",
   "file": "srvcli.dll",
+  "export_name": "srvcli.dll",
   "arch": "x64",
   "file_version": "10.0.26100.1150",
   "timestamp": 239922031,

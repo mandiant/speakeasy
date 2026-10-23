@@ -1,6 +1,7 @@
 {
   "module": "ncrypt",
   "file": "ncrypt.dll",
+  "export_name": "ncrypt.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 3410484487,

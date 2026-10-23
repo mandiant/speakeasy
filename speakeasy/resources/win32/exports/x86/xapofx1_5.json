@@ -1,6 +1,7 @@
 {
   "module": "xapofx1_5",
   "file": "xapofx1_5.dll",
+  "export_name": "XAPOFX1_5.dll",
   "arch": "x86",
   "file_version": "9.29.1962.0",
   "timestamp": 1275478501,

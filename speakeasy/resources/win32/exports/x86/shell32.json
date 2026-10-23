@@ -1,6 +1,7 @@
 {
   "module": "shell32",
   "file": "shell32.dll",
+  "export_name": "SHELL32.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32995",
   "timestamp": 1746816672,

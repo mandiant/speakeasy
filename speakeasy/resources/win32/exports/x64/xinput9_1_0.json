@@ -1,6 +1,7 @@
 {
   "module": "xinput9_1_0",
   "file": "xinput9_1_0.dll",
+  "export_name": "XINPUT9_1_0.dll",
   "arch": "x64",
   "file_version": "10.0.26100.1",
   "timestamp": 4088083794,

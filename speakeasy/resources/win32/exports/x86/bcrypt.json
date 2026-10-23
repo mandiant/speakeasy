@@ -1,6 +1,7 @@
 {
   "module": "bcrypt",
   "file": "bcrypt.dll",
+  "export_name": "bcrypt.dll",
   "arch": "x86",
   "file_version": "10.0.26100.32860",
   "timestamp": 853959002,

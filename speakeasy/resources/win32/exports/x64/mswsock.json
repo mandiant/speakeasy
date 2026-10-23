@@ -1,6 +1,7 @@
 {
   "module": "mswsock",
   "file": "mswsock.dll",
+  "export_name": "MSWSOCK.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 4288472733,

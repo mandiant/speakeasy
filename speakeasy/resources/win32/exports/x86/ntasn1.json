@@ -1,6 +1,7 @@
 {
   "module": "ntasn1",
   "file": "ntasn1.dll",
+  "export_name": "NTASN1.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1882",
   "timestamp": 3171756810,

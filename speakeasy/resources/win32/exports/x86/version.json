@@ -1,6 +1,7 @@
 {
   "module": "version",
   "file": "version.dll",
+  "export_name": "VERSION.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 4015924288,

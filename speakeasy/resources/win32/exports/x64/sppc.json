@@ -1,6 +1,7 @@
 {
   "module": "sppc",
   "file": "sppc.dll",
+  "export_name": "sppc.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32860",
   "timestamp": 3132317236,

@@ -84,6 +84,7 @@ def test_manifest_format_rejects_invalid_files(tmp_path, change):
     data = {
         "module": "m",
         "file": "m.dll",
+        "export_name": "M.dll",
         "arch": "x86",
         "file_version": None,
         "timestamp": 0,
@@ -154,3 +155,13 @@ def test_get_proc_address_resolves_declared_names_missing_from_the_manifest(conf
 def test_get_proc_address_reports_unknown_names(config, architecture):
     config["modules"]["functions_always_exist"] = False
     assert call_get_proc_address(config, architecture, "kernel32", "SpeakeasyNoSuchExport")[:2] == (0, 127)
+
+
+@pytest.mark.parametrize(("module", "export_name"), [("kernel32", "KERNEL32.dll"), ("ntdll", "ntdll.dll")])
+def test_export_directory_carries_the_physical_name(started, module, export_name):
+    base = started.emu.get_mod_by_name(module).base
+    (nt,) = struct.unpack("<I", started.mem_read(base + 0x3C, 4))
+    (magic,) = struct.unpack("<H", started.mem_read(base + nt + 0x18, 2))
+    (export_rva,) = struct.unpack("<I", started.mem_read(base + nt + (0x78 if magic == 0x10B else 0x88), 4))
+    (name_rva,) = struct.unpack("<I", started.mem_read(base + export_rva + 0xC, 4))
+    assert started.mem_read(base + name_rva, len(export_name) + 1) == export_name.encode() + b"\0"

@@ -1,6 +1,7 @@
 {
   "module": "windows.storage",
   "file": "windows.storage.dll",
+  "export_name": "Windows.Storage.dll",
   "arch": "x64",
   "file_version": "10.0.26100.32995",
   "timestamp": 1078804155,

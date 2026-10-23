@@ -1,6 +1,7 @@
 {
   "module": "comctl32",
   "file": "comctl32.dll",
+  "export_name": "COMCTL32.dll",
   "arch": "x64",
   "file_version": "5.82.26100.7309",
   "timestamp": 691567758,

@@ -1,6 +1,7 @@
 {
   "module": "devobj",
   "file": "devobj.dll",
+  "export_name": "DEVOBJ.dll",
   "arch": "x86",
   "file_version": "10.0.26100.1",
   "timestamp": 2106136597,

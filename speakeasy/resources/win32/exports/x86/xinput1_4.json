@@ -1,6 +1,7 @@
 {
   "module": "xinput1_4",
   "file": "xinput1_4.dll",
+  "export_name": "XINPUT1_4.dll",
   "arch": "x86",
   "file_version": "10.0.26100.7309",
   "timestamp": 1747313022,
