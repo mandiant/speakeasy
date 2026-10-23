@@ -1,5 +1,5 @@
 // SEH cases for speakeasy's exception dispatch, on x64 and x86. main returns
-// a bitmask with one bit per case that behaves as it does on Windows (0xFF: all).
+// a bitmask with one bit per case that behaves as it does on Windows (0x1FF: all).
 // x64 uses __C_specific_handler, x86 the _except_handler3 of msvcrt.
 //
 // Built without a CRT or SDK, against import libraries for the few imports;
@@ -207,7 +207,29 @@ __declspec(noinline) static int hardware_breakpoint(void) {
     return hooked && resumed && cleared && breakpoint_hits == 2;
 }
 
+static volatile int caught_in_handler;
+static volatile int *volatile null_pointer;
+
+static long __stdcall catch_in_handler(EXCEPTION_POINTERS *info) {
+    if (info->ExceptionRecord->ExceptionCode != 0xE0000009)
+        return EXCEPTION_CONTINUE_SEARCH;
+    __try {
+        *null_pointer = 1;  // directly in the __try body: the __except continues at the stack of the fault
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        caught_in_handler++;
+    }
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+// a vectored handler that catches a fault of its own, then continues
+__declspec(noinline) static int exception_in_handler(void) {
+    AddVectoredExceptionHandler(1, catch_in_handler);
+    RaiseException(0xE0000009, 0, 0, 0);
+    return caught_in_handler == 1;
+}
+
 int main(void) {
     return raise_caught() | filter_then_finally() << 1 | access_violation(0) << 2 | continue_execution() << 3 |
-           vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6 | hardware_breakpoint() << 7;
+           vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6 | hardware_breakpoint() << 7 |
+           exception_in_handler() << 8;
 }

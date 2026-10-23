@@ -22,7 +22,7 @@ import speakeasy.windows.seh as seh
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.windows.cpu_exceptions import CpuException
-from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
+from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import STATUS_UNWIND, UNWINDING, as_long, read_context, resume_at
 
 END_OF_CHAIN = 0xFFFFFFFF
@@ -122,7 +122,8 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> GeneratorHa
 
     registration = exception_list(emu)
     for _ in range(seh.MAX_FRAMES):
-        if registration in (0, END_OF_CHAIN, target_frame):
+        # Registrations are in stack order: one above the target means it is not on the chain
+        if registration in (0, END_OF_CHAIN, target_frame) or target_frame and registration > target_frame:
             break
         next_registration, handler = struct.unpack("<II", emu.mem_read(registration, 8))
         yield call_handler(emu, handler, record, registration, context, dispatcher_context)
@@ -131,11 +132,14 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> GeneratorHa
 
 
 def rtl_unwind(emu, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
-    """RtlUnwind: unwind the registrations above target_frame, then return to the caller."""
+    """
+    RtlUnwind: unwind the registrations above target_frame, then return to the caller,
+    a handler that takes the exception and continues in its frame.
+    """
     caller = guest_callbacks.caller_context(emu)  # read before the first guest call
     yield from unwind_registrations(emu, target_frame, record)
     caller.Eax = return_value
-    return Resume(caller)
+    return resume_at(emu, caller)
 
 
 class MsvcFrame:
@@ -166,7 +170,9 @@ class MsvcFrame:
 
     def local_unwind(self, stop: int) -> GeneratorHandler:
         """Leave the scopes inside the stop level, running their __finally blocks."""
-        while self.try_level not in (self.none, stop):
+        for _ in range(seh.MAX_FRAMES):  # a scope table may be corrupt
+            if self.try_level in (self.none, stop):
+                break
             enclosing, filter_function, handler = self.scope(self.try_level)
             self.try_level = enclosing
             if not filter_function:
@@ -183,7 +189,9 @@ def msvc_handler(emu, frame: MsvcFrame, record: int, context: int) -> GeneratorH
     pointers = guest_callbacks.alloca(emu, struct.pack("<II", record, context))
     _write_u32(emu, frame.registration + EXCEPTION_POINTERS, pointers)
     level = frame.try_level
-    while level != frame.none:
+    for _ in range(seh.MAX_FRAMES):  # a scope table may be corrupt
+        if level == frame.none:
+            break
         enclosing, filter_function, handler = frame.scope(level)
         if filter_function:
             verdict = as_long((yield frame.call(filter_function)))

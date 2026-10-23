@@ -2925,6 +2925,9 @@ class WindowsEmulator(BinaryEmulator):
     def _continue_guest_callback(self):
         """Resume a typed guest callback continuation outside Unicorn callbacks."""
         run = self.get_current_run()
+        # Frames below the one returning were left without returning
+        while len(run.guest_callbacks) > 1 and run.guest_callbacks[-1].stack_pointer < self.get_stack_ptr():
+            run.guest_callbacks.pop()
         frame = run.guest_callbacks[-1]
         if frame.handler is not None:
             guest_callbacks.resume(self, frame)

@@ -66,6 +66,7 @@ SEH_CASES = {
     0x20: "exception caught in the caller's frame",
     0x40: "bad pointer read by an API faults in its caller",
     0x80: "hardware breakpoint from SetThreadContext, resume flag, and disarming",
+    0x100: "vectored handler catches a fault of its own in __try, then continues",
 }
 
 
@@ -91,6 +92,8 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
         ("0xc0000005", "0x10"),
         ("0x80000004", None),
         ("0x80000004", None),
+        ("0xe0000009", None),
+        ("0xc0000005", "0x0"),
     ]
 
 
@@ -101,7 +104,7 @@ def test_seh_without_dispatch_x64(config, load_test_bin, run_test):
 
     error = report.entry_points[0].error
     assert error.type == "invalid_write"
-    assert error.instr == "mov dword ptr [0], 1"
+    assert error.instr == "mov dword ptr [rcx], 1"
 
 
 # al-khaser (https://github.com/LordNoteworthy/al-khaser), anti-analysis checks built
