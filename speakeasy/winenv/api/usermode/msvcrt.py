@@ -781,6 +781,25 @@ class Msvcrt(api.ApiHandler):
         ctx.args.append(fin)
         return len(fin)
 
+    @apihook("vfprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def vfprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int vfprintf(
+            FILE *stream,
+            const char *format,
+            va_list argptr
+            );
+        """
+        stream, fmt, argptr = argv
+        fmt_str = self.read_string(fmt)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        fin = self.do_str_format(fmt_str, self.va_args(argptr, fmt_cnt))
+        ctx.args.clear()
+        ctx.args.append(hex(stream))
+        ctx.args.append(fin)
+        return len(fin)
+
     @apihook("printf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def printf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
