@@ -379,3 +379,11 @@ def test_fgets_reads_one_line_at_a_time(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "fgets", [buf, 16, stream])[0] == buf
     assert dll_emu.mem_read(buf, 4) == b"TUS\x00"
     assert call(dll_emu, "msvcrt", "fgets", [buf, 16, stream])[0] == 0
+
+
+def test_strdup_copies_the_bytes_to_a_new_buffer(dll_emu: Speakeasy) -> None:
+    src = alloc(dll_emu, b"a\xe9b\x00\xcc")
+    dst, _ = call(dll_emu, "msvcrt", "_strdup", [src])
+    assert dst not in (0, src)
+    assert dll_emu.mem_read(dst, 4) == b"a\xe9b\x00"
+    assert call(dll_emu, "msvcrt", "_strdup", [0])[0] == 0

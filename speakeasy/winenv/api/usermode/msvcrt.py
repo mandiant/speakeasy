@@ -1324,6 +1324,21 @@ class Msvcrt(api.ApiHandler):
         chunk = self.heap_alloc(size, heap="HeapAlloc")
         return chunk
 
+    @apihook("_strdup", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _strdup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *_strdup(
+            const char *strSource
+        );
+        """
+        (src,) = argv
+        if not src:
+            return 0
+        data = self.read_cstr(src) + b"\x00"
+        dst = self.heap_alloc(len(data), heap="HeapAlloc")
+        self.mem_write(dst, data)
+        return dst
+
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
