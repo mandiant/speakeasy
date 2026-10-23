@@ -1,3 +1,5 @@
+import hashlib
+import io
 from dataclasses import dataclass
 
 from speakeasy.profiler import Profiler, Run
@@ -49,6 +51,20 @@ def test_dropped_file_embeds_data_ref_when_within_limit():
     assert dropped.size == 7
     assert dropped.data_ref == dropped.sha256
     assert dropped.data_ref in report.data
+
+
+def test_dropped_file_holds_the_whole_contents_whatever_the_file_pointer():
+    profiler = Profiler()
+    run = Run()
+    file_obj = File(HandleAllocator(), "C:\\temp\\drop.bin", data=b"payload")
+    file_obj.seek(0, io.SEEK_END)
+
+    profiler.record_dropped_files_event(run, [file_obj])
+    report = build_report(profiler, run)
+
+    dropped = report.entry_points[0].dropped_files[0]
+    assert dropped.size == 7
+    assert dropped.sha256 == hashlib.sha256(b"payload").hexdigest()
 
 
 def test_dropped_file_skips_large_embedded_payload():

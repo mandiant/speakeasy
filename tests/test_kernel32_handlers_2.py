@@ -620,6 +620,19 @@ def test_writes_through_a_reopened_file_reach_the_file(strict_fs_emu: Speakeasy)
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"MZ\x90\x00"]
 
 
+def test_write_file_writes_at_the_file_pointer(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\log.txt\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"AAAA"), 4, written, 0])[0]
+    assert call(se, "kernel32", "SetFilePointer", [hnd, 1, 0, FILE_BEGIN])[0] == 1
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"B"), 1, written, 0])[0]
+
+    assert call(se, "kernel32", "SetFilePointer", [hnd, 0, 0, FILE_CURRENT])[0] == 2
+    assert [f.get_contents() for f in se.get_dropped_files()] == [b"ABAA"]
+
+
 def test_each_handle_to_a_file_has_its_own_position(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     first = open_file(se, BYTE_FILL_PATH)
