@@ -5444,10 +5444,14 @@ class Kernel32(api.ApiHandler):
             const ULONG_PTR *lpArguments
         );
         """
-        # Stub
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
+        if emu.get_arch() != e_arch.ARCH_X86 or not emu.config.exceptions.dispatch_handlers:
+            return
 
-        return
+        count = min(nNumberOfArguments, 15) if lpArguments else 0
+        params = [emu.read_ptr(lpArguments + i * 4) for i in range(count)]
+        emu.do_call_return(len(argv), emu.get_ret_address(), conv=e_arch.CALL_CONV_STDCALL)
+        emu.dispatch_seh(dwExceptionCode, flags=dwExceptionFlags, params=params)
 
     @apihook("VerSetConditionMask", argc=4)
     def VerSetConditionMask(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
