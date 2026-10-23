@@ -351,6 +351,14 @@ def test_create_dib_section_returns_zeroed_bits(
     assert dll_emu.mem_read(bits, size) == b"\x00" * size
 
 
+def test_create_compatible_dc_returns_a_new_memory_dc(dll_emu: Speakeasy) -> None:
+    first, _ = call(dll_emu, "gdi32", "CreateCompatibleDC", [0])
+    second, _ = call(dll_emu, "gdi32", "CreateCompatibleDC", [first])
+    assert first
+    assert second
+    assert first != second
+
+
 @pytest.mark.parametrize(
     "width, height, bit_count", [(0, 16, 24), (16, 0, 24), (16, 16, 7), (0x7FFFFFFF, 0x7FFFFFFF, 32)]
 )
