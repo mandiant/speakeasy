@@ -54,6 +54,26 @@ def test_normalize_dll_name_apiset_core():
     assert normalize_dll_name("api-ms-win-core-processthreads-l1-1-1") == "kernel32"
 
 
+def test_normalize_dll_name_apiset_winrt_is_combase():
+    assert normalize_dll_name("api-ms-win-core-winrt-l1-1-0") == "combase"
+    assert normalize_dll_name("api-ms-win-core-winrt-string-l1-1-0") == "combase"
+    assert normalize_dll_name("API-MS-WIN-CORE-WINRT-ERROR-L1-1-1") == "combase"
+
+
+def test_normalize_dll_name_apiset_com_is_ole32():
+    assert normalize_dll_name("api-ms-win-core-com-l1-1-0") == "ole32"
+    assert normalize_dll_name("api-ms-win-core-com-l2-1-1") == "ole32"
+
+
+def test_normalize_dll_name_apiset_extensions():
+    assert normalize_dll_name("ext-ms-win-rtcore-ntuser-window-ext-l1-1-0") == "user32"
+    assert normalize_dll_name("ext-ms-win-ntuser-message-l1-1-1") == "user32"
+    assert normalize_dll_name("ext-ms-win-gdi-dc-l1-2-0") == "gdi32"
+    assert normalize_dll_name("ext-ms-win-rtcore-gdi-object-l1-1-0") == "gdi32"
+    assert normalize_dll_name("api-ms-win-eventing-classicprovider-l1-1-0") == "advapi32"
+    assert normalize_dll_name("ext-ms-win-shell-shell32-l1-2-0") == "ext-ms-win-shell-shell32-l1-2-0"
+
+
 def test_normalize_dll_name_crt():
     assert normalize_dll_name("api-ms-win-crt-heap-l1-1-0") == "msvcrt"
     assert normalize_dll_name("vcruntime140") == "msvcrt"

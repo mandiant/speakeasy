@@ -376,3 +376,22 @@ def test_get_proc_address_resolves_signature_only_exports(config: dict[str, Any]
             assert not emu.has_api_signature("oleaut32", "VarCyAdd")
     finally:
         se.shutdown()
+
+
+def test_api_set_declarations_belong_to_the_host_module(config: dict[str, Any]) -> None:
+    """Functions win32metadata declares only under an API set are declared by its host module."""
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated")
+    se = Speakeasy(config=config)
+    try:
+        sc_addr = se.load_shellcode(data=b"\x90\xc3", arch="x86")
+        se.run_shellcode(sc_addr)
+        emu = se.emu
+        assert emu is not None
+        assert emu.has_api_signature("combase", "RoInitialize")
+        assert emu.has_api_signature("combase", "WindowsCreateString")
+        assert emu.has_api_signature("kernel32", "PathCchCombine")
+        assert not emu.has_api_signature("kernel32", "RoInitialize")
+        assert not emu.has_api_signature("combase", "PathCchCombine")
+    finally:
+        se.shutdown()
