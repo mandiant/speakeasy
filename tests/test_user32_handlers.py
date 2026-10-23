@@ -358,3 +358,10 @@ def test_create_dib_section_rejects_a_bad_header(dll_emu: Speakeasy, width: int,
     hbm, _ = call(dll_emu, "gdi32", "CreateDIBSection", [0, bmi, 0, ppv, 0, 0])
     assert hbm == 0
     assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_window_from_point_returns_the_desktop_window(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    desktop, _ = call(se, "user32", "GetDesktopWindow", [])
+    assert call(se, "user32", "WindowFromPoint", [10, 20])[0] == desktop
