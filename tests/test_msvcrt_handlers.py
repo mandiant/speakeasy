@@ -822,3 +822,36 @@ def test_dupenv_s_copies_the_value(request: pytest.FixtureRequest, emu_name: str
     assert se.mem_read(out, ptr_size) == b"\0" * ptr_size
     assert se.mem_read(count, ptr_size) == b"\0" * ptr_size
     assert call(se, "msvcrt", api, [0, count, alloc(se, (name + "\0").encode(encoding))])[0] == EINVAL
+
+
+@pytest.mark.parametrize(
+    "size, rv, out",
+    [
+        (6, 0, "hello\x00".encode("utf-16le") + b"\xcc" * 4),
+        (5, ERANGE, b"\x00\x00" + "ello".encode("utf-16le") + b"\xcc" * 6),
+        (0, EINVAL, b"\xcc" * 16),
+    ],
+)
+def test_wcscpy_s_copies_only_when_the_string_fits(dll_emu: Speakeasy, size: int, rv: int, out: bytes) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 16)
+    src = alloc(dll_emu, "hello\x00".encode("utf-16le"))
+    if size == 5:
+        dll_emu.mem_write(dest, "xello".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "wcscpy_s", [dest, size, src])[0] == rv
+    assert dll_emu.mem_read(dest, 16) == out
+
+
+def test_fwprintf_formats_wide_text(dll_emu: Speakeasy) -> None:
+    fmt = alloc(dll_emu, "%s=%d\x00".encode("utf-16le"))
+    name = alloc(dll_emu, "n\x00".encode("utf-16le"))
+    rv, displays = call(dll_emu, "msvcrt", "fwprintf", [0x1234, fmt, name, 42])
+    assert rv == 4
+    assert "n=42" in displays.values()
+
+
+def test_p_wcmdln_points_at_the_wide_command_line(dll_emu: Speakeasy) -> None:
+    pp = call(dll_emu, "msvcrt", "__p__wcmdln", [])[0]
+    p = int.from_bytes(dll_emu.mem_read(pp, 4), "little")
+    cmdln = dll_emu.mem_read(p, 0x200)
+    text = cmdln[: next(i for i in range(0, len(cmdln), 2) if cmdln[i : i + 2] == b"\0\0")].decode("utf-16le")
+    assert text == " ".join(dll_emu.emu.get_argv())
