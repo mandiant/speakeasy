@@ -554,3 +554,9 @@ def test_x64_ke_query_performance_counter_accepts_a_null_frequency(driver64_emu:
     first, _ = call(driver64_emu, "hal", "KeQueryPerformanceCounter", [0])
     second, _ = call(driver64_emu, "hal", "KeQueryPerformanceCounter", [0])
     assert 0 < first < second
+
+
+def test_x64_ke_get_current_irql_reports_the_emulator_irql(driver64_emu: Speakeasy) -> None:
+    assert driver64_emu.emu is not None
+    driver64_emu.emu.set_current_irql(ddk.DISPATCH_LEVEL)
+    assert call(driver64_emu, "ntoskrnl", "KeGetCurrentIrql", [])[0] == ddk.DISPATCH_LEVEL
