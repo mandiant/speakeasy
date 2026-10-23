@@ -39,6 +39,53 @@ SIG_SGE = 3  # signal gets error
 SIG_ACK = 4  # acknowledge
 SIG_ERR = -1  # signal error value
 
+# Messages of the errno values 0 to 42, in _sys_errlist order
+SYS_ERRLIST = [
+    "No error",
+    "Operation not permitted",
+    "No such file or directory",
+    "No such process",
+    "Interrupted function call",
+    "Input/output error",
+    "No such device or address",
+    "Arg list too long",
+    "Exec format error",
+    "Bad file descriptor",
+    "No child processes",
+    "Resource temporarily unavailable",
+    "Not enough space",
+    "Permission denied",
+    "Bad address",
+    "Unknown error",
+    "Resource device",
+    "File exists",
+    "Improper link",
+    "No such device",
+    "Not a directory",
+    "Is a directory",
+    "Invalid argument",
+    "Too many open files in system",
+    "Too many open files",
+    "Inappropriate I/O control operation",
+    "Unknown error",
+    "File too large",
+    "No space left on device",
+    "Invalid seek",
+    "Read-only file system",
+    "Too many links",
+    "Broken pipe",
+    "Domain error",
+    "Result too large",
+    "Unknown error",
+    "Resource deadlock avoided",
+    "Unknown error",
+    "Filename too long",
+    "No locks available",
+    "Function not implemented",
+    "Directory not empty",
+    "Illegal byte sequence",
+]
+
 
 class Msvcrt(api.ApiHandler):
     """
@@ -67,6 +114,7 @@ class Msvcrt(api.ApiHandler):
         self.file_streams: dict[int, Any] = {}
         self.signal_handlers: dict[int, int] = {}
         self.lconv: int | None = None
+        self.strerror_buf: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -1989,6 +2037,25 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(self.errno_t, _VAL.to_bytes(4, "little"))
 
         return self.errno_t
+
+    @apihook("strerror", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def strerror(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        char *strerror(
+           int errnum
+        );
+
+        Each call writes the message to the same buffer.
+        """
+        (errnum,) = argv
+        errnum &= 0xFFFFFFFF
+        message = SYS_ERRLIST[errnum] if errnum < len(SYS_ERRLIST) else "Unknown error"
+
+        if not self.strerror_buf:
+            self.strerror_buf = self.mem_alloc(0x100, tag="api.msvcrt.strerror")
+        self.mem_write(self.strerror_buf, message.encode("ascii") + b"\x00")
+        ctx.args[0].display = f"{errnum} ({message})"
+        return self.strerror_buf
 
     @apihook("___lc_codepage_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def ___lc_codepage_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
