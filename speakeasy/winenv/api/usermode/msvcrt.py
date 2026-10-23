@@ -2557,6 +2557,89 @@ class Msvcrt(api.ApiHandler):
         emu.do_call_return(0, eax, conv=e_arch.CALL_CONV_CDECL)
         return
 
+    def jump_buffer_layout(self, emu):
+        if emu.get_arch() == e_arch.ARCH_X86:
+            return (
+                [
+                    (0x0, e_arch.X86_REG_EBP),
+                    (0x4, e_arch.X86_REG_EBX),
+                    (0x8, e_arch.X86_REG_EDI),
+                    (0xC, e_arch.X86_REG_ESI),
+                ],
+                0x10,
+                0x14,
+            )
+        return (
+            [
+                (0x8, e_arch.AMD64_REG_RBX),
+                (0x18, e_arch.AMD64_REG_RBP),
+                (0x20, e_arch.AMD64_REG_RSI),
+                (0x28, e_arch.AMD64_REG_RDI),
+                (0x30, e_arch.AMD64_REG_R12),
+                (0x38, e_arch.AMD64_REG_R13),
+                (0x40, e_arch.AMD64_REG_R14),
+                (0x48, e_arch.AMD64_REG_R15),
+            ],
+            0x10,
+            0x50,
+        )
+
+    def save_jump_buffer(self, emu, buf):
+        regs, sp_off, pc_off = self.jump_buffer_layout(emu)
+        for off, reg in regs:
+            emu.write_ptr(buf + off, emu.reg_read(reg))
+        sp = emu.get_stack_ptr()
+        emu.write_ptr(buf + sp_off, sp + emu.get_ptr_size())
+        emu.write_ptr(buf + pc_off, emu.read_ptr(sp))
+        if emu.get_arch() == e_arch.ARCH_X86:
+            emu.write_ptr(buf + 0x18, emu.read_ptr(emu.fs_addr))
+            emu.write_ptr(buf + 0x1C, 0xFFFFFFFF)
+        else:
+            emu.write_ptr(buf, 0)
+        return 0
+
+    @apihook("_setjmp", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _setjmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _setjmp(jmp_buf env);"""
+        return self.save_jump_buffer(emu, argv[0])
+
+    @apihook("_setjmp3", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _setjmp3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _setjmp3(jmp_buf env, int count, ...);"""
+        return self.save_jump_buffer(emu, emu.read_ptr(emu.get_stack_ptr() + 4))
+
+    @apihook("_setjmpex", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _setjmpex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _setjmpex(jmp_buf env, void *frame);"""
+        return self.save_jump_buffer(emu, argv[0])
+
+    @apihook("__intrinsic_setjmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def __intrinsic_setjmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int __intrinsic_setjmp(jmp_buf env, void *frame);"""
+        return self.save_jump_buffer(emu, argv[0])
+
+    @apihook("__intrinsic_setjmpex", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def __intrinsic_setjmpex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int __intrinsic_setjmpex(jmp_buf env, void *frame);"""
+        return self.save_jump_buffer(emu, argv[0])
+
+    @apihook("longjmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def longjmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void longjmp(jmp_buf env, int value);"""
+        buf, value = argv
+        value = (value & 0xFFFFFFFF) or 1
+        regs, sp_off, pc_off = self.jump_buffer_layout(emu)
+        for off, reg in regs:
+            emu.reg_write(reg, emu.read_ptr(buf + off))
+        if emu.get_arch() == e_arch.ARCH_X86:
+            emu.write_ptr(emu.fs_addr, emu.read_ptr(buf + 0x18))
+            emu.reg_write(e_arch.X86_REG_EAX, value)
+        else:
+            emu.reg_write(e_arch.AMD64_REG_RAX, value)
+        emu.set_stack_ptr(emu.read_ptr(buf + sp_off))
+        emu.set_pc(emu.read_ptr(buf + pc_off))
+        return value
+
     @apihook("wcstombs", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def wcstombs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
