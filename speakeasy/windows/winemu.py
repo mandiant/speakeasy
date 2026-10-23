@@ -110,6 +110,26 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
     return runs
 
 
+HANDLER_FAULT_ACCESS = {
+    uc.UC_ERR_READ_UNMAPPED: "read",
+    uc.UC_ERR_READ_PROT: "read",
+    uc.UC_ERR_WRITE_UNMAPPED: "write",
+    uc.UC_ERR_WRITE_PROT: "write",
+}
+
+
+def get_handler_fault(error: Exception, pc: int) -> tuple[str, int, str | None]:
+    """
+    Get the error type, address and access type for an exception raised by an API handler.
+
+    A handler that reads or writes an invalid guest pointer fails like guest code does at that address.
+    """
+    access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
+    if access is None or not error.args:
+        return str(error), pc, None
+    return f"invalid_{access}", error.args[0], access
+
+
 class BootstrapPhase(IntEnum):
     INITIALIZED = 0
     ENGINE_API_READY = 1
@@ -2593,7 +2613,10 @@ class WindowsEmulator(BinaryEmulator):
                         # before run cleanup and report signal termination.
                         raise
                     logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
-                    error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
+                    desc, address, access_type = get_handler_fault(e, self.get_pc())
+                    error = self.get_error_info(
+                        desc, address, traceback=traceback.format_exc(), access_type=access_type
+                    )
                     self.curr_run.error = error  # type: ignore[union-attr]
                     self.on_run_complete()
                     return

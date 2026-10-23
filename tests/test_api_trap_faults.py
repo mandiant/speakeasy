@@ -78,3 +78,23 @@ def test_x64_probe_of_embedded_jump_target_is_typed_fault(config):
         assert run.error.pc == code + len(setup)
         assert api_events(run) == []
         assert se.get_address_map(target) is None
+
+
+@pytest.mark.parametrize(("api", "access"), [("SystemTimeToFileTime", "read"), ("GetSystemTime", "write")])
+def test_handler_access_of_an_unmapped_guest_pointer_is_typed_fault(config, api, access):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        out = se.mem_alloc(0x1000)
+        bad = 0x10
+        args = [bad, out] if api == "SystemTimeToFileTime" else [bad]
+        stub = b"".join(b"\x68" + dword(arg) for arg in reversed(args))
+        stub += b"\xb8" + dword(se.emu.get_proc("kernel32", api)) + b"\xff\xd0\xc3"
+        se.mem_write(code, stub)
+
+        se.run_shellcode(code)
+
+        error = se.get_report().entry_points[0].error
+        assert error.type == f"invalid_{access}"
+        assert error.access_type == access
+        assert error.address == bad
+        assert error.traceback
