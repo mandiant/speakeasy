@@ -670,6 +670,16 @@ def test_setvbuf_accepts_only_known_modes(dll_emu: Speakeasy, mode: int, rv: int
     assert call(dll_emu, "msvcrt", "setvbuf", [0x1000, 0, mode, 0x200])[0] == rv
 
 
+def test_setbuf_accepts_a_stream_and_buffer(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "setbuf", [0x1000, 0])[0] is None
+
+
+def test_getpid_matches_the_current_process(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    assert call(dll_emu, "msvcrt", "_getpid", [])[0] == dll_emu.emu.get_current_process().id
+
+
 def test_mbsdup_copies_the_string(dll_emu: Speakeasy) -> None:
     src = alloc(dll_emu, b"\x82\xa0abc\x00")
     rv, _ = call(dll_emu, "msvcrt", "_mbsdup", [src])
