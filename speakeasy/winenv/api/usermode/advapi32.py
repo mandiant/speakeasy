@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
+import struct
 from typing import Any
 
 from Crypto.Cipher import ARC4
@@ -1807,10 +1808,50 @@ class AdvApi32(api.ApiHandler):
         if service_state_str:
             ctx.args["dwServiceState"].display = service_state_str
 
-        # TODO: Populate service status output
-        for ptr in (pcbBytesNeeded, lpServicesReturned, lpResumeHandle):
+        cw = self.get_char_width(ctx)
+        ptr_size = emu.get_ptr_size()
+        entry_size = (2 * ptr_size + 28 + ptr_size - 1) & ~(ptr_size - 1)
+        services = [
+            service
+            for service in adv32.EMULATED_SERVICES
+            if service[2] & dwServiceType
+            and dwServiceState
+            & (adv32.SERVICE_ACTIVE if service[3] == adv32.SERVICE_RUNNING else adv32.SERVICE_INACTIVE)
+        ]
+        start = int.from_bytes(self.mem_read(lpResumeHandle, 4), "little") if lpResumeHandle else 0
+        services = services[start:]
+
+        def encode(text):
+            return (text + "\0").encode("utf-16le" if cw == 2 else "ascii")
+
+        sizes = [entry_size + len(encode(name)) + len(encode(display)) for name, display, _, _ in services]
+        count = 0
+        while count < len(sizes) and sum(sizes[: count + 1]) <= cbBufSize:
+            count += 1
+
+        strings = lpServices + count * entry_size
+        for index, (name, display, service_type, state) in enumerate(services[:count]):
+            entry = bytearray(entry_size)
+            for offset, text in ((0, name), (ptr_size, display)):
+                data = encode(text)
+                self.mem_write(strings, data)
+                entry[offset : offset + ptr_size] = strings.to_bytes(ptr_size, "little")
+                strings += len(data)
+            accepted = adv32.SERVICE_ACCEPT_STOP if state == adv32.SERVICE_RUNNING else 0
+            struct.pack_into("<7I", entry, 2 * ptr_size, service_type, state, accepted, 0, 0, 0, 0)
+            self.mem_write(lpServices + index * entry_size, bytes(entry))
+
+        needed = sum(sizes[count:])
+        for ptr, value in (
+            (pcbBytesNeeded, needed),
+            (lpServicesReturned, count),
+            (lpResumeHandle, start + count if needed else 0),
+        ):
             if ptr:
-                self.mem_write(ptr, (0).to_bytes(4, "little"))
+                self.mem_write(ptr, value.to_bytes(4, "little"))
+        if needed:
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
+            return 0
         return 1
 
     @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
