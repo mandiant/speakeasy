@@ -306,6 +306,39 @@ def test_equal_sid_compares_every_subauthority(dll_emu: Speakeasy, a: bytes, b: 
     assert bool(rv) == equal
 
 
+NT_AUTHORITY = bytes([0, 0, 0, 0, 0, 5])
+
+
+def test_allocate_and_initialize_sid_writes_the_sid(dll_emu: Speakeasy) -> None:
+    psid = alloc(dll_emu, b"\x00" * 4)
+    argv = [alloc(dll_emu, NT_AUTHORITY), 2, 32, 544, 0, 0, 0, 0, 0, 0, psid]
+    assert call(dll_emu, "advapi32", "AllocateAndInitializeSid", argv)[0]
+    sid = _dword(dll_emu, psid)
+    assert call(dll_emu, "advapi32", "GetLengthSid", [sid])[0] == 16
+    assert call(dll_emu, "advapi32", "EqualSid", [sid, alloc(dll_emu, _sid(32, 544))])[0]
+    assert call(dll_emu, "advapi32", "IsValidSid", [sid])[0]
+
+
+def test_initialize_sid_and_copy_sid(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "advapi32", "GetSidLengthRequired", [2])[0] == 16
+    sid = alloc(dll_emu, b"\xcc" * 16)
+    assert call(dll_emu, "advapi32", "InitializeSid", [sid, alloc(dll_emu, NT_AUTHORITY), 2])[0]
+    assert dll_emu.mem_read(sid, 8) == bytes([1, 2]) + NT_AUTHORITY
+    dll_emu.mem_write(sid + 8, struct.pack("<2I", 32, 544))
+
+    dst = alloc(dll_emu, b"\xcc" * 20)
+    assert call(dll_emu, "advapi32", "CopySid", [15, dst, sid])[0] == 0
+    assert _last_error(dll_emu) == windefs.ERROR_INSUFFICIENT_BUFFER
+    assert call(dll_emu, "advapi32", "CopySid", [20, dst, sid])[0]
+    assert dll_emu.mem_read(dst, 20) == _sid(32, 544) + b"\xcc" * 4
+
+
+@pytest.mark.parametrize("sid, valid", [(_sid(32, 544), True), (bytes([2, 0, 0, 0, 0, 0, 0, 5]), False)])
+def test_is_valid_sid_checks_the_revision(dll_emu: Speakeasy, sid: bytes, valid: bool) -> None:
+    assert bool(call(dll_emu, "advapi32", "IsValidSid", [alloc(dll_emu, sid)])[0]) == valid
+
+
 def _derive_and_decrypt(se: Speakeasy, algid: int, flags: int, ciphertext: bytes) -> bytes:
     """Hash "secret", derive an RC4 key from the hash, and decrypt ``ciphertext`` with it."""
     phprov = alloc(se, b"\x00" * 4)
