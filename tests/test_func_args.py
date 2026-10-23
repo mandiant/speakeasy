@@ -1,5 +1,6 @@
 import pytest
 
+from speakeasy import Speakeasy
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
@@ -77,7 +78,7 @@ def test_x86_stdcall_stack_restored(emu, argc):
     conv = e_arch.CALL_CONV_STDCALL
     args = _make_args(argc)
     sp_before = emu.get_stack_ptr()
-    emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
+    emu.set_func_args(sp_before, RET_ADDR, *args, conv=conv)
     emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
     assert emu.get_stack_ptr() == sp_before
 
@@ -89,6 +90,17 @@ def test_x86_fastcall_stack_restored(emu, argc):
     conv = e_arch.CALL_CONV_FASTCALL
     args = _make_args(argc)
     sp_before = emu.get_stack_ptr()
-    emu.set_func_args(emu.stack_base, RET_ADDR, *args, conv=conv)
+    emu.set_func_args(sp_before, RET_ADDR, *args, conv=conv)
     emu.do_call_return(argc, ret_addr=RET_ADDR, conv=conv)
     assert emu.get_stack_ptr() == sp_before
+
+
+def test_x86_run_reads_stack_arguments_it_was_not_given(config):
+    se = Speakeasy(config=config)
+    try:
+        # mov eax, [esp + 0x24]; ret
+        addr = se.load_shellcode(data=b"\x8b\x44\x24\x24\xc3", arch="x86")
+        se.run_shellcode(addr)
+        assert se.get_report().entry_points[0].error is None
+    finally:
+        se.shutdown()
