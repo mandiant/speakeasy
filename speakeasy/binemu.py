@@ -598,8 +598,10 @@ class BinaryEmulator(MemoryManager, ABC):
         ptr = base
 
         if arch == e_arch.ARCH_X86:
-            self.reg_write(e_arch.X86_REG_ESP, base)
-            self.reg_write(e_arch.X86_REG_EBP, base)
+            # Save room for stack arguments beyond the ones a run supplies
+            ptr -= self.ptr_size * 64
+            self.reg_write(e_arch.X86_REG_ESP, ptr)
+            self.reg_write(e_arch.X86_REG_EBP, ptr)
         elif arch == e_arch.ARCH_AMD64:
             # Save room for the "home space"
             ptr -= self.ptr_size * 5
