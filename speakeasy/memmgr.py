@@ -235,7 +235,8 @@ class MemoryManager:
         for r in self.mem_reserves:
             if mapped_base == r.base:
                 self.mem_reserves.remove(r)
-                return self.mem_map(r.size, base=r.base, perms=r.prot, tag=r.tag)
+                perms = common.PERM_MEM_RWX if r.prot is None else r.prot
+                return self.mem_map(r.size, base=r.base, perms=perms, tag=r.tag)
         return None
 
     def get_mem_regions(self):
