@@ -959,3 +959,22 @@ def test_text_output_reaches_a_file_stream(dll_emu: Speakeasy, api: str) -> None
 
     assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, stream])[0] == 4
     assert dll_emu.mem_read(out, 4) == b"id=7"
+
+
+@pytest.mark.parametrize(
+    "api, c, rv", [("towlower", ord("Q"), ord("q")), ("towlower", 0xC9, 0xC9), ("towupper", ord("q"), ord("Q"))]
+)
+def test_wide_case_conversion_maps_ascii_letters_in_the_c_locale(dll_emu: Speakeasy, api: str, c: int, rv: int) -> None:
+    assert call(dll_emu, "msvcrt", api, [c])[0] == rv
+
+
+@pytest.mark.parametrize("c, offset", [(ord("b"), 2), (0, 6), (ord("z"), None)])
+def test_wcschr_finds_the_first_match_or_the_terminator(dll_emu: Speakeasy, c: int, offset: int | None) -> None:
+    s = alloc(dll_emu, "abb\x00".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "wcschr", [s, c])[0] == (0 if offset is None else s + offset)
+
+
+@pytest.mark.parametrize("api", ["_initialize_wide_environment", "_configure_wide_argv"])
+def test_wide_startup_initializers_succeed(dll_emu: Speakeasy, api: str) -> None:
+    argv = [] if api == "_initialize_wide_environment" else [1]
+    assert call(dll_emu, "msvcrt", api, argv)[0] == 0
