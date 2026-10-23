@@ -89,7 +89,11 @@ def emulate_binary(
         error = str(err) or type(err).__name__
     finally:
         if se is not None and se.emu is not None:
-            report = se.get_json_report()
+            try:
+                report = se.get_json_report()
+            except Exception as err:
+                logger.debug("report generation failed", exc_info=True)
+                error = error or f"failed to build the report: {err or type(err).__name__}"
         q.put((report, error))
 
         if dropped_files_path and se is not None and se.emu is not None:
@@ -115,6 +119,40 @@ def get_child_result(q, p, wait):
                     return None
             if time.monotonic() >= deadline:
                 return None
+
+
+def wait_for_child(q, p, evt, wall_limit) -> tuple[str | None, str | None]:
+    """
+    Wait for the result of the emulation process and stop it after ``wall_limit`` seconds.
+    A child that exits or stops without a result gives an error.
+    """
+    result = None
+    start_time = time.time()
+    while True:
+        if wall_limit and wall_limit < (time.time() - start_time):
+            evt.set()
+            logger.error("* Child process timeout reached after %d seconds", wall_limit)
+            result = get_child_result(q, p, CHILD_EXIT_GRACE)
+            break
+        try:
+            result = get_child_result(q, p, 1)
+            if result is not None or not p.is_alive():
+                break
+        except KeyboardInterrupt:
+            evt.set()
+            logger.error("\n* User exited")
+            result = get_child_result(q, p, CHILD_EXIT_GRACE)
+            break
+
+    if result is None:
+        p.join(CHILD_EXIT_GRACE)
+        if p.is_alive():
+            p.terminate()
+    p.join()
+
+    if result is None:
+        return None, f"emulation process exited with code {p.exitcode} and sent no report"
+    return result
 
 
 def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> str | None:
@@ -209,33 +247,10 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             },
         )
         p.start()
-
-        result = None
-        start_time = time.time()
-        while True:
-            if wall_limit and wall_limit < (time.time() - start_time):
-                evt.set()
-                logger.error("* Child process timeout reached after %d seconds", wall_limit)
-                result = get_child_result(q, p, CHILD_EXIT_GRACE)
-                break
-            try:
-                result = get_child_result(q, p, 1)
-                if result is not None or not p.is_alive():
-                    break
-            except KeyboardInterrupt:
-                evt.set()
-                logger.error("\n* User exited")
-                result = get_child_result(q, p, CHILD_EXIT_GRACE)
-                break
-
-        if result is None:
-            p.join(CHILD_EXIT_GRACE)
-            if p.is_alive():
-                p.terminate()
-        p.join()
+        result = wait_for_child(q, p, evt, wall_limit)
 
     logger.info("* Finished emulating")
-    report, error = result or (None, None)
+    report, error = result
 
     if report and output:
         logger.info("* Saving emulation report to %s", output)
