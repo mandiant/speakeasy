@@ -891,3 +891,16 @@ def test_telemetry_triggers_are_accepted(dll_emu: Speakeasy, name: str) -> None:
 def test_setmode_returns_text_mode_for_a_standard_descriptor(dll_emu: Speakeasy, fd: int, result: int) -> None:
     o_u16text = 0x20000
     assert call(dll_emu, "msvcrt", "_setmode", [fd, o_u16text])[0] == result
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", 4), ("dll64_emu", 8)])
+def test_lc_locale_name_func_gives_the_c_locale_names(request: pytest.FixtureRequest, fixture: str, ptr: int) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    names = call(se, "msvcrt", "___lc_locale_name_func", [])[0]
+    assert names == call(se, "msvcrt", "___lc_locale_name_func", [])[0]
+    assert se.mem_read(names, 6 * ptr) == b"\x00" * 6 * ptr
+
+
+@pytest.mark.parametrize("name", ["_lock_file", "_unlock_file"])
+def test_file_locks_are_accepted(dll_emu: Speakeasy, name: str) -> None:
+    call(dll_emu, "msvcrt", name, [alloc(dll_emu, b"\x00" * 0x20)])
