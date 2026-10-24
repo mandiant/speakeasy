@@ -397,3 +397,26 @@ def test_generator_handler_fault_ends_the_run_where_it_reads(config):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert (run.error.type, run.error.address) == ("invalid_read", record)
+
+
+def test_vectored_handler_added_first_runs_first(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        data = se.mem_alloc(0x1000)
+        setup = b""
+        for number, first in ((1, 0), (2, 1)):
+            handler = code + 0x1000 + 0x40 * number
+            se.mem_write(
+                handler,
+                b"\xc7\x04\x25"
+                + struct.pack("<II", data, number)  # mov dword [data], number
+                + b"\x48\x8b\x41\x08\x48\xff\x80\xf8\x00\x00\x00"  # inc qword [ContextRecord->Rip]
+                + b"\xb8\xff\xff\xff\xff\xc3",  # return EXCEPTION_CONTINUE_EXECUTION
+            )
+            setup += guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), first, handler)
+        se.mem_write(code, setup + b"\xcc" + RETURN_42)
+
+        se.run_shellcode(code)
+
+        assert se.get_report().entry_points[0].ret_val == 42
+        assert struct.unpack("<I", se.mem_read(data, 4))[0] == 2

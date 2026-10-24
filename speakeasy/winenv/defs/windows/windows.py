@@ -302,12 +302,6 @@ class CONTEXT64(EmuStruct):
         self.LastBranchFromRip = ct.c_uint64
         self.LastExceptionToRip = ct.c_uint64
         self.LastExceptionFromRip = ct.c_uint64
-        self.VectorControl = ct.c_uint64
-        self.DebugControl = ct.c_uint64
-        self.LastBranchToRip = ct.c_uint64
-        self.LastBranchFromRip = ct.c_uint64
-        self.LastExceptionToRip = ct.c_uint64
-        self.LastExceptionFromRip = ct.c_uint64
 
 
 def get_create_disposition(flags):

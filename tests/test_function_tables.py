@@ -89,3 +89,33 @@ def test_table_with_a_wrong_count_faults_where_it_ends(config):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == "invalid_read"
+
+
+@pytest.mark.parametrize("dll", ["kernel32", "ntdll"])
+def test_rtl_unwind_continues_in_the_target_frame(config, dll):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        base = se.mem_alloc(0x1000)
+        function = bytes.fromhex(
+            "4883ec28"  # 0x00 sub rsp, 0x28
+            "4889e1"  # 0x04 mov rcx, rsp            TargetFrame: this frame
+            "488d1517000000"  # 0x07 lea rdx, [0x25]   TargetIp
+            "4d31c0"  # 0x0e xor r8, r8
+            "41b92a000000"  # 0x11 mov r9d, 42          ReturnValue
+            "48b8"
+            + struct.pack("<Q", get_api(se, dll, "RtlUnwind")).hex()  # 0x17 mov rax, RtlUnwind
+            + "ffd0"  # 0x21 call rax
+            "31c0"  # 0x23 xor eax, eax
+            "4883c428c3"  # 0x25 add rsp, 0x28; ret
+        )
+        se.mem_write(base, function)
+        se.mem_write(base + UNWIND_INFO, bytes([1, 4, 1, 0, 4, 4 << 4 | 2, 0, 0]))  # at 4: UWOP_ALLOC_SMALL 0x28
+        se.mem_write(base + RUNTIME_FUNCTION, struct.pack("<III", 0, len(function), UNWIND_INFO))
+        call = guest_call(8, get_api(se, "ntdll", "RtlAddFunctionTable"), base + RUNTIME_FUNCTION, 1, base)
+        se.mem_write(code, call + guest_call(8, base) + b"\xc3")
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.ret_val == 42

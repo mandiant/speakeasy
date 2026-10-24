@@ -11,7 +11,9 @@ is offered to a handler is reported as an `exception` event.
   to read-only pages, and division by zero.
 - Trap instructions, following Wine: `int3` and `int 3`, `int 2d` (or nothing,
   for the debug service codes 1, 3, 4 and 5), other `int n` as access
-  violations, `ud2`, `icebp`, `hlt`, `in` and `out`, and the trap flag.
+  violations, `ud2`, `icebp`, `hlt`, `in` and `out`, and the trap flag. The
+  system service gates (`int 2e`, and `int 2a` and `int 2b` on x86) are not
+  emulated and end the run as an unhandled interrupt.
 - `PAGE_GUARD` pages, once, with `STATUS_GUARD_PAGE_VIOLATION`.
 - Execute breakpoints in the debug registers of the current thread, set with
   `SetThreadContext` or by a handler that edits its context record.
@@ -25,16 +27,17 @@ Vectored handlers run first, then frame-based handlers:
 
 - x64 walks the stack with the unwind data of images (`.pdata`), or of tables
   registered with `RtlAddFunctionTable`, and calls language handlers such as
-  `__C_specific_handler`. `RtlUnwindEx` runs `__finally` blocks on the way to
-  the target frame.
+  `__C_specific_handler`. `RtlUnwind` and `RtlUnwindEx` run `__finally` blocks
+  on the way to the target frame.
 - x86 walks the chain of registrations at `fs:[0]`. The MSVC language handlers
   `_except_handler3` and `_except_handler4_common` run filters and `__finally`
   blocks; `RtlUnwind` unwinds registrations.
 
 When no frame handles an exception, the filter of `SetUnhandledExceptionFilter`
 runs, and may continue execution. Otherwise the run ends with the error of the
-exception, as Windows would end the process; an unhandled access violation is
-`invalid_read`, `invalid_write` or `invalid_fetch`. As an exception to that,
+exception, as Windows would end the process, whether or not a handler saw it;
+an unhandled access violation is `invalid_read`, `invalid_write` or
+`invalid_fetch`. As an exception to that,
 `RaiseException` returns to its caller when nothing takes a continuable
 exception, so that emulation goes on.
 
@@ -50,6 +53,8 @@ attempts, rather than looping until the timeout.
 - `speakeasy/windows/cpu_exceptions.py`: the exception a CPU event becomes.
 - `speakeasy/windows/thread_context.py` and `hardware_breakpoints.py`: thread
   contexts and debug registers.
+- `speakeasy/winenv/api/exception_apis.py`: the exception and unwind APIs that
+  kernel32 and ntdll share.
 
 ## Limitations
 
