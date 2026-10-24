@@ -55,7 +55,8 @@ def _write_u32(emu, address: int, value: int) -> None:
 
 def exception_list(emu) -> int:
     """The head of the thread's registration chain, at fs:[0]."""
-    return emu._get_exception_list()
+    thread = emu.get_current_thread()
+    return thread.get_teb().read_back().object.NtTib.ExceptionList if thread else 0
 
 
 def registrations(emu) -> Iterator[tuple[int, int, int]]:

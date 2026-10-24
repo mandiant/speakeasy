@@ -64,4 +64,4 @@ class HardwareBreakpoints:
             return
         thread.debug_registers["Dr6"] |= 1 << index
         exception = CpuException(ddk.STATUS_SINGLE_STEP, address, address)
-        self.emu._raise_cpu_exception(exception, "hardware_breakpoint")
+        self.emu.raise_cpu_exception(exception, "hardware_breakpoint")

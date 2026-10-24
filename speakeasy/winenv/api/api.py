@@ -536,7 +536,7 @@ class ApiHandler:
 
         run = self.emu.get_current_run()
 
-        frame = self.emu._active_api_frame
+        frame = self.emu.active_api_frame
         if any(item is frame for item in run.guest_callbacks):
             frame.pending.append((func, tuple(args)))
             return
