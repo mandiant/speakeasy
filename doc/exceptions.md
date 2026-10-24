@@ -69,3 +69,6 @@ attempts, rather than looping until the timeout.
   not validated against the stack or SafeSEH.
 - C++ exceptions are not emulated: `_CxxThrowException` returns, and the C++
   frame handlers do not run catch blocks.
+- Continuing a non-continuable exception ends the run with
+  `STATUS_NONCONTINUABLE_EXCEPTION`, where Windows would raise that as a new
+  exception.
