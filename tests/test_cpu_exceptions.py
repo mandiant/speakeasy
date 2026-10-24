@@ -124,25 +124,38 @@ def test_debug_service_without_exception_skips_a_byte(config):
         assert not [e for e in run.events or [] if e.event == "exception"]
 
 
+@pytest.mark.parametrize("handler", [False, True], ids=["no handler", "handler continues search"])
 @pytest.mark.parametrize(
-    "insn, error",
+    "insn, error, interrupt_num",
     [
-        (b"\xcc", "unhandled_interrupt"),
-        (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)"),
-        (b"\xf4", "privileged_instruction"),
-        (b"\xec", "privileged_instruction"),
+        (b"\xcc", "unhandled_interrupt", 3),
+        (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)", None),
+        (b"\xf4", "privileged_instruction", None),
+        (b"\xec", "privileged_instruction", None),
+        (b"\xc6\x00\x00", "invalid_protect_write", None),  # mov byte [rax], 0
     ],
 )
-def test_unhandled_cpu_exception_ends_the_run(config, insn, error):
+def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num, handler):
+    """The run ends with the same error whether or not a handler saw the exception."""
     with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=insn + RETURN_42, arch="amd64")
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        continue_search = code + 0x1000
+        se.mem_write(continue_search, b"\x31\xc0\xc3")
+        setup = b""
+        if handler:
+            setup += guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, continue_search)
+        # rax: a read-only page
+        setup += guest_call(8, get_api(se, "kernel32", "VirtualAlloc"), 0, 0x1000, MEM_COMMIT_RESERVE, PAGE_READONLY)
+        se.mem_write(code, setup + insn + RETURN_42)
 
         se.run_shellcode(code)
 
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == error
-        assert run.error.pc == code
+        assert run.error.pc == code + len(setup)
+        assert run.error.interrupt_num == interrupt_num
+        assert len([e for e in run.events or [] if e.event == "exception"]) == handler
 
 
 MEM_COMMIT_RESERVE = 0x3000

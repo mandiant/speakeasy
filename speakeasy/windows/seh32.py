@@ -61,8 +61,8 @@ def set_exception_list(emu, registration: int) -> None:
     teb.write_back()
 
 
-def dispatch_fault(emu, exception: CpuException) -> bool:
-    return seh.dispatch_fault(emu, exception, dispatch_exception)
+def dispatch_fault(emu, exception: CpuException, error: guest_callbacks.CallbackError | None = None) -> bool:
+    return seh.dispatch_fault(emu, exception, dispatch_exception, error)
 
 
 def raise_exception(emu, code: int, flags: int = 0, params=()) -> GeneratorHandler:

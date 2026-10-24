@@ -116,8 +116,8 @@ def _dispatcher_context(fn, frame_ctx, info, context: int, target_ip: int = 0) -
     return DISPATCHER_CONTEXT.pack(*dc)
 
 
-def dispatch_fault(emu, exception: CpuException) -> bool:
-    return seh.dispatch_fault(emu, exception, dispatch_exception)
+def dispatch_fault(emu, exception: CpuException, error: guest_callbacks.CallbackError | None = None) -> bool:
+    return seh.dispatch_fault(emu, exception, dispatch_exception, error)
 
 
 def raise_exception(emu, code: int, flags: int = 0, params=()) -> GeneratorHandler:
