@@ -488,3 +488,16 @@ def test_get_window_thread_process_id_of_an_invalid_window(dll_emu: Speakeasy) -
     assert call(dll_emu, "user32", "GetWindowThreadProcessId", [0x41420000, pid])[0] == 0
     assert dll_emu.mem_read(pid, 4) == b"\xcc" * 4
     assert dll_emu.emu.get_last_error() == 1400
+
+
+@pytest.mark.parametrize(
+    "index, expected",
+    [(0, 1920), (1, 1080), (4, 23), (19, 1), (67, 0), (78, 1920), (79, 1080), (80, 1), (0x1000, 0), (0x7FFF, 0)],
+)
+def test_get_system_metrics(dll_emu: Speakeasy, index: int, expected: int) -> None:
+    assert call(dll_emu, "user32", "GetSystemMetrics", [index])[0] == expected
+
+
+@pytest.mark.parametrize("index, expected", [(5, 0xFFFFFF), (8, 0), (13, 0xD77800), (15, 0xF0F0F0), (200, 0)])
+def test_get_sys_color(dll_emu: Speakeasy, index: int, expected: int) -> None:
+    assert call(dll_emu, "user32", "GetSysColor", [index])[0] == expected

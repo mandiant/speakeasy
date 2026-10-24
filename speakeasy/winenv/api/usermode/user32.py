@@ -31,6 +31,102 @@ WS_CHILD = 0x40000000
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
 
+# Windows 10 at 96 DPI with a 40 pixel taskbar. Indexes that are not here return 0.
+SYSTEM_METRICS = {
+    0: SCREEN_WIDTH,  # SM_CXSCREEN
+    1: SCREEN_HEIGHT,  # SM_CYSCREEN
+    2: 17,  # SM_CXVSCROLL
+    3: 17,  # SM_CYHSCROLL
+    4: 23,  # SM_CYCAPTION
+    5: 1,  # SM_CXBORDER
+    6: 1,  # SM_CYBORDER
+    7: 3,  # SM_CXDLGFRAME
+    8: 3,  # SM_CYDLGFRAME
+    9: 17,  # SM_CYVTHUMB
+    10: 17,  # SM_CXHTHUMB
+    11: 32,  # SM_CXICON
+    12: 32,  # SM_CYICON
+    13: 32,  # SM_CXCURSOR
+    14: 32,  # SM_CYCURSOR
+    15: 20,  # SM_CYMENU
+    16: SCREEN_WIDTH,  # SM_CXFULLSCREEN
+    17: SCREEN_HEIGHT - 63,  # SM_CYFULLSCREEN
+    19: 1,  # SM_MOUSEPRESENT
+    20: 17,  # SM_CYVSCROLL
+    21: 17,  # SM_CXHSCROLL
+    28: 136,  # SM_CXMIN
+    29: 39,  # SM_CYMIN
+    30: 36,  # SM_CXSIZE
+    31: 22,  # SM_CYSIZE
+    32: 4,  # SM_CXFRAME
+    33: 4,  # SM_CYFRAME
+    34: 136,  # SM_CXMINTRACK
+    35: 39,  # SM_CYMINTRACK
+    36: 4,  # SM_CXDOUBLECLK
+    37: 4,  # SM_CYDOUBLECLK
+    38: 75,  # SM_CXICONSPACING
+    39: 75,  # SM_CYICONSPACING
+    43: 3,  # SM_CMOUSEBUTTONS
+    45: 2,  # SM_CXEDGE
+    46: 2,  # SM_CYEDGE
+    47: 160,  # SM_CXMINSPACING
+    48: 28,  # SM_CYMINSPACING
+    49: 16,  # SM_CXSMICON
+    50: 16,  # SM_CYSMICON
+    51: 23,  # SM_CYSMCAPTION
+    52: 22,  # SM_CXSMSIZE
+    53: 22,  # SM_CYSMSIZE
+    54: 19,  # SM_CXMENUSIZE
+    55: 19,  # SM_CYMENUSIZE
+    56: 8,  # SM_ARRANGE
+    57: 160,  # SM_CXMINIMIZED
+    58: 28,  # SM_CYMINIMIZED
+    59: SCREEN_WIDTH + 20,  # SM_CXMAXTRACK
+    60: SCREEN_HEIGHT + 20,  # SM_CYMAXTRACK
+    61: SCREEN_WIDTH + 16,  # SM_CXMAXIMIZED
+    62: SCREEN_HEIGHT - 24,  # SM_CYMAXIMIZED
+    63: 3,  # SM_NETWORK
+    68: 4,  # SM_CXDRAG
+    69: 4,  # SM_CYDRAG
+    71: 15,  # SM_CXMENUCHECK
+    72: 15,  # SM_CYMENUCHECK
+    75: 1,  # SM_MOUSEWHEELPRESENT
+    78: SCREEN_WIDTH,  # SM_CXVIRTUALSCREEN
+    79: SCREEN_HEIGHT,  # SM_CYVIRTUALSCREEN
+    80: 1,  # SM_CMONITORS
+    81: 1,  # SM_SAMEDISPLAYFORMAT
+    83: 1,  # SM_CXFOCUSBORDER
+    84: 1,  # SM_CYFOCUSBORDER
+    92: 4,  # SM_CXPADDEDBORDER
+}
+
+# Windows 10 default colors as COLORREF (0x00BBGGRR). Indexes that are not here return 0.
+SYS_COLORS = {
+    0: 0xC8C8C8,  # COLOR_SCROLLBAR
+    2: 0xD1B499,  # COLOR_ACTIVECAPTION
+    3: 0xDBCDBF,  # COLOR_INACTIVECAPTION
+    4: 0xF0F0F0,  # COLOR_MENU
+    5: 0xFFFFFF,  # COLOR_WINDOW
+    6: 0x646464,  # COLOR_WINDOWFRAME
+    10: 0xB4B4B4,  # COLOR_ACTIVEBORDER
+    11: 0xFCF7F4,  # COLOR_INACTIVEBORDER
+    12: 0xABABAB,  # COLOR_APPWORKSPACE
+    13: 0xD77800,  # COLOR_HIGHLIGHT
+    14: 0xFFFFFF,  # COLOR_HIGHLIGHTTEXT
+    15: 0xF0F0F0,  # COLOR_BTNFACE
+    16: 0xA0A0A0,  # COLOR_BTNSHADOW
+    17: 0x6D6D6D,  # COLOR_GRAYTEXT
+    20: 0xFFFFFF,  # COLOR_BTNHIGHLIGHT
+    21: 0x696969,  # COLOR_3DDKSHADOW
+    22: 0xE3E3E3,  # COLOR_3DLIGHT
+    24: 0xE1FFFF,  # COLOR_INFOBK
+    26: 0xCC6600,  # COLOR_HOTLIGHT
+    27: 0xEAD1B9,  # COLOR_GRADIENTACTIVECAPTION
+    28: 0xF2E4D7,  # COLOR_GRADIENTINACTIVECAPTION
+    29: 0xD77800,  # COLOR_MENUHILIGHT
+    30: 0xF0F0F0,  # COLOR_MENUBAR
+}
+
 
 def map_char_case(raw: bytes, width: int, upper: bool) -> bytes:
     """
@@ -539,9 +635,7 @@ class User32(api.ApiHandler):
         """
 
         (nIndex,) = argv
-
-        rv = 1
-        return rv
+        return SYSTEM_METRICS.get(nIndex, 0)
 
     @apihook("LoadBitmap", argc=2)
     def LoadBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -941,9 +1035,7 @@ class User32(api.ApiHandler):
         );
         """
         (nIndex,) = argv
-        rv = 1
-
-        return rv
+        return SYS_COLORS.get(nIndex, 0)
 
     @apihook("GetParent", argc=1)
     def GetParent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
