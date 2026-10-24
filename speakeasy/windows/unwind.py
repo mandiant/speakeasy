@@ -155,36 +155,52 @@ def read_unwind_info(read: Reader, address: int) -> UnwindInfo:
     return UnwindInfo(version_flags >> 3, prolog_size, frame & 0xF, frame >> 4, codes, trailer)
 
 
+class UnwindError(Exception):
+    """Unwind data that cannot be followed."""
+
+
+# Chained unwind infos followed before the data is taken as corrupt
+MAX_CHAIN = 32
+
+
+def _prolog_offset(fn: RuntimeFunction, pc: int) -> int:
+    """The offset of pc into fn, unsigned: pc before fn, in a fragment of it, is past its prolog."""
+    return (pc - fn.image_base - fn.begin) & 0xFFFFFFFF
+
+
+def _establisher_frame(info: UnwindInfo, offset: int, ctx) -> int:
+    """The frame pointer, or rsp before the prolog sets it."""
+    frame_set = (
+        offset >= info.prolog_size
+        or info.flags & UNW_FLAG_CHAININFO
+        or any(c.op == UWOP_SET_FPREG and c.prolog_offset <= offset for c in info.codes)
+    )
+    if info.frame_reg and frame_set:
+        return getattr(ctx, GPRS[info.frame_reg]) - 16 * info.frame_offset
+    return ctx.Rsp
+
+
 def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type: int = 0) -> FrameInfo:
     """
     Unwind one frame: ctx is updated in place to the caller's state.
 
     Returns the establisher frame and, when the frame has a handler of
-    ``handler_type`` (UNW_FLAG_EHANDLER or UNW_FLAG_UHANDLER), the handler.
+    ``handler_type`` (UNW_FLAG_EHANDLER or UNW_FLAG_UHANDLER), the handler,
+    which a fragment of a function shares with the function's primary entry
+    at the end of its chain.
 
     Not handled: a pc inside an epilogue, which Windows unwinds by simulating
     the remaining epilogue instructions.
     """
     base = fn.image_base
     info = read_unwind_info(read, base + fn.unwind_info)
-    offset = pc - base - fn.begin
-    # While pc is in the prolog, only codes for instructions that already ran are undone.
-    in_prolog = offset < info.prolog_size
-
-    frame = ctx.Rsp
-    if info.frame_reg and any(
-        c.op == UWOP_SET_FPREG and not (in_prolog and c.prolog_offset > offset) for c in info.codes
-    ):
-        frame = getattr(ctx, GPRS[info.frame_reg]) - 16 * info.frame_offset
-
-    handler = handler_data = 0
-    if info.flags & handler_type:
-        handler, handler_data = base + _u32(read, info.trailer), info.trailer + 4
+    frame = _establisher_frame(info, _prolog_offset(fn, pc), ctx)
 
     machine_frame = False
-    while True:
+    for _ in range(MAX_CHAIN):
+        offset = _prolog_offset(fn, pc)
         for c in info.codes:
-            if in_prolog and c.prolog_offset > offset:
+            if c.prolog_offset > offset:  # in the prolog, before this code's instruction ran
                 continue
             if c.op == UWOP_PUSH_NONVOL:
                 setattr(ctx, GPRS[c.info], _u64(read, ctx.Rsp))
@@ -194,7 +210,7 @@ def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type
             elif c.op == UWOP_ALLOC_SMALL:
                 ctx.Rsp += c.info * 8 + 8
             elif c.op == UWOP_SET_FPREG:
-                ctx.Rsp = frame
+                ctx.Rsp = getattr(ctx, GPRS[info.frame_reg]) - 16 * info.frame_offset
             elif c.op == UWOP_SAVE_NONVOL:
                 setattr(ctx, GPRS[c.info], _u64(read, frame + c.operand * 8))
             elif c.op == UWOP_SAVE_NONVOL_FAR:
@@ -210,10 +226,14 @@ def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type
                 machine_frame = True
         if not info.flags & UNW_FLAG_CHAININFO:
             break
-        # The chained (parent) function's prolog has fully executed.
-        info = read_unwind_info(read, base + read_runtime_function(read, base, info.trailer).unwind_info)
-        in_prolog = False
+        fn = read_runtime_function(read, base, info.trailer)
+        info = read_unwind_info(read, base + fn.unwind_info)
+    else:
+        raise UnwindError(f"unwind info chain of 0x{pc:x} is longer than {MAX_CHAIN}")
 
+    handler = handler_data = 0
+    if info.flags & handler_type and _prolog_offset(fn, pc) >= info.prolog_size:
+        handler, handler_data = base + _u32(read, info.trailer), info.trailer + 4
     if not machine_frame:
         unwind_leaf(read, ctx)
     return FrameInfo(frame, handler, handler_data)

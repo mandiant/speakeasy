@@ -94,7 +94,7 @@ def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.Ru
                 unwind.unwind_leaf(emu.mem_read, ctx)
                 continue
             info = unwind.virtual_unwind(emu.mem_read, fn, pc, ctx, handler_type)
-        except uc.UcError:
+        except (uc.UcError, unwind.UnwindError):
             return  # a corrupt stack or unwind data ends the walk
         yield frame_ctx, fn, info
 
