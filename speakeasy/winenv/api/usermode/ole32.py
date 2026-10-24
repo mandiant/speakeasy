@@ -175,6 +175,26 @@ class Ole32(api.ApiHandler):
 
         return rv
 
+    @apihook("StringFromGUID2", argc=3)
+    def StringFromGUID2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int StringFromGUID2(
+          REFGUID  rguid,
+          LPOLESTR lpsz,
+          int      cchMax
+        );
+        """
+        rguid, lpsz, cchMax = argv
+
+        guid = self.mem_read(rguid, self.sizeof(windefs.GUID()))
+        u = com.convert_guid_bytes_to_str(guid) + "\x00"
+        if cchMax < len(u):
+            return 0
+
+        self.write_mem_string(u, lpsz, 2)
+        ctx.args["lpsz"].display = u[:-1]
+        return len(u)
+
     @apihook("CoCreateGuid", argc=1)
     def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         pguid = argv[0]

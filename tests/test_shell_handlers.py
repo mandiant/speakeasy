@@ -262,6 +262,16 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
 
 
+@pytest.mark.parametrize("cch, rv", [(39, 39), (38, 0)])
+def test_string_from_guid2_writes_the_braced_string(dll_emu: Speakeasy, cch: int, rv: int) -> None:
+    text = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
+    out = alloc(dll_emu, b"\xcc" * 80)
+    result, _ = call(dll_emu, "ole32", "StringFromGUID2", [alloc(dll_emu, uuid.UUID(text).bytes_le), out, cch])
+    assert result == rv
+    expected = (text + "\x00").encode("utf-16le") if rv else b"\xcc" * 78
+    assert dll_emu.mem_read(out, 80) == expected + b"\xcc" * (80 - len(expected))
+
+
 def read_ptr(se: Speakeasy, addr: int) -> int:
     return struct.unpack("<I", se.mem_read(addr, 4))[0]
 
