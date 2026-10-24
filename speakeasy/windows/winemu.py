@@ -1697,6 +1697,7 @@ class WindowsEmulator(BinaryEmulator):
             else:
                 self.arch = _arch.ARCH_X86
             self.set_ptr_size(self.arch)
+            self.env.setdefault("processor_architecture", "AMD64" if self.arch == _arch.ARCH_AMD64 else "x86")
 
         if self.emu_eng and not self.emu_eng.emu:
             engine_arch = image.arch if valid_arch else _arch.ARCH_X86

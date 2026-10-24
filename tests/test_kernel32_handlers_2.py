@@ -11,6 +11,7 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
+from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
@@ -71,6 +72,23 @@ def test_get_environment_variable_missing(emu: Speakeasy) -> None:
     buf = alloc(emu, b"\x00" * 32)
     assert call(emu, "kernel32", "GetEnvironmentVariableA", [var, buf, 32])[0] == 0
     assert last_error(emu) == windefs.ERROR_ENVVAR_NOT_FOUND
+
+
+@pytest.mark.parametrize("binary, arch", [("dll_test_x86.dll.xz", "x86"), ("dll_test_x64.dll.xz", "AMD64")])
+def test_default_environment_has_path(load_test_bin: Callable[[str], bytes], binary: str, arch: str) -> None:
+    for se in load_emu(get_default_config_dict(), load_test_bin(binary)):
+        start_process(se)
+        buf = alloc(se, b"\x00" * 0x1000)
+        for name, value in [
+            ("PATH", "C:\\Windows\\system32;C:\\Windows;"),
+            ("PROCESSOR_ARCHITECTURE", arch),
+            ("USERNAME", "speakeasy_user"),
+            ("LOCALAPPDATA", "C:\\Users\\speakeasy_user\\AppData\\Local"),
+        ]:
+            var = alloc(se, (name + "\x00").encode("utf-16le"))
+            rv, _ = call(se, "kernel32", "GetEnvironmentVariableW", [var, buf, 0x800])
+            assert rv > 0
+            assert se.mem_read(buf, rv * 2).decode("utf-16le").startswith(value)
 
 
 GENERIC_READ = 0x80000000
