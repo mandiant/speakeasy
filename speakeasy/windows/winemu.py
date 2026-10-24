@@ -1922,7 +1922,6 @@ class WindowsEmulator(BinaryEmulator):
         # Create a thread object for the new process
         t = self.om.new_object(objman.Thread)  # type: ignore[union-attr]
         t.process = p
-        t.tid = self.om.new_id()  # type: ignore[union-attr]
 
         peb_addr = p.peb.address
         mod_base = 0

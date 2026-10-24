@@ -828,7 +828,6 @@ class ObjectManager:
 
     def new_object(self, obj_type):
         obj = obj_type(emu=self.emu)
-        obj.id = self.new_id()
         return self.add_object(obj)
 
     def add_object(self, obj):

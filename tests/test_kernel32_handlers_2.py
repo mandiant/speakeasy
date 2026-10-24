@@ -773,3 +773,19 @@ def test_writes_to_an_append_only_handle_go_to_the_end(strict_fs_emu: Speakeasy)
     hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0])
     assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"D"), 1, written, 0])[0]
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"DAAABC"]
+
+
+def test_thread_ids_agree(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    tid = alloc(emu, b"\x00" * 4)
+    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, 0, tid])
+    run = emu.emu.run_queue[-1]
+    assert run.thread.tid == int.from_bytes(emu.mem_read(tid, 4), "little")
+    assert call(emu, "kernel32", "GetThreadId", [hnd])[0] == run.thread.tid
+
+    cmd = alloc(emu, b"C:\\Windows\\system32\\notepad.exe\x00")
+    si = alloc(emu, b"\x00" * 0x44)
+    pi = alloc(emu, b"\x00" * 0x10)
+    assert call(emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])[0]
+    _, hthread, _, dwThreadId = struct.unpack("<4I", emu.mem_read(pi, 16))
+    assert call(emu, "kernel32", "GetThreadId", [hthread])[0] == dwThreadId
