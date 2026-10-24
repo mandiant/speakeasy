@@ -731,3 +731,23 @@ def test_get_console_mode_writes_a_mode(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "kernel32", "GetConsoleMode", [out, mode])[0] == 1
     assert struct.unpack("<I", dll_emu.mem_read(mode, 4))[0] == 3
     assert call(dll_emu, "kernel32", "GetConsoleOutputCP", [])[0] == 437
+
+
+def test_a_file_created_by_a_relative_path_is_found_again(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"out.txt\x00")
+    written = alloc(se, b"\x00" * 4)
+    for _ in range(2):
+        hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+        assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"data"), 4, written, 0])[0]
+        call(se, "kernel32", "CloseHandle", [hnd])
+    assert [f.path for f in se.get_dropped_files()] == ["C:\\Windows\\system32\\out.txt"]
+
+    for path in ("out.txt", "c:\\windows\\system32\\OUT.TXT"):
+        hnd = open_file(se, path)
+        buf = alloc(se, b"\x00" * 8)
+        assert call(se, "kernel32", "ReadFile", [hnd, buf, 8, written, 0])[0]
+        assert se.mem_read(buf, 4) == b"data"
+
+    assert call(se, "kernel32", "DeleteFileA", [name])[0]
+    assert open_file(se, "out.txt") == windefs.INVALID_HANDLE_VALUE

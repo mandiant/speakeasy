@@ -317,17 +317,21 @@ class FileManager:
     def get_pipe_from_handle(self, handle):
         return self.pipe_handles.get(handle)
 
+    def get_full_path(self, path):
+        """
+        Resolve a relative path against the current directory.
+        """
+        if ntpath.isabs(path):
+            return path
+        return ntpath.normpath(ntpath.join(self.config.current_dir, path))
+
     def get_file_from_path(self, path):
         # The emulated sample is requesting itself. The module path
         # for it is(?) always the first entry in self.files
         if self.emulated_binname in path:
             return self.files[0]
 
-        # Resolve relative paths against the current directory
-        if not ntpath.isabs(path):
-            cwd = self.config.current_dir
-            path = ntpath.normpath(ntpath.join(cwd, path))
-
+        path = self.get_full_path(path)
         for f in self.files:
             if f.path.lower() == path.lower():
                 return f
@@ -358,10 +362,7 @@ class FileManager:
         return False
 
     def get_emu_file(self, path):
-        # Resolve relative paths against the current directory
-        if not ntpath.isabs(path):
-            cwd = self.config.current_dir
-            path = ntpath.normpath(ntpath.join(cwd, path))
+        path = self.get_full_path(path)
 
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
@@ -420,6 +421,7 @@ class FileManager:
 
     def file_open(self, path, create=False, truncate=False, is_dir=False):
         hnd = None
+        path = self.get_full_path(path)
 
         if create:
             f = self.create_file(path)
