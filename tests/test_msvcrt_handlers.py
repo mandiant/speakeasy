@@ -1067,3 +1067,42 @@ def test_wgetmainargs_writes_wide_argv_and_environment(request: pytest.FixtureRe
     first = se.read_mem_string(read_ptr(env), 2)
     key, value = next(iter(emu.get_env().items()))
     assert first == f"{key}={value}"
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("_crt_atexit", [0x1000]),
+        ("_controlfp_s", [0, 0, 0]),
+        ("_initialize_narrow_environment", []),
+        ("_configure_narrow_argv", [1]),
+        ("_set_fmode", [0x8000]),
+    ],
+)
+def test_crt_startup_functions_return_zero(dll64_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    assert call(dll64_emu, "msvcrt", api, argv)[0] == 0
+
+
+def test_set_fmode_sets_the_fmode_global(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "_set_fmode", [0x8000])[0] == 0
+    fmode, _ = call(dll_emu, "msvcrt", "__p__fmode", [])
+    assert int.from_bytes(dll_emu.mem_read(fmode, 4), "little") == 0x8000
+    assert call(dll_emu, "msvcrt", "_set_fmode", [0x1234])[0] == EINVAL
+
+
+def test_set_new_mode_returns_the_previous_mode(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "_set_new_mode", [1])[0] == 0
+    assert call(dll_emu, "msvcrt", "_set_new_mode", [0])[0] == 1
+
+
+def test_configthreadlocale_returns_the_previous_setting(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "_configthreadlocale", [0])[0] == 2
+    assert call(dll_emu, "msvcrt", "_configthreadlocale", [1])[0] == 2
+    assert call(dll_emu, "msvcrt", "_configthreadlocale", [0])[0] == 1
+
+
+@pytest.mark.parametrize("api", ["__current_exception", "__current_exception_context"])
+def test_current_exception_returns_an_empty_slot(dll64_emu: Speakeasy, api: str) -> None:
+    slot, _ = call(dll64_emu, "msvcrt", api, [])
+    assert slot
+    assert dll64_emu.mem_read(slot, 8) == b"\x00" * 8

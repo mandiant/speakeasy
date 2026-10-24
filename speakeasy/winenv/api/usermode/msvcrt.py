@@ -21,6 +21,9 @@ EINVAL = 22
 ERANGE = 34
 THRD_SUCCESS = 0
 O_TEXT = 0x4000
+O_BINARY = 0x8000
+ENABLE_PER_THREAD_LOCALE = 1
+DISABLE_PER_THREAD_LOCALE = 2
 STRUNCATE = 80
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
@@ -288,6 +291,9 @@ class Msvcrt(api.ApiHandler):
         self.iob: int | None = None
         self.winmain_command_lines: dict[int, int] = {}
         self.tm_buf: int | None = None
+        self.new_mode: int = 0
+        self.thread_locale: int = DISABLE_PER_THREAD_LOCALE
+        self.exception_slots: dict[str, int] = {}
 
         super().__get_hook_attrs__(self)
 
@@ -2708,21 +2714,39 @@ class Msvcrt(api.ApiHandler):
             size = self.get_ptr_size()
         return self.mem_alloc(size, tag="api.msvcrt.operator_new")
 
+    def get_exception_slot(self, name):
+        slot = self.exception_slots.get(name)
+        if slot is None:
+            slot = self.mem_alloc(self.get_ptr_size(), tag=f"api.msvcrt.{name}")
+            self.exception_slots[name] = slot
+        return slot
+
     @apihook("__current_exception_context", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception_context(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """void** __current_exception_context();"""
+        return self.get_exception_slot("__current_exception_context")
 
     @apihook("__current_exception", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """void** __current_exception();"""
+        return self.get_exception_slot("__current_exception")
 
     @apihook("_set_new_mode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_new_mode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """int _set_new_mode(int newhandlermode);"""
+        (mode,) = argv
+        rv = self.new_mode
+        self.new_mode = mode & 0xFFFFFFFF
+        return rv
 
     @apihook("_configthreadlocale", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configthreadlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """int _configthreadlocale(int per_thread_locale_type);"""
+        (mode,) = argv
+        rv = self.thread_locale
+        if mode in (ENABLE_PER_THREAD_LOCALE, DISABLE_PER_THREAD_LOCALE):
+            self.thread_locale = mode
+        return rv
 
     @apihook("_setusermatherr", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _setusermatherr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2747,11 +2771,13 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _crt_atexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """int _crt_atexit(_PVFV function);"""
+        return 0
 
     @apihook("_controlfp_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """errno_t _controlfp_s(unsigned int *currentControl, unsigned int newControl, unsigned int mask);"""
+        return 0
 
     @apihook("terminate", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def terminate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2759,11 +2785,11 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_initialize_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        return 0
 
     @apihook("_configure_narrow_argv", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configure_narrow_argv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        return 0
 
     @apihook("_initialize_wide_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_wide_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2775,7 +2801,12 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_set_fmode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        return
+        """errno_t _set_fmode(int mode);"""
+        (mode,) = argv
+        if mode not in (O_TEXT, O_BINARY):
+            return EINVAL
+        self.mem_write(emu.get_proc("msvcrt", "_fmode"), mode.to_bytes(4, "little"))
+        return 0
 
     @apihook("_itoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _itoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
