@@ -86,12 +86,39 @@ class Shell32(api.ApiHandler):
         self.handle: int = 0
         self.win: Any | None = None
         self.curr_handle: int = 0x2800
+        self.pidls: dict[int, str] = {}
 
         super().__get_hook_attrs__(self)
 
     def get_handle(self):
         self.curr_handle += 4
         return self.curr_handle
+
+    def get_folder_path(self, emu, csidl):
+        path = shell32_defs.CSIDL_PATHS.get(csidl, "C:\\Windows\\Temp")
+        return path.format(user=emu.config.user.name)
+
+    def new_pidl(self, path):
+        """
+        Allocate an ITEMIDLIST with one item that holds the path, and remember
+        the path for SHGetPathFromIDList
+        """
+        item = (path + "\x00").encode("utf-16le")
+        cb = 2 + len(item)
+        pidl = self.heap_alloc(cb + 2, heap="CoTaskMemAlloc")
+        self.mem_write(pidl, cb.to_bytes(2, "little") + item + b"\x00\x00")
+        self.pidls[pidl] = path
+        return pidl
+
+    def write_folder_pidl(self, emu, csidl, ppidl, ctx):
+        csidl &= ~shell32_defs.CSIDL_FLAG_MASK
+        pidl = 0
+        if csidl in shell32_defs.CSIDL:
+            ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
+            pidl = self.new_pidl(self.get_folder_path(emu, csidl))
+        if ppidl:
+            self.mem_write(ppidl, pidl.to_bytes(emu.get_ptr_size(), "little"))
+        return windefs.S_OK if pidl else windefs.E_INVALIDARG
 
     @apihook("SHCreateDirectoryEx", argc=3)
     def SHCreateDirectoryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -276,85 +303,97 @@ class Shell32(api.ApiHandler):
         csidl &= ~shell32_defs.CSIDL_FLAG_MASK
         if csidl in shell32_defs.CSIDL:
             ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
-        if csidl == 0x1A:
-            # CSIDL_APPDATA
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming"
-        elif csidl == 0x28:
-            # csidl_profile
-            path = f"C:\\Users\\{emu.config.user.name}"
-        elif csidl == 0 or csidl == 0x10:
-            # CSIDL_DESKTOP or CSIDL_DESKTOPDIRECTORY
-            path = f"C:\\Users\\{emu.config.user.name}\\Desktop"
-        elif csidl == 2:
-            # CSIDL_PROGRAMS
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"  # noqa
-        elif csidl == 6 or csidl == 0x1F:
-            # CSIDL_FAVORITES or CSIDL_COMMON_FAVORITES
-            path = f"C:\\Users\\{emu.config.user.name}\\Favorites"
-        elif csidl == 7:
-            # CSIDL_STARTUP
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"  # noqa
-        elif csidl == 8:
-            # CSIDL_RECENT
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Recent".format(emu.config.user.name)  # noqa
-        elif csidl == 9:
-            # csidl_sendto
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\SendTo".format(emu.config.user.name)  # noqa
-        elif csidl == 0xB:
-            # CSIDL_STARTMENU
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu".format(emu.config.user.name)  # noqa
-        elif csidl == 0x13:
-            # CSIDL_NETHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Network Shortcuts".format(emu.config.user.name)  # noqa
-        elif csidl == 0x15:
-            # CSIDL_TEMPLATES
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Templates".format(emu.config.user.name)  # noqa
-        elif csidl == 0x1B:
-            # CSIDL_PRINTHOOD
-            path = "C:\\Users\\{}\\AppData\\Roaming\\Microsoft\\Windows\\Printer Shortcuts".format(emu.config.user.name)  # noqa
-        elif csidl == 0x1C:
-            # CSIDL_LOCAL_APPDATA
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Local"
-        elif csidl == 0x20:
-            # CSIDL_INTERNET_CACHE
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Local\\Microsoft\\Windows\\Temporary Internet File"  # noqa
-        elif csidl == 0x21:
-            # CSIDL_COOKIES
-            path = "C:\\Users\\{}\\AppData\\AppData\\Roaming\\Microsoft\\Windows\\Cookies".format(emu.config.user.name)  # noqa
-        elif csidl == 0x22:
-            # CSIDL_HISTORY
-            path = "C:\\Users\\{}\\AppData\\Local\\Microsoft\\Windows\\History".format(emu.config.user.name)  # noqa
-        elif csidl == 0x27:
-            # CSIDL_MYPICTURES
-            path = f"C:\\Users\\{emu.config.user.name}\\Pictures"
-        elif csidl == 0x2F or csidl == 0x30:
-            user = emu.config.user.name
-            path = (
-                f"C:\\Users\\{user}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Administrative Tools"
-            )
-        elif csidl == 0x1D:
-            # CSIDL_ALTSTARTUP
-            path = f"C:\\Users\\{emu.config.user.name}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"  # noqa
-        elif csidl == 0x1E:
-            path = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
-        elif csidl == 0x2A or csidl == 0x26:
-            path = "C:\\Program Files"
-        elif csidl == 0x2B or csidl == 0x2C:
-            path = "C:\\Program Files\\Common Files"
-        elif csidl == 0x24:
-            path = "C:\\Windows"
-        elif csidl == 0x25:
-            path = "C:\\Windows\\System32"
-        elif csidl == 0x14:
-            path = "C:\\Windows\\Fonts"
-        elif csidl == 0x23:
-            path = "C:\\ProgramData"
-        else:
-            # Temp
-            path = "C:\\Windows\\Temp"
-
+        path = self.get_folder_path(emu, csidl)
         emu.write_mem_string(path, pszPath, self.get_char_width(ctx))
         return 0
+
+    @apihook("SHGetFolderPathAndSubDir", argc=6)
+    def SHGetFolderPathAndSubDir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT SHGetFolderPathAndSubDirA(
+          HWND   hwnd,
+          int    csidl,
+          HANDLE hToken,
+          DWORD  dwFlags,
+          LPCSTR pszSubDir,
+          LPSTR  pszPath
+        );
+        """
+        hwnd, csidl, hToken, dwFlags, pszSubDir, pszPath = argv
+        cw = self.get_char_width(ctx)
+        csidl &= ~shell32_defs.CSIDL_FLAG_MASK
+        if csidl in shell32_defs.CSIDL:
+            ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
+        path = self.get_folder_path(emu, csidl)
+        if pszSubDir:
+            sub_dir = self.read_mem_string(pszSubDir, cw)
+            ctx.args["pszSubDir"].display = sub_dir
+            path = f"{path}\\{sub_dir}"
+        emu.write_mem_string(path, pszPath, cw)
+        return windefs.S_OK
+
+    @apihook("SHGetSpecialFolderLocation", argc=3)
+    def SHGetSpecialFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        SHSTDAPI SHGetSpecialFolderLocation(
+          HWND             hwnd,
+          int              csidl,
+          PIDLIST_ABSOLUTE *ppidl
+        );
+        """
+        hwnd, csidl, ppidl = argv
+        return self.write_folder_pidl(emu, csidl, ppidl, ctx)
+
+    @apihook("SHGetFolderLocation", argc=5)
+    def SHGetFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        SHSTDAPI SHGetFolderLocation(
+          HWND             hwnd,
+          int              csidl,
+          HANDLE           hToken,
+          DWORD            dwFlags,
+          PIDLIST_ABSOLUTE *ppidl
+        );
+        """
+        hwnd, csidl, hToken, dwFlags, ppidl = argv
+        return self.write_folder_pidl(emu, csidl, ppidl, ctx)
+
+    @apihook("SHGetKnownFolderIDList", argc=4)
+    def SHGetKnownFolderIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT SHGetKnownFolderIDList(
+          REFKNOWNFOLDERID rfid,
+          DWORD            dwFlags,
+          HANDLE           hToken,
+          PIDLIST_ABSOLUTE *ppidl
+        );
+        """
+        rfid, _flags, _token, ppidl = argv
+        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
+        folder = shell32_defs.KNOWN_FOLDERS.get(guid)
+        ctx.args["rfid"].display = folder[0] if folder else guid
+        pidl = self.new_pidl(folder[1].format(user=emu.config.user.name)) if folder else 0
+        if ppidl:
+            self.mem_write(ppidl, pidl.to_bytes(emu.get_ptr_size(), "little"))
+        return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
+
+    @apihook("SHGetPathFromIDList", argc=2)
+    def SHGetPathFromIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL SHGetPathFromIDListA(
+          PCIDLIST_ABSOLUTE pidl,
+          LPSTR             pszPath
+        );
+        """
+        pidl, pszPath = argv
+        cw = 2 if ctx.func_name.endswith("W") else 1
+        path = self.pidls.get(pidl)
+        if pszPath:
+            emu.write_mem_string(path or "", pszPath, cw)
+        if path is None:
+            return 0
+        ctx.args["pszPath"].display = path
+        return 1
 
     @apihook("SHGetKnownFolderPath", argc=4)
     def SHGetKnownFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

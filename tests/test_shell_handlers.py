@@ -133,6 +133,87 @@ def test_sh_get_known_folder_path_fails_for_an_unknown_folder(dll_emu: Speakeasy
     assert dll_emu.mem_read(out, 4) == b"\x00" * 4
 
 
+def read_pidl_path(se: Speakeasy, pidl: int, width: int) -> tuple[int, bytes]:
+    buf = alloc(se, b"\xcc" * 520)
+    rv, _ = call(se, "shell32", "SHGetPathFromIDList" + ("W" if width == 2 else "A"), [pidl, buf])
+    return rv, se.mem_read(buf, 520)
+
+
+def assert_item_id_list(se: Speakeasy, pidl: int) -> None:
+    (cb,) = struct.unpack("<H", se.mem_read(pidl, 2))
+    assert cb > 2
+    assert se.mem_read(pidl + cb, 2) == b"\x00\x00"
+
+
+@pytest.mark.parametrize("width", [1, 2])
+def test_sh_get_special_folder_location_maps_to_the_folder_path(dll_emu: Speakeasy, width: int) -> None:
+    ppidl = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "SHGetSpecialFolderLocation", [0, 0x23, ppidl])
+    assert rv == windefs.S_OK
+    pidl = read_ptr(dll_emu, ppidl)
+    assert pidl != 0
+    assert_item_id_list(dll_emu, pidl)
+
+    rv, path = read_pidl_path(dll_emu, pidl, width)
+    assert rv == 1
+    assert path.startswith(wstr("C:\\ProgramData", width))
+
+
+def test_sh_get_folder_location_maps_to_the_folder_path(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    ppidl = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "SHGetFolderLocation", [0, 0x801A, 0, 0, ppidl])
+    assert rv == windefs.S_OK
+    pidl = read_ptr(dll_emu, ppidl)
+    assert_item_id_list(dll_emu, pidl)
+
+    rv, path = read_pidl_path(dll_emu, pidl, 2)
+    assert rv == 1
+    assert path.startswith(wstr(f"C:\\Users\\{dll_emu.emu.config.user.name}\\AppData\\Roaming", 2))
+
+
+@pytest.mark.parametrize(
+    "api, argv", [("SHGetSpecialFolderLocation", [0, 0x7F]), ("SHGetFolderLocation", [0, 0x7F, 0, 0])]
+)
+def test_sh_get_folder_location_fails_for_an_unknown_folder(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    ppidl = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", api, [*argv, ppidl])
+    assert rv == windefs.E_INVALIDARG
+    assert read_ptr(dll_emu, ppidl) == 0
+
+
+def test_sh_get_known_folder_id_list_maps_to_the_folder_path(dll_emu: Speakeasy) -> None:
+    rfid = alloc(dll_emu, uuid.UUID("62ab5d82-fdc1-4dc3-a9dd-070d1d495d97").bytes_le)
+    ppidl = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "shell32", "SHGetKnownFolderIDList", [rfid, 0, 0, ppidl])
+    assert rv == windefs.S_OK
+    pidl = read_ptr(dll_emu, ppidl)
+    assert_item_id_list(dll_emu, pidl)
+
+    rv, path = read_pidl_path(dll_emu, pidl, 1)
+    assert rv == 1
+    assert path.startswith(wstr("C:\\ProgramData", 1))
+
+
+@pytest.mark.parametrize("pidl", [0, -1])
+def test_sh_get_path_from_id_list_fails_for_an_unknown_pidl(dll_emu: Speakeasy, pidl: int) -> None:
+    if pidl == -1:
+        pidl = alloc(dll_emu, struct.pack("<H4sH", 6, b"abcd", 0))
+    rv, path = read_pidl_path(dll_emu, pidl, 1)
+    assert rv == 0
+    assert path[:1] == b"\x00"
+
+
+@pytest.mark.parametrize("width", [1, 2])
+def test_sh_get_folder_path_and_sub_dir_appends_the_sub_dir(dll_emu: Speakeasy, width: int) -> None:
+    out = alloc(dll_emu, b"\xcc" * 520)
+    sub = alloc(dll_emu, wstr("Synaptics", width))
+    api = "SHGetFolderPathAndSubDir" + ("W" if width == 2 else "A")
+    rv, _ = call(dll_emu, "shell32", api, [0, 0x23, 0, 0, sub, out])
+    assert rv == windefs.S_OK
+    assert dll_emu.mem_read(out, 25 * width) == wstr("C:\\ProgramData\\Synaptics", width)
+
+
 def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
