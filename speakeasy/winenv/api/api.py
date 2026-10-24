@@ -301,6 +301,27 @@ class ApiHandler:
         string = self.emu.read_mem_string(addr, width=width, max_chars=max_chars)
         return string
 
+    def normalize_res_identifier(self, emu, cw, val):
+        if val >> 16:  # not an INTRESOURCE
+            name = emu.read_mem_string(val, cw)
+            if name.startswith("#"):
+                try:
+                    name = int(name[1:])
+                except ValueError:
+                    pass
+        else:
+            name = val
+
+        return name
+
+    def read_res_identifier(self, emu, ctx, arg, cw, val):
+        """
+        Read a resource name or integer ID (MAKEINTRESOURCE) and show it as the display of ``arg``.
+        """
+        name = self.normalize_res_identifier(emu, cw, val)
+        ctx.args[arg].display = name if isinstance(name, str) else hex(name)
+        return name
+
     def mem_string_len(self, addr, width):
         return self.emu.mem_string_len(addr, width)
 

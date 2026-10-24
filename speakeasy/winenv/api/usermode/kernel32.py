@@ -227,19 +227,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return perms
 
-    def normalize_res_identifier(self, emu, cw, val):
-        if val >> 16:  # not an INTRESOURCE
-            name = emu.read_mem_string(val, cw)
-            if name.startswith("#"):
-                try:
-                    name = int(name[1:])
-                except ValueError:
-                    pass
-        else:
-            name = val
-
-        return name
-
     def find_resource(self, pe, name, type_):
         pe_metadata = pe.get_pe_metadata()
         if not pe_metadata:
@@ -5436,12 +5423,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not pe:
             return 0
 
-        name = self.normalize_res_identifier(emu, cw, lpName)
-        if name != lpName:
-            ctx.args["lpName"].display = name if isinstance(name, str) else hex(name)
-        type_ = self.normalize_res_identifier(emu, cw, lpType)
-        if type_ != lpType:
-            ctx.args["lpType"].display = type_ if isinstance(type_, str) else hex(type_)
+        name = self.read_res_identifier(emu, ctx, "lpName", cw, lpName)
+        type_ = self.read_res_identifier(emu, ctx, "lpType", cw, lpType)
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0
@@ -5474,12 +5457,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not pe:
             return 0
 
-        name = self.normalize_res_identifier(emu, cw, lpName)
-        if name != lpName:
-            ctx.args["lpName"].display = name if isinstance(name, str) else hex(name)
-        type_ = self.normalize_res_identifier(emu, cw, lpType)
-        if type_ != lpType:
-            ctx.args["lpType"].display = type_ if isinstance(type_, str) else hex(type_)
+        name = self.read_res_identifier(emu, ctx, "lpName", cw, lpName)
+        type_ = self.read_res_identifier(emu, ctx, "lpType", cw, lpType)
         res = self.find_resource(pe, name, type_)
         if res is None:
             return 0

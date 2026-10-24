@@ -654,6 +654,7 @@ class User32(api.ApiHandler):
         );
         """
         hInstance, lpBitmapName = argv
+        self.read_res_identifier(emu, ctx, "lpBitmapName", self.get_char_width(ctx), lpBitmapName)
         rv = self.get_handle()
         return rv
 
@@ -905,6 +906,8 @@ class User32(api.ApiHandler):
         LPCSTR    lpCursorName
         );
         """
+        _, lpCursorName = argv
+        self.read_res_identifier(emu, ctx, "lpCursorName", self.get_char_width(ctx), lpCursorName)
         return self.get_handle()
 
     @apihook("FindWindow", argc=2)
@@ -1205,10 +1208,7 @@ class User32(api.ApiHandler):
         """
         hInstance, lpTemplateName, hWndParent, lpDialogFunc, dwInitParam = argv
         rv = self.get_handle()
-        cw = self.get_char_width(ctx)
-        if lpTemplateName > 0xFFFF:
-            tname = self.read_mem_string(lpTemplateName, cw)
-            ctx.args["lpTemplateName"].display = tname
+        self.read_res_identifier(emu, ctx, "lpTemplateName", self.get_char_width(ctx), lpTemplateName)
 
         return rv
 
@@ -1263,6 +1263,8 @@ class User32(api.ApiHandler):
         LPCSTR    lpTableName
         );
         """
+        _, lpTableName = argv
+        self.read_res_identifier(emu, ctx, "lpTableName", self.get_char_width(ctx), lpTableName)
         return self.get_handle()
 
     @apihook("IsWindowVisible", argc=1)
@@ -1346,6 +1348,7 @@ class User32(api.ApiHandler):
             inst,
             name,
         ) = argv
+        self.read_res_identifier(emu, ctx, "lpIconName", self.get_char_width(ctx), name)
 
         if name not in (
             IDI_APPLICATION,

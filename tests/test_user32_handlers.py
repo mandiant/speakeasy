@@ -519,3 +519,27 @@ def test_get_sys_color(dll_emu: Speakeasy, index: int, expected: int) -> None:
 def test_message_box_returns_a_button_of_its_type(dll_emu: Speakeasy, utype: int, rv: int) -> None:
     text = alloc(dll_emu, b"text\x00")
     assert call(dll_emu, "user32", "MessageBoxA", [0, text, text, utype])[0] == rv
+
+
+@pytest.mark.parametrize(
+    "api, arg",
+    [
+        ("LoadCursorW", "lpCursorName"),
+        ("LoadCursorA", "lpCursorName"),
+        ("LoadIconW", "lpIconName"),
+        ("LoadBitmapW", "lpBitmapName"),
+        ("LoadAcceleratorsW", "lpTableName"),
+    ],
+)
+def test_integer_resource_ids_display_as_integers(dll64_emu: Speakeasy, api: str, arg: str) -> None:
+    dll64_emu.mem_write(dll64_emu.mem_alloc(0x1000, base=0x7000), b"A\x00" * 0x800)
+    rv, displays = call(dll64_emu, "user32", api, [0, 0x7F00])
+    assert rv
+    assert displays[arg] == "0x7f00"
+
+
+def test_named_resources_display_their_names(dll64_emu: Speakeasy) -> None:
+    name = alloc(dll64_emu, "MAINMENU\x00".encode("utf-16le"))
+    assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, name])[1]["lpTableName"] == "MAINMENU"
+    number = alloc(dll64_emu, "#101\x00".encode("utf-16le"))
+    assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, number])[1]["lpTableName"] == "0x65"
