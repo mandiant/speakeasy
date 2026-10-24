@@ -1715,11 +1715,18 @@ class WindowsEmulator(BinaryEmulator):
             self.api = WindowsApi(self)
 
         self.advance_bootstrap_phase(BootstrapPhase.ENGINE_API_READY)
-        self.bootstrap_object_services()
-
         if image.source == "synthetic" and not image.image_base:
             raise WindowsEmuError("synthetic image addresses must be finalized before mapping")
         requested_base = image.image_base
+        # Keep the bootstrap structures out of the span that the image asks for
+        if requested_base:
+            self.mem_reserve(image.image_size, base=requested_base)
+        try:
+            self.bootstrap_object_services()
+        finally:
+            if requested_base:
+                self.mem_unreserve(requested_base)
+
         for region in image.regions:
             offset = region.base - requested_base
             if offset < 0 or offset + len(region.data) > image.image_size:

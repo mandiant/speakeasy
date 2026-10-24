@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from itertools import groupby
-from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.common as common
@@ -50,6 +48,10 @@ class MemMap:
 
     def __ne__(self, other):
         return not (self == other)
+
+
+# Windows never maps the first 64 KB, so a null pointer plus a small offset faults
+ALLOCATION_GRANULARITY = 0x10000
 
 
 class MemoryManager:
@@ -229,6 +231,12 @@ class MemoryManager:
         self.mem_reserves.append(mm)
         return base
 
+    def mem_unreserve(self, base):
+        """
+        Release a reserved block of memory without mapping it
+        """
+        self.mem_reserves = [r for r in self.mem_reserves if r.base != base]
+
     def get_mem_maps(self):
         """
         Get the listing of current memory maps
@@ -258,10 +266,6 @@ class MemoryManager:
         Optionally, a base address can be specified to test if it can be used
         """
 
-        def get_runs(i):
-            for k, g in groupby(enumerate(i), lambda ix: ix[0] - (ix[1] >> 12)):
-                yield tuple(map(itemgetter(1), g))
-
         page_size = self.page_size
 
         # mem_map needs to be page aligned
@@ -269,7 +273,7 @@ class MemoryManager:
 
         # alloced address needs to also be on a page boundary
         if addr is None:
-            addr = page_size
+            addr = ALLOCATION_GRANULARITY
         base = addr - (addr % page_size)
 
         if total < page_size:
@@ -287,28 +291,14 @@ class MemoryManager:
 
         curr = sorted(set(curr))
 
-        limit = self.get_address_limit()
-        bounded = limit is not None and base < limit
-        attempts = 9999
-        while attempts:
-            if bounded and base + total > limit:
-                raise OutOfMemoryError(f"no free range of 0x{total:x} bytes below 0x{limit:x}")
-            req = set(range(base, base + total, page_size))
-
-            diffs = sorted(req.difference(curr))
-
-            if len(diffs) == len(req):
+        for page in curr:
+            if page >= base + total:
                 break
+            if page >= base:
+                base = page + page_size
 
-            if not attempts % 10:
-                base += page_size * 1000
-            else:
-                base += total
-            attempts -= 1
+        limit = self.get_address_limit()
+        if limit is not None and addr < limit < base + total:
+            raise OutOfMemoryError(f"no free range of 0x{total:x} bytes below 0x{limit:x}")
 
-        if attempts == 0:
-            raise Exception("Failed to allocate emulator memory")
-
-        a = [r for r in get_runs(diffs)][0]
-
-        return (min(a), total)
+        return (base, total)
