@@ -1113,3 +1113,114 @@ def test_current_exception_returns_an_empty_slot(dll64_emu: Speakeasy, api: str)
     slot, _ = call(dll64_emu, "msvcrt", api, [])
     assert slot
     assert dll64_emu.mem_read(slot, 8) == b"\x00" * 8
+
+
+@pytest.mark.parametrize(
+    "api, needle, offset",
+    [
+        ("_mbsstr", b"\\Windows", 2),
+        ("_mbsstr", b"zz", None),
+        ("_mbspbrk", b"/\\", 2),
+        ("_mbspbrk", b"/", None),
+    ],
+)
+def test_mbs_search_finds_a_substring_or_a_character_set(
+    dll_emu: Speakeasy, api: str, needle: bytes, offset: int | None
+) -> None:
+    hay = alloc(dll_emu, b"C:\\Windows\\system32\\sample\x00")
+    rv, _ = call(dll_emu, "msvcrt", api, [hay, alloc(dll_emu, needle + b"\x00")])
+    assert rv == (0 if offset is None else hay + offset)
+
+
+@pytest.mark.parametrize("api, c, offset", [("_mbschr", ord("\\"), 2), ("_mbsrchr", ord("\\"), 19), ("_mbschr", 0, 26)])
+def test_mbs_character_search_finds_the_first_or_last_match(dll_emu: Speakeasy, api: str, c: int, offset: int) -> None:
+    hay = alloc(dll_emu, b"C:\\Windows\\system32\\sample\x00")
+    assert call(dll_emu, "msvcrt", api, [hay, c])[0] == hay + offset
+
+
+@pytest.mark.parametrize(
+    "api, a, b, rv",
+    [
+        ("_mbscmp", b"abc", b"abd", -1),
+        ("_mbscoll", b"abc", b"abc", 0),
+        ("_mbsicmp", b"ABC", b"abc", 0),
+        ("_mbsicoll", b"abd", b"ABC", 1),
+    ],
+)
+def test_mbs_compare_orders_the_strings(dll_emu: Speakeasy, api: str, a: bytes, b: bytes, rv: int) -> None:
+    assert call(dll_emu, "msvcrt", api, [alloc(dll_emu, a + b"\x00"), alloc(dll_emu, b + b"\x00")])[0] == rv
+
+
+@pytest.mark.parametrize("api", ["_mbsnbcmp", "_mbsncmp"])
+def test_mbs_count_compare_stops_after_count(dll_emu: Speakeasy, api: str) -> None:
+    a, b = alloc(dll_emu, b"abcX\x00"), alloc(dll_emu, b"abcY\x00")
+    assert call(dll_emu, "msvcrt", api, [a, b, 3])[0] == 0
+    assert call(dll_emu, "msvcrt", api, [a, b, 4])[0] == -1
+
+
+@pytest.mark.parametrize(
+    "api, result", [("_mbslwr", b"c:\\ab\x00"), ("_mbsupr", b"C:\\AB\x00"), ("_mbsrev", b"bA\\:c\x00")]
+)
+def test_mbs_in_place_changes_return_the_string(dll_emu: Speakeasy, api: str, result: bytes) -> None:
+    s = alloc(dll_emu, b"c:\\Ab\x00")
+    assert call(dll_emu, "msvcrt", api, [s])[0] == s
+    assert dll_emu.mem_read(s, 6) == result
+
+
+def test_mbs_character_steps_are_one_byte_in_a_single_byte_code_page(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, b"ab\x00")
+    assert call(dll_emu, "msvcrt", "_mbsinc", [s])[0] == s + 1
+    assert call(dll_emu, "msvcrt", "_mbclen", [s])[0] == 1
+
+
+@pytest.mark.parametrize(
+    "api, c, rv", [("_ismbcdigit", ord("7"), True), ("_ismbcdigit", ord("a"), False), ("_ismbcspace", 9, True)]
+)
+def test_mbc_classification_matches_the_c_locale(dll_emu: Speakeasy, api: str, c: int, rv: bool) -> None:
+    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == rv
+
+
+def test_vsprintf_formats_from_a_va_list(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    va = alloc(dll_emu, struct.pack("<II", alloc(dll_emu, b"id\x00"), 7))
+    assert call(dll_emu, "msvcrt", "vsprintf", [buf, alloc(dll_emu, b"%s=%d\x00"), va])[0] == 4
+    assert dll_emu.mem_read(buf, 6) == b"id=7\x00\xcc"
+
+
+def test_rename_moves_a_file(dll_emu: Speakeasy) -> None:
+    old, new = alloc(dll_emu, b"c:\\users\\public\\a.txt\x00"), alloc(dll_emu, b"c:\\users\\public\\b.txt\x00")
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [old, alloc(dll_emu, b"wb\x00")])
+    call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"abc"), 1, 3, stream])
+    call(dll_emu, "msvcrt", "fclose", [stream])
+
+    assert call(dll_emu, "msvcrt", "rename", [old, new])[0] == 0
+    stream, _ = call(dll_emu, "msvcrt", "fopen", [new, alloc(dll_emu, b"rb\x00")])
+    out = alloc(dll_emu, b"\x00" * 8)
+    assert call(dll_emu, "msvcrt", "fread", [out, 1, 8, stream])[0] == 3
+    assert dll_emu.mem_read(out, 3) == b"abc"
+
+
+def test_tzset_is_accepted(dll_emu: Speakeasy) -> None:
+    call(dll_emu, "msvcrt", "_tzset", [])
+
+
+@pytest.mark.parametrize(
+    "fmt, text",
+    [
+        (b"%Y-%m-%d %H:%M:%S", b"2019-12-29 08:04:05"),
+        (b"%a %A %b %B %j %w %y %p %I %%", b"Sun Sunday Dec December 363 0 19 AM 08 %"),
+        (b"%c|%x|%X", b"12/29/19 08:04:05|12/29/19|08:04:05"),
+        (b"%#d/%#m", b"29/12"),
+    ],
+)
+def test_strftime_formats_a_struct_tm_in_the_c_locale(dll_emu: Speakeasy, fmt: bytes, text: bytes) -> None:
+    tm = alloc(dll_emu, struct.pack("<9i", 5, 4, 8, 29, 11, 119, 0, 362, 0))
+    buf = alloc(dll_emu, b"\xcc" * 64)
+    assert call(dll_emu, "msvcrt", "strftime", [buf, 64, alloc(dll_emu, fmt + b"\x00"), tm])[0] == len(text)
+    assert dll_emu.mem_read(buf, len(text) + 1) == text + b"\x00"
+
+
+def test_strftime_returns_zero_when_the_text_does_not_fit(dll_emu: Speakeasy) -> None:
+    tm = alloc(dll_emu, struct.pack("<9i", 5, 4, 8, 29, 11, 119, 0, 362, 0))
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    assert call(dll_emu, "msvcrt", "strftime", [buf, 4, alloc(dll_emu, b"%Y\x00"), tm])[0] == 0

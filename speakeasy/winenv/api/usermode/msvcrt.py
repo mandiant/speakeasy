@@ -11,7 +11,7 @@ from typing import Any
 import speakeasy.windows.seh32 as seh32
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
-from speakeasy.profiler_events import FILE_WRITE
+from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
 from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api, exception_apis
@@ -256,6 +256,39 @@ def get_struct_tm(t: datetime) -> bytes:
         tt.tm_yday - 1,
         0,
     )
+
+
+STRFTIME_C_LOCALE = {"c": "%m/%d/%y %H:%M:%S", "x": "%m/%d/%y", "X": "%H:%M:%S", "z": "+0000", "Z": "UTC"}
+
+
+def render_strftime(fmt: str, t: datetime) -> str:
+    """
+    Format a time as strftime does in the C locale, with the emulated time zone (UTC).
+    The # flag removes leading zeros.
+    """
+    out = []
+    i = 0
+    while i < len(fmt):
+        c = fmt[i]
+        if c != "%" or i + 1 == len(fmt):
+            out.append(c)
+            i += 1
+            continue
+        spec = fmt[i + 1]
+        strip = spec == "#" and i + 2 < len(fmt)
+        if strip:
+            spec = fmt[i + 2]
+        i += 3 if strip else 2
+        if spec == "%":
+            text = "%"
+        elif spec in STRFTIME_C_LOCALE:
+            text = t.strftime(STRFTIME_C_LOCALE[spec])
+        elif spec in "aAbBdHIjmMpSUwWyY":
+            text = t.strftime("%" + spec)
+        else:
+            text = ""
+        out.append(text.lstrip("0") or "0" if strip and text.isdigit() else text)
+    return "".join(out)
 
 
 class Msvcrt(api.ApiHandler):
@@ -1241,6 +1274,44 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(tm, get_struct_tm(t))
         return value
 
+    @apihook("strftime", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def strftime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t strftime(
+            char *strDest,
+            size_t maxsize,
+            const char *format,
+            const struct tm *timeptr
+        );
+        """
+        dest, maxsize, fmt, tm = argv
+        fmt_str = self.read_string(fmt)
+        ctx.args[2].display = fmt_str
+        sec, minute, hour, mday, mon, year = struct.unpack("<6i", self.mem_read(tm, 24))
+        try:
+            t = datetime(year + 1900, mon + 1, mday, hour, minute, sec, tzinfo=timezone.utc)
+        except (ValueError, OverflowError):
+            self.set_errno(EINVAL)
+            return 0
+        text = render_strftime(fmt_str, t).encode("latin-1", "replace")
+        if len(text) + 1 > maxsize:
+            if maxsize:
+                self.mem_write(dest, b"\x00")
+            self.set_errno(ERANGE)
+            return 0
+        self.mem_write(dest, text + b"\x00")
+        ctx.args[0].display = text.decode("latin-1")
+        return len(text)
+
+    @apihook("_tzset", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _tzset(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _tzset(void);
+
+        The emulated time zone is UTC, so there is nothing to set.
+        """
+        return None
+
     @apihook("_strtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1717,6 +1788,184 @@ class Msvcrt(api.ApiHandler):
         );
         """
         return self._strdup(emu, argv, ctx)
+
+    @apihook("_mbsstr", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsstr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsstr(
+            const unsigned char *str,
+            const unsigned char *strSearch
+        );
+        """
+        return self.strstr(emu, argv, ctx)
+
+    @apihook("_mbspbrk", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbspbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbspbrk(
+            const unsigned char *str,
+            const unsigned char *strCharSet
+        );
+        """
+        return self.strpbrk(emu, argv, ctx)
+
+    @apihook("_mbschr", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbschr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbschr(
+            const unsigned char *str,
+            unsigned int c
+        );
+        """
+        return self.strchr(emu, argv, ctx)
+
+    @apihook("_mbsrchr", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsrchr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsrchr(
+            const unsigned char *str,
+            unsigned int c
+        );
+        """
+        return self.strrchr(emu, argv, ctx)
+
+    @apihook("_mbscmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbscmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbscmp(
+            const unsigned char *string1,
+            const unsigned char *string2
+        );
+        """
+        return self.strcmp(emu, argv, ctx)
+
+    @apihook("_mbscoll", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbscoll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbscoll(
+            const unsigned char *string1,
+            const unsigned char *string2
+        );
+        """
+        return self.strcmp(emu, argv, ctx)
+
+    @apihook("_mbsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbsicmp(
+            const unsigned char *string1,
+            const unsigned char *string2
+        );
+        """
+        return self._stricmp(emu, argv, ctx)
+
+    @apihook("_mbsicoll", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsicoll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbsicoll(
+            const unsigned char *string1,
+            const unsigned char *string2
+        );
+        """
+        return self._stricmp(emu, argv, ctx)
+
+    @apihook("_mbsnbcmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsnbcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbsnbcmp(
+            const unsigned char *string1,
+            const unsigned char *string2,
+            size_t count
+        );
+        """
+        return self.strncmp(emu, argv, ctx)
+
+    @apihook("_mbsncmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsncmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mbsncmp(
+            const unsigned char *string1,
+            const unsigned char *string2,
+            size_t count
+        );
+        """
+        return self.strncmp(emu, argv, ctx)
+
+    @apihook("_mbslwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbslwr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbslwr(
+            unsigned char *str
+        );
+        """
+        return self._strlwr(emu, argv, ctx)
+
+    @apihook("_ismbcdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _ismbcdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _ismbcdigit(
+            unsigned int c
+        );
+        """
+        return self.isdigit(emu, argv, ctx)
+
+    @apihook("_ismbcspace", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _ismbcspace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _ismbcspace(
+            unsigned int c
+        );
+        """
+        return self.isspace(emu, argv, ctx)
+
+    @apihook("_mbsupr", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsupr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsupr(
+            unsigned char *str
+        );
+        """
+        (string_ptr,) = argv
+        if not string_ptr:
+            return 0
+        string = self.read_cstr(string_ptr)
+        ctx.args[0].display = string.decode("utf-8", "ignore")
+        self.mem_write(string_ptr, string.upper())
+        return string_ptr
+
+    @apihook("_mbsrev", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsrev(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsrev(
+            unsigned char *str
+        );
+        """
+        (string_ptr,) = argv
+        string = self.read_cstr(string_ptr)
+        ctx.args[0].display = string.decode("utf-8", "ignore")
+        self.mem_write(string_ptr, string[::-1])
+        return string_ptr
+
+    @apihook("_mbsinc", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsinc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsinc(
+            const unsigned char *current
+        );
+
+        The emulated code page has one byte for each character.
+        """
+        (current,) = argv
+        return current + 1
+
+    @apihook("_mbclen", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbclen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t _mbclen(
+            const unsigned char *c
+        );
+        """
+        return 1
 
     @apihook("realloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2486,6 +2735,23 @@ class Msvcrt(api.ApiHandler):
     @apihook("__CxxFrameHandler4", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler4(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return self.__CxxFrameHandler(emu, argv, ctx)
+
+    @apihook("vsprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def vsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int vsprintf(
+            char *buffer,
+            const char *format,
+            va_list argptr
+        );
+        """
+        buffer, _format, argptr = argv
+        fmt_str = self.read_mem_string(_format, 1)
+        fin = self.do_str_format(fmt_str, self.va_args(argptr, self.get_va_arg_count(fmt_str)))
+        self.mem_write(buffer, fin.encode("utf-8") + b"\x00")
+        ctx.args[0].display = fin
+        ctx.args[1].display = fmt_str
+        return len(fin)
 
     @apihook("_vsnprintf", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _vsnprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3408,6 +3674,33 @@ class Msvcrt(api.ApiHandler):
             self.set_errno(ENOENT)
             return -1
         emu.file_delete(path)
+        return 0
+
+    @apihook("rename", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def rename(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int rename(
+            const char *oldname,
+            const char *newname
+        );
+        """
+        old_ptr, new_ptr = argv
+        old, new = self.read_string(old_ptr), self.read_string(new_ptr)
+        ctx.args[0].display = old
+        ctx.args[1].display = new
+        if not emu.does_file_exist(old):
+            self.set_errno(ENOENT)
+            return -1
+        src = self.file_get(self.file_open(old))
+        dst_handle = self.file_open(new, create=True)
+        dst = self.file_get(dst_handle) if dst_handle is not None else None
+        if src is None or dst is None:
+            self.set_errno(ENOENT)
+            return -1
+        dst.add_data(src.get_data(reset_pointer=True) or b"")
+        emu.file_delete(old)
+        self.record_file_access_event(new, FILE_CREATE)
+        self.record_file_access_event(new, FILE_WRITE)
         return 0
 
     @apihook("_unlink", argc=1, conv=e_arch.CALL_CONV_CDECL)
