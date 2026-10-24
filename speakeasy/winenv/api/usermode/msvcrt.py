@@ -2364,11 +2364,13 @@ class Msvcrt(api.ApiHandler):
         """
         (s,) = argv
 
+        if not s:
+            return 1
+
         string = self.read_mem_string(s, 1)
         ctx.args[0].display = string
-        rv = len(string)
 
-        return rv
+        return 0
 
     @apihook("toupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def toupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

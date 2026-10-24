@@ -1394,3 +1394,9 @@ def test_rand_uses_the_msvc_generator(dll_emu: Speakeasy) -> None:
     assert [call(dll_emu, "msvcrt", "rand", [])[0] for _ in range(4)] == [41, 18467, 6334, 26500]
     call(dll_emu, "msvcrt", "srand", [0x12345678])
     assert call(dll_emu, "msvcrt", "rand", [])[0] == ((0x12345678 * 214013 + 2531011) & 0xFFFFFFFF) >> 16 & 0x7FFF
+
+
+def test_system_reports_success(dll_emu: Speakeasy) -> None:
+    command = alloc(dll_emu, b"schtasks /Delete /TN Upkeep /F\x00")
+    assert call(dll_emu, "msvcrt", "system", [command])[0] == 0
+    assert call(dll_emu, "msvcrt", "system", [0])[0] != 0
