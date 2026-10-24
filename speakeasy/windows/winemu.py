@@ -1091,8 +1091,10 @@ class WindowsEmulator(BinaryEmulator):
                                 debugger.notify_exit(0)
                             self.on_emu_complete()
                             return True
-                        if fault_stop is not None and not self.on_run_complete():
-                            break
+                        if fault_stop is not None:
+                            if not self.on_run_complete():
+                                break
+                            terminal_signal = 0
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
@@ -1135,6 +1137,7 @@ class WindowsEmulator(BinaryEmulator):
                 run = self.on_run_complete()
                 if not run:
                     break
+                terminal_signal = 0
                 continue
             break
 

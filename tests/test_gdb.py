@@ -960,3 +960,17 @@ def test_gdb_stops_at_fastfail(gdb_shellcode_emulator):
     finally:
         client.close()
     assert _read_server_result(proc)["error"] == "unhandled_interrupt"
+
+
+@pytest.mark.parametrize("gdb_module_result_emulator", ["a100000000"], indirect=True)  # mov eax, [0]
+def test_gdb_fault_in_first_run_still_gives_final_stop(gdb_module_result_emulator):
+    port, proc, _ = gdb_module_result_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
+        assert client.continue_().startswith("T05")
+        assert client.continue_() == "W00"
+    finally:
+        client.close()
+    assert _read_server_result(proc) == ["invalid_read", None, None]
