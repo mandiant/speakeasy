@@ -9,7 +9,8 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
-from tests.handler_harness import alloc, call, start_process
+from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.pe_builder import build_pe
 
 
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 28), ("dll64_emu", 48)])
@@ -543,3 +544,33 @@ def test_named_resources_display_their_names(dll64_emu: Speakeasy) -> None:
     assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, name])[1]["lpTableName"] == "MAINMENU"
     number = alloc(dll64_emu, "#101\x00".encode("utf-16le"))
     assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, number])[1]["lpTableName"] == "0x65"
+
+
+def build_string_table_pe() -> bytes:
+    """Return a PE whose RT_STRING block 2 holds ID 17 = "tenfour" and ID 18 = "x"."""
+    rsrc = 0x2000
+    block = b"\0\0" + struct.pack("<H", 7) + "tenfour".encode("utf-16le") + struct.pack("<H", 1) + b"x\0"
+    block += b"\0\0" * 13
+    data = struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 6, 0x80000018)
+    data += struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 2, 0x80000030)
+    data += struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 0x409, 0x48)
+    data += struct.pack("<IIII", rsrc + 0x60, len(block), 0, 0)
+    data = data.ljust(0x60, b"\0") + block
+    image, _ = build_pe(32, data=data, extra_dirs={2: (rsrc, 0x60)})
+    return image
+
+
+@pytest.mark.parametrize(
+    "api, uid, rv, out",
+    [
+        ("LoadStringW", 17, 7, "tenfour\x00".encode("utf-16le")),
+        ("LoadStringA", 18, 1, b"x\x00"),
+        ("LoadStringA", 16, 0, b"\xcc"),
+    ],
+)
+def test_load_string_reads_the_string_table(config: dict, api: str, uid: int, rv: int, out: bytes) -> None:
+    for se in load_emu(config, build_string_table_pe()):
+        assert se.emu is not None
+        buf = alloc(se, b"\xcc" * 32)
+        result, _ = call(se, "user32", api, [se.emu.modules[0].base, uid, buf, 16])
+        assert (result, se.mem_read(buf, len(out))) == (rv, out)

@@ -613,13 +613,8 @@ class PeLoader:
                         res_id = resource_id.struct.Id
 
                     # Handle string table specifically for LoadString
-                    if type_id == 6:  # RT_STRING
-                        if hasattr(resource_id, "directory"):
-                            for str_entry in resource_id.directory.entries:
-                                directory = getattr(str_entry, "directory", None)
-                                if directory is not None and hasattr(directory, "strings"):
-                                    for s_id, s_val in directory.strings.items():
-                                        pe_metadata.string_table[s_id] = s_val
+                    if type_id == 6 and hasattr(resource_id, "directory"):  # RT_STRING
+                        pe_metadata.string_table.update(getattr(resource_id.directory, "strings", {}))
 
                     # Regular resource entry
                     if hasattr(resource_id, "directory"):
