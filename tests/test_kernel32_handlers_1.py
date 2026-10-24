@@ -952,3 +952,38 @@ def test_terminate_process_on_the_current_process_ends_the_run(dll_emu: Speakeas
 
     assert rv
     assert emu.run_complete
+
+
+@pytest.mark.parametrize("cw", ["A", "W"])
+def test_create_semaphore_returns_a_handle(dll_emu: Speakeasy, cw: str) -> None:
+    emu = dll_emu.emu
+    assert emu is not None
+    start_process(dll_emu)
+    encoding = "utf-16le" if cw == "W" else "latin-1"
+    name = alloc(dll_emu, "Global\\sem1\x00".encode(encoding))
+    missing = alloc(dll_emu, "Global\\sem2\x00".encode(encoding))
+
+    unnamed, _ = call(dll_emu, "kernel32", f"CreateSemaphore{cw}", [0, 0, 0xFFFF, 0])
+    assert unnamed
+    assert call(dll_emu, "kernel32", "CloseHandle", [unnamed])[0] == 1
+
+    first, _ = call(dll_emu, "kernel32", f"CreateSemaphore{cw}", [0, 1, 1, name])
+    assert first
+    assert emu.get_last_error() == windefs.ERROR_SUCCESS
+    second, _ = call(dll_emu, "kernel32", f"CreateSemaphore{cw}", [0, 1, 1, name])
+    assert second
+    assert emu.get_last_error() == windefs.ERROR_ALREADY_EXISTS
+    assert emu.get_object_from_handle(second) is emu.get_object_from_handle(first)
+
+    opened, _ = call(dll_emu, "kernel32", f"OpenSemaphore{cw}", [0x1F0003, 0, name])
+    assert emu.get_object_from_handle(opened) is emu.get_object_from_handle(first)
+    assert call(dll_emu, "kernel32", f"OpenSemaphore{cw}", [0x1F0003, 0, missing])[0] == 0
+    assert emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+
+
+@pytest.mark.parametrize("initial, maximum", [(2, 1), (0, 0), (-1 & 0xFFFFFFFF, 1)])
+def test_create_semaphore_rejects_bad_counts(dll_emu: Speakeasy, initial: int, maximum: int) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "kernel32", "CreateSemaphoreW", [0, initial, maximum, 0])[0] == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER

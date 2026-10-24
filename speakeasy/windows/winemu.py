@@ -3796,6 +3796,16 @@ class WindowsEmulator(BinaryEmulator):
         hnd = self.om.get_handle(mtx)  # type: ignore[union-attr]
         return hnd, mtx
 
+    def create_semaphore(self, name=""):
+        """
+        Create a kernel semaphore object
+        """
+        self.validate_object_services("semaphore creation")
+        sem = self.new_object(objman.Semaphore)
+        sem.name = name
+        hnd = self.om.get_handle(sem)  # type: ignore[union-attr]
+        return hnd, sem
+
     def _hook_interrupt(self, emu, intnum):
         """
         Called when software interrupts occur

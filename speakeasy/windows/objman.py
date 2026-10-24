@@ -812,6 +812,17 @@ class Mutant(KernelObject):
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
 
 
+class Semaphore(KernelObject):
+    """
+    Describes semaphore objects used by Windows for synchronization
+    """
+
+    def __init__(self, emu):
+        super().__init__(emu=emu)
+        self.object = self.nt_types.KSEMAPHORE(emu.get_ptr_size())
+        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+
+
 class ObjectManager:
     """
     Class that manages kernel objects during emulation

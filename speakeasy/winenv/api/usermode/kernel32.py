@@ -7169,17 +7169,61 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         _, _, nDefault = argv
         return nDefault
 
-    @apihook("CreateSemaphoreW", argc=4)
-    def CreateSemaphoreW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    @apihook("CreateSemaphore", argc=4)
+    def CreateSemaphore(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE CreateSemaphoreW(
+        HANDLE CreateSemaphore(
             [in, optional] LPSECURITY_ATTRIBUTES lpSemaphoreAttributes,
             [in]           LONG                  lInitialCount,
             [in]           LONG                  lMaximumCount,
-            [in, optional] LPCWSTR               lpName
+            [in, optional] LPCTSTR               lpName
         );
         """
-        return 0
+        attrs, initial, maximum, name = argv
+        initial = ct.c_int32(initial).value
+        maximum = ct.c_int32(maximum).value
+
+        if maximum <= 0 or not 0 <= initial <= maximum:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        if name:
+            name = self.read_mem_string(name, self.get_char_width(ctx))
+            ctx.args["lpName"].display = name
+            obj = self.get_object_from_name(name)
+            if obj:
+                emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+                return emu.get_object_handle(obj)
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        hnd, _ = emu.create_semaphore(name or "")
+        return hnd
+
+    @apihook("OpenSemaphore", argc=3)
+    def OpenSemaphore(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE OpenSemaphore(
+            [in] DWORD   dwDesiredAccess,
+            [in] BOOL    bInheritHandle,
+            [in] LPCTSTR lpName
+        );
+        """
+        access, inherit, name = argv
+
+        if not name:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        obj_name = self.read_mem_string(name, self.get_char_width(ctx))
+        ctx.args["lpName"].display = obj_name
+
+        obj = self.get_object_from_name(obj_name)
+        if not obj:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return emu.get_object_handle(obj)
 
     @apihook("SetThreadStackGuarantee", argc=1)
     def SetThreadStackGuarantee(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

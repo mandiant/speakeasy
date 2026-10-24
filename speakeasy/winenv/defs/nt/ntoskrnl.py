@@ -181,6 +181,12 @@ class MUTANT(EmuStruct):
         self.Data = ct.c_uint8 * 4096
 
 
+class KSEMAPHORE(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Data = ct.c_uint8 * 4096
+
+
 class RTL_OSVERSIONINFOW(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
