@@ -3818,6 +3818,9 @@ class WindowsEmulator(BinaryEmulator):
         error.interrupt_num = intnum
         self.curr_run.error = error  # type: ignore[union-attr]
 
+        if self._stop_on_faults:
+            self.end_run_on_fault()
+            return False
         self.restart_curr_run = True
         self.on_run_complete()
         return False

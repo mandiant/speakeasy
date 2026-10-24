@@ -946,3 +946,17 @@ def test_gdb_breakpoint_on_later_run_start_hits(gdb_module_result_emulator):
     finally:
         client.close()
     assert _read_server_result(proc) == [None, None, None]
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["b907000000cd29c3"], indirect=True)  # mov ecx, 7; int 0x29; ret
+def test_gdb_stops_at_fastfail(gdb_shellcode_emulator):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip == address + 7
+        assert client.continue_() == "X0b"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] == "unhandled_interrupt"
