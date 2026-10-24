@@ -78,10 +78,12 @@ class Window(GuiObject):
     Represents a GUI window
     """
 
-    def __init__(self, allocator: HandleAllocator, name=None, class_name=None):
+    def __init__(self, allocator: HandleAllocator, name=None, class_name=None, style=0, parent=0):
         super().__init__(allocator)
         self.name: str | None = name
         self.class_name: str | None = class_name
+        self.style: int = style
+        self.parent: int = parent
 
 
 class WindowClass(GuiObject):
@@ -135,8 +137,8 @@ class SessionManager:
             self.window_classes.update({class_name: wc})
         return atom
 
-    def create_window(self, window_name=None, class_name=None):
-        wc = Window(self.allocator, window_name, class_name)
+    def create_window(self, window_name=None, class_name=None, style=0, parent=0):
+        wc = Window(self.allocator, window_name, class_name, style, parent)
         hnd = wc.get_handle()
         self.windows.update({hnd: wc})
         if window_name:

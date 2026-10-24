@@ -25,6 +25,9 @@ IDI_WINLOGO = 32517
 
 UOI_FLAGS = 1
 
+WS_POPUP = 0x80000000
+WS_CHILD = 0x40000000
+
 
 def map_char_case(raw: bytes, width: int, upper: bool) -> bytes:
     """
@@ -359,7 +362,7 @@ class User32(api.ApiHandler):
         );
         """
         cw = self.get_char_width(ctx)
-        _, cn, wn, _, x, y, width, height, parent, menu, inst, param = argv
+        _, cn, wn, style, x, y, width, height, parent, menu, inst, param = argv
         if cn > 0xFFFF:
             cn = self.read_mem_string(cn, cw)
             ctx.args["lpClassName"].display = cn
@@ -370,7 +373,7 @@ class User32(api.ApiHandler):
             ctx.args["lpWindowName"].display = wn
         else:
             wn = None
-        hnd = self.sessman.create_window(wn, cn)
+        hnd = self.sessman.create_window(wn, cn, style, parent)
         return hnd
 
     @apihook("SetLayeredWindowAttributes", argc=4)
@@ -939,7 +942,15 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        return self.get_handle()
+        (hnd,) = argv
+        window = self.sessman.get_window(hnd)
+        if not window:
+            if hnd != self.sessman.get_current_desktop().desktop_window.get_handle():
+                emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            return 0
+        if window.style & (WS_POPUP | WS_CHILD):
+            return window.parent
+        return 0
 
     @apihook("GetSysColorBrush", argc=1)
     def GetSysColorBrush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

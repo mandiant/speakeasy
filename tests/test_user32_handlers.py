@@ -396,3 +396,29 @@ def test_clipboard_reports_no_text(dll_emu: Speakeasy) -> None:
     cf_unicodetext = 13
     assert call(dll_emu, "user32", "IsClipboardFormatAvailable", [cf_unicodetext])[0] == 0
     assert call(dll_emu, "user32", "GetClipboardData", [cf_unicodetext])[0] == 0
+
+
+WS_POPUP = 0x80000000
+WS_CHILD = 0x40000000
+
+
+def create_window(se: Speakeasy, style: int = 0, parent: int = 0) -> int:
+    hwnd, _ = call(se, "user32", "CreateWindowExA", [0, 0, 0, style, 0, 0, 0, 0, parent, 0, 0, 0])
+    return hwnd
+
+
+def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    desktop, _ = call(dll_emu, "user32", "GetDesktopWindow", [])
+    top = create_window(dll_emu)
+    child = create_window(dll_emu, WS_CHILD, top)
+    owned = create_window(dll_emu, WS_POPUP, top)
+    owned_overlapped = create_window(dll_emu, 0, top)
+    assert call(dll_emu, "user32", "GetParent", [child])[0] == top
+    assert call(dll_emu, "user32", "GetParent", [owned])[0] == top
+    assert call(dll_emu, "user32", "GetParent", [owned_overlapped])[0] == 0
+    assert call(dll_emu, "user32", "GetParent", [top])[0] == 0
+    assert call(dll_emu, "user32", "GetParent", [desktop])[0] == 0
+    assert call(dll_emu, "user32", "GetParent", [0x41420000])[0] == 0
+    assert dll_emu.emu.get_last_error() == 1400
