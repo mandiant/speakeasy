@@ -118,6 +118,19 @@ DEFAULT_CONFIG_DATA = {
                 "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
                 "values": [],
             },
+            {
+                "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost",
+                "values": [
+                    {
+                        "name": "netsvcs",
+                        "type": "REG_MULTI_SZ",
+                        "data": "AeLookupSvc\x00BITS\x00Browser\x00CertPropSvc\x00EventSystem\x00gpsvc\x00"
+                        "iphlpsvc\x00LanmanServer\x00ProfSvc\x00Schedule\x00SENS\x00ShellHWDetection\x00"
+                        "Themes\x00Winmgmt\x00wuauserv",
+                    },
+                    {"name": "LocalService", "type": "REG_MULTI_SZ", "data": "nsi\x00W32Time\x00WinHttpAutoProxySvc"},
+                ],
+            },
             {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
             {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
             {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},

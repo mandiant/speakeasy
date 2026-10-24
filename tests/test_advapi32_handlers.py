@@ -591,6 +591,22 @@ def test_reg_default_config_has_the_run_keys(default_config_emu: Speakeasy, hkey
     assert [(e.path.lower(), e.value_name) for e in writes] == [(f"{root}\\{path}".lower(), "x")]
 
 
+def test_reg_default_config_has_the_svchost_groups(default_config_emu: Speakeasy) -> None:
+    se = default_config_emu
+    phk = alloc(se, b"\x00" * 4)
+    path = b"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost\x00"
+    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, alloc(se, path), 0, 0x20019, phk])
+    assert rv == windefs.ERROR_SUCCESS
+
+    size = alloc(se, (0x400).to_bytes(4, "little"))
+    data = alloc(se, b"\x00" * 0x400)
+    argv = [_dword(se, phk), alloc(se, b"netsvcs\x00"), 0, 0, data, size]
+    assert call(se, "advapi32", "RegQueryValueExA", argv)[0] == windefs.ERROR_SUCCESS
+    groups = se.mem_read(data, _dword(se, size)).split(b"\x00")
+    assert b"Schedule" in groups
+    assert groups[-2:] == [b"", b""]
+
+
 def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
