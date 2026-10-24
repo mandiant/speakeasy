@@ -84,6 +84,7 @@ class Window(GuiObject):
         self.class_name: str | None = class_name
         self.style: int = style
         self.parent: int = parent
+        self.props: dict[int | str, int] = {}
 
 
 class WindowClass(GuiObject):

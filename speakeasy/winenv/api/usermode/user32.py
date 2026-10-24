@@ -952,6 +952,66 @@ class User32(api.ApiHandler):
             return window.parent
         return 0
 
+    def get_prop_key(self, lpString, ctx: api.ApiContext) -> int | str:
+        if lpString <= 0xFFFF:
+            return lpString
+        name = self.read_mem_string(lpString, self.get_char_width(ctx))
+        ctx.args["lpString"].display = name
+        return name.upper()
+
+    def get_prop_window(self, emu, hnd):
+        window = self.sessman.get_window(hnd)
+        if not window:
+            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+        return window
+
+    @apihook("SetProp", argc=3)
+    def SetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL SetPropA(
+          HWND   hWnd,
+          LPCSTR lpString,
+          HANDLE hData
+        );
+        """
+        hnd, lpString, hData = argv
+        key = self.get_prop_key(lpString, ctx)
+        window = self.get_prop_window(emu, hnd)
+        if not window:
+            return False
+        window.props[key] = hData
+        return True
+
+    @apihook("GetProp", argc=2)
+    def GetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE GetPropA(
+          HWND   hWnd,
+          LPCSTR lpString
+        );
+        """
+        hnd, lpString = argv
+        key = self.get_prop_key(lpString, ctx)
+        window = self.get_prop_window(emu, hnd)
+        if not window:
+            return 0
+        return window.props.get(key, 0)
+
+    @apihook("RemoveProp", argc=2)
+    def RemoveProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE RemovePropA(
+          HWND   hWnd,
+          LPCSTR lpString
+        );
+        """
+        hnd, lpString = argv
+        key = self.get_prop_key(lpString, ctx)
+        window = self.get_prop_window(emu, hnd)
+        if not window:
+            return 0
+        return window.props.pop(key, 0)
+
     @apihook("GetSysColorBrush", argc=1)
     def GetSysColorBrush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

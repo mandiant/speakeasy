@@ -422,3 +422,27 @@ def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "GetParent", [desktop])[0] == 0
     assert call(dll_emu, "user32", "GetParent", [0x41420000])[0] == 0
     assert dll_emu.emu.get_last_error() == 1400
+
+
+def test_window_properties_by_name(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    name = alloc(dll_emu, b"SHE\x00")
+    assert call(dll_emu, "user32", "GetPropA", [0x41420000, name])[0] == 0
+    assert call(dll_emu, "user32", "GetPropA", [hwnd, name])[0] == 0
+    assert call(dll_emu, "user32", "SetPropA", [hwnd, name, 0x1234])[0] == 1
+    wide = alloc(dll_emu, "she".encode("utf-16le") + b"\x00\x00")
+    assert call(dll_emu, "user32", "GetPropW", [hwnd, wide])[0] == 0x1234
+    assert call(dll_emu, "user32", "GetPropA", [create_window(dll_emu), name])[0] == 0
+    assert call(dll_emu, "user32", "RemovePropA", [hwnd, name])[0] == 0x1234
+    assert call(dll_emu, "user32", "GetPropA", [hwnd, name])[0] == 0
+    assert call(dll_emu, "user32", "RemovePropA", [hwnd, name])[0] == 0
+
+
+def test_window_properties_by_atom(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    assert call(dll_emu, "user32", "SetPropW", [hwnd, 0xC123, 0x5678])[0] == 1
+    assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC123])[0] == 0x5678
+    assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC124])[0] == 0
+    assert call(dll_emu, "user32", "SetPropW", [0x41420000, 0xC123, 1])[0] == 0
