@@ -1377,13 +1377,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hThread,) = argv
         rv = -1
-        obj = self.get_object_from_handle(hThread)
+        obj = self.get_thread_from_handle(emu, hThread)
         if not obj:
             return rv
 
         rv = obj.suspend_count
         if rv > 0:
             obj.suspend_count -= 1
+        if rv != 1:
+            return rv
 
         if not emu.resume_thread(obj):
             context = obj.get_context()
@@ -1418,7 +1420,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hThread,) = argv
         rv = -1
-        obj = self.get_object_from_handle(hThread)
+        obj = self.get_thread_from_handle(emu, hThread)
         if not obj:
             return rv
 
@@ -1436,7 +1438,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hThread, dwExitCode = argv
         rv = 0
-        obj = self.get_object_from_handle(hThread)
+        obj = self.get_thread_from_handle(emu, hThread)
         if not obj:
             return rv
 
@@ -1457,7 +1459,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not Thread:
             return 0
 
-        obj = self.get_object_from_handle(Thread)
+        obj = self.get_thread_from_handle(emu, Thread)
 
         if not obj:
             return 0
@@ -2539,9 +2541,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HANDLE GetCurrentThread();
         """
-        thread = emu.get_current_thread()
-        obj = emu.om.get_object_from_addr(thread.address)
-        return emu.get_object_handle(obj)
+        return self.get_max_int() - 1
 
     @apihook("TlsAlloc", argc=0)
     def TlsAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6042,6 +6042,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
           DWORD    dwOptions
         )
         """
+        _, hSourceHandle, _, lpTargetHandle, _, _, _ = argv
+        if (hSourceHandle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE and lpTargetHandle:
+            hnd = self.get_object_handle(emu.get_current_thread())
+            self.mem_write(lpTargetHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
         return 1
 
     @apihook("GetBinaryType", argc=2)

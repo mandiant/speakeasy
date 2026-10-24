@@ -1982,6 +1982,7 @@ class WindowsEmulator(BinaryEmulator):
         if not is_suspended:
             self.run_queue.append(run)
         else:
+            thread.suspend_count = 1
             self.suspended_runs.append(run)
 
         # Returns handle

@@ -832,3 +832,42 @@ def test_sleep_advances_the_clocks(emu: Speakeasy, api: str, argv: list[int]) ->
     assert 30000 <= call(emu, "kernel32", "GetTickCount", [])[0] - ticks < 31000
     assert query_counter() - perf == 30000 * 10_000_000 // 1000
     assert 30000 * 10000 <= get_file_time(emu) - ft < 31000 * 10000
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_current_thread_pseudo_handle(request: pytest.FixtureRequest, fixture: str) -> None:
+    se = request.getfixturevalue(fixture)
+    start_process(se)
+    assert se.emu is not None
+    pseudo = (1 << (8 * se.emu.get_ptr_size())) - 2
+    assert call(se, "kernel32", "GetCurrentThread", [])[0] == pseudo
+
+    tid = call(se, "kernel32", "GetCurrentThreadId", [])[0]
+    assert call(se, "kernel32", "GetThreadId", [pseudo])[0] == tid
+    assert call(se, "kernel32", "SetThreadPriority", [pseudo, 2])[0]
+    runs = len(se.emu.run_queue)
+    assert call(se, "kernel32", "ResumeThread", [pseudo])[0] == 0
+    assert call(se, "kernel32", "ResumeThread", [call(se, "kernel32", "OpenThread", [0x1F03FF, 0, tid])[0]])[0] == 0
+    assert len(se.emu.run_queue) == runs
+
+    token = alloc(se, b"\x00" * 8)
+    assert call(se, "advapi32", "OpenThreadToken", [pseudo, 8, 0, token])[0]
+
+    target = alloc(se, b"\x00" * 8)
+    process = (1 << (8 * se.emu.get_ptr_size())) - 1
+    assert call(se, "kernel32", "DuplicateHandle", [process, pseudo, process, target, 0, 0, 2])[0]
+    duplicate = int.from_bytes(se.mem_read(target, se.emu.get_ptr_size()), "little")
+    assert call(se, "kernel32", "GetThreadId", [duplicate])[0] == tid
+
+
+def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    runs = len(emu.emu.run_queue)
+    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 1
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 2
+    assert len(emu.emu.run_queue) == runs
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 1
+    assert len(emu.emu.run_queue) == runs + 1
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 0
+    assert len(emu.emu.run_queue) == runs + 1

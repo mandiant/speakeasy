@@ -559,7 +559,7 @@ class AdvApi32(api.ApiHandler):
         ThreadHandle, DesiredAccess, OpenAsSelf, pTokenHandle = argv
         rv = 0
 
-        if ThreadHandle == self.get_max_int():
+        if ThreadHandle in (self.get_max_int(), self.get_max_int() - 1):
             obj = emu.get_current_thread()
         else:
             obj = self.get_object_from_handle(ThreadHandle)
