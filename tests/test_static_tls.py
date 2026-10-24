@@ -6,6 +6,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
+from speakeasy.windows.loaders import PeLoader
 from tests.pe_builder import build_pe
 
 TEMPLATE = bytes(range(0x11, 0x19))
@@ -66,3 +67,20 @@ def test_main_module_tls_slot_is_a_writable_copy_of_the_template(arch):
         )
         assert se.mem_read(module.base + template_rva, len(TEMPLATE)) == TEMPLATE
         assert se.mem_read(module.base + index_rva, 4) == b"\0\0\0\0"
+
+
+def build_bad_tls_pe(callbacks_va):
+    base = 0x400000
+    tls_rva = 0x2100
+    tls = struct.pack("<6I", base + 0x2000, base + 0x2008, base + 0x2010, callbacks_va, 0, 0)
+    data = bytearray(0x200)
+    data[tls_rva - 0x2000 : tls_rva - 0x2000 + len(tls)] = tls
+    image, _ = build_pe(32, data=bytes(data), extra_dirs={9: (tls_rva, len(tls))})
+    return image
+
+
+@pytest.mark.parametrize("callbacks_va", [0x400000 + 0x10000000, 0x1000])
+def test_unreadable_tls_callback_array_does_not_stop_the_load(callbacks_va):
+    image = PeLoader(data=build_bad_tls_pe(callbacks_va)).make_image()
+    assert image.tls_callbacks == []
+    assert image.entry_points == [0x401000]

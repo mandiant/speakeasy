@@ -551,8 +551,14 @@ class PeLoader:
             tls_directory_va = pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress + base
             rva = pe.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks - base
             for i in range(100):
-                ptr = pe.get_data(rva + ptr_size * i, ptr_size)
-                ptr = int.from_bytes(ptr, "little")
+                slot = rva + ptr_size * i
+                try:
+                    if not 0 <= slot <= pe.image_size - ptr_size:
+                        raise ValueError("TLS callback array lies outside the image")
+                    ptr = int.from_bytes(pe.get_data(slot, ptr_size), "little")
+                except (pefile.PEFormatError, ValueError) as error:
+                    self._optional_error("TLS callbacks", error)
+                    break
                 if ptr == 0:
                     break
                 tls_callbacks.append(ptr)
