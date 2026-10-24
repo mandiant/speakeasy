@@ -446,3 +446,13 @@ def test_window_properties_by_atom(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC123])[0] == 0x5678
     assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC124])[0] == 0
     assert call(dll_emu, "user32", "SetPropW", [0x41420000, 0xC123, 1])[0] == 0
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_get_cursor_pos_writes_a_point_on_the_screen(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    pt = alloc(se, b"\xcc" * 12)
+    assert call(se, "user32", "GetCursorPos", [pt])[0] == 1
+    x, y, rest = struct.unpack("<iiI", se.mem_read(pt, 12))
+    assert 0 <= x < 1920 and 0 <= y < 1080
+    assert rest == 0xCCCCCCCC

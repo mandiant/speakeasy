@@ -28,6 +28,9 @@ UOI_FLAGS = 1
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+
 
 def map_char_case(raw: bytes, width: int, upper: bool) -> bytes:
     """
@@ -477,9 +480,14 @@ class User32(api.ApiHandler):
         """
 
         (lpPoint,) = argv
+        if not lpPoint:
+            return False
 
-        rv = 0
-        return rv
+        pt = windef.POINT(emu.get_ptr_size())
+        pt.x = SCREEN_WIDTH // 2
+        pt.y = SCREEN_HEIGHT // 2
+        self.mem_write(lpPoint, self.get_bytes(pt))
+        return True
 
     @apihook("WindowFromPoint", argc=2)
     def WindowFromPoint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
