@@ -1224,3 +1224,40 @@ def test_strftime_returns_zero_when_the_text_does_not_fit(dll_emu: Speakeasy) ->
     tm = alloc(dll_emu, struct.pack("<9i", 5, 4, 8, 29, 11, 119, 0, 362, 0))
     buf = alloc(dll_emu, b"\xcc" * 16)
     assert call(dll_emu, "msvcrt", "strftime", [buf, 4, alloc(dll_emu, b"%Y\x00"), tm])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "size, count, rv, out",
+    [
+        (8, 3, 0, b"hel\x00\xcc\xcc\xcc\xcc"),
+        (8, 9, 0, b"hello\x00\xcc\xcc"),
+        (4, 3, 0, b"hel\x00\xcc\xcc\xcc\xcc"),
+        (4, 4, ERANGE, b"\x00ell\xcc\xcc\xcc\xcc"),
+        (4, 0xFFFFFFFF, STRUNCATE, b"hel\x00\xcc\xcc\xcc\xcc"),
+        (0, 3, EINVAL, b"\xcc" * 8),
+    ],
+)
+def test_strncpy_s_copies_at_most_count_bytes_within_the_buffer(
+    dll_emu: Speakeasy, size: int, count: int, rv: int, out: bytes
+) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 8)
+    src = alloc(dll_emu, b"hello\x00")
+    assert call(dll_emu, "msvcrt", "strncpy_s", [dest, size, src, count])[0] == rv
+    assert dll_emu.mem_read(dest, 8) == out
+
+
+@pytest.mark.parametrize(
+    "size, count, rv, out",
+    [
+        (8, 3, 0, "hel\x00".encode("utf-16le")),
+        (4, 4, ERANGE, "\x00ell".encode("utf-16le")),
+        (4, 0xFFFFFFFF, STRUNCATE, "hel\x00".encode("utf-16le")),
+    ],
+)
+def test_wcsncpy_s_copies_at_most_count_chars_within_the_buffer(
+    dll_emu: Speakeasy, size: int, count: int, rv: int, out: bytes
+) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 16)
+    src = alloc(dll_emu, "hello\x00".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "wcsncpy_s", [dest, size, src, count])[0] == rv
+    assert dll_emu.mem_read(dest, 8) == out

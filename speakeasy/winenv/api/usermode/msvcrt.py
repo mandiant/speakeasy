@@ -1563,6 +1563,61 @@ class Msvcrt(api.ApiHandler):
         self.write_wide_string(ws + "\x00", dest)
         return 0
 
+    def copy_n_secure(self, emu, argv, ctx, width):
+        """
+        Copy as strncpy_s and wcsncpy_s do. When the text does not fit, the
+        characters copied so far stay and the first one is cleared.
+        """
+        dest, size, src, count = argv
+        count &= self.get_max_int()
+        nul = b"\x00" * width
+        if not dest or not size:
+            return EINVAL
+        if not src:
+            self.mem_write(dest, nul)
+            return EINVAL
+        if width == 1:
+            data = self.read_cstr(src)
+            ctx.args[2].display = data.decode("utf-8", "ignore")
+        else:
+            text = self.read_wide_string(src)
+            ctx.args[2].display = text
+            data = text.encode("utf-16le", "surrogatepass")
+        length = len(data) // width
+        n = min(length, count)
+        if n < size:
+            self.mem_write(dest, data[: n * width] + nul)
+            return 0
+        if count == self.get_max_int():
+            self.mem_write(dest, data[: (size - 1) * width] + nul)
+            return STRUNCATE
+        self.mem_write(dest, nul + data[width : size * width])
+        return ERANGE
+
+    @apihook("strncpy_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def strncpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t strncpy_s(
+           char *strDest,
+           size_t numberOfElements,
+           const char *strSource,
+           size_t count
+        );
+        """
+        return self.copy_n_secure(emu, argv, ctx, 1)
+
+    @apihook("wcsncpy_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def wcsncpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcsncpy_s(
+           wchar_t *strDest,
+           size_t numberOfElements,
+           const wchar_t *strSource,
+           size_t count
+        );
+        """
+        return self.copy_n_secure(emu, argv, ctx, 2)
+
     @apihook("wcscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
