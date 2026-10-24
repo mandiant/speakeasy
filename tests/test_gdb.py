@@ -988,3 +988,16 @@ def test_gdb_step_past_last_instruction_exits(gdb_shellcode_emulator):
     finally:
         client.close()
     assert _read_server_result(proc)["error"] is None
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["a322222222c3"], indirect=True)  # mov [scratch], eax; ret
+def test_gdb_watch_stop_reports_watched_address(gdb_shellcode_emulator):
+    port, proc, _, scratch = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        # The write of [scratch, scratch + 4) begins before the watched range.
+        assert client.query(f"Z2,{scratch + 2:x},4") == "OK"
+        assert f"watch:{scratch + 2:x};" in client.continue_()
+    finally:
+        client.close()

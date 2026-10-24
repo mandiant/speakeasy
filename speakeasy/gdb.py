@@ -407,23 +407,29 @@ class GdbServer:
         return True
 
     def _on_read(self, _emu: Any, _access: int, address: int, size: int, _value: int) -> bool:
-        if self._overlaps_watchpoint(self._access_watchpoints, address, size):
-            self._request_stop(StopReason(kind="awatch", address=address))
-        elif self._overlaps_watchpoint(self._read_watchpoints, address, size):
-            self._request_stop(StopReason(kind="rwatch", address=address))
+        if (watched := self._find_watchpoint(self._access_watchpoints, address, size)) is not None:
+            self._request_stop(StopReason(kind="awatch", address=watched))
+        elif (watched := self._find_watchpoint(self._read_watchpoints, address, size)) is not None:
+            self._request_stop(StopReason(kind="rwatch", address=watched))
         return True
 
     def _on_write(self, _emu: Any, _access: int, address: int, size: int, _value: int) -> bool:
-        if self._overlaps_watchpoint(self._access_watchpoints, address, size):
-            self._request_stop(StopReason(kind="awatch", address=address))
-        elif self._overlaps_watchpoint(self._write_watchpoints, address, size):
-            self._request_stop(StopReason(kind="watch", address=address))
+        if (watched := self._find_watchpoint(self._access_watchpoints, address, size)) is not None:
+            self._request_stop(StopReason(kind="awatch", address=watched))
+        elif (watched := self._find_watchpoint(self._write_watchpoints, address, size)) is not None:
+            self._request_stop(StopReason(kind="watch", address=watched))
         return True
 
     @staticmethod
-    def _overlaps_watchpoint(watchpoints: dict[tuple[int, int], int], address: int, size: int) -> bool:
+    def _find_watchpoint(watchpoints: dict[tuple[int, int], int], address: int, size: int) -> int | None:
+        """
+        Get the first address of the access in a watchpoint that the access overlaps. Clients
+        find the watchpoint of a stop by this address, so it must be in the watched range.
+        """
         end = address + size
-        return any(begin < end and address < begin + length for begin, length in watchpoints)
+        return next(
+            (max(address, begin) for begin, length in watchpoints if begin < end and address < begin + length), None
+        )
 
     # ------------------------------------------------------------------
     # Commands
