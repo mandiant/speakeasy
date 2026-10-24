@@ -787,21 +787,20 @@ class BinaryEmulator(MemoryManager, ABC):
         tgt_tag_prefixes = ("emu.stack", "api")
         ansi_strings = []
         unicode_strings = []
-        ret_ansi = []
-        ret_unicode = []
         input_mem_tag = self.input.get("mem_tag") if self.input else None
 
         for mmap in self.get_mem_maps():
             tag = mmap.tag
             if tag and tag.startswith(tgt_tag_prefixes) and tag != input_mem_tag:
                 data = self.mem_read(mmap.base, mmap.size - 1)
-                ansi_strings += self.get_ansi_strings(data)
-                unicode_strings += self.get_unicode_strings(data)
+                data = data[: len(data.rstrip(b"\x00")) + 1]
+                lead = len(data) - len(data.lstrip(b"\x00"))
+                lead -= lead % 2
+                data = data[lead:]
+                ansi_strings += [(lead + off, s) for off, s in self.get_ansi_strings(data)]
+                unicode_strings += [(lead + off, s) for off, s in self.get_unicode_strings(data)]
 
-        [ret_ansi.append(a) for a in ansi_strings if a not in ret_ansi]  # type: ignore[func-returns-value]  # list comp for side effect
-        [ret_unicode.append(a) for a in unicode_strings if a not in ret_unicode]  # type: ignore[func-returns-value]  # list comp for side effect
-
-        return (ret_ansi, ret_unicode)
+        return (list(dict.fromkeys(ansi_strings)), list(dict.fromkeys(unicode_strings)))
 
     def set_ptr_size(self, arch):
         """
