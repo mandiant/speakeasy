@@ -3791,7 +3791,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when software interrupts occur
         """
-        if not self.kernel_mode and self.config.exceptions.dispatch_handlers and intnum != 0x29:
+        if (
+            not self.kernel_mode
+            and self.config.exceptions.dispatch_handlers
+            and intnum not in cpu_exceptions.SYSTEM_GATES[self.get_arch()]
+        ):
             pc = self.get_pc()
             try:
                 code_bytes = self.mem_read(pc - 2, 2)

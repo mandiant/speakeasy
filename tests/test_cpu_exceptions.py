@@ -1,4 +1,4 @@
-"""x64 CPU exceptions reach guest handlers with the code and addresses Windows reports."""
+"""CPU exceptions reach guest handlers with the code and addresses Windows reports."""
 
 import struct
 from functools import partial
@@ -31,8 +31,8 @@ CASES = {
     "vmware backdoor": (b"\xb8\x68\x58\x4d\x56\x66\xba\x58\x56\xed", STATUS_PRIVILEGED_INSTRUCTION, 9, 1),
     "out": (b"\xee", STATUS_PRIVILEGED_INSTRUCTION, 0, 1),
     "divide by zero": (b"\x31\xc9\xf7\xf1", STATUS_INTEGER_DIVIDE_BY_ZERO, 2, 2),
-    "read null": (b"\x48\x8b\x04\x25\x00\x00\x00\x00", STATUS_ACCESS_VIOLATION, 0, 8),
-    # pushfq; or dword [rsp], 0x100; popfq; nop: the trap follows the nop
+    "read null": (b"\x31\xc0\x8b\x00", STATUS_ACCESS_VIOLATION, 2, 2),  # xor eax, eax; mov eax, [rax]
+    # pushf; or dword [rsp], 0x100; popf; nop: the trap follows the nop
     "trap flag": (b"\x9c\x81\x0c\x24\x00\x01\x00\x00\x9d\x90", STATUS_SINGLE_STEP, 10, 0),
 }
 
@@ -55,23 +55,60 @@ def vectored_handler(data, step):
     return code
 
 
-@pytest.mark.parametrize("name", CASES)
-def test_cpu_exception_reaches_vectored_handler(config, name):
-    insn, exception_code, offset, step = CASES[name]
+def vectored_handler_x86(data, step):
+    """vectored_handler for x86."""
+    code = b"\x8b\x44\x24\x04\x8b\x08"  # mov eax, [esp + 4]; mov ecx, [eax]  (ExceptionRecord)
+    code += b"\x8b\x11\x89\x15" + struct.pack("<I", data)  # [data] = ExceptionCode
+    code += b"\x8b\x51\x0c\x89\x15" + struct.pack("<I", data + 8)  # [data + 8] = ExceptionAddress
+    code += b"\x8b\x51\x14\x89\x15" + struct.pack("<I", data + 16)  # [data + 16] = parameter 0
+    code += b"\x8b\x51\x18\x89\x15" + struct.pack("<I", data + 24)  # [data + 24] = parameter 1
+    code += b"\x8b\x40\x04"  # mov eax, [eax + 4]  (ContextRecord)
+    code += b"\x83\x80\xb8\x00\x00\x00" + bytes([step])  # add dword [eax + Eip], step
+    code += b"\xb8\xff\xff\xff\xff\xc2\x04\x00"  # return EXCEPTION_CONTINUE_EXECUTION
+    return code
+
+
+def run_under_handler(config, arch, insn, step):
+    """Run insn under vectored_handler; return the run, the address of insn and the handler's record."""
+    ptr_size = 8 if arch == "amd64" else 4
     with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch=arch)
         data = se.mem_alloc(0x1000)
         handler = code + 0x1000
-        se.mem_write(handler, vectored_handler(data, step))
-        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        se.mem_write(handler, (vectored_handler if ptr_size == 8 else vectored_handler_x86)(data, step))
+        setup = guest_call(ptr_size, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
         se.mem_write(code, setup + insn + RETURN_42)
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
-        assert run.error is None
-        assert run.ret_val == 42
-        assert struct.unpack("<IxxxxQ", se.mem_read(data, 16)) == (exception_code, code + len(setup) + offset)
+        record = struct.unpack("<IxxxxQQQ", se.mem_read(data, 32))
+        return se.get_report().entry_points[0], code + len(setup), record
+
+
+@pytest.mark.parametrize("arch", ["amd64", "x86"])
+@pytest.mark.parametrize("name", CASES)
+def test_cpu_exception_reaches_vectored_handler(config, arch, name):
+    insn, exception_code, offset, step = CASES[name]
+    run, start, record = run_under_handler(config, arch, insn, step)
+    assert run.error is None
+    assert run.ret_val == 42
+    assert record[:2] == (exception_code, start + offset)
+
+
+@pytest.mark.parametrize("arch, mask", [("amd64", 0xFFFFFFFFFFFFFFFF), ("x86", 0xFFFFFFFF)])
+def test_general_protection_parameters_fit_the_pointer_size(config, arch, mask):
+    run, start, record = run_under_handler(config, arch, b"\xcd\x80", 2)  # int 0x80
+    assert run.error is None
+    assert record == (STATUS_ACCESS_VIOLATION, start, 0, mask)
+
+
+@pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A), ("x86", 0x2B), ("x86", 0x2E)])
+def test_system_service_gate_is_not_an_exception(config, arch, gate):
+    run, _, _ = run_under_handler(config, arch, b"\xcd" + bytes([gate]), 2)
+    assert run.error is not None
+    assert run.error.type == "unhandled_interrupt"
+    assert run.error.interrupt_num == gate
+    assert not [e for e in run.events or [] if e.event == "exception"]
 
 
 def test_debug_service_without_exception_skips_a_byte(config):

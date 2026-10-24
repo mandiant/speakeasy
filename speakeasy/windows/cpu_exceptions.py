@@ -11,6 +11,7 @@ depends on (dlls/ntdll/unix/signal_x86_64.c).
 
 from dataclasses import dataclass
 
+import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
@@ -22,6 +23,10 @@ STATUS_ASSERTION_FAILURE = 0xC0000420
 INT_BREAKPOINT = 0x03
 INT_ASSERTION = 0x2C
 INT_DEBUG_SERVICE = 0x2D
+
+# Gates that are system calls rather than exceptions, which emulation does not implement:
+# __fastfail and KiSystemService, and on x86 KiGetTickCount and KiCallbackReturn
+SYSTEM_GATES = {_arch.ARCH_AMD64: (0x29, 0x2E), _arch.ARCH_X86: (0x29, 0x2A, 0x2B, 0x2E)}
 
 # The first parameter of an access violation
 ACCESS_CODES = {"read": 0, "write": 1, "fetch": 8}
