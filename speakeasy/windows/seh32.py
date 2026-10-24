@@ -16,6 +16,9 @@ See http://www.openrce.org/articles/full_view/21
 """
 
 import struct
+from collections.abc import Iterator
+
+import unicorn as uc
 
 import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.seh as seh
@@ -53,6 +56,23 @@ def _write_u32(emu, address: int, value: int) -> None:
 def exception_list(emu) -> int:
     """The head of the thread's registration chain, at fs:[0]."""
     return emu._get_exception_list()
+
+
+def registrations(emu) -> Iterator[tuple[int, int, int]]:
+    """
+    The registration, next registration and handler of each record on the chain at fs:[0].
+    A record that cannot be read ends the chain, as one outside the stack does on Windows.
+    """
+    registration = exception_list(emu)
+    for _ in range(seh.MAX_FRAMES):
+        if registration in (0, END_OF_CHAIN):
+            return
+        try:
+            next_registration, handler = struct.unpack("<II", emu.mem_read(registration, 8))
+        except uc.UcError:
+            return
+        yield registration, next_registration, handler
+        registration = next_registration
 
 
 def set_exception_list(emu, registration: int) -> None:
@@ -93,16 +113,11 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
         return exception.resume()
 
     dispatcher_context = guest_callbacks.alloca(emu, bytes(4))
-    registration = exception_list(emu)
-    for _ in range(seh.MAX_FRAMES):
-        if registration in (0, END_OF_CHAIN):
-            break
-        next_registration, handler = struct.unpack("<II", emu.mem_read(registration, 8))
+    for registration, _, handler in registrations(emu):
         exception.offer(handler)
         disposition = yield call_handler(emu, handler, record, registration, context, dispatcher_context)
         if disposition == windefs.ExceptionContinueExecution:
             return exception.resume()
-        registration = next_registration
     return (yield from exception.unhandled())
 
 
@@ -120,15 +135,12 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> GeneratorHa
     context = guest_callbacks.alloca(emu, emu.get_thread_context().get_bytes())
     dispatcher_context = guest_callbacks.alloca(emu, bytes(4))
 
-    registration = exception_list(emu)
-    for _ in range(seh.MAX_FRAMES):
+    for registration, next_registration, handler in registrations(emu):
         # Registrations are in stack order: one above the target means it is not on the chain
-        if registration in (0, END_OF_CHAIN, target_frame) or target_frame and registration > target_frame:
+        if registration == target_frame or target_frame and registration > target_frame:
             break
-        next_registration, handler = struct.unpack("<II", emu.mem_read(registration, 8))
         yield call_handler(emu, handler, record, registration, context, dispatcher_context)
         set_exception_list(emu, next_registration)
-        registration = next_registration
 
 
 def rtl_unwind(emu, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:

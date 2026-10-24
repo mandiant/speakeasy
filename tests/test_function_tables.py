@@ -75,3 +75,17 @@ def test_lookup_finds_registered_function(config):
         run = se.get_report().entry_points[0]
         assert run.ret_val == base + RUNTIME_FUNCTION
         assert struct.unpack("<Q", se.mem_read(image_base, 8))[0] == base
+
+
+def test_table_with_a_wrong_count_faults_where_it_ends(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        base = se.mem_alloc(0x1000)
+        call = guest_call(8, get_api(se, "ntdll", "RtlAddFunctionTable"), base, 0xFFFFFFFF, base)
+        se.mem_write(code, call + b"\xc3")
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert run.error.type == "invalid_read"

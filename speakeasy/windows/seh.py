@@ -43,7 +43,8 @@ MEMORY_FAULTS = (ddk.STATUS_ACCESS_VIOLATION, STATUS_GUARD_PAGE_VIOLATION)
 EXCEPTION_RECORD64 = struct.Struct("<IIQQI4x15Q")
 EXCEPTION_RECORD32 = struct.Struct("<IIIII15I")
 
-MAX_FRAMES = 256
+# Frames, registrations or scopes walked before a chain is taken as corrupt
+MAX_FRAMES = 4096
 
 ACCESS_TYPES = {code: name for name, code in ACCESS_CODES.items()}
 

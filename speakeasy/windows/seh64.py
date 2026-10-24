@@ -258,7 +258,7 @@ def virtual_unwind(
 
 def add_function_table(emu, table: int, count: int, base: int) -> bool:
     """RtlAddFunctionTable"""
-    entries = list(struct.iter_unpack("<III", emu.mem_read(table, 12 * count))) if count else []
+    entries = list(unwind.read_function_table(emu.mem_read, table, count))
     if not entries:
         return False
     begin = base + min(b for b, _, _ in entries)

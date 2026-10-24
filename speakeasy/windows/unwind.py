@@ -10,7 +10,7 @@ See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64
 
 import bisect
 import struct
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 Reader = Callable[[int, int], bytes]
@@ -85,10 +85,19 @@ class FunctionTable:
     callback: int = 0
 
 
+def read_function_table(read: Reader, address: int, count: int) -> Iterator[tuple[int, int, int]]:
+    """
+    The (begin, end, unwind info) RVAs of a table of RUNTIME_FUNCTIONs, read a page at a
+    time, so that a wrong count fails where the table runs out of memory.
+    """
+    per_page = 0x1000 // 12
+    for first in range(0, count, per_page):
+        yield from struct.iter_unpack("<III", read(address + 12 * first, 12 * min(per_page, count - first)))
+
+
 def search_function_table(read: Reader, table: FunctionTable, pc: int) -> RuntimeFunction | None:
     """Find pc in a registered table, whose entries need not be sorted."""
-    entries = read(table.identifier, 12 * table.count)
-    for i, (begin, end, _) in enumerate(struct.iter_unpack("<III", entries)):
+    for i, (begin, end, _) in enumerate(read_function_table(read, table.identifier, table.count)):
         if begin <= pc - table.base < end:
             return read_runtime_function(read, table.base, table.identifier + 12 * i)
     return None
