@@ -1708,6 +1708,8 @@ class Msvcrt(api.ApiHandler):
             self.mem_free(mem)
             return 0
         dst = self.heap_alloc(size, heap="HeapAlloc")
+        if not dst:
+            return 0
         if mem:
             old = next((n for a, n, _ in reversed(emu.heap_allocs) if a == mem), None)
             if old is None:
@@ -1836,10 +1838,12 @@ class Msvcrt(api.ApiHandler):
             size,
         ) = argv
 
-        chunk = self.heap_alloc(num * size, heap="HeapAlloc")
-
-        buf = b"\x00" * (num * size)
-        self.mem_write(chunk, buf)
+        total = num * size
+        if total > self.get_max_int():
+            return 0
+        chunk = self.heap_alloc(total, heap="HeapAlloc")
+        if chunk:
+            self.mem_write(chunk, b"\x00" * total)
 
         return chunk
 

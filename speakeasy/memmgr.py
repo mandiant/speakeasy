@@ -7,6 +7,7 @@ from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.common as common
+from speakeasy.errors import OutOfMemoryError
 
 if TYPE_CHECKING:
     from speakeasy.engines.unicorn_eng import EmuEngine
@@ -64,6 +65,12 @@ class MemoryManager:
     keep_memory_on_free: bool
 
     def get_current_process(self) -> Any:
+        return None
+
+    def get_address_limit(self) -> int | None:
+        """
+        Return the end of the address space that allocations which start below it must fit in
+        """
         return None
 
     def __init__(self, *args, **kwargs):
@@ -280,8 +287,12 @@ class MemoryManager:
 
         curr = sorted(set(curr))
 
+        limit = self.get_address_limit()
+        bounded = limit is not None and base < limit
         attempts = 9999
         while attempts:
+            if bounded and base + total > limit:
+                raise OutOfMemoryError(f"no free range of 0x{total:x} bytes below 0x{limit:x}")
             req = set(range(base, base + total, page_size))
 
             diffs = sorted(req.difference(curr))

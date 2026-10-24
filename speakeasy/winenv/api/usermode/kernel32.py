@@ -16,7 +16,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.errors import ApiEmuError, FileSystemEmuError
+from speakeasy.errors import ApiEmuError, FileSystemEmuError, OutOfMemoryError
 from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_READ,
@@ -1059,7 +1059,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     # auto-adjusted by the memory manager
                     test = emu.virtual_mem_base
                 size = dwSize
-                base, size = emu.get_valid_ranges(size, addr=test)
+                try:
+                    base, size = emu.get_valid_ranges(size, addr=test)
+                except OutOfMemoryError:
+                    emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
+                    return 0
                 if lpAddress and base != test:
                     emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                     return 0
@@ -2468,7 +2472,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 # Copy the existing data
                 data = self.mem_read(lpMem, min(mm.size, dwBytes))
                 new_buf = self.heap_alloc(dwBytes, heap="HeapReAlloc")
-                self.mem_write(new_buf, data)
+                if new_buf:
+                    self.mem_write(new_buf, data)
 
         return new_buf
 
@@ -2493,7 +2498,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 # Copy the existing data
                 data = self.mem_read(hMem, min(mm.size, uBytes))
                 new_buf = self.heap_alloc(uBytes, heap="LocalReAlloc")
-                self.mem_write(new_buf, data)
+                if new_buf:
+                    self.mem_write(new_buf, data)
 
         return new_buf
 

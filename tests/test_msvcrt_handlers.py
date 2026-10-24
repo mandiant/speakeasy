@@ -458,6 +458,22 @@ def test_realloc_uses_the_size_of_the_current_block_at_a_reused_address(dll_emu:
     assert dll_emu.mem_read(grown, 0x1000) == b"\x5a" * 0x1000
 
 
+@pytest.mark.parametrize(
+    "api, argv", [("malloc", [0x82844002]), ("calloc", [0x10000, 0x10001]), ("calloc", [0x2, 0x50000000])]
+)
+def test_an_allocation_larger_than_the_x86_address_space_returns_null(
+    dll_emu: Speakeasy, api: str, argv: list[int]
+) -> None:
+    assert call(dll_emu, "msvcrt", api, argv)[0] == 0
+
+
+def test_realloc_that_cannot_grow_returns_null_and_keeps_the_block(dll_emu: Speakeasy) -> None:
+    block, _ = call(dll_emu, "msvcrt", "malloc", [4])
+    dll_emu.mem_write(block, b"abcd")
+    assert call(dll_emu, "msvcrt", "realloc", [block, 0x82844002])[0] == 0
+    assert dll_emu.mem_read(block, 4) == b"abcd"
+
+
 def test_getenv_ignores_case_and_returns_null_when_missing(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     name, value = next(iter(dll_emu.emu.get_env().items()))

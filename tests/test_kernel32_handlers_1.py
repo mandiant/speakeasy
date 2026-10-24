@@ -165,6 +165,16 @@ def test_shrinking_realloc_copies_only_the_new_size(
     assert dll_emu.mem_read(neighbor, 0x3000) == b"\xee" * 0x3000
 
 
+def test_heap_allocations_larger_than_the_x86_address_space_return_null(dll_emu: Speakeasy) -> None:
+    heap, _ = call(dll_emu, "kernel32", "GetProcessHeap", [])
+    block, _ = call(dll_emu, "kernel32", "HeapAlloc", [heap, 0, 0x10])
+    assert call(dll_emu, "kernel32", "HeapAlloc", [heap, 0, 0x90000000])[0] == 0
+    assert call(dll_emu, "kernel32", "HeapReAlloc", [heap, 0, block, 0x90000000])[0] == 0
+    assert call(dll_emu, "kernel32", "LocalAlloc", [0, 0x90000000])[0] == 0
+    assert call(dll_emu, "kernel32", "GlobalAlloc", [0, 0x90000000])[0] == 0
+    assert call(dll_emu, "kernel32", "VirtualAlloc", [0, 0x90000000, 0x3000, 0x04])[0] == 0
+
+
 @pytest.mark.parametrize(
     "api, path, cw",
     [

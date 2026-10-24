@@ -653,6 +653,13 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return self.arch
 
+    def get_address_limit(self) -> int | None:
+        if self.arch == e_arch.ARCH_X86:
+            return 0x7FFF0000
+        if self.arch == e_arch.ARCH_AMD64:
+            return 0x7FFFFFFF0000
+        return None
+
     def read_mem_string(self, address, width=1, max_chars=0):
         """
         Read a string from emulated memory

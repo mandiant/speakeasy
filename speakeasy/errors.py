@@ -33,6 +33,14 @@ class EmuException(SpeakeasyError):
     pass
 
 
+class OutOfMemoryError(SpeakeasyError):
+    """
+    No free range of the address space can hold an allocation
+    """
+
+    pass
+
+
 class EmuEngineError(SpeakeasyError):
     pass
 
