@@ -89,7 +89,6 @@ class PendingCpuException:
     guard_page: tuple[int, int] | None = None
 
 
-# Guest memory errors of API handlers, by the access they fail
 def execution_scope(func):
     """Share one active-time cap across every start in a public invocation."""
 
@@ -130,26 +129,6 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
                 continue
         runs.append((page_base, page_size, perms))
     return runs
-
-
-HANDLER_FAULT_ACCESS = {
-    uc.UC_ERR_READ_UNMAPPED: "read",
-    uc.UC_ERR_READ_PROT: "read",
-    uc.UC_ERR_WRITE_UNMAPPED: "write",
-    uc.UC_ERR_WRITE_PROT: "write",
-}
-
-
-def get_handler_fault(error: Exception, pc: int) -> tuple[str, int, str | None]:
-    """
-    Get the error type, address and access type for an exception raised by an API handler.
-
-    A handler that reads or writes an invalid guest pointer fails like guest code does at that address.
-    """
-    access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
-    if access is None or not error.args:
-        return str(error), pc, None
-    return f"invalid_{access}", error.args[0], access
 
 
 class BootstrapPhase(IntEnum):
@@ -2790,7 +2769,7 @@ class WindowsEmulator(BinaryEmulator):
                         # Let the outer GDB fault path expose the failed frame
                         # before run cleanup and report signal termination.
                         raise
-                    desc, address, access_type = get_handler_fault(e, self.get_pc())
+                    desc, address, access_type = guest_callbacks.get_handler_fault(e, self.get_pc())
                     if access_type and self._can_raise_api_fault():
                         self.log_api(call_pc, imp_api, None, ctx.args.get_report_args(), run=origin_run)
                         if self._raise_api_fault(frame, access_type, address):

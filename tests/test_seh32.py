@@ -74,3 +74,17 @@ def test_corrupt_scope_table_ends_the_run(config):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == "invalid_write"
+
+
+def test_unreadable_registration_ends_the_chain(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        body = b"\x64\xc7\x05" + dword(0) + dword(0x12345678)  # mov fs:[0], an unmapped registration
+        se.mem_write(code, body + b"\xcc")
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert run.error.type == "unhandled_interrupt"
+        assert run.error.pc == code + len(body)

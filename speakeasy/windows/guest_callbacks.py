@@ -31,6 +31,8 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
 
+import unicorn as uc
+
 import speakeasy.windows.thread_context as thread_context
 from speakeasy.profiler import GuestCallbackFrame
 from speakeasy.winenv.arch import CALL_CONV_STDCALL
@@ -64,6 +66,26 @@ class CallbackError(Exception):
         self.access_type = access_type
         self.pc = pc  # where the error happened, when that is not the current pc
         self.details = details  # more fields of the run's error, such as interrupt_num
+
+
+HANDLER_FAULT_ACCESS = {
+    uc.UC_ERR_READ_UNMAPPED: "read",
+    uc.UC_ERR_READ_PROT: "read",
+    uc.UC_ERR_WRITE_UNMAPPED: "write",
+    uc.UC_ERR_WRITE_PROT: "write",
+}
+
+
+def get_handler_fault(error: Exception, pc: int) -> tuple[str, int, str | None]:
+    """
+    Get the error type, address and access type for an exception raised by an API handler.
+
+    A handler that reads or writes an invalid guest pointer fails like guest code does at that address.
+    """
+    access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
+    if access is None or not error.args:
+        return str(error), pc, None
+    return f"invalid_{access}", error.args[0], access
 
 
 @dataclass
@@ -117,6 +139,9 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
         call = frame.handler.generator.send(value)
     except StopIteration as done:
         result = done.value
+    except uc.UcError as e:
+        kind, address, access_type = get_handler_fault(e, emu.get_pc())
+        raise CallbackError(kind, address, access_type) from e
     else:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
         for register, value in call.registers:
@@ -180,10 +205,11 @@ def caller_context(emu):
 
 def unwind_frame(emu, ctx) -> None:
     """Unwind ctx, returning to GUEST_CALLBACK_RETURN_ADDR, to the guest state its handler frame interrupted."""
-    frame = min(
-        (f for f in emu.get_current_run().guest_callbacks if f.stack_pointer >= ctx.Rsp),
-        key=lambda f: f.stack_pointer,
-    )
+    frames = [f for f in emu.get_current_run().guest_callbacks if f.stack_pointer >= ctx.Rsp]
+    if not frames:  # the guest's own copy of the address, on a corrupt stack: the walk ends
+        ctx.Rip = 0
+        return
+    frame = min(frames, key=lambda f: f.stack_pointer)
     if frame.handler is not None and frame.handler.context:
         ctx.cast(emu.mem_read(frame.handler.context, ctx.sizeof()))
     else:

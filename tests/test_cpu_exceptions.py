@@ -5,6 +5,7 @@ from functools import partial
 
 import pytest
 
+import speakeasy.windows.common as winemu
 from speakeasy import Speakeasy
 from tests.guest_harness import Deref, get_api, guest_call
 
@@ -370,3 +371,29 @@ def test_guard_on_commit_of_a_reservation(config, size):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == "guard_page_violation"
+
+
+def test_return_address_of_the_emulator_on_a_corrupt_stack_ends_the_walk(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        push = b"\x48\xb8" + struct.pack("<Q", winemu.GUEST_CALLBACK_RETURN_ADDR) + b"\x50"  # mov rax, ...; push rax
+        se.mem_write(code, push + b"\x31\xc9\x89\x09")  # xor ecx, ecx; mov [rcx], ecx
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_write", 0)
+
+
+def test_generator_handler_fault_ends_the_run_where_it_reads(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        record = 0xDEAD0000
+        se.mem_write(code, guest_call(8, get_api(se, "ntdll", "RtlUnwindEx"), 0, 0, record, 0, 0, 0) + RETURN_42)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_read", record)
