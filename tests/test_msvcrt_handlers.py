@@ -958,6 +958,11 @@ def put_with(api: str) -> Callable[[Speakeasy, int], None]:
         elif api == "fputc":
             for c in b"id=7":
                 call(se, "msvcrt", "fputc", [c, stream])
+        elif api == "fputws":
+            assert call(se, "msvcrt", "fputws", [alloc(se, "id=7\x00".encode("utf-16le")), stream])[0] == 0
+        elif api == "fputwc":
+            for c in "id=7":
+                assert call(se, "msvcrt", "fputwc", [ord(c), stream])[0] == ord(c)
         elif api == "fprintf":
             call(se, "msvcrt", "fprintf", [stream, alloc(se, b"%s=%d\x00"), alloc(se, b"id\x00"), 7])
         elif api == "fwprintf":
@@ -977,7 +982,9 @@ def put_with(api: str) -> Callable[[Speakeasy, int], None]:
     return write
 
 
-@pytest.mark.parametrize("api", ["fputs", "fputc", "fprintf", "fwprintf", "vfprintf", "__stdio_common_vfprintf"])
+@pytest.mark.parametrize(
+    "api", ["fputs", "fputc", "fputws", "fputwc", "fprintf", "fwprintf", "vfprintf", "__stdio_common_vfprintf"]
+)
 def test_text_output_reaches_a_file_stream(dll_emu: Speakeasy, api: str) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\run.bat\x00")
     stream, _ = call(dll_emu, "msvcrt", "fopen", [path, alloc(dll_emu, b"w+\x00")])

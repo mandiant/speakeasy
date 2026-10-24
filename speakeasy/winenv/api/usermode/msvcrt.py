@@ -3662,6 +3662,34 @@ class Msvcrt(api.ApiHandler):
         self.write_stream(stream, data, s)
         return 0
 
+    @apihook("fputwc", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fputwc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wint_t fputwc(
+            wchar_t c,
+            FILE *stream
+        );
+        """
+        c, stream = argv
+        c &= 0xFFFF
+        ctx.args[0].display = chr(c)
+        self.write_stream(stream, chr(c).encode("latin-1", "replace"))
+        return c
+
+    @apihook("fputws", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fputws(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fputws(
+            const wchar_t *str,
+            FILE *stream
+        );
+        """
+        s, stream = argv
+        text = self.read_wide_string(s)
+        ctx.args[0].display = text
+        self.write_stream(stream, text.encode("latin-1", "replace"), s)
+        return 0
+
     @apihook("_fullpath", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _fullpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
