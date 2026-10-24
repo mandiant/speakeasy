@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import struct
@@ -306,6 +307,38 @@ _WATCHPOINT_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_SHELLCODE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import struct
+    import sys
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    code = bytes.fromhex(sys.argv[3])
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    address = se.load_shellcode(data=b"\\x90" * 0x100, arch="x86")
+    scratch = se.mem_alloc(0x1000)
+    # The shellcode refers to these addresses through placeholder immediates.
+    for marker, value in ((0x11111111, address + 0x40), (0x22222222, scratch)):
+        code = code.replace(struct.pack("<I", marker), struct.pack("<I", value))
+    se.mem_write(address, code)
+    print(hex(address), hex(scratch), flush=True)
+    se.run_shellcode(address)
+    run = se.get_report().entry_points[0]
+    print(json.dumps({
+        "error": run.error.type if run.error else None,
+        "pc": run.error.pc if run.error else None,
+        "events": len(run.events or []),
+    }), flush=True)
+    se.shutdown()
+""")
+
+
 _SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import lzma
@@ -533,6 +566,28 @@ def gdb_watchpoint_emulator():
     address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
     yield port, proc, address, scratch
     _stop_server(proc)
+
+
+@pytest.fixture
+def gdb_shellcode_emulator(request):
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _SHELLCODE_RESULT_SERVER_SCRIPT, str(port), config_path, request.param],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    assert proc.stdout is not None
+    address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
+    yield port, proc, address, scratch
+    _stop_server(proc)
+
+
+def _read_server_result(proc: subprocess.Popen):
+    stdout, stderr = proc.communicate(timeout=20)
+    assert proc.returncode == 0, stderr.decode(errors="replace")
+    return json.loads(stdout.decode().splitlines()[-1])
 
 
 def test_gdb_breakpoint_stop_keeps_session_alive(gdb_emulator):
@@ -781,3 +836,16 @@ def test_gdb_write_watchpoint_resume_does_not_repeat_guest_side_effect(gdb_watch
         assert proc.wait(timeout=10) == 0
     finally:
         client.close()
+
+
+@pytest.mark.parametrize(
+    "gdb_shellcode_emulator", ["b900001000e2fec3"], indirect=True
+)  # mov ecx, 0x100000; loop $; ret
+def test_gdb_client_disconnect_while_running_detaches(gdb_shellcode_emulator):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    client.query_halt_reason()
+    assert client.query(f"Z0,{address + 7:x},1") == "OK"
+    client.send_no_wait("c")
+    client.close()
+    assert _read_server_result(proc)["error"] is None

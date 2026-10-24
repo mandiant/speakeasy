@@ -238,6 +238,8 @@ class GdbServer:
             pass
         finally:
             self._commands.put(None)
+            # A client that disconnects while the target runs detaches it.
+            self._request_stop(StopReason(signal=2, kind="interrupt"))
 
     def _send_raw(self, data: bytes) -> None:
         if self._client is None:
@@ -258,7 +260,10 @@ class GdbServer:
     def command_loop(self, reason: StopReason | None = None) -> ResumeAction:
         if reason is not None:
             self._stop_reason = reason
-            self._reply(self._stop_reply(reason))
+            try:
+                self._reply(self._stop_reply(reason))
+            except OSError:
+                return ResumeAction(detach=True)
         with self._state_lock:
             self._running = False
             self._stop_pending = False
