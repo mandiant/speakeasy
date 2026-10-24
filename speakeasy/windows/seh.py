@@ -73,7 +73,8 @@ def record_struct(emu) -> struct.Struct:
 
 
 def exception_record(emu, code: int, flags: int, address: int, params=()) -> bytes:
-    params = list(params)[:15]
+    mask = (1 << 8 * emu.get_ptr_size()) - 1
+    params = [param & mask for param in params][:15]
     return record_struct(emu).pack(code, flags, 0, address, len(params), *params, *[0] * (15 - len(params)))
 
 
