@@ -194,7 +194,7 @@ class MsvcFrame:
 
 def msvc_handler(emu, frame: MsvcFrame, record: int, context: int) -> GeneratorHandler:
     """The language handler of MSVC frames: run filters, or __finally blocks when unwinding."""
-    flags = struct.unpack("<I", emu.mem_read(record + 4, 4))[0]
+    flags = _u32(emu, record + 4)
     if flags & UNWINDING:
         yield from frame.local_unwind(frame.none)
         return windefs.ExceptionContinueSearch

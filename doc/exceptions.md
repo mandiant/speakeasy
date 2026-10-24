@@ -37,9 +37,8 @@ When no frame handles an exception, the filter of `SetUnhandledExceptionFilter`
 runs, and may continue execution. Otherwise the run ends with the error of the
 exception, as Windows would end the process, whether or not a handler saw it;
 an unhandled access violation is `invalid_read`, `invalid_write` or
-`invalid_fetch`. As an exception to that,
-`RaiseException` returns to its caller when nothing takes a continuable
-exception, so that emulation goes on.
+`invalid_fetch`. As an exception to that, `RaiseException` returns to its
+caller when nothing takes a continuable exception, so that emulation goes on.
 
 A fault that repeats at one address without progress ends the run after a few
 attempts, rather than looping until the timeout.

@@ -144,8 +144,8 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
         raise CallbackError(kind, address, access_type) from e
     else:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
-        for register, value in call.registers:
-            emu.reg_write(register, value)
+        for register, contents in call.registers:
+            emu.reg_write(register, contents)
         return
 
     run.guest_callbacks.remove(frame)
