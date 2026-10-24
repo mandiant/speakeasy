@@ -751,3 +751,25 @@ def test_a_file_created_by_a_relative_path_is_found_again(strict_fs_emu: Speakea
 
     assert call(se, "kernel32", "DeleteFileA", [name])[0]
     assert open_file(se, "out.txt") == windefs.INVALID_HANDLE_VALUE
+
+
+FILE_APPEND_DATA = 0x4
+
+
+def test_writes_to_an_append_only_handle_go_to_the_end(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\log.txt\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"AAAA"), 4, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, FILE_APPEND_DATA, 0, 0, OPEN_EXISTING, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"B"), 1, written, 0])[0]
+    assert call(se, "kernel32", "SetFilePointer", [hnd, 0, 0, FILE_BEGIN])[0] == 0
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"C"), 1, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"D"), 1, written, 0])[0]
+    assert [f.get_contents() for f in se.get_dropped_files()] == [b"DAAABC"]

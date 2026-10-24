@@ -86,6 +86,7 @@ class File:
         if data:
             self.data = io.BytesIO(data)
         self.is_dir: bool = False
+        self.append: bool = False
         self.config: Any = config if config is not None else {}
 
     def get_buffer(self) -> io.BytesIO:
@@ -149,9 +150,12 @@ class File:
 
     def write_data(self, data):
         """
-        Write data at the file pointer and move the file pointer past it.
+        Write data at the file pointer, or at the end for an append-only handle,
+        and move the file pointer past it.
         """
         buf = self.get_buffer()
+        if self.append:
+            self.pos = buf.seek(0, io.SEEK_END)
         buf.seek(self.pos)
         buf.write(data)
         self.pos = buf.tell()

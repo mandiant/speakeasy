@@ -4072,6 +4072,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 elif disp == windefs.TRUNCATE_EXISTING:
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
+            f = self.file_get(hnd)
+            write_access = ddk.FILE_WRITE_DATA | ddk.GENERIC_WRITE | ddk.GENERIC_ALL
+            if f and access & ddk.FILE_APPEND_DATA and not access & write_access:
+                f.append = True
+
             self.record_file_access_event(target, op, disposition=[cd], access=ad)
         return hnd
 
