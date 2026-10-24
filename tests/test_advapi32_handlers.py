@@ -703,3 +703,27 @@ def test_convert_sid_to_string_sid_allocates_the_string(dll_emu: Speakeasy, api:
 
     assert not call(dll_emu, "advapi32", api, [0xA530, out])[0]
     assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
+
+
+@pytest.mark.parametrize(
+    "second_entry",
+    [
+        (0x00380031, 0x00330032),  # a name that cannot be read
+        (0, 0x00330032),  # a NULL name ends the table
+    ],
+)
+def test_start_service_ctrl_dispatcher_ends_the_table_at_a_bad_entry(
+    dll_emu: Speakeasy, second_entry: tuple[int, int]
+) -> None:
+    se = dll_emu
+    assert se.emu is not None
+    start_process(se)
+    name = alloc(se, "svc\x00".encode("utf-16le"))
+    service_main = alloc(se, b"\xc3")
+    table = alloc(se, struct.pack("<6I", name, service_main, *second_entry, 0, 0))
+    se.emu.run_queue.clear()
+
+    rv, _ = call(se, "advapi32", "StartServiceCtrlDispatcherW", [table])
+
+    assert rv
+    assert [(r.type, r.start_addr) for r in se.emu.run_queue] == [("thread.service", service_main)]

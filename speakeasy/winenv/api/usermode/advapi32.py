@@ -647,13 +647,10 @@ class AdvApi32(api.ApiHandler):
 
         table = "lpServiceStartTable=["
 
-        while entry.lpServiceName != windefs.NULL or entry.lpServiceProc != windefs.NULL:
-            service_name = "Service"
-            if entry.lpServiceName != windefs.NULL:
-                service_name = self.read_mem_string(entry.lpServiceName, cw)
-                table += f" {{ lpServiceName={service_name}"
-            else:
-                table += " { lpServiceName=NULL"
+        # The table ends at a NULL name; a name that cannot be read ends it too
+        while entry.lpServiceName != windefs.NULL and emu.is_address_valid(entry.lpServiceName):
+            service_name = self.read_mem_string(entry.lpServiceName, cw)
+            table += f" {{ lpServiceName={service_name}"
 
             if entry.lpServiceProc != windefs.NULL:
                 service_main = entry.lpServiceProc
