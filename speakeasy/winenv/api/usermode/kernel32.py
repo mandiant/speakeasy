@@ -2083,6 +2083,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (src,) = argv
+        if not src:
+            return 0
         try:
             cw = self.get_char_width(ctx)
         except Exception:
@@ -2358,6 +2360,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         lpString1, lpString2 = argv
+        if not lpString1 or not lpString2:
+            return 0
 
         cw = self.get_char_width(ctx)
         s1 = self.read_mem_string(lpString1, cw)
@@ -2385,6 +2389,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         dest, src, iMaxLength = argv
+        if not dest or not src:
+            return 0
 
         cw = self.get_char_width(ctx)
 
@@ -2405,6 +2411,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         dest, src = argv
+        if not dest or not src:
+            return 0
 
         cw = self.get_char_width(ctx)
 

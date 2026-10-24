@@ -297,6 +297,27 @@ def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
     assert dll_emu.mem_read(dst, 4 * cw + 1) == encode("ABC\0", cw) + b"\xcc"
 
 
+@pytest.mark.parametrize("api", ["lstrlenA", "lstrlenW"])
+def test_lstrlen_of_null_is_zero(dll_emu: Speakeasy, api: str) -> None:
+    assert call(dll_emu, "kernel32", api, [0])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("lstrcpyA", [0, 1]),
+        ("lstrcpyW", [1, 0]),
+        ("lstrcpynA", [1, 0, 8]),
+        ("lstrcatA", [0, 1]),
+        ("lstrcatW", [1, 0]),
+    ],
+)
+def test_lstr_copy_with_a_null_string_returns_null(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
+    other = alloc(dll_emu, b"\0" * 32)
+    rv, _ = call(dll_emu, "kernel32", api, [other if a == 1 else a for a in argv])
+    assert rv == 0
+
+
 def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
