@@ -240,7 +240,7 @@ class FileManager:
                 logger.debug("  emu_path=%s  host_path=%s", f.emu_path, getattr(f, "path", None))
 
     def file_create_mapping(self, hfile, name, size, prot):
-        if hfile not in (windefs.INVALID_HANDLE_VALUE, 0):
+        if hfile and (hfile & 0xFFFFFFFF) != windefs.INVALID_HANDLE_VALUE:
             f = self.get_file_from_handle(hfile)
             fm = FileMap(self.emu.handle_allocator, name, size, prot, f)
             hnd = fm.get_handle()

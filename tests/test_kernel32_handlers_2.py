@@ -22,14 +22,23 @@ def emu(dll_emu: Speakeasy) -> Speakeasy:
     return dll_emu
 
 
-@pytest.fixture
-def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+def load_strict_fs_emu(config: dict[str, Any], data: bytes) -> Iterator[Speakeasy]:
     """An emulator where only the configured full paths exist."""
     files = config["filesystem"]["files"]
     config["filesystem"]["files"] = [f for f in files if f["mode"] == "full_path"]
-    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+    for se in load_emu(config, data):
         start_process(se)
         yield se
+
+
+@pytest.fixture
+def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_strict_fs_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.fixture
+def strict_fs_emu64(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_strict_fs_emu(config, load_test_bin("dll_test_x64.dll.xz"))
 
 
 def last_error(se: Speakeasy) -> int:
@@ -66,6 +75,7 @@ def test_get_environment_variable_missing(emu: Speakeasy) -> None:
 
 GENERIC_READ = 0x80000000
 OPEN_EXISTING = 3
+FILE_MAP_ALL_ACCESS = 0xF001F
 BYTE_FILL_PATH = "c:\\programdata\\mydir\\myfile.bin"
 
 
@@ -414,6 +424,24 @@ def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     nomatch = alloc(se, b"c:\\programdata\\mydir\\*.xyz\x00")
     assert call(se, "kernel32", "FindFirstFileA", [nomatch, data])[0] == windefs.INVALID_HANDLE_VALUE
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
+
+
+@pytest.mark.parametrize("fixture, invalid", [("strict_fs_emu", 0xFFFFFFFF), ("strict_fs_emu64", 0xFFFFFFFFFFFFFFFF)])
+def test_invalid_handle_value_is_pointer_sized(request: pytest.FixtureRequest, fixture: str, invalid: int) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    name = alloc(se, "c:\\missing.txt\x00".encode("utf-16le"))
+    hnd, _ = call(se, "kernel32", "CreateFileW", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
+    assert hnd == invalid
+
+    data = alloc(se, b"\x00" * 0x260)
+    nomatch = alloc(se, "c:\\programdata\\mydir\\*.xyz\x00".encode("utf-16le"))
+    assert call(se, "kernel32", "FindFirstFileW", [nomatch, data])[0] == invalid
+    assert call(se, "kernel32", "FindFirstFileExW", [nomatch, 0, data, 0, 0, 0])[0] == invalid
+
+    hmap, _ = call(se, "kernel32", "CreateFileMappingA", [invalid, 0, windefs.PAGE_READWRITE, 0, 0x1000, 0])
+    view, _ = call(se, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 0])
+    se.mem_write(view + 0xFF0, b"end")
+    assert se.mem_read(view + 0xFF0, 3) == b"end"
 
 
 def test_init_once_begin_initialize_sets_pending(emu: Speakeasy) -> None:

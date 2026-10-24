@@ -3990,7 +3990,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         fname, access, share, sec_attr, disp, flags, template = argv
-        hnd = windefs.INVALID_HANDLE_VALUE
+        hnd = self.get_max_int()
 
         cw = self.get_char_width(ctx)
 
@@ -4065,7 +4065,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         lpFileName = argv[0]
         cw = self.get_char_width(ctx)
         if not lpFileName:
-            emu.set_last_error(windefs.INVALID_HANDLE_VALUE)
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return 0
 
         target = self.read_mem_string(lpFileName, cw)
@@ -4888,7 +4888,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         hnd = emu.pipe_open(pipe_name, dwOpenMode, nMaxInstances, nOutBufferSize, nInBufferSize)
         if not hnd:
-            hnd = windefs.INVALID_HANDLE_VALUE
+            hnd = self.get_max_int()
         return hnd
 
     @apihook("CreatePipe", argc=4)
@@ -5184,7 +5184,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         if not lpFileName or not lpFindFileData:
-            return windefs.INVALID_HANDLE_VALUE
+            return self.get_max_int()
 
         srch = self.read_mem_string(lpFileName, cw)
         ctx.args["lpFileName"].display = srch
@@ -5201,7 +5201,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         except StopIteration:
             self.find_files.pop(hnd)
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return windefs.INVALID_HANDLE_VALUE
+            return self.get_max_int()
 
         if cw == 2:
             cfn = name.encode("utf-16le")
