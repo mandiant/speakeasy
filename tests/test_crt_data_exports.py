@@ -27,7 +27,7 @@ def region_permissions(se, address):
 
 @pytest.mark.parametrize(
     "name, accessor, initial",
-    [("_fmode", "__p__fmode", 0x4000), ("__initenv", "__p___initenv", 0)],
+    [("_fmode", "__p__fmode", 0x4000), ("__initenv", "__p___initenv", 0), ("__winitenv", "__p___winitenv", 0)],
 )
 def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, name, accessor, initial):
     se = crt_session
@@ -48,12 +48,12 @@ def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, 
     parsed = pefile.PE(data=se.mem_read(module.base, module.image_size))
     export = next(e for e in parsed.DIRECTORY_ENTRY_EXPORT.symbols if e.name == name.encode())
     assert module.base + export.address == address
-    width = ptr_size if name == "__initenv" else 4
+    width = 4 if name == "_fmode" else ptr_size
     assert int.from_bytes(se.mem_read(address, width), "little") == initial
 
     # A pointer above 4 GB on x64 catches DWORD-sized storage.
     value = 0x8000
-    if name == "__initenv":
+    if name != "_fmode":
         value = se.mem_alloc(0x1000, base=0x180000000 if ptr_size == 8 else 0x20000000)
     # A guest store checks page protection; a host mem_write would bypass it.
     code = (b"\xb8" if ptr_size == 4 else b"\x48\xb8") + address.to_bytes(ptr_size, "little")

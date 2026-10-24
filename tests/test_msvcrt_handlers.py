@@ -1040,3 +1040,30 @@ def test_query_perf_counter_returns_64_bits_at_the_reported_frequency(dll_emu: S
     first = query("_Query_perf_counter")
     assert first > 0xFFFFFFFF
     assert query("_Query_perf_counter") > first
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_wgetmainargs_writes_wide_argv_and_environment(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    emu = se.emu
+    assert emu is not None
+    ptr_size = emu.get_ptr_size()
+    argc_out = alloc(se, b"\xff" * 4)
+    argv_out = alloc(se, b"\xff" * ptr_size)
+    env_out = alloc(se, b"\xff" * ptr_size)
+
+    rv, _ = call(se, "msvcrt", "__wgetmainargs", [argc_out, argv_out, env_out, 0, 0])
+
+    def read_ptr(addr: int) -> int:
+        return int.from_bytes(se.mem_read(addr, ptr_size), "little")
+
+    assert rv == 0
+    args = emu.get_argv()
+    assert int.from_bytes(se.mem_read(argc_out, 4), "little") == len(args)
+    argv = read_ptr(argv_out)
+    assert [se.read_mem_string(read_ptr(argv + i * ptr_size), 2) for i in range(len(args))] == args
+    assert read_ptr(argv + len(args) * ptr_size) == 0
+    env = read_ptr(env_out)
+    first = se.read_mem_string(read_ptr(env), 2)
+    key, value = next(iter(emu.get_env().items()))
+    assert first == f"{key}={value}"

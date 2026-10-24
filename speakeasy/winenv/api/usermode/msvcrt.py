@@ -513,17 +513,7 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
-    @apihook("__getmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
-    def __getmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int __getmainargs(
-            int * _Argc,
-            char *** _Argv,
-            char *** _Env,
-            int _DoWildCard,
-            _startupinfo * _StartInfo);
-        """
-
+    def _write_main_args(self, emu, argv, encoding):
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
         rv = 0
 
@@ -536,7 +526,7 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(_Argc, argc.to_bytes(4, "little"))
 
         if _Argv:
-            argv_list = [(a + "\x00").encode("utf-8") for a in _argv]
+            argv_list = [(a + "\x00").encode(encoding) for a in _argv]
             array_size = ptr_size * (len(argv_list) + 1)
             total = sum([len(a) for a in argv_list]) + array_size
 
@@ -559,7 +549,7 @@ class Msvcrt(api.ApiHandler):
             total = ptr_size
             for k, v in env.items():
                 envstr = f"{k}={v}\x00"
-                envstr = envstr.encode("utf-8")
+                envstr = envstr.encode(encoding)
                 total += len(envstr)
                 fmt_env.append(envstr)
                 total += ptr_size
@@ -578,6 +568,19 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(_Env, env_mem.to_bytes(ptr_size, "little"))
 
         return rv
+
+    @apihook("__getmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def __getmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __getmainargs(
+            int * _Argc,
+            char *** _Argv,
+            char *** _Env,
+            int _DoWildCard,
+            _startupinfo * _StartInfo);
+        """
+
+        return self._write_main_args(emu, argv, "utf-8")
 
     @apihook("__GetMainArgs", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __GetMainArgs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -601,10 +604,7 @@ class Msvcrt(api.ApiHandler):
            _startupinfo * _StartInfo);
         """
 
-        _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
-        rv = 0
-
-        return rv
+        return self._write_main_args(emu, argv, "utf-16le")
 
     @apihook("__p___wargv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___wargv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -688,6 +688,17 @@ class Msvcrt(api.ApiHandler):
     def __p___initenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """char *** __p___initenv ()"""
         return emu.get_proc("msvcrt", "__initenv")
+
+    @impdata("__winitenv")
+    def __winitenv(self, ptr):
+        """Writable wchar_t ** global, shared with __p___winitenv."""
+        self.mem_write(ptr, b"\x00" * self.get_ptr_size())
+        return ptr
+
+    @apihook("__p___winitenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___winitenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """wchar_t *** __p___winitenv ()"""
+        return emu.get_proc("msvcrt", "__winitenv")
 
     @impdata("_environ")
     def _environ(self, ptr):
