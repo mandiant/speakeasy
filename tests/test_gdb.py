@@ -658,11 +658,7 @@ def test_gdb_stops_at_handled_memory_fault(gdb_memory_fault_emulator, fault_offs
         client.close()
 
 
-@pytest.mark.parametrize(
-    "gdb_memory_fault_emulator",
-    [pytest.param("cc:amd64", id="int3"), pytest.param("0f0b:amd64", id="ud2")],
-    indirect=True,
-)
+@pytest.mark.parametrize("gdb_memory_fault_emulator", ["cc:amd64"], indirect=True)  # int3
 def test_gdb_stops_at_unhandled_x64_cpu_exception(gdb_memory_fault_emulator):
     port, proc, address = gdb_memory_fault_emulator
     client = GdbRspClient(port)

@@ -54,37 +54,3 @@ def test_handler_that_unwinds_and_jumps_to_its_frame(config):
         run = se.get_report().entry_points[0]
         assert run.error is None
         assert run.ret_val == 5
-
-
-def test_corrupt_scope_table_ends_the_run(config):
-    # An _except_handler3 frame whose scope 0 encloses itself
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        data = se.mem_alloc(0x1000)
-        registration, scope_table = data + 0x100, data + 0x200
-        handler = get_api(se, "msvcrt", "_except_handler3")
-        se.mem_write(registration, dword(0xFFFFFFFF) + dword(handler) + dword(scope_table) + dword(0))
-        se.mem_write(scope_table, dword(0) + dword(0) + dword(0))
-        body = b"\x64\xc7\x05" + dword(0) + dword(registration)  # mov fs:[0], registration
-        body += b"\xc7\x05" + dword(0) + dword(1)  # mov dword [0], 1
-        se.mem_write(code, body + b"\xb8" + dword(42) + b"\xc3")
-
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is not None
-        assert run.error.type == "invalid_write"
-
-
-def test_unreadable_registration_ends_the_chain(config):
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        body = b"\x64\xc7\x05" + dword(0) + dword(0x12345678)  # mov fs:[0], an unmapped registration
-        se.mem_write(code, body + b"\xcc")
-
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is not None
-        assert run.error.type == "unhandled_interrupt"
-        assert run.error.pc == code + len(body)

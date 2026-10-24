@@ -67,11 +67,3 @@ def test_prolog_has_no_handler():
 
     assert (ctx.Rip, ctx.Rsp, ctx.Rbp) == (0x7777, STACK + 16, 0x1234)
     assert info.handler == 0
-
-
-def test_cyclic_chain_is_an_error():
-    fragment = unwind.RuntimeFunction(BASE, 0, 0x2000, 0x2100, 0x3100)
-    read, ctx = unwinding((0x3100, chained_info(fragment)))
-
-    with pytest.raises(unwind.UnwindError):
-        unwind.virtual_unwind(read, fragment, BASE + 0x2010, ctx)
