@@ -974,3 +974,17 @@ def test_gdb_fault_in_first_run_still_gives_final_stop(gdb_module_result_emulato
     finally:
         client.close()
     assert _read_server_result(proc) == ["invalid_read", None, None]
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["c3"], indirect=True)  # ret
+def test_gdb_step_past_last_instruction_exits(gdb_shellcode_emulator):
+    port, proc, _, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        # The step completes the only run, so its stop is the final stop.
+        assert client.step().startswith("T05")
+        assert client.step() == "W00"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] is None

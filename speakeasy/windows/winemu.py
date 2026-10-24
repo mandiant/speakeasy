@@ -1070,6 +1070,9 @@ class WindowsEmulator(BinaryEmulator):
                     break
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
+                    if stop_reason is not None and stop_reason.kind == "step" and self.emu_complete:
+                        # A step that ends emulation gets the final stop instead.
+                        stop_reason = None
                     fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
                     if fault_stop is not None:
                         stop_reason = fault_stop
