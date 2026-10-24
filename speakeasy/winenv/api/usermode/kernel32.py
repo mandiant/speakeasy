@@ -3447,7 +3447,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         fn = ctx.func_name
-        if "GetWindowsDirectory" in fn:
+        if "WindowsDirectory" in fn:
             sysroot = "C:\\Windows"
         else:
             sysroot = "C:\\Windows\\system32"
@@ -3525,6 +3525,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetWindowsDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetWindowsDirectory(
+            LPSTR lpBuffer,
+            UINT  uSize
+        );
+        """
+        return self.GetSystemDirectory(emu, argv, ctx)
+
+    @apihook("GetSystemWindowsDirectory", argc=2)
+    def GetSystemWindowsDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT GetSystemWindowsDirectory(
             LPSTR lpBuffer,
             UINT  uSize
         );

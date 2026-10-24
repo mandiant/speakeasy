@@ -182,6 +182,8 @@ def test_heap_allocations_larger_than_the_x86_address_space_return_null(dll_emu:
         ("GetSystemDirectoryW", "C:\\Windows\\system32", 2),
         ("GetWindowsDirectoryA", "C:\\Windows", 1),
         ("GetWindowsDirectoryW", "C:\\Windows", 2),
+        ("GetSystemWindowsDirectoryA", "C:\\Windows", 1),
+        ("GetSystemWindowsDirectoryW", "C:\\Windows", 2),
     ],
 )
 def test_system_directory_returns_length_without_nul(dll_emu: Speakeasy, api: str, path: str, cw: int) -> None:
