@@ -2783,6 +2783,10 @@ class Msvcrt(api.ApiHandler):
         ) = argv
         return windef.ExceptionContinueSearch
 
+    @apihook("__CxxFrameHandler2", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def __CxxFrameHandler2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__CxxFrameHandler(emu, argv, ctx)
+
     @apihook("__CxxFrameHandler3", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return self.__CxxFrameHandler(emu, argv, ctx)

@@ -421,6 +421,19 @@ def test_freopen_returns_the_stream(dll_emu: Speakeasy) -> None:
     assert rv == 2
 
 
+@pytest.mark.parametrize(
+    "dll, name",
+    [
+        ("msvcrt", "__CxxFrameHandler2"),
+        ("msvcrt", "__CxxFrameHandler3"),
+        ("vcruntime140_1", "__CxxFrameHandler4"),
+    ],
+)
+def test_cxx_frame_handlers_continue_the_search(dll64_emu: Speakeasy, dll: str, name: str) -> None:
+    rec = alloc(dll64_emu, struct.pack("<IIQQI", 0xC0000005, 0, 0, 0, 0))
+    assert call(dll64_emu, dll, name, [rec, 0, 0, 0])[0] == 1
+
+
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
