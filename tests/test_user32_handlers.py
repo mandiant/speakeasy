@@ -456,3 +456,35 @@ def test_get_cursor_pos_writes_a_point_on_the_screen(request: pytest.FixtureRequ
     x, y, rest = struct.unpack("<iiI", se.mem_read(pt, 12))
     assert 0 <= x < 1920 and 0 <= y < 1080
     assert rest == 0xCCCCCCCC
+
+
+def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    pid = alloc(dll_emu, b"\xcc" * 4)
+    tid, _ = call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, pid])
+    assert tid == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
+    assert dll_emu.mem_read(pid, 4) == struct.pack("<I", call(dll_emu, "kernel32", "GetCurrentProcessId", [])[0])
+    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, 0])[0] == tid
+
+
+def test_get_window_thread_process_id_of_the_desktop_is_csrss(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    desktop, _ = call(dll_emu, "user32", "GetDesktopWindow", [])
+    pid = alloc(dll_emu, b"\xcc" * 4)
+    tid, _ = call(dll_emu, "user32", "GetWindowThreadProcessId", [desktop, pid])
+    csrss = next(p for p in dll_emu.emu.get_processes() if p.name == "csrss")
+    assert tid and tid != call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
+    assert dll_emu.mem_read(pid, 4) == struct.pack("<I", csrss.pid)
+    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [desktop, 0])[0] == tid
+
+
+def test_get_window_thread_process_id_of_an_invalid_window(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    pid = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [0x41420000, pid])[0] == 0
+    assert dll_emu.mem_read(pid, 4) == b"\xcc" * 4
+    assert dll_emu.emu.get_last_error() == 1400

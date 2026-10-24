@@ -376,7 +376,9 @@ class User32(api.ApiHandler):
             ctx.args["lpWindowName"].display = wn
         else:
             wn = None
-        hnd = self.sessman.create_window(wn, cn, style, parent)
+        thread = emu.get_current_thread()
+        proc = emu.get_current_process()
+        hnd = self.sessman.create_window(wn, cn, style, parent, thread.id if thread else 0, proc.pid if proc else 0)
         return hnd
 
     @apihook("SetLayeredWindowAttributes", argc=4)
@@ -1019,6 +1021,31 @@ class User32(api.ApiHandler):
         if not window:
             return 0
         return window.props.pop(key, 0)
+
+    @apihook("GetWindowThreadProcessId", argc=2)
+    def GetWindowThreadProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetWindowThreadProcessId(
+          HWND    hWnd,
+          LPDWORD lpdwProcessId
+        );
+        """
+        hnd, lpdwProcessId = argv
+        desktop_window = self.sessman.get_current_desktop().desktop_window
+        if hnd == desktop_window.get_handle():
+            window = desktop_window
+            if not window.thread_id:
+                csrss = next((p for p in emu.get_processes() if p.name.lower() == "csrss"), None)
+                window.process_id = csrss.pid if csrss else 0
+                window.thread_id = emu.handle_allocator.allocate_kernel_object_id()
+        else:
+            window = self.sessman.get_window(hnd)
+        if not window:
+            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            return 0
+        if lpdwProcessId:
+            self.mem_write(lpdwProcessId, window.process_id.to_bytes(4, "little"))
+        return window.thread_id
 
     @apihook("GetSysColorBrush", argc=1)
     def GetSysColorBrush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
