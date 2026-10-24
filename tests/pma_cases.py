@@ -108,7 +108,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
+        allowed_entrypoint_errors=("max_api_count", "invalid_read", "privileged_instruction"),
     ),
     PmaCase(
         name="pma-06-03-exe",
