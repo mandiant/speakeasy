@@ -12,6 +12,7 @@ import speakeasy.windows.seh32 as seh32
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.profiler_events import FILE_WRITE
+from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api, exception_apis
 
@@ -504,20 +505,25 @@ class Msvcrt(api.ApiHandler):
         """
 
         pfbegin, pfend = argv
-
-        rv = 0
-
-        return rv
+        return self._call_initializers(pfbegin, pfend, stop_on_error=True)
 
     @apihook("_initterm", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """static void _initterm (_PVFV * pfbegin, _PVFV * pfend)"""
 
         pfbegin, pfend = argv
+        return self._call_initializers(pfbegin, pfend, stop_on_error=False)
 
-        rv = 0
-
-        return rv
+    def _call_initializers(self, pfbegin, pfend, stop_on_error):
+        ptr_size = self.get_ptr_size()
+        for entry in range(pfbegin, pfend, ptr_size):
+            function = int.from_bytes(self.mem_read(entry, ptr_size), "little")
+            if not function:
+                continue
+            result = (yield GuestCall(function)) & 0xFFFFFFFF
+            if stop_on_error and result:
+                return result
+        return 0
 
     def _write_main_args(self, emu, argv, encoding):
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
