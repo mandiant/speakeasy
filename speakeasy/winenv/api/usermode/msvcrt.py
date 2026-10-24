@@ -3614,6 +3614,58 @@ class Msvcrt(api.ApiHandler):
         self.file_streams[stream] = hfile
         return stream
 
+    def reopen_stream(self, path, mode, stream, ctx):
+        """
+        Point ``stream`` at the file ``path`` and return ``stream``, or 0 when
+        the file cannot be opened. The console devices keep the stream as it is.
+        """
+        path = self.read_string(path) if path else ""
+        mode_str = self.read_string(mode)
+        ctx.args["filename"].display = path
+        ctx.args["mode"].display = mode_str
+        if not path or path.upper() in ("CONOUT$", "CONIN$"):
+            return stream
+
+        create = any(flag in mode_str for flag in ("w", "a", "+"))
+        truncate = "w" in mode_str and "a" not in mode_str
+        hfile = self.file_open(path, create=create, truncate=truncate)
+        if hfile is None:
+            self.file_streams.pop(stream, None)
+            return 0
+        self.file_streams[stream] = hfile
+        return stream
+
+    @apihook("freopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def freopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        FILE *freopen(
+            const char *filename,
+            const char *mode,
+            FILE *stream
+            );
+        """
+        filename, mode, stream = argv
+        if not mode or not stream:
+            return 0
+        return self.reopen_stream(filename, mode, stream, ctx)
+
+    @apihook("freopen_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def freopen_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t freopen_s(
+            FILE **pFile,
+            const char *filename,
+            const char *mode,
+            FILE *stream
+            );
+        """
+        pFile, filename, mode, stream = argv
+        if not pFile or not mode or not stream:
+            return EINVAL
+        new = self.reopen_stream(filename, mode, stream, ctx)
+        self.mem_write(pFile, new.to_bytes(self.get_ptr_size(), "little"))
+        return 0 if new else ENOENT
+
     @apihook("fclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def fclose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

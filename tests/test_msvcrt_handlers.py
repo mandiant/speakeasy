@@ -397,6 +397,30 @@ def test_fwrite_writes_to_a_file_stream(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(out, 6) == b"abcdef"
 
 
+@pytest.mark.parametrize("path", [b"CONOUT$\x00", b"conin$\x00"])
+def test_freopen_s_to_the_console_keeps_the_stream(dll64_emu: Speakeasy, path: bytes) -> None:
+    pfile = alloc(dll64_emu, b"\xcc" * 8)
+    rv, _ = call(dll64_emu, "msvcrt", "freopen_s", [pfile, alloc(dll64_emu, path), alloc(dll64_emu, b"w\x00"), 1])
+    assert (rv, struct.unpack("<Q", dll64_emu.mem_read(pfile, 8))[0]) == (0, 1)
+
+
+def test_freopen_s_to_a_file_redirects_the_stream(dll_emu: Speakeasy) -> None:
+    pfile = alloc(dll_emu, b"\xcc" * 4)
+    path = alloc(dll_emu, b"c:\\users\\public\\log.txt\x00")
+    rv, _ = call(dll_emu, "msvcrt", "freopen_s", [pfile, path, alloc(dll_emu, b"w+\x00"), 1])
+    assert (rv, struct.unpack("<I", dll_emu.mem_read(pfile, 4))[0]) == (0, 1)
+
+    assert call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"abc"), 1, 3, 1])[0] == 3
+    out = alloc(dll_emu, b"\x00" * 16)
+    assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, 1])[0] == 3
+    assert dll_emu.mem_read(out, 3) == b"abc"
+
+
+def test_freopen_returns_the_stream(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "msvcrt", "freopen", [alloc(dll_emu, b"CONOUT$\x00"), alloc(dll_emu, b"w\x00"), 2])
+    assert rv == 2
+
+
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
