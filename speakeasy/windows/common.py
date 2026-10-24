@@ -105,7 +105,7 @@ def normalize_dll_name(name):
     elif name.lower().startswith(("ext-ms-win-gdi", "ext-ms-win-rtcore-gdi")):
         ret = "gdi32"
 
-    elif name.lower().startswith("api-ms-win-eventing"):
+    elif name.lower().startswith(("api-ms-win-eventing", "api-ms-win-service")):
         ret = "advapi32"
 
     elif name.lower().startswith("api-ms-win-shell-shellfolders"):
