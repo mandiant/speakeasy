@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.profiler import Run
 
 OUTER_PARAM = 0x1111
 LEAF_PARAM = 0x2222
@@ -110,5 +111,25 @@ def test_x64_guest_callback_entry_stack_is_aligned(config, argc):
         se.run_shellcode(base)
 
         assert se.get_report().entry_points[0].error is None
+        rsp = int.from_bytes(se.mem_read(data, 8), "little")
+        assert rsp and (rsp + 8) % 16 == 0
+
+
+@pytest.mark.parametrize("argc", [0, 3, 4, 5, 6])
+def test_x64_run_entry_stack_is_aligned(config, argc):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xc3" * 0x1000, arch="amd64")
+        data = se.mem_alloc(0x1000)
+        # mov r10, data; mov [r10], rsp; ret
+        se.mem_write(base, b"\x49\xba" + struct.pack("<Q", data) + b"\x49\x89\x22\xc3")
+        for start, args in ((base + 0x100, []), (base, list(range(argc)))):
+            run = Run()
+            run.type = "export"
+            run.start_addr = start
+            run.args = args
+            se.emu.add_run(run)
+
+        se.run_shellcode(base, offset=0x100)
+
         rsp = int.from_bytes(se.mem_read(data, 8), "little")
         assert rsp and (rsp + 8) % 16 == 0

@@ -590,6 +590,11 @@ class WindowsEmulator(BinaryEmulator):
         self.runs.append(self.curr_run)
 
         stk_ptr = self.get_stack_ptr()
+        if self.ptr_size == 8:
+            # Win64 callees expect RSP + 8 to be 16-byte aligned at entry
+            stk_ptr &= ~0xF
+            if max(len(run.args) - 4, 0) % 2:
+                stk_ptr -= 8
 
         self.set_func_args(stk_ptr, self.return_hook, *run.args, conv=_arch.CALL_CONV_STDCALL)
         stk_ptr = self.get_stack_ptr()
