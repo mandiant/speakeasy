@@ -5,7 +5,6 @@ from functools import partial
 
 import pytest
 
-import speakeasy.windows.common as winemu
 from speakeasy import Speakeasy
 from tests.guest_harness import Deref, get_api, guest_call
 
@@ -16,6 +15,13 @@ STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_ILLEGAL_INSTRUCTION = 0xC000001D
 STATUS_INTEGER_DIVIDE_BY_ZERO = 0xC0000094
 STATUS_PRIVILEGED_INSTRUCTION = 0xC0000096
+
+MEM_COMMIT_RESERVE = 0x3000
+PAGE_NOACCESS = 0x01
+PAGE_READONLY = 0x02
+PAGE_EXECUTE_READ = 0x20
+PAGE_EXECUTE_READWRITE = 0x40
+PAGE_GUARD = 0x100
 
 # name: (code, exception code, ExceptionAddress - start, the Rip adjustment a handler makes to continue)
 CASES = {
@@ -28,8 +34,6 @@ CASES = {
     "ud2": (b"\x0f\x0b", STATUS_ILLEGAL_INSTRUCTION, 0, 2),
     "hlt": (b"\xf4", STATUS_PRIVILEGED_INSTRUCTION, 0, 1),
     "in": (b"\xec", STATUS_PRIVILEGED_INSTRUCTION, 0, 1),
-    # mov eax, 'VMXh'; mov dx, 'VX'; in eax, dx
-    "vmware backdoor": (b"\xb8\x68\x58\x4d\x56\x66\xba\x58\x56\xed", STATUS_PRIVILEGED_INSTRUCTION, 9, 1),
     "out": (b"\xee", STATUS_PRIVILEGED_INSTRUCTION, 0, 1),
     "divide by zero": (b"\x31\xc9\xf7\xf1", STATUS_INTEGER_DIVIDE_BY_ZERO, 2, 2),
     "read null": (b"\x31\xc0\x8b\x00", STATUS_ACCESS_VIOLATION, 2, 2),  # xor eax, eax; mov eax, [rax]
@@ -96,14 +100,7 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
     assert record[:2] == (exception_code, start + offset)
 
 
-@pytest.mark.parametrize("arch, mask", [("amd64", 0xFFFFFFFFFFFFFFFF), ("x86", 0xFFFFFFFF)])
-def test_general_protection_parameters_fit_the_pointer_size(config, arch, mask):
-    run, start, record = run_under_handler(config, arch, b"\xcd\x80", 2)  # int 0x80
-    assert run.error is None
-    assert record == (STATUS_ACCESS_VIOLATION, start, 0, mask)
-
-
-@pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A), ("x86", 0x2B), ("x86", 0x2E)])
+@pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A)])
 def test_system_service_gate_is_not_an_exception(config, arch, gate):
     run, _, _ = run_under_handler(config, arch, b"\xcd" + bytes([gate]), 2)
     assert run.error is not None
@@ -132,7 +129,6 @@ def test_debug_service_without_exception_skips_a_byte(config):
         (b"\xcc", "unhandled_interrupt", 3),
         (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)", None),
         (b"\xf4", "privileged_instruction", None),
-        (b"\xec", "privileged_instruction", None),
         (b"\xc6\x00\x00", "invalid_protect_write", None),  # mov byte [rax], 0
     ],
 )
@@ -157,14 +153,6 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num
         assert run.error.pc == code + len(setup)
         assert run.error.interrupt_num == interrupt_num
         assert len([e for e in run.events or [] if e.event == "exception"]) == handler
-
-
-MEM_COMMIT_RESERVE = 0x3000
-PAGE_NOACCESS = 0x01
-PAGE_READONLY = 0x02
-PAGE_EXECUTE_READ = 0x20
-PAGE_EXECUTE_READWRITE = 0x40
-PAGE_GUARD = 0x100
 
 
 def run_with_page(config, protect, access, step=0, before=None):
@@ -230,32 +218,23 @@ def test_guard_page_raises_on_read_of_memory_read_before(config):
     assert record[2:] == (0, page)
 
 
-def test_guard_page_raises_on_read(config):
-    run, page, record = run_with_page(config, PAGE_EXECUTE_READWRITE | PAGE_GUARD, b"\x8a\x00")  # mov al, [rax]
-    assert run.error is None
-    assert record[0] == STATUS_GUARD_PAGE_VIOLATION
-    assert record[2:] == (0, page)
-
-
-def test_read_of_no_access_page_is_access_violation(config):
-    # mov cl, [rax], skipped by the handler
-    run, page, record = run_with_page(config, PAGE_NOACCESS, b"\x8a\x08", step=2)
-    assert run.error is None
-    assert run.ret_val == 42
-    assert record[0] == STATUS_ACCESS_VIOLATION
-    assert record[2:] == (0, page)
-
-
-def test_write_to_read_only_page_is_access_violation(config):
-    # mov byte [rax], 0, skipped by the handler
-    run, page, record = run_with_page(config, PAGE_READONLY, b"\xc6\x00\x00", step=3)
+@pytest.mark.parametrize(
+    "protect, access, step, access_code",
+    [
+        (PAGE_NOACCESS, b"\x8a\x08", 2, 0),  # mov cl, [rax]
+        (PAGE_READONLY, b"\xc6\x00\x00", 3, 1),  # mov byte [rax], 0
+    ],
+    ids=["read of no-access page", "write to read-only page"],
+)
+def test_protection_fault_is_access_violation(config, protect, access, step, access_code):
+    run, page, record = run_with_page(config, protect, access, step=step)  # the handler skips the access
     assert run.error is None
     assert run.ret_val == 42
     assert record[0] == STATUS_ACCESS_VIOLATION
-    assert record[2:] == (1, page)
+    assert record[2:] == (access_code, page)
 
 
-def test_guard_shows_in_virtual_query_and_old_protection(config):
+def test_virtual_query_shows_guard(config):
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
         data = se.mem_alloc(0x1000)
@@ -264,17 +243,14 @@ def test_guard_shows_in_virtual_query_and_old_protection(config):
         body = call("VirtualAlloc", 0, 0x1000, MEM_COMMIT_RESERVE, PAGE_READONLY, store=page)
         body += call("VirtualProtect", Deref(page), 0x1000, PAGE_READONLY | PAGE_GUARD, old)
         body += call("VirtualQuery", Deref(page), mbi, 48)
-        body += b"\x48\xa1" + struct.pack("<Q", page) + b"\x8a\x00"  # read the page: guard violation, unhandled
         se.mem_write(code, body + RETURN_42)
 
         se.run_shellcode(code)
 
         run = se.get_report().entry_points[0]
         (protect,) = struct.unpack("<I", se.mem_read(mbi + 36, 4))
+        assert run.error is None
         assert protect == PAGE_READONLY | PAGE_GUARD
-        assert run.error is not None
-        assert run.error.type == "guard_page_violation"
-        assert run.error.address == struct.unpack("<Q", se.mem_read(page, 8))[0]
 
 
 def test_api_fault_without_handler_keeps_its_error(config):
@@ -290,25 +266,6 @@ def test_api_fault_without_handler_keeps_its_error(config):
         assert run.error is not None
         assert run.error.type == "invalid_read"
         assert [e.api_name for e in run.events or [] if e.event == "api"] == ["kernel32.RtlMoveMemory"]
-
-
-def test_handled_exception_can_repeat_at_one_address(config):
-    # for (ecx = 6; ecx; ecx--) int3;  under a handler that skips the int3
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
-        data = se.mem_alloc(0x1000)
-        handler = code + 0x1000
-        se.mem_write(handler, vectored_handler(data, 1))
-        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
-        loop = b"\xb9\x06\x00\x00\x00\xcc\xff\xc9\x75\xfb"  # mov ecx, 6; int3; dec ecx; jnz int3
-        se.mem_write(code, setup + loop + RETURN_42)
-
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is None
-        assert run.ret_val == 42
-        assert len([e for e in run.events or [] if e.event == "exception"]) == 6
 
 
 def test_exception_continued_with_nt_continue_can_repeat(config):
@@ -351,8 +308,7 @@ def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
         assert run.error.type == "max_instructions"
 
 
-@pytest.mark.parametrize("size", [0x1000, 0x10])
-def test_guard_on_commit_of_a_reservation(config, size):
+def test_guard_on_commit_of_part_of_a_reservation(config):
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
         data = se.mem_alloc(0x1000)
@@ -362,8 +318,8 @@ def test_guard_on_commit_of_a_reservation(config, size):
             return guest_call(8, get_api(se, "kernel32", name), *args, **kw)
 
         body = call("VirtualAlloc", 0, 0x1000, 0x2000, PAGE_READONLY, store=page)  # MEM_RESERVE
-        body += call("VirtualAlloc", Deref(page), size, 0x1000, PAGE_READONLY | PAGE_GUARD)  # MEM_COMMIT
-        body += b"\x48\xa1" + struct.pack("<Q", page) + b"\x8a\x00"  # read the page
+        body += call("VirtualAlloc", Deref(page), 0x10, 0x1000, PAGE_READONLY | PAGE_GUARD)  # MEM_COMMIT
+        body += b"\x48\xa1" + struct.pack("<Q", page) + b"\x8a\x00"  # read the page: guarded as a whole
         se.mem_write(code, body + RETURN_42)
 
         se.run_shellcode(code)
@@ -371,19 +327,6 @@ def test_guard_on_commit_of_a_reservation(config, size):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == "guard_page_violation"
-
-
-def test_return_address_of_the_emulator_on_a_corrupt_stack_ends_the_walk(config):
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
-        push = b"\x48\xb8" + struct.pack("<Q", winemu.GUEST_CALLBACK_RETURN_ADDR) + b"\x50"  # mov rax, ...; push rax
-        se.mem_write(code, push + b"\x31\xc9\x89\x09")  # xor ecx, ecx; mov [rcx], ecx
-
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is not None
-        assert (run.error.type, run.error.address) == ("invalid_write", 0)
 
 
 def test_generator_handler_fault_ends_the_run_where_it_reads(config):

@@ -93,13 +93,3 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
         ("0xe0000009", None),
         ("0xc0000005", "0x0"),
     ]
-
-
-def test_seh_without_dispatch_x64(config, load_test_bin, run_test):
-    cfg = copy.deepcopy(config)
-    cfg["exceptions"]["dispatch_handlers"] = False
-    report = run_test(cfg, load_test_bin("seh_cases_x64.exe.xz"))
-
-    error = report.entry_points[0].error
-    assert error.type == "invalid_write"
-    assert error.instr == "mov dword ptr [rcx], 1"

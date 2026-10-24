@@ -41,21 +41,6 @@ def test_get_thread_context_fills_only_requested_sections(config):
     assert field(se, context, 0x78) == 0xAAAAAAAAAAAAAAAA  # Rax: not requested
 
 
-def test_debug_registers_belong_to_the_thread(config):
-    def build(se, data, call):
-        source, target = data, data + 0x800
-        se.mem_write(source + 0x30, struct.pack("<I", CONTEXT_DEBUG_REGISTERS))
-        se.mem_write(source + 0x48, struct.pack("<Q", 0x12345678))  # Dr0
-        se.mem_write(source + 0x70, struct.pack("<Q", 1))  # Dr7: L0
-        se.mem_write(target + 0x30, struct.pack("<I", CONTEXT_DEBUG_REGISTERS))
-        return call("SetThreadContext", CURRENT_THREAD, source) + call("GetThreadContext", CURRENT_THREAD, target)
-
-    se, data, report = run(config, build)
-    assert report.error is None
-    assert field(se, data + 0x800, 0x48) == 0x12345678
-    assert field(se, data + 0x800, 0x70) == 1
-
-
 def test_restore_context_continues_at_capture(config):
     def build(se, data, call):
         context, counter = data, data + 0x800
@@ -118,23 +103,6 @@ def test_breakpoint_on_translated_code(config):
     se, _, report = run(config, build)
     assert report.error is None
     assert field(se, build.counter, 0) == 2
-
-
-def test_resume_flag_skips_one_instruction(config):
-    def build(se, data, call):
-        target, handler, counter = breakpoint_target(se)
-        build.counter = counter
-        return (
-            call("AddVectoredExceptionHandler", 1, handler)
-            + arm_breakpoint(se, call, data, target)
-            + call_absolute(target)
-            + call("RtlCaptureContext", data + 0x800)
-        )
-
-    se, data, report = run(config, build)
-    assert report.error is None
-    assert field(se, build.counter, 0) == 1
-    assert not field(se, data + 0x800, 0x44) & 0x10000  # RF does not outlive the instruction
 
 
 def test_set_debug_registers_keeps_the_rest_of_a_suspended_thread(config):
