@@ -197,8 +197,9 @@ def raise_exception(emu, code: int, flags: int, params, dispatch_exception: Disp
 def raise_in_caller(emu, code: int, flags: int, params, dispatch_exception: Dispatcher) -> GeneratorHandler:
     """Dispatch an exception at the caller of the API."""
     ctx = guest_callbacks.caller_context(emu)
-    record = exception_record(emu, code, flags, thread_context.instruction_pointer(ctx), params)
-    record = guest_callbacks.alloca(emu, record)
+    record = guest_callbacks.alloca(
+        emu, exception_record(emu, code, flags, thread_context.instruction_pointer(ctx), params)
+    )
     return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
 
 

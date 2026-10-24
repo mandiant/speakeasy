@@ -2112,7 +2112,7 @@ class WindowsEmulator(BinaryEmulator):
         kind, address = self._pending_trap_fault
         self._pending_trap_fault = None
         self.prev_pc = self.get_pc()
-        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, kind):
+        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(address, kind):
             self.enable_code_hook()
             return
         self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
@@ -2144,7 +2144,7 @@ class WindowsEmulator(BinaryEmulator):
             interrupt_num=pending.interrupt_num,
         )
         dispatch = self.config.exceptions.dispatch_handlers
-        if dispatch and self.dispatch_seh(exception.code, faulting_address, pending.access_type, exception, error):
+        if dispatch and self.dispatch_seh(faulting_address, pending.access_type, exception, error):
             return
         guest_callbacks.fail(self, error)
 
@@ -2161,7 +2161,7 @@ class WindowsEmulator(BinaryEmulator):
             dispatch_exception = self.exception_dispatcher().dispatch_exception
             fault = seh.raise_in_caller(self, ddk.STATUS_ACCESS_VIOLATION, 0, params, dispatch_exception)
             guest_callbacks.start(self, frame, fault)
-        except seh.UnhandledException:
+        except guest_callbacks.CallbackError:
             self.get_current_run().guest_callbacks.remove(frame)
             return False
         return True
@@ -2266,7 +2266,7 @@ class WindowsEmulator(BinaryEmulator):
 
         # Are there any SEH handlers registered?
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "fetch")
+            rv = self.dispatch_seh(address, "fetch")
             if rv:
                 return True
 
@@ -3178,7 +3178,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "read")
+            rv = self.dispatch_seh(address, "read")
             if rv:
                 return True
         fakeout = address & 0xFFFFFFFFFFFFF000
@@ -3231,7 +3231,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(ddk.STATUS_ACCESS_VIOLATION, address, "write")
+            rv = self.dispatch_seh(address, "write")
             if rv:
                 return True
 
@@ -3691,7 +3691,8 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, exception=None, error=None):
+    def dispatch_seh(self, faulting_address, access_type, exception=None, error=None):
+        """Dispatch exception, by default an access violation; return whether a handler takes it."""
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3703,12 +3704,7 @@ class WindowsEmulator(BinaryEmulator):
             self._seh_repeat_count = 1
 
         if exception is None:
-            pc = self.get_pc()
-            exception = (
-                cpu_exceptions.memory_fault(pc, faulting_address, access_type)
-                if faulting_address is not None
-                else cpu_exceptions.CpuException(except_code, pc, pc)
-            )
+            exception = cpu_exceptions.memory_fault(self.get_pc(), faulting_address, access_type)
         rv = self.exception_dispatcher().dispatch_fault(self, exception, error)
         if rv and faulting_address is not None:
             self._map_faulting_page_for_exception(faulting_address)

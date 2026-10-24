@@ -17,6 +17,7 @@ See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64
 import struct
 from collections import namedtuple
 from collections.abc import Iterator
+from typing import Any
 
 import unicorn as uc
 
@@ -29,7 +30,6 @@ from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import (
     EXCEPTION_EXECUTE_HANDLER,
-    EXCEPTION_EXIT_UNWIND,
     EXCEPTION_RECORD64,
     EXCEPTION_TARGET_UNWIND,
     EXCEPTION_UNWINDING,
@@ -72,7 +72,7 @@ def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
     return None
 
 
-def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[object, unwind.RuntimeFunction, unwind.FrameInfo]]:
+def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[Any, unwind.RuntimeFunction, unwind.FrameInfo]]:
     """
     Unwind ctx in place, yielding (frame context, function, frame info) for each frame with unwind data.
 
@@ -168,7 +168,7 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
         fields = seh.read_record(emu, record)
     else:
         fields = [STATUS_UNWIND, 0, 0, ctx.Rip, 0] + [0] * 15
-    fields[1] |= EXCEPTION_UNWINDING if target_frame else EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND
+    fields[1] |= EXCEPTION_UNWINDING if target_frame else UNWINDING
     record = guest_callbacks.alloca(emu, EXCEPTION_RECORD64.pack(*fields))
     unwound = guest_callbacks.alloca(emu, ctx.get_bytes())
     dispatcher_context = guest_callbacks.alloca(emu, bytes(DISPATCHER_CONTEXT.size))
