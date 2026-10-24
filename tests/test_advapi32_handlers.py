@@ -11,6 +11,8 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.config import get_default_config_dict
+from speakeasy.profiler_events import RegWriteValueEvent
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.nt import ddk
@@ -563,6 +565,30 @@ def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, alloc(dll_emu, b"Soft\x00"))
     assert (rv, path) == (windefs.ERROR_FILE_NOT_FOUND, None)
+
+
+@pytest.fixture
+def default_config_emu(load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(get_default_config_dict(), load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.mark.parametrize(
+    "hkey, root", [(HKEY_LOCAL_MACHINE, "HKEY_LOCAL_MACHINE"), (HKEY_CURRENT_USER, "HKEY_CURRENT_USER")]
+)
+@pytest.mark.parametrize("subkey", ["Run", "RunOnce"])
+def test_reg_default_config_has_the_run_keys(default_config_emu: Speakeasy, hkey: int, root: str, subkey: str) -> None:
+    se = default_config_emu
+    assert se.emu is not None
+    phk = alloc(se, b"\x00" * 4)
+    path = f"Software\\Microsoft\\Windows\\CurrentVersion\\{subkey}"
+    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [hkey, alloc(se, path.encode() + b"\x00"), 0, 0xF003F, phk])
+    assert rv == windefs.ERROR_SUCCESS
+
+    data = b"C:\\ProgramData\\x.exe\x00"
+    argv = [_dword(se, phk), alloc(se, b"x\x00"), 0, 1, alloc(se, data), len(data)]
+    assert call(se, "advapi32", "RegSetValueExA", argv)[0] == windefs.ERROR_SUCCESS
+    writes = [e for e in se.emu.curr_run.events if isinstance(e, RegWriteValueEvent)]
+    assert [(e.path.lower(), e.value_name) for e in writes] == [(f"{root}\\{path}".lower(), "x")]
 
 
 def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -> None:
