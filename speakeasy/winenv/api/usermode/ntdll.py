@@ -9,6 +9,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.config import DEFAULT_CONFIG_DATA
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -389,6 +390,27 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             self.mem_write(pMinor, (0).to_bytes(4, "little"))
         if pBuild:
             self.mem_write(pBuild, (0xF0004A61).to_bytes(4, "little"))
+
+    @apihook("RtlFormatCurrentUserKeyPath", argc=1)
+    def RtlFormatCurrentUserKeyPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlFormatCurrentUserKeyPath(
+            PUNICODE_STRING CurrentUserKeyPath
+        );
+        """
+        (CurrentUserKeyPath,) = argv
+        sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+        path = "\\REGISTRY\\USER\\" + sid
+        data = (path + "\x00").encode("utf-16le")
+
+        us = ntos.UNICODE_STRING(emu.get_ptr_size())
+        us.Length = len(data) - 2
+        us.MaximumLength = len(data)
+        us.Buffer = self.mem_alloc(len(data), tag="api.RtlFormatCurrentUserKeyPath")
+        self.mem_write(us.Buffer, data)
+        self.mem_write(CurrentUserKeyPath, self.get_bytes(us))
+        ctx.args["CurrentUserKeyPath"].display = path
+        return ddk.STATUS_SUCCESS
 
     @apihook("RtlGetCurrentPeb", argc=0)
     def RtlGetCurrentPeb(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

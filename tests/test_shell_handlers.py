@@ -11,6 +11,7 @@ import zlib
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import com
 from speakeasy.winenv.defs.windows import windows as windefs
@@ -270,6 +271,16 @@ def test_string_from_guid2_writes_the_braced_string(dll_emu: Speakeasy, cch: int
     assert result == rv
     expected = (text + "\x00").encode("utf-16le") if rv else b"\xcc" * 78
     assert dll_emu.mem_read(out, 80) == expected + b"\xcc" * (80 - len(expected))
+
+
+def test_rtl_format_current_user_key_path_allocates_the_user_key(dll64_emu: Speakeasy) -> None:
+    us = alloc(dll64_emu, b"\x00" * 16)
+    rv, _ = call(dll64_emu, "ntdll", "RtlFormatCurrentUserKeyPath", [us])
+    assert rv == ddk.STATUS_SUCCESS
+    length, maximum, _, buf = struct.unpack("<HHIQ", dll64_emu.mem_read(us, 16))
+    expected = "\\REGISTRY\\USER\\" + DEFAULT_CONFIG_DATA["user"]["sid"]
+    assert (length, maximum) == (2 * len(expected), 2 * len(expected) + 2)
+    assert dll64_emu.mem_read(buf, maximum) == (expected + "\x00").encode("utf-16le")
 
 
 def read_ptr(se: Speakeasy, addr: int) -> int:
