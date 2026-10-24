@@ -196,7 +196,7 @@ def caller_context(emu):
     handler before its first guest call, while the registers are still the caller's.
     """
     ctx = emu.get_thread_context()
-    frame = emu._active_api_frame
+    frame = emu.active_api_frame
     # A stdcall API on x86 pops its arguments
     args = frame.argc * 4 if emu.get_ptr_size() == 4 and frame and frame.convention == CALL_CONV_STDCALL else 0
     thread_context.set_control(ctx, emu.get_ret_address(), emu.get_stack_ptr() + emu.get_ptr_size() + args)

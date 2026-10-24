@@ -843,7 +843,7 @@ class WindowsEmulator(BinaryEmulator):
                             deadline, limit[0], last_executed[0] if hook else None, native_count, debugger
                         )
                     ):
-                        self._raise_cpu_exception(
+                        self.raise_cpu_exception(
                             cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction"
                         )
                     if self._pending_cpu_exception is not None:
@@ -2118,7 +2118,7 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
         self.end_run_on_fault()
 
-    def _raise_cpu_exception(self, exception, error_type, **details):
+    def raise_cpu_exception(self, exception, error_type, **details):
         """From a Unicorn hook: stop and dispatch exception once native execution unwinds."""
         self._pending_cpu_exception = PendingCpuException(exception, error_type, **details)
         self.emu_eng.stop()
@@ -2187,12 +2187,12 @@ class WindowsEmulator(BinaryEmulator):
             exception = cpu_exceptions.memory_fault(
                 pc, address, access_type, code=cpu_exceptions.STATUS_GUARD_PAGE_VIOLATION
             )
-            self._raise_cpu_exception(
+            self.raise_cpu_exception(
                 exception, "guard_page_violation", access_type=access_type, guard_page=(page, perms)
             )
         else:
             exception = cpu_exceptions.memory_fault(pc, address, access_type)
-            self._raise_cpu_exception(exception, f"invalid_protect_{access_type}", access_type=access_type)
+            self.raise_cpu_exception(exception, f"invalid_protect_{access_type}", access_type=access_type)
         return False
 
     def _stopped_at_hlt(self, deadline, limited, last_executed, counted, debugger):
@@ -2200,6 +2200,10 @@ class WindowsEmulator(BinaryEmulator):
         Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
         Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran:
         the last instruction the accounting hook saw, or with nothing else that stops the engine.
+
+        Nothing better reports `hlt`: Unicorn hooks only `in`, `out`, `syscall`, `sysenter`
+        and `cpuid` among x86 instructions, `hlt` raises no interrupt, and a code hook on
+        every instruction would slow all emulation down.
         """
         if self.kernel_mode or not self.config.exceptions.dispatch_handlers:
             return False
@@ -2223,18 +2227,18 @@ class WindowsEmulator(BinaryEmulator):
             return False
         pc = self.get_pc()
         exception = cpu_exceptions.from_invalid_instruction(pc, self.mem_read(pc, 1))
-        self._raise_cpu_exception(exception, "Invalid instruction (UC_ERR_INSN_INVALID)")
+        self.raise_cpu_exception(exception, "Invalid instruction (UC_ERR_INSN_INVALID)")
         return False
 
     def _hook_in_instruction(self, uc_engine, port, size, user_data):
         rax = self.get_return_val()
-        self._raise_cpu_exception(
+        self.raise_cpu_exception(
             cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction", rax=rax
         )
         return rax & 0xFFFFFFFF
 
     def _hook_out_instruction(self, uc_engine, port, size, value, user_data):
-        self._raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction")
+        self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction")
 
     def _api_call_snapshot(self, entry):
         sp = self.get_stack_ptr()
@@ -3639,17 +3643,6 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_EFLAGS, ctx.EFlags & ~hardware_breakpoints.RESUME_FLAG)
             self.hardware_breakpoints.resume_at(thread_context.instruction_pointer(ctx))
 
-    def _get_exception_list(self):
-        """
-        Retrieves the exception handler list for the current thread
-        """
-        thread = self.get_current_thread()
-        if not thread:
-            return 0
-        teb = thread.get_teb()
-        teb = teb.read_back()
-        return teb.object.NtTib.ExceptionList
-
     def record_exception(self, code, address, handler, registers, faulting_address=None):
         """Log an exception at address that is offered to a guest handler, and record it in the report."""
         try:
@@ -3722,6 +3715,11 @@ class WindowsEmulator(BinaryEmulator):
 
         return rv
 
+    @property
+    def active_api_frame(self) -> GuestCallbackFrame | None:
+        """The frame of the API call being handled, if any."""
+        return self._active_api_frame
+
     def exception_dispatcher(self):
         """The exception dispatch of the architecture"""
         return seh64 if self.get_arch() == _arch.ARCH_AMD64 else seh32
@@ -3789,7 +3787,7 @@ class WindowsEmulator(BinaryEmulator):
             if exception is None:
                 self.set_pc(cpu_exceptions.skip_debug_service(pc))
             else:
-                self._raise_cpu_exception(exception, "unhandled_interrupt", interrupt_num=intnum)
+                self.raise_cpu_exception(exception, "unhandled_interrupt", interrupt_num=intnum)
             return True
 
         # Handle __fastfail interrupt introduced in Windows 8
