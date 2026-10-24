@@ -886,3 +886,30 @@ def test_get_system_firmware_table_with_a_small_buffer_returns_the_size(dll_emu:
     buf = alloc(dll_emu, b"\xcc" * 8)
     assert call(dll_emu, "kernel32", "GetSystemFirmwareTable", [RSMB, 0, buf, 8])[0] == size
     assert dll_emu.mem_read(buf, 8) == b"\xcc" * 8
+
+
+@pytest.mark.parametrize("api", ["EtwRegisterTraceGuidsW", "EtwRegisterTraceGuidsA"])
+def test_wpp_tracing_registers_and_unregisters(dll_emu: Speakeasy, api: str) -> None:
+    out = alloc(dll_emu, b"\x00" * 8)
+    guid = alloc(dll_emu, b"\x11" * 16)
+    reg = alloc(dll_emu, guid.to_bytes(4, "little") + b"\x00" * 4)
+    rv, _ = call(dll_emu, "ntdll", api, [0x401000, 0, guid, 1, reg, 0, 0, out])
+    assert rv == 0
+    handle = struct.unpack("<Q", dll_emu.mem_read(out, 8))[0]
+    assert handle != 0
+    rv, _ = call(dll_emu, "ntdll", "EtwUnregisterTraceGuids", [handle & 0xFFFFFFFF, handle >> 32])
+    assert rv == 0
+
+
+def test_wpp_tracing_is_not_enabled(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceLoggerHandle", [0x30000000])
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceEnableFlags", [0, 0])
+    assert rv == 0
+    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceEnableLevel", [0, 0])
+    assert rv == 0
+    rv, _ = call(dll_emu, "ntdll", "EtwTraceMessage", [1, 0, 2, 0x10, 0, 0])
+    assert rv == 0

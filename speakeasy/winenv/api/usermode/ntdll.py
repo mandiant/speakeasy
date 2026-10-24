@@ -5,8 +5,10 @@ import struct
 
 import speakeasy.windows.common as winemu
 import speakeasy.windows.seh as seh
+import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -28,6 +30,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
+        self.trace_handle = 0x1000
 
         super().__get_hook_attrs__(self)
 
@@ -409,3 +412,84 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         info += b"\x00" * (276 - len(info))
         self.mem_write(lpVersionInformation, info)
         return 0  # STATUS_SUCCESS
+
+    @apihook("EtwRegisterTraceGuidsW", argc=8)
+    def EtwRegisterTraceGuidsW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG EtwRegisterTraceGuidsW(
+            WMIDPREQUEST RequestAddress,
+            PVOID RequestContext,
+            LPCGUID ControlGuid,
+            ULONG GuidCount,
+            PTRACE_GUID_REGISTRATION TraceGuidReg,
+            LPCWSTR MofImagePath,
+            LPCWSTR MofResourceName,
+            PTRACEHANDLE RegistrationHandle
+        );
+        """
+        handle_ptr = argv[7]
+        if not handle_ptr:
+            return windefs.ERROR_INVALID_PARAMETER
+        self.trace_handle += 4
+        self.mem_write(handle_ptr, self.trace_handle.to_bytes(8, "little"))
+        return windefs.ERROR_SUCCESS
+
+    @apihook("EtwRegisterTraceGuidsA", argc=8)
+    def EtwRegisterTraceGuidsA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG EtwRegisterTraceGuidsA(
+            WMIDPREQUEST RequestAddress,
+            PVOID RequestContext,
+            LPCGUID ControlGuid,
+            ULONG GuidCount,
+            PTRACE_GUID_REGISTRATION TraceGuidReg,
+            LPCSTR MofImagePath,
+            LPCSTR MofResourceName,
+            PTRACEHANDLE RegistrationHandle
+        );
+        """
+        return self.EtwRegisterTraceGuidsW(emu, argv, ctx)
+
+    @apihook("EtwUnregisterTraceGuids", argc=2)
+    def EtwUnregisterTraceGuids(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG EtwUnregisterTraceGuids(TRACEHANDLE RegistrationHandle);
+
+        The handle takes two stack slots on x86. On x64 the second slot is unused.
+        """
+        return windefs.ERROR_SUCCESS
+
+    @apihook("EtwGetTraceLoggerHandle", argc=1)
+    def EtwGetTraceLoggerHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        TRACEHANDLE EtwGetTraceLoggerHandle(PVOID Buffer);
+        """
+        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+        return 0
+
+    @apihook("EtwGetTraceEnableFlags", argc=2)
+    def EtwGetTraceEnableFlags(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG EtwGetTraceEnableFlags(TRACEHANDLE TraceHandle);
+        """
+        return 0
+
+    @apihook("EtwGetTraceEnableLevel", argc=2)
+    def EtwGetTraceEnableLevel(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UCHAR EtwGetTraceEnableLevel(TRACEHANDLE TraceHandle);
+        """
+        return 0
+
+    @apihook("EtwTraceMessage", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def EtwTraceMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG EtwTraceMessage(
+            TRACEHANDLE LoggerHandle,
+            ULONG MessageFlags,
+            LPCGUID MessageGuid,
+            USHORT MessageNumber,
+            ...
+        );
+        """
+        return windefs.ERROR_SUCCESS
