@@ -115,6 +115,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.tick_counter += 1
         return self.boot_time + self.tick_counter * 10000
 
+    def advance_clock(self, millisec):
+        """
+        Move the tick count, the system time and the performance counter forward.
+        """
+        self.tick_counter += millisec
+        self.perf_counter += millisec * 10000
+
     def get_system_time_struct(self, quad):
         st = self.k32types.SYSTEMTIME(self.emu.get_ptr_size())
         dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
@@ -2209,6 +2216,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def Sleep(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """void Sleep(DWORD dwMilliseconds);"""
         (millisec,) = argv
+        if millisec != 0xFFFFFFFF:
+            self.advance_clock(millisec)
 
         return
 
@@ -2221,6 +2230,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def SleepEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable);"""
         millisec, bAlertable = argv
+        if millisec != 0xFFFFFFFF:
+            self.advance_clock(millisec)
 
         return
 

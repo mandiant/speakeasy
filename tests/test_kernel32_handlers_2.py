@@ -817,3 +817,18 @@ def test_system_time_follows_the_emulated_clock(emu: Speakeasy) -> None:
     from_ft = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ft // 10)
     assert datetime.timedelta(0) < get_system_time(emu, "GetSystemTime") - from_ft < datetime.timedelta(seconds=1)
     assert get_file_time(emu) > ft
+
+
+@pytest.mark.parametrize("api, argv", [("Sleep", [30000]), ("SleepEx", [30000, 0])])
+def test_sleep_advances_the_clocks(emu: Speakeasy, api: str, argv: list[int]) -> None:
+    counter = alloc(emu, b"\x00" * 8)
+
+    def query_counter() -> int:
+        call(emu, "kernel32", "QueryPerformanceCounter", [counter])
+        return int.from_bytes(emu.mem_read(counter, 8), "little")
+
+    ticks, perf, ft = call(emu, "kernel32", "GetTickCount", [])[0], query_counter(), get_file_time(emu)
+    call(emu, "kernel32", api, argv)
+    assert 30000 <= call(emu, "kernel32", "GetTickCount", [])[0] - ticks < 31000
+    assert query_counter() - perf == 30000 * 10_000_000 // 1000
+    assert 30000 * 10000 <= get_file_time(emu) - ft < 31000 * 10000
