@@ -99,6 +99,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.fls_count = 0
         self.tick_counter = 86400000  # 1 day in millisecs
         self.perf_counter = 0x5FD27D571F
+        self.boot_time = 116444736000000000 + time.time_ns() // 100 - self.tick_counter * 10000
 
         self.command_lines = [None] * 3
         self.startup_info = {}
@@ -106,6 +107,26 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.k32types = k32types
 
         super().__get_hook_attrs__(self)
+
+    def get_system_time(self):
+        """
+        Advance the tick count by 1 ms and return the system time as a FILETIME value.
+        """
+        self.tick_counter += 1
+        return self.boot_time + self.tick_counter * 10000
+
+    def get_system_time_struct(self, quad):
+        st = self.k32types.SYSTEMTIME(self.emu.get_ptr_size())
+        dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
+        st.wYear = dt.year
+        st.wMonth = dt.month
+        st.wDayOfWeek = dt.isoweekday() % 7
+        st.wDay = dt.day
+        st.wHour = dt.hour
+        st.wMinute = dt.minute
+        st.wSecond = dt.second
+        st.wMilliseconds = quad // 10000 % 1000
+        return st
 
     def add_local_atom(self, s):
         atom, cnt = self.get_local_atom(s)
@@ -1715,27 +1736,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         lpFileTime, lpSystemTime = argv
 
-        st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
         ft = self.k32types.FILETIME(emu.get_ptr_size())
         ft = self.mem_cast(ft, lpFileTime)
 
         quad = (ft.dwHighDateTime << 32) | ft.dwLowDateTime
         try:
-            dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
+            st = self.get_system_time_struct(quad)
         except OverflowError:
-            dt = None
+            st = None
 
-        if dt:
-            st.wYear = dt.year
-            st.wMonth = dt.month
-            st.wDayOfWeek = dt.isoweekday() % 7
-            st.wDay = dt.day
-            st.wHour = dt.hour
-            st.wMinute = dt.minute
-            st.wSecond = dt.second
-            st.wMilliseconds = quad // 10000 % 1000
-            if lpSystemTime:
-                self.mem_write(lpSystemTime, st.get_bytes())
+        if st is not None and lpSystemTime:
+            self.mem_write(lpSystemTime, st.get_bytes())
 
         return True
 
@@ -1748,7 +1759,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        timestamp = self.get_system_time()
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
 
@@ -1841,6 +1852,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSYSTEMTIME lpSystemTime
         );
         """
+        # The time zone that GetTimeZoneInformation reports has no bias
         return self.GetSystemTime(emu, argv, ctx)
 
     @apihook("GetSystemTime", argc=1)
@@ -1850,18 +1862,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSYSTEMTIME lpSystemTime
         );"""
         (lpSystemTime,) = argv
-        st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
-
-        now = datetime.datetime.now()
-        st.wYear = now.year
-        st.wMonth = now.month
-        st.wDayOfWeek = 2
-        st.wDay = now.day
-        st.wHour = now.hour
-        st.wMinute = now.minute
-        st.wSecond = now.second
-        st.wMilliseconds = 0
-
+        st = self.get_system_time_struct(self.get_system_time())
         self.mem_write(lpSystemTime, self.get_bytes(st))
 
         return
@@ -5359,8 +5360,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        ft.dwLowDateTime = self.tick_counter
-        self.tick_counter += 10000000
+        times = self.tick_counter * 10000
+        ft.dwLowDateTime = 0xFFFFFFFF & times
+        ft.dwHighDateTime = times >> 32
 
         for t in (lpIdleTime, lpKernelTime, lpUserTime):
             if not t:
@@ -6834,7 +6836,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
-        timestamp = 116444736000000000 + time.time_ns() // 100
+        timestamp = self.get_system_time()
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
 

@@ -789,3 +789,31 @@ def test_thread_ids_agree(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])[0]
     _, hthread, _, dwThreadId = struct.unpack("<4I", emu.mem_read(pi, 16))
     assert call(emu, "kernel32", "GetThreadId", [hthread])[0] == dwThreadId
+
+
+def get_system_time(se: Speakeasy, api: str) -> datetime.datetime:
+    st = alloc(se, b"\x00" * 16)
+    call(se, "kernel32", api, [st])
+    year, month, day_of_week, day, hour, minute, second, ms = struct.unpack("<8H", se.mem_read(st, 16))
+    when = datetime.datetime(year, month, day, hour, minute, second, ms * 1000)
+    assert day_of_week == (when.weekday() + 1) % 7
+    return when
+
+
+def get_file_time(se: Speakeasy) -> int:
+    ft = alloc(se, b"\x00" * 8)
+    call(se, "kernel32", "GetSystemTimeAsFileTime", [ft])
+    return int.from_bytes(se.mem_read(ft, 8), "little")
+
+
+def test_system_time_follows_the_emulated_clock(emu: Speakeasy) -> None:
+    times = [get_system_time(emu, "GetLocalTime") for _ in range(3)]
+    assert times == sorted(set(times))
+
+    utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    assert abs(get_system_time(emu, "GetSystemTime") - utc) < datetime.timedelta(minutes=1)
+
+    ft = get_file_time(emu)
+    from_ft = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ft // 10)
+    assert datetime.timedelta(0) < get_system_time(emu, "GetSystemTime") - from_ft < datetime.timedelta(seconds=1)
+    assert get_file_time(emu) > ft
