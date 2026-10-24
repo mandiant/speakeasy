@@ -339,6 +339,36 @@ _SHELLCODE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
 """)
 
 
+_MODULE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
+    import json
+    import lzma
+    import sys
+
+    import pefile
+
+    from speakeasy import Speakeasy
+
+    port = int(sys.argv[1])
+    config_path = sys.argv[2]
+    bin_path = sys.argv[3]
+    entry_code = bytes.fromhex(sys.argv[4])
+    with open(config_path) as f:
+        cfg = json.load(f)
+    with lzma.open(bin_path) as f:
+        data = f.read()
+
+    se = Speakeasy(config=cfg, gdb_port=port)
+    module = se.load_module(data=data)
+    if entry_code:
+        se.mem_write(module.base + module.ep, entry_code)
+    exports = [module.base + export.address for export in pefile.PE(data=data).DIRECTORY_ENTRY_EXPORT.symbols]
+    print(json.dumps(exports), flush=True)
+    se.run_module(module, all_entrypoints=True)
+    print(json.dumps([run.error.type if run.error else None for run in se.get_report().entry_points]), flush=True)
+    se.shutdown()
+""")
+
+
 _SERVER_SCRIPT = textwrap.dedent("""\
     import json
     import lzma
@@ -581,6 +611,24 @@ def gdb_shellcode_emulator(request):
     assert proc.stdout is not None
     address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
     yield port, proc, address, scratch
+    _stop_server(proc)
+
+
+@pytest.fixture
+def gdb_module_result_emulator(request):
+    """Start dll_test_x86 with its entry point code replaced by request.param, if any."""
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    bin_path = os.path.join(TESTS_DIR, "bins", "dll_test_x86.dll.xz")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _MODULE_RESULT_SERVER_SCRIPT, str(port), config_path, bin_path, request.param],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    assert proc.stdout is not None
+    exports = json.loads(proc.stdout.readline())
+    yield port, proc, exports
     _stop_server(proc)
 
 
@@ -879,3 +927,22 @@ def test_gdb_fault_after_declining_seh_handler_stops_at_fault_once(gdb_shellcode
     result = _read_server_result(proc)
     assert result["pc"] == address + fault_offset
     assert result["events"] == 1
+
+
+@pytest.mark.parametrize("gdb_module_result_emulator", [""], indirect=True)
+def test_gdb_breakpoint_on_later_run_start_hits(gdb_module_result_emulator):
+    port, proc, exports = gdb_module_result_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        for address in exports:
+            assert client.query(f"Z0,{address:x},1") == "OK"
+        for address in exports:
+            stop = client.continue_()
+            assert stop.startswith("T05") and "swbreak:;" in stop
+            assert client.read_x86_registers().eip == address
+        assert client.continue_().startswith("T05")
+        assert client.continue_() == "W00"
+    finally:
+        client.close()
+    assert _read_server_result(proc) == [None, None, None]

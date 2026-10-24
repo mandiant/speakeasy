@@ -95,6 +95,7 @@ class GdbServer:
         self._stop_pending = False
         self._library_list_changed = False
         self._resume_from_breakpoint: int | None = None
+        self._resume_pc: int | None = None
         self._exec_breakpoints: dict[tuple[int, int], int] = {}
         self._read_watchpoints: dict[tuple[int, int], int] = {}
         self._write_watchpoints: dict[tuple[int, int], int] = {}
@@ -289,6 +290,7 @@ class GdbServer:
                     # begin_run() becomes a pending interrupt, not a queued '?'.
                     with self._state_lock:
                         self._running = True
+                        self._resume_pc = self.emu.get_pc()
                 return action
         return ResumeAction(detach=True)
 
@@ -299,8 +301,11 @@ class GdbServer:
                 return False
             self._stop_reason = StopReason()
             pc = self.emu.get_pc()
+            # Only the stop the client resumes from skips its breakpoint. A
+            # later run that starts on a breakpoint hits it.
+            resuming, self._resume_pc = self._resume_pc == pc, None
             at_breakpoint = any(begin <= pc < begin + size for begin, size in self._exec_breakpoints)
-            self._resume_from_breakpoint = pc if at_breakpoint else None
+            self._resume_from_breakpoint = pc if resuming and at_breakpoint else None
         self._refresh_hooks()
         return True
 
