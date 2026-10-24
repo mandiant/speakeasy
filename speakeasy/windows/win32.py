@@ -126,7 +126,11 @@ class Win32Emulator(WindowsEmulator):
         """
         Add a vectored exception handler that will be executed on an exception
         """
-        if handler not in self.veh_handlers:
+        if handler in self.veh_handlers:
+            return
+        if first:
+            self.veh_handlers.insert(0, handler)
+        else:
             self.veh_handlers.append(handler)
 
     def remove_vectored_exception_handler(self, handler):

@@ -11,8 +11,6 @@ import time
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
 import speakeasy.windows.seh as seh
-import speakeasy.windows.seh32 as seh32
-import speakeasy.windows.seh64 as seh64
 import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -33,6 +31,7 @@ from speakeasy.profiler_events import (
 )
 
 from .. import api
+from ..exception_apis import ExceptionApis
 
 PAGE_SIZE = 0x1000
 LANG_EN_US = 0x409
@@ -74,7 +73,7 @@ def get_raw_smbios_data() -> bytes:
     return struct.pack("<BBBBI", 0, 3, 3, 0, len(tables)) + tables
 
 
-class Kernel32(api.ApiHandler):
+class Kernel32(ExceptionApis, api.ApiHandler):
     """
     Implements exported functions from kernel32.dll
     """
@@ -6754,51 +6753,6 @@ class Kernel32(api.ApiHandler):
         """
         return k32types.THREAD_PRIORITY_NORMAL
 
-    @apihook("RtlUnwind", argc=4)
-    def RtlUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        VOID RtlUnwind(
-          PVOID TargetFrame,
-          PVOID TargetIp,
-          PEXCEPTION_RECORD ExceptionRecord,
-          PVOID ReturnValue
-        );
-        """
-        if emu.get_arch() == e_arch.ARCH_X86:
-            return seh32.rtl_unwind(emu, *argv)
-
-    @apihook("RtlUnwindEx", argc=6)
-    def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        VOID RtlUnwindEx(
-          PVOID TargetFrame,
-          PVOID TargetIp,
-          PEXCEPTION_RECORD ExceptionRecord,
-          PVOID ReturnValue,
-          PCONTEXT ContextRecord,
-          PUNWIND_HISTORY_TABLE HistoryTable
-        );
-        """
-        TargetFrame, TargetIp, ExceptionRecord, ReturnValue, _, _ = argv
-        return seh64.rtl_unwind_ex(emu, TargetFrame, TargetIp, ExceptionRecord, ReturnValue)
-
-    @apihook("__C_specific_handler", argc=4)
-    def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        EXCEPTION_DISPOSITION __C_specific_handler(
-            PEXCEPTION_RECORD ExceptionRecord,
-            PVOID EstablisherFrame,
-            PCONTEXT ContextRecord,
-            PDISPATCHER_CONTEXT DispatcherContext
-        );
-
-        On x86 the scope table filters are not run, so no __except block of the
-        frame handles the exception.
-        """
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return windefs.ExceptionContinueSearch
-        return seh64.c_specific_handler(emu, *argv)
-
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -7215,85 +7169,6 @@ class Kernel32(api.ApiHandler):
         if dwFlsIndex < len(fls):
             return fls[dwFlsIndex]
         return 0
-
-    @apihook("RtlCaptureContext", argc=1)
-    def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        VOID RtlCaptureContext(
-          PCONTEXT ContextRecord
-        );
-        """
-        if argv[0]:
-            seh.capture_context(emu, argv[0])
-
-    @apihook("RtlRestoreContext", argc=2)
-    def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        VOID RtlRestoreContext(
-          PCONTEXT ContextRecord,
-          _EXCEPTION_RECORD *ExceptionRecord
-        );
-        """
-        ContextRecord, _ = argv
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return
-        return seh.restore_context(emu, ContextRecord)
-
-    @apihook("RtlAddFunctionTable", argc=3)
-    def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """BOOLEAN RtlAddFunctionTable(PRUNTIME_FUNCTION FunctionTable, DWORD EntryCount, DWORD64 BaseAddress);"""
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return False
-        return seh64.add_function_table(emu, *argv)
-
-    @apihook("RtlInstallFunctionTableCallback", argc=6)
-    def RtlInstallFunctionTableCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        BOOLEAN RtlInstallFunctionTableCallback(DWORD64 TableIdentifier, DWORD64 BaseAddress, DWORD Length,
-            PGET_RUNTIME_FUNCTION_CALLBACK Callback, PVOID Context, PCWSTR OutOfProcessCallbackDll);
-        """
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return False
-        return seh64.install_function_table_callback(emu, *argv[:4])
-
-    @apihook("RtlDeleteFunctionTable", argc=1)
-    def RtlDeleteFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """BOOLEAN RtlDeleteFunctionTable(PRUNTIME_FUNCTION FunctionTable);"""
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return False
-        return seh64.delete_function_table(emu, argv[0])
-
-    @apihook("RtlLookupFunctionEntry", argc=3)
-    def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        PRUNTIME_FUNCTION RtlLookupFunctionEntry(
-          DWORD64 ControlPc,
-          PDWORD64 ImageBase,
-          PUNWIND_HISTORY_TABLE HistoryTable
-        );
-        """
-        ControlPc, ImageBase, _ = argv
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return 0
-        return seh64.lookup_function_entry(emu, ControlPc, ImageBase)
-
-    @apihook("RtlVirtualUnwind", argc=8)
-    def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        PEXCEPTION_ROUTINE RtlVirtualUnwind(
-          DWORD HandlerType,
-          DWORD64 ImageBase,
-          DWORD64 ControlPc,
-          PRUNTIME_FUNCTION FunctionEntry,
-          PCONTEXT ContextRecord,
-          PVOID *HandlerData,
-          PDWORD64 EstablisherFrame,
-          PKNONVOLATILE_CONTEXT_POINTERS ContextPointers
-        );
-        """
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return 0
-        return seh64.virtual_unwind(emu, *argv[:7])
 
     @apihook("MulDiv", argc=3)
     def MulDiv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

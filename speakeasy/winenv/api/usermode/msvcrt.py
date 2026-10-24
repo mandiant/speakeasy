@@ -9,12 +9,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import speakeasy.windows.seh32 as seh32
-import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.profiler_events import FILE_WRITE
 
-from .. import api
+from .. import api, exception_apis
 
 ENOENT = 2
 EBADF = 9
@@ -1595,9 +1594,7 @@ class Msvcrt(api.ApiHandler):
             PDISPATCHER_CONTEXT DispatcherContext
         );
         """
-        if emu.get_arch() != e_arch.ARCH_AMD64:
-            return windef.ExceptionContinueSearch
-        return seh64.c_specific_handler(emu, *argv)
+        return exception_apis.c_specific_handler(emu, argv)
 
     @apihook("_except_handler3", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
