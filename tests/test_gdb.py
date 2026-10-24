@@ -849,3 +849,33 @@ def test_gdb_client_disconnect_while_running_detaches(gdb_shellcode_emulator):
     client.send_no_wait("c")
     client.close()
     assert _read_server_result(proc)["error"] is None
+
+
+def _seh_declines(fault: str) -> str:
+    # push handler; push fs:[0]; mov fs:[0], esp; <fault>; ret
+    code = "6811111111" + "64ff3500000000" + "64892500000000" + fault + "c3"
+    # The handler at offset 0x40: mov eax, ExceptionContinueSearch; ret
+    return code + "90" * (0x40 - len(code) // 2) + "b801000000c3"
+
+
+@pytest.mark.parametrize(
+    ("gdb_shellcode_emulator", "fault_offset"),
+    [
+        pytest.param(_seh_declines("a100000000"), 0x13, id="read"),  # mov eax, [0]
+        pytest.param(_seh_declines("31c9f7f1"), 0x15, id="divide"),  # xor ecx, ecx; div ecx
+    ],
+    indirect=["gdb_shellcode_emulator"],
+)
+def test_gdb_fault_after_declining_seh_handler_stops_at_fault_once(gdb_shellcode_emulator, fault_offset):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip == address + fault_offset
+        assert client.continue_() == "X0b"
+    finally:
+        client.close()
+    result = _read_server_result(proc)
+    assert result["pc"] == address + fault_offset
+    assert result["events"] == 1

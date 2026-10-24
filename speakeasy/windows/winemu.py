@@ -805,6 +805,8 @@ class WindowsEmulator(BinaryEmulator):
                     else:
                         self._continue_guest_callback()
                     address = self.get_pc()
+                    if self._pending_fault_stop is not None:
+                        return
                     if debugger is not None and (debugger.has_pending_stop() or count == 1):
                         return
                 if deadline is not None and time.monotonic() >= deadline:
