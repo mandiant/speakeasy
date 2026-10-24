@@ -501,3 +501,21 @@ def test_get_system_metrics(dll_emu: Speakeasy, index: int, expected: int) -> No
 @pytest.mark.parametrize("index, expected", [(5, 0xFFFFFF), (8, 0), (13, 0xD77800), (15, 0xF0F0F0), (200, 0)])
 def test_get_sys_color(dll_emu: Speakeasy, index: int, expected: int) -> None:
     assert call(dll_emu, "user32", "GetSysColor", [index])[0] == expected
+
+
+@pytest.mark.parametrize(
+    "utype, rv",
+    [
+        (0x0, 1),  # MB_OK: IDOK
+        (0x40, 1),  # MB_OK | MB_ICONINFORMATION: IDOK
+        (0x1, 2),  # MB_OKCANCEL: IDCANCEL
+        (0x2, 3),  # MB_ABORTRETRYIGNORE: IDABORT
+        (0x3, 2),  # MB_YESNOCANCEL: IDCANCEL
+        (0x4, 6),  # MB_YESNO: IDYES
+        (0x5, 2),  # MB_RETRYCANCEL: IDCANCEL
+        (0x6, 2),  # MB_CANCELTRYCONTINUE: IDCANCEL
+    ],
+)
+def test_message_box_returns_a_button_of_its_type(dll_emu: Speakeasy, utype: int, rv: int) -> None:
+    text = alloc(dll_emu, b"text\x00")
+    assert call(dll_emu, "user32", "MessageBoxA", [0, text, text, utype])[0] == rv

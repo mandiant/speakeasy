@@ -10,7 +10,15 @@ import speakeasy.winenv.defs.windows.windows as windows
 
 from .. import api
 
+IDOK = 1
 IDCANCEL = 2
+IDABORT = 3
+IDYES = 6
+
+MB_TYPEMASK = 0xF
+MB_OK = 0x0
+MB_ABORTRETRYIGNORE = 0x2
+MB_YESNO = 0x4
 
 IDI_APPLICATION = 32512
 IDI_ASTERISK = 32516
@@ -508,9 +516,9 @@ class User32(api.ApiHandler):
         if lpCaption:
             cap = self.read_mem_string(lpCaption, cw)
             ctx.args["lpCaption"].display = cap
-        rv = IDCANCEL
 
-        return rv
+        # Dismiss the box with Cancel, or press the first button if it has no Cancel button
+        return {MB_OK: IDOK, MB_ABORTRETRYIGNORE: IDABORT, MB_YESNO: IDYES}.get(uType & MB_TYPEMASK, IDCANCEL)
 
     @apihook("MessageBoxEx", argc=5)
     def MessageBoxEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
