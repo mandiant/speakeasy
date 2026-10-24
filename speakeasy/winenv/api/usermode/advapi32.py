@@ -1855,7 +1855,9 @@ class AdvApi32(api.ApiHandler):
             length = int.from_bytes(length, "little")
 
         key = self.reg_get_key(hKey)
-        if key and lpSubKey:
+        if not key:
+            return windefs.ERROR_INVALID_HANDLE
+        if lpSubKey:
             hnd = self.reg_open_key(key.get_path() + "\\" + lpSubKey)
             if not hnd:
                 return windefs.ERROR_FILE_NOT_FOUND

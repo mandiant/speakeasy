@@ -83,5 +83,15 @@ def get_value_type(define):
     return get_defines(define, prefix="REG_")
 
 
+def normalize_hkey(hkey):
+    """
+    Map a predefined key that x64 code passes sign-extended
+    (0xFFFFFFFF80000002 for HKEY_LOCAL_MACHINE) to its 32-bit value.
+    """
+    if hkey >> 32 == 0xFFFFFFFF and 0x80000000 <= hkey & 0xFFFFFFFF <= 0x80000007:
+        return hkey & 0xFFFFFFFF
+    return hkey
+
+
 def get_hkey_type(define):
-    return get_defines(define, prefix="HKEY_")
+    return get_defines(normalize_hkey(define), prefix="HKEY_")

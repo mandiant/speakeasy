@@ -131,7 +131,7 @@ class RegistryManager:
         return path
 
     def get_key_from_handle(self, handle):
-        return self.reg_handles.get(handle)
+        return self.reg_handles.get(regdefs.normalize_hkey(handle))
 
     def get_key_from_path(self, path):
         path = self.normalize_reg_path(path)

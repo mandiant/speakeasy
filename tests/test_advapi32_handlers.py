@@ -727,3 +727,30 @@ def test_start_service_ctrl_dispatcher_ends_the_table_at_a_bad_entry(
 
     assert rv
     assert [(r.type, r.start_addr) for r in se.emu.run_queue] == [("thread.service", service_main)]
+
+
+@pytest.mark.parametrize(
+    ("hkey", "subkey", "expected"),
+    [
+        (0xFFFFFFFF80000002, b"System\\CurrentControlSet\\Services\\usbsamp\x00", (0, "HKEY_LOCAL_MACHINE")),
+        (0xFFFFFFFF80000001, b"Software\\NoSuchKey\x00", (2, "HKEY_CURRENT_USER")),
+    ],
+)
+def test_reg_open_key_accepts_sign_extended_root_keys(
+    dll64_emu: Speakeasy, hkey: int, subkey: bytes, expected: tuple[int, str]
+) -> None:
+    phk = alloc(dll64_emu, b"\x00" * 8)
+    rv, displays = call(dll64_emu, "advapi32", "RegOpenKeyExA", [hkey, alloc(dll64_emu, subkey), 0, 0x20019, phk])
+    assert (rv, displays["hKey"]) == expected
+
+
+def test_reg_get_value_with_sign_extended_root_key_and_missing_subkey(dll64_emu: Speakeasy) -> None:
+    subkey = alloc(dll64_emu, "SOFTWARE\\NoSuchKey\x00".encode("utf-16le"))
+    argv = [0xFFFFFFFF80000002, subkey, 0, 2, 0, 0, 0]
+    rv, _ = call(dll64_emu, "advapi32", "RegGetValueW", argv)
+    assert rv == windefs.ERROR_FILE_NOT_FOUND
+
+
+def test_reg_get_value_with_an_invalid_handle(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "advapi32", "RegGetValueA", [0x1234, 0, alloc(dll_emu, b"x\x00"), 0xFFFF, 0, 0, 0])
+    assert rv == windefs.ERROR_INVALID_HANDLE
