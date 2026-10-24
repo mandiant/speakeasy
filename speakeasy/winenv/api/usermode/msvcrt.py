@@ -324,6 +324,7 @@ class Msvcrt(api.ApiHandler):
         self.stderr = 2
 
         self.rand_int = RAND_BASE
+        self.rand_seed = 1
 
         self.funcs: dict[str, Any] = {}
         self.data: dict[str, Any] = {}
@@ -1413,6 +1414,7 @@ class Msvcrt(api.ApiHandler):
         """
 
         (seed,) = argv
+        self.rand_seed = seed
 
         return
 
@@ -1484,9 +1486,9 @@ class Msvcrt(api.ApiHandler):
         int rand( void );
         """
 
-        self.rand_int += 1
+        self.rand_seed = (self.rand_seed * 214013 + 2531011) & 0xFFFFFFFF
 
-        return self.rand_int
+        return (self.rand_seed >> 16) & 0x7FFF
 
     @apihook("rand_s", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def rand_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

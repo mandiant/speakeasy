@@ -1386,3 +1386,11 @@ def test_wcspbrk_returns_pointer_to_first_char_in_set(dll_emu: Speakeasy, charse
     s = alloc(dll_emu, "a b\0".encode("utf-16le"))
     rv, _ = call(dll_emu, "msvcrt", "wcspbrk", [s, alloc(dll_emu, f"{charset}\0".encode("utf-16le"))])
     assert rv == (0 if offset is None else s + offset * 2)
+
+
+def test_rand_uses_the_msvc_generator(dll_emu: Speakeasy) -> None:
+    assert [call(dll_emu, "msvcrt", "rand", [])[0] for _ in range(2)] == [41, 18467]
+    call(dll_emu, "msvcrt", "srand", [1])
+    assert [call(dll_emu, "msvcrt", "rand", [])[0] for _ in range(4)] == [41, 18467, 6334, 26500]
+    call(dll_emu, "msvcrt", "srand", [0x12345678])
+    assert call(dll_emu, "msvcrt", "rand", [])[0] == ((0x12345678 * 214013 + 2531011) & 0xFFFFFFFF) >> 16 & 0x7FFF
