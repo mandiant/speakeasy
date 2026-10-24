@@ -51,16 +51,14 @@ Dispatcher = Callable[..., GeneratorHandler]
 
 
 class UnhandledException(guest_callbacks.CallbackError):
-    kind = "unhandled_exception"
-
     def __init__(self, code: int, address: int, information=()):
-        super().__init__(f"unhandled exception 0x{code:x} at 0x{address:x}", address)
-        self.code = code
-        self.pc = address
         if code == ddk.STATUS_ACCESS_VIOLATION and len(information) >= 2:
             # The error of the fault, as when no handler sees it
-            self.access_type = ACCESS_TYPES.get(information[0])
-            self.kind, self.address = f"invalid_{self.access_type}", information[1]
+            access_type = ACCESS_TYPES.get(information[0])
+            super().__init__(f"invalid_{access_type}", information[1], access_type, pc=address)
+        else:
+            super().__init__("unhandled_exception", address, pc=address)
+        self.code = code
 
 
 def as_long(value: int) -> int:
@@ -143,10 +141,14 @@ class Dispatch:
         raise UnhandledException(self.code, self.address, self.information)
 
 
-def dispatch_fault(emu, exception: CpuException, dispatch_exception: Dispatcher) -> bool:
+def dispatch_fault(
+    emu, exception: CpuException, dispatch_exception: Dispatcher, error: guest_callbacks.CallbackError | None = None
+) -> bool:
     """
     Dispatch a CPU exception like KiUserExceptionDispatcher: on the stack of the
     faulting thread. Return False when no handler takes it.
+
+    error is how the run ends when no handler takes it, by default an UnhandledException.
     """
     ctx = emu.get_thread_context()
     thread_context.set_control(ctx, exception.pc, thread_context.stack_pointer(ctx))
@@ -159,13 +161,18 @@ def dispatch_fault(emu, exception: CpuException, dispatch_exception: Dispatcher)
         context = guest_callbacks.alloca(emu, ctx.get_bytes())
         guest_callbacks.current(emu).context = context  # an unwind through this frame continues at the fault
         record = exception_record(emu, exception.code, 0, exception.address, exception.params)
-        return (yield from dispatch_exception(emu, guest_callbacks.alloca(emu, record), context))
+        try:
+            return (yield from dispatch_exception(emu, guest_callbacks.alloca(emu, record), context))
+        except UnhandledException:
+            if error is None:
+                raise
+            raise error from None
 
     guest_callbacks.drop_abandoned(emu, thread_context.stack_pointer(ctx))
     frame = GuestCallbackFrame(stack_pointer=thread_context.stack_pointer(ctx), return_address=0)
     try:
         guest_callbacks.start(emu, frame, dispatch())
-    except UnhandledException:
+    except guest_callbacks.CallbackError:
         emu.get_current_run().guest_callbacks.remove(frame)
         return False
     return True

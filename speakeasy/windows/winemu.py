@@ -2157,13 +2157,17 @@ class WindowsEmulator(BinaryEmulator):
         self.set_pc(exception.pc)
         self.prev_pc = exception.pc
         faulting_address = exception.params[1] if pending.access_type else None
+        error = guest_callbacks.CallbackError(
+            pending.error_type,
+            exception.address if faulting_address is None else faulting_address,
+            pending.access_type,
+            pc=exception.pc,
+            interrupt_num=pending.interrupt_num,
+        )
         dispatch = self.config.exceptions.dispatch_handlers
-        if dispatch and self.dispatch_seh(exception.code, faulting_address, pending.access_type, exception=exception):
+        if dispatch and self.dispatch_seh(exception.code, faulting_address, pending.access_type, exception, error):
             return
-        error_address = exception.address if faulting_address is None else faulting_address
-        self.curr_run.error = self.get_error_info(pending.error_type, error_address, access_type=pending.access_type)
-        self.curr_run.error.interrupt_num = pending.interrupt_num
-        self.end_run_on_fault()
+        guest_callbacks.fail(self, error)
 
     def _can_raise_api_fault(self):
         return not self.kernel_mode and self.config.exceptions.dispatch_handlers
@@ -3715,7 +3719,7 @@ class WindowsEmulator(BinaryEmulator):
 
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, exception=None):
+    def dispatch_seh(self, except_code, faulting_address=None, access_type=None, exception=None, error=None):
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3733,7 +3737,7 @@ class WindowsEmulator(BinaryEmulator):
                 if faulting_address is not None
                 else cpu_exceptions.CpuException(except_code, pc, pc)
             )
-        rv = self.exception_dispatcher().dispatch_fault(self, exception)
+        rv = self.exception_dispatcher().dispatch_fault(self, exception, error)
         if rv and faulting_address is not None:
             self._map_faulting_page_for_exception(faulting_address)
 

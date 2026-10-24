@@ -55,15 +55,15 @@ GeneratorHandler = Generator[GuestCall, int, "int | Resume | None"]
 
 
 class CallbackError(Exception):
-    """A generator handler failure that ends the run with an error of type ``kind``."""
+    """A generator handler failure: the run ends with an error of type kind at address."""
 
-    kind = "callback_error"
-    access_type: str | None = None
-    pc: int | None = None  # where the error happened, when that is not the current pc
-
-    def __init__(self, message: str, address: int):
-        super().__init__(message)
+    def __init__(self, kind: str, address: int, access_type: str | None = None, pc: int | None = None, **details):
+        super().__init__(f"{kind} at 0x{address:x}")
+        self.kind = kind
         self.address = address
+        self.access_type = access_type
+        self.pc = pc  # where the error happened, when that is not the current pc
+        self.details = details  # more fields of the run's error, such as interrupt_num
 
 
 @dataclass
@@ -87,7 +87,7 @@ def start_api_handler(emu, frame: GuestCallbackFrame, generator: GeneratorHandle
     try:
         start(emu, frame, generator)
     except CallbackError as e:
-        _fail(emu, e)
+        fail(emu, e)
     return frame.result
 
 
@@ -96,15 +96,18 @@ def resume(emu, frame: GuestCallbackFrame) -> None:
     try:
         _step(emu, frame, emu.get_return_val())
     except CallbackError as e:
-        _fail(emu, e)
+        fail(emu, e)
 
 
-def _fail(emu, e: CallbackError) -> None:
+def fail(emu, e: CallbackError) -> None:
+    """End the run with the error e describes."""
     run = emu.get_current_run()
     run.guest_callbacks.clear()
     if e.pc is not None:
         emu.set_pc(e.pc)
     run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type)
+    for name, value in e.details.items():
+        setattr(run.error, name, value)
     emu.end_run_on_fault()
 
 
