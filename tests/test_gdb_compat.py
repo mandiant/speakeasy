@@ -281,7 +281,9 @@ def test_hardware_breakpoint_range_hit_detection():
     server = make_server()
     reasons = []
     server._request_stop = reasons.append
-    server._exec_breakpoints[(0x401000, 0x2D000)] = 1
+    server._reply = lambda _payload: None
+    server._install_hooks()
+    server._change_breakpoint(b"Z1,401000,2d000")
 
     server._on_code(None, 0x401000, 1)
     server._on_code(None, 0x42DFFF, 1)

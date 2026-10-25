@@ -1099,3 +1099,20 @@ def test_gdb_step_over_store_into_own_code_page(gdb_shellcode_emulator):
     finally:
         client.close()
     assert _read_server_result(proc)["error"] is None
+
+
+# mov ecx, 0x20000; loop: mov [scratch], ecx; dec ecx; jnz loop; ret
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["b900000200890d222222224975f7c3"], indirect=True)
+def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
+    port, _, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        for i in range(2000):
+            assert client.query(f"Z0,{0x60000000 + i * 0x10:x},1") == "OK"
+        assert client.query(f"Z0,{address + 14:x},1") == "OK"
+        started = time.monotonic()
+        assert "swbreak:" in client.continue_()
+        assert time.monotonic() - started < 5
+    finally:
+        client.close()

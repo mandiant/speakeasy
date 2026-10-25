@@ -97,6 +97,9 @@ class GdbServer:
         self._resume_from_breakpoint: int | None = None
         self._resume_pc: int | None = None
         self._exec_breakpoints: dict[tuple[int, int], int] = {}
+        # The code hook runs for each instruction, so it looks up one-byte breakpoints by address.
+        self._exec_breakpoint_addresses: dict[int, int] = {}
+        self._exec_breakpoint_ranges: tuple[tuple[int, int, int], ...] = ()
         self._read_watchpoints: dict[tuple[int, int], int] = {}
         self._write_watchpoints: dict[tuple[int, int], int] = {}
         self._access_watchpoints: dict[tuple[int, int], int] = {}
@@ -403,11 +406,14 @@ class GdbServer:
         if self._resume_from_breakpoint == address:
             self._resume_from_breakpoint = None
             return True
-        for (begin, size), bp_type in tuple(self._exec_breakpoints.items()):
-            if begin <= address < begin + size:
-                kind = "swbreak" if bp_type == 0 else "hwbreak"
-                self._request_stop(StopReason(kind=kind, address=address))
-                break
+        bp_type = self._exec_breakpoint_addresses.get(address)
+        if bp_type is None:
+            bp_type = next(
+                (t for begin, size, t in self._exec_breakpoint_ranges if begin <= address < begin + size), None
+            )
+        if bp_type is not None:
+            kind = "swbreak" if bp_type == 0 else "hwbreak"
+            self._request_stop(StopReason(kind=kind, address=address))
         return True
 
     def _on_read(self, _emu: Any, _access: int, address: int, size: int, _value: int) -> bool:
@@ -550,6 +556,11 @@ class GdbServer:
                 target[key] = bp_type
             else:
                 target.pop(key, None)
+            if target is self._exec_breakpoints:
+                self._exec_breakpoint_addresses = {begin: t for (begin, length), t in target.items() if length == 1}
+                self._exec_breakpoint_ranges = tuple(
+                    (begin, length, t) for (begin, length), t in target.items() if length > 1
+                )
             self._refresh_hooks()
             self._reply(b"OK")
         except ValueError:
