@@ -766,7 +766,9 @@ class WindowsEmulator(BinaryEmulator):
             if self._pending_api_entry is not None:
                 self.set_pc(self._pending_api_entry.address)
             if kind == "timeout":
-                logger.error("* Timeout of %d sec(s) reached.", timeout)
+                # Each debugger resume of a timed out run stops at once; log only the first stop.
+                if spent < timeout:
+                    logger.error("* Timeout of %d sec(s) reached.", timeout)
             elif kind == "max_total_time":
                 logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
             else:
