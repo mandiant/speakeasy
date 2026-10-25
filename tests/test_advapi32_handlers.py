@@ -217,6 +217,32 @@ def test_reg_open_key_without_a_subkey_opens_the_key(dll_emu: Speakeasy, api: st
     assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER\\Software\\Foo")
 
 
+@pytest.mark.parametrize("subkey", [None, b"\x00"])
+def test_reg_open_key_ex_without_a_subkey_opens_a_new_handle(dll_emu: Speakeasy, subkey: bytes | None) -> None:
+    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    phk = alloc(dll_emu, b"\x00" * 4)
+    lp = alloc(dll_emu, subkey) if subkey else 0
+    rv, _ = call(dll_emu, "advapi32", "RegOpenKeyExA", [hfoo, lp, 0, 0x20006, phk])
+    h2 = _dword(dll_emu, phk)
+    assert rv == windefs.ERROR_SUCCESS and h2 != hfoo
+    assert call(dll_emu, "advapi32", "RegCloseKey", [h2])[0] == windefs.ERROR_SUCCESS
+    rv, _ = call(dll_emu, "advapi32", "RegQueryInfoKeyA", [hfoo, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert rv == windefs.ERROR_SUCCESS
+
+
+def test_reg_open_key_ex_without_a_subkey_opens_a_predefined_key(dll_emu: Speakeasy) -> None:
+    rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, 0)
+    assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER")
+
+
+@pytest.mark.parametrize("subkey", [None, b"\x00"])
+def test_reg_open_key_without_a_subkey_returns_the_same_handle(dll_emu: Speakeasy, subkey: bytes | None) -> None:
+    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    phk = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "advapi32", "RegOpenKeyA", [hfoo, alloc(dll_emu, subkey) if subkey else 0, phk])
+    assert (rv, _dword(dll_emu, phk)) == (windefs.ERROR_SUCCESS, hfoo)
+
+
 def test_reg_query_info_key_counts_subkeys_and_values(dll_emu: Speakeasy) -> None:
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bar")
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bazzz")

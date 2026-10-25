@@ -80,12 +80,13 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, lpSubKey, ulOptions, samDesired, phkResult = argv
 
-        return self.open_key(hKey, lpSubKey, phkResult, ctx)
+        return self.open_key(hKey, lpSubKey, phkResult, ctx, new_handle=True)
 
-    def open_key(self, hKey, lpSubKey, phkResult, ctx):
+    def open_key(self, hKey, lpSubKey, phkResult, ctx, new_handle=False):
         """
         Open ``lpSubKey`` below ``hKey`` and write the new handle to
-        ``phkResult``. Without a subkey, the handle is ``hKey`` itself.
+        ``phkResult``. Without a subkey, the handle is ``hKey`` itself, or
+        a new handle to the same key when ``new_handle`` is set.
         """
         rv = windefs.ERROR_SUCCESS
 
@@ -114,6 +115,9 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_FILE_NOT_FOUND
 
             self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
+        elif new_handle:
+            hnd = self.reg_open_key(hkey_name, create=False)
+            self.record_registry_access_event(hkey_name, REG_OPEN, handle=hnd)
 
         if phkResult:
             self.mem_write(phkResult, (hnd or 0).to_bytes(self.get_ptr_size(), "little"))
