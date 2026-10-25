@@ -126,6 +126,9 @@ def normalize_dll_name(name):
     elif name.lower().startswith("api-ms-win-core-commandlinetoargv"):
         ret = "shell32"
 
+    elif name.lower().startswith("api-ms-win-mm-"):
+        ret = "winmm"
+
     elif name.lower().startswith("api-ms-win-core"):
         ret = "kernel32"
 

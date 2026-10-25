@@ -2,6 +2,13 @@ import time
 
 from .. import api
 
+DRV_LOAD = 0x0001
+DRV_ENABLE = 0x0002
+DRV_DISABLE = 0x0005
+DRV_FREE = 0x0006
+DRV_INSTALL = 0x0009
+DRV_REMOVE = 0x000A
+
 
 class Winmm(api.ApiHandler):
     """
@@ -15,6 +22,16 @@ class Winmm(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
         super().__get_hook_attrs__(self)
+
+    @apihook("DefDriverProc", argc=5)
+    def DefDriverProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LRESULT DefDriverProc(DWORD_PTR dwDriverIdentifier, HDRVR hdrvr, UINT uMsg, LPARAM lParam1, LPARAM lParam2);
+        """
+        _, _, msg, _, _ = argv
+        if msg in (DRV_LOAD, DRV_ENABLE, DRV_DISABLE, DRV_FREE, DRV_INSTALL, DRV_REMOVE):
+            return 1
+        return 0
 
     @apihook("timeBeginPeriod", argc=1)
     def timeBeginPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

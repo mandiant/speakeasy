@@ -90,6 +90,16 @@ def test_normalize_dll_name_apiset_extensions():
     assert normalize_dll_name("api-ms-win-core-shlwapi-obsolete-l1-1-0") == "shlwapi"
 
 
+def test_normalize_dll_name_apiset_mm_is_winmm():
+    assert normalize_dll_name("api-ms-win-mm-misc-l1-1-0") == "winmm"
+    assert normalize_dll_name("api-ms-win-mm-misc-l1-1-1") == "winmm"
+    assert normalize_dll_name("api-ms-win-mm-misc-l2-1-0") == "winmm"
+    assert normalize_dll_name("api-ms-win-mm-mme-l1-1-0") == "winmm"
+    assert normalize_dll_name("api-ms-win-mm-time-l1-1-0") == "winmm"
+    assert normalize_dll_name("api-ms-win-mm-playsound-l1-1-0") == "winmm"
+    assert normalize_dll_name("API-MS-WIN-MM-MCI-L1-1-0") == "winmm"
+
+
 def test_normalize_dll_name_crt():
     assert normalize_dll_name("api-ms-win-crt-heap-l1-1-0") == "msvcrt"
     assert normalize_dll_name("vcruntime140") == "msvcrt"
