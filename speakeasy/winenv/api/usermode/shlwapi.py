@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 import speakeasy.winenv.arch as e_arch
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 from .shell32 import write_dll_version
@@ -105,6 +106,24 @@ class Shlwapi(api.ApiHandler):
             ctx.args["pszPath"].display = pn
 
         return rv
+
+    @apihook("PathFileExists", argc=1)
+    def PathFileExists(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL PathFileExistsA(
+            LPCSTR pszPath
+        );
+        """
+        (pszPath,) = argv
+
+        path = ""
+        if pszPath:
+            path = self.read_mem_string(pszPath, self.get_char_width(ctx))
+            ctx.args["pszPath"].display = path
+        if path and (emu.get_file_manager().is_directory(path) or self.does_file_exist(path)):
+            return 1
+        emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+        return 0
 
     @apihook("StrStr", argc=2)
     def StrStr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

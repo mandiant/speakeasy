@@ -7,7 +7,7 @@ import ntpath
 import struct
 import uuid
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -712,6 +712,29 @@ def test_path_remove_file_spec(dll_emu: Speakeasy, path: str, expected: str, rv:
     result, _ = call(dll_emu, "shlwapi", "PathRemoveFileSpec" + ("W" if width == 2 else "A"), [p])
     assert result == rv
     assert dll_emu.mem_read(p, (len(expected) + 1) * width) == wstr(expected, width)
+
+
+@pytest.fixture
+def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    files = config["filesystem"]["files"]
+    config["filesystem"]["files"] = [f for f in files if f["mode"] == "full_path"]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        yield se
+
+
+@pytest.mark.parametrize(
+    "path, exists",
+    [("c:\\nofile\\x.bin", 0), ("c:\\windows\\system32\\cmd.exe", 1), ("c:\\windows", 1)],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_file_exists(strict_fs_emu: Speakeasy, path: str, exists: int, width: int) -> None:
+    assert strict_fs_emu.emu is not None
+    strict_fs_emu.emu.set_last_error(0)
+    p = alloc(strict_fs_emu, wstr(path, width))
+    rv, _ = call(strict_fs_emu, "shlwapi", "PathFileExists" + ("W" if width == 2 else "A"), [p])
+    assert rv == exists
+    assert strict_fs_emu.emu.get_last_error() == (0 if exists else windefs.ERROR_FILE_NOT_FOUND)
 
 
 def test_ldr_get_procedure_address_without_name_or_ordinal(dll_emu: Speakeasy) -> None:
