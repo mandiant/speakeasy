@@ -120,6 +120,9 @@ def normalize_dll_name(name):
     elif name.lower().startswith("api-ms-win-core-winrt"):
         ret = "combase"
 
+    elif name.lower().startswith("api-ms-win-core-string-l2"):
+        ret = "user32"
+
     elif name.lower().startswith("api-ms-win-core"):
         ret = "kernel32"
 

@@ -333,3 +333,18 @@ def test_nt_terminate_process_ends_the_run():
         entry = se.get_report().entry_points[0]
         assert entry.error is None
         assert api_names(entry) == ["ntdll.NtTerminateProcess"]
+
+
+def test_char_next_w_from_the_string_l2_api_set_uses_user32():
+    apiset = "api-ms-win-core-string-l2-1-0.dll"
+
+    def text(base, iat):
+        return calls(32, [(apiset, "CharNextW")], prefix=b"\x68" + struct.pack("<I", base + 0x2000))(base, iat)
+
+    data, _ = build_pe(32, text=text, data="ab\0".encode("utf-16le"), imports={apiset: ["CharNextW"]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        entry = se.get_report().entry_points[0]
+        assert entry.error is None
+        assert entry.ret_val == module.base + 0x2002
