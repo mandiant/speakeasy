@@ -534,3 +534,21 @@ def test_rtl_ipv4_address_to_string_writes_dotted_decimal(dll_emu: Speakeasy, ap
     rv, _ = call(dll_emu, "ntdll", api, [addr, out])
     assert rv == out + len(text) * width
     assert dll_emu.mem_read(out, (len(text) + 1) * width) == (text + "\0").encode(enc)
+
+
+@pytest.mark.parametrize("module", ["main", "kernel32"])
+def test_rtl_pc_to_file_header_returns_the_module_base(dll_emu: Speakeasy, module: str) -> None:
+    assert dll_emu.emu is not None
+    mod = dll_emu.emu.modules[0] if module == "main" else dll_emu.emu.get_mod_by_name(module)
+    out = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "ntdll", "RtlPcToFileHeader", [mod.base + 0x10, out])
+    assert rv == mod.base
+    assert int.from_bytes(dll_emu.mem_read(out, dll_emu.emu.get_ptr_size()), "little") == mod.base
+
+
+def test_rtl_pc_to_file_header_returns_null_outside_modules(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    out = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "ntdll", "RtlPcToFileHeader", [0x10, out])
+    assert rv == 0
+    assert int.from_bytes(dll_emu.mem_read(out, dll_emu.emu.get_ptr_size()), "little") == 0
