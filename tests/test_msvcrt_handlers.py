@@ -6,6 +6,7 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
+from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
     EINVAL,
@@ -14,6 +15,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     SIG_DFL,
     SIG_ERR,
     SIG_IGN,
+    SIGFPE,
     SIGINT,
     SIGSEGV,
     STRUNCATE,
@@ -377,6 +379,32 @@ def test_signal_returns_the_previous_handler_of_each_signal(dll_emu: Speakeasy) 
 
 def test_signal_rejects_an_unknown_signal(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "signal", [5, SIG_IGN])[0] == SIG_ERR
+
+
+@pytest.mark.parametrize("api", ["_seh_filter_exe", "_seh_filter_dll"])
+@pytest.mark.parametrize("code", [0xE06D7363, 0x80000003, 0xC0000005, 0xC000001D, 0xC000008E])
+def test_seh_filter_continues_the_search_without_a_signal_action(dll_emu: Speakeasy, api: str, code: int) -> None:
+    assert call(dll_emu, "msvcrt", api, [code, 0])[0] == 0
+
+
+def test_seh_filter_exe_continues_execution_for_an_ignored_signal(dll_emu: Speakeasy) -> None:
+    call(dll_emu, "msvcrt", "signal", [SIGSEGV, SIG_IGN])
+    assert call(dll_emu, "msvcrt", "_seh_filter_exe", [0xC0000005, 0])[0] == 0xFFFFFFFF
+    assert call(dll_emu, "msvcrt", "_seh_filter_exe", [0xC000001D, 0])[0] == 0
+    assert call(dll_emu, "msvcrt", "_seh_filter_dll", [0xC0000005, 0])[0] == 0
+
+
+@pytest.mark.parametrize("code, sig, args", [(0xC0000005, SIGSEGV, (SIGSEGV,)), (0xC000008E, SIGFPE, (SIGFPE, 0x83))])
+def test_seh_filter_exe_calls_the_signal_handler_once(
+    dll_emu: Speakeasy, code: int, sig: int, args: tuple[int, ...]
+) -> None:
+    call(dll_emu, "msvcrt", "signal", [sig, 0x401000])
+    handler, _ = call(dll_emu, "msvcrt", "_seh_filter_exe", [code, 0])
+    assert next(handler) == GuestCall(0x401000, args)
+    with pytest.raises(StopIteration) as done:
+        handler.send(0)
+    assert done.value.value == 0xFFFFFFFF
+    assert call(dll_emu, "msvcrt", "signal", [sig, SIG_DFL])[0] == SIG_DFL
 
 
 @pytest.mark.parametrize("c", [0xFFFFFFE2, 0xE2])

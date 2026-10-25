@@ -54,6 +54,22 @@ SIG_SGE = 3  # signal gets error
 SIG_ACK = 4  # acknowledge
 SIG_ERR = -1  # signal error value
 
+# The exceptions that the CRT exception filter maps to a signal, with the _FPE_* code it passes to a SIGFPE handler
+EXCEPTION_SIGNALS = {
+    0xC0000005: (SIGSEGV, 0),  # STATUS_ACCESS_VIOLATION
+    0xC000001D: (SIGILL, 0),  # STATUS_ILLEGAL_INSTRUCTION
+    0xC0000096: (SIGILL, 0),  # STATUS_PRIVILEGED_INSTRUCTION
+    0xC000008D: (SIGFPE, 0x82),  # STATUS_FLOAT_DENORMAL_OPERAND
+    0xC000008E: (SIGFPE, 0x83),  # STATUS_FLOAT_DIVIDE_BY_ZERO
+    0xC000008F: (SIGFPE, 0x86),  # STATUS_FLOAT_INEXACT_RESULT
+    0xC0000090: (SIGFPE, 0x81),  # STATUS_FLOAT_INVALID_OPERATION
+    0xC0000091: (SIGFPE, 0x84),  # STATUS_FLOAT_OVERFLOW
+    0xC0000092: (SIGFPE, 0x8A),  # STATUS_FLOAT_STACK_CHECK
+    0xC0000093: (SIGFPE, 0x85),  # STATUS_FLOAT_UNDERFLOW
+    0xC00002B4: (SIGFPE, 0x8D),  # STATUS_FLOAT_MULTIPLE_FAULTS
+    0xC00002B5: (SIGFPE, 0x8E),  # STATUS_FLOAT_MULTIPLE_TRAPS
+}
+
 # Messages of the errno values 0 to 42, in _sys_errlist order
 SYS_ERRLIST = [
     "No error",
@@ -1758,9 +1774,20 @@ class Msvcrt(api.ApiHandler):
         );
         """
         except_num, exc_ptr = argv
-        rv = 1
+        if except_num not in EXCEPTION_SIGNALS:
+            return windef.EXCEPTION_CONTINUE_SEARCH
+        sig, fpe_code = EXCEPTION_SIGNALS[except_num]
+        action = self.signal_handlers.get(sig, SIG_DFL)
+        if action == SIG_DFL:
+            return windef.EXCEPTION_CONTINUE_SEARCH
+        if action == SIG_IGN:
+            return windef.EXCEPTION_CONTINUE_EXECUTION
+        self.signal_handlers[sig] = SIG_DFL
+        return self.call_signal_handler(action, (sig, fpe_code) if sig == SIGFPE else (sig,))
 
-        return rv
+    def call_signal_handler(self, handler, args):
+        yield GuestCall(handler, args)
+        return windef.EXCEPTION_CONTINUE_EXECUTION
 
     @apihook("__C_specific_handler", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1795,9 +1822,8 @@ class Msvcrt(api.ApiHandler):
         );
         """
         except_num, exc_ptr = argv
-        rv = 1
-
-        return rv
+        # Only C++ exceptions go on to _seh_filter_exe, and no signal maps to them
+        return windef.EXCEPTION_CONTINUE_SEARCH
 
     @apihook("puts", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def puts(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
