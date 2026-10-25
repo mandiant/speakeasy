@@ -96,7 +96,16 @@ class Shell32(api.ApiHandler):
 
     def get_folder_path(self, emu, csidl):
         path = shell32_defs.CSIDL_PATHS.get(csidl, "C:\\Windows\\Temp")
+        if emu.get_ptr_size() == 8:
+            path = shell32_defs.CSIDL_PATHS_X64.get(csidl, path)
         return path.format(user=emu.config.user.name)
+
+    def get_known_folder(self, emu, rfid):
+        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
+        folder = shell32_defs.KNOWN_FOLDERS.get(guid)
+        if emu.get_ptr_size() == 8:
+            folder = shell32_defs.KNOWN_FOLDERS_X64.get(guid, folder)
+        return guid, folder
 
     def new_pidl(self, path):
         """
@@ -369,8 +378,7 @@ class Shell32(api.ApiHandler):
         );
         """
         rfid, _flags, _token, ppidl = argv
-        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
-        folder = shell32_defs.KNOWN_FOLDERS.get(guid)
+        guid, folder = self.get_known_folder(emu, rfid)
         ctx.args["rfid"].display = folder[0] if folder else guid
         pidl = self.new_pidl(folder[1].format(user=emu.config.user.name)) if folder else 0
         if ppidl:
@@ -406,8 +414,7 @@ class Shell32(api.ApiHandler):
         );
         """
         rfid, _flags, _token, ppszPath = argv
-        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
-        folder = shell32_defs.KNOWN_FOLDERS.get(guid)
+        guid, folder = self.get_known_folder(emu, rfid)
         ctx.args["rfid"].display = folder[0] if folder else guid
         ptr = 0
         if folder:

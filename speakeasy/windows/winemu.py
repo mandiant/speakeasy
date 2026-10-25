@@ -1751,6 +1751,11 @@ class WindowsEmulator(BinaryEmulator):
                 self.arch = _arch.ARCH_X86
             self.set_ptr_size(self.arch)
             self.env.setdefault("processor_architecture", "AMD64" if self.arch == _arch.ARCH_AMD64 else "x86")
+            if self.arch == _arch.ARCH_AMD64:
+                program_files = self.env.get("programfiles", "C:\\Program Files")
+                self.env.setdefault("programfiles(x86)", f"{program_files} (x86)")
+                self.env.setdefault("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files")
+                self.env.setdefault("programw6432", program_files)
 
         if self.emu_eng and not self.emu_eng.emu:
             engine_arch = image.arch if valid_arch else _arch.ARCH_X86

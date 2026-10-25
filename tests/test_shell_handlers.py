@@ -164,6 +164,65 @@ def test_sh_get_known_folder_path_allocates_the_path(dll_emu: Speakeasy, folder:
     assert read_wstr(dll_emu, path) == expected.format(user=dll_emu.emu.config.user.name)
 
 
+@pytest.mark.parametrize(
+    ("fixture", "csidl", "expected"),
+    [
+        ("dll_emu", 0x2A, "C:\\Program Files"),
+        ("dll_emu", 0x2C, "C:\\Program Files\\Common Files"),
+        ("dll64_emu", 0x2A, "C:\\Program Files (x86)"),
+        ("dll64_emu", 0x2C, "C:\\Program Files (x86)\\Common Files"),
+        ("dll64_emu", 0x26, "C:\\Program Files"),
+    ],
+)
+def test_sh_get_folder_path_gives_the_x86_program_files_of_the_os(
+    request: pytest.FixtureRequest, fixture: str, csidl: int, expected: str
+) -> None:
+    se = request.getfixturevalue(fixture)
+    out = alloc(se, b"\x00" * 520)
+    rv, _ = call(se, "shell32", "SHGetFolderPathW", [0, csidl, 0, 0, out])
+    assert rv == 0
+    assert read_wstr(se, out) == expected
+
+
+@pytest.mark.parametrize(
+    ("fixture", "folder", "expected"),
+    [
+        ("dll_emu", "7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e", "C:\\Program Files"),
+        ("dll_emu", "de974d24-d9c6-4d3e-bf91-f4455120b917", "C:\\Program Files\\Common Files"),
+        ("dll64_emu", "7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e", "C:\\Program Files (x86)"),
+        ("dll64_emu", "de974d24-d9c6-4d3e-bf91-f4455120b917", "C:\\Program Files (x86)\\Common Files"),
+    ],
+)
+def test_sh_get_known_folder_path_gives_the_x86_program_files_of_the_os(
+    request: pytest.FixtureRequest, fixture: str, folder: str, expected: str
+) -> None:
+    se = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    rfid = alloc(se, uuid.UUID(folder).bytes_le)
+    out = alloc(se, b"\xcc" * ptr_size)
+    rv, _ = call(se, "shell32", "SHGetKnownFolderPath", [rfid, 0, 0, out])
+    assert rv == 0
+    assert read_wstr(se, int.from_bytes(se.mem_read(out, ptr_size), "little")) == expected
+
+
+def test_x64_environment_names_the_x86_program_files(dll64_emu: Speakeasy) -> None:
+    out = alloc(dll64_emu, b"\x00" * 520)
+    for name, expected in (
+        ("ProgramFiles(x86)", "C:\\Program Files (x86)"),
+        ("CommonProgramFiles(x86)", "C:\\Program Files (x86)\\Common Files"),
+        ("ProgramW6432", "C:\\Program Files"),
+    ):
+        rv, _ = call(dll64_emu, "kernel32", "GetEnvironmentVariableA", [alloc(dll64_emu, wstr(name, 1)), out, 520])
+        assert dll64_emu.mem_read(out, rv) == expected.encode()
+
+
+def test_x86_environment_has_no_x86_program_files(dll_emu: Speakeasy) -> None:
+    out = alloc(dll_emu, b"\x00" * 520)
+    rv, _ = call(dll_emu, "kernel32", "GetEnvironmentVariableA", [alloc(dll_emu, b"ProgramFiles(x86)\x00"), out, 520])
+    assert rv == 0
+
+
 def test_sh_get_known_folder_path_fails_for_an_unknown_folder(dll_emu: Speakeasy) -> None:
     rfid = alloc(dll_emu, uuid.UUID("00000000-1111-2222-3333-444444444444").bytes_le)
     out = alloc(dll_emu, b"\xcc" * 4)

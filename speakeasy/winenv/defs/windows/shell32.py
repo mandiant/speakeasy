@@ -103,6 +103,12 @@ CSIDL_PATHS = {
     0x30: "C:\\Users\\{user}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Administrative Tools",
 }
 
+# A 64-bit OS keeps 32-bit programs apart from the native Program Files
+CSIDL_PATHS_X64 = {
+    0x2A: "C:\\Program Files (x86)",
+    0x2C: "C:\\Program Files (x86)\\Common Files",
+}
+
 KNOWN_FOLDERS = {
     "62AB5D82-FDC1-4DC3-A9DD-070D1D495D97": ("FOLDERID_ProgramData", "C:\\ProgramData"),
     "3EB685DB-65F9-4CF6-A03A-E3EF65729F3D": ("FOLDERID_RoamingAppData", "C:\\Users\\{user}\\AppData\\Roaming"),
@@ -121,8 +127,18 @@ KNOWN_FOLDERS = {
         "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
     ),
     "905E63B6-C1BF-494E-B29C-65B732D3D21A": ("FOLDERID_ProgramFiles", "C:\\Program Files"),
+    "7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E": ("FOLDERID_ProgramFilesX86", "C:\\Program Files"),
+    "DE974D24-D9C6-4D3E-BF91-F4455120B917": ("FOLDERID_ProgramFilesCommonX86", "C:\\Program Files\\Common Files"),
     "F38BF404-1D43-42F2-9305-67DE0B28FC23": ("FOLDERID_Windows", "C:\\Windows"),
     "1AC14E77-02E7-4E5D-B744-2EB1AE5198B7": ("FOLDERID_System", "C:\\Windows\\System32"),
+}
+
+KNOWN_FOLDERS_X64 = {
+    "7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E": ("FOLDERID_ProgramFilesX86", "C:\\Program Files (x86)"),
+    "DE974D24-D9C6-4D3E-BF91-F4455120B917": (
+        "FOLDERID_ProgramFilesCommonX86",
+        "C:\\Program Files (x86)\\Common Files",
+    ),
 }
 
 
