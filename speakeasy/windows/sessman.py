@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -73,6 +74,14 @@ class Desktop(GuiObject):
         return window
 
 
+@dataclass
+class ListViewColumn:
+    fmt: int
+    cx: int
+    text: str
+    sub_item: int
+
+
 class Window(GuiObject):
     """
     Represents a GUI window
@@ -89,6 +98,7 @@ class Window(GuiObject):
         self.thread_id: int = thread_id
         self.process_id: int = process_id
         self.props: dict[int | str, int] = {}
+        self.lv_columns: list[ListViewColumn] = []
 
 
 class WindowClass(GuiObject):

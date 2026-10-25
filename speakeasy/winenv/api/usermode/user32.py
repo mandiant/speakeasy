@@ -36,6 +36,16 @@ IDI_WINLOGO = 32517
 
 UOI_FLAGS = 1
 
+LIST_VIEW_COLUMN_MESSAGES = (
+    windefs.LVM_INSERTCOLUMNA,
+    windefs.LVM_INSERTCOLUMNW,
+    windefs.LVM_GETCOLUMNA,
+    windefs.LVM_GETCOLUMNW,
+    windefs.LVM_GETCOLUMNWIDTH,
+    windefs.LVM_SETCOLUMNWIDTH,
+    windefs.LVM_DELETECOLUMN,
+)
+
 GWL_WNDPROC = -4
 GWL_STYLE = -16
 
@@ -816,10 +826,62 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, Msg, wParam, lParam = argv
+        window = self.sessman.get_window(hWnd)
+        if window and isinstance(window.class_name, str) and window.class_name.lower() == "syslistview32":
+            if Msg in LIST_VIEW_COLUMN_MESSAGES:
+                return self.send_list_view_column_message(emu, window, Msg, wParam, lParam)
         if hWnd in self.wndprocs:
             emu.set_pc(self.wndprocs[hWnd])
 
         return False
+
+    def send_list_view_column_message(self, emu, window, msg, wparam, lparam):
+        """Keep the columns of a list-view control as comctl32 does for the LVM_*COLUMN* messages."""
+        columns = window.lv_columns
+        index = ctypes.c_int32(wparam).value
+        if msg in (windefs.LVM_INSERTCOLUMNA, windefs.LVM_INSERTCOLUMNW):
+            if not lparam or index < 0:
+                return -1
+            col = self.mem_cast(windefs.LVCOLUMN(emu.get_ptr_size()), lparam)
+            index = min(index, len(columns))
+            text = ""
+            if col.mask & windefs.LVCF_TEXT and col.pszText:
+                text = self.read_mem_string(col.pszText, 1 if msg == windefs.LVM_INSERTCOLUMNA else 2)
+            columns.insert(
+                index,
+                sessman.ListViewColumn(
+                    fmt=col.fmt if col.mask & windefs.LVCF_FMT else 0,
+                    cx=col.cx if col.mask & windefs.LVCF_WIDTH else 0,
+                    text=text,
+                    sub_item=col.iSubItem if col.mask & windefs.LVCF_SUBITEM else index,
+                ),
+            )
+            return index
+        if not 0 <= index < len(columns):
+            return 0
+        column = columns[index]
+        if msg in (windefs.LVM_GETCOLUMNA, windefs.LVM_GETCOLUMNW):
+            if not lparam:
+                return False
+            col = self.mem_cast(windefs.LVCOLUMN(emu.get_ptr_size()), lparam)
+            if col.mask & windefs.LVCF_FMT:
+                col.fmt = column.fmt
+            if col.mask & windefs.LVCF_WIDTH:
+                col.cx = column.cx
+            if col.mask & windefs.LVCF_SUBITEM:
+                col.iSubItem = column.sub_item
+            self.mem_write(lparam, col.get_bytes())
+            if col.mask & windefs.LVCF_TEXT and col.pszText and col.cchTextMax > 0:
+                cw = 1 if msg == windefs.LVM_GETCOLUMNA else 2
+                self.write_mem_string(column.text[: col.cchTextMax - 1], col.pszText, cw)
+            return True
+        if msg == windefs.LVM_GETCOLUMNWIDTH:
+            return column.cx
+        if msg == windefs.LVM_SETCOLUMNWIDTH:
+            column.cx = ctypes.c_int16(lparam).value
+            return True
+        del columns[index]
+        return True
 
     @apihook("CallNextHookEx", argc=4)
     def CallNextHookEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

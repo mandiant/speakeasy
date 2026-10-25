@@ -877,3 +877,59 @@ def test_call_window_proc_returns_the_previous_procedure_result(config: dict) ->
 
         assert se.get_report().entry_points[0].error is None
         assert struct.unpack("<3I", se.mem_read(data, 12)) == (0x1234, 0x111, 0)
+
+
+LVM_GETCOLUMNA = 0x1019
+LVM_INSERTCOLUMNA = 0x101B
+LVM_DELETECOLUMN = 0x101C
+LVM_GETCOLUMNWIDTH = 0x101D
+LVM_SETCOLUMNWIDTH = 0x101E
+LVM_GETCOLUMNW = 0x105F
+LVCF_FMT = 1
+LVCF_WIDTH = 2
+LVCF_TEXT = 4
+LVCF_SUBITEM = 8
+
+
+def lvcolumn(ptr_size: int, mask: int, fmt: int = 0, cx: int = 0, text: int = 0, cch: int = 0, sub: int = 0) -> bytes:
+    if ptr_size == 4:
+        return struct.pack("<IiiIiiii", mask, fmt, cx, text, cch, sub, 0, 0)
+    return struct.pack("<IiiIQiiii", mask, fmt, cx, 0, text, cch, sub, 0, 0)
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_list_view_columns_keep_their_widths(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    ps = se.emu.get_ptr_size()
+    hwnd, _ = call(se, "user32", "CreateWindowExA", [0, alloc(se, b"SysListView32\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    name = alloc(se, b"Name\x00")
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 0, alloc(se, lvcolumn(ps, 7, 0, 150, name))])
+    assert rv == 0
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 5, alloc(se, lvcolumn(ps, 3, 1, 100))])
+    assert rv == 1
+
+    col = alloc(se, lvcolumn(ps, LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM))
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNA, 0, col])
+    assert rv == 1
+    assert se.mem_read(col, len(lvcolumn(ps, 0))) == lvcolumn(ps, LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM, 0, 150)
+
+    buf = alloc(se, b"\xcc" * 16)
+    col = alloc(se, lvcolumn(ps, LVCF_TEXT, text=buf, cch=16))
+    rv, _ = call(se, "user32", "SendMessageW", [hwnd, LVM_GETCOLUMNW, 0, col])
+    assert rv == 1
+    assert se.mem_read(buf, 10) == "Name\x00".encode("utf-16le")
+
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNWIDTH, 1, 0])
+    assert rv == 100
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_SETCOLUMNWIDTH, 1, 80])
+    assert rv == 1
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNWIDTH, 1, 0])
+    assert rv == 80
+
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_DELETECOLUMN, 0, 0])
+    assert rv == 1
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNWIDTH, 0, 0])
+    assert rv == 80
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNA, 1, col])
+    assert rv == 0

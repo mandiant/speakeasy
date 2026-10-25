@@ -29,6 +29,19 @@ WM_NCCREATE = 0x81
 
 WM_INITDIALOG = 0x0110
 
+LVM_GETCOLUMNA = 0x1019
+LVM_INSERTCOLUMNA = 0x101B
+LVM_DELETECOLUMN = 0x101C
+LVM_GETCOLUMNWIDTH = 0x101D
+LVM_SETCOLUMNWIDTH = 0x101E
+LVM_GETCOLUMNW = 0x105F
+LVM_INSERTCOLUMNW = 0x1061
+
+LVCF_FMT = 0x1
+LVCF_WIDTH = 0x2
+LVCF_TEXT = 0x4
+LVCF_SUBITEM = 0x8
+
 RIM_TYPEMOUSE = 0
 RIM_TYPEKEYBOARD = 1
 RIM_TYPEHID = 2
@@ -61,6 +74,17 @@ class CREATESTRUCT(EmuStruct):
         self.lpszName = Ptr
         self.lpszClass = Ptr
         self.dwExStyle = ct.c_uint32
+
+
+class LVCOLUMN(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.mask = ct.c_uint32
+        self.fmt = ct.c_int32
+        self.cx = ct.c_int32
+        self.pszText = Ptr
+        self.cchTextMax = ct.c_int32
+        self.iSubItem = ct.c_int32
 
 
 class KBDLLHOOKSTRUCT(EmuStruct):
