@@ -533,6 +533,9 @@ class GdbServer:
             self._reply(b"OK")
             return ResumeAction(detach=True)
         elif payload == b"k":
+            # The protocol gives k no reply, but lldb waits for an exit reply
+            # as lldb-server sends one. gdb does not read it.
+            self._reply(b"X09")
             return ResumeAction(kill=True)
         elif payload.startswith(b"vKill"):
             self._reply(b"OK")

@@ -733,6 +733,15 @@ def test_gdb_detach(gdb_pause_emulator):
         client.close()
 
 
+def test_gdb_kill_replies_with_an_exit_before_it_closes(gdb_pause_emulator):
+    client = GdbRspClient(gdb_pause_emulator)
+    try:
+        client.query_halt_reason()
+        assert client.query("k") == "X09"
+    finally:
+        client.close()
+
+
 def test_gdb_reports_target_fault_and_nonzero_termination(gdb_fault_emulator):
     port, proc = gdb_fault_emulator
     client = GdbRspClient(port)

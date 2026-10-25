@@ -366,7 +366,7 @@ def test_software_and_hardware_breakpoints_at_one_address_are_separate():
     assert [r.kind for r in reasons] == ["hwbreak"]
 
 
-def test_vkill_replies_ok_and_k_does_not():
+def test_vkill_replies_ok_and_k_replies_with_an_exit():
     server = make_server()
     replies = []
     server._reply = replies.append
@@ -374,7 +374,7 @@ def test_vkill_replies_ok_and_k_does_not():
     assert server._handle_command(b"vKill;1").kill
     assert replies == [b"OK"]
     assert server._handle_command(b"k").kill
-    assert replies == [b"OK"]
+    assert replies == [b"OK", b"X09"]
 
 
 def test_x87_control_registers_read_and_write_the_cpu_state():
