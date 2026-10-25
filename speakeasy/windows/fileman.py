@@ -350,16 +350,26 @@ class FileManager:
         return ntpath.normpath(ntpath.join(self.config.current_dir, path))
 
     def get_file_from_path(self, path):
-        # The emulated sample is requesting itself. The module path
-        # for it is(?) always the first entry in self.files
-        if self.emulated_binname in path:
-            return self.files[0]
-
         path = self.get_full_path(path)
         for f in self.files:
             if f.path.lower() == path.lower():
                 return f
+        if self.is_image_alias(path):
+            return self.files[0]
         return None
+
+    def is_image_alias(self, path):
+        """
+        Test if a full path names the sample by the program name of the command line.
+        The sample is the first file. The name refers to it only when the sample is the
+        image of the current process, so not in a DLL run.
+        """
+        if not self.emulated_binname or not self.files:
+            return False
+        if path.lower() != self.get_full_path(self.emulated_binname).lower():
+            return False
+        proc = self.emu.get_current_process()
+        return proc is not None and (proc.path or "").lower() == self.files[0].path.lower()
 
     def add_existing_file(self, path, data):
         """

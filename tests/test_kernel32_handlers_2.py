@@ -963,3 +963,31 @@ def test_win_exec_parses_the_command_line(emu: Speakeasy) -> None:
     cmd = alloc(emu, f'"{PROGRAM_FILES_APP}" --x\x00'.encode())
     assert call(emu, "kernel32", "WinExec", [cmd, 1])[0] == 32
     assert emu.emu.processes[-1].path == PROGRAM_FILES_APP
+
+
+def get_open_file_size(se: Speakeasy, path: str) -> int:
+    hnd = open_file(se, path)
+    assert hnd
+    return call(se, "kernel32", "GetFileSize", [hnd, 0])[0]
+
+
+def test_the_host_exe_of_a_dll_run_is_not_the_sample(emu: Speakeasy, load_test_bin: Callable[[str], bytes]) -> None:
+    buf = alloc(emu, b"\x00" * 260)
+    size, _ = call(emu, "kernel32", "GetModuleFileNameA", [0, buf, 260])
+    host = emu.mem_read(buf, size).decode()
+
+    dll_size = len(load_test_bin("dll_test_x86.dll.xz"))
+    assert get_open_file_size(emu, host) != dll_size
+    assert get_open_file_size(emu, "svchost.exe") != dll_size
+    assert get_open_file_size(emu, "C:\\Windows\\system32\\svchost.exe.log") != dll_size
+
+
+def test_an_exe_finds_itself_by_its_command_line_name(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    data = load_test_bin("argv_test_x86.exe.xz")
+    for se in load_emu(config, data):
+        start_process(se)
+        assert get_open_file_size(se, "svchost.exe") == len(data)
+        assert get_open_file_size(se, "C:\\Windows\\system32\\svchost.exe") == len(data)
+        assert get_open_file_size(se, "C:\\Windows\\system32\\svchost.exe.log") != len(data)
