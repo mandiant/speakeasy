@@ -7,6 +7,10 @@ from speakeasy import Speakeasy
 CASES = [
     ("pow", (2.0, 10.0), 1024.0),
     ("floor", (-2.5,), -3.0),
+    ("ceil", (-2.5,), -2.0),
+    ("ceil", (2.25,), 3.0),
+    ("ceil", (float("inf"),), float("inf")),
+    ("floor", (float("-inf"),), float("-inf")),
     ("sin", (0.0,), 0.0),
     ("fmod", (5.5, 2.0), 1.5),
 ]
@@ -82,3 +86,31 @@ def test_float_functions_take_and_return_doubles_per_architecture(session, api, 
     result, stack_change = struct.unpack("<dI", se.mem_read(out, 12))
     assert result == expected
     assert stack_change == 0
+
+
+@pytest.mark.parametrize(
+    ("api", "value", "expected"), [("ceilf", 2.25, 3.0), ("floorf", -2.5, -3.0), ("ceilf", float("inf"), float("inf"))]
+)
+def test_single_precision_functions_use_xmm0_on_amd64(config, api, value, expected):
+    config["timeout"] = 2
+    config["max_api_count"] = 200
+    se = Speakeasy(config=config)
+    try:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="amd64"))
+        out = se.mem_alloc(0x1000)
+        se.mem_write(out, struct.pack("<f", value))
+        function = se.emu.get_proc("msvcrt", api)
+        code = (
+            b"\x48\xb8"
+            + struct.pack("<Q", out)
+            + b"\xf3\x0f\x10\x00\x48\x83\xec\x28\x48\xb8"
+            + struct.pack("<Q", function)
+            + b"\xff\xd0\x48\x83\xc4\x28\x48\xb8"
+            + struct.pack("<Q", out)
+            + b"\xf3\x0f\x11\x00\xc3"
+        )
+        se.call(write_code(se, code))
+        assert se.get_report().entry_points[-1].error is None
+        assert struct.unpack("<f", se.mem_read(out, 4))[0] == expected
+    finally:
+        se.shutdown()

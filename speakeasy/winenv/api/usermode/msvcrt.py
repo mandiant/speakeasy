@@ -194,6 +194,11 @@ def get_c_locale_ctype(c: int) -> int:
 C_LOCALE_CTYPE = [get_c_locale_ctype(c) for c in range(256)]
 
 
+def get_rounded(x: float, func) -> float:
+    """Round with math.floor or math.ceil; infinities and NaN round to themselves."""
+    return float(func(x)) if math.isfinite(x) else x
+
+
 def get_scanf_set(spec: bytes) -> tuple[set[int], bool]:
     """Return the bytes of a %[...] set and whether the set is negated."""
     negate = spec.startswith(b"[^")
@@ -1001,10 +1006,40 @@ class Msvcrt(api.ApiHandler):
         (x,) = argv
 
         y = self.hex_to_double(x)
-        z = math.floor(y)
-        z = self.double_to_hex(z)
+        z = self.double_to_hex(get_rounded(y, math.floor))
 
         return z
+
+    @apihook("ceil", argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def ceil(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        double ceil(
+           double x
+        );
+        """
+        (x,) = argv
+        return self.double_to_hex(get_rounded(self.hex_to_double(x), math.ceil))
+
+    def round_single(self, emu, bits, func):
+        """
+        Apply func to a float argument. x64 returns a float in xmm0; x86
+        returns it in ST(0), which holds it as a double.
+        """
+        x = struct.unpack("<f", (bits & 0xFFFFFFFF).to_bytes(4, "little"))[0]
+        y = get_rounded(x, func)
+        if emu.get_arch() == e_arch.ARCH_X86:
+            return self.double_to_hex(y)
+        return int.from_bytes(struct.pack("<f", y), "little")
+
+    @apihook("ceilf", argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def ceilf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """float ceilf(float x);"""
+        return self.round_single(emu, argv[0], math.ceil)
+
+    @apihook("floorf", argc=1, conv=e_arch.CALL_CONV_FLOAT)
+    def floorf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """float floorf(float x);"""
+        return self.round_single(emu, argv[0], math.floor)
 
     @apihook("fmod", argc=2, conv=e_arch.CALL_CONV_FLOAT)
     def fmod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
