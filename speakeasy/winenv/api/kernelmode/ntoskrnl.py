@@ -2651,10 +2651,29 @@ class Ntoskrnl(api.ApiHandler):
                     # Send back that we are not in WOW64
                     self.mem_write(proc_info, (0).to_bytes(ptr_size, "little"))
                     nts = ddk.STATUS_SUCCESS
+            elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugPort:
+                # No debugger is attached
+                nts = self.write_process_info(proc_info, proc_info_len, retlen, 0, ptr_size)
+            elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugFlags:
+                nts = self.write_process_info(proc_info, proc_info_len, retlen, 1, 4)
             elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle:
-                nts = ddk.STATUS_PORT_NOT_SET
+                nts = self.write_process_info(proc_info, proc_info_len, retlen, 0, ptr_size)
+                if nts == ddk.STATUS_SUCCESS:
+                    nts = ddk.STATUS_PORT_NOT_SET
 
         return nts
+
+    def write_process_info(self, proc_info, proc_info_len, retlen, value, size):
+        """
+        Write a fixed-size ZwQueryInformationProcess result. Windows requires
+        the exact length for these classes.
+        """
+        if proc_info_len != size:
+            return ddk.STATUS_INFO_LENGTH_MISMATCH
+        self.mem_write(proc_info, value.to_bytes(size, "little"))
+        if retlen:
+            self.mem_write(retlen, size.to_bytes(4, "little"))
+        return ddk.STATUS_SUCCESS
 
     @apihook("IoGetCurrentProcess", argc=0)
     def IoGetCurrentProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -123,6 +123,7 @@ PROCESSINFOCLASS.ProcessWow64Information = 0x1A
 PROCESSINFOCLASS.ProcessImageFileName = 0x1B
 PROCESSINFOCLASS.ProcessBreakOnTermination = 0x1D
 PROCESSINFOCLASS.ProcessDebugObjectHandle = 0x1E
+PROCESSINFOCLASS.ProcessDebugFlags = 0x1F
 PROCESSINFOCLASS.ProcessProtectionInformation = 0x3D
 
 
