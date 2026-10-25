@@ -153,6 +153,46 @@ SCANF_SPEC = re.compile(rb"%(\*?)(\d*)(hh|h|ll|l|L|I64|I32|I|j|z|t)?([%diouxXpne
 SCANF_FLOAT = re.compile(rb"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
 SCANF_SPACE = b" \t\n\v\f\r"
 
+_UPPER, _LOWER, _DIGIT, _SPACE, _PUNCT, _CONTROL, _BLANK, _HEX, _ALPHA = (
+    0x1,
+    0x2,
+    0x4,
+    0x8,
+    0x10,
+    0x20,
+    0x40,
+    0x80,
+    0x100,
+)
+
+
+def get_c_locale_ctype(c: int) -> int:
+    """Return the _pctype flags of a character in the C locale."""
+    ch = chr(c)
+    if c >= 0x80:
+        return 0
+    flags = 0
+    if ch.isupper():
+        flags |= _UPPER | _ALPHA
+    if ch.islower():
+        flags |= _LOWER | _ALPHA
+    if ch.isdigit():
+        flags |= _DIGIT
+    if ch in "0123456789abcdefABCDEF":
+        flags |= _HEX
+    if c in SCANF_SPACE:
+        flags |= _SPACE
+    if c < 0x20 or c == 0x7F:
+        flags |= _CONTROL
+    if ch in " \t":
+        flags |= _BLANK
+    if 0x20 < c < 0x7F and not ch.isalnum():
+        flags |= _PUNCT
+    return flags
+
+
+C_LOCALE_CTYPE = [get_c_locale_ctype(c) for c in range(256)]
+
 
 def get_scanf_set(spec: bytes) -> tuple[set[int], bool]:
     """Return the bytes of a %[...] set and whether the set is negated."""
@@ -337,6 +377,7 @@ class Msvcrt(api.ApiHandler):
         self.signal_handlers: dict[int, int] = {}
         self.lconv: int | None = None
         self.locale_name: int | None = None
+        self.pctype_table: int | None = None
         self.strerror_buf: int | None = None
         self.lc_locale_names: int | None = None
         self.iob: int | None = None
@@ -2775,6 +2816,121 @@ class Msvcrt(api.ApiHandler):
         """
         (c,) = argv
         return int(chr(c & 0xFFFF).isalpha())
+
+    def get_ctype(self, c, mask):
+        c &= 0xFFFFFFFF
+        return C_LOCALE_CTYPE[c] & mask if c < 0x100 else 0
+
+    @apihook("_isctype", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _isctype(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _isctype(int c, int desc);"""
+        c, mask = argv
+        return self.get_ctype(c, mask)
+
+    @apihook("isalnum", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isalnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isalnum(int c);"""
+        return self.get_ctype(argv[0], _ALPHA | _DIGIT)
+
+    @apihook("isalpha", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isalpha(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isalpha(int c);"""
+        return self.get_ctype(argv[0], _ALPHA)
+
+    @apihook("isupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isupper(int c);"""
+        return self.get_ctype(argv[0], _UPPER)
+
+    @apihook("islower", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def islower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int islower(int c);"""
+        return self.get_ctype(argv[0], _LOWER)
+
+    @apihook("isxdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isxdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isxdigit(int c);"""
+        return self.get_ctype(argv[0], _HEX)
+
+    @apihook("ispunct", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def ispunct(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int ispunct(int c);"""
+        return self.get_ctype(argv[0], _PUNCT)
+
+    @apihook("isprint", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isprint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isprint(int c);"""
+        return self.get_ctype(argv[0], _BLANK | _PUNCT | _ALPHA | _DIGIT)
+
+    @apihook("iscntrl", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iscntrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iscntrl(int c);"""
+        return self.get_ctype(argv[0], _CONTROL)
+
+    @apihook("isgraph", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def isgraph(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int isgraph(int c);"""
+        return self.get_ctype(argv[0], _PUNCT | _ALPHA | _DIGIT)
+
+    @apihook("iswalnum", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswalnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iswalnum(wint_t c);"""
+        return int(chr(argv[0] & 0xFFFF).isalnum())
+
+    @apihook("iswdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iswdigit(wint_t c);"""
+        return int(chr(argv[0] & 0xFFFF).isdigit())
+
+    @apihook("iswupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iswupper(wint_t c);"""
+        return int(chr(argv[0] & 0xFFFF).isupper())
+
+    @apihook("iswlower", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswlower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iswlower(wint_t c);"""
+        return int(chr(argv[0] & 0xFFFF).islower())
+
+    @apihook("iswxdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswxdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int iswxdigit(wint_t c);"""
+        return self.get_ctype(argv[0] & 0xFFFF, _HEX)
+
+    def get_pctype_table(self):
+        """Return the C locale _pctype table, which has an EOF entry before index 0."""
+        if not self.pctype_table:
+            table = self.mem_alloc(2 * 257, tag="api.msvcrt._pctype")
+            self.mem_write(table, struct.pack("<257H", 0, *C_LOCALE_CTYPE))
+            self.pctype_table = table + 2
+        return self.pctype_table
+
+    @impdata("_pctype")
+    def _pctype(self, ptr):
+        """Writable const unsigned short * global, shared with __p__pctype."""
+        self.mem_write(ptr, self.get_pctype_table().to_bytes(self.get_ptr_size(), "little"))
+        return ptr
+
+    @apihook("__pctype_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __pctype_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """const unsigned short *__pctype_func(void);"""
+        return self.get_pctype_table()
+
+    @apihook("__p__pctype", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__pctype(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """const unsigned short **__p__pctype(void);"""
+        return emu.get_proc("msvcrt", "_pctype")
+
+    @impdata("__mb_cur_max")
+    def __mb_cur_max(self, ptr):
+        """Writable int global; the C locale has single-byte characters."""
+        self.mem_write(ptr, (1).to_bytes(4, "little"))
+        return ptr
+
+    @apihook("__p___mb_cur_max", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p___mb_cur_max(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int *__p___mb_cur_max(void);"""
+        return emu.get_proc("msvcrt", "__mb_cur_max")
 
     @apihook("_isatty", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _isatty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

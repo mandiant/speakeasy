@@ -1544,3 +1544,63 @@ def test_scprintf_counts_the_formatted_characters(dll_emu: Speakeasy, api: str, 
     text = alloc(dll_emu, "abc\0".encode(enc))
     args = [alloc(dll_emu, struct.pack("<II", text, 42))] if va else [text, 42]
     assert call(dll_emu, "msvcrt", api, [fmt, *args])[0] == 6
+
+
+@pytest.mark.parametrize(
+    "api, c, rv",
+    [
+        ("isalnum", ord("a"), True),
+        ("isalnum", ord("_"), False),
+        ("isalpha", ord("Z"), True),
+        ("isalpha", ord("5"), False),
+        ("isalpha", 0xE9, False),
+        ("isalpha", 0xFFFFFFFF, False),
+        ("isupper", ord("A"), True),
+        ("isupper", ord("a"), False),
+        ("islower", ord("z"), True),
+        ("islower", ord("Z"), False),
+        ("isxdigit", ord("f"), True),
+        ("isxdigit", ord("g"), False),
+        ("ispunct", ord("!"), True),
+        ("ispunct", ord("a"), False),
+        ("isprint", ord(" "), True),
+        ("isprint", 0x1F, False),
+        ("iscntrl", 0x7F, True),
+        ("iscntrl", ord("a"), False),
+        ("isgraph", ord("~"), True),
+        ("isgraph", ord(" "), False),
+        ("iswalnum", 0xE9, True),
+        ("iswalnum", ord("-"), False),
+        ("iswdigit", ord("7"), True),
+        ("iswdigit", ord("x"), False),
+        ("iswupper", 0xC9, True),
+        ("iswupper", 0xE9, False),
+        ("iswlower", 0xE9, True),
+        ("iswlower", ord("Q"), False),
+        ("iswxdigit", ord("C"), True),
+        ("iswxdigit", ord("G"), False),
+    ],
+)
+def test_ctype_classification_matches_the_c_locale(dll_emu: Speakeasy, api: str, c: int, rv: bool) -> None:
+    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == rv
+
+
+def test_pctype_points_to_the_c_locale_table(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    table, _ = call(dll_emu, "msvcrt", "__pctype_func", [])
+    flags = struct.unpack("<257H", dll_emu.mem_read(table - 2, 514))
+    assert flags[0] == 0
+    assert [flags[1 + ord(c)] for c in "\t A7a!\x7f"] == [0x68, 0x48, 0x181, 0x84, 0x182, 0x10, 0x20]
+    assert flags[1 + 0xE9] == 0
+    variable = dll_emu.emu.get_proc("msvcrt", "_pctype")
+    assert call(dll_emu, "msvcrt", "__p__pctype", [])[0] == variable
+    assert int.from_bytes(dll_emu.mem_read(variable, 4), "little") == table
+    assert call(dll_emu, "msvcrt", "_isctype", [ord("7"), 0x4])[0] == 0x4
+    assert call(dll_emu, "msvcrt", "_isctype", [ord("g"), 0x80])[0] == 0
+
+
+def test_mb_cur_max_is_one_in_the_c_locale(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    variable = dll_emu.emu.get_proc("msvcrt", "__mb_cur_max")
+    assert call(dll_emu, "msvcrt", "__p___mb_cur_max", [])[0] == variable
+    assert int.from_bytes(dll_emu.mem_read(variable, 4), "little") == 1
