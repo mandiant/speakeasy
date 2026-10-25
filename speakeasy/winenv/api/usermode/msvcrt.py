@@ -2146,14 +2146,14 @@ class Msvcrt(api.ApiHandler):
         """
         mem, size = argv
         if mem and not size:
-            self.mem_free(mem)
+            self.heap_free(mem)
             return 0
         dst = self.heap_alloc(size, heap="HeapAlloc")
         if not dst:
             return 0
         if mem:
             self.mem_write(dst, self.mem_read(mem, min(self.get_block_size(emu, mem), size)))
-            self.mem_free(mem)
+            self.heap_free(mem)
         return dst
 
     def get_block_size(self, emu, mem):
@@ -2318,7 +2318,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (mem,) = argv
-        self.mem_free(mem)
+        self.heap_free(mem)
 
     @apihook("_beginthreadex", argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _beginthreadex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3214,7 +3214,7 @@ class Msvcrt(api.ApiHandler):
     def __3_YAXPAX_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         (ptr,) = argv
         if ptr:
-            self.mem_free(ptr)
+            self.heap_free(ptr)
         return
 
     @apihook("??2@YAPAXI@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -3222,7 +3222,7 @@ class Msvcrt(api.ApiHandler):
         (size,) = argv
         if size <= 0:
             size = self.get_ptr_size()
-        return self.mem_alloc(size, tag="api.msvcrt.operator_new")
+        return self.heap_alloc(size, heap="operator_new")
 
     def iostream_init_this(self, emu):
         if emu.get_arch() == e_arch.ARCH_AMD64:

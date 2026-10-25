@@ -3456,12 +3456,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
           _Frees_ptr_opt_ LPVOID lpMem
         );
         """
-        rv = 1
         hHeap, dwFlags, lpMem = argv
 
-        self.mem_free(lpMem)
+        if lpMem and not self.heap_free(lpMem):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
         emu.set_last_error(windefs.ERROR_SUCCESS)
-        return rv
+        return 1
 
     @apihook("LocalFree", argc=1)
     def LocalFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3476,7 +3477,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if hMem == 0:
             return rv
 
-        self.mem_free(hMem)
+        if not self.heap_free(hMem):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return hMem
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return rv
 
@@ -3506,6 +3509,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             _Frees_ptr_opt_ HGLOBAL hMem
         );
         """
+        (hMem,) = argv
+
+        if hMem and not self.heap_free(hMem):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return hMem
         return 0
 
     @apihook("GetSystemDirectory", argc=2)

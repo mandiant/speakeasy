@@ -258,7 +258,7 @@ class Shell32(api.ApiHandler):
         size += (len(cl) * cw) + (len(split) * cw)
 
         # Allocate the array
-        buf = self.mem_alloc(size, tag="api.CommandLineToArgv")
+        buf = self.heap_alloc(size, heap="CommandLineToArgv")
         ptrs = buf
         strs = buf + ((len(split) + 1) * ptrsize)
         for i, p in enumerate(split):

@@ -3664,8 +3664,8 @@ class Ntoskrnl(api.ApiHandler):
             PVOID BaseAddress
         );
         """
-        rv = 1
         hHeap, dwFlags, lpMem = argv
 
-        self.mem_free(lpMem)
-        return rv
+        if lpMem and not self.heap_free(lpMem):
+            return 0
+        return 1
