@@ -2072,3 +2072,31 @@ def test_strtoi64_parses_64_bit_values_and_saturates(
     assert get_int64_result(se, rv) == value & 0xFFFFFFFFFFFFFFFF
     assert se.mem_read(end, ptr_size + 1) == (src + used * width).to_bytes(ptr_size, "little") + b"\xcc"
     assert (get_errno(se) == ERANGE) == overflow
+
+
+@pytest.mark.parametrize("text, charset, rv", [("abc=def", "=;", 3), ("abc", "x", 3), ("", "a", 0), ("éa", "a", 1)])
+def test_wcscspn_returns_the_length_of_the_leading_run_outside_the_set(
+    dll_emu: Speakeasy, text: str, charset: str, rv: int
+) -> None:
+    args = [alloc(dll_emu, (s + "\0").encode("utf-16le")) for s in (text, charset)]
+    assert call(dll_emu, "msvcrt", "wcscspn", args)[0] == rv
+
+
+@pytest.mark.parametrize("api", ["_wtoi", "_wtol"])
+@pytest.mark.parametrize(
+    "text, rv",
+    [("  -42x", 0xFFFFFFD6), ("300", 300), ("abc", 0), ("99999999999", 0x7FFFFFFF), ("-99999999999", 0x80000000)],
+)
+def test_wtoi_parses_leading_digits(dll_emu: Speakeasy, api: str, text: str, rv: int) -> None:
+    assert call(dll_emu, "msvcrt", api, [alloc(dll_emu, (text + "\0").encode("utf-16le"))])[0] & 0xFFFFFFFF == rv
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize(
+    "text, value",
+    [("\t-42x", -42), ("4294967296", 2**32), ("99999999999999999999", 2**63 - 1), ("-99999999999999999999", -(2**63))],
+)
+def test_wtoi64_parses_a_64_bit_value(request: pytest.FixtureRequest, emu_name: str, text: str, value: int) -> None:
+    se = request.getfixturevalue(emu_name)
+    rv, _ = call(se, "msvcrt", "_wtoi64", [alloc(se, (text + "\0").encode("utf-16le"))])
+    assert get_int64_result(se, rv) == value & 0xFFFFFFFFFFFFFFFF

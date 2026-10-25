@@ -1143,6 +1143,22 @@ class Msvcrt(api.ApiHandler):
         ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
         return next((i for i, c in enumerate(_s) if c in _charset), len(_s))
 
+    @apihook("wcscspn", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcscspn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t wcscspn(
+           const wchar_t *str,
+           const wchar_t *strCharSet
+        );
+        """
+        s, charset = argv
+
+        _s = self.read_wide_string(s)
+        _charset = self.read_wide_string(charset)
+        ctx.args[0].display = _s
+        ctx.args[1].display = _charset
+        return next((i for i, c in enumerate(_s) if c in _charset), len(_s))
+
     @apihook("strpbrk", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strpbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1710,15 +1726,30 @@ class Msvcrt(api.ApiHandler):
         );
         """
 
-        (_str,) = argv
+        return self.ato(ctx, argv[0], 1, 32)
 
-        i = self.read_cstr(_str)
-        ctx.args[0].display = i.decode("utf-8", "ignore")
+    @apihook("_wtol", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wtol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """long _wtol(const wchar_t *str);"""
+        return self.ato(ctx, argv[0], 2, 32)
 
-        m = re.match(rb"[ \t\n\v\f\r]*([+-]?[0-9]+)", i)
-        if not m:
-            return 0
-        return max(-0x80000000, min(int(m.group(1)), 0x7FFFFFFF))
+    @apihook("_wtoi", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wtoi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _wtoi(const wchar_t *str);"""
+        return self.ato(ctx, argv[0], 2, 32)
+
+    @apihook("_wtoi64", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wtoi64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """__int64 _wtoi64(const wchar_t *str);"""
+        return self.return_int64(emu, self.ato(ctx, argv[0], 2, 64))
+
+    def ato(self, ctx, addr, width, bits):
+        """Parse a decimal number like atoi and saturate it to a signed integer of ``bits`` bits."""
+        text = self.read_number_text(addr, width)
+        ctx.args[0].display = text.decode("utf-8", "ignore")
+        val, _ = parse_c_integer(text, 10)
+        limit = 1 << (bits - 1)
+        return max(-limit, min(val, limit - 1))
 
     @apihook("rand", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def rand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
