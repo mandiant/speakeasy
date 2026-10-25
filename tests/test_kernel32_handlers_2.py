@@ -578,6 +578,39 @@ def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> 
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
+@pytest.mark.parametrize(
+    "name, s1, n1, s2, n2, flags, rv",
+    [
+        ("CompareStringW", "username", -1, "USERNAME", -1, 1, 2),
+        ("CompareStringA", "username", -1, "USERNAME", -1, 1, 2),
+        ("CompareStringEx", "username", -1, "USERNAME", -1, 1, 2),
+        ("CompareStringW", "a", -1, "b", -1, 0, 1),
+        ("CompareStringA", "b", -1, "a", -1, 0, 3),
+        ("CompareStringEx", "a", -1, "B", -1, 0, 1),
+        ("CompareStringW", "abcX", 3, "ABCY", 3, 1, 2),
+        ("CompareStringA", "ab", 2, "abc", -1, 0, 1),
+    ],
+)
+def test_compare_string_compares_with_the_case_flag(
+    dll_emu: Speakeasy, name: str, s1: str, n1: int, s2: str, n2: int, flags: int, rv: int
+) -> None:
+    enc = "latin-1" if name == "CompareStringA" else "utf-16le"
+    p1 = alloc(dll_emu, f"{s1}\0".encode(enc))
+    p2 = alloc(dll_emu, f"{s2}\0".encode(enc))
+    args = [0, flags, p1, n1 & 0xFFFFFFFF, p2, n2 & 0xFFFFFFFF]
+    if name == "CompareStringEx":
+        args += [0, 0, 0]
+    assert call(dll_emu, "kernel32", name, args)[0] == rv
+
+
+def test_compare_string_rejects_a_null_string_with_a_count(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    p = alloc(dll_emu, "a\0".encode("utf-16le"))
+    assert call(dll_emu, "kernel32", "CompareStringW", [0, 0, 0, 1, p, -1 & 0xFFFFFFFF])[0] == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
 def test_init_once_execute_once_runs_the_init_function_once(base_config: dict[str, Any]) -> None:
     se = Speakeasy(config=base_config)
     try:

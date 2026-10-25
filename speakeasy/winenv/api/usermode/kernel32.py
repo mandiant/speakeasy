@@ -37,6 +37,7 @@ PAGE_SIZE = 0x1000
 LANG_EN_US = 0x409
 LOCALE_USER_DEFAULT = 0x400
 LOCALE_SYSTEM_DEFAULT = 0x0800
+NORM_IGNORECASE = 0x1
 
 SEC_IMAGE = 0x1000000
 CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
@@ -2054,6 +2055,54 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 chars = [c.upper() if len(c.upper()) == 1 else c for c in chars]
             units.append(chars)
         return 2 + (units[0] > units[1]) - (units[0] < units[1])
+
+    def compare_locale_strings(self, emu, argv, cw, ctx):
+        flags, string1, count1, string2, count2 = argv
+        keys = []
+        for i, (ptr, count) in enumerate(((string1, count1), (string2, count2))):
+            count = ct.c_int32(count).value
+            if count < -1 or (not ptr and count):
+                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+                return 0
+            if count == -1:
+                text = self.read_mem_string(ptr, cw)
+            else:
+                text = self.mem_read(ptr, cw * count).decode("utf-16le" if cw == 2 else "latin-1", "replace")
+            ctx.args[2 + 2 * i].display = text
+            # Case is only a tie breaker in a linguistic sort, and lower case sorts first.
+            keys.append((text.casefold(),) if flags & NORM_IGNORECASE else (text.casefold(), text.swapcase()))
+        return 2 + (keys[0] > keys[1]) - (keys[0] < keys[1])
+
+    @apihook("CompareString", argc=6)
+    def CompareString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int CompareStringW(
+          LCID    Locale,
+          DWORD   dwCmpFlags,
+          PCNZWCH lpString1,
+          int     cchCount1,
+          PCNZWCH lpString2,
+          int     cchCount2
+        );
+        """
+        return self.compare_locale_strings(emu, argv[1:6], self.get_char_width(ctx), ctx)
+
+    @apihook("CompareStringEx", argc=9)
+    def CompareStringEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int CompareStringEx(
+          LPCWSTR                          lpLocaleName,
+          DWORD                            dwCmpFlags,
+          LPCWCH                           lpString1,
+          int                              cchCount1,
+          LPCWCH                           lpString2,
+          int                              cchCount2,
+          LPNLSVERSIONINFO                 lpVersionInformation,
+          LPVOID                           lpReserved,
+          LPARAM                           lParam
+        );
+        """
+        return self.compare_locale_strings(emu, argv[1:6], 2, ctx)
 
     @apihook("QueryDosDevice", argc=3)
     def QueryDosDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
