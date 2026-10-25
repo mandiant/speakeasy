@@ -1052,3 +1052,19 @@ def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
         pids.append(struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0])
         rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
     assert pids.count(pid) == 1
+
+
+def test_is_processor_feature_present_agrees_with_cpuid_for_avx(config: dict[str, Any]) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xc3", arch="x86")
+        se.run_shellcode(base)
+        out = se.mem_alloc(0x1000)
+        code = b"\xb8\x01\x00\x00\x00\x0f\xa2\x89\x0d" + struct.pack("<I", out)
+        code += b"\xb8\x07\x00\x00\x00\x31\xc9\x0f\xa2\x89\x1d" + struct.pack("<I", out + 4) + b"\xc3"
+        addr = se.mem_alloc(0x1000)
+        se.mem_write(addr, code)
+        se.call(addr)
+        ecx1, ebx7 = struct.unpack("<II", se.mem_read(out, 8))
+
+        assert call(se, "kernel32", "IsProcessorFeaturePresent", [39])[0] == (ecx1 >> 28) & 1
+        assert call(se, "kernel32", "IsProcessorFeaturePresent", [40])[0] == (ebx7 >> 5) & 1

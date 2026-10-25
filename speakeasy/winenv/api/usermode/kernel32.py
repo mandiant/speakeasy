@@ -1985,8 +1985,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             36: {"name": "PF_SSSE3_INSTRUCTIONS_AVAILABLE", "return": 1},
             37: {"name": "PF_SSE4_1_INSTRUCTIONS_AVAILABLE", "return": 1},
             38: {"name": "PF_SSE4_2_INSTRUCTIONS_AVAILABLE", "return": 1},
-            39: {"name": "PF_AVX_INSTRUCTIONS_AVAILABLE", "return": 1},
-            40: {"name": "PF_AVX2_INSTRUCTIONS_AVAILABLE", "return": 1},
+            39: {"name": "PF_AVX_INSTRUCTIONS_AVAILABLE", "return": 0},
+            40: {"name": "PF_AVX2_INSTRUCTIONS_AVAILABLE", "return": 0},
             41: {"name": "PF_AVX512F_INSTRUCTIONS_AVAILABLE", "return": 0},
         }
 
