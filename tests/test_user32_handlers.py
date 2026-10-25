@@ -10,7 +10,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
-from tests.guest_harness import guest_call
+from tests.guest_harness import Deref, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
 
@@ -726,3 +726,30 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(
 def test_def_window_proc_lets_nccreate_create_the_window(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x81, 0, 0])[0] == 1
     assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x1, 0, 0])[0] == 0
+
+
+@pytest.mark.parametrize("callback_result, rv", [(0, 0), (1, 1)])
+def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict, callback_result: int, rv: int) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        assert se.emu is not None
+        data = se.mem_alloc(0x1000)
+        callback, name = base + 0x200, base + 0x300
+        code = b"\x8b\x44\x24\x04\xa3" + d32(data + 0x10)  # mov eax, [esp+4]; mov [data+0x10], eax
+        code += b"\x8b\x44\x24\x08\xa3" + d32(data + 0x14)  # mov eax, [esp+8]; mov [data+0x14], eax
+        code += b"\xff\x05" + d32(data + 8)  # inc dword [data+8]
+        code += b"\xb8" + d32(callback_result) + b"\xc2\x08\x00"
+        se.mem_write(callback, code)
+        se.mem_write(name, b"mycls\x00")
+        create = se.emu.get_proc("user32", "CreateWindowExA")
+        main = guest_call(4, create, 0, name, 0, WS_POPUP, 0, 0, 0, 0, 0, 0, 0, 0, store=data)
+        main += guest_call(4, create, 0, name, 0, WS_CHILD, 0, 0, 0, 0, Deref(data), 0, 0, 0)
+        main += guest_call(4, se.emu.get_proc("user32", "EnumWindows"), callback, 0x55, store=data + 4)
+        se.mem_write(base, main + b"\xc3")
+
+        se.run_shellcode(base)
+
+        assert se.get_report().entry_points[0].error is None
+        hwnd, result, count, _, cb_hwnd, cb_lparam = struct.unpack("<6I", se.mem_read(data, 0x18))
+        assert hwnd
+        assert (result, count, cb_hwnd, cb_lparam) == (rv, 1, hwnd, 0x55)

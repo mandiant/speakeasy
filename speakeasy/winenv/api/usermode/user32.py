@@ -1057,9 +1057,12 @@ class User32(api.ApiHandler):
         );
         """
         lpEnumFunc, lParam = argv
-        rv = 1
-
-        return rv
+        desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
+        windows = [hnd for hnd, w in self.sessman.windows.items() if isinstance(hnd, int) and w.parent in (0, desktop)]
+        for hnd in windows:
+            if not (yield GuestCall(lpEnumFunc, (hnd, lParam))) & 0xFFFFFFFF:
+                return 0
+        return 1
 
     @apihook("GetSysColor", argc=1)
     def GetSysColor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
