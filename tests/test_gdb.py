@@ -1028,3 +1028,34 @@ def test_gdb_stop_inserted_after_code_ran_hits(gdb_shellcode_emulator, insert, k
         assert kind in client.continue_()
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["a100000000c3"], indirect=True)  # mov eax, [0]; ret
+@pytest.mark.parametrize("resume", ["C0b", "S0b", "vCont;C0b:1", "vCont;S0b:1"])
+def test_gdb_resume_with_signal_after_fault(gdb_shellcode_emulator, resume):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert "C" in client.query("vCont?").split(";")
+        assert "S" in client.query("vCont?").split(";")
+        assert client.continue_().startswith("T0b")
+        # A client that passes the fault signal to the target resumes it.
+        assert client.query(resume) == "X0b"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] == "invalid_read"
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["9090c3"], indirect=True)  # nop; nop; ret
+@pytest.mark.parametrize("resume", ["S05;{address:x}", "C05;{address:x}"])
+def test_gdb_resume_with_signal_at_address(gdb_shellcode_emulator, resume):
+    port, _, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.query(f"Z0,{address + 2:x},1") == "OK"
+        assert client.query(resume.format(address=address + 1)).startswith("T05")
+        assert client.read_x86_registers().eip == address + 2
+    finally:
+        client.close()

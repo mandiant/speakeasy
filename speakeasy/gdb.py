@@ -486,17 +486,19 @@ class GdbServer:
         elif payload.startswith(b"T"):
             self._reply(b"OK" if payload[1:] in (b"1", b"0", b"-1") else b"E01")
         elif payload == b"vCont?":
-            self._reply(b"vCont;c;s")
+            self._reply(b"vCont;c;C;s;S")
         elif payload.startswith(b"vCont;"):
             return self._resume_command(payload[6:])
-        elif payload[:1] in (b"c", b"s"):
-            if len(payload) > 1:
+        elif payload[:1] in (b"c", b"s", b"C", b"S"):
+            # The target has no signal delivery, so C and S ignore the signal.
+            address = payload[1:] if payload[:1] in (b"c", b"s") else payload[1:].partition(b";")[2]
+            if address:
                 try:
-                    self.emu.set_pc(int(payload[1:], 16))
+                    self.emu.set_pc(int(address, 16))
                 except ValueError:
                     self._reply(b"E01")
                     return None
-            return ResumeAction(step=payload[:1] == b"s")
+            return ResumeAction(step=payload[:1] in (b"s", b"S"))
         elif payload.startswith(b"D"):
             self._reply(b"OK")
             return ResumeAction(detach=True)

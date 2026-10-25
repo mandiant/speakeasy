@@ -176,7 +176,7 @@ The server implements the all-stop RSP subset exercised by GDB and IDA:
 | Registers | `g`, `G`, `p`, `P` |
 | Memory | `m`, `M`, `X` |
 | Breakpoints | `Z0`/`z0`, `Z1`/`z1`, and read/write/access watchpoints |
-| Execution | `c`, `s`, `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
+| Execution | `c`, `s`, `C`, `S` (the signal is ignored), `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
 | Lifecycle | `D`, `k`, a final `T05` stop before exit, and `Wxx` exit replies |
 
 Unsupported optional packets receive an empty response as required by RSP. Non-stop mode, multiprocess mode, reverse execution, and remote file I/O are not advertised.
