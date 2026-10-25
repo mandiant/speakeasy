@@ -6545,7 +6545,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GlobalMemoryStatusEx", argc=1)
     def GlobalMemoryStatusEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GlobalMemoryStatusEx(
+        BOOL GlobalMemoryStatusEx(
         LPMEMORYSTATUSEX lpBuffer
         );
 
@@ -6561,6 +6561,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORDLONG ullAvailExtendedVirtual;
         } MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
         """
+        (lpBuffer,) = argv
+        if self.mem_read(lpBuffer, 4) != struct.pack("<I", 64):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
         GB = 1024 * 1024 * 1024
         buf = struct.pack(
             "<IIQQQQQQQ",
@@ -6572,11 +6576,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             4 * GB,  # ullAvailPageFile
             8 * GB,  # ullTotalVirtual
             7 * GB,  # ullAvailVirtual
-            16 * GB,
-        )  # ullAvailExtendedVirtual
+            0,  # ullAvailExtendedVirtual
+        )
 
-        emu.mem_write(argv[0], buf)
-        return
+        emu.mem_write(lpBuffer, buf)
+        return 1
 
     @apihook("GetDiskFreeSpaceEx", argc=4)
     def GetDiskFreeSpaceEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

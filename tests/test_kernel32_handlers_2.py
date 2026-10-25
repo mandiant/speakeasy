@@ -575,6 +575,28 @@ def test_global_memory_status_clamps_for_a_32_bit_image(config: dict[str, Any], 
         assert total_page == 0xFFFFFFFF
 
 
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_global_memory_status_ex_returns_true(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    status = alloc(se, struct.pack("<I", 64) + b"\xcc" * 60)
+    assert call(se, "kernel32", "GlobalMemoryStatusEx", [status])[0] == 1
+    length, load, *sizes, extended = struct.unpack("<II7Q", se.mem_read(status, 64))
+    total_phys, avail_phys, total_page, avail_page, total_virt, avail_virt = sizes
+    assert length == 64
+    assert 0 < load <= 100
+    assert 0 < avail_phys <= total_phys
+    assert 0 < avail_page <= total_page
+    assert 0 < avail_virt <= total_virt
+    assert extended == 0
+
+
+def test_global_memory_status_ex_rejects_a_wrong_length(emu: Speakeasy) -> None:
+    status = alloc(emu, struct.pack("<I", 32) + b"\xcc" * 60)
+    assert call(emu, "kernel32", "GlobalMemoryStatusEx", [status])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+    assert emu.mem_read(status + 4, 4) == b"\xcc" * 4
+
+
 def test_get_disk_free_space_ex_writes_the_sizes(emu: Speakeasy) -> None:
     root = alloc(emu, b"C:\\\x00")
     caller, total, free = (alloc(emu, b"\x00" * 8) for _ in range(3))
