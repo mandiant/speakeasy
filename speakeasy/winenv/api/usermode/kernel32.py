@@ -601,6 +601,38 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return hnd
 
+    def _get_parent_pid(self, emu, proc):
+        parents = {
+            "smss": "System",
+            "csrss": "smss",
+            "wininit": "smss",
+            "winlogon": "smss",
+            "services": "wininit",
+            "lsass": "wininit",
+            "svchost": "services",
+            "explorer": "winlogon",
+        }
+        if proc.pid == 4:
+            return 0
+        parent = parents.get(proc.name.lower(), "explorer")
+        return next((p.pid for p in emu.get_processes() if p.name.lower() == parent), 0)
+
+    def _write_process_entry(self, emu, ctx, pe32, proc):
+        try:
+            cw = self.get_char_width(ctx)
+        except Exception:
+            cw = 1
+        enc = "utf-16le" if cw == 2 else "utf-8"
+
+        pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
+        pe.dwSize = int.from_bytes(self.mem_read(pe32, 4), "little")
+        pe.th32ProcessID = proc.pid
+        pe.cntThreads = max(len(proc.threads), 1)
+        pe.th32ParentProcessID = self._get_parent_pid(emu, proc)
+        pe.pcPriClassBase = 8
+        pe.szExeFile = proc.image[: k32types.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        self.mem_write(pe32, self.get_bytes(pe))
+
     @apihook("Process32First", argc=2)
     def Process32First(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -622,24 +654,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         # Reset the handle index
         snap[k32types.TH32CS_SNAPPROCESS][0] = 1
+        if not snap[k32types.TH32CS_SNAPPROCESS][1]:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
+            return rv
         proc = snap[k32types.TH32CS_SNAPPROCESS][1][0]
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
-
-        pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
-        data = self.mem_cast(pe, pe32)
-        pe.th32ProcessID = proc.pid
-        if cw == 2:
-            pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
-        else:
-            pe.szExeFile = proc.image.encode("utf-8") + b"\x00"
-
-        self.mem_write(pe32, self.get_bytes(data))
-        rv = True
-        return rv
+        self._write_process_entry(emu, ctx, pe32, proc)
+        return True
 
     @apihook("Process32Next", argc=2)
     def Process32Next(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -667,22 +688,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return rv
         proc = snap[k32types.TH32CS_SNAPPROCESS][1][index]
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
-
-        pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
-        data = self.mem_cast(pe, pe32)
-        pe.th32ProcessID = proc.pid
-        if cw == 2:
-            pe.szExeFile = proc.image.encode("utf-16le") + b"\x00\x00"
-        else:
-            pe.szExeFile = proc.image.encode("utf-8") + b"\x00"
-
-        self.mem_write(pe32, self.get_bytes(data))
-        rv = True
-        return rv
+        self._write_process_entry(emu, ctx, pe32, proc)
+        return True
 
     @apihook("Thread32First", argc=2)
     def Thread32First(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -705,6 +712,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         # Reset the handle index
         snap[k32types.TH32CS_SNAPTHREAD][0] = 1
+        if not snap[k32types.TH32CS_SNAPTHREAD][1]:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
+            return rv
         thread = snap[k32types.TH32CS_SNAPTHREAD][1][0]
 
         te = self.k32types.THREADENTRY32(emu.get_ptr_size())
@@ -789,6 +799,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         # Reset the handle index
         snap[k32types.TH32CS_SNAPMODULE][0] = 1
+        if not snap[k32types.TH32CS_SNAPMODULE][1]:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
+            return rv
         module = snap[k32types.TH32CS_SNAPMODULE][1][0]
 
         self._write_module_entry(emu, ctx, mod32, module, snap[k32types.TH32CS_SNAPMODULE][2])

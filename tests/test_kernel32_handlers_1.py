@@ -496,6 +496,42 @@ def test_toolhelp_next_sets_no_more_files_at_the_end(dll_emu: Speakeasy, first: 
     assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
 
 
+@pytest.mark.parametrize(
+    "first, step, size", [("Process32First", "Process32Next", 0x128), ("Process32FirstW", "Process32NextW", 0x22C)]
+)
+def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, size: int) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    explorer = next(p.pid for p in dll_emu.emu.get_processes() if p.name == "explorer")
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = alloc(dll_emu, b"\x00" * size)
+    parents = []
+    for walk in (first, step):
+        dll_emu.mem_write(entry, struct.pack("<I", size) + b"\xcc" * (size - 4))
+        assert call(dll_emu, "kernel32", walk, [hsnap, entry])[0] == 1
+        fields = struct.unpack("<9I", dll_emu.mem_read(entry, 0x24))
+        size_field, usage, _, heap, module, threads, parent, priority, flags = fields
+        assert size_field == size
+        assert (usage, heap, module, priority, flags) == (0, 0, 0, 8, 0)
+        assert threads >= 1
+        assert b"\xcc" not in dll_emu.mem_read(entry + 0x24, size - 0x24)
+        parents.append(parent)
+    assert parents[0] == explorer
+    assert parents[1] != 0xCCCCCCCC
+
+
+def test_toolhelp_first_on_an_empty_list_sets_no_more_files(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    explorer = next(p for p in dll_emu.emu.get_processes() if p.name == "explorer")
+    assert not explorer.threads
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [0x4, explorer.pid])
+    entry = alloc(dll_emu, struct.pack("<I", 0x1C) + b"\x00" * 0x18)
+    dll_emu.emu.set_last_error(0)
+    assert call(dll_emu, "kernel32", "Thread32First", [hsnap, entry])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
+
+
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
