@@ -578,6 +578,16 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.mem_write(TargetPath, data)
         return ddk.STATUS_SUCCESS
 
+    @apihook("RtlDisownModuleHeapAllocation", argc=2)
+    def RtlDisownModuleHeapAllocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlDisownModuleHeapAllocation(
+            HANDLE HeapHandle,
+            PVOID Allocation
+        );
+        """
+        return ddk.STATUS_SUCCESS
+
     @apihook("NtCreateThreadEx", argc=11)
     def NtCreateThreadEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

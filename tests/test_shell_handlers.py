@@ -853,6 +853,16 @@ def test_rtl_get_persisted_state_location_copies_the_default_path(request: pytes
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_rtl_disown_module_heap_allocation_succeeds(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    heap, _ = call(se, "kernel32", "GetProcessHeap", [])
+    block, _ = call(se, "kernel32", "HeapAlloc", [heap, 0, 0x10])
+    rv, _ = call(se, "ntdll", "RtlDisownModuleHeapAllocation", [heap, block])
+    assert rv == ddk.STATUS_SUCCESS
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
