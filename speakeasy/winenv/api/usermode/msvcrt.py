@@ -22,6 +22,9 @@ EEXIST = 17
 EINVAL = 22
 ERANGE = 34
 THRD_SUCCESS = 0
+THRD_TIMEDOUT = 2
+# Size of the _Cnd_internal_imp_t that _Cnd_init allocates, on x64
+CND_SIZE = 0x48
 O_APPEND = 0x8
 O_CREAT = 0x100
 O_TRUNC = 0x200
@@ -3674,6 +3677,78 @@ class Msvcrt(api.ApiHandler):
         _Thrd_result _Mtx_unlock(_Mtx_t mtx);
         """
         return THRD_SUCCESS
+
+    @apihook("_Cnd_init_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_init_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _Cnd_init_in_situ(_Cnd_t cond);
+        """
+        return
+
+    @apihook("_Cnd_destroy_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_destroy_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _Cnd_destroy_in_situ(_Cnd_t cond);
+        """
+        return
+
+    @apihook("_Cnd_init", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Cnd_init(_Cnd_t *pcond);
+        """
+        (pcond,) = argv
+        cond = self.heap_alloc(CND_SIZE, heap="HeapAlloc")
+        self.mem_write(cond, b"\x00" * CND_SIZE)
+        self.mem_write(pcond, cond.to_bytes(self.get_ptr_size(), "little"))
+        return THRD_SUCCESS
+
+    @apihook("_Cnd_destroy", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_destroy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _Cnd_destroy(_Cnd_t cond);
+        """
+        (cond,) = argv
+        if cond:
+            self.heap_free(cond)
+
+    @apihook("_Cnd_signal", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Cnd_signal(_Cnd_t cond);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Cnd_broadcast", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_broadcast(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Cnd_broadcast(_Cnd_t cond);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Cnd_wait", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_wait(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Cnd_wait(_Cnd_t cond, _Mtx_t mtx);
+        """
+        return THRD_SUCCESS
+
+    @apihook("_Cnd_timedwait", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _Cnd_timedwait(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Cnd_timedwait(_Cnd_t cond, _Mtx_t mtx, const _timespec64 *target);
+
+        Threads run one after another, so the wait times out only when no
+        queued run is left that could signal the condition.
+        """
+        cond, mtx, target = argv
+        if emu.run_queue:
+            return THRD_SUCCESS
+        sec, nsec = struct.unpack("<qi", self.mem_read(target, 12))
+        remaining = sec * 10_000_000 + nsec // 100 - self.get_clock_ticks()
+        if remaining > 0:
+            self.emu.api.load_api_handler("kernel32").advance_clock(-(-remaining // 10_000))
+        return THRD_TIMEDOUT
 
     @apihook("_Thrd_id", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Thrd_id(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

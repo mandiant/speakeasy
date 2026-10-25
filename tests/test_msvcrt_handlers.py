@@ -7,6 +7,7 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
+from speakeasy.profiler import Run
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
     EINVAL,
@@ -1256,6 +1257,38 @@ def test_mutex_functions_of_the_cpp_runtime_succeed_at_once(dll_emu: Speakeasy) 
     call(dll_emu, "msvcrt", "_Mtx_destroy_in_situ", [mtx])
     assert results == [0, 0, 0]
     assert call(dll_emu, "msvcrt", "_Thrd_id", [])[0] == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_condition_variable_functions_of_the_cpp_runtime_do_not_block(
+    request: pytest.FixtureRequest, emu_name: str
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    cnd, mtx = alloc(se, b"\0" * 0x48), alloc(se, b"\0" * 0x50)
+    call(se, "msvcp140", "_Cnd_init_in_situ", [cnd])
+    results = [call(se, "msvcp140", name, [cnd])[0] for name in ("_Cnd_signal", "_Cnd_broadcast")]
+    results.append(call(se, "msvcp140", "_Cnd_wait", [cnd, mtx])[0])
+    call(se, "msvcp140", "_Cnd_destroy_in_situ", [cnd])
+    assert results == [0, 0, 0]
+
+    out = alloc(se, b"\0" * 8)
+    assert call(se, "msvcp140", "_Cnd_init", [out])[0] == 0
+    allocated = int.from_bytes(se.mem_read(out, se.emu.get_ptr_size()), "little")
+    assert allocated
+    call(se, "msvcp140", "_Cnd_destroy", [allocated])
+
+
+def test_cnd_timedwait_times_out_when_no_other_run_is_queued(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    assert se.emu is not None and not se.emu.run_queue
+    cnd, mtx = alloc(se, b"\0" * 0x48), alloc(se, b"\0" * 0x50)
+    target = get_clock_ticks(se) + 5 * 10_000_000
+    xtime = alloc(se, struct.pack("<qi", target // 10_000_000, target % 10_000_000 * 100))
+    assert call(se, "msvcp140", "_Cnd_timedwait", [cnd, mtx, xtime])[0] == 2
+    assert get_clock_ticks(se) >= target
+
+    se.emu.add_run(Run())
+    assert call(se, "msvcp140", "_Cnd_timedwait", [cnd, mtx, xtime])[0] == 0
 
 
 @pytest.mark.parametrize("name", ["__telemetry_main_invoke_trigger", "__telemetry_main_return_trigger"])
