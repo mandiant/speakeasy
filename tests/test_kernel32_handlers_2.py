@@ -1494,3 +1494,21 @@ def test_get_process_times_rejects_an_unknown_handle(emu: Speakeasy) -> None:
     times = alloc(emu, b"\xcc" * 32)
     assert call(emu, "kernel32", "GetProcessTimes", [0x1234, times, times + 8, times + 16, times + 24])[0] == 0
     assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("name, width", [("IsBadStringPtrA", 1), ("IsBadStringPtrW", 2)])
+def test_is_bad_string_ptr_reads_up_to_the_nul(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    text = alloc(emu, "myarg1\0".encode(enc))
+    assert call(emu, "kernel32", name, [text, 0xFFFFFFFF])[0] == 0
+    assert call(emu, "kernel32", name, [text, 3])[0] == 0
+    assert call(emu, "kernel32", name, [text, 0])[0] == 0
+
+    page = emu.mem_alloc(0x1000, base=0x30000000)
+    assert not emu.is_address_valid(page + 0x1000)
+    emu.mem_write(page, b"A" * 0x1000)
+    assert call(emu, "kernel32", name, [page + 0x1000 - 8 * width, 0xFFFFFFFF])[0] == 1
+    assert call(emu, "kernel32", name, [page + 0x1000 - 8 * width, 8])[0] == 0
+
+    assert call(emu, "kernel32", name, [0x81400000, 0xFFFFFFFF])[0] == 1
+    assert call(emu, "kernel32", name, [0, 0xFFFFFFFF])[0] == 1

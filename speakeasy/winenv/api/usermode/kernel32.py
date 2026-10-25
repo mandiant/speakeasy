@@ -6372,16 +6372,24 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         lpsz, ucchMax = argv
         cw = self.get_char_width(ctx)
-        rv = True
 
-        if lpsz and ucchMax:
-            v1 = emu.is_address_valid(lpsz)
-            v2 = emu.is_address_valid(lpsz + (cw * ucchMax) - cw)
+        if not ucchMax:
+            return False
 
-            if v1 and v2:
-                rv = False
+        addr = lpsz
+        remaining = ucchMax
+        while remaining:
+            count = min(remaining, max(1, (0x1000 - addr % 0x1000) // cw))
+            if not emu.is_address_valid(addr) or not emu.is_address_valid(addr + count * cw - 1):
+                return True
+            data = self.mem_read(addr, count * cw)
+            for i in range(0, len(data), cw):
+                if not any(data[i : i + cw]):
+                    return False
+            addr += count * cw
+            remaining -= count
 
-        return rv
+        return False
 
     @apihook("GetSystemFirmwareTable", argc=4)
     def GetSystemFirmwareTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
