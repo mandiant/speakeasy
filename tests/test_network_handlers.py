@@ -271,6 +271,28 @@ def test_win_http_read_data_without_a_configured_response(dll_emu: Speakeasy) ->
     assert dll_emu.mem_read(read, 4) == b"\x00" * 4
 
 
+def test_win_http_query_data_available_reports_the_unread_body(dll_emu: Speakeasy) -> None:
+    req = _winhttp_request(dll_emu, "GET", "/index")
+    assert call(dll_emu, "winhttp", "WinHttpSendRequest", [req, 0, 0, 0, 0, 0, 0])[0] == 1
+    assert call(dll_emu, "winhttp", "WinHttpReceiveResponse", [req, 0])[0] == 1
+    avail = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "winhttp", "WinHttpQueryDataAvailable", [req, avail])[0] == 1
+    assert dll_emu.mem_read(avail, 4) == struct.pack("<I", 4096)
+    buf = alloc(dll_emu, b"\xcc" * 4096)
+    read = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "winhttp", "WinHttpReadData", [req, buf, 4096, read])[0] == 1
+    assert dll_emu.mem_read(read, 4) == struct.pack("<I", 4096)
+    assert call(dll_emu, "winhttp", "WinHttpQueryDataAvailable", [req, avail])[0] == 1
+    assert dll_emu.mem_read(avail, 4) == b"\x00" * 4
+
+
+def test_win_http_query_data_available_without_a_configured_response(dll_emu: Speakeasy) -> None:
+    req = _winhttp_request(dll_emu, "POST", "/gate.php")
+    avail = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "winhttp", "WinHttpQueryDataAvailable", [req, avail])[0] == 1
+    assert dll_emu.mem_read(avail, 4) == b"\x00" * 4
+
+
 def test_internet_open_url_with_headers(dll_emu: Speakeasy) -> None:
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     url = alloc(dll_emu, b"http://example.com/a.bin\x00")
