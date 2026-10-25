@@ -614,6 +614,20 @@ def test_sys_alloc_string_len_copies_length_characters(dll_emu: Speakeasy, text:
     assert read_bstr(dll_emu, rv) == text[:length].encode("utf-16le")
 
 
+@pytest.mark.parametrize("data, length", [(b"", 0), (b"abcd", 3), (b"a\x00bc", 4), (b"xyz", 0)])
+def test_sys_alloc_string_byte_len_copies_length_bytes(dll_emu: Speakeasy, data: bytes, length: int) -> None:
+    rv, _ = call(dll_emu, "oleaut32", "SysAllocStringByteLen", [alloc(dll_emu, data + b"\xcc" * 4), length])
+    assert rv != 0
+    assert read_bstr(dll_emu, rv) == data[:length]
+    assert call(dll_emu, "oleaut32", "SysStringByteLen", [rv])[0] == length
+
+
+def test_sys_alloc_string_byte_len_without_a_source_allocates_zeros(dll_emu: Speakeasy) -> None:
+    rv, _ = call(dll_emu, "oleaut32", "SysAllocStringByteLen", [0, 5])
+    assert rv != 0
+    assert read_bstr(dll_emu, rv) == b"\x00" * 5
+
+
 @pytest.mark.parametrize("text", ["", "abc", "a\x00b"])
 def test_sys_string_len_reads_the_length_prefix(dll_emu: Speakeasy, text: str) -> None:
     bstr, _ = call(dll_emu, "oleaut32", "SysAllocStringLen", [alloc(dll_emu, wstr(text, 2)), len(text)])

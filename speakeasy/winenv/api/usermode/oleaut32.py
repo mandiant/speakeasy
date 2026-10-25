@@ -64,6 +64,22 @@ class OleAut32(api.ApiHandler):
 
         return bstr + 4
 
+    @apihook("SysAllocStringByteLen", argc=2, ordinal=150)
+    def SysAllocStringByteLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BSTR SysAllocStringByteLen(
+          [in] LPCSTR psz,
+          [in] UINT   len
+        );
+        """
+        psz, length = argv
+
+        data = self.mem_read(psz, length) if psz else b"\x00" * length
+        bstr = self.mem_alloc(4 + length + 2)
+        self.mem_write(bstr, struct.pack("<I", length) + data + b"\x00\x00")
+
+        return bstr + 4
+
     @apihook("SysReAllocStringLen", argc=3, ordinal=5)
     def SysReAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
