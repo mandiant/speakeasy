@@ -64,11 +64,28 @@ def test_narrow_string_after_z_splice_formats_both_args(api):
 
 
 def test_p_conversion_after_z_splice_lands_in_correct_slot(api):
-    assert do_format(api, "%zu %p", [42, 0xDEADBEEF]) == "42 deadbeef"
+    assert do_format(api, "%zu %p", [42, 0xDEADBEEF]) == "42 00000000DEADBEEF"
 
 
 def test_upper_p_conversion_after_ll_splice_lands_in_correct_slot(api):
-    assert do_format(api, "%llx %P", [0xAB, 0xDEADBEEF]) == "ab DEADBEEF"
+    assert do_format(api, "%llx %P", [0xAB, 0xDEADBEEF]) == "ab 00000000DEADBEEF"
+
+
+@pytest.mark.parametrize(
+    "ptr_size, fmt, value, expected",
+    [
+        (8, "%p", 0, "0000000000000000"),
+        (4, "%p", 0, "00000000"),
+        (8, "%p", 0x12FF80, "000000000012FF80"),
+        (4, "%p", 0x12FF80, "0012FF80"),
+        (4, "[%12p]", 0x12FF80, "[    0012FF80]"),
+        (4, "[%-12p]", 0x12FF80, "[0012FF80    ]"),
+        (4, "[%012p]", 0x12FF80, "[    0012FF80]"),
+        (4, "%#p", 0x12FF80, "0X0012FF80"),
+    ],
+)
+def test_p_conversion_prints_all_pointer_digits_in_uppercase(ptr_size, fmt, value, expected):
+    assert do_format(FakeFormatApi(ptr_size), fmt, [value]) == expected
 
 
 def test_S_conversion_after_ll_splice_lands_in_correct_slot(api):

@@ -642,7 +642,9 @@ class ApiHandler:
                 text = struct.unpack("<d", struct.pack("<Q", value))[0].hex()
                 out.append(text.upper() if conv == "A" else text)
             elif conv in "pP":
-                out.append((fmt + ("x" if conv == "p" else "X")) % value)
+                # The CRT prints every hex digit of a pointer in uppercase and ignores the 0 flag
+                fmt = f"%{flags.replace('0', '')}{width}.{2 * ptr_size}X"
+                out.append(fmt % (value & ((1 << (8 * ptr_size)) - 1)))
             elif conv in "cCsSZ":
                 is_wide = length in ("l", "w") or (length != "h" and (conv in "CS") != wide)
                 if conv in "cC":
