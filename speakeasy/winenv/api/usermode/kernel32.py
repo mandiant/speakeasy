@@ -1571,6 +1571,30 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return mbi.sizeof()
 
+    @apihook("VirtualQueryEx", argc=4)
+    def VirtualQueryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        SIZE_T VirtualQueryEx(
+            HANDLE                    hProcess,
+            LPCVOID                   lpAddress,
+            PMEMORY_BASIC_INFORMATION lpBuffer,
+            SIZE_T                    dwLength
+        );
+        """
+        hProcess = argv[0]
+
+        if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
+            proc_obj = emu.get_current_process()
+        else:
+            proc_obj = self.get_object_from_handle(hProcess)
+
+        if not proc_obj:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        ctx.args["hProcess"].display = proc_obj.path
+        return self.VirtualQuery(emu, argv[1:], ctx)
+
     @apihook("VirtualProtect", argc=4)
     def VirtualProtect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """BOOL WINAPI VirtualProtect(

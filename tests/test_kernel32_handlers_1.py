@@ -723,6 +723,32 @@ def test_virtual_query_rejects_addresses_above_the_application_range(dll_emu: Sp
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
+@pytest.mark.parametrize("current", ["pseudo", "real"])
+def test_virtual_query_ex_on_the_current_process_matches_virtual_query(dll_emu: Speakeasy, current: str) -> None:
+    start_process(dll_emu)
+    if current == "pseudo":
+        handle = 0xFFFFFFFF
+    else:
+        pid = call(dll_emu, "kernel32", "GetCurrentProcessId", [])[0]
+        handle = call(dll_emu, "kernel32", "OpenProcess", [0x1F0FFF, 0, pid])[0]
+    image = 0x10000000
+    for addr in (image, image + 0x1010):
+        expected = alloc(dll_emu, b"\xcc" * 28)
+        assert call(dll_emu, "kernel32", "VirtualQuery", [addr, expected, 28])[0] == 28
+        mbi = alloc(dll_emu, b"\xcc" * 28)
+        assert call(dll_emu, "kernel32", "VirtualQueryEx", [handle, addr, mbi, 28])[0] == 28
+        assert dll_emu.mem_read(mbi, 28) == dll_emu.mem_read(expected, 28)
+
+
+def test_virtual_query_ex_rejects_an_invalid_process_handle(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    mbi = alloc(dll_emu, b"\xcc" * 28)
+    assert call(dll_emu, "kernel32", "VirtualQueryEx", [0x1234, 0x10000000, mbi, 28])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+    assert dll_emu.mem_read(mbi, 28) == b"\xcc" * 28
+
+
 Y2K_FILETIME = 125911584000000000
 
 
