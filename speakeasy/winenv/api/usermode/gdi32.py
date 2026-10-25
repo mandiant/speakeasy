@@ -6,6 +6,28 @@ from .. import api
 
 MAX_DIB_SIZE = 0x8000000
 
+SYSTEM_FONT = 13
+DC_PEN = 19
+STOCK_OBJECT_BASE = 0x01900010
+
+DEVICE_CAPS = {
+    0: 0x4000,
+    2: 1,
+    4: 527,
+    6: 296,
+    8: 1920,
+    10: 1080,
+    12: 32,
+    14: 1,
+    24: -1,
+    88: 96,
+    90: 96,
+    104: 32,
+    116: 60,
+    117: 1920,
+    118: 1080,
+}
+
 
 class GDI32(api.ApiHandler):
     """
@@ -23,6 +45,8 @@ class GDI32(api.ApiHandler):
         self.data = {}
         self.handle = 0
         self.count = 0
+        self.stock_objects: dict[int, int] = {}
+        self.selected: dict[int, int] = {}
         super().__get_hook_attrs__(self)
 
     def get_handle(self):
@@ -73,7 +97,10 @@ class GDI32(api.ApiHandler):
             int i
         );
         """
-        return 0
+        (i,) = argv
+        if not 0 <= i <= DC_PEN:
+            return 0
+        return self.stock_objects.setdefault(i, STOCK_OBJECT_BASE + i)
 
     @apihook("GetMapMode", argc=1)
     def GetMapMode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -92,7 +119,8 @@ class GDI32(api.ApiHandler):
             int index
         );
         """
-        return 16
+        _, index = argv
+        return DEVICE_CAPS.get(index, 0) & 0xFFFFFFFF
 
     @apihook("GdiSetBatchLimit", argc=1)
     def GdiSetBatchLimit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -156,7 +184,12 @@ class GDI32(api.ApiHandler):
           HGDIOBJ h
         );
         """
-        return 0
+        hdc, h = argv
+        if not h:
+            return 0
+        previous = self.selected.get(hdc, STOCK_OBJECT_BASE + SYSTEM_FONT)
+        self.selected[hdc] = h
+        return previous
 
     @apihook("DeleteObject", argc=1)
     def DeleteObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -273,9 +306,10 @@ class GDI32(api.ApiHandler):
             const LOGFONTA *lplf
         );
         """
-        # Return a fake HFONT handle.
-        # Any non-zero value is treated as success.
-        return 0x6000
+        (lplf,) = argv
+        if not lplf:
+            return 0
+        return self.get_handle()
 
     @apihook("GetObjectA", argc=3)
     def GetObjectA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
