@@ -99,6 +99,27 @@ class OleAut32(api.ApiHandler):
             ctx.args["bstrString"].display = self.read_wide_string(argv[0])
         return
 
+    @apihook("SysStringLen", argc=1, ordinal=7)
+    def SysStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT SysStringLen(
+            BSTR pbstr
+        );
+        """
+        return self.SysStringByteLen(emu, argv, ctx) // 2
+
+    @apihook("SysStringByteLen", argc=1, ordinal=149)
+    def SysStringByteLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT SysStringByteLen(
+            BSTR bstr
+        );
+        """
+        (bstr,) = argv
+        if not bstr:
+            return 0
+        return struct.unpack("<I", self.mem_read(bstr - 4, 4))[0]
+
     @apihook("VariantInit", argc=1, ordinal=8)
     def VariantInit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

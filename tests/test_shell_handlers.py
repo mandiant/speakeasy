@@ -614,6 +614,18 @@ def test_sys_alloc_string_len_copies_length_characters(dll_emu: Speakeasy, text:
     assert read_bstr(dll_emu, rv) == text[:length].encode("utf-16le")
 
 
+@pytest.mark.parametrize("text", ["", "abc", "a\x00b"])
+def test_sys_string_len_reads_the_length_prefix(dll_emu: Speakeasy, text: str) -> None:
+    bstr, _ = call(dll_emu, "oleaut32", "SysAllocStringLen", [alloc(dll_emu, wstr(text, 2)), len(text)])
+    assert call(dll_emu, "oleaut32", "SysStringLen", [bstr])[0] == len(text)
+    assert call(dll_emu, "oleaut32", "SysStringByteLen", [bstr])[0] == len(text) * 2
+
+
+@pytest.mark.parametrize("name", ["SysStringLen", "SysStringByteLen"])
+def test_sys_string_len_of_null_is_zero(dll_emu: Speakeasy, name: str) -> None:
+    assert call(dll_emu, "oleaut32", name, [0])[0] == 0
+
+
 @pytest.mark.parametrize("width", [1, 2])
 def test_path_canonicalize_uses_the_char_width(dll_emu: Speakeasy, width: int) -> None:
     src = alloc(dll_emu, wstr("C:\\abc", width) + b"\x41" * 8)
