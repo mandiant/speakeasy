@@ -1333,31 +1333,62 @@ class Msvcrt(api.ApiHandler):
         """
 
         (destTime,) = argv
+        return self.write_time(destTime, self.get_time_size(emu))
 
-        out_time = TIME_BASE
-        if destTime:
-            self.mem_write(destTime, out_time.to_bytes(self.get_ptr_size(), "little"))
+    @apihook("_time32", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _time32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        __time32_t _time32( __time32_t *destTime );
+        """
+        (destTime,) = argv
+        return self.write_time(destTime, 4)
 
-        return out_time
+    @apihook("_time64", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _time64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        __time64_t _time64( __time64_t *destTime );
+        """
+        (destTime,) = argv
+        return self.return_int64(emu, self.write_time(destTime, 8))
+
+    def write_time(self, dest: int, size: int) -> int:
+        if dest:
+            self.mem_write(dest, TIME_BASE.to_bytes(size, "little"))
+        return TIME_BASE
 
     def get_time_size(self, emu) -> int:
         # x86 msvcrt.dll uses a 32-bit time_t
         return emu.get_ptr_size()
 
-    def write_struct_tm(self, timer: int, emu) -> int:
+    def read_time(self, timer: int, size: int) -> datetime | None:
+        value = int.from_bytes(self.mem_read(timer, size), "little", signed=True)
+        if value < 0:
+            return None
+        try:
+            return datetime.fromtimestamp(value, timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return None
+
+    def write_struct_tm(self, timer: int, size: int) -> int:
         if not timer:
             return 0
-        value = int.from_bytes(self.mem_read(timer, self.get_time_size(emu)), "little", signed=True)
-        if value < 0:
-            return 0
-        try:
-            t = datetime.fromtimestamp(value, timezone.utc)
-        except (ValueError, OverflowError, OSError):
+        t = self.read_time(timer, size)
+        if t is None:
             return 0
         if self.tm_buf is None:
             self.tm_buf = self.mem_alloc(36, tag="api.msvcrt.tm")
         self.mem_write(self.tm_buf, get_struct_tm(t))
         return self.tm_buf
+
+    def write_struct_tm_s(self, tm: int, timer: int, size: int) -> int:
+        if not tm:
+            return EINVAL
+        t = self.read_time(timer, size) if timer else None
+        if t is None:
+            self.mem_write(tm, struct.pack("<9i", *[-1] * 9))
+            return EINVAL
+        self.mem_write(tm, get_struct_tm(t))
+        return 0
 
     @apihook("localtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def localtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1366,7 +1397,31 @@ class Msvcrt(api.ApiHandler):
         """
         # The emulated time zone is UTC
         (timer,) = argv
-        return self.write_struct_tm(timer, emu)
+        return self.write_struct_tm(timer, self.get_time_size(emu))
+
+    @apihook("_localtime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _localtime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct tm *_localtime32(const __time32_t *sourceTime);
+        """
+        (timer,) = argv
+        return self.write_struct_tm(timer, 4)
+
+    @apihook("_localtime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _localtime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct tm *_localtime64(const __time64_t *sourceTime);
+        """
+        (timer,) = argv
+        return self.write_struct_tm(timer, 8)
+
+    @apihook("_localtime64_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _localtime64_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _localtime64_s(struct tm* tmDest, const __time64_t *sourceTime);
+        """
+        tm, timer = argv
+        return self.write_struct_tm_s(tm, timer, 8)
 
     @apihook("gmtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def gmtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1374,14 +1429,33 @@ class Msvcrt(api.ApiHandler):
         struct tm *gmtime(const time_t *sourceTime);
         """
         (timer,) = argv
-        return self.write_struct_tm(timer, emu)
+        return self.write_struct_tm(timer, self.get_time_size(emu))
 
-    @apihook("mktime", argc=1, conv=e_arch.CALL_CONV_CDECL)
-    def mktime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    @apihook("_gmtime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _gmtime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        time_t mktime(struct tm *timeptr);
+        struct tm *_gmtime32(const __time32_t *sourceTime);
         """
-        (tm,) = argv
+        (timer,) = argv
+        return self.write_struct_tm(timer, 4)
+
+    @apihook("_gmtime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _gmtime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        struct tm *_gmtime64(const __time64_t *sourceTime);
+        """
+        (timer,) = argv
+        return self.write_struct_tm(timer, 8)
+
+    @apihook("_gmtime64_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _gmtime64_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _gmtime64_s(struct tm* tmDest, const __time64_t *sourceTime);
+        """
+        tm, timer = argv
+        return self.write_struct_tm_s(tm, timer, 8)
+
+    def make_time(self, tm: int, size: int) -> int:
         sec, minute, hour, mday, mon, year = struct.unpack("<6i", self.mem_read(tm, 24))
         year, mon = year + 1900 + mon // 12, mon % 12
         try:
@@ -1391,10 +1465,34 @@ class Msvcrt(api.ApiHandler):
         except (ValueError, OverflowError):
             return -1
         value = int(t.timestamp())
-        if value < 0 or value >= 1 << (8 * self.get_time_size(emu) - 1):
+        if value < 0 or value >= 1 << (8 * size - 1):
             return -1
         self.mem_write(tm, get_struct_tm(t))
         return value
+
+    @apihook("mktime", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def mktime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        time_t mktime(struct tm *timeptr);
+        """
+        (tm,) = argv
+        return self.make_time(tm, self.get_time_size(emu))
+
+    @apihook("_mktime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mktime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        __time32_t _mktime32(struct tm *timeptr);
+        """
+        (tm,) = argv
+        return self.make_time(tm, 4)
+
+    @apihook("_mktime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mktime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        __time64_t _mktime64(struct tm *timeptr);
+        """
+        (tm,) = argv
+        return self.return_int64(emu, self.make_time(tm, 8))
 
     @apihook("strftime", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def strftime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1468,6 +1566,7 @@ class Msvcrt(api.ApiHandler):
 
     def return_int64(self, emu, value: int) -> int:
         if emu.get_arch() == e_arch.ARCH_X86:
+            value &= 0xFFFFFFFFFFFFFFFF
             emu.reg_write(e_arch.X86_REG_EDX, value >> 32)
             return value & 0xFFFFFFFF
         return value

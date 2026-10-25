@@ -901,6 +901,73 @@ def test_mktime_rejects_a_time_before_the_epoch(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "mktime", [tm])[0] == -1
 
 
+# 2023-11-14 22:13:20 UTC, a Tuesday, day 317 of the year
+TM_1700000000 = (20, 13, 22, 14, 10, 123, 2, 317, 0)
+# 2242-03-16 12:56:32 UTC, past the range of a 32-bit time_t
+TM_2_POW_33 = (32, 56, 12, 16, 2, 342, 3, 74, 0)
+
+
+def get_int64_return(se: Speakeasy, low: int) -> int:
+    assert se.emu is not None
+    if se.emu.get_arch() == e_arch.ARCH_X86:
+        return se.emu.reg_read(e_arch.X86_REG_EDX) << 32 | low
+    return low
+
+
+@pytest.mark.parametrize("api", ["_localtime64", "_gmtime64"])
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_time64_conversion_reads_an_8_byte_time_t(request: pytest.FixtureRequest, emu_name: str, api: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    rv, _ = call(se, "ucrtbase", api, [alloc(se, (1700000000).to_bytes(8, "little"))])
+    assert struct.unpack("<9i", se.mem_read(rv, 36)) == TM_1700000000
+    rv, _ = call(se, "ucrtbase", api, [alloc(se, (1 << 33).to_bytes(8, "little"))])
+    assert struct.unpack("<9i", se.mem_read(rv, 36)) == TM_2_POW_33
+    assert call(se, "ucrtbase", api, [0])[0] == 0
+
+
+@pytest.mark.parametrize("api", ["_localtime64_s", "_gmtime64_s"])
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_time64_s_conversion_fills_the_callers_struct_tm(
+    request: pytest.FixtureRequest, emu_name: str, api: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    tm = alloc(se, b"\xcc" * 36)
+    assert call(se, "ucrtbase", api, [tm, alloc(se, (1700000000).to_bytes(8, "little"))])[0] == 0
+    assert struct.unpack("<9i", se.mem_read(tm, 36)) == TM_1700000000
+    assert call(se, "ucrtbase", api, [tm, 0])[0] == EINVAL
+    assert struct.unpack("<9i", se.mem_read(tm, 36)) == (-1,) * 9
+    assert call(se, "ucrtbase", api, [0, alloc(se, (1700000000).to_bytes(8, "little"))])[0] == EINVAL
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_time64_writes_an_8_byte_time_t(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    out = alloc(se, b"\xcc" * 9)
+    rv = get_int64_return(se, call(se, "ucrtbase", "_time64", [out])[0])
+    assert rv == TIME_BASE
+    assert se.mem_read(out, 9) == TIME_BASE.to_bytes(8, "little") + b"\xcc"
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_mktime64_returns_an_8_byte_time_t(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    tm = alloc(se, struct.pack("<9i", *TM_2_POW_33[:6], 0, 0, -1))
+    assert get_int64_return(se, call(se, "ucrtbase", "_mktime64", [tm])[0]) == 1 << 33
+    assert struct.unpack("<9i", se.mem_read(tm, 36)) == TM_2_POW_33
+
+
+def test_time32_functions_use_a_4_byte_time_t_on_x64(dll64_emu: Speakeasy) -> None:
+    out = alloc(dll64_emu, b"\xcc" * 5)
+    assert call(dll64_emu, "ucrtbase", "_time32", [out])[0] == TIME_BASE
+    assert dll64_emu.mem_read(out, 5) == TIME_BASE.to_bytes(4, "little") + b"\xcc"
+    t = alloc(dll64_emu, (1700000000).to_bytes(4, "little") + b"\xff" * 4)
+    for api in ("_localtime32", "_gmtime32"):
+        rv, _ = call(dll64_emu, "ucrtbase", api, [t])
+        assert struct.unpack("<9i", dll64_emu.mem_read(rv, 36)) == TM_1700000000
+    tm = alloc(dll64_emu, struct.pack("<9i", *TM_2_POW_33[:6], 0, 0, -1))
+    assert call(dll64_emu, "ucrtbase", "_mktime32", [tm])[0] == -1
+
+
 def test_fputs_reports_the_string(dll_emu: Speakeasy) -> None:
     rv, displays = call(dll_emu, "msvcrt", "fputs", [alloc(dll_emu, b"hi there\x00"), 0x1000])
     assert rv == 0
