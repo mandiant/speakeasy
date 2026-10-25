@@ -369,6 +369,28 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
 
 
+@pytest.mark.parametrize(
+    "api, progid, clsid",
+    [
+        ("CLSIDFromProgID", "WbemScripting.SWbemLocator", "{76A64158-CB41-11D1-8B02-00600806D9B6}"),
+        ("CLSIDFromProgID", "MSXML2.XMLHTTP", "{F6D90F16-9C73-11D3-B32E-00C04F990BB4}"),
+        ("CLSIDFromProgIDEx", "wscript.shell", "{72C24DD5-D70A-438B-8A42-98424B88AFB8}"),
+    ],
+)
+def test_clsid_from_progid_writes_the_class_id(dll_emu: Speakeasy, api: str, progid: str, clsid: str) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16)
+    rv, _ = call(dll_emu, "ole32", api, [alloc(dll_emu, wstr(progid, 2)), out])
+    assert rv == com.S_OK
+    assert dll_emu.mem_read(out, 16) == uuid.UUID(clsid).bytes_le
+
+
+def test_clsid_from_progid_fails_for_an_unknown_progid(dll_emu: Speakeasy) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16)
+    rv, _ = call(dll_emu, "ole32", "CLSIDFromProgID", [alloc(dll_emu, wstr("No.Such.Class", 2)), out])
+    assert rv == 0x800401F3
+    assert dll_emu.mem_read(out, 16) == b"\x00" * 16
+
+
 def test_co_create_guid_returns_a_new_version_4_guid_each_call(dll_emu: Speakeasy) -> None:
     guids = []
     for _ in range(2):

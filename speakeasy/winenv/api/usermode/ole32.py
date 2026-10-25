@@ -2,6 +2,7 @@
 
 import logging
 import random
+import uuid
 
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -176,6 +177,36 @@ class Ole32(api.ApiHandler):
             self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), "little"))
 
         return rv
+
+    @apihook("CLSIDFromProgID", argc=2)
+    def CLSIDFromProgID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT CLSIDFromProgID(
+          LPCOLESTR lpszProgID,
+          LPCLSID   lpclsid
+        );
+        """
+        lpszProgID, lpclsid = argv
+
+        progid = self.read_mem_string(lpszProgID, 2) if lpszProgID else ""
+        clsid = com.PROGID_CLSIDS.get(progid.lower())
+        if clsid is None:
+            self.mem_write(lpclsid, b"\x00" * 16)
+            return com.CO_E_CLASSSTRING
+
+        self.mem_write(lpclsid, uuid.UUID(clsid).bytes_le)
+        ctx.args["lpclsid"].display = clsid
+        return windefs.S_OK
+
+    @apihook("CLSIDFromProgIDEx", argc=2)
+    def CLSIDFromProgIDEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT CLSIDFromProgIDEx(
+          LPCOLESTR lpszProgID,
+          LPCLSID   lpclsid
+        );
+        """
+        return self.CLSIDFromProgID(emu, argv, ctx)
 
     @apihook("StringFromGUID2", argc=3)
     def StringFromGUID2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
