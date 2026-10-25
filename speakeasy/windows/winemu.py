@@ -2056,7 +2056,7 @@ class WindowsEmulator(BinaryEmulator):
             eligible = eligible or (isinstance(reference, str) and self.has_api_signature(module.name, reference))
             # Empty placeholder modules deliberately offer dynamic-only functions.
             eligible = eligible or (module._image.source == "synthetic" and not module.get_exports())
-            if not eligible or module._image.source != "synthetic":
+            if not eligible or module._image.source != "synthetic" or module is getattr(self, "container_image", None):
                 return 0
             try:
                 entry = self.api_registry.dynamic(module, reference)
