@@ -44,12 +44,19 @@ def test_exit_event_stops_an_api_loop_as_a_timeout(config):
         se.mem_write(base + 7, (base + thread).to_bytes(4, "little"))
         se.mem_write(base + 16, se.emu.get_proc("kernel32", "CreateThread").to_bytes(4, "little"))
         se.mem_write(base + loop + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
-        timer = threading.Timer(0.5, exit_event.set)
-        timer.start()
+        calls = []
+
+        def count_ticks(emu, api_name, func, params):
+            calls.append(api_name)
+            if len(calls) == 100:
+                exit_event.set()
+            return len(calls)
+
+        se.add_api_hook(count_ticks, "kernel32", "GetTickCount", argc=0)
 
         se.run_shellcode(base)
 
-        timer.join()
+        assert exit_event.is_set()
         (entry,) = se.get_report().entry_points
         assert entry.error is not None
         assert entry.error.type == "timeout"
