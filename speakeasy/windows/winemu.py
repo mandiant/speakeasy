@@ -50,7 +50,7 @@ from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader, RuntimeModule, get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
-from speakeasy.windows.regman import RegistryManager
+from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, get_program_files_values
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
@@ -1767,6 +1767,9 @@ class WindowsEmulator(BinaryEmulator):
                 self.env.setdefault("programfiles(x86)", f"{program_files} (x86)")
                 self.env.setdefault("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files")
                 self.env.setdefault("programw6432", program_files)
+            self.regman.add_default_values(
+                WINDOWS_CURRENT_VERSION_KEY, get_program_files_values(self.env, self.arch == _arch.ARCH_AMD64)
+            )
 
         if self.emu_eng and not self.emu_eng.emu:
             engine_arch = image.arch if valid_arch else _arch.ARCH_X86

@@ -176,6 +176,38 @@ def test_current_version_values_follow_the_default_os_version(dll_emu: Speakeasy
     assert _query_value(dll_emu, hkey, b"CurrentBuildNumber") == (REG_SZ, b"7601\x00")
 
 
+PROGRAM_FILES_VALUES = [
+    (b"ProgramFilesDir", b"C:\\Program Files\x00"),
+    (b"CommonFilesDir", b"C:\\Program Files\\Common Files\x00"),
+]
+PROGRAM_FILES_X64_VALUES = [
+    (b"ProgramFilesDir (x86)", b"C:\\Program Files (x86)\x00"),
+    (b"CommonFilesDir (x86)", b"C:\\Program Files (x86)\\Common Files\x00"),
+    (b"ProgramW6432Dir", b"C:\\Program Files\x00"),
+    (b"CommonW6432Dir", b"C:\\Program Files\\Common Files\x00"),
+]
+
+
+@pytest.mark.parametrize(
+    "fixture, values",
+    [("dll_emu", PROGRAM_FILES_VALUES), ("dll64_emu", PROGRAM_FILES_VALUES + PROGRAM_FILES_X64_VALUES)],
+)
+def test_current_version_has_the_program_files_directories(
+    request: pytest.FixtureRequest, fixture: str, values: list[tuple[bytes, bytes]]
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    phk = alloc(se, b"\x00" * 8)
+    subkey = alloc(se, b"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\x00")
+    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, subkey, 0, 0x20019, phk])
+    assert rv == windefs.ERROR_SUCCESS
+    hkey = _dword(se, phk)
+    for name, data in values:
+        assert _query_value(se, hkey, name) == (REG_SZ, data)
+    assert se.emu is not None
+    key = se.emu.regman.get_key_from_handle(hkey)
+    assert len(key.get_values()) == len(values)
+
+
 @pytest.fixture
 def win10_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
     config["os_ver"] = {"major": 10, "minor": 0, "build": 19045}

@@ -96,6 +96,8 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
   // Environment variables visible to the emulated process.
   // Change when malware reads env values for path decisions or anti-sandbox checks.
+  // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
+  // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion; registry.keys values take precedence.
   "env": {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
     "systemroot": "C:\\Windows",

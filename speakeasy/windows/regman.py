@@ -12,6 +12,7 @@ HKEY_LOCAL_MACHINE = 0x80000002
 HKEY_USERS = 0x80000003
 
 CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+WINDOWS_CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
 PRODUCT_NAMES = {
     (6, 1): "Windows 7 Professional",
     (6, 2): "Windows 8 Pro",
@@ -40,6 +41,30 @@ def get_current_version_values(os_ver):
     if os_ver.build is not None:
         values.append(("CurrentBuild", regdefs.REG_SZ, str(os_ver.build)))
         values.append(("CurrentBuildNumber", regdefs.REG_SZ, str(os_ver.build)))
+    return values
+
+
+def get_program_files_values(env, is_x64):
+    """
+    Get the values of the Windows CurrentVersion key that give the program files directories
+    """
+    program_files = env.get("programfiles", "C:\\Program Files")
+    common_files = env.get("commonprogramfiles", f"{program_files}\\Common Files")
+    values = [
+        ("ProgramFilesDir", regdefs.REG_SZ, program_files),
+        ("CommonFilesDir", regdefs.REG_SZ, common_files),
+    ]
+    if is_x64:
+        values += [
+            ("ProgramFilesDir (x86)", regdefs.REG_SZ, env.get("programfiles(x86)", f"{program_files} (x86)")),
+            (
+                "CommonFilesDir (x86)",
+                regdefs.REG_SZ,
+                env.get("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files"),
+            ),
+            ("ProgramW6432Dir", regdefs.REG_SZ, env.get("programw6432", program_files)),
+            ("CommonW6432Dir", regdefs.REG_SZ, common_files),
+        ]
     return values
 
 
@@ -152,12 +177,18 @@ class RegistryManager:
             self.reg_handles.update({hk: key})
 
         if os_ver:
-            values = get_current_version_values(os_ver)
-            if values:
-                key = self.create_key(CURRENT_VERSION_KEY)
-                for name, val_type, data in values:
-                    if not key.get_value(name):
-                        key.create_value(name, val_type, data)
+            self.add_default_values(CURRENT_VERSION_KEY, get_current_version_values(os_ver))
+
+    def add_default_values(self, path, values):
+        """
+        Add values to a key, except values that the config sets
+        """
+        if not values:
+            return
+        key = self.create_key(path)
+        for name, val_type, data in values:
+            if not key.get_value(name):
+                key.create_value(name, val_type, data)
 
     def normalize_reg_path(self, path):
         if path:
