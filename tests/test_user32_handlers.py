@@ -610,6 +610,17 @@ def test_get_window_thread_process_id_of_the_desktop_is_csrss(dll_emu: Speakeasy
     assert call(dll_emu, "user32", "GetWindowThreadProcessId", [desktop, 0])[0] == tid
 
 
+def test_get_foreground_window_is_a_stable_explorer_window(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    hwnd, _ = call(dll_emu, "user32", "GetForegroundWindow", [])
+    assert hwnd and call(dll_emu, "user32", "GetForegroundWindow", [])[0] == hwnd
+    pid = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, pid])[0] != 0
+    explorer = next(p for p in dll_emu.emu.get_processes() if p.name == "explorer")
+    assert dll_emu.mem_read(pid, 4) == struct.pack("<I", explorer.pid)
+
+
 def test_get_window_thread_process_id_of_an_invalid_window(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)

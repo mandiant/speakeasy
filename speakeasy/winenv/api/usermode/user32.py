@@ -184,6 +184,7 @@ class User32(api.ApiHandler):
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
         self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
+        self.foreground_window: int = 0
         self.synthetic_async_keys = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index = 0
         self.synthetic_hook_keys = [0x41, 0x42, 0x43]
@@ -965,7 +966,15 @@ class User32(api.ApiHandler):
         """
         HWND GetForegroundWindow();
         """
-        return self.get_handle()
+        if not self.foreground_window:
+            explorer = next((p for p in emu.get_processes() if p.name.lower() == "explorer"), None)
+            self.foreground_window = self.sessman.create_window(
+                window_name="Program Manager",
+                class_name="Progman",
+                thread_id=emu.handle_allocator.allocate_kernel_object_id(),
+                process_id=explorer.pid if explorer else 0,
+            )
+        return self.foreground_window
 
     @apihook("LoadCursor", argc=2)
     def LoadCursor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
