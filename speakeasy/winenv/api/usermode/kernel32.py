@@ -896,7 +896,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             cmd = self.read_mem_string(lpCmdLine, 1)
             ctx.args["lpCmdLine"].display = cmd
             try:
-                proc = emu.create_process(path=cmd, cmdline=cmd)
+                proc = emu.create_process(cmdline=cmd)
             except FileSystemEmuError:
                 return windefs.ERROR_FILE_NOT_FOUND
             self.record_process_event(proc, PROC_CREATE)

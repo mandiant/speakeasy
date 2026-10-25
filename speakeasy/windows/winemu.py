@@ -1898,16 +1898,14 @@ class WindowsEmulator(BinaryEmulator):
         """
         self.validate_object_services("process creation")
 
-        if not path and cmdline:
-            path = cmdline
-
-        # See if we are trying to create a process based off a file
-        # inside the object manager and serve that
-        # Setting posix to false makes shlex not treat '\' as an
-        # escape character, but if each token was surrounded with
-        # quotes, those are kept, so we have to delete them
-        tokens = shlex.split(path or "", posix=False)
-        file_path = tokens[0].strip('"') if tokens else ""
+        if path:
+            file_path = path.strip().strip('"')
+        else:
+            # Setting posix to false makes shlex not treat '\' as an
+            # escape character, but if each token was surrounded with
+            # quotes, those are kept, so we have to delete them
+            tokens = shlex.split(cmdline or "", posix=False)
+            file_path = tokens[0].strip('"') if tokens else ""
         if not file_path:
             raise FileSystemEmuError("process creation needs a program name")
 
@@ -1918,7 +1916,7 @@ class WindowsEmulator(BinaryEmulator):
         if mod_data:
             p.pe_data = mod_data
         else:
-            new_mod = self.load_module_by_name(file_path, emu_path=path)
+            new_mod = self.load_module_by_name(file_path, emu_path=file_path)
             p.pe = new_mod
 
         p.path = file_path

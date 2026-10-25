@@ -911,3 +911,55 @@ def test_get_file_attributes_knows_the_environment_directories(
         for path in ("C:\\Users\\user\\AppData", "C:\\Tools\\bin\\", "C:\\Python"):
             name = alloc(se, path.encode() + b"\x00")
             assert call(se, "kernel32", "GetFileAttributesA", [name])[0] == windefs.FILE_ATTRIBUTE_DIRECTORY
+
+
+PROGRAM_FILES_APP = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+
+
+@pytest.mark.parametrize(
+    "dll, api, app, cmdline, path",
+    [
+        ("kernel32", "CreateProcessA", PROGRAM_FILES_APP, None, PROGRAM_FILES_APP),
+        ("kernel32", "CreateProcessA", PROGRAM_FILES_APP, "msedge.exe --x", PROGRAM_FILES_APP),
+        ("kernel32", "CreateProcessA", f'"{PROGRAM_FILES_APP}"', None, PROGRAM_FILES_APP),
+        ("kernel32", "CreateProcessA", None, f'"{PROGRAM_FILES_APP}" --x', PROGRAM_FILES_APP),
+        ("advapi32", "CreateProcessAsUserA", PROGRAM_FILES_APP, None, PROGRAM_FILES_APP),
+        ("advapi32", "CreateProcessAsUserA", None, f'"{PROGRAM_FILES_APP}" --x', PROGRAM_FILES_APP),
+    ],
+)
+def test_create_process_uses_the_application_name_as_the_path(
+    emu: Speakeasy, dll: str, api: str, app: str | None, cmdline: str | None, path: str
+) -> None:
+    assert emu.emu is not None
+    si = alloc(emu, b"\x00" * 0x44)
+    pi = alloc(emu, b"\x00" * 0x10)
+    argv = [
+        alloc(emu, app.encode() + b"\x00") if app else 0,
+        alloc(emu, cmdline.encode() + b"\x00") if cmdline else 0,
+        *[0] * 6,
+        si,
+        pi,
+    ]
+    if dll == "advapi32":
+        argv.insert(0, 0)
+    assert call(emu, dll, api, argv)[0]
+    hproc = int.from_bytes(emu.mem_read(pi, 4), "little")
+    proc = emu.emu.get_object_from_handle(hproc)
+    assert proc.path == path
+    assert proc.cmdline == (cmdline or "")
+
+
+def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    fn = alloc(emu, PROGRAM_FILES_APP.encode() + b"\x00")
+    params = alloc(emu, b"--app=http://127.0.0.1:27870/\x00")
+    assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, params, 0, 1])[0] == 33
+    proc = emu.emu.processes[-1]
+    assert (proc.path, proc.cmdline) == (PROGRAM_FILES_APP, "--app=http://127.0.0.1:27870/")
+
+
+def test_win_exec_parses_the_command_line(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    cmd = alloc(emu, f'"{PROGRAM_FILES_APP}" --x\x00'.encode())
+    assert call(emu, "kernel32", "WinExec", [cmd, 1])[0] == 32
+    assert emu.emu.processes[-1].path == PROGRAM_FILES_APP

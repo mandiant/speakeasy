@@ -1595,8 +1595,6 @@ class AdvApi32(api.ApiHandler):
             ctx.args["lpApplicationName"].display = appstr
         if cmd:
             cmdstr = self.read_mem_string(cmd, cw)
-            if not appstr:
-                appstr = cmdstr.split(" ")[0]
             ctx.args["lpCommandLine"].display = cmdstr
 
         try:
