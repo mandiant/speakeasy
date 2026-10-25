@@ -1324,24 +1324,31 @@ class WindowsEmulator(BinaryEmulator):
         def _create_selector(index, flags):
             return flags | (index << 3)
 
+        # x86 user mode uses the selectors of native 32-bit Windows: CS 0x1B, DS and ES 0x23, FS 0x3B.
+        # SS stays a ring 0 selector because Unicorn runs the guest at CPL 0 and rejects an RPL 3 SS.
+        native_x86 = _arch.ARCH_X86 == arch and not self.kernel_mode
+        data_index, code_index, fs_index = (4, 3, 7) if native_x86 else (16, 17, 19)
+
         gdt_addr, gdt_size = self.get_valid_ranges(GDT_SIZE)
         self.mem_map(gdt_size, base=gdt_addr, tag="emu.gdt")
         seg_addr, seg_size = self.get_valid_ranges(SEG_SIZE)
         self.mem_map(seg_size, base=seg_addr, tag="emu.segment.gdt")
 
         access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
-        _make_entry(16, 0, access)
+        _make_entry(data_index, 0, access)
 
         access = winemu.GDT_ACCESS_BITS.Code | winemu.GDT_ACCESS_BITS.CodeReadable | winemu.GDT_ACCESS_BITS.Ring3
-        _make_entry(17, 0, access)
+        _make_entry(code_index, 0, access)
 
         access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring0
         _make_entry(18, 0, access)
 
         self.reg_write(_arch.X86_REG_GDTR, (0, gdt_addr, num_gdt_entries * ENTRY_SIZE - 1, 0x0))
-        selector = _create_selector(16, winemu.GDT_FLAGS.Ring3)
+        selector = _create_selector(data_index, winemu.GDT_FLAGS.Ring3)
         self.reg_write(_arch.X86_REG_DS, selector)
-        selector = _create_selector(17, winemu.GDT_FLAGS.Ring3)
+        if native_x86:
+            self.reg_write(_arch.X86_REG_ES, selector)
+        selector = _create_selector(code_index, winemu.GDT_FLAGS.Ring3)
         self.reg_write(_arch.X86_REG_CS, selector)
         selector = _create_selector(18, winemu.GDT_FLAGS.Ring0)
         self.reg_write(_arch.X86_REG_SS, selector)
@@ -1352,9 +1359,9 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_map(fs_size, base=fs_addr, tag="emu.segment.fs")
 
             access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
-            _make_entry(19, fs_addr, access)
+            _make_entry(fs_index, fs_addr, access)
 
-            selector = _create_selector(19, winemu.GDT_FLAGS.Ring3)
+            selector = _create_selector(fs_index, winemu.GDT_FLAGS.Ring3)
             self.reg_write(_arch.X86_REG_FS, selector)
 
         elif _arch.ARCH_AMD64 == arch:
