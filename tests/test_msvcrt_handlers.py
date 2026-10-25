@@ -173,6 +173,80 @@ def test_itoa_uses_32_bit_value_on_x64(dll64_emu: Speakeasy) -> None:
     assert dll64_emu.mem_read(buf, 3) == b"-5\x00"
 
 
+XTOX_S_APIS = [
+    "_itoa_s",
+    "_itow_s",
+    "_ltoa_s",
+    "_ltow_s",
+    "_ultoa_s",
+    "_ultow_s",
+    "_i64toa_s",
+    "_i64tow_s",
+    "_ui64toa_s",
+    "_ui64tow_s",
+]
+
+
+def call_xtox_s(se: Speakeasy, api: str, value: int, buf: int, size: int, radix: int) -> int:
+    assert se.emu is not None
+    value &= 0xFFFFFFFFFFFFFFFF
+    if se.emu.get_ptr_size() == 4:
+        argv = [value & 0xFFFFFFFF, value >> 32] if "64" in api else [value & 0xFFFFFFFF]
+    else:
+        argv = [value]
+    argv += [buf, size, radix]
+    if "64" in api and se.emu.get_ptr_size() == 8:
+        argv.append(0)
+    return call(se, "msvcrt", api, argv)[0]
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize(
+    "api, value, radix, text",
+    [
+        ("_itoa_s", -123, 10, "-123"),
+        ("_ltow_s", -123, 10, "-123"),
+        ("_itow_s", 255, 16, "ff"),
+        ("_ltoa_s", -1, 16, "ffffffff"),
+        ("_ultoa_s", -123, 10, "4294967173"),
+        ("_ultow_s", 35, 36, "z"),
+        ("_i64toa_s", -(2**40), 10, "-1099511627776"),
+        ("_i64tow_s", -1, 2, "1" * 64),
+        ("_ui64toa_s", -1, 10, "18446744073709551615"),
+        ("_ui64tow_s", 2**40, 16, "10000000000"),
+    ],
+)
+def test_xtox_s_formats_in_radix(
+    request: pytest.FixtureRequest, fixture: str, api: str, value: int, radix: int, text: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    enc = "utf-16le" if "tow" in api else "latin-1"
+    buf = alloc(se, b"\xcc" * 160)
+    assert call_xtox_s(se, api, value, buf, len(text) + 1, radix) == 0
+    data = f"{text}\0".encode(enc)
+    assert se.mem_read(buf, len(data)) == data
+
+    assert call_xtox_s(se, api, value, buf, len(text), radix) == ERANGE
+    assert se.mem_read(buf, len("\0".encode(enc))) == "\0".encode(enc)
+
+
+@pytest.mark.parametrize("api", XTOX_S_APIS)
+def test_xtox_s_checks_its_arguments(dll_emu: Speakeasy, api: str) -> None:
+    width = 2 if "tow" in api else 1
+    buf = alloc(dll_emu, b"\xcc" * 16)
+    assert call_xtox_s(dll_emu, api, 1, 0, 12, 10) == EINVAL
+    assert call_xtox_s(dll_emu, api, 1, buf, 0, 10) == EINVAL
+    assert dll_emu.mem_read(buf, 16) == b"\xcc" * 16
+
+    assert call_xtox_s(dll_emu, api, 1, buf, 12, 37) == EINVAL
+    assert dll_emu.mem_read(buf, width + 1) == b"\x00" * width + b"\xcc"
+
+    assert call_xtox_s(dll_emu, api, 12345, buf, 3, 10) == ERANGE
+    assert dll_emu.mem_read(buf, width) == b"\x00" * width
+    errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
+    assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == ERANGE
+
+
 @pytest.mark.parametrize(
     "text, count, rv, written",
     [

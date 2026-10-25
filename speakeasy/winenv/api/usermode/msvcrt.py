@@ -4061,6 +4061,113 @@ class Msvcrt(api.ApiHandler):
         self.write_wide_string(self.format_int32(val, radix), out_str)
         return out_str
 
+    def convert_int_s(self, argv, bits, signed, width):
+        """
+        Write an integer as the _itoa_s family does. A 64-bit value takes two
+        stack slots on x86.
+        """
+        if bits == 64 and self.get_ptr_size() == 4:
+            lo, hi, buf, size, radix = argv
+            val = (hi << 32) | lo
+        else:
+            val, buf, size, radix = argv[:4]
+        val &= (1 << bits) - 1
+        negative = signed and radix == 10 and bool(val >> (bits - 1))
+        if not buf or not size:
+            self.set_errno(EINVAL)
+            return EINVAL
+        self.mem_write(buf, b"\x00" * width)
+        if size <= 1 + negative:
+            self.set_errno(ERANGE)
+            return ERANGE
+        if not 2 <= radix <= 36:
+            self.set_errno(EINVAL)
+            return EINVAL
+        if negative:
+            val = (1 << bits) - val
+        digits = ""
+        while True:
+            val, d = divmod(val, radix)
+            digits = "0123456789abcdefghijklmnopqrstuvwxyz"[d] + digits
+            if not val:
+                break
+        text = "-" * negative + digits
+        if len(text) >= size:
+            self.set_errno(ERANGE)
+            return ERANGE
+        self.write_mem_string(text, buf, width)
+        return 0
+
+    @apihook("_itoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _itoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _itoa_s(int value, char *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, True, 1)
+
+    @apihook("_itow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _itow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _itow_s(int value, wchar_t *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, True, 2)
+
+    @apihook("_ltoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _ltoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ltoa_s(long value, char *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, True, 1)
+
+    @apihook("_ltow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _ltow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ltow_s(long value, wchar_t *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, True, 2)
+
+    @apihook("_ultoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _ultoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ultoa_s(unsigned long value, char *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, False, 1)
+
+    @apihook("_ultow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _ultow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ultow_s(unsigned long value, wchar_t *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 32, False, 2)
+
+    @apihook("_i64toa_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _i64toa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _i64toa_s(__int64 value, char *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 64, True, 1)
+
+    @apihook("_i64tow_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _i64tow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _i64tow_s(__int64 value, wchar_t *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 64, True, 2)
+
+    @apihook("_ui64toa_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _ui64toa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ui64toa_s(unsigned __int64 value, char *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 64, False, 1)
+
+    @apihook("_ui64tow_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _ui64tow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _ui64tow_s(unsigned __int64 value, wchar_t *buffer, size_t size, int radix);
+        """
+        return self.convert_int_s(argv, 64, False, 2)
+
     @apihook("_EH_prolog", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _EH_prolog(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         # push    -1
