@@ -790,6 +790,67 @@ def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> N
     assert (rv, _dword(dll_emu, size)) == (1, 3)
 
 
+DPAPI_HEADER = bytes.fromhex("01000000d08c9ddf0115d1118c7a00c04fc297eb")
+
+
+def _data_blob(se: Speakeasy, data: bytes) -> int:
+    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    blob = struct.pack("<I", len(data)).ljust(ptr_size, b"\x00") + alloc(se, data).to_bytes(ptr_size, "little")
+    return alloc(se, blob)
+
+
+def _read_data_blob(se: Speakeasy, addr: int) -> bytes:
+    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    data = int.from_bytes(se.mem_read(addr + ptr_size, ptr_size), "little")
+    return se.mem_read(data, _dword(se, addr))
+
+
+@pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
+def test_crypt_protect_data_round_trips_with_the_description(emu_fixture: str, request: pytest.FixtureRequest) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    secret = bytes(range(32))
+    protected = alloc(se, b"\x00" * 16)
+    entropy = _data_blob(se, b"salt")
+    rv, _ = call(
+        se,
+        "crypt32",
+        "CryptProtectData",
+        [_data_blob(se, secret), alloc(se, "Upkeep\x00".encode("utf-16le")), entropy, 0, 0, 4, protected],
+    )
+    blob = _read_data_blob(se, protected)
+    assert rv == 1
+    assert len(blob) > 32 and blob.startswith(DPAPI_HEADER) and secret not in blob
+    plain = alloc(se, b"\x00" * 16)
+    descr = alloc(se, b"\x00" * 8)
+    rv, _ = call(se, "crypt32", "CryptUnprotectData", [_data_blob(se, blob), descr, entropy, 0, 0, 0, plain])
+    assert rv == 1
+    assert _read_data_blob(se, plain) == secret
+    descr_addr = int.from_bytes(se.mem_read(descr, ptr_size), "little")
+    assert se.emu.read_mem_string(descr_addr, 2) == "Upkeep"  # type: ignore[union-attr]
+    for addr in (protected + ptr_size, plain + ptr_size, descr):
+        assert call(se, "kernel32", "LocalFree", [int.from_bytes(se.mem_read(addr, ptr_size), "little")])[0] == 0
+
+
+@pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
+def test_crypt_unprotect_data_rejects_a_bad_blob_or_entropy(emu_fixture: str, request: pytest.FixtureRequest) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    start_process(se)
+    protected = alloc(se, b"\x00" * 16)
+    plain = alloc(se, b"\x00" * 16)
+    call(se, "crypt32", "CryptProtectData", [_data_blob(se, b"key"), 0, _data_blob(se, b"salt"), 0, 0, 0, protected])
+    blob = _read_data_blob(se, protected)
+
+    for data, entropy in (
+        (blob, _data_blob(se, b"pepper")),
+        (blob, 0),
+        (bytes(range(7, 39)), 0),
+        (blob[:-1], _data_blob(se, b"salt")),
+    ):
+        rv, _ = call(se, "crypt32", "CryptUnprotectData", [_data_blob(se, data), 0, entropy, 0, 0, 0, plain])
+        assert (rv, _last_error(se)) == (0, windefs.ERROR_INVALID_DATA)
+
+
 HKEY_LOCAL_MACHINE = 0x80000002
 USBSAMP = b"System\\CurrentControlSet\\Services\\usbsamp\x00"
 
