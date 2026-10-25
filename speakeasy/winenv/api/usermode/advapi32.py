@@ -212,6 +212,8 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hKey, lpValueName, _reserved, dwType, lpData, cbData = argv
+        dwType &= 0xFFFFFFFF
+        cbData &= 0xFFFFFFFF
 
         key = self.reg_get_key(hKey)
         if not key:
@@ -285,7 +287,7 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, dwIndex, lpName, cchName = argv
 
-        rv, _ = self.enum_key(hKey, dwIndex, lpName, cchName, ctx)
+        rv, _ = self.enum_key(hKey, dwIndex & 0xFFFFFFFF, lpName, cchName & 0xFFFFFFFF, ctx)
 
         return rv
 
@@ -306,7 +308,7 @@ class AdvApi32(api.ApiHandler):
         hKey, dwIndex, lpName, cchName, res, pcls, cchcls, last_write = argv
 
         cch = int.from_bytes(self.mem_read(cchName, 4), "little") if cchName else 0
-        rv, name = self.enum_key(hKey, dwIndex, lpName, cch, ctx)
+        rv, name = self.enum_key(hKey, dwIndex & 0xFFFFFFFF, lpName, cch, ctx)
         if rv == windefs.ERROR_SUCCESS:
             self.mem_write(cchName, len(name).to_bytes(4, "little"))
         return rv

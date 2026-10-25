@@ -104,6 +104,35 @@ def test_reg_set_value_shows_string_data(dll_emu: Speakeasy, api: str, encoding:
     assert displays["lpData"] == "wlogon.dll"
 
 
+def test_reg_set_value_x64_reads_only_the_low_dword_of_dword_args(dll64_emu: Speakeasy) -> None:
+    hkey = _create_key(dll64_emu, HKEY_CURRENT_USER, b"Software\\Evil")
+    data = struct.pack("<Q", 0x1122334455667788)
+    garbage = 0x00010001 << 32
+    argv = [hkey, alloc(dll64_emu, b"Stamp\x00"), garbage, garbage | 0xB, alloc(dll64_emu, data), garbage | 8]
+    rv, _ = call(dll64_emu, "advapi32", "RegSetValueExA", argv)
+    assert rv == windefs.ERROR_SUCCESS
+    vtype = alloc(dll64_emu, b"\x00" * 4)
+    buf = alloc(dll64_emu, b"\x00" * 0x10)
+    size = alloc(dll64_emu, struct.pack("<I", 0x10))
+    rv, _ = call(dll64_emu, "advapi32", "RegQueryValueExA", [hkey, alloc(dll64_emu, b"Stamp\x00"), 0, vtype, buf, size])
+    assert rv == windefs.ERROR_SUCCESS
+    assert (_dword(dll64_emu, vtype), dll64_emu.mem_read(buf, _dword(dll64_emu, size))) == (0xB, data)
+
+
+@pytest.mark.parametrize("api", ["RegEnumKeyA", "RegEnumKeyExA"])
+def test_reg_enum_key_x64_reads_only_the_low_dword_of_the_index(dll64_emu: Speakeasy, api: str) -> None:
+    _create_key(dll64_emu, HKEY_CURRENT_USER, b"Software\\Foo\\Bar")
+    hfoo = _create_key(dll64_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    buf = alloc(dll64_emu, b"\xcc" * 8)
+    garbage = 0x00010001 << 32
+    if api == "RegEnumKeyA":
+        argv = [hfoo, garbage, buf, garbage | 8]
+    else:
+        argv = [hfoo, garbage, buf, alloc(dll64_emu, struct.pack("<I", 8)), 0, 0, 0, 0]
+    rv, _ = call(dll64_emu, "advapi32", api, argv)
+    assert (rv, dll64_emu.mem_read(buf, 4)) == (windefs.ERROR_SUCCESS, b"Bar\x00")
+
+
 @pytest.mark.parametrize("api", ["RegQueryValueExA", "RegGetValueA"])
 def test_reg_query_without_a_value_name_reads_the_default_value(dll_emu: Speakeasy, api: str) -> None:
     hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Evil")
