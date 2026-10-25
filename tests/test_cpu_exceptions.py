@@ -6,6 +6,7 @@ from functools import partial
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.profiler import Run
 from tests.guest_harness import Deref, get_api, guest_call
 
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
@@ -438,3 +439,29 @@ def test_vectored_handler_added_first_runs_first(config):
 
         assert se.get_report().entry_points[0].ret_val == 42
         assert struct.unpack("<I", se.mem_read(data, 4))[0] == 2
+
+
+@pytest.mark.parametrize("arch, ptr_size", [("amd64", 8), ("x86", 4)])
+def test_run_after_a_fastfail_runs_once(config, arch, ptr_size):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch=arch)
+        data = se.mem_alloc(0x1000)
+        counter = struct.pack("<I", data)
+        increment = b"\xff\x04\x25" + counter if ptr_size == 8 else b"\xff\x05" + counter
+        load = b"\x8b\x04\x25" + counter if ptr_size == 8 else b"\xa1" + counter
+        tick = guest_call(ptr_size, get_api(se, "kernel32", "GetTickCount"))
+        se.mem_write(base, increment + tick + load + b"\xc3")
+        se.mem_write(base + 0x100, b"\xb9\x07\x00\x00\x00\xcd\x29")  # mov ecx, 7; int 0x29
+        run = Run()
+        run.type = "fastfail"
+        run.start_addr = base + 0x100
+        run.args = []
+        se.emu.add_run(run)
+
+        se.run_shellcode(base)
+
+        fastfail, export = se.get_report().entry_points
+        assert (fastfail.error.type, fastfail.error.interrupt_num) == ("unhandled_interrupt", 0x29)
+        assert export.error is None
+        assert [e.api_name for e in export.events or [] if e.event == "api"] == ["kernel32.GetTickCount"]
+        assert export.ret_val == 1

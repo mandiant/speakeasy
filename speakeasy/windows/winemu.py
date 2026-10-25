@@ -189,7 +189,6 @@ class WindowsEmulator(BinaryEmulator):
         self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
         self.curr_run: Run | None = None
         self.api_ctx: ApiContext = NO_CONTEXT
-        self.restart_curr_run: bool = False
         self._stop_on_faults: bool = False
         self._pending_fault_stop: StopReason | None = None
         self.curr_mod: Any | None = None
@@ -3363,11 +3362,6 @@ class WindowsEmulator(BinaryEmulator):
         and disables itself once the pending work is drained.
         """
         try:
-            if self.restart_curr_run:
-                self.set_pc(self.curr_run.start_addr)  # type: ignore[union-attr]
-                self.restart_curr_run = False
-                return False
-
             if addr == self.return_hook or self.run_complete:
                 self.on_run_complete()
                 return False
@@ -3956,6 +3950,5 @@ class WindowsEmulator(BinaryEmulator):
         if self._stop_on_faults:
             self.end_run_on_fault()
             return False
-        self.restart_curr_run = True
         self.on_run_complete()
         return False
