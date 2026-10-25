@@ -165,6 +165,14 @@ class Shell32(api.ApiHandler):
         """
         hwnd, lpOperation, lpFile, lpParameters, lpDirectory, nShowCmd = argv
 
+        rv, _ = self.shell_execute(emu, lpOperation, lpFile, lpParameters, lpDirectory, ctx)
+        return rv
+
+    def shell_execute(self, emu, lpOperation, lpFile, lpParameters, lpDirectory, ctx):
+        """
+        Start the program of ``lpFile`` and return the HINSTANCE result
+        and the new process, or None on failure.
+        """
         cw = self.get_char_width(ctx)
 
         fn = ""
@@ -190,10 +198,10 @@ class Shell32(api.ApiHandler):
             proc = emu.create_process(path=fn, cmdline=param)
         except FileSystemEmuError:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return shell32_defs.SE_ERR_FNF
+            return shell32_defs.SE_ERR_FNF, None
         self.record_process_event(proc, PROC_CREATE)
 
-        return 33
+        return 33, proc
 
     @apihook("ShellExecuteEx", argc=1)
     def ShellExecuteEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -207,15 +215,15 @@ class Shell32(api.ApiHandler):
         sei = shell32_defs.SHELLEXECUTEINFOA(emu.get_ptr_size())
         sei_struct = self.mem_cast(sei, lpShellExecuteInfo)
 
-        rv = self.ShellExecute(
-            emu, [0, sei_struct.lpVerb, sei_struct.lpFile, sei_struct.lpParameters, sei_struct.lpDirectory, 0], ctx
+        rv, proc = self.shell_execute(
+            emu, sei_struct.lpVerb, sei_struct.lpFile, sei_struct.lpParameters, sei_struct.lpDirectory, ctx
         )
-        if rv <= 32:
-            sei_struct.hInstApp = rv
-            self.mem_write(lpShellExecuteInfo, self.get_bytes(sei_struct))
-            return False
+        sei_struct.hInstApp = rv
+        if proc and sei_struct.fMask & shell32_defs.SEE_MASK_NOCLOSEPROCESS:
+            sei_struct.handle = self.get_object_handle(proc)
+        self.mem_write(lpShellExecuteInfo, self.get_bytes(sei_struct))
 
-        return True
+        return proc is not None
 
     @apihook("SHChangeNotify", argc=4)
     def SHChangeNotify(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

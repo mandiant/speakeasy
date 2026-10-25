@@ -808,6 +808,22 @@ def test_shell_execute_ex_writes_the_error_to_h_inst_app(dll_emu: Speakeasy) -> 
     assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
 
 
+@pytest.mark.parametrize("mask", [0, 0x40], ids=["no process handle", "SEE_MASK_NOCLOSEPROCESS"])
+def test_shell_execute_ex_writes_h_inst_app_and_h_process(dll_emu: Speakeasy, mask: int) -> None:
+    start_process(dll_emu)
+    fn = alloc(dll_emu, wstr("C:\\x.exe", 2))
+    sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, mask, 0, 0, fn, 0, 0, 1, 0) + b"\x00" * 24)
+    rv, _ = call(dll_emu, "shell32", "ShellExecuteExW", [sei])
+    assert rv == 1
+    assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] > 32
+    h_process = struct.unpack("<I", dll_emu.mem_read(sei + 56, 4))[0]
+    if mask:
+        assert h_process != 0
+        assert call(dll_emu, "kernel32", "WaitForSingleObject", [h_process, 0])[0] != 0xFFFFFFFF
+    else:
+        assert h_process == 0
+
+
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_microsoft_telemetry_assert_triggered_um_returns(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)

@@ -5,6 +5,7 @@ from speakeasy.struct import EmuStruct, Ptr
 CSIDL_FLAG_MASK = 0xFF00
 
 SE_ERR_FNF = 2
+SEE_MASK_NOCLOSEPROCESS = 0x40
 
 CSIDL = {
     0x00: "CSIDL_DESKTOP",
