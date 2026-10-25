@@ -70,6 +70,13 @@ ERROR_BAD_LENGTH = 24
 ERROR_BAD_ARGUMENTS = 160
 ERROR_OLD_WIN_VERSION = 1150
 
+FILE_NAME_OPENED = 0x8
+VOLUME_NAME_DOS = 0x0
+VOLUME_NAME_GUID = 0x1
+VOLUME_NAME_NT = 0x2
+VOLUME_NAME_NONE = 0x4
+VOLUME_NAME_MASK = 0x7
+
 VER_MINORVERSION = 0x1
 VER_MAJORVERSION = 0x2
 VER_BUILDNUMBER = 0x4
@@ -3088,6 +3095,65 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 rv = len(fn)
 
         return rv
+
+    def get_final_path(self, emu, path, flags):
+        """
+        Return the path of an open file in the form that ``flags`` selects, or
+        None when the path has no drive letter or the drive is not known.
+        """
+        drive, rest = ntpath.splitdrive(path)
+        if len(drive) != 2 or not rest.startswith("\\"):
+            return None
+        drive = drive.upper()
+        volume = flags & VOLUME_NAME_MASK
+        if volume == VOLUME_NAME_DOS:
+            return "\\\\?\\" + drive + rest
+        if volume == VOLUME_NAME_NONE:
+            return rest
+        if volume == VOLUME_NAME_GUID:
+            disk = emu.get_drive_manager().get_drive(root_path=drive + "\\")
+            return disk.volume_guid_path.rstrip("\\") + rest if disk and disk.volume_guid_path else None
+        device = next((dev for link, dev in emu.om.symlinks if link.upper() == "\\??\\" + drive), None)
+        return device + rest if device else None
+
+    @apihook("GetFinalPathNameByHandle", argc=4)
+    def GetFinalPathNameByHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetFinalPathNameByHandleA(
+          HANDLE hFile,
+          LPSTR  lpszFilePath,
+          DWORD  cchFilePath,
+          DWORD  dwFlags
+        );
+        """
+        hFile, lpszFilePath, cchFilePath, dwFlags = argv
+        cchFilePath &= 0xFFFFFFFF
+        dwFlags &= 0xFFFFFFFF
+        cw = self.get_char_width(ctx)
+
+        if dwFlags & ~(VOLUME_NAME_MASK | FILE_NAME_OPENED) or (dwFlags & VOLUME_NAME_MASK) not in (
+            VOLUME_NAME_DOS,
+            VOLUME_NAME_GUID,
+            VOLUME_NAME_NT,
+            VOLUME_NAME_NONE,
+        ):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        f = self.file_get(hFile)
+        if not f:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        path = self.get_final_path(emu, f.path, dwFlags)
+        if path is None:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return 0
+
+        if not lpszFilePath or cchFilePath <= len(path):
+            return len(path) + 1
+        self.write_mem_string(path, lpszFilePath, cw)
+        return len(path)
 
     @apihook("GetStartupInfo", argc=1)
     def GetStartupInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

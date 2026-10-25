@@ -1000,6 +1000,47 @@ def test_writes_through_a_reopened_file_reach_the_file(strict_fs_emu: Speakeasy)
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"MZ\x90\x00"]
 
 
+@pytest.mark.parametrize(
+    ("flags", "expected"),
+    [
+        (0, "\\\\?\\C:\\drop.bin"),
+        (8, "\\\\?\\C:\\drop.bin"),
+        (1, "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\drop.bin"),
+        (2, "\\Device\\HarddiskVolume1\\drop.bin"),
+        (4, "\\drop.bin"),
+    ],
+)
+def test_get_final_path_name_by_handle_gives_the_path_of_the_file(
+    strict_fs_emu: Speakeasy, flags: int, expected: str
+) -> None:
+    se = strict_fs_emu
+    hnd, _ = call(
+        se, "kernel32", "CreateFileA", [alloc(se, b"c:\\drop.bin\x00"), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0]
+    )
+    buf = alloc(se, b"\x00" * 0x200)
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 0x100, flags])[0] == len(expected)
+    assert se.read_mem_string(buf, 2) == expected
+    assert call(se, "kernel32", "GetFinalPathNameByHandleA", [hnd, buf, 0x100, flags])[0] == len(expected)
+    assert se.read_mem_string(buf, 1) == expected
+
+
+def test_get_final_path_name_by_handle_reports_the_size_and_errors(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    hnd, _ = call(
+        se, "kernel32", "CreateFileA", [alloc(se, b"c:\\drop.bin\x00"), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0]
+    )
+    buf = alloc(se, b"\xcc" * 0x20)
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 15, 0])[0] == 16
+    assert se.mem_read(buf, 2) == b"\xcc\xcc"
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, 0, 0, 0])[0] == 16
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 16, 0])[0] == 15
+
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 0x10, 3])[0] == 0
+    assert last_error(se) == windefs.ERROR_INVALID_PARAMETER
+    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [0x1234, buf, 0x10, 0])[0] == 0
+    assert last_error(se) == windefs.ERROR_INVALID_HANDLE
+
+
 def test_write_file_writes_at_the_file_pointer(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     name = alloc(se, b"c:\\log.txt\x00")
