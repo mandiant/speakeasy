@@ -733,3 +733,23 @@ def test_microsoft_telemetry_assert_triggered_um_returns(request: pytest.Fixture
     record = alloc(se, b"\x00" * 0x24)
     rv, _ = call(se, "ntdll", "MicrosoftTelemetryAssertTriggeredUM", [record])
     assert rv is None
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_rtl_get_persisted_state_location_copies_the_default_path(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    source = alloc(se, wstr("SharedAccessEpoch2", 2))
+    default = alloc(se, wstr("SYSTEM\\Foo", 2))
+    target = alloc(se, b"\xcc" * 0x208)
+    length = alloc(se, b"\xcc" * 4)
+
+    rv, _ = call(se, "ntdll", "RtlGetPersistedStateLocation", [source, 0, default, 1, target, 0x208, length])
+    assert rv == ddk.STATUS_SUCCESS
+    assert read_wstr(se, target) == "SYSTEM\\Foo"
+    assert struct.unpack("<I", se.mem_read(length, 4))[0] == 22
+
+    small = alloc(se, b"\xcc" * 4)
+    rv, _ = call(se, "ntdll", "RtlGetPersistedStateLocation", [source, 0, default, 1, small, 4, length])
+    assert rv == ddk.STATUS_BUFFER_TOO_SMALL
+    assert se.mem_read(small, 4) == b"\xcc" * 4
+    assert struct.unpack("<I", se.mem_read(length, 4))[0] == 22

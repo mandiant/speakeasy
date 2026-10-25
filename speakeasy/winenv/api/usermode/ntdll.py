@@ -549,3 +549,29 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         VOID MicrosoftTelemetryAssertTriggeredUM(PVOID AssertRecord);
         """
         return
+
+    @apihook("RtlGetPersistedStateLocation", argc=7)
+    def RtlGetPersistedStateLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlGetPersistedStateLocation(
+            PCWSTR SourceID,
+            PCWSTR CustomValue,
+            PCWSTR DefaultPath,
+            STATE_LOCATION_TYPE StateLocationType,
+            PWCHAR TargetPath,
+            ULONG BufferLengthIn,
+            PULONG BufferLengthOut
+        );
+        """
+        SourceID, CustomValue, DefaultPath, StateLocationType, TargetPath, BufferLengthIn, BufferLengthOut = argv
+        if not DefaultPath:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        data = (self.read_mem_string(DefaultPath, 2) + "\x00").encode("utf-16le")
+        if BufferLengthOut:
+            self.mem_write(BufferLengthOut, len(data).to_bytes(4, "little"))
+        if not TargetPath or BufferLengthIn < len(data):
+            return ddk.STATUS_BUFFER_TOO_SMALL
+
+        self.mem_write(TargetPath, data)
+        return ddk.STATUS_SUCCESS
