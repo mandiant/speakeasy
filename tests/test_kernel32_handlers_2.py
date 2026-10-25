@@ -991,3 +991,43 @@ def test_an_exe_finds_itself_by_its_command_line_name(
         assert get_open_file_size(se, "svchost.exe") == len(data)
         assert get_open_file_size(se, "C:\\Windows\\system32\\svchost.exe") == len(data)
         assert get_open_file_size(se, "C:\\Windows\\system32\\svchost.exe.log") != len(data)
+
+
+def wide(se: Speakeasy, text: str) -> int:
+    return alloc(se, (text + "\x00").encode("utf-16le"))
+
+
+def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    sample = wide(emu, emu.emu.modules[0].emu_path)
+    dst = wide(emu, "C:\\tmp\\x\\a.exe")
+
+    assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 1
+    assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.INVALID_FILE_ATTRIBUTES
+    assert last_error(emu) == windefs.ERROR_FILE_NOT_FOUND
+    assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 0
+    assert open_file(emu, "C:\\tmp\\x\\a.exe") == windefs.INVALID_HANDLE_VALUE
+
+    assert call(emu, "kernel32", "CopyFileW", [sample, dst, 1])[0] == 1
+    assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.FILE_ATTRIBUTE_NORMAL
+    assert call(emu, "kernel32", "CopyFileW", [sample, dst, 1])[0] == 0
+    assert last_error(emu) == windefs.ERROR_FILE_EXISTS
+
+    assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 1
+    assert open_file(emu, "C:\\tmp\\x\\a.exe", windefs.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
+    assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.FILE_ATTRIBUTE_NORMAL
+
+
+def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    sample = wide(emu, emu.emu.modules[0].emu_path)
+
+    assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\tmp\\y\\b.exe"), 1])[0] == 1
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", windefs.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", windefs.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert last_error(emu) == windefs.ERROR_FILE_EXISTS
+
+    assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\Windows\\system32\\cmd.exe"), 1])[0] == 0
+    assert last_error(emu) == windefs.ERROR_FILE_EXISTS
+    assert open_file(emu, BYTE_FILL_PATH, windefs.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert last_error(emu) == windefs.ERROR_FILE_EXISTS

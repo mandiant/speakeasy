@@ -256,6 +256,7 @@ class FileManager:
 
         # First file in this list seems to always be the module itself
         self.files: list[File] = []
+        self.deleted_paths: set[str] = set()
 
         full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
         if full_path_entries:
@@ -384,11 +385,13 @@ class FileManager:
         f = self.get_file_from_path(path)
         if f:
             self.files.remove(f)
+        self.deleted_paths.discard(get_path_key(self.get_full_path(path)))
         f = File(self.emu.handle_allocator, path)
         self.files.append(f)
         return f
 
     def delete_file(self, path):
+        self.deleted_paths.add(get_path_key(self.get_full_path(path)))
         f = self.get_file_from_path(path)
         if f:
             self.files.remove(f)
@@ -397,6 +400,8 @@ class FileManager:
 
     def get_emu_file(self, path):
         path = self.get_full_path(path)
+        if get_path_key(path) in self.deleted_paths:
+            return None
 
         # Does this file exist in our emulation environment
         # See if we have a handler for this exact file
@@ -468,6 +473,17 @@ class FileManager:
         if self.get_emu_file(path):
             return True
         return False
+
+    def does_file_exist_by_path(self, path):
+        """
+        Test if a file exists that the program created or that the configuration names by
+        its full path. The by_ext and default handlers serve content for any matching
+        path, so they do not count.
+        """
+        if self.get_file_from_path(path):
+            return True
+        fconf = self.get_emu_file(path)
+        return fconf is not None and fconf.mode == "full_path"
 
     def get_object_from_handle(self, handle):
         obj = self.file_maps.get(handle)

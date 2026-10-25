@@ -3773,6 +3773,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             rv = windefs.FILE_ATTRIBUTE_DIRECTORY
         elif self.does_file_exist(target):
             rv = windefs.FILE_ATTRIBUTE_NORMAL
+        else:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
         return rv
 
     @apihook("GetFileAttributesEx", argc=3)
@@ -3930,7 +3932,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return False
 
-        if fail and self.does_file_exist(dst):
+        if fail and emu.get_file_manager().does_file_exist_by_path(dst):
             emu.set_last_error(windefs.ERROR_FILE_EXISTS)
             return False
 
@@ -4055,7 +4057,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             hnd = self.get_object_handle(obj)
         else:
             op = "open"
-            if self.does_file_exist(target):
+            if disp == windefs.CREATE_NEW:
+                exists = emu.get_file_manager().does_file_exist_by_path(target)
+            else:
+                exists = self.does_file_exist(target)
+            if exists:
                 if disp == windefs.CREATE_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                     hnd = self.file_open(target, create=True)
