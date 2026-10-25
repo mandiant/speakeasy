@@ -486,6 +486,42 @@ def create_window(se: Speakeasy, style: int = 0, parent: int = 0) -> int:
     return hwnd
 
 
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize("api", ["GetWindowLongW", "SetWindowLongW"])
+def test_window_long_of_an_unknown_window_fails(request: pytest.FixtureRequest, fixture: str, api: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    assert se.emu is not None
+    start_process(se)
+    argv = [0x41420000, 0] + ([0x1234] if api.startswith("Set") else [])
+    assert call(se, "user32", api, argv)[0] == 0
+    assert se.emu.get_last_error() == 1400
+
+
+@pytest.mark.parametrize("fixture, suffix", [("dll_emu", ""), ("dll64_emu", ""), ("dll64_emu", "Ptr")])
+def test_set_window_long_returns_the_previous_value(request: pytest.FixtureRequest, fixture: str, suffix: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    hwnd = create_window(se, WS_POPUP)
+    get, set_ = f"GetWindowLong{suffix}W", f"SetWindowLong{suffix}W"
+    assert call(se, "user32", get, [hwnd, 0])[0] == 0
+    assert call(se, "user32", set_, [hwnd, 0, 0x1234])[0] == 0
+    assert call(se, "user32", set_, [hwnd, 0, 0x5678])[0] == 0x1234
+    assert call(se, "user32", get, [hwnd, 0])[0] == 0x5678
+    assert call(se, "user32", get, [hwnd, 0xFFFFFFF0])[0] == WS_POPUP
+
+
+def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    hwnd = create_window_of_class(dll_emu, register_class(dll_emu, b"mycls", 0x401000), 0x401000)
+    assert call(dll_emu, "user32", "GetWindowLongA", [hwnd, 0xFFFFFFFC])[0] == 0x401000
+    assert call(dll_emu, "user32", "SetWindowLongA", [hwnd, 0xFFFFFFFC, 0x402000])[0] == 0x401000
+    assert call(dll_emu, "user32", "GetWindowLongA", [hwnd, 0xFFFFFFFC])[0] == 0x402000
+    msg = alloc(dll_emu, struct.pack("<IIIIIII", hwnd, 0x10, 0, 0, 0, 0, 0))
+    call(dll_emu, "user32", "DispatchMessageA", [msg])
+    assert dll_emu.emu.get_current_run().guest_callbacks[-1].function == 0x402000
+
+
 def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)

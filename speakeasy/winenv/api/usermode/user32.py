@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import ctypes
 from typing import Any
 
 import speakeasy.windows.guest_callbacks as guest_callbacks
@@ -34,6 +35,9 @@ IDI_WARNING = 32515
 IDI_WINLOGO = 32517
 
 UOI_FLAGS = 1
+
+GWL_WNDPROC = -4
+GWL_STYLE = -16
 
 RT_STRING = 6
 
@@ -174,6 +178,7 @@ class User32(api.ApiHandler):
         self.win: Any | None = None
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
+        self.window_longs: dict[int, dict[int, int]] = {}
         self.window_messages: dict[str, int] = {}
         self.dialog_results: dict[int, int] = {}
         self.timers: list[tuple[int, int, int]] = []
@@ -1220,6 +1225,28 @@ class User32(api.ApiHandler):
 
         return rv
 
+    def get_window_longs(self, emu, hWnd):
+        """
+        Get the values that SetWindowLong stored for ``hWnd``. For an unknown
+        window, set ERROR_INVALID_WINDOW_HANDLE and return None.
+        """
+        desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
+        if not self.sessman.get_window(hWnd) and hWnd not in self.handles and hWnd != desktop:
+            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            return None
+        return self.window_longs.setdefault(hWnd, {})
+
+    def get_window_long(self, hWnd, index, longs):
+        if index == GWL_WNDPROC and hWnd in self.wndprocs:
+            return self.wndprocs[hWnd]
+        window = self.sessman.get_window(hWnd)
+        if index == GWL_WNDPROC and window:
+            wc = self.sessman.get_window_class(window.class_name)
+            return wc.wclass.lpfnWndProc if wc else 0
+        if index == GWL_STYLE and window:
+            return window.style
+        return longs.get(index, 0)
+
     @apihook("GetWindowLong", argc=2)
     def GetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1228,13 +1255,21 @@ class User32(api.ApiHandler):
             int  nIndex
         );
         """
-        (
-            hWnd,
-            nIndex,
-        ) = argv
-        rv = 2
+        hWnd, nIndex = argv
+        longs = self.get_window_longs(emu, hWnd)
+        if longs is None:
+            return 0
+        return self.get_window_long(hWnd, ctypes.c_int32(nIndex).value, longs)
 
-        return rv
+    @apihook("GetWindowLongPtr", argc=2)
+    def GetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG_PTR GetWindowLongPtrA(
+            HWND hWnd,
+            int  nIndex
+        );
+        """
+        return self.GetWindowLong(emu, argv, ctx)
 
     @apihook("SetWindowLong", argc=3)
     def SetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1246,12 +1281,30 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, nIndex, dwNewLong = argv
-        if (self.get_ptr_size() == 4 and nIndex == 0xFFFFFFFC) or (
-            self.get_ptr_size() == 8 and nIndex == 0xFFFFFFFFFFFFFFFC
-        ):
+        longs = self.get_window_longs(emu, hWnd)
+        if longs is None:
+            return 0
+        index = ctypes.c_int32(nIndex).value
+        rv = self.get_window_long(hWnd, index, longs)
+        window = self.sessman.get_window(hWnd)
+        if index == GWL_WNDPROC:
             self.wndprocs[hWnd] = dwNewLong
+        elif index == GWL_STYLE and window:
+            window.style = dwNewLong
+        else:
+            longs[index] = dwNewLong
+        return rv
 
-        return 1
+    @apihook("SetWindowLongPtr", argc=3)
+    def SetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG_PTR SetWindowLongPtrA(
+          HWND     hWnd,
+          int      nIndex,
+          LONG_PTR dwNewLong
+        );
+        """
+        return self.SetWindowLong(emu, argv, ctx)
 
     @apihook("DialogBoxParam", argc=5)
     def DialogBoxParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
