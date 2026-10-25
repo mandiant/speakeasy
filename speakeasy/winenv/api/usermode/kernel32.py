@@ -38,6 +38,8 @@ LANG_EN_US = 0x409
 LOCALE_USER_DEFAULT = 0x400
 LOCALE_SYSTEM_DEFAULT = 0x0800
 NORM_IGNORECASE = 0x1
+MOVEFILE_REPLACE_EXISTING = 0x1
+MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
 
 SEC_IMAGE = 0x1000000
 CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
@@ -4066,6 +4068,36 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
+
+    @apihook("MoveFileEx", argc=3)
+    def MoveFileEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL MoveFileEx(
+            LPCTSTR lpExistingFileName,
+            LPCTSTR lpNewFileName,
+            DWORD   dwFlags
+        );
+        """
+        src, dst, flags = argv
+        cw = self.get_char_width(ctx)
+
+        # The session manager does the move or delete at the next boot.
+        if src and flags & MOVEFILE_DELAY_UNTIL_REBOOT:
+            ctx.args["lpExistingFileName"].display = self.read_mem_string(src, cw)
+            if dst:
+                ctx.args["lpNewFileName"].display = self.read_mem_string(dst, cw)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
+        if src and dst and not flags & MOVEFILE_REPLACE_EXISTING:
+            target = self.read_mem_string(dst, cw)
+            if self.does_file_exist(target):
+                ctx.args["lpExistingFileName"].display = self.read_mem_string(src, cw)
+                ctx.args["lpNewFileName"].display = target
+                emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+                return 0
+
+        return self.MoveFile(emu, [src, dst], ctx)
 
     @apihook("CreateFile", argc=7)
     def CreateFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

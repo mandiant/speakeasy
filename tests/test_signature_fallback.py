@@ -3,9 +3,9 @@ End-to-end tests for emulating imports that have no speakeasy handler using
 the bundled Win32 API signature database.
 
 Each test loads a small hand-assembled shellcode blob that calls
-``kernel32!MoveFileExW`` (no handler in speakeasy) followed by
+``kernel32!CreateSymbolicLinkW`` (no handler in speakeasy) followed by
 ``kernel32!ExitProcess`` (handled). The argument to ExitProcess is pushed
-*before* the MoveFileExW call so that, on x86, it is only seen correctly if
+*before* the CreateSymbolicLinkW call so that, on x86, it is only seen correctly if
 the fallback cleaned up exactly the right number of stack slots.
 """
 
@@ -19,10 +19,10 @@ from speakeasy.profiler_events import ApiArg, ApiEvent
 from speakeasy.report import Report
 from speakeasy.winenv.api import sigdb
 
-OLD_NAME = "C:\\old.txt"
-NEW_NAME = "C:\\new.txt"
+LINK_NAME = "C:\\link"
+TARGET_NAME = "C:\\target"
 EXIT_CODE = 0x1234
-MOVEFILE_REPLACE_EXISTING = 0x1
+SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
 
 
 def _wstr(s: str) -> bytes:
@@ -33,10 +33,10 @@ def _build_x86() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
     call $+5 / pop ebx            ; ebx = blob + 5
     push EXIT_CODE                ; argument for ExitProcess, must survive the stdcall cleanup
-    push MOVEFILE_REPLACE_EXISTING
-    lea eax, [ebx + new] / push eax
-    lea eax, [ebx + old] / push eax
-    mov eax, <MoveFileExW>        ; patched
+    push SYMBOLIC_LINK_FLAG_DIRECTORY
+    lea eax, [ebx + target] / push eax
+    lea eax, [ebx + link] / push eax
+    mov eax, <CreateSymbolicLinkW> ; patched
     call eax
     mov eax, <ExitProcess>        ; patched
     call eax
@@ -45,37 +45,37 @@ def _build_x86() -> tuple[bytes, dict[str, tuple[int, int]]]:
     code += b"\xe8\x00\x00\x00\x00"  # call $+5
     code += b"\x5b"  # pop ebx
     code += b"\x68" + struct.pack("<I", EXIT_CODE)  # push EXIT_CODE
-    code += b"\x68" + struct.pack("<I", MOVEFILE_REPLACE_EXISTING)  # push dwFlags
-    lea_new_off = len(code)
+    code += b"\x68" + struct.pack("<I", SYMBOLIC_LINK_FLAG_DIRECTORY)  # push dwFlags
+    lea_target_off = len(code)
     code += b"\x8d\x83" + b"\x00\x00\x00\x00"  # lea eax, [ebx+disp]
     code += b"\x50"  # push eax
-    lea_old_off = len(code)
+    lea_link_off = len(code)
     code += b"\x8d\x83" + b"\x00\x00\x00\x00"  # lea eax, [ebx+disp]
     code += b"\x50"  # push eax
-    move_off = len(code) + 1
+    api_off = len(code) + 1
     code += b"\xb8" + b"\x00\x00\x00\x00"  # mov eax, imm32
     code += b"\xff\xd0"  # call eax
     exit_off = len(code) + 1
     code += b"\xb8" + b"\x00\x00\x00\x00"  # mov eax, imm32
     code += b"\xff\xd0"  # call eax
-    old_off = len(code)
-    code += _wstr(OLD_NAME)
-    new_off = len(code)
-    code += _wstr(NEW_NAME)
+    link_off = len(code)
+    code += _wstr(LINK_NAME)
+    target_off = len(code)
+    code += _wstr(TARGET_NAME)
     # ebx holds the address of the byte after the initial call (offset 5)
-    code[lea_new_off + 2 : lea_new_off + 6] = struct.pack("<i", new_off - 5)
-    code[lea_old_off + 2 : lea_old_off + 6] = struct.pack("<i", old_off - 5)
-    return bytes(code), {"MoveFileExW": (move_off, 4), "ExitProcess": (exit_off, 4)}
+    code[lea_target_off + 2 : lea_target_off + 6] = struct.pack("<i", target_off - 5)
+    code[lea_link_off + 2 : lea_link_off + 6] = struct.pack("<i", link_off - 5)
+    return bytes(code), {"CreateSymbolicLinkW": (api_off, 4), "ExitProcess": (exit_off, 4)}
 
 
 def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
     call $+5 / pop rbx            ; rbx = blob + 5
-    lea rcx, [rbx + old]
-    lea rdx, [rbx + new]
-    mov r8d, MOVEFILE_REPLACE_EXISTING
+    lea rcx, [rbx + link]
+    lea rdx, [rbx + target]
+    mov r8d, SYMBOLIC_LINK_FLAG_DIRECTORY
     sub rsp, 0x28
-    mov rax, <MoveFileExW> / call rax
+    mov rax, <CreateSymbolicLinkW> / call rax
     add rsp, 0x28
     mov ecx, EXIT_CODE
     sub rsp, 0x28
@@ -84,13 +84,13 @@ def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     code = bytearray()
     code += b"\xe8\x00\x00\x00\x00"  # call $+5
     code += b"\x5b"  # pop rbx
-    lea_old_off = len(code)
+    lea_link_off = len(code)
     code += b"\x48\x8d\x8b" + b"\x00\x00\x00\x00"  # lea rcx, [rbx+disp]
-    lea_new_off = len(code)
+    lea_target_off = len(code)
     code += b"\x48\x8d\x93" + b"\x00\x00\x00\x00"  # lea rdx, [rbx+disp]
-    code += b"\x41\xb8" + struct.pack("<I", MOVEFILE_REPLACE_EXISTING)  # mov r8d, imm32
+    code += b"\x41\xb8" + struct.pack("<I", SYMBOLIC_LINK_FLAG_DIRECTORY)  # mov r8d, imm32
     code += b"\x48\x83\xec\x28"  # sub rsp, 0x28
-    move_off = len(code) + 2
+    api_off = len(code) + 2
     code += b"\x48\xb8" + b"\x00" * 8  # mov rax, imm64
     code += b"\xff\xd0"  # call rax
     code += b"\x48\x83\xc4\x28"  # add rsp, 0x28
@@ -99,13 +99,13 @@ def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     exit_off = len(code) + 2
     code += b"\x48\xb8" + b"\x00" * 8  # mov rax, imm64
     code += b"\xff\xd0"  # call rax
-    old_off = len(code)
-    code += _wstr(OLD_NAME)
-    new_off = len(code)
-    code += _wstr(NEW_NAME)
-    code[lea_old_off + 3 : lea_old_off + 7] = struct.pack("<i", old_off - 5)
-    code[lea_new_off + 3 : lea_new_off + 7] = struct.pack("<i", new_off - 5)
-    return bytes(code), {"MoveFileExW": (move_off, 8), "ExitProcess": (exit_off, 8)}
+    link_off = len(code)
+    code += _wstr(LINK_NAME)
+    target_off = len(code)
+    code += _wstr(TARGET_NAME)
+    code[lea_link_off + 3 : lea_link_off + 7] = struct.pack("<i", link_off - 5)
+    code[lea_target_off + 3 : lea_target_off + 7] = struct.pack("<i", target_off - 5)
+    return bytes(code), {"CreateSymbolicLinkW": (api_off, 8), "ExitProcess": (exit_off, 8)}
 
 
 def _build_x86_call(api: str, args: list[int | bytes]) -> tuple[bytes, dict[str, tuple[int, int]], dict[int, int]]:
@@ -207,17 +207,17 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch
 
     events = _api_events(report)
     names = [e.api_name for e in events]
-    assert names == ["kernel32.MoveFileExW", "kernel32.ExitProcess"]
+    assert names == ["kernel32.CreateSymbolicLinkW", "kernel32.ExitProcess"]
 
-    move = events[0]
-    assert [(a.name, a.type, a.display) for a in move.args] == [
-        ("lpExistingFileName", "str", OLD_NAME),
-        ("lpNewFileName", "str", NEW_NAME),
-        ("dwFlags", "flags", "MOVEFILE_REPLACE_EXISTING"),
+    created = events[0]
+    assert [(a.name, a.type, a.display) for a in created.args] == [
+        ("lpSymlinkFileName", "str", LINK_NAME),
+        ("lpTargetFileName", "str", TARGET_NAME),
+        ("dwFlags", "flags", "SYMBOLIC_LINK_FLAG_DIRECTORY"),
     ]
-    assert move.args[2].value == MOVEFILE_REPLACE_EXISTING
-    # BOOL return: fake success
-    assert move.ret_val == "0x1"
+    assert created.args[2].value == SYMBOLIC_LINK_FLAG_DIRECTORY
+    # BOOLEAN return: fake success
+    assert created.ret_val == "0x1"
 
     # The stack (x86) / registers (x64) were left exactly as the caller expects
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
@@ -368,7 +368,7 @@ def test_get_proc_address_resolves_signature_only_exports(config: dict[str, Any]
         se.run_shellcode(sc_addr)
         emu = se.emu
         assert emu is not None
-        assert emu.has_api_signature("kernel32", "MoveFileExW")
+        assert emu.has_api_signature("kernel32", "CreateSymbolicLinkW")
         assert not emu.has_api_signature("kernel32", "ThisApiDoesNotExistAnywhere")
         # skip-marked declarations are not offered
         sig = sigdb.get_default_database().lookup("oleaut32", "VarCyAdd", "x86")

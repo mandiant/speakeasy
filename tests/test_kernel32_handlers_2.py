@@ -307,6 +307,42 @@ def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
+MOVEFILE_REPLACE_EXISTING = 0x1
+MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
+
+
+def move_file_ex(se: Speakeasy, src: str, dst: str | None, flags: int) -> int:
+    src_name = alloc(se, src.encode() + b"\x00")
+    dst_name = 0 if dst is None else alloc(se, dst.encode() + b"\x00")
+    return call(se, "kernel32", "MoveFileExA", [src_name, dst_name, flags])[0]
+
+
+def test_move_file_ex_moves_the_file(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    assert open_file(se, "c:\\src.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", MOVEFILE_REPLACE_EXISTING) == 1
+    assert open_file(se, "c:\\dst.txt") != windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\src.txt") == windefs.INVALID_HANDLE_VALUE
+
+
+def test_move_file_ex_replaces_only_with_the_flag(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    open_file(se, "c:\\src.txt", OPEN_ALWAYS)
+    open_file(se, "c:\\dst.txt", OPEN_ALWAYS)
+    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", 0) == 0
+    assert last_error(se) == windefs.ERROR_ALREADY_EXISTS
+    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", MOVEFILE_REPLACE_EXISTING) == 1
+
+
+def test_move_file_ex_delete_on_reboot_keeps_the_file(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    open_file(se, "c:\\src.txt", OPEN_ALWAYS)
+    assert move_file_ex(se, "c:\\src.txt", None, MOVEFILE_DELAY_UNTIL_REBOOT) == 1
+    assert open_file(se, "c:\\src.txt") != windefs.INVALID_HANDLE_VALUE
+    assert move_file_ex(se, "c:\\src.txt", None, 0) == 0
+    assert last_error(se) == windefs.ERROR_INVALID_PARAMETER
+
+
 def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, int]:
     """Call a handler, return to the caller, and give the result and the bytes popped from the stack."""
     emu = se.emu
