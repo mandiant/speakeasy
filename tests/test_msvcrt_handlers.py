@@ -6,7 +6,6 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
-from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
     EINVAL,
@@ -399,11 +398,11 @@ def test_seh_filter_exe_calls_the_signal_handler_once(
     dll_emu: Speakeasy, code: int, sig: int, args: tuple[int, ...]
 ) -> None:
     call(dll_emu, "msvcrt", "signal", [sig, 0x401000])
-    handler, _ = call(dll_emu, "msvcrt", "_seh_filter_exe", [code, 0])
-    assert next(handler) == GuestCall(0x401000, args)
-    with pytest.raises(StopIteration) as done:
-        handler.send(0)
-    assert done.value.value == 0xFFFFFFFF
+    assert dll_emu.emu is not None
+    rv, _ = call(dll_emu, "msvcrt", "_seh_filter_exe", [code, 0])
+    assert rv is None
+    assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
+    assert tuple(dll_emu.emu.get_func_argv(e_arch.CALL_CONV_CDECL, len(args))) == args
     assert call(dll_emu, "msvcrt", "signal", [sig, SIG_DFL])[0] == SIG_DFL
 
 
