@@ -596,3 +596,28 @@ def test_setupapi_device_enumeration_is_empty(dll_emu: Speakeasy, name: str, arg
 
     assert rv == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_ITEMS
+
+
+@pytest.mark.parametrize("api, enc", [("UrlCombineA", "utf-8"), ("UrlCombineW", "utf-16le")])
+@pytest.mark.parametrize(
+    "base, relative, combined",
+    [
+        ("http://example.com/a/b.php", "c.php?id=1", "http://example.com/a/c.php?id=1"),
+        ("http://example.com/a/b.php", "/gate.php", "http://example.com/gate.php"),
+        ("http://example.com/a/", "https://other.org/x", "https://other.org/x"),
+    ],
+)
+def test_url_combine_joins_a_relative_url(
+    dll_emu: Speakeasy, api: str, enc: str, base: str, relative: str, combined: str
+) -> None:
+    width = len("\0".encode(enc))
+    size = alloc(dll_emu, struct.pack("<I", 0x100))
+    out = alloc(dll_emu, b"\xcc" * 0x200)
+    args = [alloc(dll_emu, (base + "\0").encode(enc)), alloc(dll_emu, (relative + "\0").encode(enc)), out, size, 0]
+    assert call(dll_emu, "shlwapi", api, args)[0] == 0
+    assert struct.unpack("<I", dll_emu.mem_read(size, 4))[0] == len(combined)
+    assert dll_emu.mem_read(out, (len(combined) + 1) * width) == (combined + "\0").encode(enc)
+
+    dll_emu.mem_write(size, struct.pack("<I", len(combined)))
+    assert call(dll_emu, "shlwapi", api, args)[0] == 0x80004003
+    assert struct.unpack("<I", dll_emu.mem_read(size, 4))[0] == len(combined) + 1

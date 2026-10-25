@@ -3,12 +3,15 @@
 import ntpath
 import os
 from typing import Any
+from urllib.parse import urljoin
 
 import speakeasy.winenv.arch as e_arch
 
 from .. import api
 
 MAX_PATH = 260
+E_INVALIDARG = 0x80070057
+E_POINTER = 0x80004003
 
 
 def get_path_without_file_spec(s: str) -> str | None:
@@ -427,6 +430,34 @@ class Shlwapi(api.ApiHandler):
 
         self.write_mem_string(s, pszPath, cw)
         return 1
+
+    @apihook("UrlCombine", argc=5)
+    def UrlCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT UrlCombineA(
+          PCSTR pszBase,
+          PCSTR pszRelative,
+          PSTR  pszCombined,
+          DWORD *pcchCombined,
+          DWORD dwFlags
+        );
+        """
+        pszBase, pszRelative, pszCombined, pcchCombined, dwFlags = argv
+        if not pszBase or not pszRelative or not pcchCombined:
+            return E_INVALIDARG
+        cw = self.get_char_width(ctx)
+        base = self.read_mem_string(pszBase, cw)
+        relative = self.read_mem_string(pszRelative, cw)
+        ctx.args[0].display = base
+        ctx.args[1].display = relative
+        combined = urljoin(base, relative)
+        size = int.from_bytes(self.mem_read(pcchCombined, 4), "little")
+        if not pszCombined or size <= len(combined):
+            self.mem_write(pcchCombined, (len(combined) + 1).to_bytes(4, "little"))
+            return E_POINTER
+        self.write_mem_string(combined + "\0", pszCombined, cw)
+        self.mem_write(pcchCombined, len(combined).to_bytes(4, "little"))
+        return 0
 
     @apihook("PathAddBackslash", argc=1)
     def PathAddBackslash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
