@@ -1810,6 +1810,49 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dest, data)
         return dest
 
+    @apihook("memcpy_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def memcpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t memcpy_s(
+            void *dest,
+            size_t destSize,
+            const void *src,
+            size_t count
+        );
+
+        On a NULL source or a short destination, the destination is zeroed.
+        """
+        dest, size, src, count = argv
+        if not count:
+            return 0
+        if not dest:
+            return EINVAL
+        if not src or size < count:
+            self.mem_write(dest, b"\x00" * size)
+            return EINVAL if not src else ERANGE
+        self.mem_write(dest, self.mem_read(src, count))
+        return 0
+
+    @apihook("memmove_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def memmove_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t memmove_s(
+            void *dest,
+            size_t numberOfElements,
+            const void *src,
+            size_t count
+        );
+        """
+        dest, size, src, count = argv
+        if not count:
+            return 0
+        if not dest or not src:
+            return EINVAL
+        if size < count:
+            return ERANGE
+        self.mem_write(dest, self.mem_read(src, count))
+        return 0
+
     @apihook("memmove", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memmove(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2549,6 +2592,31 @@ class Msvcrt(api.ApiHandler):
         new = (s1 + s2).encode("utf-16le")
         self.mem_write(_str1, new + b"\x00\x00")
         return _str1
+
+    @apihook("strcat_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def strcat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t strcat_s(
+           char *strDestination,
+           size_t numberOfElements,
+           const char *strSource
+        );
+        """
+        dest, size, src = argv
+        if not dest or not size:
+            return EINVAL
+        if not src:
+            self.mem_write(dest, b"\x00")
+            return EINVAL
+        s1 = self.read_cstr(dest)
+        s2 = self.read_cstr(src)
+        ctx.args[0].display = s1.decode("latin-1")
+        ctx.args[2].display = s2.decode("latin-1")
+        if len(s1) + len(s2) >= size:
+            self.mem_write(dest, b"\x00")
+            return ERANGE
+        self.mem_write(dest, s1 + s2 + b"\x00")
+        return 0
 
     @apihook("wcscat_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def wcscat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4165,14 +4233,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = path
         ctx.args[1].display = mode_str
 
-        hfile = self.open_stream_file(path, mode_str)
-        if hfile is None:
-            return 0
-
-        stream = self.mem_alloc(self.get_ptr_size(), tag="api.msvcrt.fopen")
-        self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
-        self.file_streams[stream] = hfile
-        return stream
+        return self.open_stream(path, mode_str, "api.msvcrt.fopen")
 
     @apihook("_wfopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _wfopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4193,14 +4254,61 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = path
         ctx.args[1].display = mode_str
 
+        return self.open_stream(path, mode_str, "api.msvcrt._wfopen")
+
+    def open_stream(self, path, mode_str, tag):
+        """Open a FILE stream for ``path``. Return the stream, or 0."""
         hfile = self.open_stream_file(path, mode_str)
         if hfile is None:
             return 0
 
-        stream = self.mem_alloc(self.get_ptr_size(), tag="api.msvcrt._wfopen")
+        stream = self.mem_alloc(self.get_ptr_size(), tag=tag)
         self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
         self.file_streams[stream] = hfile
         return stream
+
+    def open_stream_args(self, filename, mode, width, ctx, first=0):
+        """Read the path and mode of an fopen-style call. Return the stream, or 0."""
+        if not filename or not mode:
+            return 0
+        path = self.read_mem_string(filename, width)
+        mode_str = self.read_mem_string(mode, width)
+        ctx.args[first].display = path
+        ctx.args[first + 1].display = mode_str
+        return self.open_stream(path, mode_str, "api.msvcrt.fopen")
+
+    @apihook("_fsopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _fsopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_fsopen(const char *filename, const char *mode, int shflag);"""
+        filename, mode, _ = argv
+        return self.open_stream_args(filename, mode, 1, ctx)
+
+    @apihook("_wfsopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wfsopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_wfsopen(const wchar_t *filename, const wchar_t *mode, int shflag);"""
+        filename, mode, _ = argv
+        return self.open_stream_args(filename, mode, 2, ctx)
+
+    def open_stream_s(self, argv, width, ctx):
+        pFile, filename, mode = argv
+        if not pFile:
+            return EINVAL
+        if not filename or not mode:
+            self.mem_write(pFile, b"\x00" * self.get_ptr_size())
+            return EINVAL
+        stream = self.open_stream_args(filename, mode, width, ctx, first=1)
+        self.mem_write(pFile, stream.to_bytes(self.get_ptr_size(), "little"))
+        return 0 if stream else ENOENT
+
+    @apihook("fopen_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def fopen_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """errno_t fopen_s(FILE **pFile, const char *filename, const char *mode);"""
+        return self.open_stream_s(argv, 1, ctx)
+
+    @apihook("_wfopen_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wfopen_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """errno_t _wfopen_s(FILE **pFile, const wchar_t *filename, const wchar_t *mode);"""
+        return self.open_stream_s(argv, 2, ctx)
 
     def open_stream_file(self, path, mode_str):
         """

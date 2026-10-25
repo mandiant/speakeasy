@@ -1604,3 +1604,62 @@ def test_mb_cur_max_is_one_in_the_c_locale(dll_emu: Speakeasy) -> None:
     variable = dll_emu.emu.get_proc("msvcrt", "__mb_cur_max")
     assert call(dll_emu, "msvcrt", "__p___mb_cur_max", [])[0] == variable
     assert int.from_bytes(dll_emu.mem_read(variable, 4), "little") == 1
+
+
+@pytest.mark.parametrize("api, enc", [("_fsopen", "utf-8"), ("_wfsopen", "utf-16le")])
+def test_fsopen_opens_a_stream_like_fopen(strict_fs_emu: Speakeasy, api: str, enc: str) -> None:
+    se = strict_fs_emu
+    path = alloc(se, "c:\\users\\public\\shared.txt\0".encode(enc))
+    stream, _ = call(se, "msvcrt", api, [path, alloc(se, "wb\0".encode(enc)), 0x40])
+    assert stream
+    assert call(se, "msvcrt", "fwrite", [alloc(se, b"abc"), 1, 3, stream])[0] == 3
+    call(se, "msvcrt", "fclose", [stream])
+
+    stream, _ = call(se, "msvcrt", api, [path, alloc(se, "rb\0".encode(enc)), 0x40])
+    out = alloc(se, b"\x00" * 8)
+    assert call(se, "msvcrt", "fread", [out, 1, 8, stream])[0] == 3
+    assert se.mem_read(out, 3) == b"abc"
+
+
+@pytest.mark.parametrize("api, enc", [("fopen_s", "utf-8"), ("_wfopen_s", "utf-16le")])
+def test_fopen_s_writes_the_stream_or_null(strict_fs_emu: Speakeasy, api: str, enc: str) -> None:
+    se = strict_fs_emu
+    out = alloc(se, b"\xcc" * 4)
+    missing = alloc(se, "c:\\users\\public\\missing.txt\0".encode(enc))
+    assert call(se, "msvcrt", api, [out, missing, alloc(se, "rb\0".encode(enc))])[0] == ENOENT
+    assert se.mem_read(out, 4) == b"\x00" * 4
+
+    path = alloc(se, "c:\\users\\public\\new.txt\0".encode(enc))
+    assert call(se, "msvcrt", api, [out, path, alloc(se, "wb\0".encode(enc))])[0] == 0
+    stream = int.from_bytes(se.mem_read(out, 4), "little")
+    assert call(se, "msvcrt", "fwrite", [alloc(se, b"abc"), 1, 3, stream])[0] == 3
+    assert call(se, "msvcrt", api, [0, path, alloc(se, "rb\0".encode(enc))])[0] == EINVAL
+
+
+@pytest.mark.parametrize(
+    "api, size, src, count, rv, dest",
+    [
+        ("memcpy_s", 8, b"abcd", 4, 0, b"abcd\xcc\xcc\xcc\xcc"),
+        ("memcpy_s", 2, b"abcd", 4, ERANGE, b"\x00\x00\xcc\xcc\xcc\xcc\xcc\xcc"),
+        ("memcpy_s", 4, None, 4, EINVAL, b"\x00\x00\x00\x00\xcc\xcc\xcc\xcc"),
+        ("memcpy_s", 4, None, 0, 0, b"\xcc" * 8),
+        ("memmove_s", 8, b"abcd", 4, 0, b"abcd\xcc\xcc\xcc\xcc"),
+        ("memmove_s", 2, b"abcd", 4, ERANGE, b"\xcc" * 8),
+        ("memmove_s", 4, None, 4, EINVAL, b"\xcc" * 8),
+    ],
+)
+def test_memcpy_s_checks_the_sizes(
+    dll_emu: Speakeasy, api: str, size: int, src: bytes | None, count: int, rv: int, dest: bytes
+) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 8)
+    source = alloc(dll_emu, src) if src else 0
+    assert call(dll_emu, "msvcrt", api, [buf, size, source, count])[0] == rv
+    assert dll_emu.mem_read(buf, 8) == dest
+    assert call(dll_emu, "msvcrt", api, [0, size, source, 4])[0] == EINVAL
+
+
+@pytest.mark.parametrize("size, rv, dest", [(8, 0, b"abcdef\x00"), (6, ERANGE, b"\x00"), (7, 0, b"abcdef\x00")])
+def test_strcat_s_appends_when_the_result_fits(dll_emu: Speakeasy, size: int, rv: int, dest: bytes) -> None:
+    buf = alloc(dll_emu, b"abc\x00\xcc\xcc\xcc\xcc")
+    assert call(dll_emu, "msvcrt", "strcat_s", [buf, size, alloc(dll_emu, b"def\x00")])[0] == rv
+    assert dll_emu.mem_read(buf, len(dest)) == dest
