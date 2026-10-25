@@ -104,6 +104,8 @@ class GuestCallbackFrame:
     loader_attachments: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
     # Set while a generator handler (speakeasy.windows.guest_callbacks) runs on this frame
     handler: Any = None
+    # (register, value) pairs of the nonvolatile registers when the first guest call starts
+    saved_registers: tuple[tuple[int, int], ...] | None = None
 
 
 class Run:

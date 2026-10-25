@@ -66,6 +66,19 @@ SIGSEGV = 11
 # Upper bound on the static TLS data copied for each thread
 TLS_TEMPLATE_MAX = 0x1000000
 
+# Registers a callee must preserve; guest callbacks of an API return them to its caller unchanged
+NONVOLATILE_X86 = (_arch.X86_REG_EBX, _arch.X86_REG_EBP, _arch.X86_REG_ESI, _arch.X86_REG_EDI)
+NONVOLATILE_AMD64 = (
+    _arch.AMD64_REG_RBX,
+    _arch.AMD64_REG_RBP,
+    _arch.AMD64_REG_RSI,
+    _arch.AMD64_REG_RDI,
+    _arch.AMD64_REG_R12,
+    _arch.AMD64_REG_R13,
+    _arch.AMD64_REG_R14,
+    _arch.AMD64_REG_R15,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -2925,6 +2938,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def start_guest_callback(self, frame, function, args, sp=None):
         """Enter a guest callback on the stack of its frame, or below sp."""
+        if frame.saved_registers is None:
+            registers = NONVOLATILE_AMD64 if self.get_arch() == _arch.ARCH_AMD64 else NONVOLATILE_X86
+            frame.saved_registers = tuple((register, self.reg_read(register)) for register in registers)
         frame.function = function
         sp = frame.stack_pointer if sp is None else sp
         if self.ptr_size == 8:
@@ -2966,7 +2982,13 @@ class WindowsEmulator(BinaryEmulator):
             run.guest_callbacks.pop()
             if frame.event is not None:
                 frame.event.ret_val = hex(frame.result) if frame.result is not None else None
+            self.restore_caller_registers(frame)
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
+
+    def restore_caller_registers(self, frame):
+        """Restore the nonvolatile registers the guest calls of frame may have changed, as Windows keeps them."""
+        for register, value in frame.saved_registers or ():
+            self.reg_write(register, value)
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
         """

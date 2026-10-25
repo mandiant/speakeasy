@@ -133,3 +133,67 @@ def test_x64_run_entry_stack_is_aligned(config, argc):
 
         rsp = int.from_bytes(se.mem_read(data, 8), "little")
         assert rsp and (rsp + 8) % 16 == 0
+
+
+# x86 register numbers of ebx, ebp, esi, edi; x64 adds r12 to r15
+X86_NONVOLATILE = (3, 5, 6, 7)
+X64_NONVOLATILE = (3, 5, 6, 7, 12, 13, 14, 15)
+
+
+def x86_clobber_program(base, data, api):
+    """
+    Return code that sets the nonvolatile registers, calls ``api``
+    (CreateDialogIndirectParamA) with a dialog procedure that changes them,
+    and stores them in ``data``.
+    """
+
+    def d(value):
+        return struct.pack("<I", value)
+
+    def set_all(value):
+        return b"".join(bytes([0xB8 + r]) + d(value + r) for r in X86_NONVOLATILE)
+
+    proc = base + 0x100
+    main = set_all(0x1000) + b"\x6a\x00\x68" + d(proc) + b"\x6a\x00" * 3 + b"\xb8" + d(api) + b"\xff\xd0"
+    main += b"".join(b"\x89" + bytes([0x05 | r << 3]) + d(data + 4 * i) for i, r in enumerate(X86_NONVOLATILE))
+    main += b"\xc3"
+    proc_code = set_all(0x5000) + b"\xb8\x01\x00\x00\x00\xc2\x10\x00"
+    return {base: main, proc: proc_code}
+
+
+def x64_clobber_program(base, data, api):
+    def q(value):
+        return struct.pack("<Q", value)
+
+    def set_all(value):
+        return b"".join(bytes([0x48 | r >> 3, 0xB8 + (r & 7)]) + q(value + r) for r in X64_NONVOLATILE)
+
+    proc = base + 0x100
+    main = set_all(0x1000) + b"\x48\x83\xec\x38\x48\xc7\x44\x24\x20\x00\x00\x00\x00"
+    main += b"\x31\xc9\x31\xd2\x45\x31\xc0\x49\xb9" + q(proc) + b"\x48\xb8" + q(api) + b"\xff\xd0\x48\x83\xc4\x38"
+    main += b"\x49\xba" + q(data)
+    for i, r in enumerate(X64_NONVOLATILE):
+        main += bytes([0x49 | (r >> 3) << 2, 0x89, 0x42 | (r & 7) << 3, 8 * i])
+    main += b"\xc3"
+    proc_code = set_all(0x5000) + b"\xb8\x01\x00\x00\x00\xc3"
+    return {base: main, proc: proc_code}
+
+
+@pytest.mark.parametrize("architecture", ["x86", "amd64"])
+def test_guest_callbacks_keep_the_nonvolatile_registers_of_the_api_caller(config, architecture):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch=architecture)
+        data = se.mem_alloc(0x1000)
+        api = se.emu.get_proc("user32", "CreateDialogIndirectParamA")
+        program, registers = (
+            (x86_clobber_program, X86_NONVOLATILE) if architecture == "x86" else (x64_clobber_program, X64_NONVOLATILE)
+        )
+        for address, code in program(base, data, api).items():
+            se.mem_write(address, code)
+
+        se.run_shellcode(base)
+
+        width = se.get_ptr_size()
+        assert se.get_report().entry_points[0].error is None
+        stored = [int.from_bytes(se.mem_read(data + width * i, width), "little") for i in range(len(registers))]
+        assert stored == [0x1000 + r for r in registers]
