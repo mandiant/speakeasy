@@ -1549,6 +1549,39 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return obj.id
 
+    @apihook("GetProcessId", argc=1)
+    def GetProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetProcessId(
+          HANDLE Process
+        );
+        """
+        (Process,) = argv
+
+        if 0xFFFFFFFF == (0xFFFFFFFF & Process):
+            proc = emu.get_current_process()
+        else:
+            proc = self.get_object_from_handle(Process)
+        if not isinstance(proc, objman.Process):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+        return proc.id
+
+    @apihook("GetProcessIdOfThread", argc=1)
+    def GetProcessIdOfThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetProcessIdOfThread(
+          HANDLE Thread
+        );
+        """
+        (Thread,) = argv
+
+        thread = self.get_thread_from_handle(emu, Thread)
+        if not isinstance(thread, objman.Thread):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+        return (thread.process or emu.get_current_process()).id
+
     @apihook("VirtualQuery", argc=3)
     def VirtualQuery(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

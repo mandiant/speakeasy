@@ -1203,6 +1203,34 @@ def test_thread_ids_agree(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "GetThreadId", [hthread])[0] == dwThreadId
 
 
+def test_process_ids_agree(emu: Speakeasy) -> None:
+    cmd = alloc(emu, b"C:\\Windows\\system32\\notepad.exe\x00")
+    si = alloc(emu, b"\x00" * 0x44)
+    pi = alloc(emu, b"\x00" * 0x10)
+    assert call(emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])[0]
+    hprocess, hthread, pid, _ = struct.unpack("<4I", emu.mem_read(pi, 16))
+    assert call(emu, "kernel32", "GetProcessId", [hprocess])[0] == pid
+    assert call(emu, "kernel32", "GetProcessIdOfThread", [hthread])[0] == pid
+
+    current = call(emu, "kernel32", "GetCurrentProcessId", [])[0]
+    assert call(emu, "kernel32", "GetProcessIdOfThread", [0xFFFFFFFE])[0] == current
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_get_process_id_of_the_current_process(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    assert se.emu is not None
+    pseudo = (1 << (8 * se.emu.get_ptr_size())) - 1
+    assert call(se, "kernel32", "GetProcessId", [pseudo])[0] == call(se, "kernel32", "GetCurrentProcessId", [])[0]
+
+
+@pytest.mark.parametrize("api", ["GetProcessId", "GetProcessIdOfThread"])
+def test_get_process_id_rejects_an_unknown_handle(emu: Speakeasy, api: str) -> None:
+    assert call(emu, "kernel32", api, [0x1234])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
+
+
 def get_system_time(se: Speakeasy, api: str) -> datetime.datetime:
     st = alloc(se, b"\x00" * 16)
     call(se, "kernel32", api, [st])
