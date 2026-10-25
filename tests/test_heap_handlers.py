@@ -1,5 +1,5 @@
 """
-Heap free handlers release only blocks that a heap allocator returned.
+Heap handlers work only on blocks that a heap allocator returned.
 """
 
 import pytest
@@ -90,3 +90,26 @@ def test_operator_delete_releases_operator_new_memory(emu: Speakeasy) -> None:
     assert emu.emu is not None
     mm = emu.emu.get_address_map(p)
     assert mm is None or mm.free
+
+
+@pytest.mark.parametrize("size", [0x7, 0x10, 0x80, 0x81, 0x1001])
+def test_heap_size_returns_the_requested_size(emu: Speakeasy, size: int) -> None:
+    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
+    block = call(emu, "kernel32", "HeapAlloc", [heap, 0, size])[0]
+    assert call(emu, "kernel32", "HeapSize", [heap, 0, block])[0] == size
+    handle = call(emu, "kernel32", "GlobalAlloc", [0, size])[0]
+    assert call(emu, "kernel32", "GlobalSize", [handle])[0] == size
+
+
+def test_heap_size_of_a_reallocated_block(emu: Speakeasy) -> None:
+    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
+    block = call(emu, "kernel32", "HeapAlloc", [heap, 0, 0x20])[0]
+    block = call(emu, "kernel32", "HeapReAlloc", [heap, 0, block, 0x45])[0]
+    assert call(emu, "kernel32", "HeapSize", [heap, 0, block])[0] == 0x45
+
+
+def test_heap_size_fails_for_memory_that_is_not_a_heap_block(emu: Speakeasy) -> None:
+    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
+    assert call(emu, "kernel32", "HeapSize", [heap, 0, placeholder(emu)])[0] == 0xFFFFFFFF
+    block = heap_block(emu)
+    assert call(emu, "kernel32", "HeapSize", [heap, 0, block + 8])[0] == 0xFFFFFFFF

@@ -281,13 +281,22 @@ class ApiHandler:
     def heap_alloc(self, size, heap):
         return self.emu.heap_alloc(size, heap)
 
+    def heap_size(self, addr):
+        """
+        Get the requested size of a block that heap_alloc returned, or None
+        for any other address.
+        """
+        mm = self.emu.get_address_map(addr)
+        if not mm or mm.free or mm.base != addr or not (mm.tag or "").startswith("api.heap"):
+            return None
+        return next((n for a, n, _ in reversed(self.emu.heap_allocs) if a == addr), mm.size)
+
     def heap_free(self, addr):
         """
         Free a block that heap_alloc returned. Return False, and free nothing,
         for any other address.
         """
-        mm = self.emu.get_address_map(addr)
-        if not mm or mm.free or mm.base != addr or not (mm.tag or "").startswith("api.heap"):
+        if self.heap_size(addr) is None:
             return False
         self.emu.mem_free(addr)
         return True

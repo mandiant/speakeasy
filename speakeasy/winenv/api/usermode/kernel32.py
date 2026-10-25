@@ -2314,16 +2314,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
 
         (hMem,) = argv
-        size = 0
 
-        for mmap in emu.get_mem_maps():
-            if hMem == mmap.base:
-                size = mmap.size
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-
-        if not size:
+        size = self.heap_size(hMem)
+        if size is None:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-
+            return 0
+        emu.set_last_error(windefs.ERROR_SUCCESS)
         return size
 
     @apihook("GlobalFlags", argc=1)
@@ -2391,15 +2387,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         hHeap, dwFlags, lpMem = argv
 
-        size = 0
-        for mmap in emu.get_mem_maps():
-            if lpMem == mmap.base:
-                size = mmap.size
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-
-        if not size:
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-
+        size = self.heap_size(lpMem)
+        if size is None:
+            return self.get_max_int()
         return size
 
     @apihook("GetTickCount", argc=0)
