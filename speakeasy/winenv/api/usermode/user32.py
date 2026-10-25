@@ -455,6 +455,22 @@ class User32(api.ApiHandler):
         hWnd, Msg, wParam, lParam = argv
         return int(Msg == windefs.WM_NCCREATE)
 
+    @apihook("CallWindowProc", argc=5)
+    def CallWindowProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LRESULT CallWindowProcA(
+            WNDPROC lpPrevWndFunc,
+            HWND    hWnd,
+            UINT    Msg,
+            WPARAM  wParam,
+            LPARAM  lParam
+        );
+        """
+        lpPrevWndFunc, hWnd, Msg, wParam, lParam = argv
+        if not lpPrevWndFunc:
+            return 0
+        return (yield GuestCall(lpPrevWndFunc, (hWnd, Msg, wParam, lParam)))
+
     @apihook("CreateWindowEx", argc=12)
     def CreateWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

@@ -753,3 +753,45 @@ def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict,
         hwnd, result, count, _, cb_hwnd, cb_lparam = struct.unpack("<6I", se.mem_read(data, 0x18))
         assert hwnd
         assert (result, count, cb_hwnd, cb_lparam) == (rv, 1, hwnd, 0x55)
+
+
+def test_call_window_proc_runs_def_window_proc_for_a_subclassed_window(config: dict) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        assert se.emu is not None
+        data = se.mem_alloc(0x1000)
+        wndproc, name = base + 0x200, base + 0x300
+        code = b"\xff\x74\x24\x10" * 4  # push lParam, wParam, Msg, hWnd
+        code += b"\x68" + d32(se.emu.get_proc("user32", "DefWindowProcA"))
+        code += x86_call(se.emu.get_proc("user32", "CallWindowProcA")) + b"\xc2\x10\x00"
+        se.mem_write(wndproc, code)
+        se.mem_write(name, b"mycls\x00")
+        main = guest_call(
+            4, se.emu.get_proc("user32", "RegisterClassA"), alloc(se, struct.pack("<10I", 0, wndproc, *[0] * 7, name))
+        )
+        main += guest_call(4, se.emu.get_proc("user32", "CreateWindowExA"), 0, name, 0, WS_POPUP, *[0] * 8, store=data)
+        se.mem_write(base, main + b"\xc3")
+
+        se.run_shellcode(base)
+
+        assert se.get_report().entry_points[0].error is None
+        assert struct.unpack("<I", se.mem_read(data, 4))[0]
+
+
+def test_call_window_proc_returns_the_previous_procedure_result(config: dict) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        assert se.emu is not None
+        data = se.mem_alloc(0x1000)
+        prev = base + 0x200
+        se.mem_write(data + 8, d32(0xFFFFFFFF))
+        se.mem_write(prev, b"\x8b\x44\x24\x08\xa3" + d32(data + 4) + b"\xb8" + d32(0x1234) + b"\xc2\x10\x00")
+        call_window_proc = se.emu.get_proc("user32", "CallWindowProcA")
+        main = guest_call(4, call_window_proc, prev, 0x10000, 0x111, 0, 0, store=data)
+        main += guest_call(4, call_window_proc, 0, 0x10000, 0x111, 0, 0, store=data + 8)
+        se.mem_write(base, main + b"\xc3")
+
+        se.run_shellcode(base)
+
+        assert se.get_report().entry_points[0].error is None
+        assert struct.unpack("<3I", se.mem_read(data, 12)) == (0x1234, 0x111, 0)
