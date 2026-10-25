@@ -11,6 +11,7 @@ MAX_PATH = 260
 MAX_MODULE_NAME32 = 255
 
 FILE_ATTRIBUTE_DIRECTORY = 0x10
+FILE_ATTRIBUTE_ARCHIVE = 0x20
 FILE_ATTRIBUTE_NORMAL = 0x80
 
 TH32CS_INHERIT = 0x80000000
@@ -179,6 +180,21 @@ class WIN32_FIND_DATA(EmuStruct):
         self.dwReserved1 = ct.c_uint32
         self.cFileName = ct.c_uint8 * (260 * width)
         self.cAlternateFileName = ct.c_uint8 * (14 * width)
+
+
+class BY_HANDLE_FILE_INFORMATION(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.dwFileAttributes = ct.c_uint32
+        self.ftCreationTime = FILETIME
+        self.ftLastAccessTime = FILETIME
+        self.ftLastWriteTime = FILETIME
+        self.dwVolumeSerialNumber = ct.c_uint32
+        self.nFileSizeHigh = ct.c_uint32
+        self.nFileSizeLow = ct.c_uint32
+        self.nNumberOfLinks = ct.c_uint32
+        self.nFileIndexHigh = ct.c_uint32
+        self.nFileIndexLow = ct.c_uint32
 
 
 class WIN32_FILE_ATTRIBUTE_DATA(EmuStruct):

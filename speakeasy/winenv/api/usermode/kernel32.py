@@ -7,6 +7,7 @@ import os
 import string
 import struct
 import time
+import zlib
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
@@ -101,6 +102,8 @@ JobObjectBasicLimitInformation = 2
 JobObjectExtendedLimitInformation = 9
 
 RSMB_PROVIDER = 0x52534D42
+
+VOLUME_SERIAL_NUMBER = 0x6C2E1F4A
 
 
 def get_smbios_structure(kind: int, handle: int, formatted: bytes, strings: list[str]) -> bytes:
@@ -4773,7 +4776,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if vol_buf and vol_size:
             self.write_mem_string("", vol_buf, cw)
         if serial:
-            self.mem_write(serial, (0x6C2E1F4A).to_bytes(4, "little"))
+            self.mem_write(serial, VOLUME_SERIAL_NUMBER.to_bytes(4, "little"))
         if comp_len:
             self.mem_write(comp_len, (255).to_bytes(4, "little"))
         if fs_flags:
@@ -6771,7 +6774,31 @@ class Kernel32(ExceptionApis, api.ApiHandler):
           LPBY_HANDLE_FILE_INFORMATION lpFileInformation
         );
         """
-        return 0
+        hFile, lpFileInformation = argv
+
+        f = self.file_get(hFile)
+        if not f:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        info = k32types.BY_HANDLE_FILE_INFORMATION(emu.get_ptr_size())
+        if f.is_dir or emu.get_file_manager().is_directory(f.path):
+            info.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+        else:
+            info.dwFileAttributes = k32types.FILE_ATTRIBUTE_ARCHIVE
+            size = f.get_size()
+            info.nFileSizeHigh = 0xFFFFFFFF & (size >> 32)
+            info.nFileSizeLow = 0xFFFFFFFF & size
+        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        for ft in (info.ftCreationTime, info.ftLastAccessTime, info.ftLastWriteTime):
+            ft.dwLowDateTime = 0xFFFFFFFF & timestamp
+            ft.dwHighDateTime = timestamp >> 32
+        info.dwVolumeSerialNumber = VOLUME_SERIAL_NUMBER
+        info.nNumberOfLinks = 1
+        info.nFileIndexLow = zlib.crc32(f.path.lower().encode("utf-8"))
+        self.mem_write(lpFileInformation, info.get_bytes())
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("GetCommProperties", argc=2)
     def GetCommProperties(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

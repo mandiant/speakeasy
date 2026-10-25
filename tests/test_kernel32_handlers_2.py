@@ -119,6 +119,42 @@ def open_file(se: Speakeasy, path: str, disposition: int = OPEN_EXISTING) -> int
     return hnd
 
 
+def get_file_information(se: Speakeasy, hnd: int) -> tuple[int, tuple[int, ...]]:
+    info = alloc(se, b"\xcc" * 52)
+    rv, _ = call(se, "kernel32", "GetFileInformationByHandle", [hnd, info])
+    return rv, struct.unpack("<I24xIIIIII", se.mem_read(info, 52))
+
+
+def test_get_file_information_by_handle_describes_the_file(emu: Speakeasy) -> None:
+    hnd = open_file(emu, "c:\\windows\\system32\\cmd.exe")
+    rv, (attrs, serial, size_high, size_low, links, index_high, index_low) = get_file_information(emu, hnd)
+    assert rv == 1
+    assert attrs == 0x20
+    assert (size_high << 32) | size_low == call(emu, "kernel32", "GetFileSize", [hnd, 0])[0]
+    assert links == 1
+
+    out = alloc(emu, b"\x00" * 4)
+    call(emu, "kernel32", "GetVolumeInformationA", [0, 0, 0, out, 0, 0, 0, 0])
+    assert serial == struct.unpack("<I", emu.mem_read(out, 4))[0]
+
+    _, again = get_file_information(emu, open_file(emu, "C:\\Windows\\System32\\cmd.exe"))
+    assert again[5:] == (index_high, index_low)
+    _, other = get_file_information(emu, open_file(emu, BYTE_FILL_PATH))
+    assert other[5:] != (index_high, index_low)
+    assert other[3] == 512
+
+
+def test_get_file_information_by_handle_describes_a_directory(emu: Speakeasy) -> None:
+    rv, (attrs, *_) = get_file_information(emu, open_file(emu, "c:\\windows"))
+    assert rv == 1
+    assert attrs == windefs.FILE_ATTRIBUTE_DIRECTORY
+
+
+def test_get_file_information_by_handle_rejects_an_unknown_handle(emu: Speakeasy) -> None:
+    assert get_file_information(emu, 0x1234)[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
+
+
 def test_byte_fill_file_has_its_size(emu: Speakeasy) -> None:
     hnd = open_file(emu, BYTE_FILL_PATH)
     high = alloc(emu, b"\xcc" * 4)
