@@ -10,6 +10,9 @@ import speakeasy.winenv.defs.wininet as windefs
 
 from .. import api
 
+ERROR_INTERNET_UNRECOGNIZED_SCHEME = 12006
+DEFAULT_PORTS = {"http": 80, "https": 443, "ftp": 21}
+
 
 def is_ip_address(ip):
     try:
@@ -436,13 +439,20 @@ class Wininet(api.ApiHandler):
         if not wini:
             return 0
         crack = urlparse(url)
-        if crack.scheme == "http":
-            # FIXME : parse port in url netloc
-            port = 80
-        else:
-            port = 443
-        self.record_http_event(crack.netloc, port, headers=headers)
-        sess = wini.new_session(crack.netloc, port, "", "", "", defs, dwContext)
+        default_port = DEFAULT_PORTS.get(crack.scheme.lower())
+        server = crack.netloc.rpartition("@")[2]
+        if default_port is None or not server:
+            emu.set_last_error(ERROR_INTERNET_UNRECOGNIZED_SCHEME)
+            return 0
+        try:
+            explicit_port = crack.port
+        except ValueError:
+            explicit_port = None
+        port = explicit_port or default_port
+        if explicit_port:
+            server = server.rpartition(":")[0]
+        self.record_http_event(server, port, headers=headers)
+        sess = wini.new_session(server, port, "", "", "", defs, dwContext)
         if not sess:
             return 0
         req = sess.new_request("GET", url, None, None, None, defs, dwContext)
