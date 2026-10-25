@@ -800,6 +800,25 @@ def test_mbsdup_copies_the_string(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "_mbsdup", [0])[0] == 0
 
 
+def test_mbscpy_and_mbscat_copy_through_the_nul(dll_emu: Speakeasy) -> None:
+    src = alloc(dll_emu, b"abc\x00")
+    dest = alloc(dll_emu, b"\xcc" * 8)
+    assert call(dll_emu, "msvcrt", "_mbscpy", [dest, src])[0] == dest
+    assert dll_emu.mem_read(dest, 5) == b"abc\x00\xcc"
+    assert call(dll_emu, "msvcrt", "_mbscat", [dest, src])[0] == dest
+    assert dll_emu.mem_read(dest, 8) == b"abcabc\x00\xcc"
+    assert call(dll_emu, "msvcrt", "_mbslen", [dest])[0] == 6
+
+
+@pytest.mark.parametrize("api", ["_mbsncpy", "_mbsnbcpy"])
+@pytest.mark.parametrize("count, out", [(2, b"ab\xcc\xcc\xcc\xcc"), (5, b"abc\x00\x00\xcc")])
+def test_mbsncpy_copies_count_bytes_and_pads(dll_emu: Speakeasy, api: str, count: int, out: bytes) -> None:
+    src = alloc(dll_emu, b"abc\x00")
+    dest = alloc(dll_emu, b"\xcc" * 6)
+    assert call(dll_emu, "msvcrt", api, [dest, src, count])[0] == dest
+    assert dll_emu.mem_read(dest, 6) == out
+
+
 @pytest.mark.parametrize("c, offset", [("\\", 7), ("a", 0), ("Q", None), ("\0", 9)])
 def test_wcsrchr_returns_the_last_match(dll_emu: Speakeasy, c: str, offset: int | None) -> None:
     s = alloc(dll_emu, "a\\b\\c\\d\\e\0".encode("utf-16le"))

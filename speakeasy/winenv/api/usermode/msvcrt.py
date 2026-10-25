@@ -2338,6 +2338,61 @@ class Msvcrt(api.ApiHandler):
         """
         return self.strncmp(emu, argv, ctx)
 
+    @apihook("_mbscpy", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbscpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbscpy(
+            unsigned char *strDestination,
+            const unsigned char *strSource
+        );
+        """
+        return self.strcpy(emu, argv, ctx)
+
+    @apihook("_mbscat", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _mbscat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbscat(
+            unsigned char *strDestination,
+            const unsigned char *strSource
+        );
+        """
+        return self.strcat(emu, argv, ctx)
+
+    @apihook("_mbslen", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mbslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t _mbslen(
+            const unsigned char *str
+        );
+
+        The emulated code page has one byte for each character.
+        """
+        return self.strlen(emu, argv, ctx)
+
+    @apihook("_mbsncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsncpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsncpy(
+            unsigned char *strDest,
+            const unsigned char *strSource,
+            size_t count
+        );
+
+        The emulated code page has one byte for each character.
+        """
+        return self.strncpy(emu, argv, ctx)
+
+    @apihook("_mbsnbcpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _mbsnbcpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned char *_mbsnbcpy(
+            unsigned char *strDest,
+            const unsigned char *strSource,
+            size_t count
+        );
+        """
+        return self.strncpy(emu, argv, ctx)
+
     @apihook("_mbslwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _mbslwr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
