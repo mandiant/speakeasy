@@ -376,8 +376,8 @@ def test_version_helpers_clean_the_stack(emu: Speakeasy) -> None:
     _, popped = call_and_return(emu, "kernel32", "VerSetConditionMask", [0, 0, 2, 3])
     assert popped == 4 + 16
 
-    info = alloc(emu, b"\x00" * 0x9C)
-    rv, popped = call_and_return(emu, "kernel32", "VerifyVersionInfoW", [info, 2, 0, 0])
+    info = alloc(emu, b"\x00" * 284)
+    rv, popped = call_and_return(emu, "kernel32", "VerifyVersionInfoW", [info, 2, 3 << 3, 0])
     assert rv
     assert popped == 4 + 16
 

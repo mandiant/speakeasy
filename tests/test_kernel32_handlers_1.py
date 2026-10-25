@@ -819,6 +819,62 @@ def test_get_tick_count64_sets_the_high_half_on_x86(dll_emu: Speakeasy) -> None:
     assert emu.reg_read(e_arch.X86_REG_EDX) == 1
 
 
+VER_MINORVERSION = 0x1
+VER_MAJORVERSION = 0x2
+VER_SERVICEPACKMAJOR = 0x20
+VER_EQUAL = 1
+VER_GREATER_EQUAL = 3
+ERROR_OLD_WIN_VERSION = 1150
+
+
+def ver_set_condition_mask(se: Speakeasy, mask: int, type_mask: int, condition: int) -> int:
+    emu = se.emu
+    assert emu is not None
+    emu.reg_write(e_arch.X86_REG_EDX, 0xDEADBEEF)
+    rv, _ = call(se, "kernel32", "VerSetConditionMask", [mask & 0xFFFFFFFF, mask >> 32, type_mask, condition])
+    return emu.reg_read(e_arch.X86_REG_EDX) << 32 | rv
+
+
+def test_ver_set_condition_mask_puts_the_condition_in_the_slot_of_the_type(dll_emu: Speakeasy) -> None:
+    mask = ver_set_condition_mask(dll_emu, 0, VER_MAJORVERSION, VER_GREATER_EQUAL)
+    assert mask == VER_GREATER_EQUAL << 3
+    mask = ver_set_condition_mask(dll_emu, mask, VER_MINORVERSION, VER_GREATER_EQUAL | 0xF8)
+    assert mask == VER_GREATER_EQUAL << 3 | VER_GREATER_EQUAL
+    assert ver_set_condition_mask(dll_emu, mask, VER_SERVICEPACKMAJOR, VER_EQUAL) == mask | VER_EQUAL << 15
+    assert ver_set_condition_mask(dll_emu, 0x1_0000_0000, 0, VER_EQUAL) == 0x1_0000_0000
+
+
+def test_ver_set_condition_mask_on_x64(dll64_emu: Speakeasy) -> None:
+    assert call(dll64_emu, "kernel32", "VerSetConditionMask", [0, VER_MAJORVERSION, VER_EQUAL, 0])[0] == VER_EQUAL << 3
+
+
+@pytest.mark.parametrize(
+    "major, minor, sp_major, type_mask, rv",
+    [
+        (10, 0, 0, VER_MAJORVERSION, 0),
+        (6, 1, 0, VER_MAJORVERSION | VER_MINORVERSION, 1),
+        (5, 2, 0, VER_MAJORVERSION | VER_MINORVERSION, 1),
+        (6, 2, 0, VER_MAJORVERSION | VER_MINORVERSION, 0),
+        (6, 1, 1, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, 1),
+        (6, 1, 2, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, 0),
+    ],
+)
+def test_verify_version_info_compares_with_the_emulated_version(
+    dll_emu: Speakeasy, major: int, minor: int, sp_major: int, type_mask: int, rv: int
+) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    mask = 0
+    for bit in (VER_MAJORVERSION, VER_MINORVERSION, VER_SERVICEPACKMAJOR):
+        if type_mask & bit:
+            mask = ver_set_condition_mask(dll_emu, mask, bit, VER_GREATER_EQUAL)
+    info = struct.pack("<5I256sHHHBB", 284, major, minor, 0, 0, b"", sp_major, 0, 0, 0, 0)
+    emu.set_last_error(0)
+    assert call(dll_emu, "kernel32", "VerifyVersionInfoW", [alloc(dll_emu, info), type_mask, mask, 0])[0] == rv
+    assert emu.get_last_error() == (0 if rv else ERROR_OLD_WIN_VERSION)
+
+
 def test_process_id_to_session_id(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu

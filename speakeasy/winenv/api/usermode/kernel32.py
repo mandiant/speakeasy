@@ -62,6 +62,27 @@ S_FALSE = 1
 PATHCCH_MAX_CCH = 0x8000
 
 ERROR_BAD_LENGTH = 24
+ERROR_BAD_ARGUMENTS = 160
+ERROR_OLD_WIN_VERSION = 1150
+
+VER_MINORVERSION = 0x1
+VER_MAJORVERSION = 0x2
+VER_BUILDNUMBER = 0x4
+VER_PLATFORMID = 0x8
+VER_SERVICEPACKMINOR = 0x10
+VER_SERVICEPACKMAJOR = 0x20
+VER_PRODUCT_TYPE = 0x80
+VER_CONDITION_MASK = 0x7
+VER_COMPARE = {
+    1: lambda a, b: a == b,
+    2: lambda a, b: a > b,
+    3: lambda a, b: a >= b,
+    4: lambda a, b: a < b,
+    5: lambda a, b: a <= b,
+}
+VER_PLATFORM_WIN32_NT = 2
+VER_NT_WORKSTATION = 1
+SERVICE_PACK_BUILDS = {6001: 1, 6002: 2, 7601: 1}
 
 JobObjectBasicAccountingInformation = 1
 JobObjectBasicLimitInformation = 2
@@ -5909,14 +5930,22 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ConditionMask takes two stack slots on x86. On x64 the fourth slot
         is unused.
         """
-        # Stub
         if emu.get_ptr_size() == 4:
             lo, hi, type_mask, cond = argv
             con_mask = (hi << 32) | lo
         else:
             con_mask, type_mask, cond = argv[:3]
 
-        return 0
+        type_mask &= 0xFF
+        cond &= VER_CONDITION_MASK
+        if type_mask and cond:
+            # Only the highest type bit gets the condition
+            con_mask |= cond << (3 * (type_mask.bit_length() - 1))
+
+        if emu.get_ptr_size() == 4:
+            emu.reg_write(e_arch.X86_REG_EDX, con_mask >> 32)
+            return con_mask & 0xFFFFFFFF
+        return con_mask
 
     @apihook("VerifyVersionInfo", argc=4)
     def VerifyVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5930,13 +5959,50 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         dwlConditionMask takes two stack slots on x86. On x64 the fourth slot
         is unused.
         """
-        # Stub
         if emu.get_ptr_size() == 4:
             vinfo, type_mask, lo, hi = argv
             con_mask = (hi << 32) | lo
         else:
             vinfo, type_mask, con_mask = argv[:3]
 
+        if not type_mask or not con_mask:
+            emu.set_last_error(ERROR_BAD_ARGUMENTS)
+            return False
+
+        cw = self.get_char_width(ctx)
+        major, minor, build, platform = struct.unpack("<4I", self.mem_read(vinfo + 4, 16))
+        sp_major, sp_minor, _, product = struct.unpack("<HHHB", self.mem_read(vinfo + 20 + 128 * cw, 7))
+        ver = emu.config.os_ver
+        cur_major, cur_minor, cur_build = ver.major or 0, ver.minor or 0, ver.build or 0
+        cur_sp = SERVICE_PACK_BUILDS.get(cur_build, 0)
+
+        def check(bit, current, wanted):
+            cond = (con_mask >> (3 * (bit.bit_length() - 1))) & VER_CONDITION_MASK
+            return VER_COMPARE.get(cond, lambda a, b: False)(current, wanted)
+
+        ok = True
+        # The version fields compare as one number: a field that differs decides the result
+        for bit, current, wanted in (
+            (VER_MAJORVERSION, cur_major, major),
+            (VER_MINORVERSION, cur_minor, minor),
+            (VER_SERVICEPACKMAJOR, cur_sp, sp_major),
+            (VER_SERVICEPACKMINOR, 0, sp_minor),
+        ):
+            if type_mask & bit:
+                ok = check(bit, current, wanted)
+                if not ok or current != wanted:
+                    break
+        for bit, current, wanted in (
+            (VER_BUILDNUMBER, cur_build, build),
+            (VER_PLATFORMID, VER_PLATFORM_WIN32_NT, platform),
+            (VER_PRODUCT_TYPE, VER_NT_WORKSTATION, product),
+        ):
+            if ok and type_mask & bit:
+                ok = check(bit, current, wanted)
+
+        if not ok:
+            emu.set_last_error(ERROR_OLD_WIN_VERSION)
+            return False
         return True
 
     @apihook("FreeConsole", argc=0)
