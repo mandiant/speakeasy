@@ -463,6 +463,8 @@ PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         (TH32CS_SNAPALL, ["Process32First", "Thread32First", "Module32First"]),
         (0x8 | 0x10, ["Module32First"]),
         (0x80000000 | 0x2, ["Process32First"]),
+        (0x2 | 0x4, ["Process32FirstW", "Thread32First"]),
+        (0x1 | 0x4 | 0x8, ["Thread32First", "Module32FirstW"]),
     ],
 )
 def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags: int, walks: list[str]) -> None:
@@ -530,6 +532,29 @@ def test_toolhelp_first_on_an_empty_list_sets_no_more_files(dll_emu: Speakeasy) 
     dll_emu.emu.set_last_error(0)
     assert call(dll_emu, "kernel32", "Thread32First", [hsnap, entry])[0] == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
+
+
+@pytest.mark.parametrize(
+    "flags, walks",
+    [
+        (0x2 | 0x4, ["Module32FirstW"]),
+        (0x8, ["Process32First", "Thread32First"]),
+        (0, ["Process32FirstW", "Thread32First", "Module32First"]),
+        (0x1, ["Process32First", "Thread32First", "Module32FirstW"]),
+    ],
+)
+def test_toolhelp_first_on_a_list_the_snapshot_lacks_sets_no_more_files(
+    dll_emu: Speakeasy, flags: int, walks: list[str]
+) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [flags, 0])
+    assert hsnap not in (0, windefs.INVALID_HANDLE_VALUE)
+    for walk in walks:
+        entry = alloc(dll_emu, struct.pack("<I", 0x400) + b"\x00" * 0x3FC)
+        dll_emu.emu.set_last_error(0)
+        assert call(dll_emu, "kernel32", walk, [hsnap, entry])[0] == 0, walk
+        assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES, walk
 
 
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:

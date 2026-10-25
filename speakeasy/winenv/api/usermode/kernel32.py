@@ -570,14 +570,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             dwFlags,
             th32ProcessID,
         ) = argv
-        flags = dwFlags & ~(k32types.TH32CS_SNAPMODULE32 | k32types.TH32CS_INHERIT)
-        if k32types.TH32CS_SNAPPROCESS == flags:
-            hnd = self.get_handle()
-            index = 0
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()]}})
-        elif k32types.TH32CS_SNAPTHREAD == flags:
-            hnd = self.get_handle()
-            index = 0
+        processes, threads, modules, pid = [], [], [], 0
+        if dwFlags & (k32types.TH32CS_SNAPTHREAD | k32types.TH32CS_SNAPMODULE):
             if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
@@ -587,53 +581,25 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                         break
                 else:
                     raise ApiEmuError("The specified PID not found")
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.pid]}})
-        elif k32types.TH32CS_SNAPMODULE == flags:
-            hnd = self.get_handle()
-            index = 0
-            if th32ProcessID in [0, emu.curr_process.pid]:
-                proc = emu.curr_process
-            else:
-                for p in emu.get_processes():
-                    if th32ProcessID == p.pid:
-                        proc = p
-                        break
-                else:
-                    raise ApiEmuError("The specified PID not found")
+            pid = proc.pid
+            if dwFlags & k32types.TH32CS_SNAPTHREAD:
+                threads = proc.threads
+            if dwFlags & k32types.TH32CS_SNAPMODULE:
+                modules = emu.get_peb_modules()
+        if dwFlags & k32types.TH32CS_SNAPPROCESS:
+            processes = emu.get_processes()
 
-            self.snapshots.update({hnd: {k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.pid]}})
-
-        elif (
-            k32types.TH32CS_SNAPHEAPLIST
-            | k32types.TH32CS_SNAPPROCESS
-            | k32types.TH32CS_SNAPTHREAD
-            | k32types.TH32CS_SNAPMODULE
-        ) == flags:
-            # ignoring HEAPLIST for now
-            hnd = self.get_handle()
-            index = 0
-            if th32ProcessID in [0, emu.curr_process.pid]:
-                proc = emu.curr_process
-            else:
-                for p in emu.get_processes():
-                    if th32ProcessID == p.pid:
-                        proc = p
-                        break
-                else:
-                    raise ApiEmuError("The specified PID not found")
-
-            self.snapshots.update(
-                {
-                    hnd: {
-                        k32types.TH32CS_SNAPPROCESS: [index, emu.get_processes()],
-                        k32types.TH32CS_SNAPTHREAD: [index, proc.threads, proc.pid],
-                        k32types.TH32CS_SNAPMODULE: [index, emu.get_peb_modules(), proc.pid],
-                    }
+        # TH32CS_SNAPHEAPLIST is not emulated, so a snapshot never has a heap list
+        hnd = self.get_handle()
+        self.snapshots.update(
+            {
+                hnd: {
+                    k32types.TH32CS_SNAPPROCESS: [0, processes],
+                    k32types.TH32CS_SNAPTHREAD: [0, threads, pid],
+                    k32types.TH32CS_SNAPMODULE: [0, modules, pid],
                 }
-            )
-
-        else:
-            raise ApiEmuError(f"Unsupported snapshot type: 0x{dwFlags:x}")
+            }
+        )
 
         cap_def = k32types.get_flag_defines(dwFlags, "TH32CS")
         if cap_def:
