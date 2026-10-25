@@ -649,6 +649,7 @@ class WindowsEmulator(BinaryEmulator):
             # Reset the TIB data
             thread = self.get_current_thread()
             if thread:
+                thread.exit_code = None
                 self.init_teb(thread, self.curr_process.peb)  # type: ignore[union-attr]
                 self.init_tls(thread)
 

@@ -2866,6 +2866,8 @@ class Msvcrt(api.ApiHandler):
            unsigned retval
         );
         """
+        (retval,) = argv
+        emu.get_current_thread().exit_code = retval
         self.exit_process()
 
     @apihook("_endthread", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -2873,6 +2875,7 @@ class Msvcrt(api.ApiHandler):
         """
         void _endthread(void);
         """
+        emu.get_current_thread().exit_code = 0
         self.exit_process()
 
     @apihook("system", argc=1, conv=e_arch.CALL_CONV_CDECL)

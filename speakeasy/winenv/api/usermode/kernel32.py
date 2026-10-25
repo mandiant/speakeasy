@@ -950,6 +950,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD   dwExitCode
         );
         """
+        hLibModule, dwExitCode = argv
+        emu.get_current_thread().exit_code = dwExitCode
         emu.exit_process()
         return
 
@@ -960,6 +962,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD   dwExitCode
         );
         """
+        (dwExitCode,) = argv
+        emu.get_current_thread().exit_code = dwExitCode
         emu.exit_process()
         return
 
@@ -7585,8 +7589,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
 
         hThread, lpExitCode = argv
+        obj = self.get_thread_from_handle(emu, hThread)
+        if not isinstance(obj, objman.Thread):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
         if lpExitCode:
-            self.mem_write(lpExitCode, (0).to_bytes(4, "little"))
+            # Threads run one after another, so a thread that has not run yet has ended
+            # when another run asks, as for a wait on it.
+            if obj is emu.get_current_thread():
+                exit_code = windefs.STILL_ACTIVE
+            else:
+                exit_code = obj.exit_code or 0
+            self.mem_write(lpExitCode, exit_code.to_bytes(4, "little"))
         return True
 
     @apihook("InitializeConditionVariable", argc=1)

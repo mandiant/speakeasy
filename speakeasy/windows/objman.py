@@ -386,6 +386,7 @@ class Thread(KernelObject):
         self.last_error: int = 0
         self.stack_base: int = stack_base
         self.stack_commit: int = stack_commit
+        self.exit_code: int | None = None
 
         self.write_back()
         self.process: Process | None = None
