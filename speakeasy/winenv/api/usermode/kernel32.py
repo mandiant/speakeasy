@@ -62,6 +62,9 @@ TLS_SLOT_COUNT = 64 + 1024
 # Unicorn counts host nanoseconds in the time stamp counter, as a 1 GHz processor would
 TSC_FREQUENCY = 1_000_000_000
 
+PROCESSOR_COUNT = 2
+ALL_PROCESSOR_GROUPS = 0xFFFF
+
 APPMODEL_ERROR_NO_PACKAGE = 15700
 
 S_FALSE = 1
@@ -4106,8 +4109,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         si.dwPageSize = 0x1000
         si.lpMinimumApplicationAddress = 0x10000
         si.lpMaximumApplicationAddress = self.get_max_application_address(emu)
-        si.dwActiveProcessorMask = 0x3
-        si.dwNumberOfProcessors = 2
+        si.dwActiveProcessorMask = (1 << PROCESSOR_COUNT) - 1
+        si.dwNumberOfProcessors = PROCESSOR_COUNT
         si.dwAllocationGranularity = 0x10000
         si.wProcessorLevel = 6
 
@@ -8000,12 +8003,44 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, lpProcessAffinityMask, lpSystemAffinityMask = argv
         ptr_size = emu.get_ptr_size()
-        mask = 0x1
+        mask = (1 << PROCESSOR_COUNT) - 1
         if lpProcessAffinityMask:
             self.mem_write(lpProcessAffinityMask, mask.to_bytes(ptr_size, "little"))
         if lpSystemAffinityMask:
             self.mem_write(lpSystemAffinityMask, mask.to_bytes(ptr_size, "little"))
         return 1
+
+    @apihook("GetActiveProcessorGroupCount", argc=0)
+    def GetActiveProcessorGroupCount(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """WORD GetActiveProcessorGroupCount();"""
+        return 1
+
+    @apihook("GetMaximumProcessorGroupCount", argc=0)
+    def GetMaximumProcessorGroupCount(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """WORD GetMaximumProcessorGroupCount();"""
+        return 1
+
+    @apihook("GetActiveProcessorCount", argc=1)
+    def GetActiveProcessorCount(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetActiveProcessorCount(
+            WORD GroupNumber
+        );
+        """
+        (GroupNumber,) = argv
+        if GroupNumber & 0xFFFF in (0, ALL_PROCESSOR_GROUPS):
+            return PROCESSOR_COUNT
+        emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        return 0
+
+    @apihook("GetMaximumProcessorCount", argc=1)
+    def GetMaximumProcessorCount(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetMaximumProcessorCount(
+            WORD GroupNumber
+        );
+        """
+        return self.GetActiveProcessorCount(emu, argv, ctx)
 
     @apihook("SetConsoleCtrlHandler", argc=2)
     def SetConsoleCtrlHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

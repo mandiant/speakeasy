@@ -758,6 +758,28 @@ def test_get_system_info_fills_the_struct(request: pytest.FixtureRequest, fixtur
 
 
 @pytest.mark.parametrize("fixture, ptr", [("dll_emu", "I"), ("dll64_emu", "Q")])
+def test_processor_counts_agree_with_get_system_info(request: pytest.FixtureRequest, fixture: str, ptr: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    layout = f"<HHI{ptr}{ptr}{ptr}IIIHH"
+    info = alloc(se, b"\x00" * struct.calcsize(layout))
+    call(se, "kernel32", "GetSystemInfo", [info])
+    _, _, _, _, _, mask, cpus, _, _, _, _ = struct.unpack(layout, se.mem_read(info, struct.calcsize(layout)))
+
+    assert call(se, "kernel32", "GetActiveProcessorGroupCount", [])[0] == 1
+    assert call(se, "kernel32", "GetMaximumProcessorGroupCount", [])[0] == 1
+    for name in ("GetActiveProcessorCount", "GetMaximumProcessorCount"):
+        assert call(se, "kernel32", name, [0xFFFF])[0] == cpus
+        assert call(se, "kernel32", name, [0])[0] == cpus
+        assert call(se, "kernel32", name, [1])[0] == 0
+        assert se.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER  # type: ignore[union-attr]
+
+    masks = alloc(se, b"\xcc" * struct.calcsize(f"<{ptr}{ptr}"))
+    rv, _ = call(se, "kernel32", "GetProcessAffinityMask", [0xFFFFFFFF, masks, masks + struct.calcsize(ptr)])
+    assert (rv, struct.unpack(f"<{ptr}{ptr}", se.mem_read(masks, struct.calcsize(f"<{ptr}{ptr}")))) == (1, (mask, mask))
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", "I"), ("dll64_emu", "Q")])
 def test_global_memory_status_fills_the_struct(request: pytest.FixtureRequest, fixture: str, ptr: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     layout = f"<II{ptr * 6}"
