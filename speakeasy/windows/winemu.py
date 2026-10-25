@@ -2125,13 +2125,20 @@ class WindowsEmulator(BinaryEmulator):
             except WindowsEmuError:
                 logger.debug("cannot allocate API entry for %s!%s", module.name, reference, exc_info=True)
                 return 0
-        if entry.export.forwarder is not None:
+        forwarder = entry.export.forwarder
+        if module._image.source != "synthetic":
+            # Windows decides a forwarder by the export directory range in the mapped header.
+            directory = self._get_export_directory(module)
+            if directory is not None:
+                rva, size = directory
+                forwarder = (forwarder or "") if rva <= entry.address - module.base < rva + size else None
+        if forwarder is not None:
             seen = set() if _seen is None else _seen
             key = (id(module), reference)
             if key in seen or len(seen) >= 32:
                 return 0
             seen.add(key)
-            target = entry.export.forwarder
+            target = forwarder
             if module._image.source != "synthetic":
                 # Windows reads the forwarder from the mapped image when it resolves it.
                 try:
@@ -2150,6 +2157,18 @@ class WindowsEmulator(BinaryEmulator):
         if entry.export.kind == "data":
             self._initialize_api_data(entry)
         return entry.address
+
+    def _get_export_directory(self, module):
+        """Read the export directory (RVA, size) from the mapped header, or None when it cannot be read."""
+        try:
+            nt = module.base + struct.unpack("<I", self.mem_read(module.base + 0x3C, 4))[0]
+            magic = struct.unpack("<H", self.mem_read(nt + 0x18, 2))[0]
+            directories = nt + 0x18 + (112 if magic == 0x20B else 96)
+            if not struct.unpack("<I", self.mem_read(directories - 4, 4))[0]:
+                return 0, 0
+            return struct.unpack("<II", self.mem_read(directories, 8))
+        except (uc.UcError, struct.error):
+            return None
 
     def get_proc(self, mod_name, func_name):
         """Resolve an explicit import request to stable mapped code or storage."""

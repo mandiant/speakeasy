@@ -55,3 +55,36 @@ def test_get_proc_address_reads_a_forwarder_that_the_image_wrote_at_runtime(conf
         sleep = call(se, "kernel32", "GetProcAddress", [kernel32, alloc(se, b"Sleep\0")])[0]
         assert sleep != 0
         assert forwarded == sleep
+
+
+def build_data_export_exe():
+    directory_rva, buffer_rva = 0x2000, 0x2100
+    data = bytearray(0x200)
+    struct.pack_into("<IIHHIIIIIII", data, 0, 0, 0, 0, 0, 0x2050, 1, 1, 1, 0x2028, 0x202C, 0x2030)
+    struct.pack_into("<IIH", data, 0x28, buffer_rva, 0x2040, 0)
+    data[0x40:0x47] = b"szFile\0"
+    data[0x50:0x59] = b"test.exe\0"
+    image, _ = build_pe(32, data=bytes(data), extra_dirs={0: (directory_rva, 0x60)})
+    return image, buffer_rva
+
+
+def test_get_proc_address_follows_an_export_that_a_larger_export_directory_makes_a_forwarder(config):
+    image, buffer_rva = build_data_export_exe()
+    export_size = 0x80 + 0x18 + 96 + 4
+    for se in load_emu(config, image):
+        start_process(se)
+        host = call(se, "kernel32", "GetModuleHandleA", [0])[0]
+        name = alloc(se, b"szFile\0")
+        assert call(se, "kernel32", "GetProcAddress", [host, name])[0] == host + buffer_rva
+
+        se.mem_write(host + export_size, struct.pack("<I", 0x80000000))
+        se.mem_write(host + buffer_rva, b"kernel32.GetTickCount\0")
+        forwarded = call(se, "kernel32", "GetProcAddress", [host, name])[0]
+
+        kernel32 = call(se, "kernel32", "GetModuleHandleA", [alloc(se, b"kernel32\0")])[0]
+        get_tick_count = call(se, "kernel32", "GetProcAddress", [kernel32, alloc(se, b"GetTickCount\0")])[0]
+        assert get_tick_count != 0
+        assert forwarded == get_tick_count
+
+        se.mem_write(host + export_size, struct.pack("<I", 0x60))
+        assert call(se, "kernel32", "GetProcAddress", [host, name])[0] == host + buffer_rva
