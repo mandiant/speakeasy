@@ -2428,17 +2428,29 @@ class WindowsEmulator(BinaryEmulator):
         return "; ".join(parts)
 
     def get_error_info(
-        self, desc: str, address: int, traceback: str | None = None, access_type: str | None = None
+        self,
+        desc: str,
+        address: int,
+        traceback: str | None = None,
+        access_type: str | None = None,
+        api_name: str | None = None,
     ) -> ErrorInfo:
-        """Collect emulator state information in the event of an error."""
+        """Collect emulator state information in the event of an error.
+
+        For an error at an API trap, give the API name and its return address
+        as the address, because the trap holds no instruction to show.
+        """
         run = self.get_current_run()
         pc = self.get_pc()
 
-        try:
-            mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
-        except Exception as e:
-            logger.error(str(e))
-            instr = "disasm_failed"
+        if api_name:
+            instr = f"api_trap {api_name}"
+        else:
+            try:
+                mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
+            except Exception as e:
+                logger.error(str(e))
+                instr = "disasm_failed"
 
         regs = self.get_register_state()
         stack = self.get_stack_trace()
@@ -2448,7 +2460,12 @@ class WindowsEmulator(BinaryEmulator):
         tid = self.curr_thread.tid if self.curr_thread else None
         pid = self.curr_process.id if self.curr_process else None
 
-        summary = self._build_context_summary(desc, pc, address, access_type, pc_module, address_region, nearby_regions)
+        if api_name:
+            summary = f"{desc} {api_name} called from {self._resolve_module_offset(address) or hex(address)}"
+        else:
+            summary = self._build_context_summary(
+                desc, pc, address, access_type, pc_module, address_region, nearby_regions
+            )
 
         logger.error(
             "0x%x: %s: Caught error: %s\n  summary: %s\n  instr: %s\n  regs: %s",
@@ -2949,7 +2966,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.log_api(call_pc, imp_api, 1, sigfmt.get_slot_args(argv), run=origin_run)
                 self.do_call_return(argc, oret, 1, conv=conv)
             else:
-                error = self.get_error_info("unsupported_api", self.get_pc())
+                error = self.get_error_info("unsupported_api", oret, api_name=imp_api)
                 logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
                 self.log_api(call_pc, imp_api, None, [], run=origin_run)
                 error.api_name = imp_api

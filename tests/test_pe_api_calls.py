@@ -173,6 +173,21 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
             assert api_names(entry) == [f"kernel32.{unknown}"]
 
 
+def test_unsupported_api_error_names_the_api_and_its_caller(caplog):
+    unknown = "SpeakeasyNoSuchExport"
+    data, _ = build_pe(32, text=calls(32, [("kernel32.dll", unknown)]), imports={"kernel32.dll": [unknown]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        error = se.get_report().entry_points[0].error
+        name = module.name
+    assert error.type == "unsupported_api"
+    assert error.instr == f"api_trap kernel32.{unknown}"
+    assert error.context_summary == f"unsupported_api kernel32.{unknown} called from {name}+0x1006"
+    assert error.nearby_regions is None
+    assert "Invalid memory read" not in caplog.text
+
+
 def test_public_catalogued_unsafe_iat_call_cannot_use_unknown_fallback():
     name = "GetLargestConsoleWindowSize"
     data, _ = build_pe(
