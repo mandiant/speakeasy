@@ -4,6 +4,7 @@ import hashlib
 import ntpath
 import os
 import shlex
+import subprocess
 
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
@@ -57,6 +58,7 @@ class Win32Emulator(WindowsEmulator):
             for m in self.modules:
                 if isinstance(m, RuntimeModule) and m.is_exe():
                     argv0 = m.emu_path
+                    break
             out = [argv0] + self.argv
         elif self.command_line:
             out = shlex.split(self.command_line, posix=False)
@@ -316,6 +318,8 @@ class Win32Emulator(WindowsEmulator):
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
         if len(self.processes) == 0:
+            if self.argv:
+                self.command_line = f'"{module.emu_path}" {subprocess.list2cmdline(self.argv)}'
             p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
             self.processes.append(p)
             self.curr_process = p

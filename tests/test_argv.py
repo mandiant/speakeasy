@@ -1,5 +1,9 @@
 import pytest
 
+from speakeasy import Speakeasy
+from tests.handler_harness import call
+from tests.pe_builder import build_pe
+
 
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz"])
 def test_argv_exe(config, load_test_bin, run_test, bin_file):
@@ -19,3 +23,31 @@ def test_argv_exe(config, load_test_bin, run_test, bin_file):
         fmt_str = p.args[2].display
         test_str = f"argv[{i}] = argument_{i}\n"
         assert test_str == fmt_str
+
+
+def test_argv_zero_is_the_program_path(config, load_test_bin):
+    with Speakeasy(config=config, argv=["x"]) as se:
+        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
+        se.run_module(module)
+        events = se.get_report().entry_points[0].events or []
+    printfs = [evt.args[2].display for evt in events if evt.event == "api" and "vfprintf" in evt.api_name]
+    assert printfs[1] == f"argv[0] = {module.emu_path}\n"
+
+
+@pytest.mark.parametrize(("api", "width"), [("GetCommandLineA", 1), ("GetCommandLineW", 2)])
+def test_argv_goes_into_the_command_line(config, api, width):
+    data, _ = build_pe(32, text=b"\xc3")
+    with Speakeasy(config=config, argv=["/run", "x y", 'a"b']) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        rv, _ = call(se, "kernel32", api, [])
+        assert se.read_mem_string(rv, width) == f'"{module.emu_path}" /run "x y" a\\"b'
+
+
+def test_the_configured_command_line_stays_without_argv(config):
+    config["command_line"] = "svchost.exe -k netsvcs"
+    data, _ = build_pe(32, text=b"\xc3")
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=data))
+        rv, _ = call(se, "kernel32", "GetCommandLineA", [])
+        assert se.read_mem_string(rv, 1) == "svchost.exe -k netsvcs"
