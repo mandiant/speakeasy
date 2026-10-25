@@ -348,3 +348,27 @@ def test_vkill_replies_ok_and_k_does_not():
     assert replies == [b"OK"]
     assert server._handle_command(b"k").kill
     assert replies == [b"OK"]
+
+
+def test_x87_control_registers_read_and_write_the_cpu_state():
+    emulator = DummyEmulator()
+    emulator.emu_eng = SimpleNamespace(emu=Uc(UC_ARCH_X86, UC_MODE_64))
+    server = GdbServer(emulator, 0, "127.0.0.1")
+    index = {register.name: i for i, register in enumerate(server._registers)}
+
+    for name, value in (("fctrl", 0x27F), ("fstat", 0x3800), ("ftag", 0x7FFF), ("fioff", 0x401000)):
+        server._write_register_value(server._registers[index[name]], value.to_bytes(4, "little"))
+        assert server._read_register_value(index[name]) == value.to_bytes(4, "little")
+
+
+def test_x87_instruction_offset_above_4gb_fits_its_slot():
+    emulator = DummyEmulator()
+    uc = Uc(UC_ARCH_X86, UC_MODE_64)
+    uc.mem_map(0x180001000, 0x1000)
+    uc.mem_write(0x180001000, b"\xd9\xe8")
+    uc.emu_start(0x180001000, 0x180001002)
+    emulator.emu_eng = SimpleNamespace(emu=uc)
+    server = GdbServer(emulator, 0, "127.0.0.1")
+    fioff = next(i for i, register in enumerate(server._registers) if register.name == "fioff")
+
+    assert server._read_register_value(fioff) == (0x80001000).to_bytes(4, "little")

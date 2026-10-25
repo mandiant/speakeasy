@@ -614,10 +614,20 @@ class GdbServer:
             )
         )
         definitions.extend((f"st{i}", getattr(ux, f"UC_X86_REG_FP{i}"), 10, "float") for i in range(8))
-        # Unicorn does not expose all x87 environment fields independently.
-        # Keep their standard RSP slots so clients retain the canonical layout.
+        # Unicorn does not expose the x87 segment selectors or the operand
+        # offset. Keep their standard RSP slots so clients retain the canonical layout.
         definitions.extend(
-            (name, None, 4, "float") for name in ("fctrl", "fstat", "ftag", "fiseg", "fioff", "foseg", "fooff", "fop")
+            (name, reg, 4, "float")
+            for name, reg in (
+                ("fctrl", ux.UC_X86_REG_FPCW),
+                ("fstat", ux.UC_X86_REG_FPSW),
+                ("ftag", ux.UC_X86_REG_FPTAG),
+                ("fiseg", None),
+                ("fioff", ux.UC_X86_REG_FIP),
+                ("foseg", None),
+                ("fooff", None),
+                ("fop", ux.UC_X86_REG_FOP),
+            )
         )
         xmm_count = 16 if self.emu.get_arch() == arch.ARCH_AMD64 else 8
         definitions.extend((f"xmm{i}", getattr(ux, f"UC_X86_REG_XMM{i}"), 16, "vector") for i in range(xmm_count))
@@ -636,7 +646,7 @@ class GdbServer:
         if register.name.startswith("st"):
             mantissa, exponent = value
             return int(mantissa).to_bytes(8, "little") + int(exponent).to_bytes(2, "little")
-        return int(value).to_bytes(register.size, "little")
+        return (int(value) & ((1 << (8 * register.size)) - 1)).to_bytes(register.size, "little")
 
     def _read_registers(self) -> None:
         try:
