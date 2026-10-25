@@ -647,6 +647,45 @@ def test_init_once_begin_initialize_check_only_does_not_start(emu: Speakeasy) ->
     assert emu.mem_read(pending, 4) == b"\xcc" * 4
 
 
+def test_init_once_complete_publishes_the_context(emu: Speakeasy) -> None:
+    INIT_ONCE_CHECK_ONLY, INIT_ONCE_ASYNC = 1, 2
+    init_once = alloc(emu, b"\x00" * 4)
+    pending = alloc(emu, b"\xcc" * 4)
+    context = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, INIT_ONCE_ASYNC, pending, 0])[0] == 1
+    assert emu.mem_read(pending, 4) == struct.pack("<I", 1)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, INIT_ONCE_CHECK_ONLY, pending, context])[0] == 0
+    assert last_error(emu) == windefs.ERROR_GEN_FAILURE
+
+    assert call(emu, "kernel32", "InitOnceComplete", [init_once, INIT_ONCE_ASYNC, 0x6F05A000])[0] == 1
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, INIT_ONCE_CHECK_ONLY, pending, context])[0] == 1
+    assert emu.mem_read(pending, 4) == struct.pack("<I", 0)
+    assert emu.mem_read(context, 4) == struct.pack("<I", 0x6F05A000)
+
+    emu.mem_write(pending, b"\xcc" * 4)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0] == 1
+    assert emu.mem_read(pending, 4) == struct.pack("<I", 0)
+
+
+def test_init_once_complete_with_init_failed_resets_the_state(emu: Speakeasy) -> None:
+    INIT_ONCE_INIT_FAILED = 4
+    init_once = alloc(emu, b"\x00" * 4)
+    pending = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0] == 1
+    assert call(emu, "kernel32", "InitOnceComplete", [init_once, INIT_ONCE_INIT_FAILED, 0])[0] == 1
+    assert emu.mem_read(init_once, 4) == b"\x00" * 4
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0] == 1
+    assert emu.mem_read(pending, 4) == struct.pack("<I", 1)
+
+
+def test_init_once_complete_rejects_a_context_with_low_bits(emu: Speakeasy) -> None:
+    init_once = alloc(emu, b"\x00" * 4)
+    pending = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0] == 1
+    assert call(emu, "kernel32", "InitOnceComplete", [init_once, 0, 0x6F05A001])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+
+
 def test_queue_user_apc_returns_success(emu: Speakeasy) -> None:
     assert emu.emu is not None
     thread = emu.emu.get_object_handle(emu.emu.curr_thread)

@@ -7647,12 +7647,50 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             [out, optional] LPVOID      *lpContext
         );
         """
-        dwFlags, fPending = argv[1:3]
-        if dwFlags & k32types.INIT_ONCE_CHECK_ONLY:
+        lpInitOnce, dwFlags, fPending, lpContext = argv
+        ptr_size = emu.get_ptr_size()
+        state = int.from_bytes(self.mem_read(lpInitOnce, ptr_size), "little")
+        is_async = bool(dwFlags & k32types.INIT_ONCE_ASYNC)
+        if state & 3 == 2:
+            if lpContext:
+                self.mem_write(lpContext, (state & ~3).to_bytes(ptr_size, "little"))
+            pending = 0
+        elif dwFlags & k32types.INIT_ONCE_CHECK_ONLY:
             emu.set_last_error(windefs.ERROR_GEN_FAILURE)
             return 0
+        elif (state & 3 == 1 and is_async) or (state & 3 == 3 and not is_async):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        else:
+            self.mem_write(lpInitOnce, (3 if is_async else 1).to_bytes(ptr_size, "little"))
+            pending = 1
         if fPending:
-            self.mem_write(fPending, (1).to_bytes(4, "little"))
+            self.mem_write(fPending, pending.to_bytes(4, "little"))
+        return 1
+
+    @apihook("InitOnceComplete", argc=3)
+    def InitOnceComplete(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL InitOnceComplete(
+            [in, out]      LPINIT_ONCE lpInitOnce,
+            [in]           DWORD       dwFlags,
+            [in, optional] LPVOID      lpContext
+        );
+        """
+        lpInitOnce, dwFlags, lpContext = argv
+        ptr_size = emu.get_ptr_size()
+        state = int.from_bytes(self.mem_read(lpInitOnce, ptr_size), "little")
+        if lpContext & 3:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        if not state & 1:
+            emu.set_last_error(windefs.ERROR_GEN_FAILURE)
+            return 0
+        if dwFlags & k32types.INIT_ONCE_INIT_FAILED:
+            state = 0
+        else:
+            state = lpContext | 2
+        self.mem_write(lpInitOnce, state.to_bytes(ptr_size, "little"))
         return 1
 
     @apihook("InitOnceExecuteOnce", argc=4)
