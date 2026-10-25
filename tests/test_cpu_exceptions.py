@@ -342,6 +342,19 @@ def test_contributory_exception_can_repeat(config, arch, fault, step, exception_
     assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [hex(exception_code)] * 3
 
 
+def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
+    # A triple fault stops Unicorn like this: no hook records why.
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\x90\x90" + RETURN_42, arch="amd64")
+        se.add_code_hook(lambda emu, address, size: se.emu.emu_eng.stop(), begin=code + 1, end=code + 1)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.pc) == ("engine_stopped", code + 1)
+
+
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
     # mov al, 0xf4 stopped by the instruction limit right after it
     config.update(max_instructions=1)

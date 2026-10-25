@@ -922,6 +922,10 @@ class WindowsEmulator(BinaryEmulator):
                     stop_limit("max_instructions")
                     return
                 if entry is None:
+                    if debugger is None and not self.run_complete:
+                        logger.error("0x%x: Emulation engine stopped", self.get_pc())
+                        origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
+                        self.on_run_complete()
                     return
                 # A missing ABI remains a suspended call under the debugger.
                 if debugger is not None:
