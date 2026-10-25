@@ -814,9 +814,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         hProcess, uExitCode = argv
         rv = False
 
+        if hProcess == self.get_max_int():
+            self.exit_process()
+            return True
+
         proc = emu.get_object_from_handle(hProcess)
         if not proc:
             return rv
+
+        if proc is emu.get_current_process():
+            self.exit_process()
+            return True
 
         emu.kill_process(proc)
         rv = True

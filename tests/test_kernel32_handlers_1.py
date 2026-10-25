@@ -934,3 +934,21 @@ def test_wpp_tracing_is_not_enabled(dll_emu: Speakeasy) -> None:
     assert rv == 0
     rv, _ = call(dll_emu, "ntdll", "EtwTraceMessage", [1, 0, 2, 0x10, 0, 0])
     assert rv == 0
+
+
+@pytest.mark.parametrize("current", ["pseudo", "real"])
+def test_terminate_process_on_the_current_process_ends_the_run(dll_emu: Speakeasy, current: str) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    if current == "pseudo":
+        handle = 0xFFFFFFFF
+    else:
+        pid = call(dll_emu, "kernel32", "GetCurrentProcessId", [])[0]
+        handle = call(dll_emu, "kernel32", "OpenProcess", [0x1F0FFF, 0, pid])[0]
+        assert handle
+    emu.run_complete = False
+
+    rv, _ = call(dll_emu, "kernel32", "TerminateProcess", [handle, 3])
+
+    assert rv
+    assert emu.run_complete
