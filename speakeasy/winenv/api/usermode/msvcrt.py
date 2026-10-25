@@ -33,6 +33,7 @@ DISABLE_PER_THREAD_LOCALE = 2
 STRUNCATE = 80
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
+_CRT_INTERNAL_SCANF_SECURECRT = 1
 
 # ios_base::iostate and ios_base::openmode bits of the MSVC C++ library
 IOS_GOODBIT = 0x0
@@ -3729,6 +3730,46 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(text.decode("latin-1"))
         ctx.args.append(fmt_str.decode("latin-1"))
+        return rv
+
+    @apihook("__stdio_common_vsscanf", argc=7, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vsscanf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __stdio_common_vsscanf(
+            unsigned __int64 Options,
+            const char *Buffer,
+            size_t BufferCount,
+            const char *Format,
+            _locale_t Locale,
+            va_list ArgList
+        );
+
+        The 64-bit options take two slots on x86. With the secure option, as
+        in sscanf_s, each %c, %s and %[ conversion has a buffer size after
+        its pointer, and a value that does not fit leaves an empty buffer
+        and ends the scan.
+        """
+        options = argv[0]
+        first = 1 if emu.get_arch() == e_arch.ARCH_AMD64 else 2
+        buf, count, fmt, _, arglist = argv[first : first + 5]
+        text = self.read_cstr(buf, count) if count else b""
+        fmt_str = self.read_cstr(fmt)
+        ctx.args[first].display = text.decode("latin-1")
+        ctx.args[first + 2].display = fmt_str.decode("latin-1")
+        values, rv = scan_c_format(text, fmt_str, emu.get_ptr_size())
+        convs = [m.group(4) for m in SCANF_SPEC.finditer(fmt_str) if not m.group(1) and m.group(4) != b"%"]
+        slot = arglist
+        for k, (conv, data) in enumerate(zip(convs, values)):
+            dest = self.va_args(slot, 1)[0]
+            slot += emu.get_ptr_size()
+            if options & _CRT_INTERNAL_SCANF_SECURECRT and conv[:1] in (b"c", b"s", b"["):
+                size = self.va_args(slot, 1)[0] & 0xFFFFFFFF
+                slot += emu.get_ptr_size()
+                if len(data) > size:
+                    if size:
+                        self.mem_write(dest, b"\x00")
+                    return sum(c != b"n" for c in convs[:k])
+            self.mem_write(dest, data)
         return rv
 
     @apihook("strchr", argc=2, conv=e_arch.CALL_CONV_CDECL)

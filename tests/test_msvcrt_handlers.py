@@ -768,6 +768,45 @@ def test_sscanf_writes_through_the_variadic_pointers(dll_emu: Speakeasy) -> None
     assert dll_emu.mem_read(major, 5) + dll_emu.mem_read(minor, 5) == i32(1) + b"\xcc" + i32(1) + b"\xcc"
 
 
+def call_stdio_common_vsscanf(se: Speakeasy, options: int, text: bytes, count: int, fmt: bytes, va: list[int]) -> int:
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    va_list = alloc(se, b"".join(v.to_bytes(ptr_size, "little") for v in va))
+    count &= (1 << (8 * ptr_size)) - 1
+    args = [alloc(se, text + b"\x00"), count, alloc(se, fmt + b"\x00"), 0, va_list]
+    if ptr_size == 4:
+        argv = [options, 0, *args]
+    else:
+        argv = [options, *args, 0]
+    return call(se, "ucrtbase", "__stdio_common_vsscanf", argv)[0]
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_stdio_common_vsscanf_writes_through_the_va_list(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    ptrs = [alloc(se, b"\xcc" * 5) for _ in range(6)]
+    fmt = b"%d-%d-%dT%d:%d:%d"
+    assert call_stdio_common_vsscanf(se, 2, b"2024-05-06T07:08:09", -1, fmt, ptrs) == 6
+    assert [se.mem_read(p, 5) for p in ptrs] == [i32(v) + b"\xcc" for v in (2024, 5, 6, 7, 8, 9)]
+
+
+def test_stdio_common_vsscanf_reads_at_most_buffer_count_chars(dll_emu: Speakeasy) -> None:
+    out = alloc(dll_emu, b"\xcc" * 4)
+    assert call_stdio_common_vsscanf(dll_emu, 0, b"12345", 3, b"%d", [out]) == 1
+    assert dll_emu.mem_read(out, 4) == i32(123)
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_stdio_common_vsscanf_secure_reads_buffer_sizes(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    method, number, path = (alloc(se, b"\xcc" * 8) for _ in range(3))
+    va = [method, 8, number, path, 2]
+    assert call_stdio_common_vsscanf(se, 1, b"GET 42 /x", -1, b"%s %d %s", va) == 2
+    assert se.mem_read(method, 5) == b"GET\x00\xcc"
+    assert se.mem_read(number, 5) == i32(42) + b"\xcc"
+    assert se.mem_read(path, 2) == b"\x00\xcc"
+
+
 @pytest.mark.parametrize(
     "emu_name, api, size_fmt, time_fmt, length",
     [
