@@ -2100,3 +2100,23 @@ def test_wtoi64_parses_a_64_bit_value(request: pytest.FixtureRequest, emu_name: 
     se = request.getfixturevalue(emu_name)
     rv, _ = call(se, "msvcrt", "_wtoi64", [alloc(se, (text + "\0").encode("utf-16le"))])
     assert get_int64_result(se, rv) == value & 0xFFFFFFFFFFFFFFFF
+
+
+def test_set_invalid_parameter_handler_returns_the_previous_handler(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcr80", "_get_invalid_parameter_handler", [])[0] == 0
+    assert call(dll_emu, "msvcr80", "_set_invalid_parameter_handler", [0x401000])[0] == 0
+    assert call(dll_emu, "msvcr80", "_get_invalid_parameter_handler", [])[0] == 0x401000
+    assert call(dll_emu, "msvcr80", "_set_invalid_parameter_handler", [0x402000])[0] == 0x401000
+
+
+def test_thread_local_invalid_parameter_handler_is_per_thread(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    first = dll_emu.emu.curr_thread
+    assert call(dll_emu, "msvcrt", "_set_thread_local_invalid_parameter_handler", [0x401000])[0] == 0
+    assert call(dll_emu, "msvcrt", "_get_thread_local_invalid_parameter_handler", [])[0] == 0x401000
+    start_process(dll_emu)
+    assert call(dll_emu, "msvcrt", "_get_thread_local_invalid_parameter_handler", [])[0] == 0
+    dll_emu.emu.curr_thread = first
+    assert call(dll_emu, "msvcrt", "_set_thread_local_invalid_parameter_handler", [0])[0] == 0x401000
+    assert call(dll_emu, "msvcrt", "_get_invalid_parameter_handler", [])[0] == 0

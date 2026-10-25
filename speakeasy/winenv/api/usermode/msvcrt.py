@@ -414,6 +414,8 @@ class Msvcrt(api.ApiHandler):
         self.new_mode: int = 0
         self.thread_locale: int = DISABLE_PER_THREAD_LOCALE
         self.exception_slots: dict[str, int] = {}
+        self.invalid_parameter_handler: int = 0
+        self.thread_invalid_parameter_handlers: dict[int, int] = {}
 
         super().__get_hook_attrs__(self)
 
@@ -3701,8 +3703,31 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (pNew,) = argv
+        rv, self.invalid_parameter_handler = self.invalid_parameter_handler, pNew
+        return rv
 
-        return 0
+    @apihook("_get_invalid_parameter_handler", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _get_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """_invalid_parameter_handler _get_invalid_parameter_handler(void);"""
+        return self.invalid_parameter_handler
+
+    @apihook("_set_thread_local_invalid_parameter_handler", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _set_thread_local_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _invalid_parameter_handler _set_thread_local_invalid_parameter_handler(
+        _invalid_parameter_handler pNew
+        );
+        """
+        (pNew,) = argv
+        tid = emu.get_current_thread().id
+        rv = self.thread_invalid_parameter_handlers.get(tid, 0)
+        self.thread_invalid_parameter_handlers[tid] = pNew
+        return rv
+
+    @apihook("_get_thread_local_invalid_parameter_handler", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _get_thread_local_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """_invalid_parameter_handler _get_thread_local_invalid_parameter_handler(void);"""
+        return self.thread_invalid_parameter_handlers.get(emu.get_current_thread().id, 0)
 
     @apihook("__vcrt_InitializeCriticalSectionEx", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def __vcrt_InitializeCriticalSectionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
