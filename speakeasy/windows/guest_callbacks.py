@@ -97,7 +97,7 @@ def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | N
     """
     access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
     if access is None or not error.args:
-        return str(error), pc, None
+        return str(error) or type(error).__name__, pc, None
     address = error.args[0]
     if len(error.args) > 1:
         address = get_first_unmapped(emu, address, error.args[1])

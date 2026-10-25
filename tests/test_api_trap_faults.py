@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.windows import guest_callbacks
 
 
 def dword(value):
@@ -98,3 +99,8 @@ def test_handler_access_of_an_unmapped_guest_pointer_is_typed_fault(config, api,
         assert error.access_type == access
         assert error.address == bad
         assert error.traceback
+
+
+def test_handler_error_without_a_message_is_named_by_its_class():
+    assert guest_callbacks.get_handler_fault(None, MemoryError(), 0x1000) == ("MemoryError", 0x1000, None)
+    assert guest_callbacks.get_handler_fault(None, ValueError("bad flags"), 0x1000) == ("bad flags", 0x1000, None)
