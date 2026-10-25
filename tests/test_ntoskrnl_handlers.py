@@ -678,3 +678,25 @@ def test_vdbgprintex_formats_the_message(driver_emu: Speakeasy, name: str, head:
     rv, displays = call(driver_emu, "ntoskrnl", name, [*prefix, 0x4D, 3, fmt, args])
     assert rv == ddk.STATUS_SUCCESS
     assert "".join(head) + "pid=4" in displays.values()
+
+
+def test_nt_write_and_read_file_fill_the_io_status_block(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    path = alloc(se, b"C:\\Windows\\Temp\\nt_io.bin\0")
+    handle = call(se, "kernel32", "CreateFileA", [path, 0xC0000000, 0, 0, 2, 0x80, 0])[0]
+    ios = alloc(se, b"\xff" * 16)
+    data = alloc(se, b"hello world")
+
+    assert call(se, "ntdll", "NtWriteFile", [handle, 0, 0, 0, ios, data, 11, 0, 0])[0] == ddk.STATUS_SUCCESS
+    assert struct.unpack("<QQ", se.mem_read(ios, 16)) == (0, 11)
+
+    offset = alloc(se, struct.pack("<q", 6))
+    out = alloc(se, b"\0" * 16)
+    assert call(se, "ntdll", "NtReadFile", [handle, 0, 0, 0, ios, out, 3, offset, 0])[0] == ddk.STATUS_SUCCESS
+    assert struct.unpack("<QQ", se.mem_read(ios, 16)) == (0, 3)
+    assert se.mem_read(out, 4) == b"wor\0"
+
+    assert call(se, "ntdll", "NtReadFile", [handle, 0, 0, 0, ios, out, 16, 0, 0])[0] == ddk.STATUS_SUCCESS
+    assert struct.unpack("<QQ", se.mem_read(ios, 16)) == (0, 2)
+    assert call(se, "ntdll", "NtReadFile", [handle, 0, 0, 0, ios, out, 16, 0, 0])[0] == ddk.STATUS_END_OF_FILE
+    assert struct.unpack("<QQ", se.mem_read(ios, 16)) == (ddk.STATUS_END_OF_FILE, 0)

@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import io
 import logging
 import ntpath
 import struct
@@ -3309,7 +3310,8 @@ class Ntoskrnl(api.ApiHandler):
 
             data = self.mem_read(buf, length)
             if data:
-                _file.add_data(data)
+                self.seek_to_byte_offset(_file, offset)
+                _file.write_data(data)
                 # Log the file event
                 self.record_file_access_event(path, FILE_WRITE, data=data, size=length)
 
@@ -3320,6 +3322,7 @@ class Ntoskrnl(api.ApiHandler):
                     data = data.hex()
                 ctx.args["Buffer"].display = data[:0x10]
                 nts = ddk.STATUS_SUCCESS
+                self.write_io_status(ios, nts, length)
 
         return nts
 
@@ -3340,6 +3343,8 @@ class Ntoskrnl(api.ApiHandler):
         """
         FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
 
+        length = length & 0xFFFFFFFF
+
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.file_get(FileHandle)
 
@@ -3347,17 +3352,33 @@ class Ntoskrnl(api.ApiHandler):
             path = _file.path
             ctx.args["FileHandle"].display = path
 
-            data = _file.get_data()
-
-            if buf:
-                self.mem_write(buf, data[:length])
+            self.seek_to_byte_offset(_file, offset)
+            data = _file.get_data(length)
+            self.mem_write(buf, data)
 
             # Log the file event
             self.record_file_access_event(path, FILE_READ, buffer=buf, size=length)
 
-            nts = ddk.STATUS_SUCCESS
+            nts = ddk.STATUS_SUCCESS if data or not length else ddk.STATUS_END_OF_FILE
+            self.write_io_status(ios, nts, len(data))
 
         return nts
+
+    def seek_to_byte_offset(self, _file, offset):
+        """
+        Move the file pointer to the LARGE_INTEGER at ``offset``. A NULL pointer
+        or a negative value keeps the current file pointer.
+        """
+        if not offset:
+            return
+        pos = int.from_bytes(self.mem_read(offset, 8), "little", signed=True)
+        if pos >= 0:
+            _file.seek(pos, io.SEEK_SET)
+
+    def write_io_status(self, ios, status, information):
+        if ios:
+            ptr_size = self.get_ptr_size()
+            self.mem_write(ios, status.to_bytes(ptr_size, "little") + information.to_bytes(ptr_size, "little"))
 
     @apihook("MmIsDriverVerifying", argc=1)
     def MmIsDriverVerifying(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
