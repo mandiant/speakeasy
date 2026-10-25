@@ -114,8 +114,8 @@ class AdvApi32(api.ApiHandler):
 
             self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
 
-        if phkResult and hnd:
-            self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
+        if phkResult:
+            self.mem_write(phkResult, (hnd or 0).to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -154,42 +154,43 @@ class AdvApi32(api.ApiHandler):
             ctx.args["lpcbData"].display = hex(length)
 
         key = self.reg_get_key(hKey)
-        if key:
-            val = key.get_value(value_name)
-            if val:
-                self.write_value_type(val, lpType, ctx.args["lpType"])
-                output = val.get_bytes(cw)
-                if lpcbData:
-                    self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
-                if lpData:
-                    if not lpcbData:
-                        rv = windefs.ERROR_INVALID_PARAMETER
-                    elif len(output) > length:
-                        rv = windefs.ERROR_MORE_DATA
-                    else:
-                        self.mem_write(lpData, output)
+        if not key:
+            return windefs.ERROR_INVALID_HANDLE
+        val = key.get_value(value_name)
+        if val:
+            self.write_value_type(val, lpType, ctx.args["lpType"])
+            output = val.get_bytes(cw)
+            if lpcbData:
+                self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+            if lpData:
+                if not lpcbData:
+                    rv = windefs.ERROR_INVALID_PARAMETER
+                elif len(output) > length:
+                    rv = windefs.ERROR_MORE_DATA
+                else:
+                    self.mem_write(lpData, output)
 
-            # For now, return an empty buffer
-            else:
-                output = b"\x00" * length
-                if lpData:
-                    try:
-                        self.mem_write(lpData, output)
-                    except Exception:
-                        return windefs.ERROR_INVALID_PARAMETER
-                if lpcbData:
-                    self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
-                rv = windefs.ERROR_SUCCESS
+        # For now, return an empty buffer
+        else:
+            output = b"\x00" * length
+            if lpData:
+                try:
+                    self.mem_write(lpData, output)
+                except Exception:
+                    return windefs.ERROR_INVALID_PARAMETER
+            if lpcbData:
+                self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+            rv = windefs.ERROR_SUCCESS
 
-            kp = key.get_path()
-            self.record_registry_access_event(
-                kp,
-                REG_READ,
-                value_name=value_name,
-                data=output,
-                size=length,
-                buffer=lpData,
-            )
+        kp = key.get_path()
+        self.record_registry_access_event(
+            kp,
+            REG_READ,
+            value_name=value_name,
+            data=output,
+            size=length,
+            buffer=lpData,
+        )
 
         return rv
 
@@ -261,13 +262,11 @@ class AdvApi32(api.ApiHandler):
         """
 
         (hKey,) = argv
-        rv = windefs.ERROR_SUCCESS
 
-        key = self.reg_get_key(hKey)
-        if not key:
-            rv = windefs.ERROR_INVALID_HANDLE
+        if not emu.regman.close_key(hKey):
+            return windefs.ERROR_INVALID_HANDLE
 
-        return rv
+        return windefs.ERROR_SUCCESS
 
     @apihook("RegEnumKey", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def RegEnumKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

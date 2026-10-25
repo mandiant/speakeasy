@@ -754,3 +754,38 @@ def test_reg_get_value_with_sign_extended_root_key_and_missing_subkey(dll64_emu:
 def test_reg_get_value_with_an_invalid_handle(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "advapi32", "RegGetValueA", [0x1234, 0, alloc(dll_emu, b"x\x00"), 0xFFFF, 0, 0, 0])
     assert rv == windefs.ERROR_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+def test_reg_open_missing_key_writes_a_null_handle(dll_emu: Speakeasy, api: str) -> None:
+    phk = alloc(dll_emu, b"\x34\x12\x00\x00")
+    subkey = alloc(dll_emu, b"Software\\NoSuchKey\x00")
+    argv = [HKEY_CURRENT_USER, subkey, phk] if api == "RegOpenKeyA" else [HKEY_CURRENT_USER, subkey, 0, 0xF003F, phk]
+
+    rv, _ = call(dll_emu, "advapi32", api, argv)
+
+    assert rv == windefs.ERROR_FILE_NOT_FOUND
+    assert _dword(dll_emu, phk) == 0
+
+
+def test_reg_close_key_makes_the_handle_invalid(dll_emu: Speakeasy) -> None:
+    hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+    data = alloc(dll_emu, b"\x01\x00\x00\x00")
+    name = alloc(dll_emu, b"x\x00")
+
+    assert call(dll_emu, "advapi32", "RegCloseKey", [hkey])[0] == windefs.ERROR_SUCCESS
+
+    assert call(dll_emu, "advapi32", "RegCloseKey", [hkey])[0] == windefs.ERROR_INVALID_HANDLE
+    assert call(dll_emu, "advapi32", "RegSetValueExA", [hkey, name, 0, 4, data, 4])[0] == windefs.ERROR_INVALID_HANDLE
+    assert call(dll_emu, "advapi32", "RegCloseKey", [HKEY_CURRENT_USER])[0] == windefs.ERROR_SUCCESS
+    assert _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
+
+
+@pytest.mark.parametrize("hkey", [0, 0x1234])
+def test_reg_query_value_on_an_unknown_handle_is_invalid(dll_emu: Speakeasy, hkey: int) -> None:
+    size = alloc(dll_emu, b"\x04\x00\x00\x00")
+    data = alloc(dll_emu, b"\x00" * 4)
+
+    rv, _ = call(dll_emu, "advapi32", "RegQueryValueExA", [hkey, alloc(dll_emu, b"x\x00"), 0, 0, data, size])
+
+    assert rv == windefs.ERROR_INVALID_HANDLE

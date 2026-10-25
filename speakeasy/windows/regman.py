@@ -133,6 +133,14 @@ class RegistryManager:
     def get_key_from_handle(self, handle):
         return self.reg_handles.get(regdefs.normalize_hkey(handle))
 
+    def close_key(self, handle) -> bool:
+        handle = regdefs.normalize_hkey(handle)
+        if handle not in self.reg_handles:
+            return False
+        if handle not in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):
+            del self.reg_handles[handle]
+        return True
+
     def get_key_from_path(self, path):
         path = self.normalize_reg_path(path)
         for key in self.keys:
