@@ -89,6 +89,8 @@ class EmuEngine:
             arch.X86_REG_XMM1: u.UC_X86_REG_XMM1,
             arch.X86_REG_XMM2: u.UC_X86_REG_XMM2,
             arch.X86_REG_XMM3: u.UC_X86_REG_XMM3,
+            arch.X86_REG_FPSW: u.UC_X86_REG_FPSW,
+            arch.X86_REG_FPTAG: u.UC_X86_REG_FPTAG,
             arch.X86_REG_GDTR: u.UC_X86_REG_GDTR,
             arch.X86_REG_CS: u.UC_X86_REG_CS,
             arch.X86_REG_ES: u.UC_X86_REG_ES,
@@ -98,6 +100,8 @@ class EmuEngine:
             arch.X86_REG_GS: u.UC_X86_REG_GS,
             arch.X86_REG_MSR: u.UC_X86_REG_MSR,
         }
+        for i in range(8):
+            self.regs[arch.X86_REG_FP0 + i] = u.UC_X86_REG_FP0 + i
 
         self.mem_access = {
             uc.UC_MEM_FETCH_UNMAPPED: common.INVALID_MEM_EXEC,  # noqa

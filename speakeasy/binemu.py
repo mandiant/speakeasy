@@ -19,6 +19,25 @@ from speakeasy.report import ErrorInfo, Report
 
 logger = logging.getLogger(__name__)
 
+
+def double_bits_to_fp80(bits):
+    """
+    Convert the IEEE 754 bits of a double to the (mantissa, sign and exponent)
+    pair of an x87 80-bit register.
+    """
+    sign = (bits >> 63) << 15
+    exponent = (bits >> 52) & 0x7FF
+    fraction = bits & ((1 << 52) - 1)
+    if exponent == 0x7FF:
+        return (1 << 63) | (fraction << 11), sign | 0x7FFF
+    if exponent == 0:
+        if fraction == 0:
+            return 0, sign
+        shift = 53 - fraction.bit_length()
+        return fraction << (11 + shift), sign | (16383 - 1022 - shift)
+    return (1 << 63) | (fraction << 11), sign | (exponent - 1023 + 16383)
+
+
 EMU_ENGINES = (("unicorn", unicorn_eng.EmuEngine),)
 
 WILDCARD_FLAG = bool
@@ -347,17 +366,17 @@ class BinaryEmulator(MemoryManager, ABC):
         nargs = argc
         endian = "little"
 
-        # Handle calling conventions using floats
-        if arch in (e_arch.ARCH_X86, e_arch.ARCH_AMD64):
-            if callconv == e_arch.CALL_CONV_FLOAT:
-                for i, r in enumerate(
-                    (e_arch.X86_REG_XMM0, e_arch.X86_REG_XMM1, e_arch.X86_REG_XMM2, e_arch.X86_REG_XMM3)
-                ):
-                    if nargs == 0:
-                        break
-                    val = self.reg_read(r)
-                    argv.append(val)
-                    nargs -= 1
+        # x86 passes doubles on the stack; x64 passes them in xmm0-xmm3
+        if callconv == e_arch.CALL_CONV_FLOAT:
+            if arch == e_arch.ARCH_X86:
+                sp = self.reg_read(e_arch.X86_REG_ESP) + ptr_size
+                for i in range(argc):
+                    argv.append(int.from_bytes(self.mem_read(sp + 8 * i, 8), endian))
+                return argv
+            if arch == e_arch.ARCH_AMD64:
+                for r in (e_arch.X86_REG_XMM0, e_arch.X86_REG_XMM1, e_arch.X86_REG_XMM2, e_arch.X86_REG_XMM3)[:argc]:
+                    argv.append(self.reg_read(r) & 0xFFFFFFFFFFFFFFFF)
+                return argv
 
         if arch == e_arch.ARCH_X86:
             sp = self.reg_read(e_arch.X86_REG_ESP)
@@ -417,10 +436,13 @@ class BinaryEmulator(MemoryManager, ABC):
             self.reg_write(sp, stk_ptr + self.ptr_size)
             self.reg_write(pc, ret_addr)
         if ret_value is not None:
-            self.reg_write(rr, ret_value)
+            if conv == e_arch.CALL_CONV_FLOAT and self.get_arch() == e_arch.ARCH_X86:
+                self.push_fpu_double(ret_value)
+            else:
+                self.reg_write(rr, ret_value)
 
         # Cleanup the stack
-        if conv == e_arch.CALL_CONV_CDECL:
+        if conv in (e_arch.CALL_CONV_CDECL, e_arch.CALL_CONV_FLOAT):
             # If cdecl, the emu engine will clean the stack
             pass
         elif conv == e_arch.CALL_CONV_FASTCALL:
@@ -429,6 +451,16 @@ class BinaryEmulator(MemoryManager, ABC):
                     self.clean_stack_args(argc - 2)
         else:
             self.clean_stack_args(argc)
+
+    def push_fpu_double(self, bits):
+        """
+        Push a double, given as its IEEE 754 bits, onto the x87 register stack
+        """
+        fpsw = self.reg_read(e_arch.X86_REG_FPSW)
+        top = (((fpsw >> 11) & 7) - 1) & 7
+        self.reg_write(e_arch.X86_REG_FP0 + top, double_bits_to_fp80(bits))
+        self.reg_write(e_arch.X86_REG_FPSW, (fpsw & ~0x3800) | (top << 11))
+        self.reg_write(e_arch.X86_REG_FPTAG, self.reg_read(e_arch.X86_REG_FPTAG) & ~(3 << (2 * top)))
 
     def get_ret_address(self):
         """
