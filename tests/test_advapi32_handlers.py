@@ -178,7 +178,28 @@ def test_rtl_gen_random_fills_a_large_buffer(dll_emu: Speakeasy) -> None:
     buf = alloc(dll_emu, b"\xcc" * 0x401)
     rv, _ = call(dll_emu, "advapi32", "SystemFunction036", [buf, 0x400])
     assert rv
-    assert dll_emu.mem_read(buf + 0x3FF, 2) == b"\xff\xcc"
+    data = dll_emu.mem_read(buf, 0x401)
+    assert data[0x400] == 0xCC
+    assert data[:0x400] != bytes(i & 0xFF for i in range(0x400))
+    assert len(set(data[:0x400])) > 0x80
+
+
+@pytest.mark.parametrize("name", ["SystemFunction036", "CryptGenRandom"])
+def test_gen_random_gives_a_nonzero_byte_in_a_few_calls(dll_emu: Speakeasy, name: str) -> None:
+    buf = alloc(dll_emu, b"\x00" * 16)
+    argv = [buf, 1] if name == "SystemFunction036" else [0x1234, 1, buf]
+    calls = 1
+    while call(dll_emu, "advapi32", name, argv)[0] and dll_emu.mem_read(buf, 1) == b"\x00":
+        calls += 1
+        assert calls < 10
+    assert dll_emu.mem_read(buf, 1) != b"\x00"
+
+    argv = [buf, 16] if name == "SystemFunction036" else [0x1234, 16, buf]
+    assert call(dll_emu, "advapi32", name, argv)[0]
+    first = dll_emu.mem_read(buf, 16)
+    assert call(dll_emu, "advapi32", name, argv)[0]
+    assert len(set(first)) > 1
+    assert dll_emu.mem_read(buf, 16) != first
 
 
 def _last_error(se: Speakeasy) -> int:
