@@ -1078,3 +1078,24 @@ def test_gdb_stops_at_hlt(gdb_shellcode_emulator, step):
     finally:
         client.close()
     assert _read_server_result(proc)["error"] == "privileged_instruction"
+
+
+# mov eax, address + 0x40; mov byte [eax + 1], 2; nop...; at 0x40: mov al, 1; ret
+_PATCH_OWN_PAGE = "b811111111c6400102" + "90" * (0x40 - 9) + "b001c3"
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", [pytest.param(_PATCH_OWN_PAGE, id="patch")], indirect=True)
+def test_gdb_step_over_store_into_own_code_page(gdb_shellcode_emulator):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.step().startswith("T05")
+        assert client.step().startswith("T05")
+        assert client.read_x86_registers().eip == address + 9
+        assert client.read_memory(address + 0x40, 3) == "b002c3"
+        assert client.continue_().startswith("T05")
+        assert client.continue_() == "W00"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] is None

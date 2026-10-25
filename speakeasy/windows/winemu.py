@@ -842,7 +842,17 @@ class WindowsEmulator(BinaryEmulator):
                         native_count = remaining[0] if budget > 0 else 0
                         if debugger is not None and count == 1:
                             native_count = min(native_count, 1) if native_count else 1
+                            registers = self.get_register_state()
                         self.emu_eng.start(address, timeout=native_timeout, count=native_count)
+                        if (
+                            debugger is not None
+                            and count == 1
+                            and native_count == 1
+                            and self._step_had_no_effect(registers, debugger)
+                        ):
+                            # Unicorn translates a store into the page of its own code
+                            # again and runs it again, which uses up a count of 1.
+                            self.emu_eng.start(address, timeout=native_timeout, count=2)
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:
                             return
@@ -2236,6 +2246,14 @@ class WindowsEmulator(BinaryEmulator):
             exception = cpu_exceptions.memory_fault(pc, address, access_type)
             self.raise_cpu_exception(exception, f"invalid_protect_{access_type}", access_type=access_type)
         return False
+
+    def _step_had_no_effect(self, registers, debugger):
+        """Get whether a single step stopped before its instruction with nothing pending."""
+        if debugger.has_pending_stop() or self._pending_api_entry is not None or self._pending_control:
+            return False
+        if self._pending_cpu_exception is not None or self._pending_trap_fault is not None:
+            return False
+        return self._pending_fault_stop is None and self.get_register_state() == registers
 
     def _stopped_at_hlt(self, deadline, limited, last_executed, counted, debugger):
         """
