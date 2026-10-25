@@ -78,3 +78,14 @@ def test_dxgi_object_creation_reports_unsupported_and_clears_outputs(
     assert rv == DXGI_ERROR_UNSUPPORTED
     for slot in out_slots:
         assert struct.unpack("<I", dll_emu.mem_read(out + 8 * slot, 4))[0] == 0
+
+
+def test_draw_dib_open_gives_a_handle_that_draw_and_close_accept(dll_emu: Speakeasy) -> None:
+    first = call(dll_emu, "msvfw32", "DrawDibOpen", [])[0]
+    second = call(dll_emu, "msvfw32", "DrawDibOpen", [])[0]
+    bmi = alloc(dll_emu, struct.pack("<IiiHHI", 40, 4, 4, 1, 32, 0) + b"\x00" * 20)
+    bits = alloc(dll_emu, b"\x00" * 64)
+
+    assert first and second and first != second
+    assert call(dll_emu, "msvfw32", "DrawDibDraw", [first, 0x1234, 0, 0, 4, 4, bmi, bits, 0, 0, 4, 4, 0])[0] == 1
+    assert call(dll_emu, "msvfw32", "DrawDibClose", [first])[0] == 1

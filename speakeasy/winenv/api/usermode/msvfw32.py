@@ -53,3 +53,40 @@ class Msvfw32(api.ApiHandler):
             );
         """
         return 1
+
+    @apihook("DrawDibOpen", argc=0)
+    def DrawDibOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HDRAWDIB DrawDibOpen();
+        """
+        return self.get_handle()
+
+    @apihook("DrawDibClose", argc=1)
+    def DrawDibClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL DrawDibClose(
+            HDRAWDIB hdd
+            );
+        """
+        return 1
+
+    @apihook("DrawDibDraw", argc=13)
+    def DrawDibDraw(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL DrawDibDraw(
+            HDRAWDIB hdd,
+            HDC hdc,
+            int xDst,
+            int yDst,
+            int dxDst,
+            int dyDst,
+            LPBITMAPINFOHEADER lpbi,
+            LPVOID lpBits,
+            int xSrc,
+            int ySrc,
+            int dxSrc,
+            int dySrc,
+            UINT wFlags
+            );
+        """
+        return 1
