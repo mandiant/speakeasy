@@ -150,7 +150,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.tls_count = 0
         self.fls_count = 0
         self.tick_counter = 86400000  # 1 day in millisecs
-        self.perf_counter = 0x5FD27D571F
+        self.perf_base = 0x5FD27D571F - self.tick_counter * 10000
         self.boot_time = 116444736000000000 + time.time_ns() // 100 - self.tick_counter * 10000
         self.start_time = self.boot_time + self.tick_counter * 10000
 
@@ -168,12 +168,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.tick_counter += 1
         return self.boot_time + self.tick_counter * 10000
 
+    def get_performance_counter(self):
+        """
+        Advance the tick count by 1 ms and return the performance counter, which counts 100 ns units.
+        """
+        self.tick_counter += 1
+        return self.perf_base + self.tick_counter * 10000
+
     def advance_clock(self, millisec):
         """
         Move the tick count, the system time, the performance counter and the time stamp counter forward.
         """
         self.tick_counter += millisec
-        self.perf_counter += millisec * 10000
         self.emu.emu_eng.advance_tsc(millisec * TSC_FREQUENCY // 1000)
 
     def get_system_time_struct(self, quad):
@@ -2352,7 +2358,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = 1
 
-        self.mem_write(lpPerformanceCount, self.perf_counter.to_bytes(8, "little"))
+        self.mem_write(lpPerformanceCount, self.get_performance_counter().to_bytes(8, "little"))
         return rv
 
     @apihook("lstrlen", argc=1)

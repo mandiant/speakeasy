@@ -1206,8 +1206,40 @@ def test_sleep_advances_the_clocks(emu: Speakeasy, api: str, argv: list[int]) ->
     ticks, perf, ft = call(emu, "kernel32", "GetTickCount", [])[0], query_counter(), get_file_time(emu)
     call(emu, "kernel32", api, argv)
     assert 30000 <= call(emu, "kernel32", "GetTickCount", [])[0] - ticks < 31000
-    assert query_counter() - perf == 30000 * 10_000_000 // 1000
+    assert 30000 * 10_000 <= query_counter() - perf < 31000 * 10_000
     assert 30000 * 10000 <= get_file_time(emu) - ft < 31000 * 10000
+
+
+def query_performance(se: Speakeasy, api: str) -> int:
+    value = alloc(se, b"\x00" * 8)
+    assert call(se, "kernel32", api, [value])[0] == 1
+    return int.from_bytes(se.mem_read(value, 8), "little")
+
+
+def test_performance_counter_moves_with_each_call(emu: Speakeasy) -> None:
+    first = query_performance(emu, "QueryPerformanceCounter")
+    assert query_performance(emu, "QueryPerformanceCounter") > first
+
+
+def test_performance_counter_moves_with_the_system_time(emu: Speakeasy) -> None:
+    # std::this_thread::sleep_for waits on the counter and sleeps for the time left by the system time.
+    freq = query_performance(emu, "QueryPerformanceFrequency")
+    target = query_performance(emu, "QueryPerformanceCounter") + freq // 2
+    precise = alloc(emu, b"\x00" * 8)
+    for _ in range(1000):
+        if query_performance(emu, "QueryPerformanceCounter") >= target:
+            break
+        call(emu, "kernel32", "GetSystemTimePreciseAsFileTime", [precise])
+        call(emu, "kernel32", "Sleep", [0])
+    else:
+        pytest.fail("the performance counter does not reach the target")
+
+
+def test_sleep_moves_the_performance_counter_by_its_frequency(emu: Speakeasy) -> None:
+    freq = query_performance(emu, "QueryPerformanceFrequency")
+    before = query_performance(emu, "QueryPerformanceCounter")
+    call(emu, "kernel32", "Sleep", [1000])
+    assert freq <= query_performance(emu, "QueryPerformanceCounter") - before < freq * 101 // 100
 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
