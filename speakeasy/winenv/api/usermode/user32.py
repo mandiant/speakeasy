@@ -325,6 +325,15 @@ class User32(api.ApiHandler):
 
         return rv
 
+    @apihook("GetWindowDC", argc=1)
+    def GetWindowDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HDC GetWindowDC(
+          HWND hWnd
+        );
+        """
+        return self.sessman.get_device_context()
+
     @apihook("RegisterClassEx", argc=1)
     def RegisterClassEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1047,7 +1056,8 @@ class User32(api.ApiHandler):
           HDC  hDC
         );
         """
-        return 0
+        hWnd, hDC = argv
+        return int(hDC == self.sessman.get_device_context())
 
     @apihook("CharNext", argc=1)
     def CharNext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

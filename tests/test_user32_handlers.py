@@ -522,6 +522,20 @@ def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy
     assert dll_emu.emu.get_current_run().guest_callbacks[-1].function == 0x402000
 
 
+@pytest.mark.parametrize("api", ["GetDC", "GetWindowDC"])
+def test_release_dc_releases_a_window_dc(dll_emu: Speakeasy, api: str) -> None:
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    dc = call(dll_emu, "user32", api, [hwnd])[0]
+    assert dc
+    assert call(dll_emu, "user32", "ReleaseDC", [hwnd, dc])[0] == 1
+
+
+def test_release_dc_of_an_unknown_dc_fails(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "user32", "ReleaseDC", [0, 0x1234])[0] == 0
+
+
 def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
