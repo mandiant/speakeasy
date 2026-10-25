@@ -76,16 +76,32 @@ HANDLER_FAULT_ACCESS = {
 }
 
 
-def get_handler_fault(error: Exception, pc: int) -> tuple[str, int, str | None]:
+def get_first_unmapped(emu, address: int, size: int) -> int:
+    """Get the first address of a range that no memory region holds, or the start of the range if all are mapped."""
+    regions = emu.get_mem_regions()
+    current = address
+    while current < address + size:
+        end = next((last for first, last, _ in regions if first <= current <= last), None)
+        if end is None:
+            return current
+        current = end + 1
+    return address
+
+
+def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | None]:
     """
     Get the error type, address and access type for an exception raised by an API handler.
 
-    A handler that reads or writes an invalid guest pointer fails like guest code does at that address.
+    A handler that reads or writes an invalid guest pointer fails like guest code does at the
+    first byte it cannot access. Unicorn reports the start of the whole access.
     """
     access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
     if access is None or not error.args:
         return str(error), pc, None
-    return f"invalid_{access}", error.args[0], access
+    address = error.args[0]
+    if len(error.args) > 1:
+        address = get_first_unmapped(emu, address, error.args[1])
+    return f"invalid_{access}", address, access
 
 
 @dataclass
@@ -140,7 +156,7 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
     except StopIteration as done:
         result = done.value
     except uc.UcError as e:
-        kind, address, access_type = get_handler_fault(e, emu.get_pc())
+        kind, address, access_type = get_handler_fault(emu, e, emu.get_pc())
         raise CallbackError(kind, address, access_type) from e
     else:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)

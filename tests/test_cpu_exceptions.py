@@ -268,6 +268,35 @@ def test_api_fault_without_handler_keeps_its_error(config):
         assert [e.api_name for e in run.events or [] if e.event == "api"] == ["kernel32.RtlMoveMemory"]
 
 
+def test_api_fault_reports_the_first_unmapped_byte(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        data = se.mem_alloc(0x1000)
+        dst = se.mem_alloc(0x3000)
+        src = se.mem_alloc(0x2000, base=0x30000000)
+        assert se.get_address_map(src + 0x2000) is None
+        handler = code + 0x1000
+        se.mem_write(
+            handler,
+            b"\x48\x8b\x01"  # mov rax, [rcx]  (ExceptionRecord)
+            + b"\x48\x8b\x40\x28"  # mov rax, [rax + 0x28]  (ExceptionInformation[1])
+            + b"\x48\xa3"
+            + struct.pack("<Q", data)  # mov [data], rax
+            + b"\x31\xc0\xc3",  # return EXCEPTION_CONTINUE_SEARCH
+        )
+        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        body = guest_call(8, get_api(se, "msvcrt", "memcpy"), dst, src, 0x3000)
+        se.mem_write(code, setup + body + RETURN_42)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_read", src + 0x2000)
+        assert run.error.address_region is None
+        assert int.from_bytes(se.mem_read(data, 8), "little") == src + 0x2000
+
+
 def test_exception_continued_with_nt_continue_can_repeat(config):
     # for (ecx = 6; ecx; ecx--) int3;  under a handler that skips the int3 with NtContinue
     with Speakeasy(config=config) as se:

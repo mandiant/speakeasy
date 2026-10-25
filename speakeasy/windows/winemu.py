@@ -2797,7 +2797,7 @@ class WindowsEmulator(BinaryEmulator):
                         # Let the outer GDB fault path expose the failed frame
                         # before run cleanup and report signal termination.
                         raise
-                    desc, address, access_type = guest_callbacks.get_handler_fault(e, self.get_pc())
+                    desc, address, access_type = guest_callbacks.get_handler_fault(self, e, self.get_pc())
                     if access_type and self._can_raise_api_fault():
                         self.log_api(call_pc, imp_api, None, ctx.args.get_report_args(), run=origin_run)
                         if self._raise_api_fault(frame, access_type, address):
