@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import logging
+import random
 
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -22,6 +23,7 @@ class Ole32(api.ApiHandler):
         super().__get_hook_attrs__(self)
         self.netman = emu.get_network_manager()
         self.names = {}
+        self.rng = random.Random(0)
 
     @apihook("OleInitialize", argc=1)
     def OleInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -240,12 +242,16 @@ class Ole32(api.ApiHandler):
 
     @apihook("CoCreateGuid", argc=1)
     def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        pguid = argv[0]
-        guid_bytes = b"\xde\xad\xc0\xde\xbe\xef\xca\xfe\xba\xbe\x01\x23\x45\x67\x89\xab"
-        if pguid:
-            try:
-                self.emu.mem_write(pguid, guid_bytes)
-            except Exception:
-                self.emu.mem_map(pguid & ~0xFFF, 0x1000)
-                self.emu.mem_write(pguid, guid_bytes)
-        return 0
+        """
+        HRESULT CoCreateGuid(
+          GUID *pguid
+        );
+        """
+        (pguid,) = argv
+        if not pguid:
+            return windefs.E_INVALIDARG
+        guid = bytearray(self.rng.randbytes(16))
+        guid[7] = guid[7] & 0x0F | 0x40
+        guid[8] = guid[8] & 0x3F | 0x80
+        self.mem_write(pguid, bytes(guid))
+        return windefs.S_OK

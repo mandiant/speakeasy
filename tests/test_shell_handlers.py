@@ -360,6 +360,17 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
 
 
+def test_co_create_guid_returns_a_new_version_4_guid_each_call(dll_emu: Speakeasy) -> None:
+    guids = []
+    for _ in range(2):
+        out = alloc(dll_emu, b"\xcc" * 16)
+        rv, _ = call(dll_emu, "ole32", "CoCreateGuid", [out])
+        assert rv == com.S_OK
+        guids.append(uuid.UUID(bytes_le=bytes(dll_emu.mem_read(out, 16))))
+    assert guids[0] != guids[1]
+    assert all(g.version == 4 and g.variant == uuid.RFC_4122 for g in guids)
+
+
 @pytest.mark.parametrize("cch, rv", [(39, 39), (38, 0)])
 def test_string_from_guid2_writes_the_braced_string(dll_emu: Speakeasy, cch: int, rv: int) -> None:
     text = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
