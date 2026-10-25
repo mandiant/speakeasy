@@ -181,6 +181,18 @@ def test_ndis_handles_are_pointer_sized(driver64_emu: Speakeasy, api: str, argv:
     assert 0 < handle < 0x10000
 
 
+def test_wdf_driver_create_writes_the_driver_handle(any_driver_emu: Speakeasy) -> None:
+    _, driver_globals = _wdf_bind(any_driver_emu, WDF_FUNC_COUNT_V1_15, _ptr_size(any_driver_emu))
+    driver_object = alloc(any_driver_emu, b"\x00" * 0x200)
+    out = alloc(any_driver_emu, b"\x00" * _ptr_size(any_driver_emu))
+    args = [driver_globals, driver_object, _unicode_string(any_driver_emu, USBSAMP), 0, 0, out]
+    rv, _ = call(any_driver_emu, "wdfldr", "WdfDriverCreate", args)
+    assert rv == ddk.STATUS_SUCCESS
+    driver = _read_ptr(any_driver_emu, out)
+    assert driver != 0
+    assert _read_ptr(any_driver_emu, driver_globals) == driver
+
+
 def test_wdf_parameters_key_is_null_when_missing(any_driver_emu: Speakeasy) -> None:
     driver_globals = _wdf_driver(any_driver_emu)
     key = alloc(any_driver_emu, b"\xcc" * 8)

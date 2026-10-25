@@ -183,6 +183,13 @@ class Wdfldr(api.ApiHandler):
 
         self.wdf_drivers.update({DriverGlobals: driver})
 
+        # WdfGetDriver reads the handle from WDF_DRIVER_GLOBALS.Driver
+        handle = self.get_handle()
+        self.handles[handle] = driver
+        for out in (DriverGlobals, Driver):
+            if out:
+                self.mem_write(out, handle.to_bytes(emu.get_ptr_size(), "little"))
+
         if DriverConfig:
             self.mem_cast(
                 self.types.WDF_DRIVER_CONFIG(emu.get_ptr_size()),
