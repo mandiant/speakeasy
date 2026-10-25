@@ -1116,3 +1116,15 @@ def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
         assert time.monotonic() - started < 5
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["90c3"], indirect=True)  # nop; ret
+@pytest.mark.parametrize("packet", ["p-1", "p-29", "P-1=00000000", "P-29=00000000"])
+def test_gdb_rejects_negative_register_number(gdb_shellcode_emulator, packet):
+    port, _, _, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.query(packet) == "E01"
+    finally:
+        client.close()

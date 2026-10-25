@@ -672,6 +672,8 @@ class GdbServer:
     def _read_register(self, encoded_index: bytes) -> None:
         try:
             index = int(encoded_index, 16)
+            if index < 0:
+                raise IndexError
             self._reply(self._read_register_value(index).hex().encode("ascii"))
         except (ValueError, IndexError):
             self._reply(b"E01")
@@ -680,6 +682,8 @@ class GdbServer:
         try:
             index_text, value_text = payload.split(b"=", 1)
             index = int(index_text, 16)
+            if index < 0:
+                raise IndexError
             register = self._registers[index]
             value = bytes.fromhex(value_text.decode("ascii"))
             if len(value) != register.size:
