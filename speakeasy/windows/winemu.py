@@ -2292,12 +2292,10 @@ class WindowsEmulator(BinaryEmulator):
             if rv:
                 return True
 
-        fakeout = address & 0xFFFFFFFFFFFFF000
-        self.mem_map(self.page_size, base=fakeout)
+        self._map_fault_page(address)
 
         error = self.get_error_info("invalid_fetch", address, access_type="fetch")
         self.curr_run.error = error  # type: ignore[union-attr]
-        self.tmp_maps.append((fakeout, self.page_size))
         self.end_run_on_fault()
         return True
 
@@ -2992,10 +2990,7 @@ class WindowsEmulator(BinaryEmulator):
             elif access == common.INVAL_PERM_MEM_READ and not self.kernel_mode:
                 return self._raise_protection_fault(address, "read")
             elif access == common.INVALID_MEM_WRITE:
-                fakeout = address & 0xFFFFFFFFFFFFF000
-                self.mem_map(self.page_size, base=fakeout)
-                self.tmp_maps.append((fakeout, self.page_size))
-
+                self._map_fault_page(address)
                 return self._handle_invalid_write(emu, address, size, value)
             elif access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value)
@@ -3205,15 +3200,10 @@ class WindowsEmulator(BinaryEmulator):
             rv = self.dispatch_seh(address, "read")
             if rv:
                 return True
-        fakeout = address & 0xFFFFFFFFFFFFF000
-        self.mem_map(self.page_size, base=fakeout)
+        self._map_fault_page(address)
 
         error = self.get_error_info("invalid_read", address, access_type="read")
         self.curr_run.error = error  # type: ignore[union-attr]
-
-        # Let the next run know to remove this map since its
-        # technically invalid
-        self.tmp_maps.append((fakeout, self.page_size))
         self.end_run_on_fault()
         return True
 
@@ -3259,13 +3249,8 @@ class WindowsEmulator(BinaryEmulator):
             if rv:
                 return True
 
-        fakeout = address & 0xFFFFFFFFFFFFF000
-        self.mem_map(self.page_size, base=fakeout)
-
         error = self.get_error_info("invalid_write", address, access_type="write")
         self.curr_run.error = error  # type: ignore[union-attr]
-
-        self.tmp_maps.append((fakeout, self.page_size))
         self.end_run_on_fault()
         return True
 
@@ -3703,15 +3688,29 @@ class WindowsEmulator(BinaryEmulator):
                 stack_trace=self.get_stack_trace(),
             )
 
+    def _map_fault_page(self, address):
+        """
+        Map the page of a faulting address until the next instruction, so that Unicorn can
+        complete the access. Return whether the page is mapped at that address.
+        """
+        page = address & ~(self.page_size - 1)
+        if self.get_reserve_map(page) is None:
+            base = self.mem_map(self.page_size, base=page)
+        else:
+            # The memory manager does not map into a reservation, so map the page in the engine
+            self.emu_eng.mem_map(page, self.page_size)
+            base = page
+        self.tmp_maps.append((base, self.page_size))
+        return base == page
+
     def _map_faulting_page_for_exception(self, faulting_address):
         fakeout = faulting_address & 0xFFFFFFFFFFFFF000
         if self.api_registry.overlaps_traps(fakeout, self.page_size):
-            return
+            return True
         for base, end, _ in self.get_mem_regions():
             if base <= fakeout <= end:
-                return
-        self.mem_map(self.page_size, base=fakeout)
-        self.tmp_maps.append((fakeout, self.page_size))
+                return True
+        return self._map_fault_page(faulting_address)
 
     _SEH_MAX_REPEAT = 4
 
@@ -3731,7 +3730,7 @@ class WindowsEmulator(BinaryEmulator):
             exception = cpu_exceptions.memory_fault(self.get_pc(), faulting_address, access_type)
         rv = self.exception_dispatcher().dispatch_fault(self, exception, error)
         if rv and faulting_address is not None:
-            self._map_faulting_page_for_exception(faulting_address)
+            rv = self._map_faulting_page_for_exception(faulting_address)
 
         return rv
 
