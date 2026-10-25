@@ -445,6 +445,8 @@ def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speak
 
 
 TH32CS_SNAPALL = 0xF
+TH32CS_SNAPPROCESS = 0x2
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 
 @pytest.mark.parametrize(
@@ -987,3 +989,31 @@ def test_create_semaphore_rejects_bad_counts(dll_emu: Speakeasy, initial: int, m
     assert call(dll_emu, "kernel32", "CreateSemaphoreW", [0, initial, maximum, 0])[0] == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
+@pytest.fixture
+def exe_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    data = load_test_bin("argv_test_x86.exe.xz")
+    se = Speakeasy(config=config)
+    try:
+        se.run_module(se.load_module(data=data))
+        yield se
+    finally:
+        se.shutdown()
+
+
+def test_the_main_process_can_open_itself(exe_emu: Speakeasy) -> None:
+    pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
+    assert call(exe_emu, "kernel32", "OpenProcess", [PROCESS_QUERY_LIMITED_INFORMATION, 0, pid])[0]
+
+
+def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
+    pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
+    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = alloc(exe_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
+    pids = []
+    rv, _ = call(exe_emu, "kernel32", "Process32First", [hsnap, entry])
+    while rv:
+        pids.append(struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0])
+        rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
+    assert pids.count(pid) == 1

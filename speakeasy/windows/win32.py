@@ -317,6 +317,7 @@ class Win32Emulator(WindowsEmulator):
         # supplied, only do this for the main module
         if len(self.processes) == 0:
             p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
+            self.processes.append(p)
             self.curr_process = p
             self.om.objects.update({p.address: p})  # type: ignore[union-attr]
             mm = self.get_address_map(module.base)
