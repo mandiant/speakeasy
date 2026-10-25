@@ -21,6 +21,8 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     SIGSEGV,
     STRUNCATE,
     get_full_path,
+    get_made_path,
+    get_split_path,
     get_winmain_command_line,
     scan_c_format,
 )
@@ -1160,6 +1162,74 @@ def test_fullpath_writes_into_the_buffer(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "msvcrt", "_fullpath", [0, alloc(dll_emu, b"a.txt\x00"), 0])
     assert rv not in (0, buf)
     assert dll_emu.mem_read(rv, len(full)) == full
+
+
+@pytest.mark.parametrize(
+    "parts, path",
+    [
+        (("c", "\\dir", "name", "txt"), "c:\\dir\\name.txt"),
+        (("c:", "\\dir\\", "name", ".txt"), "c:\\dir\\name.txt"),
+        ((None, "dir/", "name", None), "dir/name"),
+        (("", "", "name", ""), "name"),
+        ((None, None, None, "txt"), ".txt"),
+    ],
+)
+def test_make_path_joins_parts_with_the_crt_separators(parts: tuple, path: str) -> None:
+    assert get_made_path(*parts) == path
+
+
+@pytest.mark.parametrize(
+    "path, parts",
+    [
+        ("c:\\a\\b.c.txt", ("c:", "\\a\\", "b.c", ".txt")),
+        ("a/b\\name", ("", "a/b\\", "name", "")),
+        ("c:name.", ("c:", "", "name", ".")),
+        ("\\dir.x\\name", ("", "\\dir.x\\", "name", "")),
+    ],
+)
+def test_split_path_gives_drive_dir_name_and_ext(path: str, parts: tuple) -> None:
+    assert get_split_path(path) == parts
+
+
+@pytest.mark.parametrize("api, enc, nul", [("_makepath", "ascii", b"\0"), ("_wmakepath", "utf-16le", b"\0\0")])
+def test_makepath_writes_the_joined_path(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 0x40)
+    parts = [alloc(dll_emu, s.encode(enc) + nul) for s in ("c", "\\dir", "name", "txt")]
+    call(dll_emu, "msvcrt", api, [buf, *parts])
+    expected = "c:\\dir\\name.txt".encode(enc) + nul
+    assert dll_emu.mem_read(buf, len(expected)) == expected
+
+    call(dll_emu, "msvcrt", api, [buf, 0, parts[1], parts[2], 0])
+    expected = "\\dir\\name".encode(enc) + nul
+    assert dll_emu.mem_read(buf, len(expected)) == expected
+
+
+@pytest.mark.parametrize("api, enc, nul", [("_makepath_s", "ascii", b"\0"), ("_wmakepath_s", "utf-16le", b"\0\0")])
+def test_makepath_s_checks_the_buffer_size(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 0x40)
+    parts = [alloc(dll_emu, s.encode(enc) + nul) for s in ("c", "\\dir", "name", "txt")]
+    assert call(dll_emu, "msvcrt", api, [buf, 16, *parts])[0] == 0
+    expected = "c:\\dir\\name.txt".encode(enc) + nul
+    assert dll_emu.mem_read(buf, len(expected)) == expected
+
+    assert call(dll_emu, "msvcrt", api, [buf, 15, *parts])[0] == ERANGE
+    assert dll_emu.mem_read(buf, len(nul)) == nul
+    assert call(dll_emu, "msvcrt", api, [0, 16, *parts])[0] == EINVAL
+
+
+@pytest.mark.parametrize("api, enc, nul", [("_splitpath", "ascii", b"\0"), ("_wsplitpath", "utf-16le", b"\0\0")])
+def test_splitpath_writes_each_part_and_skips_null_outputs(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
+    path = alloc(dll_emu, "c:\\a\\b.c.txt".encode(enc) + nul)
+    drive, dir_, fname, ext = (alloc(dll_emu, b"\xcc" * 0x40) for _ in range(4))
+    call(dll_emu, "msvcrt", api, [path, drive, dir_, fname, ext])
+    for out, part in ((drive, "c:"), (dir_, "\\a\\"), (fname, "b.c"), (ext, ".txt")):
+        expected = part.encode(enc) + nul
+        assert dll_emu.mem_read(out, len(expected)) == expected
+
+    fname = alloc(dll_emu, b"\xcc" * 0x40)
+    call(dll_emu, "msvcrt", api, [path, 0, 0, fname, 0])
+    expected = "b.c".encode(enc) + nul
+    assert dll_emu.mem_read(fname, len(expected)) == expected
 
 
 @pytest.mark.parametrize("api", ["fgetc", "getc"])

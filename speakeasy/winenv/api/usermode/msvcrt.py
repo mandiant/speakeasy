@@ -338,6 +338,29 @@ def get_full_path(cwd: str, path: str) -> str:
     return ntpath.normpath(path)
 
 
+def get_made_path(drive: str | None, directory: str | None, fname: str | None, ext: str | None) -> str:
+    """Join the parts of a path as the CRT _makepath does. None and empty parts are left out."""
+    path = drive[0] + ":" if drive else ""
+    if directory:
+        path += directory if directory.endswith(("\\", "/")) else directory + "\\"
+    path += fname or ""
+    if ext:
+        path += ext if ext.startswith(".") else "." + ext
+    return path
+
+
+def get_split_path(path: str) -> tuple[str, str, str, str]:
+    """Split a path into drive, directory, file name and extension, as the CRT _splitpath does."""
+    drive = path[:2] if path[1:2] == ":" else ""
+    rest = path[len(drive) :]
+    end = max(rest.rfind("\\"), rest.rfind("/")) + 1
+    directory, name = rest[:end], rest[end:]
+    dot = name.rfind(".")
+    if dot < 0:
+        return drive, directory, name, ""
+    return drive, directory, name[:dot], name[dot:]
+
+
 def get_struct_tm(t: datetime) -> bytes:
     """Encode a time as a C struct tm."""
     tt = t.timetuple()
@@ -5934,6 +5957,116 @@ class Msvcrt(api.ApiHandler):
             return 0
         self.mem_write(abs_path, full)
         return abs_path
+
+    def read_path_part(self, addr, width):
+        if not addr:
+            return None
+        return self.read_cstr(addr, width=width).decode("latin-1" if width == 1 else "utf-16le", "surrogatepass")
+
+    def write_path_part(self, addr, text, width):
+        self.mem_write(addr, (text + "\x00").encode("latin-1" if width == 1 else "utf-16le", "surrogatepass"))
+
+    def make_path(self, ctx, path, size, parts, width):
+        """
+        Join the parts as _makepath_s does. ``size`` is None for _makepath,
+        which does not check the buffer.
+        """
+        if not path or size == 0:
+            return EINVAL
+        made = get_made_path(*(self.read_path_part(addr, width) for addr in parts))
+        ctx.args[0].display = made
+        if size is not None and len(made) >= size:
+            self.write_path_part(path, "", width)
+            return ERANGE
+        self.write_path_part(path, made, width)
+        return 0
+
+    def split_path(self, ctx, path, outputs, width):
+        text = self.read_path_part(path, width) or ""
+        ctx.args[0].display = text
+        for addr, part in zip(outputs, get_split_path(text)):
+            if addr:
+                self.write_path_part(addr, part, width)
+
+    @apihook("_makepath", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _makepath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _makepath(
+           char *path,
+           const char *drive,
+           const char *dir,
+           const char *fname,
+           const char *ext
+        );
+        """
+        self.make_path(ctx, argv[0], None, argv[1:], 1)
+
+    @apihook("_wmakepath", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _wmakepath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _wmakepath(
+           wchar_t *path,
+           const wchar_t *drive,
+           const wchar_t *dir,
+           const wchar_t *fname,
+           const wchar_t *ext
+        );
+        """
+        self.make_path(ctx, argv[0], None, argv[1:], 2)
+
+    @apihook("_makepath_s", argc=6, conv=e_arch.CALL_CONV_CDECL)
+    def _makepath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _makepath_s(
+           char *path,
+           size_t sizeInCharacters,
+           const char *drive,
+           const char *dir,
+           const char *fname,
+           const char *ext
+        );
+        """
+        return self.make_path(ctx, argv[0], argv[1], argv[2:], 1)
+
+    @apihook("_wmakepath_s", argc=6, conv=e_arch.CALL_CONV_CDECL)
+    def _wmakepath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _wmakepath_s(
+           wchar_t *path,
+           size_t sizeInWords,
+           const wchar_t *drive,
+           const wchar_t *dir,
+           const wchar_t *fname,
+           const wchar_t *ext
+        );
+        """
+        return self.make_path(ctx, argv[0], argv[1], argv[2:], 2)
+
+    @apihook("_splitpath", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _splitpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _splitpath(
+           const char *path,
+           char *drive,
+           char *dir,
+           char *fname,
+           char *ext
+        );
+        """
+        self.split_path(ctx, argv[0], argv[1:], 1)
+
+    @apihook("_wsplitpath", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _wsplitpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _wsplitpath(
+           const wchar_t *path,
+           wchar_t *drive,
+           wchar_t *dir,
+           wchar_t *fname,
+           wchar_t *ext
+        );
+        """
+        self.split_path(ctx, argv[0], argv[1:], 2)
 
     @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
