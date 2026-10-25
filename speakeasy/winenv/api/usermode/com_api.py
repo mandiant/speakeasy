@@ -61,6 +61,80 @@ class ComApi(api.ApiHandler):
         # not implemented
         return 0
 
+    @apihook("IMalloc.Alloc", argc=2)
+    def IMalloc_Alloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *Alloc(
+            SIZE_T cb
+        );
+        """
+        ptr, cb = argv
+        return self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
+
+    @apihook("IMalloc.Realloc", argc=3)
+    def IMalloc_Realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *Realloc(
+            void   *pv,
+            SIZE_T cb
+        );
+        """
+        ptr, pv, cb = argv
+        if pv and not cb:
+            self.heap_free(pv)
+            return 0
+        new = self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
+        if pv:
+            old = self.heap_size(pv)
+            if old is None:
+                self.heap_free(new)
+                return 0
+            self.mem_write(new, self.mem_read(pv, min(old, cb)))
+            self.heap_free(pv)
+        return new
+
+    @apihook("IMalloc.Free", argc=2)
+    def IMalloc_Free(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void Free(
+            void *pv
+        );
+        """
+        ptr, pv = argv
+        if pv:
+            self.heap_free(pv)
+
+    @apihook("IMalloc.GetSize", argc=2)
+    def IMalloc_GetSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        SIZE_T GetSize(
+            void *pv
+        );
+        """
+        ptr, pv = argv
+        size = self.heap_size(pv) if pv else None
+        if size is None:
+            return (1 << (8 * emu.get_ptr_size())) - 1
+        return size
+
+    @apihook("IMalloc.DidAlloc", argc=2)
+    def IMalloc_DidAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int DidAlloc(
+            void *pv
+        );
+        """
+        ptr, pv = argv
+        if not pv:
+            return 0xFFFFFFFF
+        return int(self.heap_size(pv) is not None)
+
+    @apihook("IMalloc.HeapMinimize", argc=1)
+    def IMalloc_HeapMinimize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void HeapMinimize();
+        """
+
     @apihook("IWbemLocator.ConnectServer", argc=9)
     def IWbemLocator_ConnectServer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

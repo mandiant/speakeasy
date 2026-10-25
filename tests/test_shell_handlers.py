@@ -514,6 +514,52 @@ def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> No
     assert dll_emu.emu.get_symbols()[query_interface] == ("com_api", "IUnknown.QueryInterface")
 
 
+def test_imalloc_free_releases_the_block_and_returns(config: dict) -> None:
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
+        assert se.emu is not None
+        vtable = se.emu.com.get_interface(se.emu, 4, "IMalloc").address
+        obj = se.mem_alloc(4)
+        se.mem_write(obj, struct.pack("<I", vtable))
+        block = se.emu.heap_alloc(16, "CoTaskMemAlloc")
+        pushes = b"\x68" + struct.pack("<I", block) + b"\x68" + struct.pack("<I", obj)
+        free = b"\xb8" + struct.pack("<I", vtable + 5 * 4) + b"\xff\x10"
+        se.mem_write(code, pushes + free + b"\xb8\x34\x12\x00\x00\xc3")
+        se.run_shellcode(code)
+        run = se.get_report().entry_points[0]
+        assert (run.error, run.ret_val) == (None, 0x1234)
+        mm = se.emu.get_address_map(block)
+        assert mm is None or mm.free
+
+
+@pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
+def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.FixtureRequest) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    pp = alloc(se, b"\xcc" * ptr_size)
+    rv, _ = call(se, "shell32", "SHGetMalloc", [pp])
+    assert rv == com.S_OK
+    obj = int.from_bytes(se.mem_read(pp, ptr_size), "little")
+    unknown = alloc(se, b"\x00" * 16)
+
+    block, _ = call(se, "com_api", "IMalloc.Alloc", [obj, 16])
+    assert block
+    assert call(se, "com_api", "IMalloc.GetSize", [obj, block])[0] == 16
+    assert call(se, "com_api", "IMalloc.DidAlloc", [obj, block])[0] == 1
+    assert call(se, "com_api", "IMalloc.DidAlloc", [obj, unknown])[0] == 0
+    assert call(se, "com_api", "IMalloc.DidAlloc", [obj, 0])[0] == 0xFFFFFFFF
+    assert call(se, "com_api", "IMalloc.GetSize", [obj, unknown])[0] == (1 << (8 * ptr_size)) - 1
+
+    se.mem_write(block, b"0123456789abcdef")
+    bigger, _ = call(se, "com_api", "IMalloc.Realloc", [obj, block, 32])
+    assert call(se, "com_api", "IMalloc.GetSize", [obj, bigger])[0] == 32
+    assert se.mem_read(bigger, 16) == b"0123456789abcdef"
+
+    assert call(se, "com_api", "IMalloc.Free", [obj, bigger])[0] is None
+    assert call(se, "com_api", "IMalloc.DidAlloc", [obj, bigger])[0] == 0
+    assert call(se, "com_api", "IMalloc.HeapMinimize", [obj])[0] is None
+
+
 def _call_wbem_services_slot(se: Speakeasy, slot: int) -> int:
     """Call IWbemServices method ``slot`` with a pointer for ``ppObject`` and return that pointer."""
     code = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
