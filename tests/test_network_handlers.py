@@ -523,3 +523,14 @@ def test_internet_open_url_records_the_host_and_port(dll_emu: Speakeasy, url: by
     assert call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])[0]
     events = [e for e in dll_emu.emu.get_current_run().events if e.event == "net_http"]
     assert [(e.server, e.port) for e in events] == [(server, port)]
+
+
+@pytest.mark.parametrize("api, enc", [("RtlIpv4AddressToStringA", "utf-8"), ("RtlIpv4AddressToStringW", "utf-16le")])
+def test_rtl_ipv4_address_to_string_writes_dotted_decimal(dll_emu: Speakeasy, api: str, enc: str) -> None:
+    text = "192.168.1.20"
+    width = len("\0".encode(enc))
+    addr = alloc(dll_emu, bytes([192, 168, 1, 20]))
+    out = alloc(dll_emu, b"\xcc" * 0x40)
+    rv, _ = call(dll_emu, "ntdll", api, [addr, out])
+    assert rv == out + len(text) * width
+    assert dll_emu.mem_read(out, (len(text) + 1) * width) == (text + "\0").encode(enc)

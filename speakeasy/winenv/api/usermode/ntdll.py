@@ -41,6 +41,24 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         return emu.get_last_error()
 
+    def ipv4_address_to_string(self, addr, out, cw, ctx):
+        text = ".".join(str(b) for b in self.mem_read(addr, 4))
+        ctx.args[0].display = text
+        self.write_mem_string(text + "\0", out, cw)
+        return out + len(text) * cw
+
+    @apihook("RtlIpv4AddressToStringA", argc=2)
+    def RtlIpv4AddressToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """PSTR RtlIpv4AddressToStringA(const IN_ADDR *Addr, PSTR S);"""
+        addr, out = argv
+        return self.ipv4_address_to_string(addr, out, 1, ctx)
+
+    @apihook("RtlIpv4AddressToStringW", argc=2)
+    def RtlIpv4AddressToStringW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """PWSTR RtlIpv4AddressToStringW(const IN_ADDR *Addr, PWSTR S);"""
+        addr, out = argv
+        return self.ipv4_address_to_string(addr, out, 2, ctx)
+
     @apihook("RtlNtStatusToDosError", argc=1)
     def RtlNtStatusToDosError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """ULONG RtlNtStatusToDosError(NTSTATUS Status);"""
