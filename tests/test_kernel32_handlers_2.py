@@ -1210,3 +1210,21 @@ def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeas
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
     assert open_file(emu, BYTE_FILL_PATH, windefs.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
+
+
+@pytest.mark.parametrize("name, width", [("GetLogicalDriveStringsA", 1), ("GetLogicalDriveStringsW", 2)])
+def test_get_logical_drive_strings_lists_the_drive_roots(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    mask, _ = call(emu, "kernel32", "GetLogicalDrives", [])
+    roots = "".join(f"{chr(ord('A') + i)}:\\\0" for i in range(26) if mask & (1 << i))
+    assert roots.startswith("C:\\\0")
+    chars = len(roots)
+
+    buf = alloc(emu, b"\xcc" * (chars + 1) * width)
+    assert call(emu, "kernel32", name, [chars + 1, buf])[0] == chars
+    assert emu.mem_read(buf, (chars + 1) * width) == (roots + "\0").encode(enc)
+
+    small = alloc(emu, b"\xcc" * chars * width)
+    assert call(emu, "kernel32", name, [chars, small])[0] == chars + 1
+    assert emu.mem_read(small, chars * width) == b"\xcc" * chars * width
+    assert call(emu, "kernel32", name, [0, 0])[0] == chars + 1

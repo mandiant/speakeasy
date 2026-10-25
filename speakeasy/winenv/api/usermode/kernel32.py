@@ -6606,6 +6606,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return rv
 
+    @apihook("GetLogicalDriveStrings", argc=2)
+    def GetLogicalDriveStrings(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetLogicalDriveStringsA(
+          DWORD nBufferLength,
+          LPSTR lpBuffer
+        );
+        """
+        nBufferLength, lpBuffer = argv
+        cw = self.get_char_width(ctx)
+        dm = emu.get_drive_manager()
+        roots = "".join(f"{dl}:\\\0" for dl in string.ascii_uppercase if dl in dm.drive_letters)
+        if nBufferLength <= len(roots) or not lpBuffer:
+            return len(roots) + 1
+        self.write_mem_string(roots + "\0", lpBuffer, cw)
+        return len(roots)
+
     @apihook("GlobalMemoryStatus", argc=1)
     def GlobalMemoryStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
