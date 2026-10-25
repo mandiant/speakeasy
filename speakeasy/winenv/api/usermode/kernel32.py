@@ -3922,7 +3922,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return rv
         target = self.read_mem_string(fn, cw)
         ctx.args["lpFileName"].display = target
-        if emu.get_file_manager().is_directory(target):
+        if not target:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+        elif emu.get_file_manager().is_directory(target):
             rv = windefs.FILE_ATTRIBUTE_DIRECTORY
         elif self.does_file_exist(target):
             rv = windefs.FILE_ATTRIBUTE_NORMAL
@@ -3949,6 +3951,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         filename = self.read_mem_string(lpFileName, cw)
         ctx.args["lpFileName"].display = filename
+        if not filename:
+            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
+            return False
 
         level_id = k32types.get_define(fInfoLevelId, "GetFileExInfo")
         if not level_id:

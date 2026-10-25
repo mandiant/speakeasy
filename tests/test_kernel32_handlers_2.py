@@ -426,6 +426,17 @@ def test_get_file_attributes_of_a_null_path_fails(emu: Speakeasy, api: str) -> N
     assert last_error(emu) == windefs.ERROR_PATH_NOT_FOUND
 
 
+@pytest.mark.parametrize(
+    "api", ["GetFileAttributesA", "GetFileAttributesW", "GetFileAttributesExA", "GetFileAttributesExW"]
+)
+def test_get_file_attributes_of_an_empty_path_fails(emu: Speakeasy, api: str) -> None:
+    name = alloc(emu, b"\x00\x00")
+    argv = [name] if "Ex" not in api else [name, 0, alloc(emu, b"\x00" * 36)]
+    rv, _ = call(emu, "kernel32", api, argv)
+    assert rv == (windefs.INVALID_FILE_ATTRIBUTES if "Ex" not in api else 0)
+    assert last_error(emu) == windefs.ERROR_PATH_NOT_FOUND
+
+
 def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert emu.emu is not None
     handle, _ = call(emu, "kernel32", "AddVectoredExceptionHandler", [1, 0x401000])
