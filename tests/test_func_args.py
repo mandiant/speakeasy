@@ -104,3 +104,12 @@ def test_x86_run_reads_stack_arguments_it_was_not_given(config):
         assert se.get_report().entry_points[0].error is None
     finally:
         se.shutdown()
+
+
+def test_x64_call_reads_stack_arguments_it_was_not_given(config):
+    with Speakeasy(config=config) as se:
+        # ret; mov rax, [rsp + 0x60]; ret
+        addr = se.load_shellcode(data=b"\xc3\x48\x8b\x44\x24\x60\xc3", arch="x64")
+        se.run_shellcode(addr)
+        se.call(addr + 1)
+        assert se.get_report().entry_points[1].error is None

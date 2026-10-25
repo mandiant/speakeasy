@@ -635,8 +635,8 @@ class BinaryEmulator(MemoryManager, ABC):
             self.reg_write(e_arch.X86_REG_ESP, ptr)
             self.reg_write(e_arch.X86_REG_EBP, ptr)
         elif arch == e_arch.ARCH_AMD64:
-            # Save room for the "home space"
-            ptr -= self.ptr_size * 5
+            # Save room for stack arguments beyond the ones a run supplies; an odd count keeps rsp % 16
+            ptr -= self.ptr_size * 65
             self.reg_write(e_arch.AMD64_REG_RSP, ptr)
             self.reg_write(e_arch.AMD64_REG_RBP, ptr)
 
