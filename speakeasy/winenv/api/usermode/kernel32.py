@@ -56,6 +56,9 @@ IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020
 # TLS_MINIMUM_AVAILABLE + TLS_EXPANSION_SLOTS
 TLS_SLOT_COUNT = 64 + 1024
 
+# Unicorn counts host nanoseconds in the time stamp counter, as a 1 GHz processor would
+TSC_FREQUENCY = 1_000_000_000
+
 APPMODEL_ERROR_NO_PACKAGE = 15700
 
 S_FALSE = 1
@@ -157,10 +160,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     def advance_clock(self, millisec):
         """
-        Move the tick count, the system time and the performance counter forward.
+        Move the tick count, the system time, the performance counter and the time stamp counter forward.
         """
         self.tick_counter += millisec
         self.perf_counter += millisec * 10000
+        self.emu.emu_eng.advance_tsc(millisec * TSC_FREQUENCY // 1000)
 
     def get_system_time_struct(self, quad):
         st = self.k32types.SYSTEMTIME(self.emu.get_ptr_size())

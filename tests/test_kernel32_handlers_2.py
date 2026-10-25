@@ -14,6 +14,7 @@ from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
+from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
 
@@ -1025,6 +1026,34 @@ def test_sleep_advances_the_clocks(emu: Speakeasy, api: str, argv: list[int]) ->
     assert 30000 <= call(emu, "kernel32", "GetTickCount", [])[0] - ticks < 31000
     assert query_counter() - perf == 30000 * 10_000_000 // 1000
     assert 30000 * 10000 <= get_file_time(emu) - ft < 31000 * 10000
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_sleep_advances_the_time_stamp_counter(config: dict[str, Any], arch: str) -> None:
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch=arch)
+        data = se.mem_alloc(0x1000)
+        if arch == "x86":
+            ptr_size = 4
+
+            def store_tsc(address: int) -> bytes:
+                # rdtsc; mov [address], eax; mov [address + 4], edx
+                return b"\x0f\x31\xa3" + struct.pack("<I", address) + b"\x89\x15" + struct.pack("<I", address + 4)
+        else:
+            ptr_size = 8
+
+            def store_tsc(address: int) -> bytes:
+                # rdtsc; shl rdx, 32; or rax, rdx; mov [address], rax
+                return b"\x0f\x31\x48\xc1\xe2\x20\x48\x09\xd0\x48\xa3" + struct.pack("<Q", address)
+
+        sleep = guest_call(ptr_size, get_api(se, "kernel32", "Sleep"), 50)
+        se.mem_write(code, store_tsc(data) + sleep + store_tsc(data + 8) + b"\xc3")
+
+        se.run_shellcode(code)
+
+        assert se.get_report().entry_points[0].error is None
+        before, after = struct.unpack("<QQ", se.mem_read(data, 16))
+        assert after - before >= 50 * 1_000_000
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])

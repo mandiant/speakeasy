@@ -56,6 +56,29 @@ def get_exception_state_offset(mode):
     return offsets[0] if len(offsets) == 1 else None
 
 
+@functools.cache
+def get_tsc_offset_location(mode):
+    """
+    Get the offset, in a saved x86 context, of the value that rdtsc adds to the time stamp
+    counter, or None when it cannot be found. QEMU keeps it 16 bytes after the exception in flight.
+    """
+    exception = get_exception_state_offset(mode)
+    if exception is None:
+        return None
+    probe = uc.Uc(uc.UC_ARCH_X86, mode)
+    probe.mem_map(0x1000, 0x1000)
+    probe.mem_write(0x1000, b"\x0f\x31")  # rdtsc
+    context = probe.context_save()
+    field = ct.c_uint64.from_address(context.context.value + exception + 16)
+    if field.value != 0:
+        return None
+    field.value = 1 << 62
+    probe.context_restore(context)
+    probe.emu_start(0x1000, 0x1002)
+    tsc = probe.reg_read(u.UC_X86_REG_EDX) << 32 | probe.reg_read(u.UC_X86_REG_EAX)
+    return exception + 16 if tsc >= 1 << 62 else None
+
+
 class ToggleableHook:
     """
     Hook than can be toggled on/off at arbitrary times.
@@ -235,6 +258,15 @@ class EmuEngine:
             return
         context = self.emu.context_save()  # type: ignore[union-attr]
         ct.memset(context.context.value + offset, 0xFF, 4)
+        self.emu.context_restore(context)  # type: ignore[union-attr]
+
+    def advance_tsc(self, ticks):
+        """Move the time stamp counter that rdtsc and rdtscp read forward by ticks."""
+        location = get_tsc_offset_location(self.mode)
+        if location is None:
+            return
+        context = self.emu.context_save()  # type: ignore[union-attr]
+        ct.c_uint64.from_address(context.context.value + location).value += ticks
         self.emu.context_restore(context)  # type: ignore[union-attr]
 
     def invalidate_translations(self, begin, end):
