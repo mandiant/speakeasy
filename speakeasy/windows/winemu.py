@@ -3479,7 +3479,14 @@ class WindowsEmulator(BinaryEmulator):
         original_attachments = self._snapshot_peb_attachments()
         name = winemu.normalize_dll_name(module_name(mod_name))
         module = self.get_mod_by_name(name)
-        if module is None:
+        data = self.get_module_data_from_emu_file(mod_name) if module is None else None
+        if data and data.startswith(b"MZ"):
+            try:
+                module = self.load_module_by_name(name, emu_path=self.fileman.get_full_path(mod_name), data=data)
+            except (WindowsEmuError, ValueError, pefile.PEFormatError) as error:
+                logger.warning("failed to load %s: %s", mod_name, error)
+                return 0
+        elif module is None:
             known = self.get_native_module_path(name) or self.api.load_api_handler(name)
             known = known or self.get_signature_db().get_functions(name, self._get_signature_arch())
             if not known and not self.config.modules.modules_always_exist:
@@ -3517,7 +3524,7 @@ class WindowsEmulator(BinaryEmulator):
             image = make_loader(free_base).make_image()
         return image
 
-    def load_module_by_name(self, name, emu_path=None, base=None, native_path=None):
+    def load_module_by_name(self, name, emu_path=None, base=None, native_path=None, data=None):
         """Load one coherent native or catalog-generated module instance."""
         name = module_name(name)
         existing = self.get_mod_by_name(name)
@@ -3527,7 +3534,7 @@ class WindowsEmulator(BinaryEmulator):
         if not emu_path:
             emu_path = (self.config.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"
         native_path = native_path or self.get_native_module_path(mod_name=name)
-        if base is None and not native_path:
+        if base is None and not native_path and data is None:
             base = 0x6F000000
         handler = self.api.load_api_handler(name) if self.api else None
         if handler and name == "ntdll":
@@ -3536,6 +3543,8 @@ class WindowsEmulator(BinaryEmulator):
                 handler._nt_handler = nt_handler
 
         def make_loader(address):
+            if data is not None:
+                return PeLoader(data=data, base_override=address, emu_path=emu_path)
             if native_path:
                 return PeLoader(path=native_path, base_override=address, emu_path=emu_path)
             return ApiModuleLoader(

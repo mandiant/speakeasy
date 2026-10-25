@@ -10,6 +10,8 @@ from speakeasy.windows.api_image import ApiExportSpec, build_api_image
 from speakeasy.windows.loaders import ImportEntry, LoadedImage, MemoryRegion
 from tests.guest_harness import Deref, get_api, guest_call, read_pointer
 
+NSIS_INSTALLER = "0ef34c5d595dc3d165d54bf14cc994de39d4009d4ea5762e3e74385437d2a178.exe.xz"
+
 
 def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False):
     base, _ = emu.get_valid_ranges(0x20000, addr=0x62000000)
@@ -107,6 +109,78 @@ def test_runtime_load_runs_tls_callback_and_dllmain_once(config, tmp_path, arch)
         assert read_pointer(se, results + 24) & 0xFFFFFFFF == 2
         apis = [event.api_name for event in report.entry_points[0].events if event.event == "api"]
         assert not any(api.endswith("GetTickCount") for api in apis)
+    finally:
+        se.shutdown()
+
+
+def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
+    """
+    0ef34c5d is an NSIS installer. Before it shows its first page, it writes its nsDialogs
+    plugin to a new folder under %TEMP% with CreateFileW and WriteFile, then loads it from
+    that path with LoadLibraryExW. The third letter of the temp folder name comes from
+    GetTickCount.
+    """
+    config["max_api_count"] = 300000  # NSIS calls CharNextW for each path character
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(NSIS_INSTALLER))
+        loaded = []
+
+        def after_load_library(emu, address, size):
+            loaded.append(se.reg_read("eax"))
+            se.stop()
+
+        se.add_code_hook(after_load_library, begin=0x40211F, end=0x40211F)
+        se.run_module(module)
+        plugin = se.emu.get_mod_by_name("nsDialogs")
+        events = [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+
+    path = [e for e in events if e.api_name == "kernel32.LoadLibraryExW"][-1].args[0].display
+    assert path.lower().startswith("c:\\windows\\temp\\ns") and path.endswith("\\nsDialogs.dll")
+    create = next(e for e in events if e.api_name == "kernel32.CreateFileW" and e.args[0].display == path)
+    assert any(e.api_name == "kernel32.WriteFile" and e.args[0].value == int(create.ret_val, 16) for e in events)
+    assert plugin is not None
+    assert loaded == [plugin.base]
+
+
+@pytest.mark.parametrize(
+    "arch, dll_path",
+    [("amd64", b"C:\\Windows\\Temp\\nsu1.tmp\\plugin.dll"), ("x86", b"plugin.dll"), ("amd64", b"plugin.dll")],
+)
+def test_runtime_load_of_a_dll_that_shellcode_wrote(config, tmp_path, arch, dll_path):
+    se = Speakeasy(config=config)
+    try:
+        code = se.load_shellcode(data=b"\xc3" * 0x800, arch=arch)
+        ptr = se.get_ptr_size()
+        exports = make_native_dll(se.emu, tmp_path / "plugin.dll")
+        dll = (tmp_path / "plugin.dll").read_bytes()
+        data = se.mem_alloc(0x1000, base=0x20000000)
+        path, export_name, results = data, data + 0x40, data + 0x80
+        image = se.mem_alloc(len(dll))
+        se.mem_write(image, dll)
+        se.mem_write(path, dll_path + b"\0")
+        se.mem_write(export_name, b"GetTickCount\0")
+        program = guest_call(
+            ptr, get_api(se, "kernel32", "CreateFileA"), path, 0x40000000, 0, 0, 2, 0, 0, store=results
+        )
+        program += guest_call(
+            ptr, get_api(se, "kernel32", "WriteFile"), Deref(results), image, len(dll), results + 8, 0
+        )
+        program += guest_call(ptr, get_api(se, "kernel32", "CloseHandle"), Deref(results))
+        program += guest_call(ptr, get_api(se, "kernel32", "LoadLibraryA"), path, store=results + 16)
+        program += guest_call(
+            ptr, get_api(se, "kernel32", "GetProcAddress"), Deref(results + 16), export_name, store=results + 24
+        )
+        program += guest_call(ptr, exports["GetTickCount"], store=results + 32)
+        se.mem_write(code, program + b"\xc3")
+
+        se.run_shellcode(code)
+
+        assert [ep.error for ep in se.get_report().entry_points] == [None]
+        module = se.emu.get_mod_by_name("plugin")
+        assert module is not None
+        assert read_pointer(se, results + 16) == module.base
+        assert read_pointer(se, results + 24) == exports["GetTickCount"]
+        assert read_pointer(se, results + 32) & 0xFFFFFFFF == 2
     finally:
         se.shutdown()
 
