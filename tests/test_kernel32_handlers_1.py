@@ -696,6 +696,28 @@ def test_get_module_file_name_without_a_current_module(dll_emu: Speakeasy, api: 
     assert dll_emu.mem_read(buf, (rv + 1) * cw) == encode(path + "\0", cw)
 
 
+def test_get_module_handle_finds_the_image_by_its_full_path(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    buf = alloc(dll_emu, b"\xcc" * 0x400)
+    call(dll_emu, "kernel32", "GetModuleFileNameW", [0, buf, 0x200])
+    rv, _ = call(dll_emu, "kernel32", "GetModuleHandleW", [buf])
+    assert rv == call(dll_emu, "kernel32", "GetModuleHandleW", [0])[0]
+
+
+def test_get_module_handle_finds_a_system_module_by_its_full_path(dll_emu: Speakeasy) -> None:
+    kernel32 = call(dll_emu, "kernel32", "GetModuleHandleA", [alloc(dll_emu, b"kernel32\x00")])[0]
+    buf = alloc(dll_emu, b"\xcc" * 0x400)
+    _, displays = call(dll_emu, "kernel32", "GetModuleFileNameA", [kernel32, buf, 0x200])
+    path = displays["lpFilename"]
+    assert call(dll_emu, "kernel32", "GetModuleHandleA", [buf])[0] == kernel32
+    upper = alloc(dll_emu, path.upper().encode() + b"\x00")
+    assert call(dll_emu, "kernel32", "GetModuleHandleA", [upper])[0] == kernel32
+    no_ext = alloc(dll_emu, path[: -len(".dll")].encode() + b"\x00")
+    assert call(dll_emu, "kernel32", "GetModuleHandleA", [no_ext])[0] == kernel32
+    other = alloc(dll_emu, b"C:\\other\\kernel32.dll\x00")
+    assert call(dll_emu, "kernel32", "GetModuleHandleA", [other])[0] == 0
+
+
 @pytest.mark.parametrize("api, cw", [("GetModuleFileNameA", 1), ("GetModuleFileNameW", 2)])
 @pytest.mark.parametrize("room", ["no_nul", "small"])
 def test_get_module_file_name_truncates_in_characters(dll_emu: Speakeasy, api: str, cw: int, room: str) -> None:

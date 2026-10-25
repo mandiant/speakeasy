@@ -2497,9 +2497,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             lib = self.read_mem_string(mod_name, cw)
             ctx.args["lpModuleName"].display = lib
+            mods = emu.get_peb_modules()
+            if "\\" in lib or "/" in lib:
+                path = lib.replace("/", "\\")
+                if path.endswith("."):
+                    path = path[:-1]
+                elif not ntpath.splitext(path)[1]:
+                    path += ".dll"
+                mods = [mod for mod in mods if mod.emu_path.lower() == path.lower()]
+                return mods[0].base if mods else 0
             sname, _ = os.path.splitext(lib)
             sname = winemu.normalize_dll_name(sname)
-            mods = emu.get_peb_modules()
             for mod in mods:
                 img = ntpath.basename(mod.emu_path)
                 fname, _ = os.path.splitext(img)
