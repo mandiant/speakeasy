@@ -132,6 +132,17 @@ def test_find_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
     assert rv == 0
 
 
+@pytest.mark.parametrize("name, encoding", [("FindWindowExA", "latin-1"), ("FindWindowExW", "utf-16le")])
+def test_find_window_ex_finds_no_window(dll_emu: Speakeasy, name: str, encoding: str) -> None:
+    cls = alloc(dll_emu, "NoSuchClass\0".encode(encoding))
+    title = alloc(dll_emu, "NoSuchTitle\0".encode(encoding))
+    rv, displays = call(dll_emu, "user32", name, [0, 0, cls, title])
+    assert rv == 0
+    assert displays["lpszClass"] == "NoSuchClass"
+    assert displays["lpszWindow"] == "NoSuchTitle"
+    assert call(dll_emu, "user32", name, [0, 0, 0xC001, 0])[0] == 0
+
+
 def create_window_of_class(se: Speakeasy, cls: int, wndproc: int) -> int:
     """Create a window of a class with a window procedure and return the HWND that its WM_NCCREATE gets."""
     assert se.emu is not None

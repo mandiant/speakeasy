@@ -1006,6 +1006,24 @@ class User32(api.ApiHandler):
             ctx.args["lpWindowName"].display = wn
         return 0
 
+    @apihook("FindWindowEx", argc=4)
+    def FindWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HWND FindWindowEx(
+            HWND   hWndParent,
+            HWND   hWndChildAfter,
+            LPCSTR lpszClass,
+            LPCSTR lpszWindow
+        );
+        """
+        _, _, lpszClass, lpszWindow = argv
+        cw = self.get_char_width(ctx)
+        if lpszClass > 0xFFFF:
+            ctx.args["lpszClass"].display = self.read_mem_string(lpszClass, cw)
+        if lpszWindow:
+            ctx.args["lpszWindow"].display = self.read_mem_string(lpszWindow, cw)
+        return 0
+
     @apihook("GetWindowText", argc=3)
     def GetWindowText(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
