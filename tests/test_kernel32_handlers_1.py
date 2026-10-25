@@ -474,6 +474,28 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
         assert rv, walk
 
 
+@pytest.mark.parametrize(
+    "first, step",
+    [
+        ("Process32First", "Process32Next"),
+        ("Process32FirstW", "Process32NextW"),
+        ("Thread32First", "Thread32Next"),
+        ("Module32First", "Module32Next"),
+        ("Module32FirstW", "Module32NextW"),
+    ],
+)
+def test_toolhelp_next_sets_no_more_files_at_the_end(dll_emu: Speakeasy, first: str, step: str) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPALL, 0])
+    entry = alloc(dll_emu, b"\x00" * 0x800)
+    assert call(dll_emu, "kernel32", first, [hsnap, entry])[0]
+    dll_emu.emu.set_last_error(0)
+    while call(dll_emu, "kernel32", step, [hsnap, entry])[0]:
+        pass
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
+
+
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])

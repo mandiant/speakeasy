@@ -662,6 +662,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         index = snap[k32types.TH32CS_SNAPPROCESS][0]
         snap[k32types.TH32CS_SNAPPROCESS][0] += 1
         if index >= len(snap[k32types.TH32CS_SNAPPROCESS][1]):
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
         proc = snap[k32types.TH32CS_SNAPPROCESS][1][index]
 
@@ -736,6 +737,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         index = snap[k32types.TH32CS_SNAPTHREAD][0]
         snap[k32types.TH32CS_SNAPTHREAD][0] += 1
         if index >= len(snap[k32types.TH32CS_SNAPTHREAD][1]):
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
         thread = snap[k32types.TH32CS_SNAPTHREAD][1][index]
 
@@ -813,6 +815,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         index = snap[k32types.TH32CS_SNAPMODULE][0]
         snap[k32types.TH32CS_SNAPMODULE][0] += 1
         if index >= len(snap[k32types.TH32CS_SNAPMODULE][1]):
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
         module = snap[k32types.TH32CS_SNAPMODULE][1][index]
         self._write_module_entry(emu, ctx, mod32, module, snap[k32types.TH32CS_SNAPMODULE][2])
