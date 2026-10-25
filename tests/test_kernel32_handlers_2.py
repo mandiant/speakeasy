@@ -656,6 +656,21 @@ def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> 
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
+APPMODEL_ERROR_NO_PACKAGE = 15700
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["GetCurrentPackageId", "GetCurrentPackageFamilyName", "GetCurrentPackageFullName", "GetCurrentPackagePath"],
+)
+def test_get_current_package_reports_an_unpackaged_process(emu: Speakeasy, name: str) -> None:
+    length = alloc(emu, struct.pack("<I", 0x100))
+    buf = alloc(emu, b"\xcc" * 0x200)
+    assert call(emu, "kernel32", name, [length, buf])[0] == APPMODEL_ERROR_NO_PACKAGE
+    assert emu.mem_read(length, 4) == b"\x00" * 4
+    assert emu.mem_read(buf, 0x200) == b"\xcc" * 0x200
+
+
 @pytest.mark.parametrize(
     "name, s1, n1, s2, n2, flags, rv",
     [

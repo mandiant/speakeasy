@@ -55,6 +55,8 @@ IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020
 # TLS_MINIMUM_AVAILABLE + TLS_EXPANSION_SLOTS
 TLS_SLOT_COUNT = 64 + 1024
 
+APPMODEL_ERROR_NO_PACKAGE = 15700
+
 RSMB_PROVIDER = 0x52534D42
 
 
@@ -5319,7 +5321,45 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             BYTE   *buffer
         );
         """
-        return windefs.ERROR_SUCCESS
+        return self.get_no_package(argv[0])
+
+    @apihook("GetCurrentPackageFamilyName", argc=2)
+    def GetCurrentPackageFamilyName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG GetCurrentPackageFamilyName(
+            UINT32 *packageFamilyNameLength,
+            PWSTR  packageFamilyName
+        );
+        """
+        return self.get_no_package(argv[0])
+
+    @apihook("GetCurrentPackageFullName", argc=2)
+    def GetCurrentPackageFullName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG GetCurrentPackageFullName(
+            UINT32 *packageFullNameLength,
+            PWSTR  packageFullName
+        );
+        """
+        return self.get_no_package(argv[0])
+
+    @apihook("GetCurrentPackagePath", argc=2)
+    def GetCurrentPackagePath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG GetCurrentPackagePath(
+            UINT32 *pathLength,
+            PWSTR  path
+        );
+        """
+        return self.get_no_package(argv[0])
+
+    def get_no_package(self, length_ptr):
+        """
+        The emulated process is a desktop app without package identity.
+        """
+        if length_ptr:
+            self.mem_write(length_ptr, (0).to_bytes(4, "little"))
+        return APPMODEL_ERROR_NO_PACKAGE
 
     @apihook("AreFileApisANSI", argc=0)
     def AreFileApisANSI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
