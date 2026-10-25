@@ -1763,3 +1763,109 @@ def test_xtime_get_ticks_counts_100ns_units_since_1970(dll_emu: Speakeasy) -> No
 def test_random_device_returns_new_values(dll_emu: Speakeasy) -> None:
     values = {call(dll_emu, "msvcrt", "_Random_device", [])[0] for _ in range(4)}
     assert len(values) == 4
+
+
+@pytest.mark.parametrize("fixture, size", [("dll_emu", 0x20), ("dll64_emu", 0x30)])
+def test_acrt_iob_func_gives_the_standard_files_of_iob(request: pytest.FixtureRequest, fixture: str, size: int) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    iob = call(se, "msvcrt", "__iob_func", [])[0]
+    for fd in range(3):
+        stream = call(se, "msvcrt", "__acrt_iob_func", [fd])[0]
+        assert stream == iob + fd * size
+        assert call(se, "msvcrt", "_fileno", [stream])[0] == fd
+
+
+@pytest.mark.parametrize("fixture, file_offset", [("strict_fs_emu", 0x10), ("dll64_emu", 0x1C)])
+def test_fopen_gives_a_file_whose_descriptor_reads_the_file(
+    request: pytest.FixtureRequest, fixture: str, file_offset: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    path = "c:\\users\\public\\log.txt"
+    write_stream(se, "fopen", path, "wb", b"helloworld")
+
+    stream, _ = call(se, "msvcrt", "fopen", [fopen_text(se, "fopen", path), fopen_text(se, "fopen", "rb")])
+    fd = struct.unpack("<i", se.mem_read(stream + file_offset, 4))[0]
+    assert fd >= 3
+    assert call(se, "msvcrt", "_fileno", [stream])[0] == fd
+
+    out = alloc(se, b"\x00" * 16)
+    assert call(se, "msvcrt", "_read", [fd, out, 16])[0] == 10
+    assert se.mem_read(out, 10) == b"helloworld"
+
+
+def test_open_write_seek_and_read_a_descriptor(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    path = fopen_text(se, "fopen", "c:\\users\\public\\log.txt")
+    o_rdwr_creat_trunc_binary = 0x2 | 0x100 | 0x200 | 0x8000
+    fd = call(se, "msvcrt", "_open", [path, o_rdwr_creat_trunc_binary, 0x180])[0]
+    assert fd >= 3
+
+    assert call(se, "msvcrt", "_write", [fd, alloc(se, b"hello world"), 11])[0] == 11
+    assert call(se, "msvcrt", "_lseek", [fd, -5 & 0xFFFFFFFF, 2])[0] == 6
+    out = alloc(se, b"\x00" * 16)
+    assert call(se, "msvcrt", "_read", [fd, out, 16])[0] == 5
+    assert se.mem_read(out, 5) == b"world"
+
+    assert call(se, "msvcrt", "_lseeki64", [fd, 0, 0, 0])[0] == 0
+    assert call(se, "msvcrt", "_read", [fd, out, 5])[0] == 5
+    assert se.mem_read(out, 5) == b"hello"
+
+    assert call(se, "msvcrt", "_close", [fd])[0] == 0
+    assert call(se, "msvcrt", "_close", [fd])[0] == -1
+    assert call(se, "msvcrt", "_read", [fd, out, 5])[0] == -1
+
+
+@pytest.mark.parametrize("api, width", [("_open", 1), ("_wopen", 2)])
+def test_open_without_create_fails_on_a_missing_file(strict_fs_emu: Speakeasy, api: str, width: int) -> None:
+    text = "c:\\users\\public\\missing.txt\0"
+    path = alloc(strict_fs_emu, text.encode("utf-8" if width == 1 else "utf-16le"))
+    assert call(strict_fs_emu, "msvcrt", api, [path, 0, 0])[0] == -1
+
+
+def test_fdopen_gives_a_stream_on_the_descriptor(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    path = "c:\\users\\public\\log.txt"
+    write_stream(se, "fopen", path, "wb", b"helloworld")
+    fd = call(se, "msvcrt", "_open", [fopen_text(se, "fopen", path), 0x8000, 0])[0]
+
+    stream = call(se, "msvcrt", "_fdopen", [fd, fopen_text(se, "fopen", "rb")])[0]
+    assert call(se, "msvcrt", "_fileno", [stream])[0] == fd
+    out = alloc(se, b"\x00" * 16)
+    assert call(se, "msvcrt", "fread", [out, 1, 16, stream])[0] == 10
+    assert se.mem_read(out, 10) == b"helloworld"
+
+    call(se, "msvcrt", "fclose", [stream])
+    assert call(se, "msvcrt", "_read", [fd, out, 1])[0] == -1
+
+
+@pytest.mark.parametrize("fstat, stat", [("_fstat", "_stat"), ("_fstati64", "_stati64"), ("_fstat64", "_stat64")])
+def test_fstat_matches_stat_of_the_same_file(strict_fs_emu: Speakeasy, fstat: str, stat: str) -> None:
+    se = strict_fs_emu
+    path = fopen_text(se, "fopen", "c:\\users\\public\\log.txt")
+    write_stream(se, "fopen", "c:\\users\\public\\log.txt", "wb", b"helloworld")
+    fd = call(se, "msvcrt", "_open", [path, 0, 0])[0]
+
+    by_fd = alloc(se, b"\xcc" * 0x40)
+    by_path = alloc(se, b"\xcc" * 0x40)
+    assert call(se, "msvcrt", fstat, [fd, by_fd])[0] == 0
+    assert call(se, "msvcrt", stat, [path, by_path])[0] == 0
+    assert se.mem_read(by_fd, 0x40) == se.mem_read(by_path, 0x40)
+    assert call(se, "msvcrt", fstat, [77, by_fd])[0] == -1
+
+
+def test_write_to_stdout_goes_to_the_file_that_freopen_opens(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    stdout = call(se, "msvcrt", "__acrt_iob_func", [1])[0]
+    path = fopen_text(se, "fopen", "c:\\users\\public\\log.txt")
+    assert call(se, "msvcrt", "freopen", [path, fopen_text(se, "fopen", "w+"), stdout])[0] == stdout
+
+    assert call(se, "msvcrt", "_write", [1, alloc(se, b"abc"), 3])[0] == 3
+    call(se, "msvcrt", "fseek", [stdout, 0, 0])
+    out = alloc(se, b"\x00" * 16)
+    assert call(se, "msvcrt", "fread", [out, 1, 16, stdout])[0] == 3
+    assert se.mem_read(out, 3) == b"abc"
+
+
+@pytest.mark.parametrize("fd", [1, 2])
+def test_write_to_a_standard_descriptor_succeeds(dll_emu: Speakeasy, fd: int) -> None:
+    assert call(dll_emu, "msvcrt", "_write", [fd, alloc(dll_emu, b"abc"), 3])[0] == 3

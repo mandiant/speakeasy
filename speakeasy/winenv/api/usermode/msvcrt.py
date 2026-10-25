@@ -18,9 +18,14 @@ from .. import api, exception_apis
 
 ENOENT = 2
 EBADF = 9
+EEXIST = 17
 EINVAL = 22
 ERANGE = 34
 THRD_SUCCESS = 0
+O_APPEND = 0x8
+O_CREAT = 0x100
+O_TRUNC = 0x200
+O_EXCL = 0x400
 O_TEXT = 0x4000
 O_BINARY = 0x8000
 ENABLE_PER_THREAD_LOCALE = 1
@@ -319,6 +324,22 @@ def get_struct_tm(t: datetime) -> bytes:
     )
 
 
+def render_stat(size: int, size64: bool, time64: bool) -> bytes:
+    """
+    Encode a struct _stat* for a regular file of ``size`` bytes.
+
+    The variants differ in the width of st_size and of the three time
+    fields. st_size and the times follow 4 bytes of padding when they are
+    64-bit.
+    """
+    data = struct.pack("<IHHhhhxxI", DRIVE_C, 0, S_IFREG_RW, 1, 0, 0, DRIVE_C)
+    data += struct.pack("<4xq", size) if size64 else struct.pack("<i", size)
+    data += struct.pack("<3q" if time64 else "<3i", TIME_BASE, TIME_BASE, TIME_BASE)
+    if size64 or time64:
+        data += b"\x00" * (-len(data) % 8)
+    return data
+
+
 STRFTIME_C_LOCALE = {"c": "%m/%d/%y %H:%M:%S", "x": "%m/%d/%y", "X": "%H:%M:%S", "z": "+0000", "Z": "UTC"}
 
 
@@ -379,6 +400,8 @@ class Msvcrt(api.ApiHandler):
         self.perf_counter: int = PERF_COUNTER_BASE
         self.errno_t: int | None = None
         self.file_streams: dict[int, Any] = {}
+        self.crt_streams: set[int] = set()
+        self.fds: dict[int, int] = {}
         self.signal_handlers: dict[int, int] = {}
         self.lconv: int | None = None
         self.locale_name: int | None = None
@@ -958,7 +981,8 @@ class Msvcrt(api.ApiHandler):
 
         (fd,) = argv
 
-        return fd
+        size, _ = self.get_file_layout()
+        return self.__iob_func(emu, [], ctx) + fd * size
 
     @apihook("__iob_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __iob_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -971,7 +995,7 @@ class Msvcrt(api.ApiHandler):
         if self.iob:
             return self.iob
 
-        size, file_offset = (0x30, 0x1C) if self.get_ptr_size() == 8 else (0x20, 0x10)
+        size, file_offset = self.get_file_layout()
         self.iob = self.mem_alloc(size * 3, tag="api.msvcrt._iob")
         for fd in (self.stdin, self.stdout, self.stderr):
             self.mem_write(self.iob + fd * size + file_offset, fd.to_bytes(4, "little"))
@@ -3175,14 +3199,11 @@ class Msvcrt(api.ApiHandler):
         int _fileno(FILE *stream);
         """
         (stream,) = argv
-        if stream in (self.stdin, self.stdout, self.stderr):
-            return stream
-        if self.iob:
-            index, rest = divmod(stream - self.iob, 0x30 if self.get_ptr_size() == 8 else 0x20)
-            if not rest and index in (self.stdin, self.stdout, self.stderr):
-                return index
-        self.set_errno(EINVAL)
-        return -1
+        fd = self.get_stream_fd(stream)
+        if fd is None:
+            self.set_errno(EINVAL)
+            return -1
+        return fd
 
     @apihook("_setmode", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _setmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3201,10 +3222,188 @@ class Msvcrt(api.ApiHandler):
         int _read(int fd, void *buffer, unsigned int count);
         """
         fd, buf, count = argv
-        if fd == self.stdin:
+        count &= 0xFFFFFFFF
+        fobj = self.get_fd_file(fd)
+        if fobj is None:
+            if fd == self.stdin:
+                return 0
+            self.set_errno(EBADF)
+            return -1
+        data = fobj.get_data(size=count) if count else b""
+        if data:
+            self.mem_write(buf, data)
+        return len(data)
+
+    @apihook("_write", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _write(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _write(int fd, const void *buffer, unsigned int count);
+        """
+        fd, buf, count = argv
+        count &= 0xFFFFFFFF
+        data = self.mem_read(buf, count) if count else b""
+        fobj = self.get_fd_file(fd)
+        if fobj is None:
+            if fd in (self.stdout, self.stderr):
+                ctx.args[1].display = data.decode("utf-8", errors="replace")
+                return count
+            self.set_errno(EBADF)
+            return -1
+        fobj.write_data(data)
+        self.record_file_access_event(fobj.path, FILE_WRITE, data=data, buffer=buf, size=len(data))
+        return count
+
+    @apihook("_open", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _open(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _open(const char *filename, int oflag, int pmode);
+        """
+        return self.open_fd(argv, 1, ctx)
+
+    @apihook("_wopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wopen(const wchar_t *filename, int oflag, int pmode);
+        """
+        return self.open_fd(argv, 2, ctx)
+
+    def open_fd(self, argv, width, ctx):
+        """
+        Open a file as _open does for ``oflag`` and return a new descriptor,
+        or -1 with errno set.
+        """
+        filename, oflag, _ = argv
+        if not filename:
+            self.set_errno(EINVAL)
+            return -1
+        path = self.read_mem_string(filename, width)
+        ctx.args[0].display = path
+
+        hfile = self.file_open(path)
+        if hfile is not None and oflag & O_CREAT and oflag & O_EXCL:
+            self.set_errno(EEXIST)
+            return -1
+        if oflag & O_CREAT and (hfile is None or oflag & O_TRUNC):
+            hfile = self.file_open(path, create=True, truncate=True)
+        if hfile is None:
+            self.set_errno(ENOENT)
+            return -1
+
+        fobj = self.file_get(hfile)
+        if oflag & O_TRUNC and fobj.get_size():
+            fobj.remove_data()
+        fobj.append = bool(oflag & O_APPEND)
+        return self.new_fd(hfile)
+
+    @apihook("_close", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _close(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _close(int fd);
+        """
+        (fd,) = argv
+        if self.fds.pop(fd, None) is None and fd not in (self.stdin, self.stdout, self.stderr):
+            self.set_errno(EBADF)
+            return -1
+        return 0
+
+    @apihook("_lseek", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _lseek(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        long _lseek(int fd, long offset, int origin);
+        """
+        fd, offset, origin = argv
+        offset &= 0xFFFFFFFF
+        offset -= (offset & 0x80000000) << 1
+        return self.seek_fd(fd, offset, origin)
+
+    @apihook("_lseeki64", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _lseeki64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        __int64 _lseeki64(int fd, __int64 offset, int origin);
+
+        The offset takes two stack slots on x86 and one register on x64.
+        """
+        if self.get_ptr_size() == 4:
+            fd, lo, hi, origin = argv
+            offset = (hi << 32) | lo
+        else:
+            fd, offset, origin = argv[:3]
+        offset &= 0xFFFFFFFFFFFFFFFF
+        offset -= (offset & (1 << 63)) << 1
+        return self.return_int64(emu, self.seek_fd(fd, offset, origin))
+
+    def seek_fd(self, fd, offset, origin):
+        """Move the file pointer of ``fd``. Return the new position, or -1 with errno set."""
+        fobj = self.get_fd_file(fd)
+        if fobj is None:
+            self.set_errno(EBADF)
+            return -1
+        if origin == io.SEEK_SET:
+            pos = offset
+        elif origin == io.SEEK_CUR:
+            pos = fobj.tell() + offset
+        elif origin == io.SEEK_END:
+            pos = fobj.get_size() + offset
+        else:
+            pos = -1
+        if pos < 0:
+            self.set_errno(EINVAL)
+            return -1
+        fobj.seek(pos, io.SEEK_SET)
+        return pos
+
+    @apihook("_fdopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _fdopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        FILE *_fdopen(int fd, const char *mode);
+        """
+        fd, mode = argv
+        if not mode:
+            self.set_errno(EINVAL)
             return 0
-        self.set_errno(EBADF)
-        return -1
+        ctx.args[1].display = self.read_string(mode)
+        if fd not in self.fds and fd not in (self.stdin, self.stdout, self.stderr):
+            self.set_errno(EBADF)
+            return 0
+        return self.new_stream(fd, self.fds.get(fd), "api.msvcrt._fdopen")
+
+    def get_file_layout(self):
+        """
+        Return the size of a FILE and the offset of its _file field. A FILE is
+        0x20 bytes on x86 and 0x30 bytes on x64, and _file is its fifth field.
+        """
+        return (0x30, 0x1C) if self.get_ptr_size() == 8 else (0x20, 0x10)
+
+    def new_fd(self, hfile):
+        """Give ``hfile`` the lowest free descriptor above the standard ones."""
+        fd = 3
+        while fd in self.fds:
+            fd += 1
+        self.fds[fd] = hfile
+        return fd
+
+    def new_stream(self, fd, hfile, tag):
+        """Allocate a FILE for descriptor ``fd`` and the file handle ``hfile``."""
+        size, file_offset = self.get_file_layout()
+        stream = self.mem_alloc(size, tag=tag)
+        self.mem_write(stream + file_offset, fd.to_bytes(4, "little"))
+        self.crt_streams.add(stream)
+        if hfile is not None:
+            self.file_streams[stream] = hfile
+        return stream
+
+    def get_stream_fd(self, stream):
+        """Return the descriptor of a FILE that the runtime made, or None for another pointer."""
+        size, file_offset = self.get_file_layout()
+        in_iob = self.iob is not None and 0 <= stream - self.iob < 3 * size and not (stream - self.iob) % size
+        if not in_iob and stream not in self.crt_streams:
+            return None
+        return int.from_bytes(self.mem_read(stream + file_offset, 4), "little", signed=True)
+
+    def get_fd_file(self, fd):
+        """Return the file object of descriptor ``fd``, or None."""
+        hfile = self.fds.get(fd)
+        return self.file_get(hfile) if hfile is not None else None
 
     @apihook("_Mtx_init_in_situ", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_init_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4412,10 +4611,7 @@ class Msvcrt(api.ApiHandler):
         if hfile is None:
             return 0
 
-        stream = self.mem_alloc(self.get_ptr_size(), tag=tag)
-        self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
-        self.file_streams[stream] = hfile
-        return stream
+        return self.new_stream(self.new_fd(hfile), hfile, tag)
 
     def open_stream_args(self, filename, mode, width, ctx, first=0):
         """Read the path and mode of an fopen-style call. Return the stream, or 0."""
@@ -4487,11 +4683,16 @@ class Msvcrt(api.ApiHandler):
         if not path or path.upper() in ("CONOUT$", "CONIN$"):
             return stream
 
+        fd = self.get_stream_fd(stream)
         hfile = self.open_stream_file(path, mode_str)
         if hfile is None:
             self.file_streams.pop(stream, None)
+            if fd is not None:
+                self.fds.pop(fd, None)
             return 0
         self.file_streams[stream] = hfile
+        if fd is not None:
+            self.fds[fd] = hfile
         return stream
 
     @apihook("freopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -4537,8 +4738,13 @@ class Msvcrt(api.ApiHandler):
         if not stream:
             return -1
 
+        fd = self.get_stream_fd(stream)
+        if fd is not None:
+            self.fds.pop(fd, None)
         self.file_streams.pop(stream, None)
-        self.mem_free(stream)
+        if stream in self.crt_streams:
+            self.crt_streams.discard(stream)
+            self.mem_free(stream)
         return 0
 
     def set_errno(self, value):
@@ -4548,10 +4754,6 @@ class Msvcrt(api.ApiHandler):
     def stat_file(self, argv, ctx, wide, size64, time64):
         """
         Fill a struct _stat* for an emulated file.
-
-        The variants differ in the width of st_size and of the three time
-        fields. st_size and the times follow 4 bytes of padding when they are
-        64-bit.
         """
         path_ptr, buf = argv
         path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
@@ -4561,15 +4763,48 @@ class Msvcrt(api.ApiHandler):
         if hfile is None:
             self.set_errno(ENOENT)
             return -1
-        size = self.file_get(hfile).get_size()
-
-        data = struct.pack("<IHHhhhxxI", DRIVE_C, 0, S_IFREG_RW, 1, 0, 0, DRIVE_C)
-        data += struct.pack("<4xq", size) if size64 else struct.pack("<i", size)
-        data += struct.pack("<3q" if time64 else "<3i", TIME_BASE, TIME_BASE, TIME_BASE)
-        if size64 or time64:
-            data += b"\x00" * (-len(data) % 8)
-        self.mem_write(buf, data)
+        self.mem_write(buf, render_stat(self.file_get(hfile).get_size(), size64, time64))
         return 0
+
+    def stat_fd(self, argv, size64, time64):
+        """Fill a struct _stat* for a descriptor, as stat_file does for a path."""
+        fd, buf = argv
+        fobj = self.get_fd_file(fd)
+        if fobj is None and fd not in (self.stdin, self.stdout, self.stderr):
+            self.set_errno(EBADF)
+            return -1
+        self.mem_write(buf, render_stat(fobj.get_size() if fobj else 0, size64, time64))
+        return 0
+
+    @apihook("_fstat", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _fstat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _fstat(
+            int fd,
+            struct _stat *buffer
+        );
+        """
+        return self.stat_fd(argv, False, self.get_ptr_size() == 8)
+
+    @apihook("_fstati64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _fstati64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _fstati64(
+            int fd,
+            struct _stati64 *buffer
+        );
+        """
+        return self.stat_fd(argv, True, self.get_ptr_size() == 8)
+
+    @apihook("_fstat64", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _fstat64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _fstat64(
+            int fd,
+            struct __stat64 *buffer
+        );
+        """
+        return self.stat_fd(argv, True, True)
 
     @apihook("_stat", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _stat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
