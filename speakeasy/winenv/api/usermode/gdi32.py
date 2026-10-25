@@ -2,6 +2,8 @@
 
 import struct
 
+import speakeasy.winenv.defs.nt.ddk as ddk
+
 from .. import api
 
 MAX_DIB_SIZE = 0x8000000
@@ -337,6 +339,49 @@ class GDI32(api.ApiHandler):
 
         # Return number of bytes "written"
         return c
+
+    @apihook("D3DKMTEnumAdapters2", argc=1)
+    def D3DKMTEnumAdapters2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS D3DKMTEnumAdapters2(
+            D3DKMT_ENUMADAPTERS2 *unnamedParam1
+        );
+        """
+        (pData,) = argv
+        # No display adapters: NumAdapters is 0 and pAdapters is not touched
+        if pData:
+            self.mem_write(pData, (0).to_bytes(4, "little"))
+        return ddk.STATUS_SUCCESS
+
+    @apihook("D3DKMTEnumAdapters", argc=1)
+    def D3DKMTEnumAdapters(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS D3DKMTEnumAdapters(
+            D3DKMT_ENUMADAPTERS *unnamedParam1
+        );
+        """
+        (pData,) = argv
+        if pData:
+            self.mem_write(pData, (0).to_bytes(4, "little"))
+        return ddk.STATUS_SUCCESS
+
+    @apihook("D3DKMTCloseAdapter", argc=1)
+    def D3DKMTCloseAdapter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS D3DKMTCloseAdapter(
+            const D3DKMT_CLOSEADAPTER *unnamedParam1
+        );
+        """
+        return ddk.STATUS_SUCCESS
+
+    @apihook("D3DKMTQueryAdapterInfo", argc=1)
+    def D3DKMTQueryAdapterInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS D3DKMTQueryAdapterInfo(
+            const D3DKMT_QUERYADAPTERINFO *unnamedParam1
+        );
+        """
+        return ddk.STATUS_INVALID_PARAMETER
 
     @apihook("WidenPath", argc=1)
     def WidenPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

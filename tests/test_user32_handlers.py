@@ -417,6 +417,38 @@ def test_create_dib_section_rejects_a_bad_header(dll_emu: Speakeasy, width: int,
     assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
 
 
+STATUS_INVALID_PARAMETER = 0xC000000D
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", 4), ("dll64_emu", 8)])
+@pytest.mark.parametrize("has_buffer", [False, True])
+def test_d3dkmt_enum_adapters2_reports_no_adapters(
+    request: pytest.FixtureRequest, fixture: str, ptr: int, has_buffer: bool
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    adapters = alloc(se, b"\xcc" * 0x40) if has_buffer else 0
+    data = alloc(
+        se, struct.pack("<I", 2 if has_buffer else 0xFFFFFFFF) + b"\x00" * (ptr - 4) + adapters.to_bytes(ptr, "little")
+    )
+    assert call(se, "gdi32", "D3DKMTEnumAdapters2", [data])[0] == 0
+    assert se.mem_read(data, 4) == b"\x00" * 4
+    assert int.from_bytes(se.mem_read(data + ptr, ptr), "little") == adapters
+    if adapters:
+        assert se.mem_read(adapters, 0x40) == b"\xcc" * 0x40
+
+
+def test_d3dkmt_enum_adapters_reports_no_adapters(dll_emu: Speakeasy) -> None:
+    data = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "gdi32", "D3DKMTEnumAdapters", [data])[0] == 0
+    assert dll_emu.mem_read(data, 4) == b"\x00" * 4
+
+
+def test_d3dkmt_adapter_calls_return_ntstatus(dll_emu: Speakeasy) -> None:
+    data = alloc(dll_emu, b"\x00" * 0x20)
+    assert call(dll_emu, "gdi32", "D3DKMTCloseAdapter", [data])[0] == 0
+    assert call(dll_emu, "gdi32", "D3DKMTQueryAdapterInfo", [data])[0] == STATUS_INVALID_PARAMETER
+
+
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_window_from_point_returns_the_desktop_window(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
