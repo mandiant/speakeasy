@@ -2,7 +2,9 @@
 
 import fnmatch
 import logging
+import math
 import re
+import struct
 import traceback
 from abc import ABC, abstractmethod
 from typing import Any
@@ -36,6 +38,23 @@ def double_bits_to_fp80(bits):
         shift = 53 - fraction.bit_length()
         return fraction << (11 + shift), sign | (16383 - 1022 - shift)
     return (1 << 63) | (fraction << 11), sign | (exponent - 1023 + 16383)
+
+
+def fp80_to_double_bits(mantissa, sign_exponent):
+    """
+    Convert the (mantissa, sign and exponent) pair of an x87 80-bit register
+    to the IEEE 754 bits of a double.
+    """
+    sign = -1.0 if sign_exponent & 0x8000 else 1.0
+    exponent = sign_exponent & 0x7FFF
+    if exponent == 0x7FFF:
+        value = math.nan if mantissa & ((1 << 63) - 1) else sign * math.inf
+    else:
+        try:
+            value = sign * math.ldexp(mantissa, exponent - 16383 - 63)
+        except OverflowError:
+            value = sign * math.inf
+    return struct.unpack("<Q", struct.pack("<d", value))[0]
 
 
 EMU_ENGINES = (("unicorn", unicorn_eng.EmuEngine),)
@@ -461,6 +480,17 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(e_arch.X86_REG_FP0 + top, double_bits_to_fp80(bits))
         self.reg_write(e_arch.X86_REG_FPSW, (fpsw & ~0x3800) | (top << 11))
         self.reg_write(e_arch.X86_REG_FPTAG, self.reg_read(e_arch.X86_REG_FPTAG) & ~(3 << (2 * top)))
+
+    def pop_fpu_double(self):
+        """
+        Pop the x87 register stack and return the value as the IEEE 754 bits of a double
+        """
+        fpsw = self.reg_read(e_arch.X86_REG_FPSW)
+        top = (fpsw >> 11) & 7
+        bits = fp80_to_double_bits(*self.reg_read(e_arch.X86_REG_FP0 + top))
+        self.reg_write(e_arch.X86_REG_FPSW, (fpsw & ~0x3800) | (((top + 1) & 7) << 11))
+        self.reg_write(e_arch.X86_REG_FPTAG, self.reg_read(e_arch.X86_REG_FPTAG) | (3 << (2 * top)))
+        return bits
 
     def get_ret_address(self):
         """

@@ -114,3 +114,37 @@ def test_single_precision_functions_use_xmm0_on_amd64(config, api, value, expect
         assert struct.unpack("<f", se.mem_read(out, 4))[0] == expected
     finally:
         se.shutdown()
+
+
+@pytest.mark.parametrize(("x", "y", "expected"), [(7.5, 2.0, 1.5), (-7.5, 2.0, -1.5), (7.5, -2.0, 1.5)])
+def test_ci_fmod_takes_operands_on_the_x87_stack(config, x, y, expected):
+    config["timeout"] = 2
+    config["max_api_count"] = 200
+    se = Speakeasy(config=config)
+    try:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="x86"))
+        out = se.mem_alloc(0x1000)
+        se.mem_write(out + 16, struct.pack("<dd", x, y))
+        function = se.emu.get_proc("msvcrt", "_CIfmod")
+        code = (
+            b"\xdf\xe0\x66\xa3"
+            + struct.pack("<I", out + 8)
+            + b"\xdd\x05"
+            + struct.pack("<I", out + 16)
+            + b"\xdd\x05"
+            + struct.pack("<I", out + 24)
+            + b"\xb8"
+            + struct.pack("<I", function)
+            + b"\xff\xd0\xdd\x1d"
+            + struct.pack("<I", out)
+            + b"\xdf\xe0\x66\xa3"
+            + struct.pack("<I", out + 10)
+            + b"\xc3"
+        )
+        se.call(write_code(se, code))
+        assert se.get_report().entry_points[-1].error is None
+        result, sw_before, sw_after = struct.unpack("<dHH", se.mem_read(out, 12))
+        assert result == expected
+        assert sw_after & 0x3800 == sw_before & 0x3800
+    finally:
+        se.shutdown()

@@ -1114,6 +1114,15 @@ class Msvcrt(api.ApiHandler):
             return self.double_to_hex(math.nan)
         return self.double_to_hex(math.fmod(x, y))
 
+    @apihook("_CIfmod", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _CIfmod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        Computes fmod(ST(1), ST(0)), pops both operands, and pushes the result
+        """
+        y = emu.pop_fpu_double()
+        x = emu.pop_fpu_double()
+        emu.push_fpu_double(self.fmod(emu, [x, y], ctx))
+
     @apihook("sin", argc=1, conv=e_arch.CALL_CONV_FLOAT)
     def sin(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
