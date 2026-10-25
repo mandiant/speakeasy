@@ -4031,6 +4031,9 @@ class Msvcrt(api.ApiHandler):
 
     def delete_file(self, emu, argv, ctx, wide):
         (path_ptr,) = argv
+        if not path_ptr:
+            self.set_errno(EINVAL)
+            return -1
         path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
         ctx.args[0].display = path
 
@@ -4049,6 +4052,9 @@ class Msvcrt(api.ApiHandler):
         );
         """
         old_ptr, new_ptr = argv
+        if not old_ptr or not new_ptr:
+            self.set_errno(EINVAL)
+            return -1
         old, new = self.read_string(old_ptr), self.read_string(new_ptr)
         ctx.args[0].display = old
         ctx.args[1].display = new

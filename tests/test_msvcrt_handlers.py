@@ -1439,3 +1439,21 @@ def test_fopen_append_mode_keeps_the_file_content(strict_fs_emu: Speakeasy, api:
 def test_fopen_read_modes_do_not_create_a_missing_file(strict_fs_emu: Speakeasy, api: str, mode: str) -> None:
     path = fopen_text(strict_fs_emu, api, "c:\\users\\public\\missing.txt")
     assert call(strict_fs_emu, "msvcrt", api, [path, fopen_text(strict_fs_emu, api, mode)])[0] == 0
+
+
+@pytest.mark.parametrize(
+    "api, argv",
+    [
+        ("_unlink", [0]),
+        ("_wunlink", [0]),
+        ("remove", [0]),
+        ("_wremove", [0]),
+        ("rename", [0, "new"]),
+        ("rename", ["old", 0]),
+    ],
+)
+def test_file_functions_reject_a_null_path(dll_emu: Speakeasy, api: str, argv: list) -> None:
+    args = [alloc(dll_emu, f"c:\\users\\public\\{a}.txt\0".encode()) if isinstance(a, str) else a for a in argv]
+    assert call(dll_emu, "msvcrt", api, args)[0] == -1
+    errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
+    assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL
