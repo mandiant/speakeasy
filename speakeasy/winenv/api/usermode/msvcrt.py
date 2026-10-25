@@ -2859,6 +2859,22 @@ class Msvcrt(api.ApiHandler):
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
         return handle
 
+    @apihook("_endthreadex", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _endthreadex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _endthreadex(
+           unsigned retval
+        );
+        """
+        self.exit_process()
+
+    @apihook("_endthread", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _endthread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _endthread(void);
+        """
+        self.exit_process()
+
     @apihook("system", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def system(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

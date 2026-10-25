@@ -7,6 +7,7 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
+from speakeasy.config import get_default_config_dict
 from speakeasy.profiler import Run
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
@@ -27,6 +28,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     scan_c_format,
 )
 from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.pe_builder import build_pe
 
 FILETIME_UNIX_EPOCH = 116444736000000000
 
@@ -2426,3 +2428,51 @@ def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speak
         [alloc(se, b"c:\\users\\public\\config.json\0"), 0x25, 64],
     )[0]
     assert call(se, "msvcrt", "ftell", [stream])[0] == 4
+
+
+@pytest.mark.parametrize(
+    "begin, end, begin_args, end_args",
+    [("_beginthreadex", "_endthreadex", 6, 1), ("_beginthread", "_endthread", 3, 0)],
+)
+def test_endthread_ends_only_the_current_thread(begin: str, end: str, begin_args: int, end_args: int) -> None:
+    handle_rva, exit_code_rva = 0x2000, 0x2008
+
+    def text(base: int, iat: dict[tuple[str, str], int]) -> bytes:
+        def start(fn: int, slot: int) -> bytes:
+            # the start address is the third argument of _beginthreadex and the first of _beginthread
+            pushes = [0] * begin_args
+            pushes[2 if begin_args == 6 else 0] = fn
+            code = b"".join(b"\x68" + struct.pack("<I", value) for value in reversed(pushes))
+            code += b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", begin])
+            code += b"\x83\xc4" + bytes([4 * begin_args])
+            return code + b"\xa3" + struct.pack("<I", base + handle_rva + 4 * slot)
+
+        main_size = 2 * len(start(0, 0)) + 1
+        ending = 0x1000 + main_size
+        ending_code = (
+            b"\x6a\x00" * end_args + b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", end]) + b"\x0f\x0b"
+        )
+        checking = ending + len(ending_code)
+        checking_code = b"\x68" + struct.pack("<I", base + exit_code_rva)
+        checking_code += b"\xff\x35" + struct.pack("<I", base + handle_rva)
+        checking_code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetExitCodeThread"]) + b"\xc3"
+        main = start(base + ending, 0) + start(base + checking, 1) + b"\xc3"
+        return main + ending_code + checking_code
+
+    image, _ = build_pe(
+        32,
+        text=text,
+        data=b"\0" * 8 + b"\xcc" * 4,
+        imports={"msvcrt.dll": [begin, end], "kernel32.dll": ["GetExitCodeThread"]},
+    )
+    with Speakeasy(config=get_default_config_dict()) as se:
+        module = se.load_module(data=image)
+        se.run_module(module)
+        entries = se.get_report().entry_points
+        assert [(entry.ep_type, entry.error) for entry in entries] == [
+            ("module_entry", None),
+            ("thread", None),
+            ("thread", None),
+        ]
+        assert [event.api_name for event in entries[1].events or [] if event.event == "api"] == [f"msvcrt.{end}"]
+        assert se.mem_read(module.base + exit_code_rva, 4) == b"\0" * 4
