@@ -725,3 +725,11 @@ def test_shell_execute_ex_writes_the_error_to_h_inst_app(dll_emu: Speakeasy) -> 
     assert rv == 0
     assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] == 2
     assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_microsoft_telemetry_assert_triggered_um_returns(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    record = alloc(se, b"\x00" * 0x24)
+    rv, _ = call(se, "ntdll", "MicrosoftTelemetryAssertTriggeredUM", [record])
+    assert rv is None

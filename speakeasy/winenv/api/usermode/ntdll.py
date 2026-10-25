@@ -542,3 +542,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         return windefs.ERROR_SUCCESS
+
+    @apihook("MicrosoftTelemetryAssertTriggeredUM", argc=1)
+    def MicrosoftTelemetryAssertTriggeredUM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        VOID MicrosoftTelemetryAssertTriggeredUM(PVOID AssertRecord);
+        """
+        return
