@@ -628,3 +628,33 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.record_process_event(proc_obj, evt_type, start_addr=StartRoutine, param=Argument, tid=obj.id)
 
         return ddk.STATUS_SUCCESS
+
+    @apihook("NtTerminateProcess", argc=2)
+    def NtTerminateProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS NtTerminateProcess(
+            HANDLE ProcessHandle,
+            NTSTATUS ExitStatus
+        );
+
+        A NULL ProcessHandle ends only the other threads of the current
+        process, so the caller keeps running.
+        """
+        ProcessHandle, ExitStatus = argv
+
+        if not ProcessHandle:
+            return ddk.STATUS_SUCCESS
+
+        if ProcessHandle == self.get_max_int():
+            self.exit_process()
+            return ddk.STATUS_SUCCESS
+
+        proc = emu.get_object_from_handle(ProcessHandle)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
+
+        if proc is emu.get_current_process():
+            self.exit_process()
+        else:
+            emu.kill_process(proc)
+        return ddk.STATUS_SUCCESS

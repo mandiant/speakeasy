@@ -790,3 +790,32 @@ def test_nt_create_thread_ex_fails_for_an_unknown_process(dll_emu: Speakeasy) ->
     rv, _ = call(dll_emu, "ntdll", "NtCreateThreadEx", [out, 0x1FFFFF, 0, 0x1234, 0x401000, 0, 0, 0, 0, 0, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE
     assert dll_emu.mem_read(out, 4) == b"\xcc" * 4
+
+
+def test_nt_terminate_process_ends_the_current_process(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert not dll_emu.emu.run_complete
+
+    rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0xFFFFFFFF, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert dll_emu.emu.run_complete
+
+
+def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
+    si = alloc(dll_emu, b"\x00" * 0x44)
+    pi = alloc(dll_emu, b"\x00" * 0x10)
+    assert call(dll_emu, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, 0, 0, 0, si, pi])[0]
+    hproc = struct.unpack("<I", dll_emu.mem_read(pi, 4))[0]
+
+    rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [hproc, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert not dll_emu.emu.run_complete
+
+    rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0x1234, 0])
+    assert rv == ddk.STATUS_INVALID_HANDLE

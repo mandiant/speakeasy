@@ -317,3 +317,19 @@ def test_nt_create_thread_ex_runs_the_thread():
         assert api_names(entries[0]) == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject"]
         assert api_names(entries[1]) == ["kernel32.GetTickCount"]
         assert entries[1].start_addr == module.base + 0x105C
+
+
+def test_nt_terminate_process_ends_the_run():
+    def text(base, iat):
+        code = b"\x48\x83\xec\x28"  # sub rsp, 0x28
+        code += b"\x48\x83\xc9\xff"  # or rcx, -1
+        code += b"\x31\xd2"  # xor edx, edx
+        code += b"\xff\x15" + struct.pack("<i", iat["ntdll.dll", "NtTerminateProcess"] - (0x1000 + len(code) + 6))
+        return code + b"\x0f\x0b"  # ud2
+
+    data, _ = build_pe(64, text=text, imports={"ntdll.dll": ["NtTerminateProcess"]})
+    with Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        entry = se.get_report().entry_points[0]
+        assert entry.error is None
+        assert api_names(entry) == ["ntdll.NtTerminateProcess"]
