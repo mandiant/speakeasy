@@ -4461,6 +4461,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hObject,) = argv
 
+        if self.snapshots.pop(hObject, None) is not None:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
         reg_key = emu.reg_get_key(handle=hObject)
         if reg_key:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)

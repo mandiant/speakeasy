@@ -466,6 +466,15 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
         assert rv, walk
 
 
+def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    assert call(dll_emu, "kernel32", "CloseHandle", [hsnap])[0] == 1
+    assert call(dll_emu, "kernel32", "CloseHandle", [hsnap])[0] == 0
+    entry = alloc(dll_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
+    assert call(dll_emu, "kernel32", "Process32First", [hsnap, entry])[0] == 0
+
+
 def switch_to_new_thread(se: Speakeasy) -> None:
     emu = se.emu
     assert emu is not None and emu.curr_process is not None
