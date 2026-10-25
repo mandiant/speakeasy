@@ -25,6 +25,7 @@ from speakeasy.windows.loaders import (
 )
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.api.winapi import WindowsApi
 
 logger = logging.getLogger(__name__)
@@ -525,6 +526,7 @@ class Win32Emulator(WindowsEmulator):
         peb.object.OSMajorVersion = self.config.os_ver.major or 0
         peb.object.OSMinorVersion = self.config.os_ver.minor or 0
         peb.object.OSBuildNumber = self.config.os_ver.build or 0
+        peb.object.NumberOfProcessors = PROCESSOR_COUNT
         peb.write_back()
 
         self.mem_map_reserve(proc.peb_ldr_data.address)
