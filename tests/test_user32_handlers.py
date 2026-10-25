@@ -56,7 +56,7 @@ def test_timer_messages_call_the_timer_proc(request: pytest.FixtureRequest, fixt
 def test_timer_messages_without_a_proc_go_to_the_window_proc(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     atom = register_class(dll_emu, b"mycls", 0x402000)
-    hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, atom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    hwnd = create_window_of_class(dll_emu, atom, 0x402000)
     assert call(dll_emu, "user32", "SetTimer", [hwnd, 7, 10, 0])[0] == 7
     assert get_timer_message(dll_emu) == (hwnd, 7, 0, 0x402000)
 
@@ -132,14 +132,23 @@ def test_find_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
     assert rv == 0
 
 
+def create_window_of_class(se: Speakeasy, cls: int, wndproc: int) -> int:
+    """Create a window of a class with a window procedure and return the HWND that its WM_NCCREATE gets."""
+    assert se.emu is not None
+    rv, _ = call(se, "user32", "CreateWindowExA", [0, cls, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert rv is None
+    assert se.emu.get_current_run().guest_callbacks[-1].function == wndproc
+    hwnd, message, _, _ = se.emu.get_func_argv(e_arch.CALL_CONV_STDCALL, 4)
+    assert message == 0x81
+    return hwnd
+
+
 def test_create_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     atom = register_class(dll_emu, b"mycls", 0x401000)
-    hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, atom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    hwnd = create_window_of_class(dll_emu, atom, 0x401000)
     assert hwnd
     rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
     assert rv
-    assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
 
 
 def test_update_window_with_an_unknown_class(dll_emu: Speakeasy) -> None:
@@ -424,8 +433,8 @@ def test_register_class_without_ex_registers_the_window_procedure(request: pytes
     wc = struct.pack(fmt, 0, 0x401000, 0, 0, 0, 0, 0, 0, 0, alloc(se, name))
     atom, _ = call(se, "user32", "RegisterClassW", [alloc(se, wc)])
     assert atom
-    hwnd, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    assert call(se, "user32", "UpdateWindow", [hwnd])[0]
+    rv, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert rv is None
     assert [cb.function for cb in se.emu.get_current_run().guest_callbacks] == [0x401000]
 
 
@@ -623,3 +632,65 @@ def test_register_window_message_gives_one_id_per_name(dll_emu: Speakeasy) -> No
     assert 0xC000 <= first <= 0xFFFF
     assert second not in (first, 0)
     assert register(b"taskbarcreated") == first
+
+
+def d32(value: int) -> bytes:
+    return struct.pack("<I", value & 0xFFFFFFFF)
+
+
+def x86_call(function: int) -> bytes:
+    return b"\xb8" + d32(function) + b"\xff\xd0"
+
+
+def x86_logging_wndproc(data: int, nccreate_result: int, create_result: int) -> bytes:
+    """
+    A window procedure that appends each message to data + 0x10 and its lParam
+    to data + 0x40, counting them at data + 4, and returns nccreate_result for
+    WM_NCCREATE and create_result for all other messages.
+    """
+    code = b"\x8b\x44\x24\x08\x8b\x0d" + d32(data + 4)  # mov eax, [esp+8]; mov ecx, [data+4]
+    code += b"\x89\x04\x8d" + d32(data + 0x10)  # mov [data+0x10+ecx*4], eax
+    code += b"\x8b\x54\x24\x10\x89\x14\x8d" + d32(data + 0x40)  # mov edx, [esp+16]; mov [data+0x40+ecx*4], edx
+    code += b"\xff\x05" + d32(data + 4)  # inc dword [data+4]
+    code += b"\x3d\x81\x00\x00\x00\x75\x08"  # cmp eax, WM_NCCREATE; jne other
+    code += b"\xb8" + d32(nccreate_result) + b"\xc2\x10\x00"
+    return code + b"\xb8" + d32(create_result) + b"\xc2\x10\x00"
+
+
+@pytest.mark.parametrize(
+    "nccreate_result, create_result, messages, created",
+    [(1, 0, [0x81, 0x1], True), (0, 0, [0x81], False), (1, -1, [0x81, 0x1], False)],
+)
+def test_create_window_sends_nccreate_and_create_to_the_window_procedure(
+    config: dict, nccreate_result: int, create_result: int, messages: list[int], created: bool
+) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        assert se.emu is not None
+        data = se.mem_alloc(0x1000)
+        wndproc, name, title, wc = base + 0x200, base + 0x300, base + 0x310, base + 0x320
+        se.mem_write(wndproc, x86_logging_wndproc(data, nccreate_result, create_result))
+        se.mem_write(name, b"mycls\x00")
+        se.mem_write(title, b"mytitle\x00")
+        se.mem_write(wc, struct.pack("<12I", 48, 0, wndproc, 0, 0, 0, 0, 0, 0, 0, name, 0))
+        args = [0x400, name, title, WS_POPUP, 10, 20, 30, 40, 0, 0, 0x400000, 0x1234]
+        main = b"\x68" + d32(wc) + x86_call(se.emu.get_proc("user32", "RegisterClassExA"))
+        main += b"".join(b"\x68" + d32(arg) for arg in reversed(args))
+        main += x86_call(se.emu.get_proc("user32", "CreateWindowExA")) + b"\xa3" + d32(data) + b"\xc3"
+        se.mem_write(base, main)
+
+        se.run_shellcode(base)
+
+        assert se.get_report().entry_points[0].error is None
+        u32 = struct.unpack("<1024I", se.mem_read(data, 0x1000))
+        assert bool(u32[0]) == created
+        assert list(u32[4 : 4 + u32[1]]) == messages
+        lparams = u32[0x10 : 0x10 + u32[1]]
+        assert len(set(lparams)) == 1
+        cs = struct.unpack("<4I4i4I", se.mem_read(lparams[0], 48))
+        assert cs == (0x1234, 0x400000, 0, 0, 40, 30, 20, 10, WS_POPUP, title, name, 0x400)
+
+
+def test_def_window_proc_lets_nccreate_create_the_window(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x81, 0, 0])[0] == 1
+    assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x1, 0, 0])[0] == 0

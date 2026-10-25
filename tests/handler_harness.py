@@ -3,14 +3,14 @@ Call API handlers directly, with the context that dispatch builds.
 """
 
 import struct
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.profiler import GuestCallbackFrame, Run
-from speakeasy.windows import objman
+from speakeasy.windows import guest_callbacks, objman
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api import sigdb
@@ -52,7 +52,8 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
     """
     Call a handler with the context and frame that dispatch builds. A variadic handler reads
     ``argv`` from the stack. Return the handler result and the displays, by
-    parameter name, or by slot index for a call without a signature.
+    parameter name, or by slot index for a call without a signature. A handler
+    that calls guest code starts its first guest call, and its result is None.
     """
     emu = se.emu
     assert emu is not None and emu.api is not None
@@ -71,9 +72,12 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
         args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
     ctx = ApiContext(func_name=f"{dll}.{name}", args=args)
     previous = emu._active_api_frame
-    emu._active_api_frame = GuestCallbackFrame(emu.get_stack_ptr(), return_address=0)
+    frame = GuestCallbackFrame(emu.get_stack_ptr(), return_address=0)
+    emu._active_api_frame = frame
     try:
         rv = func(mod, emu, list(argv), ctx)
+        if isinstance(rv, Generator):
+            rv = guest_callbacks.start_api_handler(emu, frame, rv)
     finally:
         emu._active_api_frame = previous
     return rv, {i if a.name is None else a.name: a.display for i, a in enumerate(args.get_report_args())}

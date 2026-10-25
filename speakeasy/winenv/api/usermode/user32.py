@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
@@ -451,7 +452,8 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
         """
-        return 0
+        hWnd, Msg, wParam, lParam = argv
+        return int(Msg == windefs.WM_NCCREATE)
 
     @apihook("CreateWindowEx", argc=12)
     def CreateWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -472,7 +474,8 @@ class User32(api.ApiHandler):
         );
         """
         cw = self.get_char_width(ctx)
-        _, cn, wn, style, x, y, width, height, parent, menu, inst, param = argv
+        ex_style, class_arg, name_arg, style, x, y, width, height, parent, menu, inst, param = argv
+        cn, wn = class_arg, name_arg
         if cn > 0xFFFF:
             cn = self.read_mem_string(cn, cw)
             ctx.args["lpClassName"].display = cn
@@ -486,6 +489,22 @@ class User32(api.ApiHandler):
         thread = emu.get_current_thread()
         proc = emu.get_current_process()
         hnd = self.sessman.create_window(wn, cn, style, parent, thread.id if thread else 0, proc.pid if proc else 0)
+        wc = self.sessman.get_window_class(cn) if cn else None
+        if not wc or not wc.wclass.lpfnWndProc:
+            return hnd
+        cs = windefs.CREATESTRUCT(emu.get_ptr_size())
+        cs.lpCreateParams, cs.hInstance, cs.hMenu, cs.hwndParent = param, inst, menu, parent
+        cs.cy, cs.cx, cs.y, cs.x = height, width, y, x
+        cs.style, cs.lpszName, cs.lpszClass, cs.dwExStyle = style, name_arg, class_arg, ex_style
+        return self.send_create_messages(emu, hnd, wc.wclass.lpfnWndProc, cs)
+
+    def send_create_messages(self, emu, hnd, wndproc, cs):
+        """Send WM_NCCREATE and WM_CREATE as CreateWindowEx does; either can refuse the window."""
+        lparam = guest_callbacks.alloca(emu, cs.get_bytes())
+        if not (yield GuestCall(wndproc, (hnd, windefs.WM_NCCREATE, 0, lparam))):
+            return 0
+        if (yield GuestCall(wndproc, (hnd, windefs.WM_CREATE, 0, lparam))) == (1 << emu.get_ptr_size() * 8) - 1:
+            return 0
         return hnd
 
     @apihook("SetLayeredWindowAttributes", argc=4)

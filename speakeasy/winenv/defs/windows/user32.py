@@ -23,7 +23,9 @@ WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
 WM_TIMER = 0x0113
 
+WM_CREATE = 0x01
 WM_PAINT = 0x0F
+WM_NCCREATE = 0x81
 
 WM_INITDIALOG = 0x0110
 
@@ -42,6 +44,23 @@ class MSG(EmuStruct):
         self.time = ct.c_uint32
         self.pt_x = ct.c_int32
         self.pt_y = ct.c_int32
+
+
+class CREATESTRUCT(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.lpCreateParams = Ptr
+        self.hInstance = Ptr
+        self.hMenu = Ptr
+        self.hwndParent = Ptr
+        self.cy = ct.c_int32
+        self.cx = ct.c_int32
+        self.y = ct.c_int32
+        self.x = ct.c_int32
+        self.style = ct.c_uint32
+        self.lpszName = Ptr
+        self.lpszClass = Ptr
+        self.dwExStyle = ct.c_uint32
 
 
 class KBDLLHOOKSTRUCT(EmuStruct):
