@@ -1938,7 +1938,44 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSYSTEMTIME                lpLocalTime
         );
         """
-        return True
+        lpTimeZoneInformation, lpUniversalTime, lpLocalTime = argv
+        return self.shift_system_time(emu, lpTimeZoneInformation, lpUniversalTime, lpLocalTime, -1)
+
+    @apihook("TzSpecificLocalTimeToSystemTime", argc=3)
+    def TzSpecificLocalTimeToSystemTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL TzSpecificLocalTimeToSystemTime(
+            const TIME_ZONE_INFORMATION *lpTimeZoneInformation,
+            const SYSTEMTIME            *lpLocalTime,
+            LPSYSTEMTIME                lpUniversalTime
+        );
+        """
+        lpTimeZoneInformation, lpLocalTime, lpUniversalTime = argv
+        return self.shift_system_time(emu, lpTimeZoneInformation, lpLocalTime, lpUniversalTime, 1)
+
+    def shift_system_time(self, emu, tzi, src, dst, sign):
+        """
+        Write the SYSTEMTIME at src, moved by sign times the time zone bias, to dst.
+        A NULL tzi is the current time zone, which GetTimeZoneInformation reports with no bias.
+        """
+        bias = 0
+        if tzi:
+            bias = int.from_bytes(self.mem_read(tzi, 4), "little", signed=True)
+        st = self.mem_cast(self.k32types.SYSTEMTIME(emu.get_ptr_size()), src)
+        try:
+            dt = datetime.datetime(
+                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds * 1000
+            )
+            quad = (dt - datetime.datetime(1601, 1, 1)) // datetime.timedelta(microseconds=1) * 10
+            quad += sign * bias * 60 * 10000000
+            out = self.get_system_time_struct(quad) if quad >= 0 else None
+        except (ValueError, OverflowError):
+            out = None
+        if out is None:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        self.mem_write(dst, out.get_bytes())
+        return 1
 
     @apihook("FileTimeToSystemTime", argc=2)
     def FileTimeToSystemTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -884,6 +884,42 @@ def test_system_time_to_file_time_rejects_a_bad_date(dll_emu: Speakeasy, fields:
 
 
 @pytest.mark.parametrize(
+    "bias, utc, local",
+    [
+        (None, (2026, 10, 0, 25, 10, 9, 9, 206), (2026, 10, 0, 25, 10, 9, 9, 206)),
+        (60, (2026, 10, 0, 25, 10, 9, 9, 206), (2026, 10, 0, 25, 9, 9, 9, 206)),
+        (60, (2026, 10, 0, 25, 0, 30, 0, 0), (2026, 10, 6, 24, 23, 30, 0, 0)),
+        (-120, (2026, 12, 4, 31, 23, 0, 0, 0), (2027, 1, 5, 1, 1, 0, 0, 0)),
+    ],
+)
+def test_system_time_to_tz_specific_local_time_applies_the_bias(
+    dll_emu: Speakeasy, bias: int | None, utc: tuple[int, ...], local: tuple[int, ...]
+) -> None:
+    tzi = 0 if bias is None else alloc(dll_emu, struct.pack("<i", bias) + b"\x00" * 168)
+    st = alloc(dll_emu, struct.pack("<8H", *utc))
+    out = alloc(dll_emu, b"\xcc" * 16)
+    rv, _ = call(dll_emu, "kernel32", "SystemTimeToTzSpecificLocalTime", [tzi, st, out])
+    assert rv == 1
+    assert struct.unpack("<8H", dll_emu.mem_read(out, 16)) == local
+
+    back = alloc(dll_emu, b"\xcc" * 16)
+    rv, _ = call(dll_emu, "kernel32", "TzSpecificLocalTimeToSystemTime", [tzi, out, back])
+    assert rv == 1
+    assert struct.unpack("<8H", dll_emu.mem_read(back, 16)) == utc
+
+
+def test_system_time_to_tz_specific_local_time_rejects_a_bad_date(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    st = alloc(dll_emu, struct.pack("<8H", 2000, 13, 0, 1, 0, 0, 0, 0))
+    out = alloc(dll_emu, b"\xcc" * 16)
+    rv, _ = call(dll_emu, "kernel32", "SystemTimeToTzSpecificLocalTime", [0, st, out])
+    assert rv == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert dll_emu.mem_read(out, 16) == b"\xcc" * 16
+
+
+@pytest.mark.parametrize(
     "filetime, fields",
     [
         (Y2K_FILETIME, (2000, 1, 6, 1, 0, 0, 0, 0)),
