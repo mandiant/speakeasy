@@ -545,9 +545,10 @@ def test_get_module_handle_ex_from_address_finds_the_image(dll_emu: Speakeasy) -
     base = dll_emu.emu.modules[0].base
     out = alloc(dll_emu, b"\x00" * 4)
     flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
-    rv, _ = call(dll_emu, "kernel32", "GetModuleHandleExA", [flags, base + 0x1000, out])
+    rv, displays = call(dll_emu, "kernel32", "GetModuleHandleExA", [flags, base + 0x1000, out])
     assert rv
     assert dll_emu.mem_read(out, 4) == struct.pack("<I", base)
+    assert displays["lpModuleName"] == hex(base + 0x1000)
 
 
 @pytest.mark.parametrize("api, cw", [("GetModuleFileNameA", 1), ("GetModuleFileNameW", 2)])
