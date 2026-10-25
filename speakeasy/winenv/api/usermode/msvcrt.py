@@ -3821,10 +3821,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = path
         ctx.args[1].display = mode_str
 
-        create = any(flag in mode_str for flag in ("w", "a", "+"))
-        truncate = "w" in mode_str and "a" not in mode_str
-
-        hfile = self.file_open(path, create=create, truncate=truncate)
+        hfile = self.open_stream_file(path, mode_str)
         if hfile is None:
             return 0
 
@@ -3852,10 +3849,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = path
         ctx.args[1].display = mode_str
 
-        create = any(flag in mode_str for flag in ("w", "a", "+"))
-        truncate = "w" in mode_str and "a" not in mode_str
-
-        hfile = self.file_open(path, create=create, truncate=truncate)
+        hfile = self.open_stream_file(path, mode_str)
         if hfile is None:
             return 0
 
@@ -3863,6 +3857,21 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(stream, int(hfile).to_bytes(self.get_ptr_size(), "little"))
         self.file_streams[stream] = hfile
         return stream
+
+    def open_stream_file(self, path, mode_str):
+        """
+        Open ``path`` as the C runtime does for ``mode_str``: "w" creates or
+        truncates, "a" keeps the content and writes at the end, and "r" opens
+        only a file that exists. Return the file handle, or None.
+        """
+        if "w" in mode_str:
+            return self.file_open(path, create=True, truncate=True)
+        hfile = self.file_open(path)
+        if hfile is None and "a" in mode_str:
+            hfile = self.file_open(path, create=True)
+        if hfile is not None and "a" in mode_str:
+            self.file_get(hfile).append = True
+        return hfile
 
     def reopen_stream(self, path, mode, stream, ctx):
         """
@@ -3876,9 +3885,7 @@ class Msvcrt(api.ApiHandler):
         if not path or path.upper() in ("CONOUT$", "CONIN$"):
             return stream
 
-        create = any(flag in mode_str for flag in ("w", "a", "+"))
-        truncate = "w" in mode_str and "a" not in mode_str
-        hfile = self.file_open(path, create=create, truncate=truncate)
+        hfile = self.open_stream_file(path, mode_str)
         if hfile is None:
             self.file_streams.pop(stream, None)
             return 0

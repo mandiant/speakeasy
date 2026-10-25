@@ -1,5 +1,5 @@
 import struct
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -1399,3 +1399,43 @@ def test_system_reports_success(dll_emu: Speakeasy) -> None:
     command = alloc(dll_emu, b"schtasks /Delete /TN Upkeep /F\x00")
     assert call(dll_emu, "msvcrt", "system", [command])[0] == 0
     assert call(dll_emu, "msvcrt", "system", [0])[0] != 0
+
+
+@pytest.fixture
+def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    config["filesystem"]["files"] = [f for f in config["filesystem"]["files"] if f["mode"] == "full_path"]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        yield se
+
+
+def fopen_text(se: Speakeasy, api: str, text: str) -> int:
+    return alloc(se, (text + "\0").encode("utf-8" if api == "fopen" else "utf-16le"))
+
+
+def write_stream(se: Speakeasy, api: str, path: str, mode: str, data: bytes) -> None:
+    stream, _ = call(se, "msvcrt", api, [fopen_text(se, api, path), fopen_text(se, api, mode)])
+    assert stream
+    assert call(se, "msvcrt", "fwrite", [alloc(se, data), 1, len(data), stream])[0] == len(data)
+    call(se, "msvcrt", "fclose", [stream])
+
+
+@pytest.mark.parametrize("api", ["fopen", "_wfopen"])
+def test_fopen_append_mode_keeps_the_file_content(strict_fs_emu: Speakeasy, api: str) -> None:
+    se = strict_fs_emu
+    path = "c:\\users\\public\\log.txt"
+    write_stream(se, api, path, "ab", b"new")
+    write_stream(se, api, path, "wb", b"hello")
+    write_stream(se, api, path, "ab", b"world")
+
+    stream, _ = call(se, "msvcrt", api, [fopen_text(se, api, path), fopen_text(se, api, "rb")])
+    out = alloc(se, b"\x00" * 16)
+    assert call(se, "msvcrt", "fread", [out, 1, 16, stream])[0] == 10
+    assert se.mem_read(out, 10) == b"helloworld"
+
+
+@pytest.mark.parametrize("api", ["fopen", "_wfopen"])
+@pytest.mark.parametrize("mode", ["r", "rb", "r+", "r+b"])
+def test_fopen_read_modes_do_not_create_a_missing_file(strict_fs_emu: Speakeasy, api: str, mode: str) -> None:
+    path = fopen_text(strict_fs_emu, api, "c:\\users\\public\\missing.txt")
+    assert call(strict_fs_emu, "msvcrt", api, [path, fopen_text(strict_fs_emu, api, mode)])[0] == 0
