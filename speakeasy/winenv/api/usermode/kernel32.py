@@ -10,6 +10,7 @@ import time
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.objman as objman
 import speakeasy.windows.seh as seh
 import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as e_arch
@@ -4596,6 +4597,25 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         attrs, reset, state, name = argv
 
+        return self.create_event(emu, name, bool(reset), bool(state), ctx)
+
+    @apihook("CreateEventEx", argc=4)
+    def CreateEventEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HANDLE CreateEventEx(
+            LPSECURITY_ATTRIBUTES lpEventAttributes,
+            LPCSTR                lpName,
+            DWORD                 dwFlags,
+            DWORD                 dwDesiredAccess
+        );
+        """
+        attrs, name, flags, access = argv
+
+        manual_reset = bool(flags & windefs.CREATE_EVENT_MANUAL_RESET)
+        initial_set = bool(flags & windefs.CREATE_EVENT_INITIAL_SET)
+        return self.create_event(emu, name, manual_reset, initial_set, ctx)
+
+    def create_event(self, emu, name, manual_reset, initial_state, ctx):
         cw = self.get_char_width(ctx)
         evt_name = None
         obj = None
@@ -4609,6 +4629,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, evt = emu.create_event(evt_name)
+            evt.manual_reset = manual_reset
+            evt.signaled = initial_state
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return hnd
@@ -4775,9 +4797,25 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = False
         if obj:
+            if isinstance(obj, objman.Event):
+                obj.signaled = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
             rv = True
         return rv
+
+    @apihook("PulseEvent", argc=1)
+    def PulseEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL PulseEvent(
+            HANDLE hEvent
+        );
+        """
+        (hEvent,) = argv
+
+        obj = self.get_object_from_handle(hEvent)
+        if isinstance(obj, objman.Event):
+            obj.signaled = False
+        return True
 
     @apihook("SetUnhandledExceptionFilter", argc=1)
     def SetUnhandledExceptionFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4938,6 +4976,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hHandle, dwMilliseconds = argv
+
+        obj = self.get_object_from_handle(hHandle)
+        if isinstance(obj, objman.Event):
+            return self.wait_for_events(emu, [obj], False, dwMilliseconds)
 
         # TODO
         if dwMilliseconds == 1:
@@ -6787,6 +6829,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE hEvent
         );
         """
+        (hEvent,) = argv
+
+        obj = self.get_object_from_handle(hEvent)
+        if isinstance(obj, objman.Event):
+            obj.signaled = False
         return True
 
     @apihook("WaitForMultipleObjects", argc=4)
@@ -6799,7 +6846,42 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         DWORD        dwMilliseconds
         );
         """
+        nCount, lpHandles, bWaitAll, dwMilliseconds = argv
+
+        ptr_size = emu.get_ptr_size()
+        objs = []
+        if lpHandles:
+            for i in range(nCount):
+                hnd = int.from_bytes(self.mem_read(lpHandles + i * ptr_size, ptr_size), "little")
+                objs.append(self.get_object_from_handle(hnd))
+
+        if objs and all(isinstance(obj, objman.Event) for obj in objs):
+            return self.wait_for_events(emu, objs, bool(bWaitAll), dwMilliseconds)
         return 0
+
+    def wait_for_events(self, emu, events, wait_all, timeout):
+        """
+        Wait on event objects. Threads run one after another, so the wait times out only
+        when the timeout is finite and no queued run is left that could set an event.
+        """
+        if wait_all:
+            ready = events if all(evt.signaled for evt in events) else []
+            rv = windefs.WAIT_OBJECT_0
+        else:
+            index = next((i for i, evt in enumerate(events) if evt.signaled), None)
+            ready = [] if index is None else [events[index]]
+            rv = windefs.WAIT_OBJECT_0 + (index or 0)
+
+        if ready:
+            for evt in ready:
+                if not evt.manual_reset:
+                    evt.signaled = False
+            return rv
+
+        if timeout != 0xFFFFFFFF and not emu.run_queue:
+            self.advance_clock(timeout)
+            return windefs.WAIT_TIMEOUT
+        return windefs.WAIT_OBJECT_0
 
     @apihook("GetComputerNameEx", argc=3)
     def GetComputerNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

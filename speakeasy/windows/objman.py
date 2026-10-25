@@ -799,6 +799,9 @@ class Event(KernelObject):
         super().__init__(emu=emu)
         self.object = self.nt_types.KEVENT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+        # Events whose state no handler tracks stay signaled, so waits on them return.
+        self.signaled = True
+        self.manual_reset = True
 
 
 class Mutant(KernelObject):

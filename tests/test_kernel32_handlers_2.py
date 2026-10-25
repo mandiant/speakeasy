@@ -513,6 +513,90 @@ def test_create_event_clears_a_stale_already_exists(emu: Speakeasy) -> None:
     assert last_error(emu) == windefs.ERROR_ALREADY_EXISTS
 
 
+INFINITE = 0xFFFFFFFF
+
+
+@pytest.fixture
+def idle_emu(emu: Speakeasy) -> Speakeasy:
+    """An emulator with no queued run, as when the last run executes."""
+    emu.emu.run_queue.clear()
+    return emu
+
+
+def wait_one(se: Speakeasy, hnd: int, timeout: int = 500) -> int:
+    return call(se, "kernel32", "WaitForSingleObject", [hnd, timeout])[0]
+
+
+def wait_many(se: Speakeasy, handles: list[int], wait_all: int, timeout: int = 500) -> int:
+    buf = alloc(se, struct.pack(f"<{len(handles)}I", *handles))
+    return call(se, "kernel32", "WaitForMultipleObjects", [len(handles), buf, wait_all, timeout])[0]
+
+
+def test_wait_times_out_on_an_unsignaled_event(idle_emu: Speakeasy) -> None:
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventA", [0, 0, 0, 0])
+    before = call(idle_emu, "kernel32", "GetTickCount", [])[0]
+    assert wait_many(idle_emu, [hnd], 0) == windefs.WAIT_TIMEOUT
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_TIMEOUT
+    assert call(idle_emu, "kernel32", "GetTickCount", [])[0] - before >= 1000
+    assert wait_one(idle_emu, hnd, INFINITE) == windefs.WAIT_OBJECT_0
+
+
+def test_wait_resets_an_auto_reset_event(idle_emu: Speakeasy) -> None:
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventA", [0, 0, 0, 0])
+    assert call(idle_emu, "kernel32", "SetEvent", [hnd])[0]
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_OBJECT_0
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_TIMEOUT
+
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventA", [0, 0, 1, 0])
+    assert wait_many(idle_emu, [hnd], 0) == windefs.WAIT_OBJECT_0
+    assert wait_many(idle_emu, [hnd], 0) == windefs.WAIT_TIMEOUT
+
+
+def test_a_manual_reset_event_stays_signaled(idle_emu: Speakeasy) -> None:
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventA", [0, 1, 1, 0])
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_OBJECT_0
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_OBJECT_0
+    assert call(idle_emu, "kernel32", "ResetEvent", [hnd])[0]
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_TIMEOUT
+    assert call(idle_emu, "kernel32", "SetEvent", [hnd])[0]
+    assert call(idle_emu, "kernel32", "PulseEvent", [hnd])[0]
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_TIMEOUT
+
+
+@pytest.mark.parametrize("flags, results", [(0, [0x102]), (2, [0, 0x102]), (3, [0, 0])])
+def test_create_event_ex_takes_the_state_from_the_flags(idle_emu: Speakeasy, flags: int, results: list[int]) -> None:
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventExA", [0, 0, flags, 0x1F0003])
+    assert [wait_one(idle_emu, hnd) for _ in results] == results
+
+
+def test_wait_for_multiple_objects_gives_the_first_signaled_event(idle_emu: Speakeasy) -> None:
+    events = [call(idle_emu, "kernel32", "CreateEventA", [0, 0, 0, 0])[0] for _ in range(3)]
+    call(idle_emu, "kernel32", "SetEvent", [events[1]])
+    call(idle_emu, "kernel32", "SetEvent", [events[2]])
+    assert wait_many(idle_emu, events, 1) == windefs.WAIT_TIMEOUT
+    assert wait_many(idle_emu, events, 0) == windefs.WAIT_OBJECT_0 + 1
+    assert wait_many(idle_emu, events, 0) == windefs.WAIT_OBJECT_0 + 2
+    assert wait_many(idle_emu, events, 0) == windefs.WAIT_TIMEOUT
+
+    for hnd in events:
+        call(idle_emu, "kernel32", "SetEvent", [hnd])
+    assert wait_many(idle_emu, events, 1) == windefs.WAIT_OBJECT_0
+    assert wait_many(idle_emu, events, 0) == windefs.WAIT_TIMEOUT
+
+
+def test_wait_returns_while_a_thread_is_queued(idle_emu: Speakeasy) -> None:
+    hnd, _ = call(idle_emu, "kernel32", "CreateEventA", [0, 0, 0, 0])
+    assert call(idle_emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, 0, 0])[0]
+    assert wait_one(idle_emu, hnd) == windefs.WAIT_OBJECT_0
+    assert wait_many(idle_emu, [hnd], 0) == windefs.WAIT_OBJECT_0
+
+
+def test_wait_returns_for_a_thread(idle_emu: Speakeasy) -> None:
+    thread, _ = call(idle_emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    assert wait_one(idle_emu, thread) == windefs.WAIT_OBJECT_0
+    assert wait_many(idle_emu, [thread], 1) == windefs.WAIT_OBJECT_0
+
+
 def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     data = alloc(se, b"\x00" * 0x200)
