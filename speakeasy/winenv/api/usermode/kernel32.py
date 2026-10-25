@@ -3041,54 +3041,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
         si = self.k32types.STARTUPINFO(emu.get_ptr_size())
 
-        # Did we already alloc memory for the process's desktop name?
+        # The desktop and title strings are written once per process and width
         proc = emu.get_current_process()
-        ps = self.startup_info.get(proc)
-        if ps:
-            desk = ps.get("desktop", {})
-        else:
-            desk = {"desktop": {}}
-            self.startup_info.update({proc: desk})
-
-        desk_name = proc.get_desktop_name()
-        dn = desk.get(cw)
-        if dn:
-            si.lpDesktop = dn
-        else:
-            if cw == 2:
-                out = desk_name.encode("utf-16le")
-                sn = "W"
-            elif cw == 1:
-                out = desk_name.encode("utf-8")
-                sn = "A"
-            desk_ptr = self.mem_alloc((len(out) + cw), tag="api.struct.STARTUPINFO%s.lpDesktop" % (sn))  # noqa
-            si.lpDesktop = desk_ptr
-            desk.update({cw: desk_ptr})
-
-        # Did we already alloc memory for the process's title?
-        ps = self.startup_info.get(proc)
-        if ps:
-            title = ps.get("title", {})
-        else:
-            title = {"title": {}}
-            self.startup_info.update({proc: title})
-
-        title_name = proc.title
-        if not title_name:
-            title_name = proc.path
-
-        if title:
-            si.lpTitle = title
-        else:
-            if cw == 2:
-                out = title_name.encode("utf-16le")
-                sn = "W"
-            elif cw == 1:
-                out = title_name.encode("utf-8")
-                sn = "A"
-            title_ptr = self.mem_alloc((len(out) + cw), tag=f"api.struct.STARTUPINFO{sn}.lpTitle")
-            si.lpTitle = title_ptr
-            title.update({cw: title_ptr})
+        ptrs = self.startup_info.get((proc, cw))
+        if not ptrs:
+            sn = "W" if cw == 2 else "A"
+            ptrs = []
+            for field, text in (("lpDesktop", proc.get_desktop_name()), ("lpTitle", proc.title or proc.path)):
+                size = len(text.encode("utf-16le" if cw == 2 else "utf-8")) + cw
+                ptr = self.mem_alloc(size, tag=f"api.struct.STARTUPINFO{sn}.{field}")
+                self.write_mem_string(text, ptr, cw)
+                ptrs.append(ptr)
+            self.startup_info[(proc, cw)] = ptrs
+        si.lpDesktop, si.lpTitle = ptrs
 
         si.cb = self.sizeof(si)
         si.hStdInput = 0

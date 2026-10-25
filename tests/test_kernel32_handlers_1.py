@@ -749,6 +749,24 @@ def test_virtual_query_ex_rejects_an_invalid_process_handle(dll_emu: Speakeasy) 
     assert dll_emu.mem_read(mbi, 28) == b"\xcc" * 28
 
 
+@pytest.mark.parametrize("name, width", [("GetStartupInfoA", 1), ("GetStartupInfoW", 2)])
+def test_get_startup_info_writes_the_desktop_and_title_once(dll_emu: Speakeasy, name: str, width: int) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    proc = emu.get_current_process()
+    pointers = []
+    for _ in range(2):
+        si = alloc(dll_emu, b"\xcc" * 68)
+        call(dll_emu, "kernel32", name, [si])
+        pointers.append(struct.unpack("<II", dll_emu.mem_read(si + 8, 8)))
+    assert pointers[0] == pointers[1]
+    desktop, title = pointers[0]
+    assert desktop and title
+    assert emu.read_mem_string(desktop, width) == proc.get_desktop_name()
+    assert emu.read_mem_string(title, width) == (proc.title or proc.path)
+
+
 Y2K_FILETIME = 125911584000000000
 
 
