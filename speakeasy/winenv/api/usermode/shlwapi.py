@@ -32,6 +32,34 @@ def get_path_without_file_spec(s: str) -> str | None:
     return s[:cut]
 
 
+def get_path_root(path: str) -> str:
+    """
+    Get the root of a path the way PathStripToRoot does: a drive, a UNC
+    share, a single backslash, or an empty string for a relative path.
+    """
+    if path[1:2] == ":":
+        return path[:3] if path[2:3] == "\\" else path[:2]
+    if path.startswith("\\\\"):
+        return "\\".join(path.split("\\")[:4])
+    return "\\" if path.startswith("\\") else ""
+
+
+def get_canonical_path(path: str) -> str:
+    """
+    Remove the "." and ".." elements of a path the way PathCanonicalize does.
+    A ".." element at the root is dropped.
+    """
+    root = path[:3] if path[1:3] == ":\\" else path[: len(path[:2]) - len(path[:2].lstrip("\\"))]
+    parts: list[str] = []
+    for part in path[len(root) :].split("\\"):
+        if part == "..":
+            if parts:
+                parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return root + "\\".join(parts)
+
+
 class Shlwapi(api.ApiHandler):
     """
     Implements exported functions from shlwapi.dll
@@ -402,6 +430,40 @@ class Shlwapi(api.ApiHandler):
         out += "\0"
         self.write_mem_string(out, pszPath, cw)
         return 1
+
+    @apihook("PathCombine", argc=3)
+    def PathCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LPSTR PathCombineA(
+          LPSTR  pszDest,
+          LPCSTR pszDir,
+          LPCSTR pszFile
+        );
+        """
+        pszDest, pszDir, pszFile = argv
+        if not pszDest:
+            return 0
+        cw = self.get_char_width(ctx)
+        directory = self.read_mem_string(pszDir, cw) if pszDir else ""
+        file = self.read_mem_string(pszFile, cw) if pszFile else ""
+        if not pszDir and not pszFile:
+            path = None
+        elif not file:
+            path = directory
+        elif not directory or file[1:2] == ":" or file.startswith("\\\\"):
+            path = file
+        else:
+            if file.startswith("\\"):
+                directory = get_path_root(directory)
+                file = file[1:]
+            if directory and not directory.endswith("\\"):
+                directory += "\\"
+            path = directory + file
+        if path is None or len(path) >= MAX_PATH:
+            self.write_mem_string("\0", pszDest, cw)
+            return 0
+        self.write_mem_string(get_canonical_path(path) + "\0", pszDest, cw)
+        return pszDest
 
     @apihook("PathCanonicalize", argc=2)
     def PathCanonicalize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

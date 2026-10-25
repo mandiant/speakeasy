@@ -500,6 +500,47 @@ def test_path_append_keeps_the_path_for_a_leading_backslash(dll_emu: Speakeasy, 
 
 
 @pytest.mark.parametrize(
+    "directory, file, expected",
+    [
+        ("C:\\a\\b", "c.dll", "C:\\a\\b\\c.dll"),
+        ("C:\\a\\b\\", "c.dll", "C:\\a\\b\\c.dll"),
+        ("C:\\a\\b", "..\\c", "C:\\a\\c"),
+        ("C:\\a", ".\\b\\.\\c", "C:\\a\\b\\c"),
+        ("C:\\a", "D:\\x", "D:\\x"),
+        ("C:\\a\\b", "\\x", "C:\\x"),
+        ("C:\\a", "\\\\srv\\share", "\\\\srv\\share"),
+        ("C:\\a", "", "C:\\a"),
+        (None, "x\\y", "x\\y"),
+        ("", "x", "x"),
+        ("C:\\", "..\\x", "C:\\x"),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_path_combine_joins_and_canonicalizes(
+    dll_emu: Speakeasy, directory: str | None, file: str, expected: str, width: int
+) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 64 * width)
+    d = alloc(dll_emu, wstr(directory, width)) if directory is not None else 0
+    rv, _ = call(
+        dll_emu, "shlwapi", "PathCombine" + ("W" if width == 2 else "A"), [dest, d, alloc(dll_emu, wstr(file, width))]
+    )
+    assert rv == dest
+    assert dll_emu.mem_read(dest, (len(expected) + 1) * width) == wstr(expected, width)
+
+
+@pytest.mark.parametrize(
+    "directory, file", [(None, None), ("C:\\" + "a" * 200, "b" * 60)], ids=["both null", "too long"]
+)
+def test_path_combine_fails_with_an_empty_result(dll_emu: Speakeasy, directory: str | None, file: str | None) -> None:
+    dest = alloc(dll_emu, b"\xcc" * 8)
+    d = alloc(dll_emu, wstr(directory, 2)) if directory is not None else 0
+    f = alloc(dll_emu, wstr(file, 2)) if file is not None else 0
+    rv, _ = call(dll_emu, "shlwapi", "PathCombineW", [dest, d, f])
+    assert rv == 0
+    assert dll_emu.mem_read(dest, 2) == b"\x00\x00"
+
+
+@pytest.mark.parametrize(
     "path, relative",
     [("file.txt", True), ("..\\file.txt", True), ("", True), ("C:\\file.txt", False), ("\\\\srv\\share", False)],
 )
