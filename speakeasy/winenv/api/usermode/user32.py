@@ -7,6 +7,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
 import speakeasy.winenv.defs.windows.windef as windef
 import speakeasy.winenv.defs.windows.windows as windows
+from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api
 
@@ -171,6 +172,7 @@ class User32(api.ApiHandler):
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
         self.window_messages: dict[str, int] = {}
+        self.dialog_results: dict[int, int] = {}
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
         self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
@@ -1209,10 +1211,28 @@ class User32(api.ApiHandler):
         );
         """
         hInstance, lpTemplateName, hWndParent, lpDialogFunc, dwInitParam = argv
-        rv = self.get_handle()
         self.read_res_identifier(emu, ctx, "lpTemplateName", self.get_char_width(ctx), lpTemplateName)
+        if not lpDialogFunc:
+            return IDCANCEL
+        return self.run_dialog(self.get_handle(), lpDialogFunc, dwInitParam)
 
-        return rv
+    def run_dialog(self, hdlg, func, param):
+        # No user input arrives, so the dialog ends when the procedure calls EndDialog
+        # during WM_INITDIALOG, or else as if the user closed it
+        yield GuestCall(func, (hdlg, windefs.WM_INITDIALOG, 0, param))
+        return self.dialog_results.pop(hdlg, IDCANCEL)
+
+    @apihook("EndDialog", argc=2)
+    def EndDialog(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EndDialog(
+            HWND    hDlg,
+            INT_PTR nResult
+        );
+        """
+        hDlg, nResult = argv
+        self.dialog_results[hDlg] = nResult
+        return 1
 
     @apihook("CreateDialogIndirectParam", argc=5)
     def CreateDialogIndirectParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -3,12 +3,14 @@ User32 handlers return what Windows returns and write only what the caller owns.
 """
 
 import struct
+from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
+from tests.guest_harness import guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
 
@@ -84,6 +86,41 @@ def register_class(se: Speakeasy, name: bytes | int, wndproc: int) -> int:
 def test_dialog_box_param_takes_a_resource_id(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "user32", "DialogBoxParamA", [0, 101, 0, 0, 0])
     assert rv
+
+
+def run_dialog_box(config: dict[str, Any], end_dialog: bool) -> tuple[int, int, int]:
+    """
+    Run DialogBoxParamA with a dialog procedure that records its message and lParam and,
+    if end_dialog, calls EndDialog(hDlg, 0x1234). Return the result, the message and the lParam.
+    """
+    config["timeout"] = 2
+    config["max_api_count"] = 200
+    with Speakeasy(config=config) as se:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="x86"))
+        assert se.emu is not None
+        data = se.mem_alloc(0x1000)
+        proc = se.mem_alloc(0x1000)
+        code = b"\x8b\x44\x24\x08\xa3" + struct.pack("<I", data + 4)
+        code += b"\x8b\x44\x24\x10\xa3" + struct.pack("<I", data + 8)
+        if end_dialog:
+            code += b"\x68" + struct.pack("<I", 0x1234) + b"\xff\x74\x24\x08"
+            code += b"\xb8" + struct.pack("<I", se.emu.get_proc("user32", "EndDialog")) + b"\xff\xd0"
+        code += b"\xb8" + struct.pack("<I", int(end_dialog)) + b"\xc2\x10\x00"
+        se.mem_write(proc, code)
+        caller = se.mem_alloc(0x1000)
+        dialog_box = se.emu.get_proc("user32", "DialogBoxParamA")
+        se.mem_write(caller, guest_call(4, dialog_box, 0, 1, 0, proc, 0x55, store=data) + b"\xc3")
+        se.call(caller)
+        assert se.get_report().entry_points[-1].error is None
+        return struct.unpack("<III", se.mem_read(data, 12))
+
+
+def test_dialog_box_param_returns_the_end_dialog_result(config: dict[str, Any]) -> None:
+    assert run_dialog_box(config, end_dialog=True) == (0x1234, 0x110, 0x55)
+
+
+def test_dialog_box_param_returns_idcancel_without_end_dialog(config: dict[str, Any]) -> None:
+    assert run_dialog_box(config, end_dialog=False) == (2, 0x110, 0x55)
 
 
 def test_register_class_takes_a_class_atom(dll_emu: Speakeasy) -> None:
