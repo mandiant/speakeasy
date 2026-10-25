@@ -3742,6 +3742,37 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(cs, b"\x00" * (40 if self.get_ptr_size() == 8 else 24))
         return 1
 
+    @apihook("__std_exception_copy", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def __std_exception_copy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __std_exception_copy(
+            const __std_exception_data *from,
+            __std_exception_data *to
+        );
+        """
+        src, dst = argv
+        what = emu.read_ptr(src)
+        do_free = self.mem_read(src + self.get_ptr_size(), 1) != b"\x00"
+        if do_free and what:
+            what = self._strdup(emu, [what], ctx)
+        else:
+            do_free = False
+        emu.write_ptr(dst, what)
+        self.mem_write(dst + self.get_ptr_size(), bytes([do_free]))
+
+    @apihook("__std_exception_destroy", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __std_exception_destroy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __std_exception_destroy(
+            __std_exception_data *data
+        );
+        """
+        (data,) = argv
+        if self.mem_read(data + self.get_ptr_size(), 1) != b"\x00":
+            self.heap_free(emu.read_ptr(data))
+        emu.write_ptr(data, 0)
+        self.mem_write(data + self.get_ptr_size(), b"\x00")
+
     @apihook("__CxxFrameHandler", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

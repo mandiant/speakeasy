@@ -2120,3 +2120,39 @@ def test_thread_local_invalid_parameter_handler_is_per_thread(dll_emu: Speakeasy
     dll_emu.emu.curr_thread = first
     assert call(dll_emu, "msvcrt", "_set_thread_local_invalid_parameter_handler", [0])[0] == 0x401000
     assert call(dll_emu, "msvcrt", "_get_invalid_parameter_handler", [])[0] == 0
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_std_exception_copy_duplicates_an_owned_message(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    what = alloc(se, b"bad allocation\x00")
+    src = alloc(se, what.to_bytes(ptr_size, "little") + b"\x01" + b"\x00" * (ptr_size - 1))
+    dst = alloc(se, b"\x00" * ptr_size * 2 + b"\xcc")
+
+    call(se, "vcruntime140", "__std_exception_copy", [src, dst])
+    copy = int.from_bytes(se.mem_read(dst, ptr_size), "little")
+    assert copy not in (0, what)
+    assert se.mem_read(copy, 15) == b"bad allocation\x00"
+    assert se.mem_read(dst + ptr_size, ptr_size + 1) == b"\x01" + b"\x00" * (ptr_size - 1) + b"\xcc"
+
+    call(se, "vcruntime140", "__std_exception_destroy", [dst])
+    assert se.mem_read(dst, ptr_size * 2 + 1) == b"\x00" * ptr_size * 2 + b"\xcc"
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_std_exception_copy_shares_a_message_it_does_not_own(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    what = alloc(se, b"bad allocation\x00")
+    src = alloc(se, what.to_bytes(ptr_size, "little") + b"\x00" * ptr_size)
+    dst = alloc(se, b"\x00" * ptr_size * 2 + b"\xcc")
+
+    call(se, "vcruntime140", "__std_exception_copy", [src, dst])
+    assert se.mem_read(dst, ptr_size * 2 + 1) == what.to_bytes(ptr_size, "little") + b"\x00" * ptr_size + b"\xcc"
+
+    call(se, "vcruntime140", "__std_exception_destroy", [dst])
+    assert se.mem_read(dst, ptr_size * 2) == b"\x00" * ptr_size * 2
+    assert se.mem_read(what, 15) == b"bad allocation\x00"
