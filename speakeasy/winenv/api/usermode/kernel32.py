@@ -863,10 +863,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        obj_name = ""
-        if name:
-            obj_name = self.read_mem_string(name, cw)
-            ctx.args["lpName"].display = obj_name
+        if not name:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        obj_name = self.read_mem_string(name, cw)
+        ctx.args["lpName"].display = obj_name
 
         obj = self.get_object_from_name(obj_name)
 
@@ -874,7 +876,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if obj:
             hnd = emu.get_object_handle(obj)
         else:
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
         return hnd
 
     @apihook("TerminateProcess", argc=2)
@@ -4746,22 +4748,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         access, inherit, name = argv
 
-        cw = self.get_char_width(ctx)
-        evt_name = None
-        hnd = 0
-        if name:
-            evt_name = self.read_mem_string(name, cw)
-            ctx.args["lpName"].display = evt_name
+        if not name:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        evt_name = self.read_mem_string(name, self.get_char_width(ctx))
+        ctx.args["lpName"].display = evt_name
 
         obj = self.get_object_from_name(evt_name)
+        if not obj:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
 
-        if obj:
-            hnd = obj.get_handle()
-            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
-        else:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-
-        return hnd
+        return obj.get_handle()
 
     @apihook("SetEvent", argc=1)
     def SetEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -869,6 +869,33 @@ def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
+@pytest.mark.parametrize("api", ["OpenMutexA", "OpenEventA"])
+def test_open_fails_with_file_not_found_for_an_unknown_name(dll_emu: Speakeasy, api: str) -> None:
+    start_process(dll_emu)
+    name = alloc(dll_emu, b"Global\\nope\x00")
+    rv, _ = call(dll_emu, "kernel32", api, [0x100000, 0, name])
+    assert rv == 0
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+
+
+@pytest.mark.parametrize("cw", ["A", "W"])
+def test_open_event_opens_a_named_event(dll_emu: Speakeasy, cw: str) -> None:
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    assert emu is not None
+    name = alloc(dll_emu, "Global\\evt\x00".encode("utf-16le" if cw == "W" else "latin-1"))
+    created, _ = call(dll_emu, "kernel32", f"CreateEvent{cw}", [0, 1, 0, name])
+
+    assert call(dll_emu, "kernel32", f"OpenEvent{cw}", [0x1F0003, 0, 0])[0] == 0
+    assert emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+    emu.set_last_error(windefs.ERROR_SUCCESS)
+    opened, _ = call(dll_emu, "kernel32", f"OpenEvent{cw}", [0x1F0003, 0, name])
+    assert emu.get_object_from_handle(opened) is emu.get_object_from_handle(created)
+    assert emu.get_last_error() == windefs.ERROR_SUCCESS
+
+
 @pytest.mark.parametrize("feature, present", [(10, 1), (41, 0), (42, 0), (0x1000, 0)])
 def test_is_processor_feature_present_knows_unlisted_features(dll_emu: Speakeasy, feature: int, present: int) -> None:
     rv, _ = call(dll_emu, "kernel32", "IsProcessorFeaturePresent", [feature])
