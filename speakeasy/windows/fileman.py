@@ -32,6 +32,17 @@ DIRECTORY_ENV_VARS = (
 )
 
 
+NULL_DEVICE_PREFIXES = ("\\\\.\\", "\\??\\")
+
+
+def is_null_device(path):
+    for prefix in NULL_DEVICE_PREFIXES:
+        if path.startswith(prefix):
+            path = path[len(prefix) :]
+            break
+    return path.lower() == "nul"
+
+
 def get_path_key(path):
     return ntpath.normpath(path).rstrip("\\").lower()
 
@@ -213,6 +224,24 @@ class File:
             b = (byte).to_bytes(1, "little")
             return io.BytesIO(b * size)
         return io.BytesIO(b"")
+
+
+class NullDevice(File):
+    """
+    The NUL device: reads give no data and writes discard the data
+    """
+
+    def duplicate(self):
+        return NullDevice(self.allocator, self.path)
+
+    def get_data(self, size=-1, reset_pointer=False):
+        return b""
+
+    def add_data(self, data):
+        pass
+
+    def write_data(self, data):
+        pass
 
 
 class Pipe(File):
@@ -467,6 +496,8 @@ class FileManager:
         return get_path_key(self.get_full_path(path)) in self.get_directories()
 
     def does_file_exist(self, path):
+        if is_null_device(path):
+            return True
         if self.get_file_from_path(path):
             return True
 
@@ -497,6 +528,12 @@ class FileManager:
             return obj
 
     def file_open(self, path, create=False, truncate=False, is_dir=False):
+        if is_null_device(path):
+            f = NullDevice(self.emu.handle_allocator, path)
+            hnd = f.get_handle()
+            self.file_handles.update({hnd: f})
+            return hnd
+
         hnd = None
         path = self.get_full_path(path)
 

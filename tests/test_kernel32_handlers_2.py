@@ -15,7 +15,7 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.guest_harness import get_api, guest_call
-from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.handler_harness import alloc, call, load_emu, object_attributes, start_process
 from tests.pe_builder import build_pe
 
 
@@ -1726,3 +1726,32 @@ def test_format_message_fails_without_the_message_or_the_room(emu: Speakeasy, na
     flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
     assert format_message(emu, name, flags, 0, windefs.ERROR_FILE_NOT_FOUND, 0, size=8)[0] == 0
     assert last_error(emu) == windefs.ERROR_INSUFFICIENT_BUFFER
+
+
+@pytest.mark.parametrize("path", ["NUL", "\\\\.\\nul"])
+@pytest.mark.parametrize("disposition", [1, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING])
+def test_create_file_opens_the_null_device(strict_fs_emu: Speakeasy, path: str, disposition: int) -> None:
+    se = strict_fs_emu
+    hnd = open_file(se, path, disposition)
+    assert hnd != windefs.INVALID_HANDLE_VALUE
+
+    count = alloc(se, b"\xcc" * 4)
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"hello"), 5, count, 0])[0] == 1
+    assert se.mem_read(count, 4) == struct.pack("<I", 5)
+
+    buf = alloc(se, b"\x00" * 16)
+    assert call(se, "kernel32", "ReadFile", [hnd, buf, 16, count, 0])[0] == 1
+    assert se.mem_read(count, 4) == struct.pack("<I", 0)
+
+    assert call(se, "kernel32", "GetFileType", [hnd])[0] == 2
+    assert se.get_dropped_files() == []
+
+
+def test_nt_open_file_opens_the_null_device(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    phnd = alloc(se, b"\x00" * 4)
+    iosb = alloc(se, b"\x00" * 8)
+    rv, _ = call(se, "ntdll", "NtOpenFile", [phnd, GENERIC_READ, object_attributes(se, "\\??\\NUL"), iosb, 3, 0])
+    assert rv == 0
+    assert se.emu is not None
+    assert se.emu.file_get(struct.unpack("<I", se.mem_read(phnd, 4))[0]) is not None

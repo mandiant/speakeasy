@@ -11,6 +11,7 @@ import zlib
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
+import speakeasy.windows.fileman as fileman
 import speakeasy.windows.objman as objman
 import speakeasy.windows.seh as seh
 import speakeasy.windows.thread_context as thread_context
@@ -3368,6 +3369,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         proc = emu.get_current_process()
         if hFile in (proc.stdin, proc.stdout, proc.stderr):
+            return FILE_TYPE_CHAR
+        if isinstance(self.file_get(hFile), fileman.NullDevice):
             return FILE_TYPE_CHAR
         if emu.pipe_get(hFile):
             return FILE_TYPE_PIPE
