@@ -1141,12 +1141,27 @@ def put_with(api: str) -> Callable[[Speakeasy, int], None]:
         elif api == "__stdio_common_vfprintf":
             va = alloc(se, struct.pack("<II", alloc(se, b"id\x00"), 7))
             call(se, "msvcrt", api, [0, 0, stream, alloc(se, b"%s=%d\x00"), 0, va])
+        elif api in ("__stdio_common_vfwprintf", "_o___stdio_common_vfwprintf"):
+            va = alloc(se, struct.pack("<II", alloc(se, "id\x00".encode("utf-16le")), 7))
+            assert call(se, "msvcrt", api, [0x24, 0, stream, alloc(se, "%s=%d\x00".encode("utf-16le")), 0, va])[0] == 4
 
     return write
 
 
 @pytest.mark.parametrize(
-    "api", ["fputs", "fputc", "fputws", "fputwc", "fprintf", "fwprintf", "vfprintf", "__stdio_common_vfprintf"]
+    "api",
+    [
+        "fputs",
+        "fputc",
+        "fputws",
+        "fputwc",
+        "fprintf",
+        "fwprintf",
+        "vfprintf",
+        "__stdio_common_vfprintf",
+        "__stdio_common_vfwprintf",
+        "_o___stdio_common_vfwprintf",
+    ],
 )
 def test_text_output_reaches_a_file_stream(dll_emu: Speakeasy, api: str) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\run.bat\x00")

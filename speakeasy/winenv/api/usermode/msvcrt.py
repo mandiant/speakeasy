@@ -1208,6 +1208,17 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__stdio_common_vfprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def __stdio_common_vfprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.stdio_common_vfprintf(emu, ctx, 1)
+
+    @apihook("__stdio_common_vfwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def __stdio_common_vfwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.stdio_common_vfprintf(emu, ctx, 2)
+
+    def stdio_common_vfprintf(self, emu, ctx, width):
+        """
+        Format to a stream for __stdio_common_vfprintf and __stdio_common_vfwprintf. The
+        64-bit options argument takes two slots on x86.
+        """
         arch = emu.get_arch()
         if arch == e_arch.ARCH_AMD64:
             opts, stream, fmt, _, va_list = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 5)[:5]
@@ -1216,11 +1227,11 @@ class Msvcrt(api.ApiHandler):
 
         rv = 0
 
-        fmt_str = self.read_mem_string(fmt, 1)
+        fmt_str = self.read_mem_string(fmt, width)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         vargs = self.va_args(va_list, fmt_cnt)
-        fin = self.do_str_format(fmt_str, vargs)
+        fin = self.do_str_format(fmt_str, vargs, wide=width == 2)
 
         ctx.args.clear()
         ctx.args.append(hex(opts))
