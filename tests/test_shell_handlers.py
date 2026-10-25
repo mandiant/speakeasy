@@ -62,6 +62,44 @@ def test_str_str_returns_null_for_null_args(dll_emu: Speakeasy, api: str) -> Non
 
 
 @pytest.mark.parametrize(
+    "api, text, match, index",
+    [
+        ("StrChr", "a\\b\\c", "\\", 1),
+        ("StrChr", "Hello", "L", None),
+        ("StrChrI", "Hello", "L", 2),
+        ("StrChr", "abc", "\0", None),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_str_chr_returns_the_first_match(
+    dll_emu: Speakeasy, api: str, text: str, match: str, index: int | None, width: int
+) -> None:
+    p = alloc(dll_emu, wstr(text, width))
+    rv, _ = call(dll_emu, "shlwapi", api + ("W" if width == 2 else "A"), [p, ord(match)])
+    assert rv == (0 if index is None else p + index * width)
+
+
+@pytest.mark.parametrize(
+    "api, text, end, match, index",
+    [
+        ("StrRChrI", "a\\b\\c", None, "\\", 3),
+        ("StrRChr", "a\\b\\c", 3, "\\", 1),
+        ("StrRChr", "HelLo", None, "l", 2),
+        ("StrRChrI", "HelLo", None, "l", 3),
+        ("StrRChr", "abc", None, "x", None),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_str_r_chr_returns_the_last_match_before_the_end(
+    dll_emu: Speakeasy, api: str, text: str, end: int | None, match: str, index: int | None, width: int
+) -> None:
+    p = alloc(dll_emu, wstr(text, width))
+    end_ptr = 0 if end is None else p + end * width
+    rv, _ = call(dll_emu, "shlwapi", api + ("W" if width == 2 else "A"), [p, end_ptr, ord(match)])
+    assert rv == (0 if index is None else p + index * width)
+
+
+@pytest.mark.parametrize(
     "api, path, index",
     [
         ("PathFindExtension", "C:\\dir\\file.txt", 11),

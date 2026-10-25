@@ -120,6 +120,73 @@ class Shlwapi(api.ApiHandler):
 
         return ret
 
+    def find_char(self, start, end, match, cw, ignore_case, last):
+        """Return the address of the first or last ``match`` in [start, end), or 0."""
+        if not start:
+            return 0
+        match = chr(match & (0xFFFF if cw == 2 else 0xFF))
+        if ignore_case:
+            match = match.lower()
+        found = 0
+        addr = start
+        while not end or addr < end:
+            unit = int.from_bytes(self.mem_read(addr, cw), "little")
+            if not unit:
+                break
+            char = chr(unit).lower() if ignore_case else chr(unit)
+            if char == match:
+                found = addr
+                if not last:
+                    break
+            addr += cw
+        return found
+
+    @apihook("StrChr", argc=2)
+    def StrChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PCSTR StrChr(
+            PCSTR pszStart,
+            WORD  wMatch
+        );
+        """
+        start, match = argv
+        return self.find_char(start, 0, match, self.get_char_width(ctx), False, False)
+
+    @apihook("StrChrI", argc=2)
+    def StrChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PCSTR StrChrI(
+            PCSTR pszStart,
+            WORD  wMatch
+        );
+        """
+        start, match = argv
+        return self.find_char(start, 0, match, self.get_char_width(ctx), True, False)
+
+    @apihook("StrRChr", argc=3)
+    def StrRChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PCSTR StrRChr(
+            PCSTR pszStart,
+            PCSTR pszEnd,
+            WORD  wMatch
+        );
+        """
+        start, end, match = argv
+        return self.find_char(start, end, match, self.get_char_width(ctx), False, True)
+
+    @apihook("StrRChrI", argc=3)
+    def StrRChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PCSTR StrRChrI(
+            PCSTR pszStart,
+            PCSTR pszEnd,
+            WORD  wMatch
+        );
+        """
+        start, end, match = argv
+        return self.find_char(start, end, match, self.get_char_width(ctx), True, True)
+
     @apihook("PathFindExtension", argc=1)
     def PathFindExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """LPCSTR PathFindExtensionA(
