@@ -705,6 +705,38 @@ def test_convert_sid_to_string_sid_allocates_the_string(dll_emu: Speakeasy, api:
     assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
 
 
+SE_KERNEL_OBJECT = 6
+DACL_SECURITY_INFORMATION = 4
+
+
+def test_get_security_info_rejects_a_null_handle(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    dacl = alloc(dll_emu, b"\xcc" * 4)
+    sd = alloc(dll_emu, b"\xcc" * 4)
+    argv = [0, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, dacl, 0, sd]
+    assert call(dll_emu, "advapi32", "GetSecurityInfo", argv)[0] == windefs.ERROR_INVALID_HANDLE
+    assert dll_emu.mem_read(dacl, 4) == b"\xcc" * 4
+    assert dll_emu.mem_read(sd, 4) == b"\xcc" * 4
+
+
+def test_get_security_info_reports_no_descriptor_for_a_handle(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    dacl = alloc(dll_emu, b"\xcc" * 4)
+    sd = alloc(dll_emu, b"\xcc" * 4)
+    argv = [0xFFFFFFFF, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, dacl, 0, sd]
+    assert call(dll_emu, "advapi32", "GetSecurityInfo", argv)[0] == windefs.ERROR_SUCCESS
+    assert dll_emu.mem_read(dacl, 4) == b"\x00" * 4
+    assert dll_emu.mem_read(sd, 4) == b"\x00" * 4
+
+
+@pytest.mark.parametrize("handle, rv", [(0, windefs.ERROR_INVALID_HANDLE), (0xFFFFFFFF, windefs.ERROR_SUCCESS)])
+def test_set_security_info_checks_the_handle(dll_emu: Speakeasy, handle: int, rv: int) -> None:
+    start_process(dll_emu)
+    acl = alloc(dll_emu, struct.pack("<BBHHH", 2, 0, 8, 0, 0))
+    argv = [handle, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, acl, 0]
+    assert call(dll_emu, "advapi32", "SetSecurityInfo", argv)[0] == rv
+
+
 @pytest.mark.parametrize(
     "second_entry",
     [

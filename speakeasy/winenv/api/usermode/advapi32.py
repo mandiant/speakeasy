@@ -1209,6 +1209,47 @@ class AdvApi32(api.ApiHandler):
             rv = 0
         return rv
 
+    @apihook("GetSecurityInfo", argc=8)
+    def GetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetSecurityInfo(
+          HANDLE               handle,
+          SE_OBJECT_TYPE       ObjectType,
+          SECURITY_INFORMATION SecurityInfo,
+          PSID                 *ppsidOwner,
+          PSID                 *ppsidGroup,
+          PACL                 *ppDacl,
+          PACL                 *ppSacl,
+          PSECURITY_DESCRIPTOR *ppSecurityDescriptor
+        );
+        """
+        handle = argv[0]
+        if not handle:
+            return windefs.ERROR_INVALID_HANDLE
+        # Objects carry no security descriptor, so every requested part is NULL
+        for out in argv[3:]:
+            if out:
+                self.mem_write(out, b"\x00" * self.get_ptr_size())
+        return windefs.ERROR_SUCCESS
+
+    @apihook("SetSecurityInfo", argc=7)
+    def SetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD SetSecurityInfo(
+          HANDLE               handle,
+          SE_OBJECT_TYPE       ObjectType,
+          SECURITY_INFORMATION SecurityInfo,
+          PSID                 psidOwner,
+          PSID                 psidGroup,
+          PACL                 pDacl,
+          PACL                 pSacl
+        );
+        """
+        handle = argv[0]
+        if not handle:
+            return windefs.ERROR_INVALID_HANDLE
+        return windefs.ERROR_SUCCESS
+
     @apihook("CryptReleaseContext", argc=2)
     def CryptReleaseContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
