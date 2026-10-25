@@ -2710,6 +2710,41 @@ class Msvcrt(api.ApiHandler):
 
         return 0
 
+    def open_pipe(self, argv, width, ctx):
+        """
+        Give a pipe stream for a command that the emulator does not run. Reads
+        are at end of file and writes are discarded.
+        """
+        command, mode = argv
+        mode_str = self.read_mem_string(mode, width) if mode else ""
+        if not command or mode_str[:1] not in ("r", "w"):
+            self.set_errno(EINVAL)
+            return 0
+
+        ctx.args[0].display = self.read_mem_string(command, width)
+        ctx.args[1].display = mode_str
+        return self.new_stream(self.new_fd(0), None, "api.msvcrt._popen")
+
+    @apihook("_popen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _popen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_popen(const char *command, const char *mode);"""
+        return self.open_pipe(argv, 1, ctx)
+
+    @apihook("_wpopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wpopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_wpopen(const wchar_t *command, const wchar_t *mode);"""
+        return self.open_pipe(argv, 2, ctx)
+
+    @apihook("_pclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _pclose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _pclose(FILE *stream);"""
+        (stream,) = argv
+        fd = self.get_stream_fd(stream)
+        if fd is None or self.fds.get(fd) != 0:
+            self.set_errno(EINVAL)
+            return -1
+        return self.fclose(emu, argv, ctx)
+
     @apihook("toupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def toupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

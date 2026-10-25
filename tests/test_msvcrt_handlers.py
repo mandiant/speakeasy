@@ -1583,6 +1583,32 @@ def test_system_reports_success(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "system", [0])[0] != 0
 
 
+@pytest.mark.parametrize(("api", "enc"), [("_popen", "utf-8"), ("_wpopen", "utf-16le")])
+def test_popen_reads_nothing_and_closes_with_pclose(dll_emu: Speakeasy, api: str, enc: str) -> None:
+    command = "cmd.exe /c dir"
+    stream, args = call(
+        dll_emu, "msvcrt", api, [alloc(dll_emu, (command + "\0").encode(enc)), alloc(dll_emu, "rt\0".encode(enc))]
+    )
+    assert stream and command in args.values()
+    buf = alloc(dll_emu, b"\x00" * 128)
+    assert call(dll_emu, "msvcrt", "fgets", [buf, 128, stream])[0] == 0
+    assert call(dll_emu, "msvcrt", "fread", [buf, 1, 128, stream])[0] == 0
+    assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == 0
+    assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == -1
+
+
+def test_popen_write_mode_discards_the_data(dll_emu: Speakeasy) -> None:
+    stream, _ = call(dll_emu, "msvcrt", "_popen", [alloc(dll_emu, b"sort\x00"), alloc(dll_emu, b"w\x00")])
+    assert call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"abc"), 1, 3, stream])[0] == 3
+    assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == 0
+
+
+def test_popen_rejects_a_bad_mode_and_pclose_an_unknown_stream(dll_emu: Speakeasy) -> None:
+    assert call(dll_emu, "msvcrt", "_popen", [alloc(dll_emu, b"dir\x00"), alloc(dll_emu, b"a\x00")])[0] == 0
+    assert call(dll_emu, "msvcrt", "_popen", [0, alloc(dll_emu, b"r\x00")])[0] == 0
+    assert call(dll_emu, "msvcrt", "_pclose", [0])[0] == -1
+
+
 @pytest.fixture
 def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
     config["filesystem"]["files"] = [f for f in config["filesystem"]["files"] if f["mode"] == "full_path"]
