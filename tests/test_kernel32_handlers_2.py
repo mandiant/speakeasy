@@ -15,6 +15,7 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.pe_builder import build_pe
 
 
 @pytest.fixture
@@ -553,6 +554,25 @@ def test_global_memory_status_fills_the_struct(request: pytest.FixtureRequest, f
     assert 0 < avail_phys <= total_phys
     assert 0 < avail_page <= total_page
     assert 0 < avail_virt <= total_virt
+
+
+@pytest.mark.parametrize("large_address_aware", [False, True])
+def test_global_memory_status_clamps_for_a_32_bit_image(config: dict[str, Any], large_address_aware: bool) -> None:
+    image = bytearray(build_pe(32)[0])
+    if large_address_aware:
+        image[0x96] |= 0x20
+    for se in load_emu(config, bytes(image)):
+        start_process(se)
+        status = alloc(se, b"\x00" * 32)
+        call(se, "kernel32", "GlobalMemoryStatus", [status])
+        _, _, total_phys, avail_phys, total_page, _, total_virt, avail_virt = struct.unpack(
+            "<8I", se.mem_read(status, 32)
+        )
+        limit = 0xFFFFFFFF if large_address_aware else 0x7FFFFFFF
+        assert total_phys == limit
+        assert avail_phys <= limit
+        assert total_virt <= limit and avail_virt <= total_virt
+        assert total_page == 0xFFFFFFFF
 
 
 def test_get_disk_free_space_ex_writes_the_sizes(emu: Speakeasy) -> None:

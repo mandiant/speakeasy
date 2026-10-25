@@ -50,6 +50,7 @@ FILE_MAP_READ = 0x0004
 FILE_MAP_EXECUTE = 0x0020
 FILE_MAP_ALL_ACCESS = 0xF001F
 
+IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020
 
 RSMB_PROVIDER = 0x52534D42
 
@@ -6522,10 +6523,24 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         GB = 1024 * 1024 * 1024
         total_virtual = 0x7FFE0000 if emu.get_ptr_size() == 4 else 0x7FFFFFFE0000
         sizes = [8 * GB, 5 * GB, 8 * GB, 4 * GB, total_virtual, total_virtual - 0x10000000]
+        limits = [self.get_max_int()] * len(sizes)
+        if emu.get_ptr_size() == 4 and not self.is_large_address_aware(emu):
+            # Windows reports at most 2 GB of memory and address space to these images
+            limits[0:2] = limits[4:6] = [0x7FFFFFFF] * 2
         fmt = "<II" + ("I" if emu.get_ptr_size() == 4 else "Q") * len(sizes)
-        buf = struct.pack(fmt, struct.calcsize(fmt), 80, *(min(n, self.get_max_int()) for n in sizes))
+        buf = struct.pack(fmt, struct.calcsize(fmt), 80, *(min(n, lim) for n, lim in zip(sizes, limits)))
         emu.mem_write(lpBuffer, buf)
         return
+
+    def is_large_address_aware(self, emu):
+        proc = emu.get_current_process()
+        base = proc.base if proc else 0
+        if not base or not emu.is_address_valid(base + 0x3C):
+            return False
+        characteristics = base + int.from_bytes(emu.mem_read(base + 0x3C, 4), "little") + 0x16
+        if not emu.is_address_valid(characteristics):
+            return False
+        return bool(int.from_bytes(emu.mem_read(characteristics, 2), "little") & IMAGE_FILE_LARGE_ADDRESS_AWARE)
 
     @apihook("GlobalMemoryStatusEx", argc=1)
     def GlobalMemoryStatusEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
