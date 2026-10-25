@@ -520,6 +520,46 @@ def test_http_query_info_status_code(
     assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == length
 
 
+@pytest.mark.parametrize("name, encoding", [("HttpQueryInfoA", "utf-8"), ("HttpQueryInfoW", "utf-16le")])
+@pytest.mark.parametrize(
+    "level, text",
+    [
+        (22, "HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n"),
+        (21, "HTTP/1.1 200 OK\0Content-Length: 4096\0\0"),
+        (5, "4096"),
+    ],
+)
+def test_http_query_info_gives_the_response_headers(
+    dll_emu: Speakeasy, name: str, encoding: str, level: int, text: str
+) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    req = _wininet_request(dll_emu, b"GET", b"/index")
+    out = (text + "\0").encode(encoding)
+    width = len("\0".encode(encoding))
+
+    buf_len = alloc(dll_emu, struct.pack("<I", 0))
+    assert call(dll_emu, "wininet", name, [req, level, 0, buf_len, 0])[0] == 0
+    assert dll_emu.emu.get_last_error() == 122
+    assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == len(out)
+
+    buf = alloc(dll_emu, b"\xcc" * len(out))
+    assert call(dll_emu, "wininet", name, [req, level, buf, buf_len, 0])[0] == 1
+    assert dll_emu.mem_read(buf, len(out)) == out
+    assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == len(out) - width
+
+
+def test_http_query_info_fails_for_a_missing_header(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    req = _wininet_request(dll_emu, b"GET", b"/index")
+    buf = alloc(dll_emu, b"\xcc" * 64)
+    buf_len = alloc(dll_emu, struct.pack("<I", 64))
+    assert call(dll_emu, "wininet", "HttpQueryInfoA", [req, 33, buf, buf_len, 0])[0] == 0
+    assert dll_emu.emu.get_last_error() == 12150
+    assert dll_emu.mem_read(buf, 64) == b"\xcc" * 64
+
+
 def test_gethostbyname_ignores_case(dll_emu: Speakeasy) -> None:
     name = alloc(dll_emu, b"Google.COM\x00")
     hostent, _ = call(dll_emu, "ws2_32", "gethostbyname", [name])

@@ -354,24 +354,33 @@ class Wininet(api.ApiHandler):
             ctx.args["dwInfoLevel"].display = info_str
 
         if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
-            if as_number:
-                out = int(windefs.HTTP_STATUS_OK).to_bytes(4, "little")
-                out_len = len(out)
-            else:
-                out = (windefs.HTTP_STATUS_OK + "\x00").encode(self.get_encoding(cw))
-                out_len = len(out) - cw
-            if not lpBuffer or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
-                self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
-                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            text = windefs.HTTP_STATUS_OK
+        else:
+            req = self.netman.get_wininet_object(hRequest)
+            if not isinstance(req, netman.WininetRequest):
+                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
                 return False
-            self.mem_write(lpBuffer, out)
-            self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
-            return True
+            text = windefs.get_header_text(header_id, req.get_response_headers())
+            if text is None:
+                emu.set_last_error(windefs.ERROR_HTTP_HEADER_NOT_FOUND)
+                return False
 
-        if not lpBuffer:
+        if as_number:
+            if not text.isdigit():
+                emu.set_last_error(windefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
+                return False
+            out = int(text).to_bytes(4, "little")
+            out_len = len(out)
+        else:
+            out = (text + "\x00").encode(self.get_encoding(cw))
+            out_len = len(out) - cw
+        if not lpBuffer or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
+            self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-
-        return False
+            return False
+        self.mem_write(lpBuffer, out)
+        self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
+        return True
 
     @apihook("InternetQueryDataAvailable", argc=4)
     def InternetQueryDataAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
