@@ -503,6 +503,29 @@ def test_tls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
 
 
+@pytest.mark.parametrize("index", [5, 63, 64, 1087])
+def test_tls_accepts_an_index_that_tls_alloc_did_not_return(dll_emu: Speakeasy, index: int) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    dll_emu.emu.set_last_error(0xDEAD)
+    assert call(dll_emu, "kernel32", "TlsGetValue", [index])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
+    assert call(dll_emu, "kernel32", "TlsSetValue", [index, 0x1234])[0] == 1
+    dll_emu.emu.set_last_error(0xDEAD)
+    assert call(dll_emu, "kernel32", "TlsGetValue", [index])[0] == 0x1234
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
+
+
+def test_tls_rejects_an_index_past_the_expansion_slots(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    assert call(dll_emu, "kernel32", "TlsSetValue", [1088, 0x1234])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    dll_emu.emu.set_last_error(0)
+    assert call(dll_emu, "kernel32", "TlsGetValue", [1088])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+
+
 def lcmap_argv(api: str, src: int, cch_src: int, dst: int, cch_dst: int) -> list[int]:
     if api == "LCMapStringEx":
         return [0, 0, src, cch_src, dst, cch_dst, 0, 0, 0]

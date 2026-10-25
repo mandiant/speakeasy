@@ -52,6 +52,9 @@ FILE_MAP_ALL_ACCESS = 0xF001F
 
 IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020
 
+# TLS_MINIMUM_AVAILABLE + TLS_EXPANSION_SLOTS
+TLS_SLOT_COUNT = 64 + 1024
+
 RSMB_PROVIDER = 0x52534D42
 
 
@@ -2617,7 +2620,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.tls
 
-        if dwTlsIndex < self.tls_count:
+        if dwTlsIndex < TLS_SLOT_COUNT:
             tls.extend([0] * (dwTlsIndex + 1 - len(tls)))
             tls[dwTlsIndex] = lpTlsValue
             thread.tls = tls
@@ -2642,7 +2645,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         thread = emu.get_current_thread()
         tls = thread.tls
 
-        if dwTlsIndex < self.tls_count:
+        if dwTlsIndex < TLS_SLOT_COUNT:
             if dwTlsIndex < len(tls):
                 rv = tls[dwTlsIndex]
             emu.set_last_error(windefs.ERROR_SUCCESS)
