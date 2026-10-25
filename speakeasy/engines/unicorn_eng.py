@@ -207,6 +207,9 @@ class EmuEngine:
 
         self.emu = uc.Uc(_arch, _mode)
         self.mode = _mode
+        # A probe creates a Unicorn instance, and that can make a running start with a timeout
+        # stop as timed out. Probe now, while nothing runs.
+        get_tsc_offset_location(_mode)
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
         """Allocate memory in the cpu engine"""

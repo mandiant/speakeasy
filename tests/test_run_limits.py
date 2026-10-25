@@ -9,7 +9,7 @@ import unicorn as uc
 import speakeasy.winenv.arch as arch
 from speakeasy import Speakeasy
 from speakeasy.engines.start_timer import StartTimer
-from speakeasy.engines.unicorn_eng import EmuEngine
+from speakeasy.engines.unicorn_eng import EmuEngine, get_exception_state_offset, get_tsc_offset_location
 
 
 def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
@@ -86,6 +86,18 @@ def test_engine_timeout_stops_a_native_loop():
     started = time.monotonic()
     eng.start(0x1002, timeout=10)
     assert time.monotonic() - started < 1
+
+
+def test_engine_probes_the_cpu_context_before_it_starts():
+    # Unicorn stops an instance that runs with a timeout, as timed out, when another
+    # instance initializes, so the probes cannot run from a hook.
+    get_exception_state_offset.cache_clear()
+    get_tsc_offset_location.cache_clear()
+    eng = EmuEngine()
+    eng.init_engine(arch.ARCH_X86, arch.BITS_64)
+
+    assert get_exception_state_offset.cache_info().currsize == 1
+    assert get_tsc_offset_location.cache_info().currsize == 1
 
 
 def test_start_timer_repeats_a_stop_that_is_lost():
