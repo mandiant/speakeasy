@@ -654,6 +654,16 @@ def test_load_string_reads_the_string_table(config: dict, api: str, uid: int, rv
         assert (result, se.mem_read(buf, len(out))) == (rv, out)
 
 
+def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
+    for se in load_emu(config, build_string_table_pe()):
+        assert se.emu is not None
+        base = se.emu.modules[0].base
+        se.mem_write(base + 0x2060, b"\0\0" + struct.pack("<H", 3) + "abc".encode("utf-16le") + b"\0\0" * 14)
+        buf = alloc(se, b"\xcc" * 32)
+        result, _ = call(se, "user32", "LoadStringW", [base, 17, buf, 16])
+        assert (result, se.mem_read(buf, 8)) == (3, "abc\x00".encode("utf-16le"))
+
+
 def test_register_window_message_gives_one_id_per_name(dll_emu: Speakeasy) -> None:
     def register(text: bytes) -> int:
         return call(dll_emu, "user32", "RegisterWindowMessageA", [alloc(dll_emu, text + b"\0")])[0]

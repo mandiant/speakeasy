@@ -35,6 +35,8 @@ IDI_WINLOGO = 32517
 
 UOI_FLAGS = 1
 
+RT_STRING = 6
+
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
@@ -235,10 +237,24 @@ class User32(api.ApiHandler):
         return wparam, vkey
 
     def find_string_resource_by_id(self, pe, uID):
+        """Read string uID from its RT_STRING block in the mapped image, which a packer may have written."""
         pe_metadata = pe.get_pe_metadata()
         if not pe_metadata:
             return None
-        return pe_metadata.string_table.get(uID)
+        block = uID // 16 + 1
+        entry = next((r for r in pe_metadata.resources if r.type_id == RT_STRING and r.id == block), None)
+        if not entry:
+            return None
+        data = self.mem_read(pe.base + entry.data_rva, entry.size)
+        offset = 0
+        for _ in range(uID % 16):
+            if offset + 2 > len(data):
+                return None
+            offset += 2 + int.from_bytes(data[offset : offset + 2], "little") * 2
+        if offset + 2 > len(data):
+            return None
+        length = int.from_bytes(data[offset : offset + 2], "little")
+        return data[offset + 2 : offset + 2 + length * 2].decode("utf-16le", errors="replace")
 
     @apihook("GetDesktopWindow", argc=0)
     def GetDesktopWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

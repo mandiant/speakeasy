@@ -11,6 +11,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, load_emu, object_attributes, unicode_string
+from tests.test_user32_handlers import build_string_table_pe
 
 
 def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
@@ -685,19 +686,17 @@ def test_vsprintf_s_overflow_leaves_an_empty_string(driver_emu: Speakeasy, count
 @pytest.mark.parametrize(
     "api, count, rv, out",
     [
-        ("LoadStringA", 16, 5, b"hello\x00"),
-        ("LoadStringA", 4, 3, b"hel\x00"),
-        ("LoadStringW", 4, 3, "hel\x00".encode("utf-16le")),
+        ("LoadStringA", 16, 7, b"tenfour\x00"),
+        ("LoadStringA", 4, 3, b"ten\x00"),
+        ("LoadStringW", 4, 3, "ten\x00".encode("utf-16le")),
     ],
 )
-def test_load_string_counts_characters(dll_emu: Speakeasy, api: str, count: int, rv: int, out: bytes) -> None:
-    emu = dll_emu.emu
-    assert emu is not None
-    emu.modules[0].get_pe_metadata().string_table[7] = "hello"
-    buf = alloc(dll_emu, b"\xcc" * 32)
-    result, displays = call(dll_emu, "user32", api, [0, 7, buf, count])
-    assert (result, dll_emu.mem_read(buf, len(out))) == (rv, out)
-    assert displays["lpBuffer"] == out.decode("utf-16le" if api.endswith("W") else "utf-8").rstrip("\x00")
+def test_load_string_counts_characters(config: dict[str, Any], api: str, count: int, rv: int, out: bytes) -> None:
+    for se in load_emu(config, build_string_table_pe()):
+        buf = alloc(se, b"\xcc" * 32)
+        result, displays = call(se, "user32", api, [0, 17, buf, count])
+        assert (result, se.mem_read(buf, len(out))) == (rv, out)
+        assert displays["lpBuffer"] == out.decode("utf-16le" if api.endswith("W") else "utf-8").rstrip("\x00")
 
 
 @pytest.mark.parametrize(

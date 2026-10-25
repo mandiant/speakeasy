@@ -51,7 +51,6 @@ class PeMetadata:
     machine: int
     magic: int
     resources: list[ResourceEntry] = field(default_factory=list)
-    string_table: dict[int, str] = field(default_factory=dict)  # For LoadString
 
 
 @dataclass
@@ -625,10 +624,6 @@ class PeLoader:
                         res_id = str(resource_id.name)
                     else:
                         res_id = resource_id.struct.Id
-
-                    # Handle string table specifically for LoadString
-                    if type_id == 6 and hasattr(resource_id, "directory"):  # RT_STRING
-                        pe_metadata.string_table.update(getattr(resource_id.directory, "strings", {}))
 
                     # Regular resource entry
                     if hasattr(resource_id, "directory"):
