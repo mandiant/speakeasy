@@ -123,6 +123,15 @@ class ExceptionApis:
         """
         return is_amd64(emu) and seh64.delete_function_table(emu, argv[0])
 
+    @apihook("RtlPcToFileHeader", argc=2)
+    def RtlPcToFileHeader(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """PVOID RtlPcToFileHeader(PVOID PcValue, PVOID *BaseOfImage);"""
+        pc, base_out = argv
+        mod = emu.get_mod_from_addr(pc)
+        base = mod.base if mod else 0
+        self.mem_write(base_out, base.to_bytes(self.get_ptr_size(), "little"))
+        return base
+
     @apihook("RtlLookupFunctionEntry", argc=3)
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

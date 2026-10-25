@@ -49,15 +49,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.write_mem_string(text + "\0", out, cw)
         return out + len(text) * cw
 
-    @apihook("RtlPcToFileHeader", argc=2)
-    def RtlPcToFileHeader(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """PVOID RtlPcToFileHeader(PVOID PcValue, PVOID *BaseOfImage);"""
-        pc, base_out = argv
-        mod = emu.get_mod_from_addr(pc)
-        base = mod.base if mod else 0
-        self.mem_write(base_out, base.to_bytes(self.get_ptr_size(), "little"))
-        return base
-
     @apihook("RtlIpv4AddressToStringA", argc=2)
     def RtlIpv4AddressToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """PSTR RtlIpv4AddressToStringA(const IN_ADDR *Addr, PSTR S);"""
