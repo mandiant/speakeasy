@@ -588,6 +588,13 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         return ddk.STATUS_SUCCESS
 
+    @apihook("RtlDllShutdownInProgress", argc=0)
+    def RtlDllShutdownInProgress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOLEAN RtlDllShutdownInProgress(VOID);
+        """
+        return False
+
     @apihook("NtCreateThreadEx", argc=11)
     def NtCreateThreadEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

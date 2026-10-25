@@ -863,6 +863,16 @@ def test_rtl_disown_module_heap_allocation_succeeds(request: pytest.FixtureReque
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_rtl_dll_shutdown_in_progress_is_false_while_the_process_runs(
+    request: pytest.FixtureRequest, fixture: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    rv, _ = call(se, "ntdll", "RtlDllShutdownInProgress", [])
+    assert rv == 0
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
