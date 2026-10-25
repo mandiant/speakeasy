@@ -45,3 +45,29 @@ def test_query_process_debug_object_handle_writes_a_null_handle(dll64_emu: Speak
     rv, info, _ = query(dll64_emu, ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle, 8)
     assert rv == ddk.STATUS_PORT_NOT_SET
     assert info[:8] == b"\x00" * 8
+
+
+@pytest.mark.parametrize("fixture, bits", [("dll_emu", 32), ("dll64_emu", 64)])
+def test_query_process_basic_information(request: pytest.FixtureRequest, fixture: str, bits: int) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    ptr = bits // 8
+    size = 6 * ptr
+    proc = se.emu.get_current_process()
+
+    rv, info, retlen = query(se, ddk.PROCESSINFOCLASS.ProcessBasicInformation, size)
+    assert rv == ddk.STATUS_SUCCESS
+    assert retlen == size
+    fmt = "<" + ("I" if bits == 32 else "Q") * 6
+    exit_status, peb, affinity, priority, pid, parent = struct.unpack(fmt, info[:size])
+    assert exit_status == 0x103
+    assert peb == proc.peb.address
+    assert affinity == 1
+    assert priority == 8
+    assert pid == proc.pid
+    explorer = [p for p in se.emu.get_processes() if p.name.lower() == "explorer"]
+    assert parent == explorer[0].pid
+
+    rv, info, _ = query(se, ddk.PROCESSINFOCLASS.ProcessBasicInformation, size - 1)
+    assert rv == ddk.STATUS_INFO_LENGTH_MISMATCH
+    assert info[:size] == b"\xcc" * size

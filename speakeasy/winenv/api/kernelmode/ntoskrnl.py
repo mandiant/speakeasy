@@ -2651,6 +2651,18 @@ class Ntoskrnl(api.ApiHandler):
                     # Send back that we are not in WOW64
                     self.mem_write(proc_info, (0).to_bytes(ptr_size, "little"))
                     nts = ddk.STATUS_SUCCESS
+            elif info_class == ddk.PROCESSINFOCLASS.ProcessBasicInformation:
+                size = 6 * ptr_size
+                if proc_info_len < size:
+                    nts = ddk.STATUS_INFO_LENGTH_MISMATCH
+                else:
+                    peb = getattr(getattr(obj, "peb", None), "address", 0)
+                    parent = next((p.pid for p in emu.get_processes() if p.name.lower() == "explorer"), 0)
+                    fields = (ddk.STATUS_PENDING, peb, 1, 8, obj.pid, parent)
+                    self.mem_write(proc_info, b"".join(f.to_bytes(ptr_size, "little") for f in fields))
+                    if retlen:
+                        self.mem_write(retlen, size.to_bytes(4, "little"))
+                    nts = ddk.STATUS_SUCCESS
             elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugPort:
                 # No debugger is attached
                 nts = self.write_process_info(proc_info, proc_info_len, retlen, 0, ptr_size)
