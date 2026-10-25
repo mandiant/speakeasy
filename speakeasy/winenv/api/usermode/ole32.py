@@ -25,6 +25,23 @@ class Ole32(api.ApiHandler):
         self.netman = emu.get_network_manager()
         self.names = {}
         self.rng = random.Random(0)
+        self.com_init = {}
+
+    def co_initialize(self, emu, model):
+        tid = emu.get_current_thread().id
+        count, current = self.com_init.get(tid, (0, None))
+        if count and current != model:
+            return com.RPC_E_CHANGED_MODE
+        self.com_init[tid] = (count + 1, model)
+        return com.S_FALSE if count else com.S_OK
+
+    def co_uninitialize(self, emu):
+        tid = emu.get_current_thread().id
+        count, model = self.com_init.get(tid, (0, None))
+        if count > 1:
+            self.com_init[tid] = (count - 1, model)
+        else:
+            self.com_init.pop(tid, None)
 
     @apihook("OleInitialize", argc=1)
     def OleInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -33,10 +50,14 @@ class Ole32(api.ApiHandler):
             IN LPVOID pvReserved
         );
         """
+        return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
 
-        rv = windefs.S_OK
-
-        return rv
+    @apihook("OleUninitialize", argc=0)
+    def OleUninitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void OleUninitialize();
+        """
+        self.co_uninitialize(emu)
 
     @apihook("CoInitialize", argc=1)
     def CoInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -45,10 +66,7 @@ class Ole32(api.ApiHandler):
           LPVOID pvReserved
         );
         """
-
-        rv = windefs.S_OK
-
-        return rv
+        return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
 
     @apihook("CoInitializeEx", argc=2)
     def CoInitializeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -58,16 +76,15 @@ class Ole32(api.ApiHandler):
           DWORD  dwCoInit
         );
         """
-
-        rv = windefs.S_OK
-
-        return rv
+        pvReserved, dwCoInit = argv
+        return self.co_initialize(emu, dwCoInit & com.COINIT_APARTMENTTHREADED)
 
     @apihook("CoUninitialize", argc=0)
     def CoUninitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void CoUninitialize();
         """
+        self.co_uninitialize(emu)
 
     @apihook("CoInitializeSecurity", argc=9)
     def CoInitializeSecurity(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

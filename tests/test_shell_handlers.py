@@ -486,6 +486,26 @@ def test_co_get_object_fails_for_names_it_does_not_model(emu_fixture: str, reque
     assert se.mem_read(ppv, ptr_size) == b"\x00" * ptr_size
 
 
+def test_co_initialize_ex_counts_calls_and_checks_the_model(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_FALSE
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 2])[0] == com.RPC_E_CHANGED_MODE
+    call(dll_emu, "ole32", "CoUninitialize", [])
+    call(dll_emu, "ole32", "CoUninitialize", [])
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 2])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "CoInitialize", [0])[0] == com.S_FALSE
+    assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.S_FALSE
+
+
+def test_ole_initialize_fails_on_a_multithreaded_apartment(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.S_OK
+    call(dll_emu, "ole32", "OleUninitialize", [])
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.RPC_E_CHANGED_MODE
+
+
 def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
     ppv = alloc(dll_emu, b"\xcc" * 4)
     clsid, iid = guid(dll_emu, com.CLSID_WbemLocator), guid(dll_emu, com.IID_IWbemLocator)
