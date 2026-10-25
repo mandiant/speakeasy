@@ -1,4 +1,5 @@
 import struct
+import uuid
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,10 @@ import pytest
 import speakeasy
 from speakeasy import Speakeasy
 from tests.handler_harness import alloc, call, load_emu, start_process
+
+CLASS_E_CLASSNOTAVAILABLE = 0x80040111
+IID_IFOO = uuid.UUID("11223344-5566-7788-99aa-bbccddeeff00")
+CLSID_PS = uuid.UUID("aabbccdd-0011-2233-4455-66778899aabb")
 
 
 @pytest.fixture
@@ -72,6 +77,69 @@ def test_uuid_to_string_a_returns_a_string_pointer(dll_emu: Speakeasy) -> None:
     ptr = struct.unpack("<I", dll_emu.mem_read(out, 4))[0]
     assert dll_emu.mem_read(out + 4, 60) == b"\xcc" * 60
     assert dll_emu.mem_read(ptr, 37) == b"03020100-0504-0706-0809-0a0b0c0d0e0f\x00"
+
+
+def _proxy_file_list(se: Speakeasy) -> int:
+    iid = alloc(se, IID_IFOO.bytes_le)
+    stub = alloc(se, struct.pack("<IIII", iid, 0, 7, 0))
+    stubs = alloc(se, struct.pack("<I", stub))
+    names = alloc(se, struct.pack("<I", alloc(se, b"IFoo\x00")))
+    info = alloc(se, struct.pack("<IIIIIHHIIII", 0, stubs, names, 0, 0, 1, 2, 0, 0, 0, 0))
+    return alloc(se, struct.pack("<II", info, 0))
+
+
+def _default_value(se: Speakeasy, path: str) -> Any:
+    assert se.emu is not None
+    key = se.emu.regman.get_key_from_path(path)
+    assert key is not None
+    return key.get_value("").get_data()
+
+
+def test_ndr_dll_register_proxy_registers_the_interfaces(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    module = dll_emu.emu.modules[0]
+    clsid = alloc(dll_emu, CLSID_PS.bytes_le)
+
+    rv, _ = call(dll_emu, "rpcrt4", "NdrDllRegisterProxy", [module.base, _proxy_file_list(dll_emu), clsid])
+
+    assert rv == 0
+    iface = f"HKEY_CLASSES_ROOT\\Interface\\{{{str(IID_IFOO).upper()}}}"
+    clsid_str = f"{{{str(CLSID_PS).upper()}}}"
+    assert _default_value(dll_emu, iface) == "IFoo"
+    assert _default_value(dll_emu, iface + "\\NumMethods") == "7"
+    assert _default_value(dll_emu, iface + "\\ProxyStubClsid32") == clsid_str
+    clsid_key = "HKEY_CLASSES_ROOT\\CLSID\\" + clsid_str
+    assert _default_value(dll_emu, clsid_key) == "PSFactoryBuffer"
+    assert _default_value(dll_emu, clsid_key + "\\InprocServer32") == module.emu_path
+
+
+def test_ndr_dll_unregister_proxy_succeeds(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    base = dll_emu.emu.modules[0].base
+    clsid = alloc(dll_emu, CLSID_PS.bytes_le)
+    rv, _ = call(dll_emu, "rpcrt4", "NdrDllUnregisterProxy", [base, _proxy_file_list(dll_emu), clsid])
+    assert rv == 0
+
+
+def test_ndr_dll_get_class_object_has_no_class(dll_emu: Speakeasy) -> None:
+    rclsid = alloc(dll_emu, CLSID_PS.bytes_le)
+    riid = alloc(dll_emu, IID_IFOO.bytes_le)
+    ppv = alloc(dll_emu, b"\xcc" * 4)
+    factory = alloc(dll_emu, b"\x00" * 16)
+    argv = [rclsid, riid, ppv, _proxy_file_list(dll_emu), rclsid, factory]
+
+    rv, _ = call(dll_emu, "rpcrt4", "NdrDllGetClassObject", argv)
+
+    assert rv == CLASS_E_CLASSNOTAVAILABLE
+    assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
+
+
+@pytest.mark.parametrize(("ref_count", "expected"), [(0, 0), (2, 1)])
+def test_ndr_dll_can_unload_now_follows_the_factory_ref_count(
+    dll_emu: Speakeasy, ref_count: int, expected: int
+) -> None:
+    factory = alloc(dll_emu, struct.pack("<IiII", 0, ref_count, 0, 0))
+    assert call(dll_emu, "rpcrt4", "NdrDllCanUnloadNow", [factory])[0] == expected
 
 
 def test_inet_ntoa_reuses_the_buffer_for_an_address(dll_emu: Speakeasy) -> None:
