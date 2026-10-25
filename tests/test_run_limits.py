@@ -1,8 +1,15 @@
 """The max_instructions limit applies to each queued run; the exit event stops all runs."""
 
 import threading
+import time
 
+import pytest
+import unicorn as uc
+
+import speakeasy.winenv.arch as arch
 from speakeasy import Speakeasy
+from speakeasy.engines.start_timer import StartTimer
+from speakeasy.engines.unicorn_eng import EmuEngine
 
 
 def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
@@ -63,3 +70,49 @@ def test_exit_event_stops_an_api_loop_as_a_timeout(config):
         assert base + loop <= int(entry.error.pc) < base + thread
     finally:
         se.shutdown()
+
+
+def test_engine_timeout_stops_a_native_loop():
+    eng = EmuEngine()
+    eng.init_engine(arch.ARCH_X86, arch.BITS_32)
+    eng.mem_map(0x1000, 0x1000)
+    eng.mem_write(0x1000, b"\xeb\xfe\xf4")  # jmp $; hlt
+
+    started = time.monotonic()
+    eng.start(0x1000, timeout=0.05)
+    assert 0.05 <= time.monotonic() - started < 1
+    assert eng.reg_read(arch.X86_REG_EIP) == 0x1000
+
+    started = time.monotonic()
+    eng.start(0x1002, timeout=10)
+    assert time.monotonic() - started < 1
+
+
+def test_start_timer_repeats_a_stop_that_is_lost():
+    stopped = threading.Event()
+    calls = []
+
+    def lose_the_first_stop():
+        calls.append(time.monotonic())
+        if len(calls) == 2:
+            stopped.set()
+
+    timer = StartTimer(lose_the_first_stop)
+    timer.arm(0.01)
+    try:
+        assert stopped.wait(1)
+    finally:
+        timer.disarm()
+
+
+def test_engine_stops_every_start_with_a_short_timeout():
+    eng = EmuEngine()
+    eng.init_engine(arch.ARCH_X86, arch.BITS_32)
+    eng.mem_map(0x1000, 0x1000)
+    eng.mem_write(0x1000, b"\xb8\x00\x00\x00\xf0\xff\xd0\xeb\xfe")  # call 0xf0000000; jmp $
+
+    for _ in range(100):
+        with pytest.raises(uc.UcError):
+            eng.start(0x1000, timeout=0.01)
+        eng.start(0x1007, timeout=0.0001)
+        assert eng.reg_read(arch.X86_REG_EIP) == 0x1007

@@ -21,6 +21,7 @@ from unicorn.unicorn_py3.unicorn import uclib as _uc
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as arch
+from speakeasy.engines.start_timer import StartTimer
 from speakeasy.errors import EmuEngineError
 
 uc_engine = ct.c_void_p
@@ -106,6 +107,7 @@ class EmuEngine:
         self.mode = None
         self.mmap = None
         self._callbacks = {}
+        self.timer = StartTimer(self.stop)
 
         self.regs = {
             arch.X86_REG_EAX: u.UC_X86_REG_EAX,
@@ -188,12 +190,6 @@ class EmuEngine:
             common.HOOK_INSN: uc.UC_HOOK_INSN,
             common.HOOK_INSN_INVALID: uc.UC_HOOK_INSN_INVALID,
         }
-
-    def _sec_to_usec(self, sec):
-        """
-        Unicorn expects timeouts to be supplied in microsecond granularity
-        """
-        return int(sec * 1000000)
 
     def init_engine(self, eng_arch, mode):
         """Initialize cpu engine"""
@@ -296,13 +292,16 @@ class EmuEngine:
         return self.emu.emu_stop()  # type: ignore[union-attr]
 
     def start(self, addr, timeout=0, count=0):
-        """Start the emulation engine"""
+        """Start the emulation engine. A timeout of 0 seconds disables it."""
         if count == -1:
             count = 0
-
-        # Unicorn expects the timeout to be in microseconds, convert it here
-        timeout = self._sec_to_usec(timeout)
-        return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, timeout=timeout, count=count)  # type: ignore[union-attr]
+        if timeout:
+            self.timer.arm(timeout)
+        try:
+            return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, count=count)  # type: ignore[union-attr]
+        finally:
+            if timeout:
+                self.timer.disarm()
 
     def hook_add(self, addr=None, cb=None, htype=None, begin=1, end=0, arg1=0):
         """
