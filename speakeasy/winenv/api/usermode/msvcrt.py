@@ -1483,6 +1483,22 @@ class Msvcrt(api.ApiHandler):
         self.perf_counter += PERF_FREQUENCY // 50
         return self.return_int64(emu, self.perf_counter)
 
+    @apihook("_Xtime_get_ticks", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _Xtime_get_ticks(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        long long _Xtime_get_ticks();
+
+        The time in 100 ns units since 1970, on the clock that time() uses.
+        """
+        self.tick_counter += 1
+        return self.return_int64(emu, TIME_BASE * 10_000_000 + self.tick_counter * 10_000)
+
+    @apihook("_Random_device", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _Random_device(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """unsigned int _Random_device();"""
+        self.rand_int += 1
+        return self.rand_int & 0xFFFFFFFF
+
     @apihook("srand", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def srand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

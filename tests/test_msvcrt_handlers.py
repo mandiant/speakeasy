@@ -18,6 +18,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     SIGINT,
     SIGSEGV,
     STRUNCATE,
+    TIME_BASE,
     get_full_path,
     get_winmain_command_line,
     scan_c_format,
@@ -1663,3 +1664,20 @@ def test_strcat_s_appends_when_the_result_fits(dll_emu: Speakeasy, size: int, rv
     buf = alloc(dll_emu, b"abc\x00\xcc\xcc\xcc\xcc")
     assert call(dll_emu, "msvcrt", "strcat_s", [buf, size, alloc(dll_emu, b"def\x00")])[0] == rv
     assert dll_emu.mem_read(buf, len(dest)) == dest
+
+
+def test_xtime_get_ticks_counts_100ns_units_since_1970(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+
+    def query() -> int:
+        low = call(dll_emu, "msvcrt", "_Xtime_get_ticks", [])[0]
+        return dll_emu.emu.reg_read(e_arch.X86_REG_EDX) << 32 | low
+
+    first = query()
+    assert first // 10_000_000 >= TIME_BASE
+    assert query() > first
+
+
+def test_random_device_returns_new_values(dll_emu: Speakeasy) -> None:
+    values = {call(dll_emu, "msvcrt", "_Random_device", [])[0] for _ in range(4)}
+    assert len(values) == 4
