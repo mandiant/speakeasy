@@ -3052,19 +3052,7 @@ class Msvcrt(api.ApiHandler):
         encoding = "utf-16le" if width == 2 else "utf-8"
 
         if secure:
-            if not buffer or not size:
-                return -1
-            truncate = count == (1 << (self.get_ptr_size() * 8)) - 1
-            text = fin if count is None or truncate else fin[:count]
-            if len(text) < size:
-                out, rv = text, len(fin) if text == fin else -1
-            elif truncate:
-                out, rv = text[: size - 1], -1
-            else:
-                out, rv = "", -1
-            self.mem_write(buffer, (out + "\x00").encode(encoding))
-            ctx.args[first].display = out
-            return rv
+            return self.write_secure_format(buffer, size, count, fin, encoding, ctx.args[first])
 
         if not buffer and not size:
             return len(fin)
@@ -3083,6 +3071,26 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(buffer, out.encode(encoding))
             ctx.args[first].display = out.rstrip("\x00")
 
+        return rv
+
+    def write_secure_format(self, buffer, size, count, fin, encoding, arg):
+        """
+        Write formatted text like the _s printf functions: empty the buffer
+        when the text does not fit, limit the text to count characters when
+        count is given, and truncate to the buffer when count is _TRUNCATE.
+        """
+        if not buffer or not size:
+            return -1
+        truncate = count == (1 << (self.get_ptr_size() * 8)) - 1
+        text = fin if count is None or truncate else fin[:count]
+        if len(text) < size:
+            out, rv = text, len(fin) if text == fin else -1
+        elif truncate:
+            out, rv = text[: size - 1], -1
+        else:
+            out, rv = "", -1
+        self.mem_write(buffer, (out + "\x00").encode(encoding))
+        arg.display = out
         return rv
 
     @apihook("__stdio_common_vsprintf", argc=7, conv=e_arch.CALL_CONV_CDECL)
@@ -3666,6 +3674,151 @@ class Msvcrt(api.ApiHandler):
             out += b"\x00\x00"
         self.mem_write(buf, out)
         return len(fin) if len(fin) <= cnt else -1
+
+    def format_var_args(self, emu, fixed, width):
+        """
+        Read the fixed arguments of a variadic printf function, where the
+        last fixed argument is the format, and format the variable arguments.
+        """
+        head = emu.get_func_argv(e_arch.CALL_CONV_CDECL, fixed)
+        fmt_str = self.read_mem_string(head[-1], width)
+        args = emu.get_func_argv(e_arch.CALL_CONV_CDECL, fixed + self.get_va_arg_count(fmt_str))[fixed:]
+        return head, self.do_str_format(fmt_str, args, wide=width == 2)
+
+    def format_va_list(self, _format, argptr, width):
+        fmt_str = self.read_mem_string(_format, width)
+        return self.do_str_format(fmt_str, self.va_args(argptr, self.get_va_arg_count(fmt_str)), wide=width == 2)
+
+    @apihook("swprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def swprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int swprintf(
+            wchar_t *buffer,
+            const wchar_t *format [,
+            argument] ...
+            );
+
+        msvcrt.dll exports the form without a count.
+        """
+        (buf, _), fin = self.format_var_args(emu, 2, 2)
+        self.mem_write(buf, (fin + "\x00").encode("utf-16le"))
+        ctx.args.clear()
+        ctx.args.append(fin)
+        return len(fin)
+
+    @apihook("_swprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _swprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _swprintf(wchar_t *buffer, const wchar_t *format [, argument] ...);"""
+        return self.swprintf(emu, argv, ctx)
+
+    @apihook("vswprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def vswprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int vswprintf(
+            wchar_t *buffer,
+            const wchar_t *format,
+            va_list argptr
+        );
+
+        msvcrt.dll exports the form without a count.
+        """
+        buffer, _format, argptr = argv
+        fin = self.format_va_list(_format, argptr, 2)
+        self.mem_write(buffer, (fin + "\x00").encode("utf-16le"))
+        ctx.args[0].display = fin
+        return len(fin)
+
+    @apihook("_vswprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _vswprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _vswprintf(wchar_t *buffer, const wchar_t *format, va_list argptr);"""
+        return self.vswprintf(emu, argv, ctx)
+
+    @apihook("_vsnwprintf", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _vsnwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _vsnwprintf(
+            wchar_t *buffer,
+            size_t count,
+            const wchar_t *format,
+            va_list argptr
+        );
+        """
+        buffer, count, _format, argptr = argv
+        fin = self.format_va_list(_format, argptr, 2)
+        out = fin[:count]
+        if len(fin) < count:
+            out += "\x00"
+        self.mem_write(buffer, out.encode("utf-16le"))
+        ctx.args[0].display = fin[:count]
+        return len(fin) if len(fin) <= count else -1
+
+    @apihook("sprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def sprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int sprintf_s(char *buffer, size_t sizeOfBuffer, const char *format [, argument] ...);"""
+        (buf, size, _), fin = self.format_var_args(emu, 3, 1)
+        return self.write_secure_format(buf, size, None, fin, "utf-8", ctx.args[0])
+
+    @apihook("swprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def swprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int swprintf_s(wchar_t *buffer, size_t sizeOfBuffer, const wchar_t *format [, argument] ...);"""
+        (buf, size, _), fin = self.format_var_args(emu, 3, 2)
+        return self.write_secure_format(buf, size, None, fin, "utf-16le", ctx.args[0])
+
+    @apihook("_snprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _snprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _snprintf_s(char *buffer, size_t sizeOfBuffer, size_t count, const char *format [, argument] ...);"""
+        (buf, size, count, _), fin = self.format_var_args(emu, 4, 1)
+        return self.write_secure_format(buf, size, count, fin, "utf-8", ctx.args[0])
+
+    @apihook("_snwprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _snwprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _snwprintf_s(
+            wchar_t *buffer,
+            size_t sizeOfBuffer,
+            size_t count,
+            const wchar_t *format [,
+            argument] ...
+        );
+        """
+        (buf, size, count, _), fin = self.format_var_args(emu, 4, 2)
+        return self.write_secure_format(buf, size, count, fin, "utf-16le", ctx.args[0])
+
+    @apihook("vsprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int vsprintf_s(char *buffer, size_t numberOfElements, const char *format, va_list argptr);"""
+        buffer, size, _format, argptr = argv
+        fin = self.format_va_list(_format, argptr, 1)
+        return self.write_secure_format(buffer, size, None, fin, "utf-8", ctx.args[0])
+
+    @apihook("vswprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def vswprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int vswprintf_s(wchar_t *buffer, size_t numberOfElements, const wchar_t *format, va_list argptr);"""
+        buffer, size, _format, argptr = argv
+        fin = self.format_va_list(_format, argptr, 2)
+        return self.write_secure_format(buffer, size, None, fin, "utf-16le", ctx.args[0])
+
+    @apihook("_scprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _scprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _scprintf(const char *format [, argument] ...);"""
+        _, fin = self.format_var_args(emu, 1, 1)
+        return len(fin)
+
+    @apihook("_scwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
+    def _scwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _scwprintf(const wchar_t *format [, argument] ...);"""
+        _, fin = self.format_var_args(emu, 1, 2)
+        return len(fin)
+
+    @apihook("_vscprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _vscprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _vscprintf(const char *format, va_list argptr);"""
+        return len(self.format_va_list(*argv, 1))
+
+    @apihook("_vscwprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _vscwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _vscwprintf(const wchar_t *format, va_list argptr);"""
+        return len(self.format_va_list(*argv, 2))
 
     @apihook("_errno", argc=0)
     def _errno(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

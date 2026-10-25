@@ -1470,3 +1470,77 @@ def test_directory_functions_succeed_and_show_the_path(dll_emu: Speakeasy, api: 
     assert call(dll_emu, "msvcrt", api, [0])[0] == -1
     errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
     assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL
+
+
+@pytest.mark.parametrize("api", ["swprintf", "_swprintf"])
+def test_swprintf_formats_without_a_count(dll_emu: Speakeasy, api: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 40)
+    fmt = alloc(dll_emu, "%s\\%x%d\0".encode("utf-16le"))
+    text = alloc(dll_emu, "C:\\t\0".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", api, [buf, fmt, text, 0x10, 5])[0] == 8
+    assert dll_emu.mem_read(buf, 20) == "C:\\t\\105\0".encode("utf-16le") + b"\xcc\xcc"
+
+
+@pytest.mark.parametrize("api", ["vswprintf", "_vswprintf"])
+def test_vswprintf_formats_from_a_va_list(dll_emu: Speakeasy, api: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    va = alloc(dll_emu, struct.pack("<II", alloc(dll_emu, "id\0".encode("utf-16le")), 7))
+    assert call(dll_emu, "msvcrt", api, [buf, alloc(dll_emu, "%s=%d\0".encode("utf-16le")), va])[0] == 4
+    assert dll_emu.mem_read(buf, 12) == "id=7\0".encode("utf-16le") + b"\xcc\xcc"
+
+
+@pytest.mark.parametrize("count, rv, written", [(3, -1, "hel"), (5, 5, "hello"), (8, 5, "hello\0")])
+def test_vsnwprintf_writes_at_most_count_chars(dll_emu: Speakeasy, count: int, rv: int, written: str) -> None:
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    va = alloc(dll_emu, struct.pack("<I", alloc(dll_emu, "hello\0".encode("utf-16le"))))
+    fmt = alloc(dll_emu, "%s\0".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "_vsnwprintf", [buf, count, fmt, va])[0] == rv
+    data = written.encode("utf-16le")
+    assert dll_emu.mem_read(buf, len(data) + 2) == data + b"\xcc\xcc"
+
+
+@pytest.mark.parametrize("size, rv, written", [(6, 5, "hello\0"), (5, -1, "\0")])
+@pytest.mark.parametrize(
+    "api, width, va",
+    [("sprintf_s", 1, False), ("swprintf_s", 2, False), ("vsprintf_s", 1, True), ("vswprintf_s", 2, True)],
+)
+def test_sprintf_s_empties_the_buffer_when_the_text_does_not_fit(
+    dll_emu: Speakeasy, api: str, width: int, va: bool, size: int, rv: int, written: str
+) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    fmt = alloc(dll_emu, "%s\0".encode(enc))
+    text = alloc(dll_emu, "hello\0".encode(enc))
+    args = [alloc(dll_emu, struct.pack("<I", text))] if va else [text]
+    assert call(dll_emu, "msvcrt", api, [buf, size, fmt, *args])[0] == rv
+    data = written.encode(enc)
+    assert dll_emu.mem_read(buf, len(data) + width) == data + b"\xcc" * width
+
+
+@pytest.mark.parametrize(
+    "size, count, rv, written",
+    [(16, 3, -1, "hel\0"), (16, 5, 5, "hello\0"), (4, 0xFFFFFFFF, -1, "hel\0"), (4, 8, -1, "\0")],
+)
+@pytest.mark.parametrize("api, width", [("_snprintf_s", 1), ("_snwprintf_s", 2)])
+def test_snprintf_s_limits_the_text_to_count(
+    dll_emu: Speakeasy, api: str, width: int, size: int, count: int, rv: int, written: str
+) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    buf = alloc(dll_emu, b"\xcc" * 32)
+    fmt = alloc(dll_emu, "%s\0".encode(enc))
+    text = alloc(dll_emu, "hello\0".encode(enc))
+    assert call(dll_emu, "msvcrt", api, [buf, size, count, fmt, text])[0] == rv
+    data = written.encode(enc)
+    assert dll_emu.mem_read(buf, len(data) + width) == data + b"\xcc" * width
+
+
+@pytest.mark.parametrize(
+    "api, width, va",
+    [("_scprintf", 1, False), ("_scwprintf", 2, False), ("_vscprintf", 1, True), ("_vscwprintf", 2, True)],
+)
+def test_scprintf_counts_the_formatted_characters(dll_emu: Speakeasy, api: str, width: int, va: bool) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    fmt = alloc(dll_emu, "%s-%d\0".encode(enc))
+    text = alloc(dll_emu, "abc\0".encode(enc))
+    args = [alloc(dll_emu, struct.pack("<II", text, 42))] if va else [text, 42]
+    assert call(dll_emu, "msvcrt", api, [fmt, *args])[0] == 6
