@@ -372,27 +372,33 @@ class WinHttp(api.ApiHandler):
             ctx.args["dwInfoLevel"].display = header_query
 
         if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
-            if as_number:
-                out = int(windefs.HTTP_STATUS_OK).to_bytes(4, "little")
-                out_len = len(out)
-            else:
-                out = (windefs.HTTP_STATUS_OK + "\x00").encode("utf-16le")
-                out_len = len(out) - 2
-            if buffer == 0 or int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
-                self.mem_write(bufferLen, len(out).to_bytes(4, "little"))
-                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            text = windefs.HTTP_STATUS_OK
+        else:
+            req = self.netman.get_wininet_object(hnd)
+            if not isinstance(req, netman.WininetRequest):
+                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
                 return 0
-            self.mem_write(buffer, out)
-            self.mem_write(bufferLen, out_len.to_bytes(4, "little"))
-            return 1
+            text = windefs.get_header_text(header_id, req.get_response_headers())
+            if text is None:
+                emu.set_last_error(windefs.ERROR_HTTP_HEADER_NOT_FOUND)
+                return 0
 
-        if buffer == 0:
+        if as_number:
+            if not text.isdigit():
+                emu.set_last_error(windefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
+                return 0
+            out = int(text).to_bytes(4, "little")
+            out_len = len(out)
+        else:
+            out = (text + "\x00").encode("utf-16le")
+            out_len = len(out) - 2
+        if buffer == 0 or int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
+            self.mem_write(bufferLen, len(out).to_bytes(4, "little"))
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
-
-        rv = 1
-
-        return rv
+        self.mem_write(buffer, out)
+        self.mem_write(bufferLen, out_len.to_bytes(4, "little"))
+        return 1
 
     @apihook("WinHttpCloseHandle", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpCloseHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

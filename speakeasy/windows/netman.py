@@ -150,6 +150,12 @@ class WininetRequest(WininetComponent):
 
         return request_string
 
+    def get_response_headers(self):
+        """
+        Get the status line and the header lines of the response
+        """
+        return ["HTTP/1.1 200 OK", f"Content-Length: {len(self.get_response().getvalue())}"]
+
     def get_response_size(self):
         resp = self.get_response()
         off = resp.tell()

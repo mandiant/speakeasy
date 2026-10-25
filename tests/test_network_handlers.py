@@ -286,6 +286,67 @@ def test_win_http_query_data_available_reports_the_unread_body(dll_emu: Speakeas
     assert dll_emu.mem_read(avail, 4) == b"\x00" * 4
 
 
+def _query_headers(se: Speakeasy, req: int, level: int, size: int | None) -> tuple[int, bytes, int]:
+    """
+    Call WinHttpQueryHeaders with a buffer of ``size`` bytes, or with a NULL
+    buffer for None. Return the result, the buffer and the length.
+    """
+    buf = 0 if size is None else alloc(se, b"\xcc" * size)
+    buf_len = alloc(se, struct.pack("<I", size or 0))
+    rv, _ = call(se, "winhttp", "WinHttpQueryHeaders", [req, level, 0, buf, buf_len, 0])
+    length = struct.unpack("<I", se.mem_read(buf_len, 4))[0]
+    return rv, se.mem_read(buf, size) if buf else b"", length
+
+
+@pytest.mark.parametrize(
+    "level, text",
+    [
+        (22, "HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n"),
+        (21, "HTTP/1.1 200 OK\0Content-Length: 4096\0\0"),
+        (5, "4096"),
+    ],
+)
+def test_win_http_query_headers_gives_the_response_headers(dll_emu: Speakeasy, level: int, text: str) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    req = _winhttp_request(dll_emu, "GET", "/index")
+    assert call(dll_emu, "winhttp", "WinHttpSendRequest", [req, 0, 0, 0, 0, 0, 0])[0] == 1
+    assert call(dll_emu, "winhttp", "WinHttpReceiveResponse", [req, 0])[0] == 1
+    out = (text + "\0").encode("utf-16le")
+
+    rv, _, length = _query_headers(dll_emu, req, level, None)
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == 122
+    assert length == len(out)
+
+    rv, buf, length = _query_headers(dll_emu, req, level, len(out) - 2)
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == 122
+    assert buf == b"\xcc" * (len(out) - 2)
+    assert length == len(out)
+
+    rv, buf, length = _query_headers(dll_emu, req, level, len(out))
+    assert rv == 1
+    assert buf == out
+    assert length == len(out) - 2
+
+
+def test_win_http_query_headers_gives_the_content_length_as_a_number(dll_emu: Speakeasy) -> None:
+    req = _winhttp_request(dll_emu, "GET", "/index")
+    rv, buf, length = _query_headers(dll_emu, req, 5 | 0x20000000, 4)
+    assert (rv, buf, length) == (1, struct.pack("<I", 4096), 4)
+
+
+def test_win_http_query_headers_fails_for_a_missing_header(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    req = _winhttp_request(dll_emu, "GET", "/index")
+    rv, buf, _ = _query_headers(dll_emu, req, 33, 64)
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == 12150
+    assert buf == b"\xcc" * 64
+
+
 def test_win_http_query_data_available_without_a_configured_response(dll_emu: Speakeasy) -> None:
     req = _winhttp_request(dll_emu, "POST", "/gate.php")
     avail = alloc(dll_emu, b"\xcc" * 4)

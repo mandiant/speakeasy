@@ -153,7 +153,12 @@ INTERNET_OPTION_SECURITY_FLAGS = 31
 
 SECURITY_FLAG_SECURE = 1
 
+ERROR_INVALID_HANDLE = 6
 ERROR_INSUFFICIENT_BUFFER = 122
+ERROR_HTTP_HEADER_NOT_FOUND = 12150
+ERROR_HTTP_INVALID_QUERY_REQUEST = 12154
+
+HEADER_NAMES = {WINHTTP_QUERY_CONTENT_LENGTH: "Content-Length"}
 
 
 class URL_COMPONENTS(EmuStruct):
@@ -207,6 +212,23 @@ def get_header_query(opt):
     for k, v in globals().items():
         if k.startswith("WINHTTP_QUERY_") and v == opt:
             return k
+
+
+def get_header_text(header_id, lines):
+    """
+    Get the text that a header query gives for a response with the status line
+    and header lines, or None when the response does not have the header.
+    """
+    if header_id == WINHTTP_QUERY_RAW_HEADERS:
+        return "".join(line + "\0" for line in lines) + "\0"
+    if header_id == WINHTTP_QUERY_RAW_HEADERS_CRLF:
+        return "".join(line + "\r\n" for line in lines) + "\r\n"
+    name = HEADER_NAMES.get(header_id, "").lower()
+    for line in lines[1:]:
+        key, _, value = line.partition(":")
+        if key.lower() == name:
+            return value.strip()
+    return None
 
 
 def crack_url(url):
