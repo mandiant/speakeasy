@@ -1001,6 +1001,11 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(self.iob + fd * size + file_offset, fd.to_bytes(4, "little"))
         return self.iob
 
+    @apihook("__p__iob", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __p__iob(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *__p__iob(void);"""
+        return self.__iob_func(emu, [], ctx)
+
     @apihook("pow", argc=2, conv=e_arch.CALL_CONV_FLOAT)
     def pow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -5027,6 +5032,32 @@ class Msvcrt(api.ApiHandler):
         );
         """
         return self.stat_file(argv, ctx, True, True, True)
+
+    @apihook("_access", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _access(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _access(const char *path, int mode);"""
+        return self.access_path(argv, 1, ctx)
+
+    @apihook("_waccess", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _waccess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _waccess(const wchar_t *path, int mode);"""
+        return self.access_path(argv, 2, ctx)
+
+    def access_path(self, argv, width, ctx):
+        """
+        Return 0 when the file or directory exists, else -1 with errno set. The mode is 0
+        (existence), 2 (write), 4 (read) or 6 (read and write).
+        """
+        path_ptr, mode = argv
+        if not path_ptr or mode & 0xFFFFFFFF & ~6:
+            self.set_errno(EINVAL)
+            return -1
+        path = self.read_mem_string(path_ptr, width)
+        ctx.args[0].display = path
+        if not self.emu.get_file_manager().is_directory(path) and not self.does_file_exist(path):
+            self.set_errno(ENOENT)
+            return -1
+        return 0
 
     def delete_file(self, emu, argv, ctx, wide):
         (path_ptr,) = argv

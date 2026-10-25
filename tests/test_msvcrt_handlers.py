@@ -1166,6 +1166,12 @@ def test_fileno_returns_the_descriptor_of_a_standard_stream(dll_emu: Speakeasy) 
     assert call(dll_emu, "msvcrt", "_fileno", [alloc(dll_emu, b"\0" * 0x20)])[0] == -1
 
 
+def test_p_iob_returns_the_iob_array(dll_emu: Speakeasy) -> None:
+    iob = call(dll_emu, "msvcrt", "__p__iob", [])[0]
+    assert iob == call(dll_emu, "msvcrt", "__iob_func", [])[0]
+    assert call(dll_emu, "msvcrt", "_fileno", [iob + 2 * 0x20])[0] == 2
+
+
 @pytest.mark.parametrize("fd, result", [(0, 0), (7, -1)])
 def test_read_gives_end_of_file_on_stdin_and_fails_on_other_descriptors(
     dll_emu: Speakeasy, fd: int, result: int
@@ -1615,6 +1621,22 @@ def test_fopen_append_mode_keeps_the_file_content(strict_fs_emu: Speakeasy, api:
 def test_fopen_read_modes_do_not_create_a_missing_file(strict_fs_emu: Speakeasy, api: str, mode: str) -> None:
     path = fopen_text(strict_fs_emu, api, "c:\\users\\public\\missing.txt")
     assert call(strict_fs_emu, "msvcrt", api, [path, fopen_text(strict_fs_emu, api, mode)])[0] == 0
+
+
+@pytest.mark.parametrize("api, enc", [("_access", "utf-8"), ("_waccess", "utf-16le")])
+def test_access_finds_files_and_directories(strict_fs_emu: Speakeasy, api: str, enc: str) -> None:
+    se = strict_fs_emu
+    write_stream(se, "fopen", "c:\\users\\public\\log.txt", "wb", b"data")
+
+    def access(path: str, mode: int) -> tuple[int, int]:
+        rv, _ = call(se, "msvcrt", api, [alloc(se, (path + "\0").encode(enc)), mode])
+        errno_ptr, _ = call(se, "msvcrt", "_errno", [])
+        return rv, int.from_bytes(se.mem_read(errno_ptr, 4), "little")
+
+    assert access("C:\\Windows", 0)[0] == 0
+    assert access("c:\\users\\public\\log.txt", 6)[0] == 0
+    assert access("C:\\Windows\\system32\\mingw32\\bin", 0) == (-1, ENOENT)
+    assert access("C:\\Windows", 1) == (-1, EINVAL)
 
 
 @pytest.mark.parametrize(
