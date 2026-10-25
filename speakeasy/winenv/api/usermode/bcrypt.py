@@ -1,10 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import base64
+import random
 
 import speakeasy.winenv.defs.nt.ddk as ntdefs
 
 from .. import api
+
+BCRYPT_USE_SYSTEM_PREFERRED_RNG = 0x2
 
 
 class Bcrypt(api.ApiHandler):
@@ -21,6 +24,7 @@ class Bcrypt(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
+        self.rng = random.Random(0)
 
         super().__get_hook_attrs__(self)
 
@@ -143,3 +147,28 @@ class Bcrypt(api.ApiHandler):
                 return ntdefs.STATUS_SUCCESS
 
         return ntdefs.STATUS_INVALID_HANDLE
+
+    @apihook("BCryptGenRandom", argc=4)
+    def BCryptGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS BCryptGenRandom(
+          BCRYPT_ALG_HANDLE hAlgorithm,
+          PUCHAR            pbBuffer,
+          ULONG             cbBuffer,
+          ULONG             dwFlags
+        );
+        """
+        hAlgorithm, pbBuffer, cbBuffer, dwFlags = argv
+
+        if dwFlags & BCRYPT_USE_SYSTEM_PREFERRED_RNG:
+            if hAlgorithm:
+                return ntdefs.STATUS_INVALID_PARAMETER
+        elif not emu.get_crypt_manager().crypt_get(hAlgorithm):
+            return ntdefs.STATUS_INVALID_HANDLE
+        cbBuffer &= 0xFFFFFFFF
+        if not cbBuffer:
+            return ntdefs.STATUS_SUCCESS
+        if not pbBuffer:
+            return ntdefs.STATUS_INVALID_PARAMETER
+        self.mem_write(pbBuffer, self.rng.randbytes(cbBuffer))
+        return ntdefs.STATUS_SUCCESS

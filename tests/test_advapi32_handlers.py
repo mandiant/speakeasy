@@ -261,6 +261,25 @@ def test_bcrypt_close_algorithm_provider_twice(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == ddk.STATUS_INVALID_HANDLE
 
 
+def test_bcrypt_gen_random_fills_the_buffer_with_new_bytes(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\x00" * 32)
+
+    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 32, 2])[0] == 0
+    first = dll_emu.mem_read(buf, 32)
+    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 32, 2])[0] == 0
+
+    assert first != b"\x00" * 32
+    assert dll_emu.mem_read(buf, 32) != first
+
+
+def test_bcrypt_gen_random_rejects_bad_arguments(dll_emu: Speakeasy) -> None:
+    buf = alloc(dll_emu, b"\x00" * 4)
+
+    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
+    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0x1234, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
+    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, 0, 4, 2])[0] == ddk.STATUS_INVALID_PARAMETER
+
+
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
     assert se.emu is not None
     ph = alloc(se, b"\xcc" * 8)
