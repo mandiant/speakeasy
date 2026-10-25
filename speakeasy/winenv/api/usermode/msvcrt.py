@@ -3632,6 +3632,19 @@ class Msvcrt(api.ApiHandler):
 
         return 0
 
+    @apihook("__vcrt_InitializeCriticalSectionEx", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def __vcrt_InitializeCriticalSectionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL __vcrt_InitializeCriticalSectionEx(
+            LPCRITICAL_SECTION critical_section,
+            DWORD spin_count,
+            DWORD flags
+        );
+        """
+        cs, spin_count, flags = argv
+        self.mem_write(cs, b"\x00" * (40 if self.get_ptr_size() == 8 else 24))
+        return 1
+
     @apihook("__CxxFrameHandler", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

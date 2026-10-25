@@ -2010,3 +2010,13 @@ def test_write_to_stdout_goes_to_the_file_that_freopen_opens(strict_fs_emu: Spea
 @pytest.mark.parametrize("fd", [1, 2])
 def test_write_to_a_standard_descriptor_succeeds(dll_emu: Speakeasy, fd: int) -> None:
     assert call(dll_emu, "msvcrt", "_write", [fd, alloc(dll_emu, b"abc"), 3])[0] == 3
+
+
+@pytest.mark.parametrize("emu_name, size", [("dll_emu", 24), ("dll64_emu", 40)])
+def test_vcrt_initialize_critical_section_ex_zeroes_the_critical_section(
+    request: pytest.FixtureRequest, emu_name: str, size: int
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    cs = alloc(se, b"\xcc" * (size + 1))
+    assert call(se, "vcruntime140", "__vcrt_InitializeCriticalSectionEx", [cs, 4000, 0])[0] == 1
+    assert se.mem_read(cs, size + 1) == b"\x00" * size + b"\xcc"
