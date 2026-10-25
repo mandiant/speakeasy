@@ -6,7 +6,9 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
 from tests.handler_harness import alloc, call, start_process
 
+CURRENT_THREAD = 0xFFFFFFFF_FFFFFFFE
 PROCESS_DEBUG_FLAGS = 0x1F
+THREAD_HIDE_FROM_DEBUGGER = 0x11
 
 
 def query(se: Speakeasy, info_class: int, length: int) -> tuple[int, bytes, int]:
@@ -71,3 +73,20 @@ def test_query_process_basic_information(request: pytest.FixtureRequest, fixture
     rv, info, _ = query(se, ddk.PROCESSINFOCLASS.ProcessBasicInformation, size - 1)
     assert rv == ddk.STATUS_INFO_LENGTH_MISMATCH
     assert info[:size] == b"\xcc" * size
+
+
+@pytest.mark.parametrize(
+    ("handle", "info", "length", "status"),
+    [
+        (CURRENT_THREAD, True, 12345, ddk.STATUS_INFO_LENGTH_MISMATCH),
+        (0xFFFF, False, 0, ddk.STATUS_INVALID_HANDLE),
+        (CURRENT_THREAD, False, 0, ddk.STATUS_SUCCESS),
+    ],
+)
+def test_set_thread_hide_from_debugger_checks_its_arguments(
+    dll64_emu: Speakeasy, handle: int, info: bool, length: int, status: int
+) -> None:
+    start_process(dll64_emu)
+    buf = alloc(dll64_emu, b"\x00" * 8) if info else 0
+    rv, _ = call(dll64_emu, "ntdll", "NtSetInformationThread", [handle, THREAD_HIDE_FROM_DEBUGGER, buf, length])
+    assert rv == status

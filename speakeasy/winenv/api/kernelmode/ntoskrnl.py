@@ -9,6 +9,7 @@ import uuid
 import lznt1
 
 import speakeasy.common as common
+import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
@@ -2727,9 +2728,19 @@ class Ntoskrnl(api.ApiHandler):
             ULONG           ThreadInformationLength
         );
         """
+        hnd, info_class, info, info_len = argv
 
-        nts = ddk.STATUS_SUCCESS
-        return nts
+        if info_class == ddk.THREADINFOCLASS.ThreadHideFromDebugger:
+            if info_len:
+                return ddk.STATUS_INFO_LENGTH_MISMATCH
+            if hnd == self.get_max_int() - 1:
+                obj = emu.get_current_thread()
+            else:
+                obj = self.get_object_from_handle(hnd)
+            if not isinstance(obj, objman.Thread):
+                return ddk.STATUS_INVALID_HANDLE
+
+        return ddk.STATUS_SUCCESS
 
     @apihook("strnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
     def strnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

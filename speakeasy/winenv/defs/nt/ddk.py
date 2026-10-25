@@ -128,6 +128,10 @@ PROCESSINFOCLASS.ProcessDebugFlags = 0x1F
 PROCESSINFOCLASS.ProcessProtectionInformation = 0x3D
 
 
+THREADINFOCLASS = Enum()
+THREADINFOCLASS.ThreadHideFromDebugger = 0x11
+
+
 SYSTEM_INFORMATION_CLASS = Enum()
 SYSTEM_INFORMATION_CLASS.SystemBasicInformation = 0x00
 SYSTEM_INFORMATION_CLASS.SystemProcessorInformation = 0x01
