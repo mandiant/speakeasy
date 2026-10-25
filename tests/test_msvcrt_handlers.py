@@ -1298,3 +1298,32 @@ def test_wcsncpy_s_copies_at_most_count_chars_within_the_buffer(
     src = alloc(dll_emu, "hello\x00".encode("utf-16le"))
     assert call(dll_emu, "msvcrt", "wcsncpy_s", [dest, size, src, count])[0] == rv
     assert dll_emu.mem_read(dest, 8) == out
+
+
+@pytest.mark.parametrize("a, b, count, rv", [("abcd", "abce", 3, 0), ("abcd", "abce", 4, -1), ("b", "a", 1, 1)])
+def test_wcsncmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count: int, rv: int) -> None:
+    args = [alloc(dll_emu, f"{s}\0".encode("utf-16le")) for s in (a, b)]
+    assert call(dll_emu, "msvcrt", "wcsncmp", [*args, count])[0] == rv
+
+
+@pytest.mark.parametrize(
+    "api, c, rv",
+    [
+        ("iswalpha", ord("I"), 1),
+        ("iswalpha", ord("1"), 0),
+        ("iswalpha", 0x3B1, 1),
+        ("iswspace", ord(" "), 1),
+        ("iswspace", ord("\t"), 1),
+        ("iswspace", ord("x"), 0),
+        ("iswspace", 0x1F, 0),
+    ],
+)
+def test_wide_char_classes(dll_emu: Speakeasy, api: str, c: int, rv: int) -> None:
+    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == bool(rv)
+
+
+@pytest.mark.parametrize("charset, offset", [(" ", 1), ("cb", 2), ("z", None)])
+def test_wcspbrk_returns_pointer_to_first_char_in_set(dll_emu: Speakeasy, charset: str, offset: int | None) -> None:
+    s = alloc(dll_emu, "a b\0".encode("utf-16le"))
+    rv, _ = call(dll_emu, "msvcrt", "wcspbrk", [s, alloc(dll_emu, f"{charset}\0".encode("utf-16le"))])
+    assert rv == (0 if offset is None else s + offset * 2)

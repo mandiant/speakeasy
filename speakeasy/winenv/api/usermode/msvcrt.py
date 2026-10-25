@@ -1037,6 +1037,22 @@ class Msvcrt(api.ApiHandler):
         ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
         return next((s + i for i, c in enumerate(_s) if c in _charset), 0)
 
+    @apihook("wcspbrk", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcspbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *wcspbrk(
+           const wchar_t *str,
+           const wchar_t *strCharSet
+        );
+        """
+        s, charset = argv
+
+        _s = self.read_wide_string(s)
+        _charset = self.read_wide_string(charset)
+        ctx.args[0].display = _s
+        ctx.args[1].display = _charset
+        return next((s + 2 * i for i, c in enumerate(_s) if c in _charset), 0)
+
     @apihook("wcsstr", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcsstr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2469,6 +2485,26 @@ class Msvcrt(api.ApiHandler):
 
         return (string1 > string2) - (string1 < string2)
 
+    @apihook("wcsncmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcsncmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int wcsncmp(
+            const wchar_t *string1,
+            const wchar_t *string2,
+            size_t count
+        );
+        """
+        s1, s2, c = argv
+        if not c:
+            return 0
+
+        string1 = self.read_wide_string(s1, max_chars=c)
+        string2 = self.read_wide_string(s2, max_chars=c)
+        ctx.args[0].display = string1
+        ctx.args[1].display = string2
+
+        return (string1 > string2) - (string1 < string2)
+
     @apihook("strcmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2600,6 +2636,27 @@ class Msvcrt(api.ApiHandler):
         """
         (c,) = argv
         return int(0 <= c < 0x100 and c in SCANF_SPACE)
+
+    @apihook("iswspace", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswspace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int iswspace(
+            wint_t c
+            );
+        """
+        (c,) = argv
+        c &= 0xFFFF
+        return int(c in SCANF_SPACE or (c > 0x7F and chr(c).isspace()))
+
+    @apihook("iswalpha", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def iswalpha(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int iswalpha(
+            wint_t c
+            );
+        """
+        (c,) = argv
+        return int(chr(c & 0xFFFF).isalpha())
 
     @apihook("_isatty", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _isatty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
