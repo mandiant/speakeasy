@@ -376,6 +376,25 @@ class Shell32(api.ApiHandler):
         emu.write_mem_string(path, pszPath, cw)
         return windefs.S_OK
 
+    @apihook("SHGetSpecialFolderPath", argc=4)
+    def SHGetSpecialFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL SHGetSpecialFolderPathA(
+          HWND  hwnd,
+          LPSTR pszPath,
+          int   csidl,
+          BOOL  fCreate
+        );
+        """
+        hwnd, pszPath, csidl, fCreate = argv
+        csidl &= ~shell32_defs.CSIDL_FLAG_MASK
+        if csidl not in shell32_defs.CSIDL:
+            return 0
+        ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
+        path = self.get_folder_path(emu, csidl)
+        emu.write_mem_string(path, pszPath, self.get_char_width(ctx))
+        return 1
+
     @apihook("SHGetSpecialFolderLocation", argc=3)
     def SHGetSpecialFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

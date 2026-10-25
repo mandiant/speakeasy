@@ -158,6 +158,33 @@ def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) 
     assert read_wstr(dll_emu, out) == f"C:\\Users\\{dll_emu.emu.config.user.name}\\AppData\\Roaming"
 
 
+@pytest.mark.parametrize("width", [1, 2])
+@pytest.mark.parametrize(
+    ("csidl", "expected"),
+    [
+        (0x24, "C:\\Windows"),
+        (0x25, "C:\\Windows\\System32"),
+        (0x1A, "C:\\Users\\{user}\\AppData\\Roaming"),
+    ],
+)
+def test_sh_get_special_folder_path_writes_the_path(dll_emu: Speakeasy, width: int, csidl: int, expected: str) -> None:
+    assert dll_emu.emu is not None
+    api = "SHGetSpecialFolderPathW" if width == 2 else "SHGetSpecialFolderPathA"
+    out = alloc(dll_emu, b"\xcc" * 520)
+    rv, _ = call(dll_emu, "shell32", api, [0, out, csidl, 1])
+    assert rv == 1
+    path = expected.format(user=dll_emu.emu.config.user.name)
+    assert dll_emu.mem_read(out, (len(path) + 1) * width) == wstr(path, width)
+
+
+@pytest.mark.parametrize("api", ["SHGetSpecialFolderPathA", "SHGetSpecialFolderPathW"])
+def test_sh_get_special_folder_path_fails_for_an_unknown_csidl(dll_emu: Speakeasy, api: str) -> None:
+    out = alloc(dll_emu, b"\xcc" * 8)
+    rv, _ = call(dll_emu, "shell32", api, [0, out, 0x7F, 0])
+    assert rv == 0
+    assert dll_emu.mem_read(out, 8) == b"\xcc" * 8
+
+
 @pytest.mark.parametrize(
     ("folder", "expected"),
     [
