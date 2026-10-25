@@ -3626,6 +3626,30 @@ class Msvcrt(api.ApiHandler):
             size = self.get_ptr_size()
         return self.heap_alloc(size, heap="operator_new")
 
+    @apihook("??_U@YAPAXI@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __U_YAPAXI_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__2_YAPAXI_Z(emu, argv, ctx)
+
+    @apihook("??_V@YAXPAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __V_YAXPAX_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__3_YAXPAX_Z(emu, argv, ctx)
+
+    @apihook("??2@YAPEAX_K@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __2_YAPEAX_K_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__2_YAPAXI_Z(emu, argv, ctx)
+
+    @apihook("??3@YAXPEAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __3_YAXPEAX_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__3_YAXPAX_Z(emu, argv, ctx)
+
+    @apihook("??_U@YAPEAX_K@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __U_YAPEAX_K_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__2_YAPAXI_Z(emu, argv, ctx)
+
+    @apihook("??_V@YAXPEAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __V_YAXPEAX_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.__3_YAXPAX_Z(emu, argv, ctx)
+
     def iostream_init_this(self, emu):
         if emu.get_arch() == e_arch.ARCH_AMD64:
             return emu.reg_read(e_arch.AMD64_REG_RCX)

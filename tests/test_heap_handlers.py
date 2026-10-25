@@ -84,11 +84,27 @@ def test_local_free_releases_a_local_block(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "LocalFree", [block])[0] == 0
 
 
-def test_operator_delete_releases_operator_new_memory(emu: Speakeasy) -> None:
-    p = call(emu, "msvcrt", "??2@YAPAXI@Z", [0x20])[0]
-    call(emu, "msvcrt", "??3@YAXPAX@Z", [p])
-    assert emu.emu is not None
-    mm = emu.emu.get_address_map(p)
+@pytest.mark.parametrize(
+    "fixture, new, delete",
+    [
+        ("dll_emu", "??2@YAPAXI@Z", "??3@YAXPAX@Z"),
+        ("dll_emu", "??_U@YAPAXI@Z", "??_V@YAXPAX@Z"),
+        ("dll64_emu", "??2@YAPEAX_K@Z", "??3@YAXPEAX@Z"),
+        ("dll64_emu", "??_U@YAPEAX_K@Z", "??_V@YAXPEAX@Z"),
+    ],
+)
+def test_operator_delete_releases_operator_new_memory(
+    request: pytest.FixtureRequest, fixture: str, new: str, delete: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    p = call(se, "msvcrt", new, [0x20])[0]
+    assert p
+    se.mem_write(p, b"\x41" * 0x20)
+    call(se, "msvcrt", delete, [p])
+    call(se, "msvcrt", delete, [0])
+    assert se.emu is not None
+    mm = se.emu.get_address_map(p)
     assert mm is None or mm.free
 
 
