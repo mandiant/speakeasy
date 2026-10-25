@@ -621,3 +621,29 @@ def test_url_combine_joins_a_relative_url(
     dll_emu.mem_write(size, struct.pack("<I", len(combined)))
     assert call(dll_emu, "shlwapi", api, args)[0] == 0x80004003
     assert struct.unpack("<I", dll_emu.mem_read(size, 4))[0] == len(combined) + 1
+
+
+def is_freed(se: Speakeasy, addr: int) -> bool:
+    assert se.emu is not None
+    mm = se.emu.get_address_map(addr)
+    return mm is None or mm.free or mm.base != addr
+
+
+def test_co_task_mem_alloc_realloc_and_free(dll_emu: Speakeasy) -> None:
+    block, _ = call(dll_emu, "ole32", "CoTaskMemAlloc", [8])
+    assert block
+    dll_emu.mem_write(block, b"abcdefgh")
+
+    bigger, _ = call(dll_emu, "ole32", "CoTaskMemRealloc", [block, 0x100])
+    assert bigger
+    assert dll_emu.mem_read(bigger, 8) == b"abcdefgh"
+    assert is_freed(dll_emu, block)
+
+    assert call(dll_emu, "ole32", "CoTaskMemRealloc", [bigger, 0])[0] == 0
+    assert is_freed(dll_emu, bigger)
+    assert call(dll_emu, "ole32", "CoTaskMemRealloc", [0, 4])[0]
+    empty, _ = call(dll_emu, "ole32", "CoTaskMemAlloc", [0])
+    assert empty
+    call(dll_emu, "ole32", "CoTaskMemFree", [empty])
+    assert is_freed(dll_emu, empty)
+    call(dll_emu, "ole32", "CoTaskMemFree", [0])

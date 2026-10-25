@@ -195,6 +195,49 @@ class Ole32(api.ApiHandler):
         ctx.args["lpsz"].display = u[:-1]
         return len(u)
 
+    @apihook("CoTaskMemAlloc", argc=1)
+    def CoTaskMemAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LPVOID CoTaskMemAlloc(
+          SIZE_T cb
+        );
+        """
+        (cb,) = argv
+        return self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
+
+    @apihook("CoTaskMemRealloc", argc=2)
+    def CoTaskMemRealloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LPVOID CoTaskMemRealloc(
+          LPVOID pv,
+          SIZE_T cb
+        );
+        """
+        pv, cb = argv
+        if pv and not cb:
+            self.heap_free(pv)
+            return 0
+        new = self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
+        if pv:
+            old = self.heap_size(pv)
+            if old is None:
+                self.heap_free(new)
+                return 0
+            self.mem_write(new, self.mem_read(pv, min(old, cb)))
+            self.heap_free(pv)
+        return new
+
+    @apihook("CoTaskMemFree", argc=1)
+    def CoTaskMemFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void CoTaskMemFree(
+          LPVOID pv
+        );
+        """
+        (pv,) = argv
+        if pv:
+            self.heap_free(pv)
+
     @apihook("CoCreateGuid", argc=1)
     def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         pguid = argv[0]
