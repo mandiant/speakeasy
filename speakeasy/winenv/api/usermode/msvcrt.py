@@ -3224,6 +3224,43 @@ class Msvcrt(api.ApiHandler):
             size = self.get_ptr_size()
         return self.mem_alloc(size, tag="api.msvcrt.operator_new")
 
+    def iostream_init_this(self, emu):
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            return emu.reg_read(e_arch.AMD64_REG_RCX)
+        return emu.reg_read(e_arch.X86_REG_ECX)
+
+    @apihook("??0Init@ios_base@std@@QAE@XZ", argc=0)
+    def ios_base_Init_ctor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.iostream_init_this(emu)
+
+    @apihook("??1Init@ios_base@std@@QAE@XZ", argc=0)
+    def ios_base_Init_dtor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("??0_Winit@std@@QAE@XZ", argc=0)
+    def Winit_ctor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.iostream_init_this(emu)
+
+    @apihook("??1_Winit@std@@QAE@XZ", argc=0)
+    def Winit_dtor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("??0Init@ios_base@std@@QEAA@XZ", argc=0)
+    def ios_base_Init_ctor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.iostream_init_this(emu)
+
+    @apihook("??1Init@ios_base@std@@QEAA@XZ", argc=0)
+    def ios_base_Init_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("??0_Winit@std@@QEAA@XZ", argc=0)
+    def Winit_ctor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return self.iostream_init_this(emu)
+
+    @apihook("??1_Winit@std@@QEAA@XZ", argc=0)
+    def Winit_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
     def get_exception_slot(self, name):
         slot = self.exception_slots.get(name)
         if slot is None:

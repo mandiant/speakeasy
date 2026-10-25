@@ -84,3 +84,104 @@ def test_crt_lconv_initializers_succeed(x86_session, api, initializer):
     se = x86_session
 
     assert call_table(se, api, [se.emu.get_proc("msvcrt", initializer)]) == 0
+
+
+@pytest.fixture
+def x64_session(config):
+    config["timeout"] = 2
+    config["max_api_count"] = 200
+    se = Speakeasy(config=config)
+    try:
+        base = se.load_shellcode(data=b"\xc3", arch="x64")
+        se.run_shellcode(base)
+        yield se
+    finally:
+        se.shutdown()
+
+
+@pytest.mark.parametrize(
+    "ctor, dtor",
+    [
+        ("??0Init@ios_base@std@@QAE@XZ", "??1Init@ios_base@std@@QAE@XZ"),
+        ("??0_Winit@std@@QAE@XZ", "??1_Winit@std@@QAE@XZ"),
+    ],
+)
+def test_iostream_static_constructors_are_thiscall_on_x86(x86_session, ctor, dtor):
+    se = x86_session
+    this = se.mem_alloc(0x1000)
+    out = se.mem_alloc(0x1000)
+    ctor_addr = se.emu.get_proc("msvcp60", ctor)
+    dtor_addr = se.emu.get_proc("msvcp60", dtor)
+    caller = write_code(
+        se,
+        b"\x89\x25"
+        + struct.pack("<I", out)
+        + b"\xb9"
+        + struct.pack("<I", this)
+        + b"\xb8"
+        + struct.pack("<I", ctor_addr)
+        + b"\xff\xd0"
+        + b"\xa3"
+        + struct.pack("<I", out + 4)
+        + b"\xb9"
+        + struct.pack("<I", this)
+        + b"\xb8"
+        + struct.pack("<I", dtor_addr)
+        + b"\xff\xd0"
+        + b"\x89\x25"
+        + struct.pack("<I", out + 8)
+        + b"\xc3",
+    )
+    se.call(caller)
+
+    assert se.get_report().entry_points[-1].error is None
+    esp_before, eax, esp_after = struct.unpack("<III", se.mem_read(out, 12))
+    assert eax == this
+    assert esp_after == esp_before
+
+
+@pytest.mark.parametrize(
+    "ctor, dtor",
+    [
+        ("??0Init@ios_base@std@@QEAA@XZ", "??1Init@ios_base@std@@QEAA@XZ"),
+        ("??0_Winit@std@@QEAA@XZ", "??1_Winit@std@@QEAA@XZ"),
+    ],
+)
+def test_iostream_static_constructors_return_this_on_x64(x64_session, ctor, dtor):
+    se = x64_session
+    this = se.mem_alloc(0x1000)
+    out = se.mem_alloc(0x1000)
+    ctor_addr = se.emu.get_proc("msvcp140", ctor)
+    dtor_addr = se.emu.get_proc("msvcp140", dtor)
+    caller = write_code(
+        se,
+        b"\x53"
+        + b"\x48\x89\xe3"
+        + b"\x48\x83\xec\x20"
+        + b"\x48\xb9"
+        + struct.pack("<Q", this)
+        + b"\x48\xb8"
+        + struct.pack("<Q", ctor_addr)
+        + b"\xff\xd0"
+        + b"\x48\xba"
+        + struct.pack("<Q", out)
+        + b"\x48\x89\x02"
+        + b"\x48\xb9"
+        + struct.pack("<Q", this)
+        + b"\x48\xb8"
+        + struct.pack("<Q", dtor_addr)
+        + b"\xff\xd0"
+        + b"\x48\x83\xc4\x20"
+        + b"\x48\xba"
+        + struct.pack("<Q", out)
+        + b"\x48\x89\x62\x08"
+        + b"\x48\x89\x5a\x10"
+        + b"\x5b"
+        + b"\xc3",
+    )
+    se.call(caller)
+
+    assert se.get_report().entry_points[-1].error is None
+    rax, rsp_after, rsp_before = struct.unpack("<QQQ", se.mem_read(out, 24))
+    assert rax == this
+    assert rsp_after == rsp_before
