@@ -1875,6 +1875,63 @@ class Msvcrt(api.ApiHandler):
         chunk = self.heap_alloc(size, heap="HeapAlloc")
         return chunk
 
+    @apihook("_malloc_crt", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _malloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_malloc_crt(
+        size_t size
+        );
+        """
+        return self.malloc(emu, argv, ctx)
+
+    @apihook("_calloc_crt", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _calloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_calloc_crt(
+        size_t num,
+        size_t size
+        );
+        """
+        return self.calloc(emu, argv, ctx)
+
+    @apihook("_realloc_crt", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _realloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_realloc_crt(
+        void *memblock,
+        size_t size
+        );
+        """
+        return self.realloc(emu, argv, ctx)
+
+    # The same encoding as kernel32.EncodePointer and DecodePointer, so the values mix
+    @apihook("_encode_pointer", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _encode_pointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_encode_pointer(
+        void *ptr
+        );
+        """
+        (ptr,) = argv
+        return ptr + 1
+
+    @apihook("_decode_pointer", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _decode_pointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_decode_pointer(
+        void *ptr
+        );
+        """
+        (ptr,) = argv
+        return ptr - 1
+
+    @apihook("_encoded_null", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _encoded_null(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_encoded_null(void);
+        """
+        return self._encode_pointer(emu, [0], ctx)
+
     @apihook("_strdup", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strdup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

@@ -546,6 +546,23 @@ def test_recalloc_of_null_allocates_zeroed_memory(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "_recalloc", [block, 0x10000, 0x10001])[0] == 0
 
 
+def test_crt_internal_allocators_allocate_like_the_public_ones(dll_emu: Speakeasy) -> None:
+    block, _ = call(dll_emu, "msvcrt", "_calloc_crt", [4, 4])
+    assert dll_emu.mem_read(block, 16) == b"\x00" * 16
+    dll_emu.mem_write(block, b"abcd")
+    grown, _ = call(dll_emu, "msvcrt", "_realloc_crt", [block, 0x20])
+    assert dll_emu.mem_read(grown, 4) == b"abcd"
+    assert call(dll_emu, "msvcrt", "_malloc_crt", [0x80])[0]
+
+
+def test_crt_pointer_encoding_round_trips(dll_emu: Speakeasy) -> None:
+    encoded, _ = call(dll_emu, "msvcrt", "_encode_pointer", [0x1234])
+    assert call(dll_emu, "msvcrt", "_decode_pointer", [encoded])[0] == 0x1234
+    null, _ = call(dll_emu, "msvcrt", "_encoded_null", [])
+    assert null == call(dll_emu, "kernel32", "EncodePointer", [0])[0]
+    assert call(dll_emu, "msvcrt", "_decode_pointer", [null])[0] == 0
+
+
 def test_realloc_that_cannot_grow_returns_null_and_keeps_the_block(dll_emu: Speakeasy) -> None:
     block, _ = call(dll_emu, "msvcrt", "malloc", [4])
     dll_emu.mem_write(block, b"abcd")
