@@ -574,3 +574,15 @@ def test_load_string_reads_the_string_table(config: dict, api: str, uid: int, rv
         buf = alloc(se, b"\xcc" * 32)
         result, _ = call(se, "user32", api, [se.emu.modules[0].base, uid, buf, 16])
         assert (result, se.mem_read(buf, len(out))) == (rv, out)
+
+
+def test_register_window_message_gives_one_id_per_name(dll_emu: Speakeasy) -> None:
+    def register(text: bytes) -> int:
+        return call(dll_emu, "user32", "RegisterWindowMessageA", [alloc(dll_emu, text + b"\0")])[0]
+
+    first = register(b"TaskbarCreated")
+    second = register(b"MyPrivateMessage")
+
+    assert 0xC000 <= first <= 0xFFFF
+    assert second not in (first, 0)
+    assert register(b"taskbarcreated") == first

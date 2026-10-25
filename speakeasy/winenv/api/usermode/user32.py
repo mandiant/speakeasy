@@ -170,6 +170,7 @@ class User32(api.ApiHandler):
         self.win: Any | None = None
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
+        self.window_messages: dict[str, int] = {}
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
         self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
@@ -676,14 +677,15 @@ class User32(api.ApiHandler):
         );
         """
         (lpString,) = argv
-        rv = 0xC000
+        if not lpString:
+            return 0
 
         cw = self.get_char_width(ctx)
 
         s = self.read_mem_string(lpString, cw)
         ctx.args["lpString"].display = s
 
-        return rv
+        return self.window_messages.setdefault(s.lower(), 0xC000 + len(self.window_messages))
 
     @apihook("wsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
     def wsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
