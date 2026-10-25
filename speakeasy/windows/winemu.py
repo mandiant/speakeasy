@@ -3874,6 +3874,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Called when software interrupts occur
         """
+        self.emu_eng.clear_exception_state()
         if (
             not self.kernel_mode
             and self.config.exceptions.dispatch_handlers

@@ -324,6 +324,24 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
         assert len([e for e in run.events or [] if e.event == "exception"]) == 6
 
 
+@pytest.mark.parametrize(
+    "arch, fault, step, exception_code",
+    [
+        ("amd64", b"\x31\xc9\xf7\xf1", 2, STATUS_INTEGER_DIVIDE_BY_ZERO),  # xor ecx, ecx; div ecx
+        ("x86", b"\x31\xc9\xf7\xf1", 2, STATUS_INTEGER_DIVIDE_BY_ZERO),
+        ("x86", b"\xea\x78\x56\x00\x00\x34\x12", 7, STATUS_ACCESS_VIOLATION),  # jmp far 0x1234:0x5678
+    ],
+    ids=["divide by zero amd64", "divide by zero x86", "far jmp bad selector x86"],
+)
+def test_contributory_exception_can_repeat(config, arch, fault, step, exception_code):
+    # for (ebx = 3; ebx; ebx--) fault;  each a fault, not a double fault after the first
+    loop = b"\xbb\x03\x00\x00\x00" + fault + b"\xff\xcb\x75" + bytes([0x100 - len(fault) - 4])
+    run, _, _ = run_under_handler(config, arch, loop, step)
+    assert run.error is None
+    assert run.ret_val == 42
+    assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [hex(exception_code)] * 3
+
+
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
     # mov al, 0xf4 stopped by the instruction limit right after it
     config.update(max_instructions=1)

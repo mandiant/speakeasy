@@ -3,6 +3,7 @@
 # Unicorn specific wrappers and abstraction implemented here
 
 import ctypes as ct
+import functools
 
 import unicorn as uc
 import unicorn.x86_const as u
@@ -33,6 +34,28 @@ UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
 hook_id = uc_hook_h()
 
 
+@functools.cache
+def get_exception_state_offset(mode):
+    """
+    Get the offset, in a saved x86 context, of the vector of the CPU exception in flight,
+    or None when it cannot be found. The processor clears it once it delivers the exception;
+    Unicorn hands the exception to the interrupt hook instead and never clears it.
+    """
+    probe = uc.Uc(uc.UC_ARCH_X86, mode)
+    probe.mem_map(0x1000, 0x1000)
+    probe.mem_write(0x1000, b"\xf7\xf1")  # div ecx
+    probe.hook_add(uc.UC_HOOK_INTR, lambda emu, _intno, _data: emu.emu_stop())
+    before = bytes(probe.context_save())
+    probe.emu_start(0x1000, 0x1002)
+    after = bytes(probe.context_save())
+    offsets = [
+        offset
+        for offset in range(0, len(before), 4)
+        if before[offset : offset + 4] == b"\xff" * 4 and after[offset : offset + 4] == b"\0" * 4
+    ]
+    return offsets[0] if len(offsets) == 1 else None
+
+
 class ToggleableHook:
     """
     Hook than can be toggled on/off at arbitrary times.
@@ -57,6 +80,7 @@ class EmuEngine:
     def __init__(self):
         self.name = "unicorn"
         self.emu = None
+        self.mode = None
         self.mmap = None
         self._callbacks = {}
 
@@ -163,6 +187,7 @@ class EmuEngine:
             raise Exception("Invalid bitness")
 
         self.emu = uc.Uc(_arch, _mode)
+        self.mode = _mode
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
         """Allocate memory in the cpu engine"""
@@ -198,6 +223,19 @@ class EmuEngine:
         self.invalidate_translations(addr, addr + size)
         self.emu.ctl(uc.UC_CTL_TLB_FLUSH, uc.UC_CTL_IO_WRITE)  # type: ignore[union-attr]
         return result
+
+    def clear_exception_state(self):
+        """
+        Mark the CPU exception in flight as delivered. Otherwise the next divide error or
+        general protection fault becomes a double fault, and the one after a triple fault
+        that stops emulation without an error.
+        """
+        offset = get_exception_state_offset(self.mode)
+        if offset is None:
+            return
+        context = self.emu.context_save()  # type: ignore[union-attr]
+        ct.memset(context.context.value + offset, 0xFF, 4)
+        self.emu.context_restore(context)  # type: ignore[union-attr]
 
     def invalidate_translations(self, begin, end):
         """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it"""
