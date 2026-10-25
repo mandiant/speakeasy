@@ -1,4 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+import struct
 from typing import Any
 
 import speakeasy.winenv.defs.windows.com as com
@@ -8,6 +9,23 @@ from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE
 
 from .. import api
+
+DLLVER_PLATFORM_NT = 2
+
+
+def write_dll_version(handler: api.ApiHandler, pdvi: int, major: int, minor: int, build: int) -> int:
+    """
+    Fill the DLLVERSIONINFO or DLLVERSIONINFO2 at ``pdvi`` the way DllGetVersion
+    does, and return the HRESULT. The size in cbSize selects the structure.
+    """
+    size = int.from_bytes(handler.mem_read(pdvi, 4), "little")
+    if size not in (20, 32):
+        return windefs.E_INVALIDARG
+    data = struct.pack("<IIII", major, minor, build, DLLVER_PLATFORM_NT)
+    if size == 32:
+        data += struct.pack("<IQ", 0, major << 48 | minor << 32 | build << 16)
+    handler.mem_write(pdvi + 4, data)
+    return windefs.S_OK
 
 
 def split_command_line(cmdline: str) -> list[str]:
@@ -441,3 +459,14 @@ class Shell32(api.ApiHandler):
         if ppszPath:
             self.mem_write(ppszPath, ptr.to_bytes(emu.get_ptr_size(), "little"))
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
+
+    @apihook("DllGetVersion", argc=1)
+    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT DllGetVersion(
+          DLLVERSIONINFO *pdvi
+        );
+        """
+        (pdvi,) = argv
+        ver = emu.config.os_ver
+        return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)

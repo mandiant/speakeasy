@@ -7,6 +7,8 @@ import ntpath
 import struct
 import uuid
 import zlib
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -15,7 +17,7 @@ from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import com
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, start_process
+from tests.handler_harness import alloc, call, load_emu, start_process
 
 
 def wstr(text: str, width: int) -> bytes:
@@ -975,3 +977,36 @@ def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_
 
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0x1234, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("dll, major, minor", [("shell32", 6, 1), ("shlwapi", 6, 1), ("comctl32", 6, 10)])
+def test_dll_get_version_fills_dllversioninfo(dll_emu: Speakeasy, dll: str, major: int, minor: int) -> None:
+    info = alloc(dll_emu, struct.pack("<I", 20) + b"\xcc" * 20)
+    assert call(dll_emu, dll, "DllGetVersion", [info])[0] == windefs.S_OK
+    assert dll_emu.mem_read(info, 24) == struct.pack("<IIIII", 20, major, minor, 7601, 2) + b"\xcc" * 4
+
+
+@pytest.mark.parametrize("dll, major, minor", [("shell32", 6, 1), ("comctl32", 6, 10)])
+def test_dll_get_version_fills_dllversioninfo2(dll_emu: Speakeasy, dll: str, major: int, minor: int) -> None:
+    info = alloc(dll_emu, struct.pack("<I", 32) + b"\xcc" * 32)
+    assert call(dll_emu, dll, "DllGetVersion", [info])[0] == windefs.S_OK
+    version = major << 48 | minor << 32 | 7601 << 16
+    assert dll_emu.mem_read(info, 36) == struct.pack("<IIIIIIQ", 32, major, minor, 7601, 2, 0, version) + b"\xcc" * 4
+
+
+@pytest.mark.parametrize("size", [0, 4, 24])
+def test_dll_get_version_rejects_an_unknown_size(dll_emu: Speakeasy, size: int) -> None:
+    info = alloc(dll_emu, struct.pack("<I", size) + b"\xcc" * 28)
+    assert call(dll_emu, "shell32", "DllGetVersion", [info])[0] == windefs.E_INVALIDARG
+    assert dll_emu.mem_read(info, 32) == struct.pack("<I", size) + b"\xcc" * 28
+
+
+@pytest.mark.parametrize("dll, major, minor", [("shlwapi", 10, 0), ("comctl32", 6, 10)])
+def test_dll_get_version_uses_the_emulated_os_build(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], dll: str, major: int, minor: int
+) -> None:
+    config["os_ver"].update(major=10, minor=0, build=19045)
+    for se in load_emu(config, load_test_bin("dll_test_x64.dll.xz")):
+        info = alloc(se, struct.pack("<I", 20) + b"\x00" * 16)
+        assert call(se, dll, "DllGetVersion", [info])[0] == windefs.S_OK
+        assert se.mem_read(info, 20) == struct.pack("<IIIII", 20, major, minor, 19045, 2)

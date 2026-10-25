@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import speakeasy.winenv.arch as e_arch
 
 from .. import api
+from .shell32 import write_dll_version
 
 MAX_PATH = 260
 E_INVALIDARG = 0x80070057
@@ -565,3 +566,14 @@ class Shlwapi(api.ApiHandler):
 
         self.write_mem_string(path, pszPath, cw)
         return 1
+
+    @apihook("DllGetVersion", argc=1)
+    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT DllGetVersion(
+          DLLVERSIONINFO *pdvi
+        );
+        """
+        (pdvi,) = argv
+        ver = emu.config.os_ver
+        return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)

@@ -2,6 +2,7 @@
 
 
 from .. import api
+from .shell32 import write_dll_version
 
 
 class Comctl32(api.ApiHandler):
@@ -38,3 +39,15 @@ class Comctl32(api.ApiHandler):
         Applications must explicitly register all common controls through InitCommonControlsEx.
         """
         return
+
+    @apihook("DllGetVersion", argc=1)
+    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT DllGetVersion(
+          DLLVERSIONINFO *pdvi
+        );
+
+        Common controls version 6 reports 6.10 with the build of the OS.
+        """
+        (pdvi,) = argv
+        return write_dll_version(self, pdvi, 6, 10, emu.config.os_ver.build or 0)
