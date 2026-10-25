@@ -12,6 +12,8 @@ import speakeasy.winenv.defs.wdf as wdf
 
 from .. import api
 
+WDF_FUNCTION_TABLE_NUM_ENTRIES_V1_13 = 438
+
 
 class WdfDriver:
     def __init__(self):
@@ -134,21 +136,28 @@ class Wdfldr(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
         drv, reg_path, BindInfo, comp_globals = argv
 
-        wbi = self.types.WDF_BIND_INFO(emu.get_ptr_size())
+        ptr_size = emu.get_ptr_size()
+        wbi = self.types.WDF_BIND_INFO(ptr_size)
         wbi = self.mem_cast(wbi, BindInfo)
 
         if not self.func_table_ptr:
             size = self.func_table.sizeof()
             self.func_table_ptr = self.mem_alloc(size, tag="api.struct.WDFFUNCTIONS")
 
-            self.mem_write(wbi.FuncTable, (self.func_table_ptr).to_bytes(emu.get_ptr_size(), "little"))
-
         if not self.component_globals:
-            components = self.types.WDF_COMPONENT_GLOBALS(emu.get_ptr_size())
+            components = self.types.WDF_COMPONENT_GLOBALS(ptr_size)
             self.component_globals = self.mem_alloc(components.sizeof(), tag="api.struct.WDF_COMPONENT_GLOBALS")
-            self.mem_write(comp_globals, (self.component_globals).to_bytes(emu.get_ptr_size(), "little"))
+        self.mem_write(comp_globals, (self.component_globals).to_bytes(ptr_size, "little"))
 
         self.set_func_table(emu)
+
+        # KMDF 1.13 and older drivers keep the function table as an array in their own image
+        if wbi.FuncCount <= WDF_FUNCTION_TABLE_NUM_ENTRIES_V1_13:
+            table_size = wbi.FuncCount * ptr_size
+            table = self.func_table.get_bytes()[:table_size]
+            self.mem_write(wbi.FuncTable, table.ljust(table_size, b"\x00"))
+        else:
+            self.mem_write(wbi.FuncTable, self.func_table_ptr.to_bytes(ptr_size, "little"))
 
         # For now, just leave the handle open so we can reference it later
         return rv

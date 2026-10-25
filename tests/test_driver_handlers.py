@@ -16,6 +16,10 @@ from speakeasy.winenv.defs import wdf
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, load_emu
 
+WDF_FUNC_COUNT_V1_11 = 432
+WDF_FUNC_COUNT_V1_15 = 444
+WDF_DRIVER_CREATE_INDEX = 116
+
 USBSAMP = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\usbsamp"
 
 # One interface with a bulk IN endpoint and an interrupt OUT endpoint.
@@ -48,15 +52,21 @@ def _unicode_string(se: Speakeasy, text: str) -> int:
     return alloc(se, struct.pack("<HH", len(buf), len(buf) + 2) + pad + buf_addr.to_bytes(_ptr_size(se), "little"))
 
 
-def _wdf_driver(se: Speakeasy) -> int:
-    """Bind to KMDF, create the driver, and return the driver globals."""
+def _wdf_bind(se: Speakeasy, func_count: int, table_size: int) -> tuple[int, int]:
+    """Bind to KMDF and return the caller's function table and the driver globals."""
     ps = _ptr_size(se)
     bind_info = wdf.WDF_BIND_INFO(ps)
-    bind_info.FuncTable = alloc(se, b"\x00" * ps)
+    bind_info.FuncCount = func_count
+    bind_info.FuncTable = alloc(se, b"\xcc" * table_size)
     globals_ptr = alloc(se, b"\x00" * ps)
     rv, _ = call(se, "wdfldr", "WdfVersionBind", [0, 0, alloc(se, bind_info.get_bytes()), globals_ptr])
     assert rv == ddk.STATUS_SUCCESS
-    driver_globals = _read_ptr(se, globals_ptr)
+    return bind_info.FuncTable, _read_ptr(se, globals_ptr)
+
+
+def _wdf_driver(se: Speakeasy) -> int:
+    """Bind to KMDF, create the driver, and return the driver globals."""
+    _, driver_globals = _wdf_bind(se, WDF_FUNC_COUNT_V1_15, _ptr_size(se))
     driver_object = alloc(se, b"\x00" * 0x200)
     rv, _ = call(
         se, "wdfldr", "WdfDriverCreate", [driver_globals, driver_object, _unicode_string(se, USBSAMP), 0, 0, 0]
@@ -310,14 +320,37 @@ def test_wdf_typed_context_has_the_size_of_its_type(any_driver_emu: Speakeasy) -
 def test_wdf_function_table_has_an_entry_for_every_function(any_driver_emu: Speakeasy) -> None:
     se = any_driver_emu
     ps = _ptr_size(se)
-    bind_info = wdf.WDF_BIND_INFO(ps)
-    bind_info.FuncTable = alloc(se, b"\x00" * ps)
-    globals_ptr = alloc(se, b"\x00" * ps)
-    call(se, "wdfldr", "WdfVersionBind", [0, 0, alloc(se, bind_info.get_bytes()), globals_ptr])
+    func_table, _ = _wdf_bind(se, WDF_FUNC_COUNT_V1_15, ps)
     functions = wdf.WDFFUNCTIONS(ps)
     names = [field for field, _ in functions.__fields__ if field.startswith("pfn")]
     assert len(names) > 300
-    functions = se.emu.mem_cast(functions, _read_ptr(se, bind_info.FuncTable))
+    functions = se.emu.mem_cast(functions, _read_ptr(se, func_table))
     slots = [getattr(functions, name) for name in names]
     assert 0 not in slots
     assert len(set(slots)) == len(names)
+
+
+def test_wdf_version_bind_copies_the_table_for_kmdf_1_13_and_older(driver64_emu: Speakeasy) -> None:
+    se = driver64_emu
+    _, first_globals = _wdf_bind(se, WDF_FUNC_COUNT_V1_15, 8)
+    func_table, driver_globals = _wdf_bind(se, WDF_FUNC_COUNT_V1_11, WDF_FUNC_COUNT_V1_11 * 8)
+    assert driver_globals == first_globals
+    entries = struct.unpack(f"<{WDF_FUNC_COUNT_V1_11}Q", se.mem_read(func_table, WDF_FUNC_COUNT_V1_11 * 8))
+    known = wdf.WDFFUNCTIONS(8).sizeof() // 8
+    assert entries[known:] == (0,) * (WDF_FUNC_COUNT_V1_11 - known)
+
+    driver_create = entries[WDF_DRIVER_CREATE_INDEX]
+    driver_object = alloc(se, b"\x00" * 0x200)
+    se.call(driver_create, [driver_globals, driver_object, _unicode_string(se, USBSAMP), 0, 0, 0])
+    run = se.get_report().entry_points[-1]
+    assert [e.api_name for e in run.events or [] if e.event == "api"] == ["wdfldr.WdfDriverCreate"]
+
+
+def test_wdf_version_bind_writes_a_table_pointer_for_kmdf_1_15(driver64_emu: Speakeasy) -> None:
+    se = driver64_emu
+    func_table, _ = _wdf_bind(se, WDF_FUNC_COUNT_V1_15, WDF_FUNC_COUNT_V1_15 * 8)
+    table = _read_ptr(se, func_table)
+    assert table != 0xCCCCCCCCCCCCCCCC
+    assert se.mem_read(func_table + 8, 8) == b"\xcc" * 8
+    entries = struct.unpack("<3Q", se.mem_read(table + WDF_DRIVER_CREATE_INDEX * 8, 24))
+    assert all(entries)
