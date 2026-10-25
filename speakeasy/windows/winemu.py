@@ -2286,6 +2286,10 @@ class WindowsEmulator(BinaryEmulator):
             self._unset_emu_hooks()
             return True
 
+        # The rest of an instruction that crosses into the next page; the run already ends at its start
+        if self._pending_control == "fault_return" or self._pending_fault_stop is not None:
+            return False
+
         # Are there any SEH handlers registered?
         if self.config.exceptions.dispatch_handlers:
             rv = self.dispatch_seh(address, "fetch")

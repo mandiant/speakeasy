@@ -23,6 +23,10 @@ import speakeasy.winenv.arch as arch
 from speakeasy.errors import EmuEngineError
 
 uc_engine = ct.c_void_p
+# Unicorn ends emulation without an error when pc reaches the "until" address. No x86 code
+# reaches this one: it is above 32 bits and not canonical on x64.
+UNREACHABLE_ADDRESS = 0x8000000000000000
+
 UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
 UC_HOOK_INSN_OUT_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_uint32, ct.c_int, ct.c_uint32, ct.c_void_p)
 UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
@@ -222,7 +226,7 @@ class EmuEngine:
 
         # Unicorn expects the timeout to be in microseconds, convert it here
         timeout = self._sec_to_usec(timeout)
-        return self.emu.emu_start(addr, 0xFFFFFFFF, timeout=timeout, count=count)  # type: ignore[union-attr]
+        return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, timeout=timeout, count=count)  # type: ignore[union-attr]
 
     def hook_add(self, addr=None, cb=None, htype=None, begin=1, end=0, arg1=0):
         """
