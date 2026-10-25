@@ -1,4 +1,6 @@
-"""The max_instructions limit applies to each queued run."""
+"""The max_instructions limit applies to each queued run; the exit event stops all runs."""
+
+import threading
 
 from speakeasy import Speakeasy
 
@@ -23,5 +25,34 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         assert int(spinning.error.pc) == base + thread - 2
         assert created.error is None
         assert created.ret_val == 0x2A
+    finally:
+        se.shutdown()
+
+
+def test_exit_event_stops_an_api_loop_as_a_timeout(config):
+    config.update({"timeout": 60, "max_api_count": 10_000_000})
+    exit_event = threading.Event()
+    se = Speakeasy(config=config, exit_event=exit_event)
+    try:
+        # CreateThread(NULL, 0, thread, NULL, 0, NULL); loop: mov eax, GetTickCount; call eax; jmp loop
+        code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0"
+        loop = len(code)
+        code += b"\xb8" + b"\0" * 4 + b"\xff\xd0\xeb\xf7"
+        thread = len(code)
+        code += b"\xb8\x2a\0\0\0\xc3"
+        base = se.load_shellcode(data=code, arch="x86")
+        se.mem_write(base + 7, (base + thread).to_bytes(4, "little"))
+        se.mem_write(base + 16, se.emu.get_proc("kernel32", "CreateThread").to_bytes(4, "little"))
+        se.mem_write(base + loop + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+        timer = threading.Timer(0.5, exit_event.set)
+        timer.start()
+
+        se.run_shellcode(base)
+
+        timer.join()
+        (entry,) = se.get_report().entry_points
+        assert entry.error is not None
+        assert entry.error.type == "timeout"
+        assert base + loop <= int(entry.error.pc) < base + thread
     finally:
         se.shutdown()

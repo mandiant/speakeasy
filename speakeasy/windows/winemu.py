@@ -955,6 +955,11 @@ class WindowsEmulator(BinaryEmulator):
         finally:
             elapsed = time.monotonic() - started
             origin_run.execution_elapsed = spent + elapsed
+            stopped = self.exit_event is not None and self.exit_event.is_set()
+            if stopped and debugger is None and self.curr_run is origin_run and not self.run_complete:
+                if origin_run.error is None:
+                    origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
+                self._cancel_execution_runs()
             if total_budget is not None:
                 total_budget.elapsed += elapsed
                 if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
