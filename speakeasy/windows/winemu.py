@@ -512,6 +512,16 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_unmap(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
             self.emu_hooks_set = True
 
+    def get_valid_ranges(self, size, addr=None):
+        """
+        Keep allocations out of the reserved emulator range, which stays unmapped
+        so that a return to the return hook faults
+        """
+        base, total = super().get_valid_ranges(size, addr=addr)
+        if base < winemu.EMU_RESERVED_END and winemu.EMU_RESERVED < base + total:
+            base, total = super().get_valid_ranges(size, addr=winemu.EMU_RESERVED_END)
+        return base, total
+
     def add_run(self, run):
         """
         Add a run to the emulation run queue
