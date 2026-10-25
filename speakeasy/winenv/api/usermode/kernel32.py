@@ -2982,9 +2982,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         FILE_TYPE_DISK = 1
+        FILE_TYPE_CHAR = 2
+        FILE_TYPE_PIPE = 3
 
         (hFile,) = argv
 
+        proc = emu.get_current_process()
+        if hFile in (proc.stdin, proc.stdout, proc.stderr):
+            return FILE_TYPE_CHAR
+        if emu.pipe_get(hFile):
+            return FILE_TYPE_PIPE
         return FILE_TYPE_DISK
 
     @apihook("SetHandleCount", argc=1)
@@ -4773,7 +4780,49 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             _Out_ LPDWORD lpMode
         );
         """
+        hConsoleHandle, lpMode = argv
+        ENABLE_INPUT_MODES = 0x1F7
+        ENABLE_OUTPUT_MODES = 0x3
 
+        proc = emu.get_current_process()
+        mode = ENABLE_INPUT_MODES if hConsoleHandle == proc.stdin else ENABLE_OUTPUT_MODES
+        if lpMode:
+            self.mem_write(lpMode, mode.to_bytes(4, "little"))
+        return True
+
+    @apihook("GetConsoleCP", argc=0)
+    def GetConsoleCP(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT WINAPI GetConsoleCP(void);
+        """
+        return 437
+
+    @apihook("GetConsoleOutputCP", argc=0)
+    def GetConsoleOutputCP(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT WINAPI GetConsoleOutputCP(void);
+        """
+        return 437
+
+    @apihook("WriteConsole", argc=5)
+    def WriteConsole(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL WINAPI WriteConsole(
+          _In_             HANDLE  hConsoleOutput,
+          _In_       const VOID    *lpBuffer,
+          _In_             DWORD   nNumberOfCharsToWrite,
+          _Out_opt_        LPDWORD lpNumberOfCharsWritten,
+          _Reserved_       LPVOID  lpReserved
+        );
+        """
+        hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, _ = argv
+        cw = self.get_char_width(ctx)
+
+        if lpBuffer and nNumberOfCharsToWrite:
+            data = self.mem_read(lpBuffer, nNumberOfCharsToWrite * cw)
+            ctx.args["lpBuffer"].display = repr(data.decode("utf-16le" if cw == 2 else "latin-1", "replace"))
+        if lpNumberOfCharsWritten:
+            self.mem_write(lpNumberOfCharsWritten, nNumberOfCharsToWrite.to_bytes(4, "little"))
         return True
 
     @apihook("HeapSetInformation", argc=4)

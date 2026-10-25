@@ -691,3 +691,43 @@ def test_each_handle_to_a_file_has_its_own_position(strict_fs_emu: Speakeasy) ->
     second = open_file(se, BYTE_FILL_PATH)
     assert call(se, "kernel32", "SetFilePointer", [first, 16, 0, FILE_BEGIN])[0] == 16
     assert call(se, "kernel32", "SetFilePointer", [second, 0, 0, FILE_CURRENT])[0] == 0
+
+
+def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    for std in (0xFFFFFFF6, 0xFFFFFFF5, 0xFFFFFFF4):
+        handle = call(dll_emu, "kernel32", "GetStdHandle", [std])[0]
+        assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 2
+
+    pipes = alloc(dll_emu, b"\0" * 16)
+    assert call(dll_emu, "kernel32", "CreatePipe", [pipes, pipes + 8, 0, 0])[0] == 1
+    read_pipe = struct.unpack("<I", dll_emu.mem_read(pipes, 4))[0]
+    assert call(dll_emu, "kernel32", "GetFileType", [read_pipe])[0] == 3
+
+    path = alloc(dll_emu, b"C:\\Windows\\Temp\\type.txt\0")
+    handle = call(dll_emu, "kernel32", "CreateFileA", [path, 0x40000000, 0, 0, 2, 0x80, 0])[0]
+    assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
+
+
+@pytest.mark.parametrize(("api", "text"), [("WriteConsoleA", b"hi\n"), ("WriteConsoleW", "hi\n".encode("utf-16le"))])
+def test_write_console_reports_the_characters_written(dll_emu: Speakeasy, api: str, text: bytes) -> None:
+    start_process(dll_emu)
+    out = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0]
+    written = alloc(dll_emu, b"\0" * 4)
+    buf = alloc(dll_emu, text)
+
+    rv, args = call(dll_emu, "kernel32", api, [out, buf, 3, written, 0])
+
+    assert rv == 1
+    assert struct.unpack("<I", dll_emu.mem_read(written, 4))[0] == 3
+    assert "hi" in args["lpBuffer"]
+
+
+def test_get_console_mode_writes_a_mode(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    out = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0]
+    mode = alloc(dll_emu, b"\xff" * 4)
+
+    assert call(dll_emu, "kernel32", "GetConsoleMode", [out, mode])[0] == 1
+    assert struct.unpack("<I", dll_emu.mem_read(mode, 4))[0] == 3
+    assert call(dll_emu, "kernel32", "GetConsoleOutputCP", [])[0] == 437
