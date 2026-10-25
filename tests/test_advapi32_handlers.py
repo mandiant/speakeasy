@@ -822,6 +822,35 @@ def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> N
     assert (rv, _dword(dll_emu, size)) == (1, 3)
 
 
+@pytest.mark.parametrize(
+    "api, data",
+    [
+        ("CryptStringToBinaryA", bytes([0x90, 0x4D, 0x5A, 0xFF, 0x00, 0x01]) * 16),
+        ("CryptStringToBinaryW", "QUJD*REVG".encode("utf-16le")),
+    ],
+)
+def test_crypt_string_to_binary_rejects_invalid_input(dll_emu: Speakeasy, api: str, data: bytes) -> None:
+    start_process(dll_emu)
+    cch = len(data) // (2 if api.endswith("W") else 1)
+    out = alloc(dll_emu, b"\x00" * 128)
+    size = alloc(dll_emu, struct.pack("<I", 128))
+    rv, _ = call(dll_emu, "crypt32", api, [alloc(dll_emu, data), cch, 1, out, size, 0, 0])
+    assert (rv, _last_error(dll_emu)) == (0, windefs.ERROR_INVALID_DATA)
+
+
+@pytest.mark.parametrize("api, encoding", [("CryptStringToBinaryA", "latin-1"), ("CryptStringToBinaryW", "utf-16le")])
+def test_crypt_string_to_binary_skips_line_breaks(dll_emu: Speakeasy, api: str, encoding: str) -> None:
+    text = "QUJDREVG\r\nR0hJSktM\r\nTU5P\r\n"
+    out = alloc(dll_emu, b"\x00" * 32)
+    size = alloc(dll_emu, struct.pack("<I", 32))
+    rv, _ = call(dll_emu, "crypt32", api, [alloc(dll_emu, text.encode(encoding)), len(text), 1, out, size, 0, 0])
+    assert (rv, dll_emu.mem_read(out, _dword(dll_emu, size))) == (1, b"ABCDEFGHIJKLMNO")
+
+    size = alloc(dll_emu, struct.pack("<I", 0))
+    rv, _ = call(dll_emu, "crypt32", api, [alloc(dll_emu, (text + "\x00").encode(encoding)), 0, 1, 0, size, 0, 0])
+    assert (rv, _dword(dll_emu, size)) == (1, 15)
+
+
 DPAPI_HEADER = bytes.fromhex("01000000d08c9ddf0115d1118c7a00c04fc297eb")
 
 

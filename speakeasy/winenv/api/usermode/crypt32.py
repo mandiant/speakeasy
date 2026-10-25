@@ -15,12 +15,24 @@ from .. import api
 ERROR_MORE_DATA = 234
 
 CRYPT_STRING_BASE64 = 1
+BASE64_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 
 DPAPI_VERSION = 1
 DPAPI_PROVIDER = bytes.fromhex("d08c9ddf0115d1118c7a00c04fc297eb")
 DPAPI_MASTER_KEY = bytes.fromhex("5c7b0e3a9d6f4e21b3a8c4d2e1f09a77")
 DPAPI_KEY = hashlib.sha256(b"speakeasy dpapi master key").digest()
 DPAPI_HEADER = struct.Struct("<I16sI16sII")
+
+
+def decode_base64(s):
+    """
+    Decode base64 like crypt32: whitespace is skipped and any other character outside the alphabet is an error.
+    """
+    chars = "".join(c for c in s if c not in " \t\r\n")
+    data = chars.rstrip("=")
+    if len(chars) - len(data) > 2 or len(data) % 4 == 1 or not BASE64_ALPHABET.issuperset(data):
+        raise ValueError("invalid base64 string")
+    return base64.b64decode(data + "=" * (-len(data) % 4))
 
 
 class Crypt32(api.ApiHandler):
@@ -57,23 +69,22 @@ class Crypt32(api.ApiHandler):
 
         pszString, cchString, dwFlags, pbBinary, pcbBinary, pdwSkip, pdwFlags = argv
 
-        if cchString:
-            s = self.mem_read(pszString, cchString * cw)
-        else:
-            s = self.read_mem_string(pszString, cw)
+        if not cchString:
+            cchString = self.mem_string_len(pszString, cw)
+        raw = self.mem_read(pszString, cchString * cw)
+        s = raw.decode("utf-16le", "surrogatepass") if cw == 2 else raw.decode("latin-1")
+        s = s.partition("\x00")[0]
 
         if dwFlags != CRYPT_STRING_BASE64:
             # self.logger.info("%s: currently unsupported flags (%08X)" % (api_name, dwFlags))
             return 1
 
-        if not isinstance(s, str):
-            s = s.decode("utf8")
-
         ctx.args["pszString"].display = s
 
         try:
-            decoded = base64.b64decode(s)
-        except Exception:
+            decoded = decode_base64(s)
+        except ValueError:
+            emu.set_last_error(windefs.ERROR_INVALID_DATA)
             return 0
 
         cbBinary = int.from_bytes(self.mem_read(pcbBinary, 4), "little")
