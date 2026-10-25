@@ -4,6 +4,7 @@ from typing import Any
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE
 
 from .. import api
@@ -185,7 +186,11 @@ class Shell32(api.ApiHandler):
         if dn and fn:
             fn = f"{dn}\\{fn}"
 
-        proc = emu.create_process(path=fn, cmdline=param)
+        try:
+            proc = emu.create_process(path=fn, cmdline=param)
+        except FileSystemEmuError:
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return shell32_defs.SE_ERR_FNF
         self.record_process_event(proc, PROC_CREATE)
 
         return 33
@@ -202,9 +207,13 @@ class Shell32(api.ApiHandler):
         sei = shell32_defs.SHELLEXECUTEINFOA(emu.get_ptr_size())
         sei_struct = self.mem_cast(sei, lpShellExecuteInfo)
 
-        self.ShellExecute(
+        rv = self.ShellExecute(
             emu, [0, sei_struct.lpVerb, sei_struct.lpFile, sei_struct.lpParameters, sei_struct.lpDirectory, 0], ctx
         )
+        if rv <= 32:
+            sei_struct.hInstApp = rv
+            self.mem_write(lpShellExecuteInfo, self.get_bytes(sei_struct))
+            return False
 
         return True
 

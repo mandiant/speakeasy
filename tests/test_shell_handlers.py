@@ -706,3 +706,22 @@ def test_co_task_mem_alloc_realloc_and_free(dll_emu: Speakeasy) -> None:
     call(dll_emu, "ole32", "CoTaskMemFree", [empty])
     assert is_freed(dll_emu, empty)
     call(dll_emu, "ole32", "CoTaskMemFree", [0])
+
+
+@pytest.mark.parametrize("name", ["", " ", "\u00a0"])
+def test_shell_execute_fails_for_an_empty_program_name(dll_emu: Speakeasy, name: str) -> None:
+    start_process(dll_emu)
+    fn = alloc(dll_emu, wstr(name, 2))
+    rv, _ = call(dll_emu, "shell32", "ShellExecuteW", [0, 0, fn, 0, 0, 1])
+    assert rv == 2
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+
+
+def test_shell_execute_ex_writes_the_error_to_h_inst_app(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    fn = alloc(dll_emu, wstr("", 2))
+    sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, 0, 0, 0, fn, 0, 0, 1, 0xCCCCCCCC) + b"\x00" * 24)
+    rv, _ = call(dll_emu, "shell32", "ShellExecuteExW", [sei])
+    assert rv == 0
+    assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] == 2
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
