@@ -792,9 +792,19 @@ class AdvApi32(api.ApiHandler):
         if disp_name:
             _dname = self.read_mem_string(disp_name, cw)
             ctx.args["lpDisplayName"].display = _dname
+        _bpname = ""
         if bin_path:
             _bpname = self.read_mem_string(bin_path, cw)
             ctx.args["lpBinaryPathName"].display = _bpname
+
+        if svc_name:
+            key = emu.regman.create_key(f"HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\{_sname}")
+            key.create_value("Type", regdefs.REG_DWORD, svc_type)
+            key.create_value("Start", regdefs.REG_DWORD, start_type)
+            key.create_value("ErrorControl", regdefs.REG_DWORD, error_ctrl)
+            key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, _bpname)
+            if disp_name:
+                key.create_value("DisplayName", regdefs.REG_SZ, _dname)
 
         hSvc = self.mem_alloc(size=8)
         emu.set_last_error(windefs.ERROR_SUCCESS)

@@ -121,13 +121,15 @@ class RegistryManager:
             self.reg_handles.update({hk: key})
 
     def normalize_reg_path(self, path):
-        new = path
         if path:
             roots = ("\\registry\\machine\\", "hklm\\")
             for r in roots:
                 if path.lower().startswith(r):
-                    new = "HKEY_LOCAL_MACHINE\\" + path[len(r) :]
-                    return new
+                    path = "HKEY_LOCAL_MACHINE\\" + path[len(r) :]
+                    break
+            prefix = "hkey_local_machine\\system\\controlset001\\"
+            if path.lower().startswith(prefix):
+                path = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\" + path[len(prefix) :]
         return path
 
     def get_key_from_handle(self, handle):

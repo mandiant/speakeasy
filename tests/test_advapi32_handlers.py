@@ -789,3 +789,20 @@ def test_reg_query_value_on_an_unknown_handle_is_invalid(dll_emu: Speakeasy, hke
     rv, _ = call(dll_emu, "advapi32", "RegQueryValueExA", [hkey, alloc(dll_emu, b"x\x00"), 0, 0, data, size])
 
     assert rv == windefs.ERROR_INVALID_HANDLE
+
+
+@pytest.mark.parametrize("control_set", [b"CurrentControlSet", b"ControlSet001"])
+def test_create_service_creates_the_service_key(dll_emu: Speakeasy, control_set: bytes) -> None:
+    scm = call(dll_emu, "advapi32", "OpenSCManagerA", [0, 0, 0xF003F])[0]
+    name = alloc(dll_emu, b"Irmon\x00")
+    path = alloc(dll_emu, b"C:\\svc.exe\x00")
+    assert call(dll_emu, "advapi32", "CreateServiceA", [scm, name, name, 0xF01FF, 0x20, 2, 1, path, 0, 0, 0, 0, 0])[0]
+
+    phk = alloc(dll_emu, b"\x00" * 4)
+    subkey = alloc(dll_emu, b"SYSTEM\\" + control_set + b"\\Services\\Irmon\x00")
+    rv, _ = call(dll_emu, "advapi32", "RegOpenKeyExA", [0x80000002, subkey, 0, 0xF003F, phk])
+
+    assert rv == windefs.ERROR_SUCCESS
+    key = dll_emu.emu.regman.get_key_from_handle(_dword(dll_emu, phk))
+    assert key.get_value("ImagePath").get_data() == "C:\\svc.exe"
+    assert key.get_value("Start").get_data() == 2
