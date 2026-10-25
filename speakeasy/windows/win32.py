@@ -360,10 +360,19 @@ class Win32Emulator(WindowsEmulator):
             return
 
         # Emulate any child processes
+        images = [module]
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
 
+            # Each process has its own address space, so the image of a process
+            # that already ran gives way to a child image at the same base.
+            pe = _PeParser(data=child.pe_data, fast_load=True)
+            for image in images:
+                if image.base < pe.base + pe.image_size and pe.base < image.base + image.image_size:
+                    self._discard_loaded_module(image)
+
             child.pe = self.load_module(data=child.pe_data)
+            images.append(child.pe)
             for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
                 run.thread = child.threads[0]
 
