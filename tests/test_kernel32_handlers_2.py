@@ -1229,6 +1229,29 @@ def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
     assert len(emu.emu.run_queue) == runs + 1
 
 
+def test_suspend_thread_holds_a_queued_thread_until_resume(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    start_process(emu)
+    runs = len(emu.emu.run_queue)
+    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 1
+    assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 0
+    assert len(emu.emu.run_queue) == runs
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 1
+    assert [run.start_addr for run in emu.emu.run_queue[runs:]] == [0x401000]
+
+
+def test_resume_thread_of_a_running_thread_queues_no_run(emu: Speakeasy) -> None:
+    assert emu.emu is not None
+    start_process(emu)
+    runs = len(emu.emu.run_queue)
+    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, 0, 0])
+    emu.emu.run_queue.pop()
+    assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 0
+    assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 1
+    assert len(emu.emu.run_queue) == runs
+
+
 @pytest.mark.parametrize(
     "path, attrs",
     [

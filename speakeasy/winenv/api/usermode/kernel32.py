@@ -1485,10 +1485,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return rv
 
         if not emu.resume_thread(obj):
-            context = obj.get_context()
             proc = obj.process
-            if proc in emu.child_processes and not proc.is_modified:
+            if proc not in emu.child_processes or not proc.is_modified:
                 return rv
+            context = obj.get_context()
             if emu.get_arch() == e_arch.ARCH_AMD64:
                 start_addr = context.Rip
                 if not start_addr and context.Rcx:
@@ -1498,14 +1498,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if not start_addr and context.Eax:
                     start_addr = context.Eax
 
-            if start_addr and proc in emu.child_processes:
+            if start_addr:
                 mm = emu.get_address_map(start_addr)
                 if mm:
                     emu.ensure_pe_import_hooks(mm.base)
 
             handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.id}")
-            if proc in emu.child_processes:
-                emu.child_processes.remove(proc)
+            emu.child_processes.remove(proc)
         return rv
 
     @apihook("SuspendThread", argc=1)
@@ -1523,6 +1522,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = obj.suspend_count
         obj.suspend_count += 1
+        if rv == 0 and obj is not emu.get_current_thread():
+            queued = next((run for run in emu.run_queue if run.thread is obj), None)
+            if queued is not None:
+                emu.run_queue.remove(queued)
+                emu.suspended_runs.append(queued)
         return rv
 
     @apihook("TerminateThread", argc=2)
