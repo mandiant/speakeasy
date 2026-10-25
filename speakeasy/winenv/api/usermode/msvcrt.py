@@ -948,6 +948,19 @@ class Msvcrt(api.ApiHandler):
 
         return z
 
+    @apihook("fmod", argc=2, conv=e_arch.CALL_CONV_FLOAT)
+    def fmod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        double fmod(
+           double x,
+           double y
+        );
+        """
+        x, y = (self.hex_to_double(v) for v in argv)
+        if y == 0 or math.isinf(x) or math.isnan(x) or math.isnan(y):
+            return self.double_to_hex(math.nan)
+        return self.double_to_hex(math.fmod(x, y))
+
     @apihook("sin", argc=1, conv=e_arch.CALL_CONV_FLOAT)
     def sin(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
