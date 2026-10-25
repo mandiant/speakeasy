@@ -106,6 +106,8 @@ class GdbServer:
         self._registers = self._make_registers()
         self._hooks: list[Any] = []
         self._code_hook: Any | None = None
+        # Code hooks limited to the breakpoints, keyed by their inclusive address range.
+        self._breakpoint_hooks: dict[tuple[int, int], Any] = {}
         self._read_hook: Any | None = None
         self._write_hook: Any | None = None
 
@@ -381,17 +383,39 @@ class GdbServer:
             # the Unicorn hook entirely to avoid that callback overhead.
             cls._remove_hook(hook)
 
+    def _breakpoint_ranges(self) -> set[tuple[int, int]]:
+        """
+        Get the inclusive address ranges of the exec breakpoints. Overlapping and adjacent
+        breakpoints merge, so that no instruction calls two hooks.
+        """
+        ranges: list[tuple[int, int]] = []
+        for begin, size, _ in sorted(self._exec_breakpoints):
+            end = begin + size - 1
+            if ranges and begin <= ranges[-1][1] + 1:
+                ranges[-1] = (ranges[-1][0], max(ranges[-1][1], end))
+            else:
+                ranges.append((begin, end))
+        return set(ranges)
+
     def _refresh_hooks(self) -> None:
         code_hook_added = self._code_hook is not None and self._code_hook.added
-        self._set_hook_enabled(
-            self._code_hook,
-            bool(
-                self._exec_breakpoints or self._read_watchpoints or self._write_watchpoints or self._access_watchpoints
-            )
-            or self._resume_from_breakpoint is not None,
-        )
-        if self._code_hook is not None and self._code_hook.added and not code_hook_added:
-            # Code translated while the hook was absent does not call it.
+        # A watch stop waits for the next instruction, wherever it is. Otherwise
+        # only breakpoint addresses call Python.
+        watching = bool(self._read_watchpoints or self._write_watchpoints or self._access_watchpoints)
+        self._set_hook_enabled(self._code_hook, watching)
+        hook_added = self._code_hook is not None and self._code_hook.added and not code_hook_added
+        wanted = set() if watching else self._breakpoint_ranges()
+        for key in self._breakpoint_hooks.keys() - wanted:
+            hook = self._breakpoint_hooks.pop(key)
+            self._hooks.remove(hook)
+            self.emu.remove_code_hook(hook)
+        for begin, end in wanted - self._breakpoint_hooks.keys():
+            hook = self.emu.add_code_hook(self._on_code, begin=begin, end=end)
+            self._breakpoint_hooks[(begin, end)] = hook
+            self._hooks.append(hook)
+            hook_added = True
+        if hook_added:
+            # Code translated while a hook was absent does not call it.
             self.emu.emu_eng.flush_translations()
         self._set_hook_enabled(self._read_hook, bool(self._read_watchpoints or self._access_watchpoints))
         self._set_hook_enabled(self._write_hook, bool(self._write_watchpoints or self._access_watchpoints))

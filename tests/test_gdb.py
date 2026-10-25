@@ -598,18 +598,23 @@ def gdb_watchpoint_emulator():
     _stop_server(proc)
 
 
-@pytest.fixture
-def gdb_shellcode_emulator(request):
+def _start_shellcode_server(code: str) -> tuple[int, subprocess.Popen, int, int]:
     port = _find_free_port()
     config_path = os.path.join(TESTS_DIR, "test.json")
     proc = subprocess.Popen(
-        [sys.executable, "-c", _SHELLCODE_RESULT_SERVER_SCRIPT, str(port), config_path, request.param],
+        [sys.executable, "-c", _SHELLCODE_RESULT_SERVER_SCRIPT, str(port), config_path, code],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     _wait_for_port(port, proc)
     assert proc.stdout is not None
     address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
+    return port, proc, address, scratch
+
+
+@pytest.fixture
+def gdb_shellcode_emulator(request):
+    port, proc, address, scratch = _start_shellcode_server(request.param)
     yield port, proc, address, scratch
     _stop_server(proc)
 
@@ -1116,6 +1121,35 @@ def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
         assert time.monotonic() - started < 5
     finally:
         client.close()
+
+
+# mov ecx, 0x20000000; loop: dec ecx; jnz loop; ret
+_LONG_LOOP = "b9000000204975fdc3"
+
+
+def _time_continue(code: str, breakpoint_offset: int | None) -> tuple[float, str, int]:
+    port, proc, address, _ = _start_shellcode_server(code)
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        if breakpoint_offset is not None:
+            assert client.query(f"Z0,{address + breakpoint_offset:x},1") == "OK"
+        started = time.monotonic()
+        stop = client.continue_()
+        elapsed = time.monotonic() - started
+        return elapsed, stop, client.read_x86_registers().eip - address
+    finally:
+        client.close()
+        _stop_server(proc)
+
+
+def test_gdb_breakpoint_keeps_code_outside_it_fast():
+    baseline, stop, _ = _time_continue(_LONG_LOOP, None)
+    assert stop.startswith("T05") and "swbreak" not in stop
+    elapsed, stop, offset = _time_continue(_LONG_LOOP, 8)
+    assert stop.startswith("T05") and "swbreak:;" in stop
+    assert offset == 8
+    assert elapsed < 3 * baseline, (elapsed, baseline)
 
 
 @pytest.mark.parametrize("gdb_shellcode_emulator", ["90c3"], indirect=True)  # nop; ret

@@ -47,12 +47,22 @@ class DummyEmulator:
         self.curr_thread = DummyThread(DummyTeb(0x7FFDE000))
         self.module_change_listeners = []
         self.emu_eng = SimpleNamespace(stop=lambda: None, flush_translations=lambda: None)
+        self.code_hooks = []
 
     def get_arch(self):
         return arch.ARCH_AMD64
 
-    def add_code_hook(self, callback):
-        return DummyHook()
+    def add_code_hook(self, callback, begin=1, end=0):
+        hook = DummyHook()
+        hook.begin, hook.end = begin, end
+        self.code_hooks.append(hook)
+        return hook
+
+    def remove_code_hook(self, hook):
+        self.code_hooks.remove(hook)
+
+    def code_hook_ranges(self):
+        return {(hook.begin, hook.end) for hook in self.code_hooks if hook.added}
 
     def add_mem_read_hook(self, callback):
         return DummyHook()
@@ -163,16 +173,33 @@ def test_instruction_and_memory_hooks_are_enabled_only_when_needed():
     assert not server._write_hook.enabled
 
     server._change_breakpoint(b"Z0,1000,1")
-    assert server._code_hook.enabled
+    assert server.emu.code_hook_ranges() == {(0x1000, 0x1000)}
     server._change_breakpoint(b"z0,1000,1")
-    assert not server._code_hook.enabled
+    assert server.emu.code_hook_ranges() == set()
 
+    # A watch stop happens at the next instruction, so watchpoints hook all code.
+    server._change_breakpoint(b"Z0,1000,1")
     server._change_breakpoint(b"Z4,2000,4")
+    assert server.emu.code_hook_ranges() == {(1, 0)}
     assert server._read_hook.enabled
     assert server._write_hook.enabled
     server._change_breakpoint(b"z4,2000,4")
+    assert server.emu.code_hook_ranges() == {(0x1000, 0x1000)}
     assert not server._read_hook.enabled
     assert not server._write_hook.enabled
+
+
+def test_overlapping_breakpoints_share_one_code_hook():
+    server = make_server()
+    server._reply = lambda payload: None
+    server._install_hooks()
+
+    for packet in (b"Z0,1000,1", b"Z1,1000,1", b"Z1,1000,10", b"Z0,1010,1", b"Z0,2000,1"):
+        server._change_breakpoint(packet)
+    assert server.emu.code_hook_ranges() == {(0x1000, 0x1010), (0x2000, 0x2000)}
+
+    server._change_breakpoint(b"z1,1000,10")
+    assert server.emu.code_hook_ranges() == {(0x1000, 0x1000), (0x1010, 0x1010), (0x2000, 0x2000)}
 
 
 def test_access_watchpoint_does_not_clobber_write_watchpoint():
