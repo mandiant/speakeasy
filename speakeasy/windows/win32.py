@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
+import logging
 import ntpath
 import os
 import re
@@ -25,6 +26,8 @@ from speakeasy.windows.loaders import (
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import WindowsEmulator
 from speakeasy.winenv.api.winapi import WindowsApi
+
+logger = logging.getLogger(__name__)
 
 DLL_PROCESS_ATTACH = 1
 
@@ -363,6 +366,9 @@ class Win32Emulator(WindowsEmulator):
         images = [module]
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
+            if not child.pe_data:
+                logger.warning("skipping child process %s: no image in the emulated file system", child.path)
+                continue
 
             # Each process has its own address space, so the image of a process
             # that already ran gives way to a child image at the same base.
