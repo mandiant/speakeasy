@@ -263,7 +263,9 @@ class WindowsEmulator(BinaryEmulator):
         self.wintypes = windef
         self.handle_allocator: HandleAllocator = HandleAllocator()
         # OS resource managers
-        self.regman: RegistryManager = RegistryManager(self.handle_allocator, self.config.registry)
+        self.regman: RegistryManager = RegistryManager(
+            self.handle_allocator, self.config.registry, os_ver=self.config.os_ver
+        )
         self.fileman: FileManager = FileManager(config, self)
         self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network)
         self.driveman: DriveManager = DriveManager(config=self.config.drives)

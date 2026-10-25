@@ -74,7 +74,9 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // OS family marker. Keep as "windows".
     "name": "windows",
 
-    // Version fields exposed through PEB/API version behavior.
+    // Version fields exposed through PEB/API version behavior and the values of
+    // HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion (6.1, 6.2, 6.3 and 10.0).
+    // registry.keys values for that key take precedence.
     // Align these with the environment your sample expects.
     "major": 6,
     "minor": 1,

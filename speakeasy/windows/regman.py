@@ -11,6 +11,37 @@ HKEY_CURRENT_USER = 0x80000001
 HKEY_LOCAL_MACHINE = 0x80000002
 HKEY_USERS = 0x80000003
 
+CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+PRODUCT_NAMES = {
+    (6, 1): "Windows 7 Professional",
+    (6, 2): "Windows 8 Pro",
+    (6, 3): "Windows 8.1 Pro",
+    (10, 0): "Windows 10 Pro",
+}
+
+
+def get_current_version_values(os_ver):
+    """
+    Get the values of the Windows NT CurrentVersion key that Windows sets for the OS version
+    """
+    product_name = PRODUCT_NAMES.get((os_ver.major, os_ver.minor))
+    if not product_name:
+        return []
+    # Windows 10 and later keep CurrentVersion at 6.3 and give the real version as numbers
+    values = [
+        ("ProductName", regdefs.REG_SZ, product_name),
+        ("CurrentVersion", regdefs.REG_SZ, "6.3" if os_ver.major >= 10 else f"{os_ver.major}.{os_ver.minor}"),
+        ("EditionID", regdefs.REG_SZ, "Professional"),
+        ("InstallationType", regdefs.REG_SZ, "Client"),
+    ]
+    if os_ver.major >= 10:
+        values.append(("CurrentMajorVersionNumber", regdefs.REG_DWORD, os_ver.major))
+        values.append(("CurrentMinorVersionNumber", regdefs.REG_DWORD, os_ver.minor))
+    if os_ver.build is not None:
+        values.append(("CurrentBuild", regdefs.REG_SZ, str(os_ver.build)))
+        values.append(("CurrentBuildNumber", regdefs.REG_SZ, str(os_ver.build)))
+    return values
+
 
 class RegValue:
     """
@@ -108,7 +139,7 @@ class RegistryManager:
     Manages the emulation of the windows registry. This includes creating keys, subkeys and values
     """
 
-    def __init__(self, allocator, config=None):
+    def __init__(self, allocator, config=None, os_ver=None):
         super().__init__()
         self.reg_handles = {}
         self.keys = []
@@ -119,6 +150,14 @@ class RegistryManager:
             path = regdefs.get_hkey_type(hk)
             key = self.create_key(path)
             self.reg_handles.update({hk: key})
+
+        if os_ver:
+            values = get_current_version_values(os_ver)
+            if values:
+                key = self.create_key(CURRENT_VERSION_KEY)
+                for name, val_type, data in values:
+                    if not key.get_value(name):
+                        key.create_value(name, val_type, data)
 
     def normalize_reg_path(self, path):
         if path:

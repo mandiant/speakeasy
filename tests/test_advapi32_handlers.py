@@ -21,6 +21,8 @@ from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 HKEY_CURRENT_USER = 0x80000001
+REG_SZ = 1
+REG_DWORD = 4
 
 
 def _dword(se: Speakeasy, addr: int) -> int:
@@ -117,6 +119,62 @@ def test_reg_query_without_a_value_name_reads_the_default_value(dll_emu: Speakea
 
     assert rv == windefs.ERROR_SUCCESS
     assert dll_emu.mem_read(buf, len(data)) == data
+
+
+def _query_value(se: Speakeasy, hkey: int, name: bytes) -> tuple[int, bytes]:
+    vtype = alloc(se, b"\x00" * 4)
+    buf = alloc(se, b"\x00" * 0x80)
+    size = alloc(se, struct.pack("<I", 0x80))
+    rv, _ = call(se, "advapi32", "RegQueryValueExA", [hkey, alloc(se, name + b"\x00"), 0, vtype, buf, size])
+    assert rv == windefs.ERROR_SUCCESS
+    return _dword(se, vtype), se.mem_read(buf, _dword(se, size))
+
+
+def _open_current_version(se: Speakeasy) -> int:
+    phk = alloc(se, b"\x00" * 4)
+    subkey = alloc(se, b"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\x00")
+    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, subkey, 0, 0x20019, phk])
+    assert rv == windefs.ERROR_SUCCESS
+    return _dword(se, phk)
+
+
+def test_current_version_values_follow_the_default_os_version(dll_emu: Speakeasy) -> None:
+    hkey = _open_current_version(dll_emu)
+    assert _query_value(dll_emu, hkey, b"ProductName") == (REG_SZ, b"Windows 7 Professional\x00")
+    assert _query_value(dll_emu, hkey, b"CurrentVersion") == (REG_SZ, b"6.1\x00")
+    assert _query_value(dll_emu, hkey, b"CurrentBuildNumber") == (REG_SZ, b"7601\x00")
+
+
+@pytest.fixture
+def win10_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    config["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+def test_current_version_values_follow_a_windows_10_os_version(win10_emu: Speakeasy) -> None:
+    hkey = _open_current_version(win10_emu)
+    assert _query_value(win10_emu, hkey, b"ProductName") == (REG_SZ, b"Windows 10 Pro\x00")
+    assert _query_value(win10_emu, hkey, b"CurrentVersion") == (REG_SZ, b"6.3\x00")
+    assert _query_value(win10_emu, hkey, b"CurrentBuild") == (REG_SZ, b"19045\x00")
+    assert _query_value(win10_emu, hkey, b"CurrentMajorVersionNumber") == (REG_DWORD, struct.pack("<I", 10))
+    assert _query_value(win10_emu, hkey, b"CurrentMinorVersionNumber") == (REG_DWORD, struct.pack("<I", 0))
+
+
+@pytest.fixture
+def product_name_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    config["registry"]["keys"].append(
+        {
+            "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+            "values": [{"name": "ProductName", "type": "REG_SZ", "data": "Windows 7 Ultimate"}],
+        }
+    )
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+def test_configured_current_version_values_win(product_name_emu: Speakeasy) -> None:
+    hkey = _open_current_version(product_name_emu)
+    assert _query_value(product_name_emu, hkey, b"ProductName") == (REG_SZ, b"Windows 7 Ultimate\x00")
+    assert _query_value(product_name_emu, hkey, b"CurrentBuildNumber") == (REG_SZ, b"7601\x00")
 
 
 def _open_key(se: Speakeasy, api: str, hkey: int, subkey: int) -> tuple[int, str | None]:
