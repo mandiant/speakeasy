@@ -2156,3 +2156,83 @@ def test_std_exception_copy_shares_a_message_it_does_not_own(request: pytest.Fix
     call(se, "vcruntime140", "__std_exception_destroy", [dst])
     assert se.mem_read(dst, ptr_size * 2) == b"\x00" * ptr_size * 2
     assert se.mem_read(what, 15) == b"bad allocation\x00"
+
+
+BASIC_IOS = "?$basic_ios@DU?$char_traits@D@std@@@std@@"
+BASIC_ISTREAM = "?$basic_istream@DU?$char_traits@D@std@@@std@@"
+BASIC_STREAMBUF = "?$basic_streambuf@DU?$char_traits@D@std@@@std@@"
+FIOPEN_W = "?_Fiopen@std@@YAPEAU_iobuf@@PEB_WHH@Z"
+
+
+@pytest.fixture
+def strict_fs64_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    config["filesystem"]["files"] = [f for f in config["filesystem"]["files"] if f["mode"] == "full_path"]
+    for se in load_emu(config, load_test_bin("dll_test_x64.dll.xz")):
+        start_process(se)
+        yield se
+
+
+def test_ifstream_of_a_missing_file_sets_failbit(strict_fs64_emu: Speakeasy) -> None:
+    se = strict_fs64_emu
+    vbtable = alloc(se, struct.pack("<ii", 0, 0xB0))
+    obj = alloc(se, vbtable.to_bytes(8, "little") + b"\x00" * 0x108)
+    sb, ios = obj + 0x10, obj + 0xB0
+    path = alloc(se, "c:\\users\\public\\config.json\0".encode("utf-16le"))
+
+    assert call(se, "msvcp140", f"??0{BASIC_IOS}IEAA@XZ", [ios])[0] == ios
+    istream_ctor = f"??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z"
+    assert call(se, "msvcp140", istream_ctor, [obj, sb, 0, 0])[0] == obj
+    assert call(se, "msvcp140", f"??0{BASIC_STREAMBUF}IEAA@XZ", [sb])[0] == sb
+    call(se, "msvcp140", f"?_Init@{BASIC_STREAMBUF}IEAAXXZ", [sb])
+    assert call(se, "msvcp140", FIOPEN_W, [path, 1, 64])[0] == 0
+    call(se, "msvcp140", f"?setstate@{BASIC_IOS}QEAAXH_N@Z", [ios, 2, 0])
+
+    state, exceptions, flags, _, precision, width = struct.unpack("<IIIIQQ", se.mem_read(ios + 0x10, 0x20))
+    assert (state, exceptions, flags, precision, width) == (2, 0, 0x201, 6, 0)
+    assert se.mem_read(ios + 0x48, 0x11) == sb.to_bytes(8, "little") + b"\x00" * 8 + b" "
+    pointers = struct.unpack("<12Q", se.mem_read(sb + 8, 0x60))
+    assert pointers == (0, 0, sb + 8, sb + 0x10, 0, 0, sb + 0x28, sb + 0x30, 0, sb + 0x48, sb + 0x4C, 0)
+
+    for name in (f"??1{BASIC_STREAMBUF}UEAA@XZ", f"??1{BASIC_ISTREAM}UEAA@XZ", f"??1{BASIC_IOS}UEAA@XZ"):
+        assert call(se, "msvcp140", name, [ios])[0] is None
+
+
+def test_istream_ctor_builds_the_virtual_base_when_asked(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    obj = alloc(se, b"\x00" * 0x70)
+    sb = alloc(se, b"\x00" * 0x70)
+    istream_ctor = f"??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z"
+    assert call(se, "msvcp140", istream_ctor, [obj, sb, 0, 1])[0] == obj
+    ios = obj + 0x10
+    assert se.mem_read(ios + 0x10, 4) == struct.pack("<I", 0)
+    assert se.mem_read(ios + 0x48, 8) == sb.to_bytes(8, "little")
+
+
+def test_setstate_without_a_stream_buffer_also_sets_badbit(dll64_emu: Speakeasy) -> None:
+    ios = alloc(dll64_emu, b"\x00" * 0x60)
+    call(dll64_emu, "msvcp140", f"?setstate@{BASIC_IOS}QEAAXH_N@Z", [ios, 2, 0])
+    assert dll64_emu.mem_read(ios + 0x10, 4) == struct.pack("<I", 6)
+
+
+def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speakeasy) -> None:
+    se = strict_fs64_emu
+    path = alloc(se, "c:\\users\\public\\config.json\0".encode("utf-16le"))
+    assert call(se, "msvcp140", FIOPEN_W, [path, 0x10, 64])[0] == 0
+
+    stream = call(se, "msvcp140", FIOPEN_W, [path, 0x22, 64])[0]
+    assert call(se, "msvcrt", "fwrite", [alloc(se, b"{}\r\n"), 1, 4, stream])[0] == 4
+    call(se, "msvcrt", "fclose", [stream])
+
+    stream = call(se, "msvcp140", FIOPEN_W, [path, 0x21, 64])[0]
+    out = alloc(se, b"\x00" * 8)
+    assert call(se, "msvcrt", "fread", [out, 1, 8, stream])[0] == 4
+    assert se.mem_read(out, 4) == b"{}\r\n"
+    call(se, "msvcrt", "fclose", [stream])
+
+    stream = call(
+        se,
+        "msvcp140",
+        "?_Fiopen@std@@YAPEAU_iobuf@@PEBDHH@Z",
+        [alloc(se, b"c:\\users\\public\\config.json\0"), 0x25, 64],
+    )[0]
+    assert call(se, "msvcrt", "ftell", [stream])[0] == 4

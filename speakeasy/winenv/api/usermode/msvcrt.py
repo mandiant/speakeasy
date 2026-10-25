@@ -34,6 +34,32 @@ STRUNCATE = 80
 _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
 
+# ios_base::iostate and ios_base::openmode bits of the MSVC C++ library
+IOS_GOODBIT = 0x0
+IOS_BADBIT = 0x4
+IOS_STATMASK = 0x17
+IOS_IN = 0x1
+IOS_OUT = 0x2
+IOS_ATE = 0x4
+IOS_APP = 0x8
+IOS_TRUNC = 0x10
+IOS_BINARY = 0x20
+IOS_NOCREATE = 0x40
+IOS_NOREPLACE = 0x80
+
+# The fopen mode that _Fiopen uses for each open mode, without ate and binary
+IOS_FOPEN_MODES = {
+    IOS_IN: "r",
+    IOS_OUT: "w",
+    IOS_OUT | IOS_TRUNC: "w",
+    IOS_OUT | IOS_APP: "a",
+    IOS_APP: "a",
+    IOS_IN | IOS_OUT: "r+",
+    IOS_IN | IOS_OUT | IOS_TRUNC: "w+",
+    IOS_IN | IOS_OUT | IOS_APP: "a+",
+    IOS_IN | IOS_APP: "a+",
+}
+
 TIME_BASE = 1576292568
 S_IFREG_RW = 0x81B6
 DRIVE_C = 2
@@ -416,6 +442,7 @@ class Msvcrt(api.ApiHandler):
         self.exception_slots: dict[str, int] = {}
         self.invalid_parameter_handler: int = 0
         self.thread_invalid_parameter_handlers: dict[int, int] = {}
+        self.istream_vbtable: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -4121,6 +4148,119 @@ class Msvcrt(api.ApiHandler):
     @apihook("??1_Winit@std@@QEAA@XZ", argc=0)
     def Winit_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
+
+    def get_ios_base(self, emu, obj):
+        """Return the address of the basic_ios virtual base of an x64 stream object."""
+        vbtable = emu.read_ptr(obj)
+        return obj + int.from_bytes(self.mem_read(vbtable + 4, 4), "little", signed=True)
+
+    def init_basic_ios(self, ios, strbuf):
+        """
+        Set the members of an x64 basic_ios<char> as basic_ios::init does: no
+        exceptions, skipws | dec, precision 6, and a space as the fill character.
+        """
+        state = IOS_GOODBIT if strbuf else IOS_BADBIT
+        fields = struct.pack("<QIIIIQQQQQQQB", 0, state, 0, 0x201, 0, 6, 0, 0, 0, 0, strbuf, 0, ord(" "))
+        self.mem_write(ios + 8, fields)
+
+    def init_basic_streambuf(self, sb):
+        """Point the buffer pointers of an x64 basic_streambuf<char> at its own empty members."""
+        self.mem_write(
+            sb + 8, struct.pack("<11Q", 0, 0, sb + 8, sb + 0x10, 0, 0, sb + 0x28, sb + 0x30, 0, sb + 0x48, sb + 0x4C)
+        )
+
+    @apihook("??0?$basic_ios@DU?$char_traits@D@std@@@std@@IEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ios_ctor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """basic_ios();"""
+        return argv[0]
+
+    @apihook("??1?$basic_ios@DU?$char_traits@D@std@@@std@@UEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ios_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ios_setstate_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void setstate(iostate state, bool reraise);
+
+        A stream without a buffer also gets badbit. The exception that
+        exceptions() can request is not raised.
+        """
+        ios, state, _ = argv
+        state |= int.from_bytes(self.mem_read(ios + 0x10, 4), "little")
+        if not emu.read_ptr(ios + 0x48):
+            state |= IOS_BADBIT
+        self.mem_write(ios + 0x10, (state & IOS_STATMASK).to_bytes(4, "little"))
+
+    @apihook(
+        "??0?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
+        argc=4,
+        conv=e_arch.CALL_CONV_CDECL,
+    )
+    def basic_istream_ctor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        basic_istream(basic_streambuf *strbuf, bool isstd);
+
+        The last argument is the MSVC flag that asks the constructor to build
+        the virtual base. A derived class such as ifstream builds it itself.
+        """
+        this, strbuf, _, init_vbase = argv
+        if init_vbase:
+            if self.istream_vbtable is None:
+                self.istream_vbtable = self.mem_alloc(8, tag="api.msvcrt.basic_istream_vbtable")
+                self.mem_write(self.istream_vbtable, struct.pack("<ii", 0, 0x10))
+            emu.write_ptr(this, self.istream_vbtable)
+        self.mem_write(this + 8, b"\x00" * 8)
+        self.init_basic_ios(self.get_ios_base(emu, this), strbuf)
+        return this
+
+    @apihook("??1?$basic_istream@DU?$char_traits@D@std@@@std@@UEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_istream_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("??0?$basic_streambuf@DU?$char_traits@D@std@@@std@@IEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_streambuf_ctor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """basic_streambuf();"""
+        (sb,) = argv
+        self.init_basic_streambuf(sb)
+        emu.write_ptr(sb + 0x60, 0)
+        return sb
+
+    @apihook("??1?$basic_streambuf@DU?$char_traits@D@std@@@std@@UEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_streambuf_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("?_Init@?$basic_streambuf@DU?$char_traits@D@std@@@std@@IEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_streambuf_Init_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _Init();"""
+        self.init_basic_streambuf(argv[0])
+
+    def fiopen(self, argv, width, ctx):
+        """Open a file for a file stream buffer with the fopen mode of an ios_base::openmode."""
+        filename, mode, _ = argv
+        path = self.read_mem_string(filename, width)
+        ctx.args[0].display = path
+        mode_str = IOS_FOPEN_MODES.get(mode & ~(IOS_ATE | IOS_BINARY | IOS_NOCREATE | IOS_NOREPLACE))
+        exists = self.does_file_exist(path)
+        if mode_str is None or (mode & IOS_NOCREATE and not exists):
+            return 0
+        if mode & IOS_NOREPLACE and mode & (IOS_OUT | IOS_APP) and exists:
+            return 0
+        stream = self.open_stream(path, mode_str + ("b" if mode & IOS_BINARY else ""), "api.msvcrt._Fiopen")
+        if stream and mode & IOS_ATE:
+            fobj = self.file_get(self.file_streams[stream])
+            fobj.seek(fobj.get_size(), io.SEEK_SET)
+        return stream
+
+    @apihook("?_Fiopen@std@@YAPEAU_iobuf@@PEBDHH@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _Fiopen_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_Fiopen(const char *filename, ios_base::openmode mode, int prot);"""
+        return self.fiopen(argv, 1, ctx)
+
+    @apihook("?_Fiopen@std@@YAPEAU_iobuf@@PEB_WHH@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wFiopen_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """FILE *_Fiopen(const wchar_t *filename, ios_base::openmode mode, int prot);"""
+        return self.fiopen(argv, 2, ctx)
 
     def get_exception_slot(self, name):
         slot = self.exception_slots.get(name)
