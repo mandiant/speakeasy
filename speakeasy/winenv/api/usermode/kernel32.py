@@ -144,6 +144,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.tick_counter = 86400000  # 1 day in millisecs
         self.perf_counter = 0x5FD27D571F
         self.boot_time = 116444736000000000 + time.time_ns() // 100 - self.tick_counter * 10000
+        self.start_time = self.boot_time + self.tick_counter * 10000
 
         self.command_lines = [None] * 3
         self.startup_info = {}
@@ -396,6 +397,38 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if lpCreationTime:
             self.mem_write(lpCreationTime, b"\x20\x20\x00\x00")
+        return True
+
+    @apihook("GetProcessTimes", argc=5)
+    def GetProcessTimes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL GetProcessTimes(
+            HANDLE     hProcess,
+            LPFILETIME lpCreationTime,
+            LPFILETIME lpExitTime,
+            LPFILETIME lpKernelTime,
+            LPFILETIME lpUserTime
+        );
+        """
+        hProcess, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
+
+        if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
+            proc = emu.get_current_process()
+        else:
+            proc = self.get_object_from_handle(hProcess)
+        if not isinstance(proc, objman.Process):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
+
+        if proc is emu.get_current_process():
+            creation = self.start_time
+        else:
+            # Other processes started shortly after boot
+            creation = self.boot_time + 50000000
+        times = ((lpCreationTime, creation), (lpExitTime, 0), (lpKernelTime, 156250), (lpUserTime, 312500))
+        for ptr, value in times:
+            if ptr:
+                self.mem_write(ptr, value.to_bytes(8, "little"))
         return True
 
     @apihook("GetProcessHeap", argc=0)

@@ -1394,3 +1394,21 @@ def test_get_logical_drive_strings_lists_the_drive_roots(emu: Speakeasy, name: s
     assert call(emu, "kernel32", name, [chars, small])[0] == chars + 1
     assert emu.mem_read(small, chars * width) == b"\xcc" * chars * width
     assert call(emu, "kernel32", name, [0, 0])[0] == chars + 1
+
+
+def test_get_process_times_gives_a_creation_time_before_now(emu: Speakeasy) -> None:
+    times = alloc(emu, b"\xcc" * 32)
+    rv, _ = call(emu, "kernel32", "GetProcessTimes", [0xFFFFFFFF, times, times + 8, times + 16, times + 24])
+    assert rv == 1
+    creation, exit_time, kernel, user = struct.unpack("<4Q", emu.mem_read(times, 32))
+    now = alloc(emu, b"\x00" * 8)
+    call(emu, "kernel32", "GetSystemTimeAsFileTime", [now])
+    assert 0 < creation < struct.unpack("<Q", emu.mem_read(now, 8))[0]
+    assert exit_time == 0
+    assert kernel < 0xCCCCCCCCCCCCCCCC and user < 0xCCCCCCCCCCCCCCCC
+
+
+def test_get_process_times_rejects_an_unknown_handle(emu: Speakeasy) -> None:
+    times = alloc(emu, b"\xcc" * 32)
+    assert call(emu, "kernel32", "GetProcessTimes", [0x1234, times, times + 8, times + 16, times + 24])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
