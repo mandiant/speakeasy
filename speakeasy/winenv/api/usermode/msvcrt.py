@@ -61,6 +61,7 @@ IOS_FOPEN_MODES = {
 }
 
 TIME_BASE = 1576292568
+FILETIME_UNIX_EPOCH = 116444736000000000
 S_IFREG_RW = 0x81B6
 DRIVE_C = 2
 RAND_BASE = 0
@@ -1437,9 +1438,16 @@ class Msvcrt(api.ApiHandler):
         return self.return_int64(emu, self.write_time(destTime, 8))
 
     def write_time(self, dest: int, size: int) -> int:
+        now = self.get_clock_ticks() // 10_000_000
         if dest:
-            self.mem_write(dest, TIME_BASE.to_bytes(size, "little"))
-        return TIME_BASE
+            self.mem_write(dest, now.to_bytes(size, "little"))
+        return now
+
+    def get_clock_ticks(self) -> int:
+        """
+        Return the kernel32 system time in 100 ns units since 1970.
+        """
+        return self.emu.api.load_api_handler("kernel32").get_system_time() - FILETIME_UNIX_EPOCH
 
     def get_time_size(self, emu) -> int:
         # x86 msvcrt.dll uses a 32-bit time_t
@@ -1625,7 +1633,8 @@ class Msvcrt(api.ApiHandler):
         (buffer,) = argv
         if not buffer:
             return 0
-        self.mem_write(buffer, b"12:34:56\x00")
+        now = datetime.fromtimestamp(self.get_clock_ticks() // 10_000_000, timezone.utc)
+        self.mem_write(buffer, now.strftime("%H:%M:%S").encode() + b"\x00")
         return buffer
 
     @apihook("_strdate", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1636,7 +1645,8 @@ class Msvcrt(api.ApiHandler):
         (buffer,) = argv
         if not buffer:
             return 0
-        self.mem_write(buffer, b"12/29/19\x00")
+        now = datetime.fromtimestamp(self.get_clock_ticks() // 10_000_000, timezone.utc)
+        self.mem_write(buffer, now.strftime("%m/%d/%y").encode() + b"\x00")
         return buffer
 
     @apihook("clock", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -1674,8 +1684,7 @@ class Msvcrt(api.ApiHandler):
 
         The time in 100 ns units since 1970, on the clock that time() uses.
         """
-        self.tick_counter += 1
-        return self.return_int64(emu, TIME_BASE * 10_000_000 + self.tick_counter * 10_000)
+        return self.return_int64(emu, self.get_clock_ticks())
 
     @apihook("_Random_device", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Random_device(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
