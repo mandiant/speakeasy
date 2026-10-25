@@ -873,6 +873,14 @@ def test_rtl_dll_shutdown_in_progress_is_false_while_the_process_runs(
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_log_staged_feature_usage_returns(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    rv, _ = call(se, "kernelbase", "LogStagedFeatureUsage", [0x1234, 1, 1])
+    assert rv is None
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
