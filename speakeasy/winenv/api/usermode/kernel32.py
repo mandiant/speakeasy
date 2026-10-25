@@ -6025,7 +6025,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         nBufferLength, lpBuffer = argv
         rv = 0
         cw = self.get_char_width(ctx)
-        tempdir = emu.get_env().get("temp", "C:\\Windows\\temp\\")
+        tempdir = emu.get_env().get("temp", "C:\\Windows\\temp")
+        if not tempdir.endswith("\\"):
+            tempdir += "\\"
         if cw == 2:
             new = (tempdir).encode("utf-16le") + b"\x00\x00"
         else:

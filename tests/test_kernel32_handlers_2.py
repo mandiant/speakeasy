@@ -75,6 +75,20 @@ def test_get_environment_variable_missing(emu: Speakeasy) -> None:
     assert last_error(emu) == windefs.ERROR_ENVVAR_NOT_FOUND
 
 
+def test_default_temp_has_no_trailing_backslash_and_get_temp_path_adds_one(
+    load_test_bin: Callable[[str], bytes],
+) -> None:
+    for se in load_emu(get_default_config_dict(), load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        buf = alloc(se, b"\xcc" * 0x100)
+        for name in ("TEMP", "TMP"):
+            var = alloc(se, (name + "\x00").encode("utf-16le"))
+            assert call(se, "kernel32", "GetEnvironmentVariableW", [var, buf, 0x40])[0] == 15
+            assert se.mem_read(buf, 32) == "C:\\Windows\\temp\x00".encode("utf-16le")
+        assert call(se, "kernel32", "GetTempPathW", [0x40, buf])[0] == 16
+        assert se.mem_read(buf, 34) == "C:\\Windows\\temp\\\x00".encode("utf-16le")
+
+
 @pytest.mark.parametrize("binary, arch", [("dll_test_x86.dll.xz", "x86"), ("dll_test_x64.dll.xz", "AMD64")])
 def test_default_environment_has_path(load_test_bin: Callable[[str], bytes], binary: str, arch: str) -> None:
     for se in load_emu(get_default_config_dict(), load_test_bin(binary)):
