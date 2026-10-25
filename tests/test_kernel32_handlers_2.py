@@ -1092,6 +1092,13 @@ def test_write_console_reports_the_characters_written(dll_emu: Speakeasy, api: s
     assert "hi" in args["lpBuffer"]
 
 
+def test_close_handle_closes_the_std_handles(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    for std in (0xFFFFFFF6, 0xFFFFFFF5, 0xFFFFFFF4):
+        handle = call(dll_emu, "kernel32", "GetStdHandle", [std])[0]
+        assert call(dll_emu, "kernel32", "CloseHandle", [handle])[0] == 1
+
+
 def test_get_console_mode_writes_a_mode(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     out = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0]

@@ -4653,6 +4653,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return 1
 
+        proc = emu.get_current_process()
+        if proc and hObject in (proc.stdin, proc.stdout, proc.stderr):
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
         emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
         return 0
 
