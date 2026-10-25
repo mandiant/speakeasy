@@ -104,6 +104,11 @@ def x64_session(config):
     [
         ("??0Init@ios_base@std@@QAE@XZ", "??1Init@ios_base@std@@QAE@XZ"),
         ("??0_Winit@std@@QAE@XZ", "??1_Winit@std@@QAE@XZ"),
+        ("??0?$basic_ios@DU?$char_traits@D@std@@@std@@IAE@XZ", "??1?$basic_ios@DU?$char_traits@D@std@@@std@@UAE@XZ"),
+        (
+            "??0?$basic_ios@_WU?$char_traits@_W@std@@@std@@IAE@XZ",
+            "??1?$basic_ios@_WU?$char_traits@_W@std@@@std@@UAE@XZ",
+        ),
     ],
 )
 def test_iostream_static_constructors_are_thiscall_on_x86(x86_session, ctor, dtor):

@@ -4228,6 +4228,24 @@ class Msvcrt(api.ApiHandler):
     def Winit_dtor_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return
 
+    @apihook("??0?$basic_ios@DU?$char_traits@D@std@@@std@@IAE@XZ", argc=0)
+    def basic_ios_ctor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """basic_ios();"""
+        return self.iostream_init_this(emu)
+
+    @apihook("??1?$basic_ios@DU?$char_traits@D@std@@@std@@UAE@XZ", argc=0)
+    def basic_ios_dtor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
+    @apihook("??0?$basic_ios@_WU?$char_traits@_W@std@@@std@@IAE@XZ", argc=0)
+    def wbasic_ios_ctor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """basic_ios();"""
+        return self.iostream_init_this(emu)
+
+    @apihook("??1?$basic_ios@_WU?$char_traits@_W@std@@@std@@UAE@XZ", argc=0)
+    def wbasic_ios_dtor_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        return
+
     def get_ios_base(self, emu, obj):
         """Return the address of the basic_ios virtual base of an x64 stream object."""
         vbtable = emu.read_ptr(obj)
