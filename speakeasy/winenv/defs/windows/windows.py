@@ -78,6 +78,7 @@ ExceptionContinueSearch = 1
 ExceptionNestedException = 2
 ExceptionCollidedUnwind = 3
 
+FILE_ATTRIBUTE_DIRECTORY = 0x10
 FILE_ATTRIBUTE_NORMAL = 0x80
 INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 

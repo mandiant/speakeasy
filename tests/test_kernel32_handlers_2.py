@@ -871,3 +871,43 @@ def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
     assert len(emu.emu.run_queue) == runs + 1
     assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 0
     assert len(emu.emu.run_queue) == runs + 1
+
+
+@pytest.mark.parametrize(
+    "path, attrs",
+    [
+        ("C:\\Windows", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        ("c:\\windows\\system32\\", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        ("C:\\", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        (".", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        ("..", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        ("C:\\ProgramData\\mydir", windefs.FILE_ATTRIBUTE_DIRECTORY),
+        (BYTE_FILL_PATH, windefs.FILE_ATTRIBUTE_NORMAL),
+        ("C:\\Windows\\system32\\cmd.exe", windefs.FILE_ATTRIBUTE_NORMAL),
+        ("C:\\nodir\\", windefs.INVALID_FILE_ATTRIBUTES),
+        ("C:\\ProgramData\\mydir\\myfile.bin\\sub", windefs.INVALID_FILE_ATTRIBUTES),
+    ],
+)
+@pytest.mark.parametrize("cw", ["A", "W"])
+def test_get_file_attributes_knows_directories(strict_fs_emu: Speakeasy, cw: str, path: str, attrs: int) -> None:
+    se = strict_fs_emu
+    name = alloc(se, (path + "\x00").encode("utf-16le" if cw == "W" else "latin-1"))
+    assert call(se, "kernel32", f"GetFileAttributes{cw}", [name])[0] == attrs
+
+    data = alloc(se, b"\xcc" * 36)
+    ok, _ = call(se, "kernel32", f"GetFileAttributesEx{cw}", [name, 0, data])
+    assert ok == (attrs != windefs.INVALID_FILE_ATTRIBUTES)
+    if attrs == windefs.FILE_ATTRIBUTE_DIRECTORY:
+        found, *_, high, low = struct.unpack("<IQQQII", se.mem_read(data, 36))
+        assert (found, high, low) == (attrs, 0, 0)
+
+
+def test_get_file_attributes_knows_the_environment_directories(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["env"]["temp"] = "C:\\Users\\user\\AppData\\Local\\Temp\\"
+    config["env"]["path"] = "C:\\Tools\\bin;C:\\Python"
+    for se in load_strict_fs_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        for path in ("C:\\Users\\user\\AppData", "C:\\Tools\\bin\\", "C:\\Python"):
+            name = alloc(se, path.encode() + b"\x00")
+            assert call(se, "kernel32", "GetFileAttributesA", [name])[0] == windefs.FILE_ATTRIBUTE_DIRECTORY

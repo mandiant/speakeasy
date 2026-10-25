@@ -3769,7 +3769,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return rv
         target = self.read_mem_string(fn, cw)
         ctx.args["lpFileName"].display = target
-        if self.does_file_exist(target):
+        if emu.get_file_manager().is_directory(target):
+            rv = windefs.FILE_ATTRIBUTE_DIRECTORY
+        elif self.does_file_exist(target):
             rv = windefs.FILE_ATTRIBUTE_NORMAL
         return rv
 
@@ -3810,6 +3812,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         for ft in (file_data.ftCreationTime, file_data.ftLastAccessTime, file_data.ftLastWriteTime):
             ft.dwLowDateTime = 0xFFFFFFFF & timestamp
             ft.dwHighDateTime = timestamp >> 32
+
+        if emu.get_file_manager().is_directory(filename):
+            file_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_DIRECTORY
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            self.mem_write(lpFileInformation, file_data.get_bytes())
+            return True
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
         fHandle = self.file_open(filename)

@@ -15,6 +15,26 @@ from speakeasy.errors import FileSystemEmuError
 
 logger = logging.getLogger(__name__)
 
+DIRECTORY_ENV_VARS = (
+    "allusersprofile",
+    "appdata",
+    "commonprogramfiles",
+    "localappdata",
+    "path",
+    "programdata",
+    "programfiles",
+    "public",
+    "systemroot",
+    "temp",
+    "tmp",
+    "userprofile",
+    "windir",
+)
+
+
+def get_path_key(path):
+    return ntpath.normpath(path).rstrip("\\").lower()
+
 
 def normalize_response_path(path):
     def _get_speakeasy_root():
@@ -403,6 +423,33 @@ class FileManager:
         hnd = p.get_handle()
         self.pipe_handles.update({hnd: p})
         return hnd
+
+    def get_directories(self):
+        """
+        Get the keys of the directories that exist: the current directory, the directories
+        that the environment names, the parents of the known files, and their ancestors.
+        """
+        env = {k.lower(): v for k, v in self.config.env.items()}
+        dirs = [self.config.current_dir]
+        for name in DIRECTORY_ENV_VARS:
+            dirs.extend(env.get(name, "").split(";"))
+        modules = self.config.modules
+        files = [*self.walk_files(), *(f.path for f in self.files)]
+        files += [m.path for m in (*modules.user_modules, *modules.system_modules) if m.path]
+        dirs.extend(ntpath.dirname(f) for f in files)
+
+        keys = set()
+        for d in dirs:
+            if not ntpath.splitdrive(d)[0] or "*" in d or "?" in d:
+                continue
+            key = get_path_key(d)
+            while key not in keys:
+                keys.add(key)
+                key = get_path_key(ntpath.dirname(key))
+        return keys
+
+    def is_directory(self, path):
+        return get_path_key(self.get_full_path(path)) in self.get_directories()
 
     def does_file_exist(self, path):
         if self.get_file_from_path(path):
