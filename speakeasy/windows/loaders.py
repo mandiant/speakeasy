@@ -547,16 +547,26 @@ class PeLoader:
         tls_callbacks: list[int] = []
         tls_directory_va: int | None = None
         ptr_size = 4 if pe.arch == _arch.ARCH_X86 else 8
-        if hasattr(pe, "DIRECTORY_ENTRY_TLS"):
-            tls_directory_va = pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress + base
-            rva = pe.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks - base
-            for i in range(100):
+        tls_rva = 0
+        if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > 9:
+            tls_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[9].VirtualAddress
+
+        def read_mapped(rva: int, size: int) -> bytes:
+            return bytes(mapped_image[rva : rva + size]).ljust(size, b"\0")
+
+        # Windows reads the directory from the mapped image, so it may extend
+        # into the zero-filled tail of a section that pefile does not parse.
+        if tls_rva and tls_rva + 4 * ptr_size + 8 <= pe.image_size:
+            tls_directory_va = tls_rva + base
+            callbacks = int.from_bytes(read_mapped(tls_rva + 3 * ptr_size, ptr_size), "little")
+            rva = callbacks - base
+            for i in range(100 if callbacks else 0):
                 slot = rva + ptr_size * i
                 try:
                     if not 0 <= slot <= pe.image_size - ptr_size:
                         raise ValueError("TLS callback array lies outside the image")
-                    ptr = int.from_bytes(pe.get_data(slot, ptr_size), "little")
-                except (pefile.PEFormatError, ValueError) as error:
+                    ptr = int.from_bytes(read_mapped(slot, ptr_size), "little")
+                except ValueError as error:
                     self._optional_error("TLS callbacks", error)
                     break
                 if ptr == 0:
