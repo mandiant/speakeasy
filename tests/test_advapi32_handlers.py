@@ -9,6 +9,8 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
@@ -357,6 +359,108 @@ def test_bcrypt_gen_random_rejects_bad_arguments(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
     assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0x1234, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
     assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, 0, 4, 2])[0] == ddk.STATUS_INVALID_PARAMETER
+
+
+STATUS_INVALID_BUFFER_SIZE = 0xC0000206
+STATUS_AUTH_TAG_MISMATCH = 0xC000A002
+
+
+def _wstr(se: Speakeasy, text: str) -> int:
+    return alloc(se, (text + "\x00").encode("utf-16le"))
+
+
+def _ptr(se: Speakeasy, addr: int) -> int:
+    assert se.emu is not None
+    size = se.emu.get_ptr_size()
+    return int.from_bytes(se.mem_read(addr, size), "little")
+
+
+def _aes_key(se: Speakeasy, mode: str, secret: bytes) -> int:
+    ph = alloc(se, b"\x00" * 8)
+    assert call(se, "bcrypt", "BCryptOpenAlgorithmProvider", [ph, _wstr(se, "AES"), 0, 0])[0] == 0
+    halg = _ptr(se, ph)
+    value = (mode + "\x00").encode("utf-16le")
+    assert (
+        call(se, "bcrypt", "BCryptSetProperty", [halg, _wstr(se, "ChainingMode"), alloc(se, value), len(value), 0])[0]
+        == 0
+    )
+    phkey = alloc(se, b"\x00" * 8)
+    rv, _ = call(se, "bcrypt", "BCryptGenerateSymmetricKey", [halg, phkey, 0, 0, alloc(se, secret), len(secret), 0])
+    assert rv == 0
+    return _ptr(se, phkey)
+
+
+def _get_property(se: Speakeasy, handle: int, name: str, size: int) -> tuple[int, bytes]:
+    out = alloc(se, b"\x00" * size)
+    pcb = alloc(se, b"\x00" * 4)
+    rv, _ = call(se, "bcrypt", "BCryptGetProperty", [handle, _wstr(se, name), out, size, pcb, 0])
+    return rv, se.mem_read(out, _dword(se, pcb))
+
+
+@pytest.mark.parametrize(
+    "fixture, info_format, info_size",
+    [("dll_emu", "<IIIIIIIIIII4xQI4x", 0x40), ("dll64_emu", "<IIQI4xQI4xQI4xQIIQI4x", 0x58)],
+)
+def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(
+    request: pytest.FixtureRequest, fixture: str, info_format: str, info_size: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    secret, nonce, aad, plain = bytes(range(32)), b"\x07" * 12, b"UK01", bytes(range(0x40, 0x80))
+    hkey = _aes_key(se, "ChainingModeGCM", secret)
+    assert _get_property(se, hkey, "AuthTagLength", 12) == (0, struct.pack("<III", 12, 16, 1))
+    assert _get_property(se, hkey, "BlockLength", 4) == (0, struct.pack("<I", 16))
+
+    tag = alloc(se, b"\x00" * 16)
+    info = alloc(
+        se,
+        struct.pack(info_format, info_size, 1, alloc(se, nonce), 12, alloc(se, aad), 4, tag, 16, 0, 0, 0, 0, 0),
+    )
+    src, enc, dec, pcb = (alloc(se, data) for data in (plain, b"\x00" * 64, b"\x00" * 64, b"\x00" * 4))
+    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 64, info, 0, 0, 0, 0, pcb, 0])[0] == 0
+    assert _dword(se, pcb) == 64
+    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 64, info, 0, 0, enc, 64, pcb, 0])[0] == 0
+
+    expected, expected_tag = AES.new(secret, AES.MODE_GCM, nonce=nonce).update(aad).encrypt_and_digest(plain)
+    assert (se.mem_read(enc, 64), se.mem_read(tag, 16)) == (expected, expected_tag)
+    assert call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 64, info, 0, 0, dec, 64, pcb, 0])[0] == 0
+    assert se.mem_read(dec, 64) == plain
+
+    se.mem_write(tag, b"\x00" * 16)
+    assert (
+        call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 64, info, 0, 0, dec, 64, pcb, 0])[0] == STATUS_AUTH_TAG_MISMATCH
+    )
+    assert call(se, "bcrypt", "BCryptDestroyKey", [hkey])[0] == 0
+
+
+@pytest.mark.parametrize("mode, cipher", [("ChainingModeCBC", AES.MODE_CBC), ("ChainingModeECB", AES.MODE_ECB)])
+def test_bcrypt_aes_block_padding_round_trip_matches_pycryptodome(dll_emu: Speakeasy, mode: str, cipher: int) -> None:
+    se = dll_emu
+    secret, iv, plain = b"k" * 16, bytes(range(16)), b"twenty bytes of text"
+    hkey = _aes_key(se, mode, secret)
+    piv = alloc(se, iv) if cipher == AES.MODE_CBC else 0
+    civ = 16 if piv else 0
+    src, enc, dec, pcb = (alloc(se, data) for data in (plain, b"\x00" * 32, b"\x00" * 32, b"\x00" * 4))
+    padding = 1
+
+    assert (
+        call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 20, 0, piv, civ, 0, 0, pcb, 0])[0] == STATUS_INVALID_BUFFER_SIZE
+    )
+    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 20, 0, piv, civ, 0, 0, pcb, padding])[0] == 0
+    assert _dword(se, pcb) == 32
+    assert (
+        call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 20, 0, piv, civ, enc, 16, pcb, padding])[0]
+        == ddk.STATUS_BUFFER_TOO_SMALL
+    )
+    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 20, 0, piv, civ, enc, 32, pcb, padding])[0] == 0
+
+    aes = AES.new(secret, cipher, iv=iv) if piv else AES.new(secret, cipher)
+    expected = aes.encrypt(pad(plain, 16))
+    assert se.mem_read(enc, 32) == expected
+    if piv:
+        assert se.mem_read(piv, 16) == expected[16:]
+        se.mem_write(piv, iv)
+    assert call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 32, 0, piv, civ, dec, 32, pcb, padding])[0] == 0
+    assert (_dword(se, pcb), se.mem_read(dec, 20)) == (20, plain)
 
 
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:

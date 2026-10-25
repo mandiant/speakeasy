@@ -9,6 +9,7 @@ class CryptKey:
         self.import_key = hnd_import_key
         self.param_list = param_list
         self.flags = flags
+        self.chaining_mode: str | None = None
 
 
 class CryptContext:
@@ -23,6 +24,7 @@ class CryptContext:
         self.ptype = ptype
         self.flags = flags
         self.keys = {}
+        self.chaining_mode = "ChainingModeCBC"
 
     def get_handle(self):
         return self.allocator.allocate_crypt_context_handle()
