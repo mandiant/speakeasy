@@ -2,6 +2,7 @@
 kernel32 handlers return what Windows returns and write what Windows writes.
 """
 
+import ntpath
 import struct
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -1157,6 +1158,21 @@ def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
         pids.append(struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0])
         rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
     assert pids.count(pid) == 1
+
+
+def test_toolhelp_names_the_main_process_image(exe_emu: Speakeasy) -> None:
+    assert exe_emu.emu is not None
+    pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
+    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = alloc(exe_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
+    names = {}
+    rv, _ = call(exe_emu, "kernel32", "Process32First", [hsnap, entry])
+    while rv:
+        entry_pid = struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0]
+        names[entry_pid] = exe_emu.mem_read(entry + 0x24, 260).split(b"\x00")[0].decode()
+        rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
+    assert names[pid] == ntpath.basename(exe_emu.emu.modules[0].emu_path)
+    assert names[pid]
 
 
 def test_is_processor_feature_present_agrees_with_cpuid_for_avx(config: dict[str, Any]) -> None:

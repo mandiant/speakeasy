@@ -485,7 +485,7 @@ class Process(KernelObject):
         self.initializing_peb = False
         self.path = path
         self.set_process_parameters(emu)
-        self.image = ""
+        self.image = ntpath.basename(path)
         self.title = ""
 
         is_console = False
