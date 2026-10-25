@@ -46,7 +46,8 @@ class CpuException:
 def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: bool) -> CpuException | None:
     """
     The exception for an interrupt Unicorn reports with the program counter at pc,
-    which is past an `int n` instruction and code_bytes, the two bytes before it.
+    which is past an `int n` instruction or at a faulting instruction, and code_bytes,
+    the two bytes before it.
     trap_flag tells a single step from `int 1`.
 
     Returns None when Windows raises no exception: then execution continues at the
@@ -69,7 +70,10 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
         return CpuException(ddk.STATUS_BREAKPOINT, pc + 1, pc, (rax,))
     if intno == INT_ASSERTION:
         return CpuException(STATUS_ASSERTION_FAILURE, pc - 2, pc - 2)
-    return general_protection(pc - 2)
+    if code_bytes == bytes((0xCD, intno)):  # `int n` through a gate user mode may not use
+        return general_protection(pc - 2)
+    # a fault such as #GP: pc is at the faulting instruction
+    return general_protection(pc)
 
 
 def skip_debug_service(pc: int) -> int:

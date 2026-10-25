@@ -100,6 +100,21 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
     assert record[:2] == (exception_code, start + offset)
 
 
+@pytest.mark.parametrize(
+    "arch, insn, offset, step",
+    [
+        ("x86", b"\xea\x78\x56\x00\x00\x34\x12", 0, 7),  # jmp far 0x1234:0x5678
+        ("x86", b"\x66\xb8\x34\x12\x8e\xd8", 4, 2),  # mov ax, 0x1234; mov ds, ax
+        ("amd64", b"\x66\xb8\x34\x12\x8e\xd8", 4, 2),
+    ],
+)
+def test_general_protection_fault_reports_the_faulting_instruction(config, arch, insn, offset, step):
+    run, start, record = run_under_handler(config, arch, insn, step)
+    assert run.error is None
+    assert run.ret_val == 42
+    assert record[:2] == (STATUS_ACCESS_VIOLATION, start + offset)
+
+
 @pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A)])
 def test_system_service_gate_is_not_an_exception(config, arch, gate):
     run, _, _ = run_under_handler(config, arch, b"\xcd" + bytes([gate]), 2)
