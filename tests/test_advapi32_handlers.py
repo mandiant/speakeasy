@@ -838,3 +838,12 @@ def test_create_service_creates_the_service_key(dll_emu: Speakeasy, control_set:
     key = dll_emu.emu.regman.get_key_from_handle(_dword(dll_emu, phk))
     assert key.get_value("ImagePath").get_data() == "C:\\svc.exe"
     assert key.get_value("Start").get_data() == 2
+
+
+@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
+@pytest.mark.parametrize("hkey", [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE])
+def test_reg_open_key_ignores_a_trailing_backslash(dll_emu: Speakeasy, api: str, hkey: int) -> None:
+    _create_key(dll_emu, hkey, b"Software\\Foo\\Bar")
+    expected = _open_key(dll_emu, api, hkey, alloc(dll_emu, b"Software\\Foo\\Bar\x00"))
+    assert expected[0] == windefs.ERROR_SUCCESS
+    assert _open_key(dll_emu, api, hkey, alloc(dll_emu, b"Software\\Foo\\Bar\\\x00")) == expected

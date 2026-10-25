@@ -130,6 +130,7 @@ class RegistryManager:
             prefix = "hkey_local_machine\\system\\controlset001\\"
             if path.lower().startswith(prefix):
                 path = "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\" + path[len(prefix) :]
+            path = path.rstrip("\\")
         return path
 
     def get_key_from_handle(self, handle):
