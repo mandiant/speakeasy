@@ -420,6 +420,38 @@ def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
 
 
+ERROR_BAD_LENGTH = 24
+
+
+@pytest.mark.parametrize(
+    "fixture, info_class, size",
+    [
+        ("dll_emu", 1, 0x30),
+        ("dll_emu", 2, 0x30),
+        ("dll_emu", 9, 0x70),
+        ("dll64_emu", 1, 0x30),
+        ("dll64_emu", 2, 0x40),
+        ("dll64_emu", 9, 0x90),
+    ],
+)
+def test_query_information_job_object_reports_no_limits(
+    request: pytest.FixtureRequest, fixture: str, info_class: int, size: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    buf = alloc(se, b"\xcc" * (size + 8))
+    length = alloc(se, b"\xcc" * 4)
+    assert call(se, "kernel32", "QueryInformationJobObject", [0x1234, info_class, buf, size + 8, length])[0] == 1
+    assert se.mem_read(buf, size + 8) == b"\x00" * size + b"\xcc" * 8
+    assert struct.unpack("<I", se.mem_read(length, 4))[0] == size
+
+    small = alloc(se, b"\xcc" * size)
+    assert call(se, "kernel32", "QueryInformationJobObject", [0x1234, info_class, small, size - 1, 0])[0] == 0
+    assert se.emu is not None
+    assert se.emu.get_last_error() == ERROR_BAD_LENGTH
+    assert se.mem_read(small, size) == b"\xcc" * size
+
+
 @pytest.mark.parametrize(
     "name, width", [("GetTempPathA", 1), ("GetTempPathW", 2), ("GetTempPath2A", 1), ("GetTempPath2W", 2)]
 )

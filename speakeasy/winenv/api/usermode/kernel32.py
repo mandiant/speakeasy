@@ -61,6 +61,12 @@ APPMODEL_ERROR_NO_PACKAGE = 15700
 S_FALSE = 1
 PATHCCH_MAX_CCH = 0x8000
 
+ERROR_BAD_LENGTH = 24
+
+JobObjectBasicAccountingInformation = 1
+JobObjectBasicLimitInformation = 2
+JobObjectExtendedLimitInformation = 9
+
 RSMB_PROVIDER = 0x52534D42
 
 
@@ -6040,6 +6046,37 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         return self.GetTempPath(emu, argv, ctx)
+
+    @apihook("QueryInformationJobObject", argc=5)
+    def QueryInformationJobObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL QueryInformationJobObject(
+          HANDLE             hJob,
+          JOBOBJECTINFOCLASS JobObjectInformationClass,
+          LPVOID             lpJobObjectInformation,
+          DWORD              cbJobObjectInformationLength,
+          LPDWORD            lpReturnLength
+        );
+        """
+        hJob, info_class, info, info_len, lpReturnLength = argv
+        x64 = self.get_ptr_size() == 8
+        sizes = {
+            JobObjectBasicAccountingInformation: 0x30,
+            JobObjectBasicLimitInformation: 0x40 if x64 else 0x30,
+            JobObjectExtendedLimitInformation: 0x90 if x64 else 0x70,
+        }
+        size = sizes.get(info_class)
+        if size is None:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        if not info or info_len < size:
+            emu.set_last_error(ERROR_BAD_LENGTH)
+            return 0
+        # The job has no limits and no accounting data
+        self.mem_write(info, b"\x00" * size)
+        if lpReturnLength:
+            self.mem_write(lpReturnLength, size.to_bytes(4, "little"))
+        return 1
 
     @apihook("SetPriorityClass", argc=2)
     def SetPriorityClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
