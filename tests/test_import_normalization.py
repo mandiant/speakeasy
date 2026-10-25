@@ -2,8 +2,10 @@
 
 import pytest
 
+from speakeasy import Speakeasy
 from speakeasy.windows.common import normalize_dll_name
 from speakeasy.windows.winemu import WindowsEmulator
+from tests.handler_harness import alloc, call
 
 SENTINEL_HANDLER = ("handler", lambda: None, 4, "stdcall", None)
 
@@ -174,6 +176,19 @@ def test_ntoskrnl_zw_to_nt(emu):
 def test_ntoskrnl_direct(emu):
     _mod, attrs = emu.normalize_import_miss("ntoskrnl", "ZwCreateFile")
     assert attrs is not None
+
+
+@pytest.mark.parametrize("func", ["strcpy", "strcat", "strlen", "atoi", "atol", "tolower", "wcslen", "_vsnprintf"])
+def test_ntdll_crt_exports_use_msvcrt_handlers(dll_emu: Speakeasy, func: str) -> None:
+    assert dll_emu.emu is not None
+    assert dll_emu.emu.normalize_import_miss("ntdll", func)[1] is not None
+
+
+def test_ntdll_strcpy_copies_the_string(dll_emu: Speakeasy) -> None:
+    dst = alloc(dll_emu, b"\xff" * 8)
+    assert call(dll_emu, "ntdll", "strcpy", [dst, alloc(dll_emu, b"abc\0")])[0] == dst
+    assert dll_emu.mem_read(dst, 4) == b"abc\0"
+    assert call(dll_emu, "ntdll", "strlen", [dst])[0] == 3
 
 
 @pytest.mark.parametrize(

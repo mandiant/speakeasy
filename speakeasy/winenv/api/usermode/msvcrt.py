@@ -1462,6 +1462,15 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(buf, out)
         return len(fin) if len(fin) <= count else -1
 
+    @apihook("atol", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def atol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        long atol(
+            const char *str
+        );
+        """
+        return self.atoi(emu, argv, ctx)
+
     @apihook("atoi", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def atoi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

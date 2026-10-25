@@ -2505,6 +2505,9 @@ class WindowsEmulator(BinaryEmulator):
                     name = "Zw" + name[2:]
                     alt_imp_api = f"Zw{name[2:]}"
                 mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
+            # ntdll also exports a subset of the C runtime
+            if not func_attrs:
+                mod, func_attrs = self.api.get_export_func_handler("msvcrt", name)  # type: ignore[union-attr]
             return mod, func_attrs
 
         if alt_imp_api:
