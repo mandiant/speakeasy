@@ -1059,3 +1059,22 @@ def test_gdb_resume_with_signal_at_address(gdb_shellcode_emulator, resume):
         assert client.read_x86_registers().eip == address + 2
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["90f490c3"], indirect=True)  # nop; hlt; nop; ret
+@pytest.mark.parametrize("step", [False, True], ids=["continue", "step"])
+def test_gdb_stops_at_hlt(gdb_shellcode_emulator, step):
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        if step:
+            assert client.step().startswith("T05")
+            assert client.step().startswith("T0b")
+        else:
+            assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip == address + 1
+        assert client.continue_() == "X0b"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] == "privileged_instruction"

@@ -860,7 +860,11 @@ class WindowsEmulator(BinaryEmulator):
                         self._pending_cpu_exception is None
                         and self.curr_run is origin_run
                         and self._stopped_at_hlt(
-                            deadline, limit[0], last_executed[0] if hook else None, native_count, debugger
+                            deadline,
+                            limit[0],
+                            last_executed[0] if hook else address if debugger is not None and count == 1 else None,
+                            native_count,
+                            debugger,
                         )
                     ):
                         self.raise_cpu_exception(
@@ -2237,7 +2241,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
         Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran:
-        the last instruction the accounting hook saw, or with nothing else that stops the engine.
+        the last instruction the accounting hook saw or a debugger step ran, or with nothing
+        else that stops the engine.
 
         Nothing better reports `hlt`: Unicorn hooks only `in`, `out`, `syscall`, `sysenter`
         and `cpuid` among x86 instructions, `hlt` raises no interrupt, and a code hook on
@@ -2249,11 +2254,13 @@ class WindowsEmulator(BinaryEmulator):
             return False
         if deadline is not None and time.monotonic() >= deadline:
             return False
+        if debugger is not None and debugger.has_pending_stop():
+            return False
         pc = self.get_pc()
         if last_executed is not None:
             if last_executed != pc - 1:
                 return False
-        elif counted or debugger is not None or (self.exit_event and self.exit_event.is_set()):
+        elif counted or (self.exit_event and self.exit_event.is_set()):
             return False
         try:
             return self.mem_read(pc - 1, 1) == b"\xf4"
