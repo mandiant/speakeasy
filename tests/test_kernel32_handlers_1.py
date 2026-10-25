@@ -557,6 +557,24 @@ def test_toolhelp_first_on_a_list_the_snapshot_lacks_sets_no_more_files(
         assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES, walk
 
 
+def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    fn = alloc(dll_emu, b"C:\\Windows\\system32\\calc.exe\x00")
+    assert call(dll_emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, 0, 1])[0] == 33
+    pid = dll_emu.emu.get_processes()[-1].pid
+
+    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = alloc(dll_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
+    names = {}
+    walk = "Process32First"
+    while call(dll_emu, "kernel32", walk, [hsnap, entry])[0]:
+        name = dll_emu.mem_read(entry + 0x24, 260).split(b"\x00")[0]
+        names[struct.unpack("<I", dll_emu.mem_read(entry + 8, 4))[0]] = name
+        walk = "Process32Next"
+    assert names[pid] == b"calc.exe"
+
+
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])

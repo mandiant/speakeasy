@@ -1986,6 +1986,7 @@ class WindowsEmulator(BinaryEmulator):
             p.pe = new_mod
 
         p.path = file_path
+        p.image = ntpath.basename(file_path)
         p.cmdline = cmdline
 
         # Create a thread object for the new process
