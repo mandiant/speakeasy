@@ -16,6 +16,28 @@ from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
 from .. import api
 from ..exception_apis import ExceptionApis
 
+# The initial values of the RtlRandom shuffle table, as in Wine dlls/ntdll/rtl.c
+# fmt: off
+RTL_RANDOM_VALUES = (
+    0x4C8BC0AA, 0x4C022957, 0x2232827A, 0x2F1E7626, 0x7F8BDAFB, 0x5C37D02A, 0x0AB48F72, 0x2F0C4FFA,
+    0x290E1954, 0x6B635F23, 0x5D3885C0, 0x74B49FF8, 0x5155FA54, 0x6214AD3F, 0x111E9C29, 0x242A3A09,
+    0x75932AE1, 0x40AC432E, 0x54F7BA7A, 0x585CCBD5, 0x6DF5C727, 0x0374DAD1, 0x7112B3F1, 0x735FC311,
+    0x404331A9, 0x74D97781, 0x64495118, 0x323E04BE, 0x5974B425, 0x4862E393, 0x62389C1D, 0x28A68B82,
+    0x0F95DA37, 0x7A50BBC6, 0x09B0091C, 0x22CDB7B4, 0x4FAAED26, 0x66417CCD, 0x189E4BFA, 0x1CE4E8DD,
+    0x5274C742, 0x3BDCF4DC, 0x2D94E907, 0x32EAC016, 0x26D33CA3, 0x60415A8A, 0x31F57880, 0x68C8AA52,
+    0x23EB16DA, 0x6204F4A1, 0x373927C1, 0x0D24EB7C, 0x06DD7379, 0x2B3BE507, 0x0F9C55B1, 0x2C7925EB,
+    0x36D67C9A, 0x42F831D9, 0x5E3961CB, 0x65D637A8, 0x24BB3820, 0x4D08E33D, 0x2188754F, 0x147E409E,
+    0x6A9620A0, 0x62E26657, 0x7BD8CE81, 0x11DA0ABB, 0x5F9E7B50, 0x23E444B6, 0x25920C78, 0x5FC894F0,
+    0x5E338CBB, 0x404237FD, 0x1D60F80F, 0x320A1743, 0x76013D2B, 0x070294EE, 0x695E243B, 0x56B177FD,
+    0x752492E1, 0x6DECD52F, 0x125F5219, 0x139D2E78, 0x1898D11E, 0x2F7EE785, 0x4DB405D8, 0x1A028A35,
+    0x63F6F323, 0x1F6D0078, 0x307CFD67, 0x3F32A78A, 0x6980796C, 0x462B3D83, 0x34B639F2, 0x53FCE379,
+    0x74BA50F4, 0x1ABC2C4B, 0x5EEAEB8D, 0x335A7A0D, 0x3973DD20, 0x0462D66B, 0x159813FF, 0x1E4643FD,
+    0x06BC5C62, 0x3115E3FC, 0x09101613, 0x47AF2515, 0x4F11EC54, 0x78B99911, 0x3DB8DD44, 0x1EC10B9B,
+    0x5B5506CA, 0x773CE092, 0x567BE81A, 0x5475B975, 0x7A2CDE1A, 0x494536F5, 0x34737BB4, 0x76D9750B,
+    0x2A1F6232, 0x2E49644D, 0x7DDDCBE7, 0x500CEBDB, 0x619DAB9E, 0x48C626FE, 0x1CDA3193, 0x52DABE9D,
+)
+# fmt: on
+
 
 class Ntdll(ExceptionApis, api.ApiHandler):
     """
@@ -34,6 +56,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.trace_handle = 0x1000
+        self.random_values = list(RTL_RANDOM_VALUES)
 
         super().__get_hook_attrs__(self)
 
@@ -208,6 +231,30 @@ class Ntdll(ExceptionApis, api.ApiHandler):
                 break
 
         return rv
+
+    @apihook("RtlUniform", argc=1)
+    def RtlUniform(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """ULONG RtlUniform(PULONG Seed);"""
+        (seed,) = argv
+        value = (int.from_bytes(self.mem_read(seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) % 0x7FFFFFFF
+        self.mem_write(seed, value.to_bytes(4, "little"))
+        return value
+
+    @apihook("RtlRandom", argc=1)
+    def RtlRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """ULONG RtlRandom(PULONG Seed);"""
+        (seed,) = argv
+        value = ((int.from_bytes(self.mem_read(seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
+        next_seed = ((value * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
+        self.mem_write(seed, next_seed.to_bytes(4, "little"))
+        pos = next_seed & 0x7F
+        result, self.random_values[pos] = self.random_values[pos], value
+        return result
+
+    @apihook("RtlRandomEx", argc=1)
+    def RtlRandomEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """ULONG RtlRandomEx(PULONG Seed);"""
+        return self.RtlRandom(emu, argv, ctx)
 
     @apihook("RtlZeroMemory", argc=2)
     def RtlZeroMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

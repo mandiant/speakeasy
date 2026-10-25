@@ -512,6 +512,31 @@ def test_rtl_compute_crc32_continues_from_the_initial_value(dll_emu: Speakeasy) 
     assert rv == zlib.crc32(b"hello world")
 
 
+def call_with_seed(se: Speakeasy, api: str, seed: int) -> tuple[int, int]:
+    pointer = alloc(se, struct.pack("<I", seed))
+    rv, _ = call(se, "ntdll", api, [pointer])
+    return rv, struct.unpack("<I", se.mem_read(pointer, 4))[0]
+
+
+@pytest.mark.parametrize("seed, value", [(0, 0x7FFFFFC3), (1, 0x7FFFFFB1), (0x12345678, 0x3851EB51)])
+def test_rtl_uniform_returns_the_next_seed(dll_emu: Speakeasy, seed: int, value: int) -> None:
+    assert call_with_seed(dll_emu, "RtlUniform", seed) == (value, value)
+
+
+@pytest.mark.parametrize("api", ["RtlRandom", "RtlRandomEx"])
+def test_rtl_random_shuffles_through_the_saved_values(dll_emu: Speakeasy, api: str) -> None:
+    pointer = alloc(dll_emu, struct.pack("<I", 0x12345678))
+    values, seeds = [], []
+    for _ in range(3):
+        values.append(call(dll_emu, "ntdll", api, [pointer])[0])
+        seeds.append(struct.unpack("<I", dll_emu.mem_read(pointer, 4))[0])
+    assert values == [0x2232827A, 0x5974B425, 0x25920C78]
+    assert seeds == [0x2BCDF382, 0x456C669C, 0x65DCB646]
+
+    assert call_with_seed(dll_emu, api, 5)[0] == 0x23E444B6
+    assert call_with_seed(dll_emu, api, 5)[0] == 0x7FFFFF65
+
+
 @pytest.mark.parametrize("path", ["C:\\dir", "C:\\dir\\"])
 @pytest.mark.parametrize("width", [1, 2])
 def test_path_add_backslash_returns_the_terminator(dll_emu: Speakeasy, path: str, width: int) -> None:
