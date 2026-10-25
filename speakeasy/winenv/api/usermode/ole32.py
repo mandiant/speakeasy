@@ -137,6 +137,26 @@ class Ole32(api.ApiHandler):
             self.mem_write(ppv, b"\x00" * emu.get_ptr_size())
         return rv
 
+    @apihook("CoGetObject", argc=4)
+    def CoGetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT CoGetObject(
+          LPCWSTR    pszName,
+          BIND_OPTS  *pBindOptions,
+          REFIID     riid,
+          void       **ppv
+        );
+
+        No moniker names are modeled, so every name fails to parse.
+        """
+        pszName, pBindOptions, riid, ppv = argv
+
+        if pszName:
+            ctx.args["pszName"].display = self.read_mem_string(pszName, 2)
+        if ppv:
+            self.mem_write(ppv, b"\x00" * emu.get_ptr_size())
+        return com.MK_E_SYNTAX
+
     @apihook("CoSetProxyBlanket", argc=8)
     def CoSetProxyBlanket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

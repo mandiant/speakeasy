@@ -448,6 +448,17 @@ def test_co_create_instance_fails_for_unknown_class_or_interface(
     assert read_ptr(dll_emu, ppv) == 0
 
 
+@pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
+def test_co_get_object_fails_for_names_it_does_not_model(emu_fixture: str, request: pytest.FixtureRequest) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    ppv = alloc(se, (0x41414141).to_bytes(ptr_size, "little"))
+    iid = guid(se, "{00020400-0000-0000-C000-000000000046}")
+    rv, _ = call(se, "ole32", "CoGetObject", [alloc(se, wstr("winmgmts:", 2)), 0, iid, ppv])
+    assert rv == com.MK_E_SYNTAX
+    assert se.mem_read(ppv, ptr_size) == b"\x00" * ptr_size
+
+
 def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
     ppv = alloc(dll_emu, b"\xcc" * 4)
     clsid, iid = guid(dll_emu, com.CLSID_WbemLocator), guid(dll_emu, com.IID_IWbemLocator)
