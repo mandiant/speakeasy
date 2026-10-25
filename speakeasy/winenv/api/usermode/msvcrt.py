@@ -2093,12 +2093,34 @@ class Msvcrt(api.ApiHandler):
         if not dst:
             return 0
         if mem:
-            old = next((n for a, n, _ in reversed(emu.heap_allocs) if a == mem), None)
-            if old is None:
-                mm = emu.get_address_map(mem)
-                old = mm.base + mm.size - mem if mm else 0
-            self.mem_write(dst, self.mem_read(mem, min(old, size)))
+            self.mem_write(dst, self.mem_read(mem, min(self.get_block_size(emu, mem), size)))
             self.mem_free(mem)
+        return dst
+
+    def get_block_size(self, emu, mem):
+        size = next((n for a, n, _ in reversed(emu.heap_allocs) if a == mem), None)
+        if size is None:
+            mm = emu.get_address_map(mem)
+            size = mm.base + mm.size - mem if mm else 0
+        return size
+
+    @apihook("_recalloc", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _recalloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void *_recalloc(
+            void *memblock,
+            size_t num,
+            size_t size
+        );
+        """
+        mem, num, size = argv
+        total = num * size
+        if total > self.get_max_int():
+            return 0
+        old = self.get_block_size(emu, mem) if mem else 0
+        dst = self.realloc(emu, [mem, total], ctx)
+        if dst and total > old:
+            self.mem_write(dst + old, b"\x00" * (total - old))
         return dst
 
     @apihook("getenv", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -3633,6 +3655,27 @@ class Msvcrt(api.ApiHandler):
         data += b".\x00\x00\x00" + ".".encode("utf-16le") + b"\x00\x00" + b"\x00\x00"
         self.mem_write(self.lconv, data)
         return self.lconv
+
+    @apihook("__initialize_lconv_for_unsigned_char", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __initialize_lconv_for_unsigned_char(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __initialize_lconv_for_unsigned_char(void);
+        """
+        return 0
+
+    @apihook("__uninitialize_lconv_for_unsigned_char", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __uninitialize_lconv_for_unsigned_char(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __uninitialize_lconv_for_unsigned_char(void);
+        """
+        return 0
+
+    @apihook("__lconv_init", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __lconv_init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int __lconv_init(void);
+        """
+        return 0
 
     @apihook("setlocale", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def setlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

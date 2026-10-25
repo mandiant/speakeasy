@@ -532,6 +532,20 @@ def test_an_allocation_larger_than_the_x86_address_space_returns_null(
     assert call(dll_emu, "msvcrt", api, argv)[0] == 0
 
 
+def test_recalloc_keeps_the_contents_and_zeroes_the_new_bytes(dll_emu: Speakeasy) -> None:
+    block, _ = call(dll_emu, "msvcrt", "malloc", [4])
+    dll_emu.mem_write(block, struct.pack("<I", 0x11223344))
+    grown, _ = call(dll_emu, "msvcrt", "_recalloc", [block, 2, 4])
+    assert dll_emu.mem_read(grown, 8) == struct.pack("<II", 0x11223344, 0)
+
+
+def test_recalloc_of_null_allocates_zeroed_memory(dll_emu: Speakeasy) -> None:
+    block, _ = call(dll_emu, "msvcrt", "_recalloc", [0, 3, 2])
+    assert block
+    assert dll_emu.mem_read(block, 6) == b"\x00" * 6
+    assert call(dll_emu, "msvcrt", "_recalloc", [block, 0x10000, 0x10001])[0] == 0
+
+
 def test_realloc_that_cannot_grow_returns_null_and_keeps_the_block(dll_emu: Speakeasy) -> None:
     block, _ = call(dll_emu, "msvcrt", "malloc", [4])
     dll_emu.mem_write(block, b"abcd")

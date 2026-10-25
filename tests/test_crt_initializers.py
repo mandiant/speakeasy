@@ -70,3 +70,17 @@ def test_initterm_e_returns_zero_when_all_initializers_succeed(x86_session):
     succeed = write_code(se, b"\x31\xc0\xc3")
 
     assert call_table(se, "_initterm_e", [succeed, succeed]) == 0
+
+
+@pytest.mark.parametrize(
+    "api, initializer",
+    [
+        ("_initterm_e", "__initialize_lconv_for_unsigned_char"),
+        ("_initterm_e", "__uninitialize_lconv_for_unsigned_char"),
+        ("_initterm", "__lconv_init"),
+    ],
+)
+def test_crt_lconv_initializers_succeed(x86_session, api, initializer):
+    se = x86_session
+
+    assert call_table(se, api, [se.emu.get_proc("msvcrt", initializer)]) == 0
