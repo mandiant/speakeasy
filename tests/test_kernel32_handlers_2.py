@@ -1512,3 +1512,99 @@ def test_is_bad_string_ptr_reads_up_to_the_nul(emu: Speakeasy, name: str, width:
 
     assert call(emu, "kernel32", name, [0x81400000, 0xFFFFFFFF])[0] == 1
     assert call(emu, "kernel32", name, [0, 0xFFFFFFFF])[0] == 1
+
+
+FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x100
+FORMAT_MESSAGE_IGNORE_INSERTS = 0x200
+FORMAT_MESSAGE_FROM_STRING = 0x400
+FORMAT_MESSAGE_FROM_HMODULE = 0x800
+FORMAT_MESSAGE_FROM_SYSTEM = 0x1000
+FORMAT_MESSAGE_ARGUMENT_ARRAY = 0x2000
+FORMAT_MESSAGE_MAX_WIDTH_MASK = 0xFF
+ERROR_MR_MID_NOT_FOUND = 317
+
+
+def format_message(se: Speakeasy, name: str, flags: int, source: int, msg_id: int, args: int, size: int = 0x100):
+    """Call FormatMessage into a filled buffer and return the result and the text before the NUL."""
+    width = 1 if name.endswith("A") else 2
+    enc = "latin-1" if width == 1 else "utf-16le"
+    buf = alloc(se, b"\xcc" * size * width)
+    rv, _ = call(se, "kernel32", name, [flags, source, msg_id, 0, buf, size, args])
+    return rv, se.mem_read(buf, rv * width + width).decode(enc)
+
+
+@pytest.mark.parametrize("fixture, ptr", [("dll_emu", "<I"), ("dll64_emu", "<Q")])
+@pytest.mark.parametrize("name, width", [("FormatMessageA", 1), ("FormatMessageW", 2)])
+def test_format_message_from_string_reads_inserts_from_a_va_list(
+    request: pytest.FixtureRequest, fixture: str, ptr: str, name: str, width: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    enc = "utf-8" if width == 1 else "utf-16le"
+    template = alloc(se, "%1 requires %2\0".encode(enc))
+    slots = alloc(se, struct.pack(ptr, alloc(se, "x\0".encode(enc))) + struct.pack(ptr, alloc(se, "y\0".encode(enc))))
+    va_list = alloc(se, struct.pack(ptr, slots))
+    assert format_message(se, name, FORMAT_MESSAGE_FROM_STRING, template, 0, va_list) == (12, "x requires y\0")
+
+
+@pytest.mark.parametrize("name, width", [("FormatMessageA", 1), ("FormatMessageW", 2)])
+def test_format_message_formats_inserts_and_escapes(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    flags = FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_ARGUMENT_ARRAY
+    template = alloc(emu, "%1!d! of %2!04x!%%%n%t%.%!% %3\nend%0 not this\0".encode(enc))
+    args = alloc(emu, struct.pack("<III", 0xFFFFFFFB, 0xFF, alloc(emu, "z\0".encode(enc))))
+    text = "-5 of 00ff%\r\n\t.! z\r\nend"
+    assert format_message(emu, name, flags, template, 0, args) == (len(text), text + "\0")
+
+    template = alloc(emu, "%1!*.*s! %4 %5!*s!\0".encode(enc))
+    bill = alloc(emu, "Bill\0".encode(enc))
+    args = alloc(emu, struct.pack("<6I", 4, 2, bill, alloc(emu, "Bob\0".encode(enc)), 6, bill))
+    assert format_message(emu, name, flags, template, 0, args) == (15, "  Bi Bob   Bill\0")
+
+    template = alloc(emu, "%1 and %2!d!%n\0".encode(enc))
+    flags = FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_IGNORE_INSERTS
+    assert format_message(emu, name, flags, template, 0, 0) == (14, "%1 and %2!d!\r\n\0")
+
+
+@pytest.mark.parametrize("name, width", [("FormatMessageA", 1), ("FormatMessageW", 2)])
+def test_format_message_allocates_a_local_buffer(emu: Speakeasy, name: str, width: int) -> None:
+    enc = "utf-8" if width == 1 else "utf-16le"
+    template = alloc(emu, "%1\0".encode(enc))
+    args = alloc(emu, struct.pack("<I", alloc(emu, "inserted\0".encode(enc))))
+    out = alloc(emu, b"\x00" * 4)
+    flags = FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER
+    rv, _ = call(emu, "kernel32", name, [flags, template, 0, 0, out, 0, args])
+    assert rv == 8
+    text = struct.unpack("<I", emu.mem_read(out, 4))[0]
+    assert emu.mem_read(text, 9 * width).decode(enc) == "inserted\0"
+    assert call(emu, "kernel32", "LocalFree", [text])[0] == 0
+
+
+@pytest.mark.parametrize("name", ["FormatMessageA", "FormatMessageW"])
+def test_format_message_from_system_knows_common_errors(emu: Speakeasy, name: str) -> None:
+    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
+    text = "The system cannot find the file specified.\r\n"
+    assert format_message(emu, name, flags, 0, windefs.ERROR_FILE_NOT_FOUND, 0) == (len(text), text + "\0")
+    text = "Class not registered\r\n"
+    assert format_message(emu, name, flags, 0, 0x80040154, 0) == (len(text), text + "\0")
+    text = "Access is denied. "
+    rv = format_message(emu, name, flags | FORMAT_MESSAGE_MAX_WIDTH_MASK, 0, windefs.ERROR_ACCESS_DENIED, 0)
+    assert rv == (len(text), text + "\0")
+
+    for msg_id in (0, 3, 6, 8, 87, 122, 183, 1450):
+        assert format_message(emu, name, flags, 0, msg_id, 0)[0] > 0, msg_id
+
+
+@pytest.mark.parametrize("name", ["FormatMessageA", "FormatMessageW"])
+def test_format_message_fails_without_the_message_or_the_room(emu: Speakeasy, name: str) -> None:
+    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
+    assert format_message(emu, name, flags, 0, 0x12345678, 0)[0] == 0
+    assert last_error(emu) == ERROR_MR_MID_NOT_FOUND
+
+    set_last_error(emu, 0)
+    flags = FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS
+    assert format_message(emu, name, flags, 0, 1, 0)[0] == 0
+    assert last_error(emu) == ERROR_MR_MID_NOT_FOUND
+
+    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
+    assert format_message(emu, name, flags, 0, windefs.ERROR_FILE_NOT_FOUND, 0, size=8)[0] == 0
+    assert last_error(emu) == windefs.ERROR_INSUFFICIENT_BUFFER

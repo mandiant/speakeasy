@@ -1817,6 +1817,105 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return None
 
+    def _expand_message(self, text, flags, arguments, cw):
+        """
+        Expand the inserts and escapes of a message definition. Return None for a
+        definition that ends with a lone % or has inserts but no arguments.
+        """
+        ptr_size = self.get_ptr_size()
+        ignore = flags & k32types.FORMAT_MESSAGE_IGNORE_INSERTS
+        wrap = flags & k32types.FORMAT_MESSAGE_MAX_WIDTH_MASK
+        slots = arguments
+        if arguments and not flags & k32types.FORMAT_MESSAGE_ARGUMENT_ARRAY:
+            slots = self.emu.read_ptr(arguments)
+
+        out = []
+        i = 0
+        while i < len(text):
+            ch = text[i]
+            i += 1
+            if ch in "\r\n":
+                if ch == "\r" and text[i : i + 1] == "\n":
+                    i += 1
+                out.append(" " if wrap else "\r\n")
+                continue
+            if ch != "%":
+                out.append(ch)
+                continue
+            if i == len(text):
+                return None
+            esc = text[i]
+            i += 1
+            if esc in "123456789" and not ignore:
+                number = int(esc)
+                if text[i : i + 1].isdigit():
+                    number = number * 10 + int(text[i])
+                    i += 1
+                spec = "s"
+                if text[i : i + 1] == "!" and "!" in text[i + 1 :]:
+                    end = text.index("!", i + 1)
+                    spec = text[i + 1 : end]
+                    i = end + 1
+                if not slots:
+                    return None
+                fmt = "%" + spec
+                first = slots + (number - 1) * ptr_size
+                values = [self.emu.read_ptr(first + n * ptr_size) for n in range(self.get_va_arg_count(fmt))]
+                out.append(self.do_str_format(fmt, values, wide=cw == 2))
+            elif esc == "0":
+                break
+            elif esc == "n":
+                out.append("\r\n")
+            elif esc == "r":
+                out.append("\r")
+            elif esc == "t":
+                out.append("\t")
+            else:
+                out.append(("%" if ignore else "") + esc)
+        return "".join(out)
+
+    @apihook("FormatMessage", argc=7)
+    def FormatMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD FormatMessage(
+          DWORD   dwFlags,
+          LPCVOID lpSource,
+          DWORD   dwMessageId,
+          DWORD   dwLanguageId,
+          LPTSTR  lpBuffer,
+          DWORD   nSize,
+          va_list *Arguments
+        );
+        """
+        dwFlags, lpSource, dwMessageId, dwLanguageId, lpBuffer, nSize, Arguments = argv
+        cw = self.get_char_width(ctx)
+
+        if dwFlags & k32types.FORMAT_MESSAGE_FROM_STRING:
+            text = self.read_mem_string(lpSource, cw)
+        elif dwFlags & k32types.FORMAT_MESSAGE_FROM_SYSTEM and dwMessageId in k32types.SYSTEM_MESSAGES:
+            text = k32types.SYSTEM_MESSAGES[dwMessageId]
+        else:
+            emu.set_last_error(windefs.ERROR_MR_MID_NOT_FOUND)
+            return 0
+
+        msg = self._expand_message(text, dwFlags, Arguments, cw)
+        if msg is None:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        data = msg.encode("utf-16le" if cw == 2 else "utf-8") + b"\x00" * cw
+        count = len(data) // cw - 1
+        if dwFlags & k32types.FORMAT_MESSAGE_ALLOCATE_BUFFER:
+            buf = self.heap_alloc(max(len(data), nSize * cw), heap="LocalAlloc")
+            self.mem_write(buf, data)
+            emu.write_ptr(lpBuffer, buf)
+        elif count >= nSize:
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+        else:
+            self.mem_write(lpBuffer, data)
+        return count
+
     @apihook("SetHandleInformation", argc=3)
     def SetHandleInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

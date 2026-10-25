@@ -22,6 +22,34 @@ TH32CS_SNAPTHREAD = 0x00000004
 
 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
 
+FORMAT_MESSAGE_MAX_WIDTH_MASK = 0x000000FF
+FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100
+FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200
+FORMAT_MESSAGE_FROM_STRING = 0x00000400
+FORMAT_MESSAGE_FROM_HMODULE = 0x00000800
+FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000
+FORMAT_MESSAGE_ARGUMENT_ARRAY = 0x00002000
+
+SYSTEM_MESSAGES = {
+    0: "The operation completed successfully.\r\n",
+    1: "Incorrect function.\r\n",
+    2: "The system cannot find the file specified.\r\n",
+    3: "The system cannot find the path specified.\r\n",
+    4: "The system cannot open the file.\r\n",
+    5: "Access is denied.\r\n",
+    6: "The handle is invalid.\r\n",
+    8: "Not enough memory resources are available to process this command.\r\n",
+    32: "The process cannot access the file because it is being used by another process.\r\n",
+    87: "The parameter is incorrect.\r\n",
+    122: "The data area passed to a system call is too small.\r\n",
+    126: "The specified module could not be found.\r\n",
+    127: "The specified procedure could not be found.\r\n",
+    183: "Cannot create a file when that file already exists.\r\n",
+    1450: "Insufficient system resources exist to complete the requested service.\r\n",
+    0x80004005: "Unspecified error\r\n",
+    0x80040154: "Class not registered\r\n",
+}
+
 INIT_ONCE_CHECK_ONLY = 0x00000001
 INIT_ONCE_ASYNC = 0x00000002
 INIT_ONCE_INIT_FAILED = 0x00000004
