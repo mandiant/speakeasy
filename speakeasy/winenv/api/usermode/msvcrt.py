@@ -2626,6 +2626,47 @@ class Msvcrt(api.ApiHandler):
             emu.write_ptr(endptr, src + used)
         return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
 
+    def read_number_text(self, addr, width):
+        """
+        Read the string at ``addr`` for parse_c_integer. A wide character
+        outside ASCII becomes "?", which ends the number.
+        """
+        text = self.read_cstr(addr, width=width)
+        return text if width == 1 else text.decode("utf-16le", "replace").encode("ascii", "replace")
+
+    def strtoi64(self, emu, argv, width, signed):
+        src, endptr, base = argv
+        val, used = parse_c_integer(self.read_number_text(src, width), base)
+        if endptr:
+            emu.write_ptr(endptr, src + used * width)
+        if signed and not -(1 << 63) <= val < 1 << 63:
+            self.set_errno(ERANGE)
+            val = -(1 << 63) if val < 0 else (1 << 63) - 1
+        elif not signed and abs(val) >= 1 << 64:
+            self.set_errno(ERANGE)
+            val = (1 << 64) - 1
+        return self.return_int64(emu, val)
+
+    @apihook("_strtoi64", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _strtoi64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """__int64 _strtoi64(const char *strSource, char **endptr, int base);"""
+        return self.strtoi64(emu, argv, 1, True)
+
+    @apihook("_strtoui64", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _strtoui64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """unsigned __int64 _strtoui64(const char *strSource, char **endptr, int base);"""
+        return self.strtoi64(emu, argv, 1, False)
+
+    @apihook("_wcstoi64", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wcstoi64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """__int64 _wcstoi64(const wchar_t *strSource, wchar_t **endptr, int base);"""
+        return self.strtoi64(emu, argv, 2, True)
+
+    @apihook("_wcstoui64", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _wcstoui64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """unsigned __int64 _wcstoui64(const wchar_t *strSource, wchar_t **endptr, int base);"""
+        return self.strtoi64(emu, argv, 2, False)
+
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

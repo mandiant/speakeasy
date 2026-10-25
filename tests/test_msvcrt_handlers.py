@@ -2020,3 +2020,55 @@ def test_vcrt_initialize_critical_section_ex_zeroes_the_critical_section(
     cs = alloc(se, b"\xcc" * (size + 1))
     assert call(se, "vcruntime140", "__vcrt_InitializeCriticalSectionEx", [cs, 4000, 0])[0] == 1
     assert se.mem_read(cs, size + 1) == b"\x00" * size + b"\xcc"
+
+
+def get_int64_result(se: Speakeasy, rv: int) -> int:
+    assert se.emu is not None
+    if se.emu.get_ptr_size() == 4:
+        rv |= se.emu.reg_read(e_arch.X86_REG_EDX) << 32
+    return rv & 0xFFFFFFFFFFFFFFFF
+
+
+def get_errno(se: Speakeasy) -> int:
+    errno_ptr, _ = call(se, "msvcrt", "_errno", [])
+    return int.from_bytes(se.mem_read(errno_ptr, 4), "little")
+
+
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize(
+    "api, text, base, value, used, overflow",
+    [
+        ("_strtoi64", '1,"x"', 10, 1, 1, False),
+        ("_strtoi64", "  -0x1Fz", 0, -31, 7, False),
+        ("_strtoi64", "9223372036854775807", 10, 2**63 - 1, 19, False),
+        ("_strtoi64", "9223372036854775808", 10, 2**63 - 1, 19, True),
+        ("_strtoi64", "-9223372036854775809", 10, -(2**63), 20, True),
+        ("_strtoi64", "abc", 10, 0, 0, False),
+        ("_strtoui64", "ffffffffffffffff", 16, 2**64 - 1, 16, False),
+        ("_strtoui64", "-1", 10, 2**64 - 1, 2, False),
+        ("_strtoui64", "18446744073709551616", 10, 2**64 - 1, 20, True),
+        ("_wcstoi64", "  -42x", 10, -42, 5, False),
+        ("_wcstoi64", "-99999999999999999999", 10, -(2**63), 21, True),
+        ("_wcstoui64", "0x100000000", 0, 2**32, 11, False),
+    ],
+)
+def test_strtoi64_parses_64_bit_values_and_saturates(
+    request: pytest.FixtureRequest,
+    emu_name: str,
+    api: str,
+    text: str,
+    base: int,
+    value: int,
+    used: int,
+    overflow: bool,
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    width = 2 if api.startswith("_wcs") else 1
+    ptr_size = se.emu.get_ptr_size()
+    src = alloc(se, (text + "\0").encode("utf-16le" if width == 2 else "latin-1"))
+    end = alloc(se, b"\xcc" * (ptr_size + 1))
+    rv, _ = call(se, "msvcrt", api, [src, end, base])
+    assert get_int64_result(se, rv) == value & 0xFFFFFFFFFFFFFFFF
+    assert se.mem_read(end, ptr_size + 1) == (src + used * width).to_bytes(ptr_size, "little") + b"\xcc"
+    assert (get_errno(se) == ERANGE) == overflow
