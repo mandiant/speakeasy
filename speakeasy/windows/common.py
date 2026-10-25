@@ -143,7 +143,7 @@ class _PeParser(pefile.PE):
         self.hash = self._hash_pe(path=path, data=data)
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
-        self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
+        self.mapped_image = self.get_mapped_image()
         self.image_size = self.OPTIONAL_HEADER.SizeOfImage
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
         self.stack_commit = self.OPTIONAL_HEADER.SizeOfStackCommit
@@ -258,6 +258,31 @@ class _PeParser(pefile.PE):
         directories = self.OPTIONAL_HEADER.DATA_DIRECTORY
         return len(directories) > 14 and bool(directories[14].VirtualAddress and directories[14].Size)
 
+    def get_mapped_image(self) -> bytes:
+        """
+        Return the image with each section at its virtual address.
+
+        pefile leaves out a section whose raw data goes past the end of the file. Windows maps the
+        bytes that the file has and fills the rest with zeros, so this keeps them.
+        """
+        data = self.__data__
+        alignment = self.OPTIONAL_HEADER.SectionAlignment
+        file_alignment = self.OPTIONAL_HEADER.FileAlignment
+        mapped = bytearray(self.header)
+        for section in self.sections:
+            if section.Misc_VirtualSize == 0 and section.SizeOfRawData == 0:
+                continue
+            offset = self.adjust_PointerToRawData(section.PointerToRawData)
+            address = self.adjust_SectionAlignment(section.VirtualAddress, alignment, file_alignment)
+            if offset > len(data) or address >= 0xF0000000:
+                continue
+            if address > len(mapped):
+                mapped.extend(bytes(address - len(mapped)))
+            else:
+                del mapped[address:]
+            mapped += section.get_data()
+        return bytes(mapped[: self.OPTIONAL_HEADER.SizeOfImage])
+
     def rebase(self, to):
         self.relocate_image(to)
 
@@ -265,7 +290,7 @@ class _PeParser(pefile.PE):
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
 
         # After relocation, generate a new memory mapped image
-        self.mapped_image = self.get_memory_mapped_image(max_virtual_address=0xF0000000)
+        self.mapped_image = self.get_mapped_image()
 
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()

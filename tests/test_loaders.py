@@ -11,11 +11,14 @@ import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
 from speakeasy.errors import NotSupportedError
 from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
+from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule
 from speakeasy.winenv.api.sigdb import SignatureDatabase
 from tests.pe_builder import build_pe
 from tests.test_api_image import build, image_bytes
 from tests.test_export_catalog import _source
+
+SECTION_PAST_EOF_EXE = "04ca62db586d451d22f2477cf90b94db3f012281666248c15aca18661d7fe3b4.exe.xz"
 
 
 def _make_image(
@@ -445,3 +448,29 @@ def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) ->
     se = Speakeasy(config=config)
     with pytest.raises(NotSupportedError):
         se.load_module(data=image)
+
+
+def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):
+    """
+    04ca62db gives .text (RVA 0x1000, raw offset 0x1000, virtual size 0x2a5c4) a SizeOfRawData
+    of 0xc3b000, far past the end of the 479917-byte file. Windows maps the bytes that the file
+    has, so the entry point code at RVA 0x13d4 is there.
+    """
+    raw = load_test_bin(SECTION_PAST_EOF_EXE)
+
+    image = PeLoader(data=raw).make_image().regions[0].data
+
+    assert image[0x1000:0x2B5C4] == raw[0x1000:0x2B5C4]
+    assert image[0x2C000:0x2CA20] == raw[0x2C000:0x2CA20]
+
+
+def test_last_section_raw_data_past_end_of_file_stays_inside_the_image():
+    raw = bytearray(build_pe(data=b"x" * 16)[0]) + b"y" * 0x8000
+    pe = pefile.PE(data=bytes(raw))
+    struct.pack_into("<I", raw, pe.sections[-1].get_file_offset() + 16, 0x00C3B000)
+    size_of_image = pe.OPTIONAL_HEADER.SizeOfImage
+
+    parser = _PeParser(data=bytes(raw))
+
+    assert len(parser.mapped_image) <= size_of_image
+    assert parser.mapped_image[0x2000:0x2010] == b"x" * 16

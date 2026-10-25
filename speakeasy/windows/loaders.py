@@ -426,7 +426,7 @@ class PeLoader:
                     raw = b""
                 if len(raw) == size:
                     delay_raw = raw
-        mapped_image = pe.get_memory_mapped_image(max_virtual_address=0xF0000000)[: pe.image_size]
+        mapped_image = pe.get_mapped_image()[: pe.image_size]
         if delay_raw:
             mapped_image = bytearray(mapped_image)
             mapped_image[delay_rva : delay_rva + len(delay_raw)] = delay_raw
