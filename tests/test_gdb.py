@@ -1001,3 +1001,30 @@ def test_gdb_watch_stop_reports_watched_address(gdb_shellcode_emulator):
         assert f"watch:{scratch + 2:x};" in client.continue_()
     finally:
         client.close()
+
+
+# mov ecx, 0x10000000; loop: mov [scratch], ecx; dec ecx; jnz loop; ret
+_LONG_SCRATCH_LOOP = "b900000010890d222222224975f7c3"
+
+
+@pytest.mark.parametrize(
+    ("gdb_shellcode_emulator", "insert", "kind"),
+    [
+        pytest.param(_LONG_SCRATCH_LOOP, "Z0,{loop:x},1", "swbreak:;", id="breakpoint"),
+        pytest.param(_LONG_SCRATCH_LOOP, "Z2,{scratch:x},4", "watch:", id="watchpoint"),
+    ],
+    indirect=["gdb_shellcode_emulator"],
+)
+def test_gdb_stop_inserted_after_code_ran_hits(gdb_shellcode_emulator, insert, kind):
+    port, _, address, scratch = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        # The loop runs without debugger hooks until the interrupt.
+        client.send_no_wait("c")
+        time.sleep(0.2)
+        assert client.interrupt().startswith("T02")
+        assert client.query(insert.format(loop=address + 5, scratch=scratch)) == "OK"
+        assert kind in client.continue_()
+    finally:
+        client.close()

@@ -201,6 +201,10 @@ class EmuEngine:
         """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it"""
         self.emu.ctl_remove_cache(begin, end)  # type: ignore[union-attr]
 
+    def flush_translations(self):
+        """Drop all translated code, e.g. so that a code hook added since applies to it"""
+        self.emu.ctl_flush_tb()  # type: ignore[union-attr]
+
     def reg_write(self, reg, val):
         """Modify register values"""
         ereg = self.regs.get(reg)

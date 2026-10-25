@@ -379,6 +379,7 @@ class GdbServer:
             cls._remove_hook(hook)
 
     def _refresh_hooks(self) -> None:
+        code_hook_added = self._code_hook is not None and self._code_hook.added
         self._set_hook_enabled(
             self._code_hook,
             bool(
@@ -386,6 +387,9 @@ class GdbServer:
             )
             or self._resume_from_breakpoint is not None,
         )
+        if self._code_hook is not None and self._code_hook.added and not code_hook_added:
+            # Code translated while the hook was absent does not call it.
+            self.emu.emu_eng.flush_translations()
         self._set_hook_enabled(self._read_hook, bool(self._read_watchpoints or self._access_watchpoints))
         self._set_hook_enabled(self._write_hook, bool(self._write_watchpoints or self._access_watchpoints))
 

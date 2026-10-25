@@ -46,6 +46,7 @@ class DummyEmulator:
         ]
         self.curr_thread = DummyThread(DummyTeb(0x7FFDE000))
         self.module_change_listeners = []
+        self.emu_eng = SimpleNamespace(stop=lambda: None, flush_translations=lambda: None)
 
     def get_arch(self):
         return arch.ARCH_AMD64
