@@ -1457,3 +1457,16 @@ def test_file_functions_reject_a_null_path(dll_emu: Speakeasy, api: str, argv: l
     assert call(dll_emu, "msvcrt", api, args)[0] == -1
     errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
     assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL
+
+
+@pytest.mark.parametrize(
+    "api, enc", [("_mkdir", "utf-8"), ("_wmkdir", "utf-16le"), ("_rmdir", "utf-8"), ("_wrmdir", "utf-16le")]
+)
+def test_directory_functions_succeed_and_show_the_path(dll_emu: Speakeasy, api: str, enc: str) -> None:
+    path = "c:\\users\\public\\work"
+    rv, displays = call(dll_emu, "msvcrt", api, [alloc(dll_emu, (path + "\0").encode(enc))])
+    assert rv == 0
+    assert path in str(next(iter(displays.values())))
+    assert call(dll_emu, "msvcrt", api, [0])[0] == -1
+    errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
+    assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL

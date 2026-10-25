@@ -4043,6 +4043,50 @@ class Msvcrt(api.ApiHandler):
         emu.file_delete(path)
         return 0
 
+    def change_directory(self, argv, ctx, wide):
+        (path_ptr,) = argv
+        if not path_ptr:
+            self.set_errno(EINVAL)
+            return -1
+        ctx.args[0].display = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
+        return 0
+
+    @apihook("_mkdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _mkdir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _mkdir(
+            const char *dirname
+        );
+        """
+        return self.change_directory(argv, ctx, False)
+
+    @apihook("_wmkdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wmkdir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wmkdir(
+            const wchar_t *dirname
+        );
+        """
+        return self.change_directory(argv, ctx, True)
+
+    @apihook("_rmdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _rmdir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _rmdir(
+            const char *dirname
+        );
+        """
+        return self.change_directory(argv, ctx, False)
+
+    @apihook("_wrmdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wrmdir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _wrmdir(
+            const wchar_t *dirname
+        );
+        """
+        return self.change_directory(argv, ctx, True)
+
     @apihook("rename", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def rename(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
