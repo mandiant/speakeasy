@@ -587,7 +587,8 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def reset_cpu_context(self):
         """
-        Zero general-purpose registers and reset EFLAGS to the default value (0x2).
+        Zero general-purpose registers and reset EFLAGS and the x87 and SSE control state to the
+        values of a new Windows thread.
 
         Does NOT touch SP, BP, or IP — those are managed by reset_stack / run setup.
         """
@@ -621,6 +622,10 @@ class BinaryEmulator(MemoryManager, ABC):
             ):
                 self.reg_write(reg, 0)
         self.reg_write(e_arch.X86_REG_EFLAGS, 0x2)
+        self.reg_write(e_arch.X86_REG_FPCW, 0x27F)
+        self.reg_write(e_arch.X86_REG_FPSW, 0)
+        self.reg_write(e_arch.X86_REG_FPTAG, 0xFFFF)
+        self.reg_write(e_arch.X86_REG_MXCSR, 0x1F80)
 
     def reset_stack(self, base):
         """

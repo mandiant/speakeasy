@@ -1,3 +1,5 @@
+import struct
+
 import pytest
 
 import speakeasy.winenv.arch as e_arch
@@ -117,3 +119,27 @@ def test_stack_cleared_between_runs(config, load_test_bin, bin_file):
     for i, snap in enumerate(stack_snapshots[1:], 1):
         if snap is not None:
             assert snap == b"\x00" * SAMPLE_SIZE, f"Run {i}: stack below SP should be zeroed"
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_runs_start_with_windows_floating_point_control_words(config, arch):
+    config["timeout"] = 2
+    se = Speakeasy(config=config)
+    try:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch=arch))
+        out = se.mem_alloc(0x1000)
+        se.mem_write(out + 8, struct.pack("<HxxI", 0x7F, 0x8040))
+        load = b"\xb8" + struct.pack("<I", out) if arch == "x86" else b"\x48\xb8" + struct.pack("<Q", out)
+        store = se.mem_alloc(0x1000)
+        se.mem_write(store, load + b"\xd9\x70\x10\x0f\xae\x58\x04\xc3")
+        dirty = se.mem_alloc(0x1000)
+        se.mem_write(dirty, load + b"\xd9\x68\x08\x0f\xae\x50\x0c\xd9\xe8\xc3")
+
+        se.call(dirty)
+        se.call(store)
+
+        mxcsr = struct.unpack("<I", se.mem_read(out + 4, 4))[0]
+        control, status, tags = struct.unpack("<HxxHxxH", se.mem_read(out + 16, 10))
+        assert (control, status, tags, mxcsr) == (0x27F, 0, 0xFFFF, 0x1F80)
+    finally:
+        se.shutdown()
