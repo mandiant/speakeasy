@@ -467,6 +467,26 @@ def test_str_cmp_i_orders_strings(dll_emu: Speakeasy, a: str, b: str, sign: int,
     assert (rv > 0) - (rv < 0) == sign
 
 
+@pytest.mark.parametrize(
+    "api, a, b, sign",
+    [
+        ("StrCmpIC", "ABC", "abd", -1),
+        ("StrCmpIC", "ABC", "abc", 0),
+        ("StrCmpIC", "myarg1", "specialize", -1),
+        ("StrCmpIC", "abd", "ABC", 1),
+        ("StrCmpC", "ABC", "abc", -1),
+        ("StrCmpC", "abc", "abc", 0),
+        ("StrCmpC", "abd", "abc", 1),
+    ],
+)
+@pytest.mark.parametrize("width", [1, 2])
+def test_str_cmp_c_orders_strings(dll_emu: Speakeasy, api: str, a: str, b: str, sign: int, width: int) -> None:
+    pa, pb = alloc(dll_emu, wstr(a, width)), alloc(dll_emu, wstr(b, width))
+    rv, _ = call(dll_emu, "shlwapi", api + ("W" if width == 2 else "A"), [pa, pb])
+    rv = rv - (1 << 32) if rv >= 1 << 31 else rv
+    assert (rv > 0) - (rv < 0) == sign
+
+
 def test_co_set_proxy_blanket_returns_s_ok(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "ole32", "CoSetProxyBlanket", [0x1000, 10, 0, 0, 3, 3, 0, 0])
     assert rv == com.S_OK

@@ -147,16 +147,40 @@ class Shlwapi(api.ApiHandler):
         PCWSTR psz2
         );
         """
+        return self.compare_strings(argv, ctx, ignore_case=True)
+
+    @apihook("StrCmpIC", argc=2)
+    def StrCmpIC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int StrCmpIC(
+        PCWSTR pszStr1,
+        PCWSTR pszStr2
+        );
+        """
+        return self.compare_strings(argv, ctx, ignore_case=True)
+
+    @apihook("StrCmpC", argc=2)
+    def StrCmpC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int StrCmpC(
+        PCWSTR pszStr1,
+        PCWSTR pszStr2
+        );
+        """
+        return self.compare_strings(argv, ctx, ignore_case=False)
+
+    def compare_strings(self, argv, ctx, ignore_case):
         psz1, psz2 = argv
 
         cw = self.get_char_width(ctx)
         s1 = self.read_mem_string(psz1, cw)
         s2 = self.read_mem_string(psz2, cw)
 
-        ctx.args["psz1"].display = s1
-        ctx.args["psz2"].display = s2
+        ctx.args[0].display = s1
+        ctx.args[1].display = s2
 
-        s1, s2 = s1.lower(), s2.lower()
+        if ignore_case:
+            s1, s2 = s1.lower(), s2.lower()
         return (s1 > s2) - (s1 < s2)
 
     @apihook("PathFindFileName", argc=1)
