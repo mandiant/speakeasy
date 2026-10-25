@@ -383,7 +383,9 @@ def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
 
 
-@pytest.mark.parametrize("name, width", [("GetTempPathA", 1), ("GetTempPathW", 2)])
+@pytest.mark.parametrize(
+    "name, width", [("GetTempPathA", 1), ("GetTempPathW", 2), ("GetTempPath2A", 1), ("GetTempPath2W", 2)]
+)
 def test_get_temp_path_sizes(emu: Speakeasy, name: str, width: int) -> None:
     enc = "utf-8" if width == 1 else "utf-16le"
     temp = "C:\\Windows\\temp\\"

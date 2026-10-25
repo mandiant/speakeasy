@@ -5875,9 +5875,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not lpBuffer or nBufferLength <= len(tempdir):
             return len(tempdir) + 1
         rv = len(tempdir)
-        ctx.args["lpBuffer"].display = tempdir
+        ctx.args[1].display = tempdir
         self.mem_write(lpBuffer, new)
         return rv
+
+    @apihook("GetTempPath2", argc=2)
+    def GetTempPath2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetTempPath2A(
+        DWORD BufferLength,
+        LPSTR Buffer
+        );
+        """
+        return self.GetTempPath(emu, argv, ctx)
 
     @apihook("SetPriorityClass", argc=2)
     def SetPriorityClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
