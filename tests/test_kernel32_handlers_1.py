@@ -212,15 +212,16 @@ def test_wide_char_to_multi_byte_returns_bytes_written(dll_emu: Speakeasy, text:
     assert dll_emu.mem_read(dst, len(expected) + 1) == expected + b"\xcc"
 
 
-def test_wide_char_to_multi_byte_checks_the_buffer_size(dll_emu: Speakeasy) -> None:
+@pytest.mark.parametrize("size", [2, 3])
+def test_wide_char_to_multi_byte_fills_a_small_buffer_and_fails(dll_emu: Speakeasy, size: int) -> None:
     start_process(dll_emu)
     src = alloc(dll_emu, "abc\0".encode("utf-16le"))
     dst = alloc(dll_emu, b"\xcc" * 8)
-    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, dst, 2, 0, 0])
+    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, dst, size, 0, 0])
     assert rv == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
-    assert dll_emu.mem_read(dst, 8) == b"\xcc" * 8
+    assert dll_emu.mem_read(dst, 8) == b"abc"[:size] + b"\xcc" * (8 - size)
 
 
 @pytest.mark.parametrize("count, text", [(5, "hello"), (5, "café")])
@@ -235,15 +236,16 @@ def test_multi_byte_to_wide_char_counts_only_the_given_bytes(dll_emu: Speakeasy,
     assert dll_emu.mem_read(dst, 2 * len(text) + 2) == text.encode("utf-16le") + b"\xcc\xcc"
 
 
-def test_multi_byte_to_wide_char_checks_the_buffer_size(dll_emu: Speakeasy) -> None:
+@pytest.mark.parametrize("count", [5, 0xFFFFFFFF])
+def test_multi_byte_to_wide_char_fills_a_small_buffer_and_fails(dll_emu: Speakeasy, count: int) -> None:
     start_process(dll_emu)
     src = alloc(dll_emu, b"hello\0")
     dst = alloc(dll_emu, b"\xcc" * 16)
-    rv, _ = call(dll_emu, "kernel32", "MultiByteToWideChar", [CP_UTF8, 0, src, 5, dst, 2])
+    rv, _ = call(dll_emu, "kernel32", "MultiByteToWideChar", [CP_UTF8, 0, src, count, dst, 3])
     assert rv == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
-    assert dll_emu.mem_read(dst, 16) == b"\xcc" * 16
+    assert dll_emu.mem_read(dst, 16) == "hel".encode("utf-16le") + b"\xcc" * 10
 
 
 def encode(text: str, cw: int) -> bytes:

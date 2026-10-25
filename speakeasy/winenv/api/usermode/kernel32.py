@@ -3171,6 +3171,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             cs = wcs.decode("utf-16le", "ignore")
             cs = cs.encode("utf-8", "ignore")
             if len(cs) > cbMultiByte:
+                self.mem_write(lpMultiByteStr, cs[:cbMultiByte])
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             else:
                 self.mem_write(lpMultiByteStr, cs)
@@ -3217,6 +3218,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 ws = mbs.encode("utf-16le")
 
                 if len(ws) / 2 > cchWideChar:
+                    self.mem_write(lpWideCharStr, ws[: cchWideChar * 2])
                     emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                     rv = 0
                 else:
@@ -3229,6 +3231,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 cs = cs.decode("utf-8", "ignore")
                 cs = cs.encode("utf-16le")
                 if len(cs) // 2 > cchWideChar:
+                    self.mem_write(lpWideCharStr, cs[: cchWideChar * 2])
                     emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 else:
                     self.mem_write(lpWideCharStr, cs)
