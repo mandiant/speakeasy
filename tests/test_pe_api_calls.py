@@ -9,7 +9,7 @@ import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
-from tests.pe_builder import build_pe
+from tests.pe_builder import build_pe, build_resources
 
 TICK = {"kernel32.dll": ["GetTickCount"]}
 
@@ -348,3 +348,57 @@ def test_char_next_w_from_the_string_l2_api_set_uses_user32():
         entry = se.get_report().entry_points[0]
         assert entry.error is None
         assert entry.ret_val == module.base + 0x2002
+
+
+def run_enum_resource_names(se, resource_type, imports):
+    resources = build_resources(
+        0x2000,
+        {
+            ("MYTYPE", "XY", 0x409): b"one",
+            ("MYTYPE", 7, 0x409): b"two",
+            ("MYTYPE", 7, 0x407): b"zwei",
+            (16, 1, 0x409): b"ver",
+        },
+    )
+    data = resources.ljust(0x900, b"\0") + f"{resource_type}\0".encode("utf-16le")
+
+    def text(base, iat):
+        count, records = struct.pack("<I", base + 0x2800), base + 0x2808
+        prefix = b"\x6a\x55\x68" + struct.pack("<I", base + 0x1100) + b"\x68" + struct.pack("<I", base + 0x2900)
+        main = calls(32, [("kernel32.dll", name) for name in imports], prefix=prefix + b"\x6a\x00")(base, iat)
+        callback = b"\x8b\x44\x24\x04\xa3" + struct.pack("<I", base + 0x2840)  # mov eax, [esp+4]; mov [hModule], eax
+        callback += b"\x8b\x44\x24\x10\xa3" + struct.pack("<I", base + 0x2844)  # mov eax, [esp+16]; mov [lParam], eax
+        callback += b"\x8b\x44\x24\x0c\x8b\x0d" + count  # mov eax, [esp+12]; mov ecx, [count]
+        callback += b"\x89\x04\xcd" + struct.pack("<I", records)  # mov [records+ecx*8], eax
+        callback += b"\xa9\x00\x00\xff\xff\x74\x09\x8b\x00"  # test eax, 0xffff0000; jz +9; mov eax, [eax]
+        callback += b"\x89\x04\xcd" + struct.pack("<I", records + 4)  # mov [records+ecx*8+4], eax
+        callback += b"\xff\x05" + count + b"\xb8\x01\x00\x00\x00\xc2\x10\x00"  # inc [count]; mov eax, 1; ret 16
+        return main.ljust(0x100, b"\xcc") + callback
+
+    pe, _ = build_pe(
+        32, text=text, data=data, imports={"kernel32.dll": imports}, extra_dirs={2: (0x2000, len(resources))}
+    )
+    module = se.load_module(data=pe)
+    se.run_module(module)
+    return module
+
+
+def test_enum_resource_names_calls_the_callback_for_each_name():
+    with Speakeasy(config=configured()) as se:
+        module = run_enum_resource_names(se, "MYTYPE", ["EnumResourceNamesW"])
+        entry = se.get_report().entry_points[0]
+        assert entry.error is None
+        assert entry.ret_val == 1
+        count, _, name1, text1, name2, text2 = struct.unpack("<6I", se.mem_read(module.base + 0x2800, 24))
+        assert (count, text1, name2, text2) == (2, int.from_bytes("XY".encode("utf-16le"), "little"), 7, 0)
+        assert name1 >> 16
+        assert struct.unpack("<2I", se.mem_read(module.base + 0x2840, 8)) == (module.base, 0x55)
+
+
+def test_enum_resource_names_of_a_missing_type_fails():
+    with Speakeasy(config=configured()) as se:
+        module = run_enum_resource_names(se, "NOPE", ["EnumResourceNamesW", "GetLastError"])
+        entry = se.get_report().entry_points[0]
+        assert entry.error is None
+        assert entry.ret_val == 1813
+        assert se.mem_read(module.base + 0x2800, 4) == bytes(4)

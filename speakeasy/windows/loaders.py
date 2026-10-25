@@ -631,9 +631,7 @@ class PeLoader:
                             if hasattr(resource_lang, "data"):
                                 data_rva = resource_lang.data.struct.OffsetToData
                                 size = resource_lang.data.struct.Size
-                                lang_id = 0
-                                if hasattr(resource_lang.data.struct, "Id"):
-                                    lang_id = resource_lang.data.struct.Id
+                                lang_id = resource_lang.id or 0
                                 # Calculate RVA of the entry structure for HRSRC compatibility
                                 entry_offset = resource_lang.data.struct.get_file_offset()
                                 entry_rva = pe.get_rva_from_offset(entry_offset)

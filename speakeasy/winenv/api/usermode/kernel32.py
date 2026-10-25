@@ -30,6 +30,7 @@ from speakeasy.profiler_events import (
     THREAD_CREATE,
     THREAD_INJECT,
 )
+from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -5883,6 +5884,171 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 return int.from_bytes(res_size, "little")
 
         return 0
+
+    def get_resources(self, emu, hModule, type_=None, name=None, lang=0):
+        """
+        Return the resources of a module that match the type, name and language, or None
+        with the last error set
+        """
+        if hModule == 0:
+            pe = emu.modules[0] if emu.modules else None
+        else:
+            pe = emu.get_mod_from_addr(hModule)
+            if pe and hModule != pe.base:
+                pe = None
+        if not pe:
+            emu.set_last_error(windefs.ERROR_RESOURCE_DATA_NOT_FOUND)
+            return None
+        metadata = pe.get_pe_metadata()
+        resources = metadata.resources if metadata else []
+        if not resources:
+            emu.set_last_error(windefs.ERROR_RESOURCE_DATA_NOT_FOUND)
+            return None
+
+        def matches(a, b):
+            return a == b if isinstance(a, int) else isinstance(b, str) and a.upper() == b.upper()
+
+        if type_ is not None:
+            resources = [r for r in resources if matches(type_, r.type_id)]
+            if not resources:
+                emu.set_last_error(windefs.ERROR_RESOURCE_TYPE_NOT_FOUND)
+                return None
+        if name is not None:
+            resources = [r for r in resources if matches(name, r.id)]
+            if not resources:
+                emu.set_last_error(windefs.ERROR_RESOURCE_NAME_NOT_FOUND)
+                return None
+        if lang:
+            resources = [r for r in resources if r.lang_id == lang]
+        return pe.base, resources
+
+    def enum_resources(self, emu, cw, func, args, ids):
+        """
+        Call func once for each ID, with the ID in place of None in args. A string ID is
+        passed in a buffer that is valid only during the call.
+        """
+        for id_ in dict.fromkeys(ids):
+            buf = 0
+            if isinstance(id_, str):
+                data = (id_ + "\0").encode("utf-16le" if cw == 2 else "utf-8")
+                buf = self.mem_alloc(len(data), tag="api.enum_resource")
+                self.mem_write(buf, data)
+            try:
+                rv = yield GuestCall(func, tuple(buf or id_ if a is None else a for a in args))
+            finally:
+                if buf:
+                    self.mem_free(buf)
+            if not rv & 0xFFFFFFFF:
+                emu.set_last_error(windefs.ERROR_RESOURCE_ENUM_USER_STOP)
+                return 0
+        return 1
+
+    @apihook("EnumResourceTypes", argc=3)
+    def EnumResourceTypes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceTypesW(
+            [in, optional] HMODULE          hModule,
+            [in]           ENUMRESTYPEPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam
+        );
+        """
+        hModule, lpEnumFunc, lParam = argv[:3]
+        lang = argv[4] if len(argv) > 3 else 0
+        found = self.get_resources(emu, hModule, lang=lang)
+        if found is None:
+            return 0
+        base, resources = found
+        cw = self.get_char_width(ctx)
+        return (
+            yield from self.enum_resources(emu, cw, lpEnumFunc, (base, None, lParam), [r.type_id for r in resources])
+        )
+
+    @apihook("EnumResourceTypesEx", argc=5)
+    def EnumResourceTypesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceTypesExW(
+            [in, optional] HMODULE          hModule,
+            [in]           ENUMRESTYPEPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam,
+            [in]           DWORD            dwFlags,
+            [in]           LANGID           LangId
+        );
+        """
+        return self.EnumResourceTypes(emu, argv, ctx)
+
+    @apihook("EnumResourceNames", argc=4)
+    def EnumResourceNames(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceNamesW(
+            [in, optional] HMODULE          hModule,
+            [in]           LPCWSTR          lpType,
+            [in]           ENUMRESNAMEPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam
+        );
+        """
+        hModule, lpType, lpEnumFunc, lParam = argv[:4]
+        lang = argv[5] if len(argv) > 4 else 0
+        cw = self.get_char_width(ctx)
+        type_ = self.read_res_identifier(emu, ctx, "lpType", cw, lpType)
+        found = self.get_resources(emu, hModule, type_, lang=lang)
+        if found is None:
+            return 0
+        base, resources = found
+        return (
+            yield from self.enum_resources(emu, cw, lpEnumFunc, (base, lpType, None, lParam), [r.id for r in resources])
+        )
+
+    @apihook("EnumResourceNamesEx", argc=6)
+    def EnumResourceNamesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceNamesExW(
+            [in, optional] HMODULE          hModule,
+            [in]           LPCWSTR          lpType,
+            [in]           ENUMRESNAMEPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam,
+            [in]           DWORD            dwFlags,
+            [in]           LANGID           LangId
+        );
+        """
+        return self.EnumResourceNames(emu, argv, ctx)
+
+    @apihook("EnumResourceLanguages", argc=5)
+    def EnumResourceLanguages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceLanguagesW(
+            [in, optional] HMODULE          hModule,
+            [in]           LPCWSTR          lpType,
+            [in]           LPCWSTR          lpName,
+            [in]           ENUMRESLANGPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam
+        );
+        """
+        hModule, lpType, lpName, lpEnumFunc, lParam = argv[:5]
+        lang = argv[6] if len(argv) > 5 else 0
+        cw = self.get_char_width(ctx)
+        type_ = self.read_res_identifier(emu, ctx, "lpType", cw, lpType)
+        name = self.read_res_identifier(emu, ctx, "lpName", cw, lpName)
+        found = self.get_resources(emu, hModule, type_, name, lang)
+        if found is None:
+            return 0
+        base, resources = found
+        args = (base, lpType, lpName, None, lParam)
+        return (yield from self.enum_resources(emu, cw, lpEnumFunc, args, [r.lang_id for r in resources]))
+
+    @apihook("EnumResourceLanguagesEx", argc=7)
+    def EnumResourceLanguagesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumResourceLanguagesExW(
+            [in, optional] HMODULE          hModule,
+            [in]           LPCWSTR          lpType,
+            [in]           LPCWSTR          lpName,
+            [in]           ENUMRESLANGPROCW lpEnumFunc,
+            [in]           LONG_PTR         lParam,
+            [in]           DWORD            dwFlags,
+            [in]           LANGID           LangId
+        );
+        """
+        return self.EnumResourceLanguages(emu, argv, ctx)
 
     @apihook("FreeResource", argc=1)
     def FreeResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
