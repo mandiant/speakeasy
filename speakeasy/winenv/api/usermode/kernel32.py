@@ -2185,7 +2185,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (src,) = argv
-        if not src:
+        if not src or not emu.is_address_valid(src):
             return 0
         try:
             cw = self.get_char_width(ctx)

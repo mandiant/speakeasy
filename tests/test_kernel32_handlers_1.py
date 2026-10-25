@@ -304,6 +304,11 @@ def test_lstrlen_of_null_is_zero(dll_emu: Speakeasy, api: str) -> None:
     assert call(dll_emu, "kernel32", api, [0])[0] == 0
 
 
+@pytest.mark.parametrize("api", ["lstrlenA", "lstrlenW"])
+def test_lstrlen_of_unreadable_pointer_is_zero(dll_emu: Speakeasy, api: str) -> None:
+    assert call(dll_emu, "kernel32", api, [0x81400017])[0] == 0
+
+
 @pytest.mark.parametrize(
     "api, argv",
     [
