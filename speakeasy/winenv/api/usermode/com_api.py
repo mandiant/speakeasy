@@ -86,6 +86,27 @@ class ComApi(api.ApiHandler):
 
         return comdefs.S_OK
 
+    @apihook("IWbemServices.GetObject", argc=6)
+    def IWbemServices_GetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT GetObject(
+            const BSTR       strObjectPath,
+            long             lFlags,
+            IWbemContext     *pCtx,
+            IWbemClassObject **ppObject,
+            IWbemCallResult  **ppCallResult
+        );
+        """
+        ptr, strObjectPath, lFlags, pCtx, ppObject, ppCallResult = argv
+        if strObjectPath:
+            ctx.args[1].display = self.read_wide_string(strObjectPath)
+
+        for out in (ppObject, ppCallResult):
+            if out:
+                self.mem_write(out, b"\x00" * emu.get_ptr_size())
+
+        return comdefs.WBEM_E_NOT_FOUND
+
     @apihook("IWbemServices.ExecQuery", argc=6)
     def IWbemServices_ExecQuery(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

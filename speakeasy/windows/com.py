@@ -17,6 +17,16 @@ class COM:
         self.interfaces = {}
         self.config = config
 
+    def get_method_callback(self, emu, iface_name, method_name):
+        """
+        Get the address that a vtable slot of ``iface_name`` holds for
+        ``method_name``. A method without a handler gets an address too, so
+        that a call to it stops the run as an unsupported API.
+        """
+        method = getattr(com_api.ComApi, f"{iface_name}_{method_name}", None)
+        func_name = method.__apihook__[0] if method else f"{iface_name}.{method_name}"
+        return emu.add_callback(com_api.ComApi.name, func_name)
+
     def get_interface(self, emu, ptr_size, name):
         """
         Get COM interface
@@ -42,21 +52,13 @@ class COM:
                 for subfield in field_obj._fields_:
                     subfield_name, subfield_type = subfield
                     if issubclass(subfield_type, (ctypes.c_uint32, ctypes.c_ulong, ctypes.c_ulonglong)):
-                        # Inherited inferface field is a method; hook if supported
-                        method_name = f"{field_name}_{subfield_name}"
-                        if hasattr(com_api.ComApi, method_name):
-                            method = getattr(com_api.ComApi, method_name)
-                            addr = emu.add_callback(com_api.ComApi.name, method.__apihook__[0])
-                            emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), "little"))
+                        addr = self.get_method_callback(emu, field_name, subfield_name)
+                        emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), "little"))
 
                     field_offset += ptr_size
             elif issubclass(field_obj, (ctypes.c_uint32, ctypes.c_ulong, ctypes.c_ulonglong)):
-                # Field is a method; hook if supported
-                method_name = f"{name}_{field_name}"
-                if hasattr(com_api.ComApi, method_name):
-                    method = getattr(com_api.ComApi, method_name)
-                    addr = emu.add_callback(com_api.ComApi.name, method.__apihook__[0])
-                    emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), "little"))
+                addr = self.get_method_callback(emu, name, field_name)
+                emu.mem_write(com_ptr + field_offset, addr.to_bytes(emu.get_ptr_size(), "little"))
 
                 field_offset += ptr_size
             else:
