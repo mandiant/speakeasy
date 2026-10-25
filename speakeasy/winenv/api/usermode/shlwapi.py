@@ -11,6 +11,24 @@ from .. import api
 MAX_PATH = 260
 
 
+def get_path_without_file_spec(s: str) -> str | None:
+    """
+    Remove the last element of a path the way PathRemoveFileSpec does.
+    Return None when nothing is removed.
+    """
+    i = cut = len(s[:2]) - len(s[:2].lstrip("\\"))
+    while i < len(s):
+        if s[i] == "\\":
+            cut = i
+        elif s[i] == ":":
+            i += 1
+            cut = i + 1 if s[i : i + 1] == "\\" else i
+        i += 1
+    if cut >= len(s):
+        return None
+    return s[:cut]
+
+
 class Shlwapi(api.ApiHandler):
     """
     Implements exported functions from shlwapi.dll
@@ -403,19 +421,11 @@ class Shlwapi(api.ApiHandler):
         """
         (pszPath,) = argv
         cw = self.get_char_width(ctx)
-        s = self.read_mem_string(pszPath, cw)
-        i = cut = len(s[:2]) - len(s[:2].lstrip("\\"))
-        while i < len(s):
-            if s[i] == "\\":
-                cut = i
-            elif s[i] == ":":
-                i += 1
-                cut = i + 1 if s[i : i + 1] == "\\" else i
-            i += 1
-        if cut >= len(s):
+        s = get_path_without_file_spec(self.read_mem_string(pszPath, cw))
+        if s is None:
             return 0
 
-        self.write_mem_string(s[:cut], pszPath, cw)
+        self.write_mem_string(s, pszPath, cw)
         return 1
 
     @apihook("PathAddBackslash", argc=1)

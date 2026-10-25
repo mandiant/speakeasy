@@ -656,6 +656,25 @@ def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> 
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
+@pytest.mark.parametrize(
+    "path, expected, rv",
+    [
+        ("C:\\a\\b.dll", "C:\\a", 0),
+        ("C:\\Windows\\system32\\sample", "C:\\Windows\\system32", 0),
+        ("C:\\b.dll", "C:\\", 0),
+        ("C:\\", "C:\\", 1),
+    ],
+)
+def test_path_cch_remove_file_spec_removes_the_last_element(emu: Speakeasy, path: str, expected: str, rv: int) -> None:
+    buf = alloc(emu, f"{path}\0".encode("utf-16le") + b"\xcc" * 8)
+    assert call(emu, "kernel32", "PathCchRemoveFileSpec", [buf, 260])[0] == rv
+    assert emu.mem_read(buf, 2 * len(expected) + 2) == f"{expected}\0".encode("utf-16le")
+
+
+def test_path_cch_remove_file_spec_rejects_a_null_path(emu: Speakeasy) -> None:
+    assert call(emu, "kernel32", "PathCchRemoveFileSpec", [0, 260])[0] == windefs.E_INVALIDARG
+
+
 APPMODEL_ERROR_NO_PACKAGE = 15700
 
 

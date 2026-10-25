@@ -32,6 +32,7 @@ from speakeasy.profiler_events import (
 
 from .. import api
 from ..exception_apis import ExceptionApis
+from . import shlwapi
 
 PAGE_SIZE = 0x1000
 LANG_EN_US = 0x409
@@ -56,6 +57,9 @@ IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020
 TLS_SLOT_COUNT = 64 + 1024
 
 APPMODEL_ERROR_NO_PACKAGE = 15700
+
+S_FALSE = 1
+PATHCCH_MAX_CCH = 0x8000
 
 RSMB_PROVIDER = 0x52534D42
 
@@ -2111,6 +2115,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         return self.compare_locale_strings(emu, argv[1:6], 2, ctx)
+
+    @apihook("PathCchRemoveFileSpec", argc=2)
+    def PathCchRemoveFileSpec(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HRESULT PathCchRemoveFileSpec(
+          PWSTR  pszPath,
+          size_t cchPath
+        );
+        """
+        pszPath, cchPath = argv
+        if not pszPath or cchPath > PATHCCH_MAX_CCH:
+            return windefs.E_INVALIDARG
+        path = shlwapi.get_path_without_file_spec(self.read_mem_string(pszPath, 2))
+        if path is None:
+            return S_FALSE
+        self.write_mem_string(path, pszPath, 2)
+        return windefs.S_OK
 
     @apihook("QueryDosDevice", argc=3)
     def QueryDosDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
