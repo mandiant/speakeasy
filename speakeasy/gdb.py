@@ -96,7 +96,7 @@ class GdbServer:
         self._library_list_changed = False
         self._resume_from_breakpoint: int | None = None
         self._resume_pc: int | None = None
-        self._exec_breakpoints: dict[tuple[int, int], int] = {}
+        self._exec_breakpoints: dict[tuple[int, int, int], int] = {}
         # The code hook runs for each instruction, so it looks up one-byte breakpoints by address.
         self._exec_breakpoint_addresses: dict[int, int] = {}
         self._exec_breakpoint_ranges: tuple[tuple[int, int, int], ...] = ()
@@ -307,7 +307,7 @@ class GdbServer:
             # Only the stop the client resumes from skips its breakpoint. A
             # later run that starts on a breakpoint hits it.
             resuming, self._resume_pc = self._resume_pc == pc, None
-            at_breakpoint = any(begin <= pc < begin + size for begin, size in self._exec_breakpoints)
+            at_breakpoint = any(begin <= pc < begin + size for begin, size, _ in self._exec_breakpoints)
             self._resume_from_breakpoint = pc if resuming and at_breakpoint else None
         self._refresh_hooks()
         return True
@@ -508,7 +508,10 @@ class GdbServer:
         elif payload.startswith(b"D"):
             self._reply(b"OK")
             return ResumeAction(detach=True)
-        elif payload[:1] in (b"k",) or payload.startswith(b"vKill"):
+        elif payload == b"k":
+            return ResumeAction(kill=True)
+        elif payload.startswith(b"vKill"):
+            self._reply(b"OK")
             return ResumeAction(kill=True)
         elif payload == b"!":
             self._reply(b"")
@@ -540,27 +543,26 @@ class GdbServer:
             size = int(size_text.split(b";", 1)[0], 16)
             if size <= 0:
                 raise ValueError
-            key = (address, size)
             if bp_type in (0, 1):
-                target = self._exec_breakpoints
-            elif bp_type == 2:
-                target = self._write_watchpoints
-            elif bp_type == 3:
-                target = self._read_watchpoints
-            elif bp_type == 4:
-                target = self._access_watchpoints
+                exec_key = (address, size, bp_type)
+                if set_breakpoint:
+                    self._exec_breakpoints[exec_key] = bp_type
+                else:
+                    self._exec_breakpoints.pop(exec_key, None)
+                breakpoints = self._exec_breakpoints.items()
+                self._exec_breakpoint_addresses = {begin: t for (begin, length, _), t in breakpoints if length == 1}
+                self._exec_breakpoint_ranges = tuple(
+                    (begin, length, t) for (begin, length, _), t in breakpoints if length > 1
+                )
+            elif bp_type in (2, 3, 4):
+                target = {2: self._write_watchpoints, 3: self._read_watchpoints, 4: self._access_watchpoints}[bp_type]
+                if set_breakpoint:
+                    target[(address, size)] = bp_type
+                else:
+                    target.pop((address, size), None)
             else:
                 self._reply(b"")
                 return
-            if set_breakpoint:
-                target[key] = bp_type
-            else:
-                target.pop(key, None)
-            if target is self._exec_breakpoints:
-                self._exec_breakpoint_addresses = {begin: t for (begin, length), t in target.items() if length == 1}
-                self._exec_breakpoint_ranges = tuple(
-                    (begin, length, t) for (begin, length), t in target.items() if length > 1
-                )
             self._refresh_hooks()
             self._reply(b"OK")
         except ValueError:

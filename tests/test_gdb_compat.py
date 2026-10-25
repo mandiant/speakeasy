@@ -274,7 +274,7 @@ def test_hardware_breakpoint_accepts_large_ranges():
 
     assert replies == [b"OK"] * 4
     assert len(server._exec_breakpoints) == 4
-    assert (0x401000, 0x2D000) in server._exec_breakpoints
+    assert (0x401000, 0x2D000, 1) in server._exec_breakpoints
 
 
 def test_hardware_breakpoint_range_hit_detection():
@@ -322,3 +322,29 @@ def test_read_memory_fills_advertised_packet_size():
     assert len(replies[0]) == _PACKET_SIZE
     assert bytes.fromhex(replies[0].decode()) == bytes(range(256)) * (_PACKET_SIZE // 512)
     assert replies[1] == b"E01"
+
+
+def test_software_and_hardware_breakpoints_at_one_address_are_separate():
+    server = make_server()
+    reasons = []
+    server._request_stop = reasons.append
+    server._reply = lambda _payload: None
+    server._install_hooks()
+    server._change_breakpoint(b"Z0,401000,1")
+    server._change_breakpoint(b"Z1,401000,1")
+
+    server._change_breakpoint(b"z0,401000,1")
+    server._on_code(None, 0x401000, 1)
+
+    assert [r.kind for r in reasons] == ["hwbreak"]
+
+
+def test_vkill_replies_ok_and_k_does_not():
+    server = make_server()
+    replies = []
+    server._reply = replies.append
+
+    assert server._handle_command(b"vKill;1").kill
+    assert replies == [b"OK"]
+    assert server._handle_command(b"k").kill
+    assert replies == [b"OK"]
