@@ -67,6 +67,10 @@ def test_normalize_dll_name_apiset_string_l2_is_user32():
     assert normalize_dll_name("api-ms-win-core-string-l1-1-0") == "kernel32"
 
 
+def test_normalize_dll_name_apiset_commandlinetoargv_is_shell32():
+    assert normalize_dll_name("api-ms-win-core-commandlinetoargv-l1-1-0") == "shell32"
+
+
 def test_normalize_dll_name_apiset_com_is_ole32():
     assert normalize_dll_name("api-ms-win-core-com-l1-1-0") == "ole32"
     assert normalize_dll_name("api-ms-win-core-com-l2-1-1") == "ole32"

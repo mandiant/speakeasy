@@ -138,6 +138,15 @@ def test_command_line_to_argv_uses_windows_rules(dll_emu: Speakeasy, cmdline: st
     assert [read_wstr(dll_emu, p) for p in ptrs] == expected
 
 
+def test_command_line_to_argv_resolves_through_its_api_set(dll_emu: Speakeasy) -> None:
+    cl = alloc(dll_emu, wstr("a.exe b", 2))
+    nargs = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "api-ms-win-core-commandlinetoargv-l1-1-0", "CommandLineToArgvW", [cl, nargs])
+    assert struct.unpack("<I", dll_emu.mem_read(nargs, 4))[0] == 2
+    ptrs = struct.unpack("<2I", dll_emu.mem_read(rv, 8))
+    assert [read_wstr(dll_emu, p) for p in ptrs] == ["a.exe", "b"]
+
+
 @pytest.mark.parametrize("csidl", [0x1A, 0x801A, 0x401A])
 def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) -> None:
     assert dll_emu.emu is not None
