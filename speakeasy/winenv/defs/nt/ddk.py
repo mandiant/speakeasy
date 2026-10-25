@@ -4,6 +4,8 @@ from speakeasy.struct import Enum
 
 WINDOWS_CONSOLE = 3
 
+THREAD_CREATE_FLAGS_CREATE_SUSPENDED = 0x00000001
+
 # IRQL Levels
 PASSIVE_LEVEL = 0  # Passive release level
 LOW_LEVEL = 0  # Lowest interrupt level

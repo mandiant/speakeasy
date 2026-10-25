@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import binascii
+import ntpath
 import struct
 
 import speakeasy.windows.common as winemu
@@ -10,6 +11,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import DEFAULT_CONFIG_DATA
+from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -574,4 +576,55 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return ddk.STATUS_BUFFER_TOO_SMALL
 
         self.mem_write(TargetPath, data)
+        return ddk.STATUS_SUCCESS
+
+    @apihook("NtCreateThreadEx", argc=11)
+    def NtCreateThreadEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS NtCreateThreadEx(
+            PHANDLE ThreadHandle,
+            ACCESS_MASK DesiredAccess,
+            POBJECT_ATTRIBUTES ObjectAttributes,
+            HANDLE ProcessHandle,
+            PUSER_THREAD_START_ROUTINE StartRoutine,
+            PVOID Argument,
+            ULONG CreateFlags,
+            SIZE_T ZeroBits,
+            SIZE_T StackSize,
+            SIZE_T MaximumStackSize,
+            PPS_ATTRIBUTE_LIST AttributeList
+        );
+        """
+        (ThreadHandle, _, _, ProcessHandle, StartRoutine, Argument, CreateFlags, _, _, _, _) = argv
+
+        if ProcessHandle == self.get_max_int():
+            proc_obj = emu.get_current_process()
+        else:
+            proc_obj = self.get_object_from_handle(ProcessHandle)
+        if not proc_obj:
+            return ddk.STATUS_INVALID_HANDLE
+
+        proc_path = proc_obj.path
+        ctx.args["ProcessHandle"].display = proc_path
+
+        if proc_obj is emu.get_current_process():
+            run_type = "thread"
+            evt_type = THREAD_CREATE
+        else:
+            proc_path = ntpath.basename(proc_path).replace(".", "_")
+            run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
+            evt_type = THREAD_INJECT
+
+        is_suspended = bool(CreateFlags & ddk.THREAD_CREATE_FLAGS_CREATE_SUSPENDED)
+        handle, obj = self.create_thread(
+            StartRoutine, Argument, proc_obj, thread_type=run_type, is_suspended=is_suspended
+        )
+        if not obj:
+            return ddk.STATUS_UNSUCCESSFUL
+
+        if ThreadHandle:
+            self.mem_write(ThreadHandle, handle.to_bytes(self.get_ptr_size(), "little"))
+
+        self.record_process_event(proc_obj, evt_type, start_addr=StartRoutine, param=Argument, tid=obj.id)
+
         return ddk.STATUS_SUCCESS

@@ -753,3 +753,40 @@ def test_rtl_get_persisted_state_location_copies_the_default_path(request: pytes
     assert rv == ddk.STATUS_BUFFER_TOO_SMALL
     assert se.mem_read(small, 4) == b"\xcc" * 4
     assert struct.unpack("<I", se.mem_read(length, 4))[0] == 22
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    assert se.emu is not None
+    ptr = se.emu.get_ptr_size()
+    current_process = (1 << (8 * ptr)) - 1
+    out = alloc(se, b"\x00" * ptr)
+    rv, _ = call(se, "ntdll", "NtCreateThreadEx", [out, 0x1FFFFF, 0, current_process, 0x401000, 0x55, 0, 0, 0, 0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    hnd = int.from_bytes(se.mem_read(out, ptr), "little")
+    run = se.emu.run_queue[-1]
+    assert (run.type, run.start_addr, run.args) == ("thread", 0x401000, (0x55,))
+    assert call(se, "kernel32", "GetThreadId", [hnd])[0] == run.thread.tid
+
+
+def test_nt_create_thread_ex_creates_a_suspended_thread(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert dll_emu.emu is not None
+    runs = len(dll_emu.emu.run_queue)
+    out = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "ntdll", "NtCreateThreadEx", [out, 0x1FFFFF, 0, 0xFFFFFFFF, 0x401000, 0, 1, 0, 0, 0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    assert len(dll_emu.emu.run_queue) == runs
+    hnd = struct.unpack("<I", dll_emu.mem_read(out, 4))[0]
+    assert call(dll_emu, "kernel32", "ResumeThread", [hnd])[0] == 1
+    assert len(dll_emu.emu.run_queue) == runs + 1
+
+
+def test_nt_create_thread_ex_fails_for_an_unknown_process(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    out = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "ntdll", "NtCreateThreadEx", [out, 0x1FFFFF, 0, 0x1234, 0x401000, 0, 0, 0, 0, 0, 0])
+    assert rv == ddk.STATUS_INVALID_HANDLE
+    assert dll_emu.mem_read(out, 4) == b"\xcc" * 4

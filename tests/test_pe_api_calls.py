@@ -269,3 +269,51 @@ def test_api_event_pc_is_the_call_site(architecture, memory_tracing):
         (event,) = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
     call = module.base + 0x1000 + (4 if architecture == 64 else 0)
     assert event.pos.pc == (call if memory_tracing else call + 6)
+
+
+NT_THREAD = {
+    "ntdll.dll": ["NtCreateThreadEx", "NtWaitForSingleObject"],
+    "kernel32.dll": ["GetTickCount"],
+}
+
+
+def nt_create_thread(base, iat):
+    code = bytearray()
+
+    def call_iat(dll, name):
+        code.extend(b"\xff\x15" + struct.pack("<i", iat[dll, name] - (0x1000 + len(code) + 6)))
+
+    code += b"\x48\x83\xec\x68"  # sub rsp, 0x68
+    code += b"\x48\x8d\x4c\x24\x60"  # lea rcx, [rsp+0x60]
+    code += b"\xba\xff\xff\x1f\x00"  # mov edx, 0x1fffff
+    code += b"\x45\x31\xc0"  # xor r8d, r8d
+    code += b"\x49\x83\xc9\xff"  # or r9, -1
+    lea = len(code)
+    code += b"\x48\x8d\x05\0\0\0\0"  # lea rax, [rip+thread_proc]
+    code += b"\x48\x89\x44\x24\x20"  # mov [rsp+0x20], rax
+    code += b"\x31\xc0"  # xor eax, eax
+    for slot in range(0x28, 0x58, 8):
+        code += b"\x48\x89\x44\x24" + bytes([slot])  # mov [rsp+slot], rax
+    call_iat("ntdll.dll", "NtCreateThreadEx")
+    code += b"\x48\x8b\x4c\x24\x60"  # mov rcx, [rsp+0x60]
+    code += b"\x31\xd2"  # xor edx, edx
+    code += b"\x45\x31\xc0"  # xor r8d, r8d
+    call_iat("ntdll.dll", "NtWaitForSingleObject")
+    code += b"\x48\x83\xc4\x68\xc3"  # add rsp, 0x68; ret
+    struct.pack_into("<i", code, lea + 3, len(code) - (lea + 7))
+    code += b"\x48\x83\xec\x28"  # sub rsp, 0x28
+    call_iat("kernel32.dll", "GetTickCount")
+    code += b"\x48\x83\xc4\x28\xc3"  # add rsp, 0x28; ret
+    return bytes(code)
+
+
+def test_nt_create_thread_ex_runs_the_thread():
+    data, _ = build_pe(64, text=nt_create_thread, imports=NT_THREAD)
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        entries = se.get_report().entry_points
+        assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None), ("thread", None)]
+        assert api_names(entries[0]) == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject"]
+        assert api_names(entries[1]) == ["kernel32.GetTickCount"]
+        assert entries[1].start_addr == module.base + 0x105C
