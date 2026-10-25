@@ -2063,13 +2063,19 @@ class WindowsEmulator(BinaryEmulator):
             except WindowsEmuError:
                 logger.debug("cannot allocate API entry for %s!%s", module.name, reference, exc_info=True)
                 return 0
-        if entry.export.forwarder:
+        if entry.export.forwarder is not None:
             seen = set() if _seen is None else _seen
             key = (id(module), reference)
             if key in seen or len(seen) >= 32:
                 return 0
             seen.add(key)
             target = entry.export.forwarder
+            if module._image.source != "synthetic":
+                # Windows reads the forwarder from the mapped image when it resolves it.
+                try:
+                    target = self.read_mem_string(entry.address, 1, max_chars=4096)
+                except Exception:
+                    return 0
             if "." not in target:
                 return 0
             dll, name = target.rsplit(".", 1)
@@ -3061,12 +3067,14 @@ class WindowsEmulator(BinaryEmulator):
             address: value
             for address, value in auxiliary_symbols.items()
             if not self.api_registry.overlaps_traps(address)
-            and not (address in self.api_registry.entries and self.api_registry.entries[address].export.forwarder)
+            and not (
+                address in self.api_registry.entries and self.api_registry.entries[address].export.forwarder is not None
+            )
         }
         symbols.update(
             (address, (entry.dll, entry.name))
             for address, entry in self.api_registry.entries.items()
-            if not entry.export.forwarder
+            if entry.export.forwarder is None
         )
         return symbols
 

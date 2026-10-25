@@ -279,7 +279,7 @@ class Win32Emulator(WindowsEmulator):
                     if (
                         exp.name in ("DllMain",)
                         or getattr(exp, "kind", "function") == "data"
-                        or getattr(exp, "forwarder", None)
+                        or getattr(exp, "forwarder", None) is not None
                     ):
                         continue
                     run = Run()

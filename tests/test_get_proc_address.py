@@ -1,6 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from tests.handler_harness import alloc, call, start_process
+import struct
+
+from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.pe_builder import build_pe
 
 
 def get_api_calls(ep, api_name):
@@ -28,3 +31,27 @@ def test_get_proc_address_on_the_host_image_of_a_dll_returns_zero(dll_emu):
     assert host == dll_emu.emu.container_image.base
     name = alloc(dll_emu, b"ReShadeRegisterAddon\0")
     assert call(dll_emu, "kernel32", "GetProcAddress", [host, name])[0] == 0
+
+
+def build_runtime_forwarder_exe():
+    directory_rva, buffer_rva = 0x2000, 0x2100
+    data = bytearray(0x200)
+    struct.pack_into("<IIHHIIIIIII", data, 0, 0, 0, 0, 0, 0x2050, 1, 1, 1, 0x2028, 0x202C, 0x2030)
+    struct.pack_into("<IIH", data, 0x28, buffer_rva, 0x2040, 0)
+    data[0x40:0x44] = b"fwd\0"
+    data[0x50:0x59] = b"test.exe\0"
+    image, _ = build_pe(32, data=bytes(data), extra_dirs={0: (directory_rva, 0x80000000)})
+    return image, buffer_rva
+
+
+def test_get_proc_address_reads_a_forwarder_that_the_image_wrote_at_runtime(config):
+    image, buffer_rva = build_runtime_forwarder_exe()
+    for se in load_emu(config, image):
+        start_process(se)
+        host = call(se, "kernel32", "GetModuleHandleA", [0])[0]
+        se.mem_write(host + buffer_rva, b"kernel32.Sleep\0")
+        forwarded = call(se, "kernel32", "GetProcAddress", [host, alloc(se, b"fwd\0")])[0]
+        kernel32 = call(se, "kernel32", "GetModuleHandleA", [alloc(se, b"kernel32\0")])[0]
+        sleep = call(se, "kernel32", "GetProcAddress", [kernel32, alloc(se, b"Sleep\0")])[0]
+        assert sleep != 0
+        assert forwarded == sleep

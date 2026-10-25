@@ -491,21 +491,17 @@ class PeLoader:
         parsed_exports = getattr(getattr(pe, "DIRECTORY_ENTRY_EXPORT", None), "symbols", ())
         if pe.OPTIONAL_HEADER.DATA_DIRECTORY:
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
+            # Windows classifies forwarders by the full declared range, even
+            # when Size runs past the image, so only the header must fit.
             directory_end = directory.VirtualAddress + directory.Size
             if (directory.VirtualAddress or directory.Size) and (
-                not directory.VirtualAddress or directory.Size < 40 or directory_end > pe.image_size
+                not directory.VirtualAddress or directory.Size < 40 or directory.VirtualAddress + 40 > pe.image_size
             ):
                 self._optional_error("export directory", ValueError("Export directory extends beyond the image"))
                 parsed_exports = ()
             directory_bytes = b""
-            if directory.VirtualAddress and directory.Size >= 40 and directory_end <= pe.image_size:
-                try:
-                    directory_bytes = pe.get_data(directory.VirtualAddress, directory.Size)
-                    if len(directory_bytes) != directory.Size:
-                        raise ValueError("Truncated export directory")
-                except (ValueError, pefile.PEFormatError) as error:
-                    self._optional_error("export directory", error)
-                    parsed_exports = ()
+            if parsed_exports:
+                directory_bytes = bytes(mapped_image[directory.VirtualAddress : min(directory_end, pe.image_size)])
             for exp in parsed_exports:
                 try:
                     if not exp.address:
@@ -519,7 +515,9 @@ class PeLoader:
                         if terminator < 0:
                             raise ValueError("Unterminated forwarder within export directory")
                         forwarder = directory_bytes[offset:terminator].decode("ascii")
-                        validate_forwarder(forwarder)
+                        # An empty forwarder is one the image writes at runtime.
+                        if forwarder:
+                            validate_forwarder(forwarder)
                     section = pe.get_section_by_rva(exp.address)
                     kind = "function"
                     if forwarder is None and section is not None:
