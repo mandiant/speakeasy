@@ -2,6 +2,8 @@
 Gdi32 handlers return values that drawing code can use.
 """
 
+import struct
+
 import pytest
 
 from speakeasy import Speakeasy
@@ -44,3 +46,35 @@ def test_get_device_caps_describes_a_desktop_display(dll_emu: Speakeasy, index: 
     dc = call(dll_emu, "user32", "GetDC", [0])[0]
 
     assert call(dll_emu, "gdi32", "GetDeviceCaps", [dc, index])[0] == expected
+
+
+DXGI_ERROR_UNSUPPORTED = 0x887A0004
+
+
+@pytest.mark.parametrize(
+    ("dll", "name", "argv", "out_slots"),
+    [
+        ("dxgi", "CreateDXGIFactory", ["iid", "out"], [0]),
+        ("dxgi", "CreateDXGIFactory1", ["iid", "out"], [0]),
+        ("dxgi", "CreateDXGIFactory2", [0, "iid", "out"], [0]),
+        ("d3d11", "D3D11CreateDevice", [0, 1, 0, 0, 0, 0, 7, "out", "out+8", "out+16"], [0, 1, 2]),
+        (
+            "d3d11",
+            "D3D11CreateDeviceAndSwapChain",
+            [0, 1, 0, 0, 0, 0, 7, 0, "out", "out+8", "out+16", "out+24"],
+            [0, 1, 2, 3],
+        ),
+    ],
+)
+def test_dxgi_object_creation_reports_unsupported_and_clears_outputs(
+    dll_emu: Speakeasy, dll: str, name: str, argv: list, out_slots: list[int]
+) -> None:
+    iid = alloc(dll_emu, b"\x11" * 16)
+    out = alloc(dll_emu, struct.pack("<8I", *([0x1234] * 8)))
+    values = {"iid": iid, "out": out, "out+8": out + 8, "out+16": out + 16, "out+24": out + 24}
+
+    rv, _ = call(dll_emu, dll, name, [values.get(a, a) if isinstance(a, str) else a for a in argv])
+
+    assert rv == DXGI_ERROR_UNSUPPORTED
+    for slot in out_slots:
+        assert struct.unpack("<I", dll_emu.mem_read(out + 8 * slot, 4))[0] == 0
