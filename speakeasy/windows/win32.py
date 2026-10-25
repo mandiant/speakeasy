@@ -3,6 +3,7 @@
 import hashlib
 import ntpath
 import os
+import re
 import shlex
 import subprocess
 
@@ -28,6 +29,11 @@ from speakeasy.winenv.api.winapi import WindowsApi
 DLL_PROCESS_ATTACH = 1
 
 MAX_EXPORTS_TO_EMULATE = 10
+
+# An MSVC-decorated non-static member function: after the qualified name, an
+# access code, the this-pointer qualifiers and the calling convention E
+# (__thiscall).
+THISCALL_MEMBER = re.compile(r"^\?.*@@[ABEFIJMNQRUV][FI]*[ABCD]E")
 
 
 class Win32Emulator(WindowsEmulator):
@@ -277,6 +283,7 @@ class Win32Emulator(WindowsEmulator):
 
             if exports:
                 args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
+                this = None
                 for exp in exports:
                     if (
                         exp.name in ("DllMain",)
@@ -299,6 +306,10 @@ class Win32Emulator(WindowsEmulator):
                     else:
                         # Here we set dummy args to pass into the export function
                         run.args = args
+                    if module.arch == _arch.ARCH_X86 and exp.name and THISCALL_MEMBER.match(exp.name):
+                        if this is None:
+                            this = self.mem_map(8, tag="emu.export_this", base=0x41420000)
+                        run.registers = {_arch.X86_REG_ECX: this}
                     # Store these runs and only queue them before the unload
                     # routine this is because some exports may not be ready to
                     # be called yet

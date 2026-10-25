@@ -138,6 +138,7 @@ class Run:
         self.write_cache: deque[MemAccess] = deque(maxlen=4)
 
         self.args: list[Any] | tuple[Any, ...] | None = None
+        self.registers: dict[int, int] = {}
         self.start_addr: int | None = None
         self.type: str | int | None = None
         self.error: ErrorInfo | None = None

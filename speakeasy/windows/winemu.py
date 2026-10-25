@@ -621,6 +621,8 @@ class WindowsEmulator(BinaryEmulator):
                 stk_ptr -= 8
 
         self.set_func_args(stk_ptr, self.return_hook, *run.args, conv=_arch.CALL_CONV_STDCALL)
+        for reg, value in run.registers.items():
+            self.reg_write(reg, value)
         stk_ptr = self.get_stack_ptr()
         stk_map = self.get_address_map(stk_ptr)
 
