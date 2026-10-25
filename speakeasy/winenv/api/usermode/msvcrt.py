@@ -1597,8 +1597,27 @@ class Msvcrt(api.ApiHandler):
             const struct tm *timeptr
         );
         """
+        return self.format_time(argv, ctx, 1)
+
+    @apihook("wcsftime", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def wcsftime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t wcsftime(
+            wchar_t *strDest,
+            size_t maxsize,
+            const wchar_t *format,
+            const struct tm *timeptr
+        );
+        """
+        return self.format_time(argv, ctx, 2)
+
+    def format_time(self, argv, ctx: api.ApiContext, width: int) -> int:
+        """
+        Format a struct tm for strftime (width 1) or wcsftime (width 2).
+        maxsize and the result count characters.
+        """
         dest, maxsize, fmt, tm = argv
-        fmt_str = self.read_string(fmt)
+        fmt_str = self.read_mem_string(fmt, width)
         ctx.args[2].display = fmt_str
         sec, minute, hour, mday, mon, year = struct.unpack("<6i", self.mem_read(tm, 24))
         try:
@@ -1606,14 +1625,15 @@ class Msvcrt(api.ApiHandler):
         except (ValueError, OverflowError):
             self.set_errno(EINVAL)
             return 0
-        text = render_strftime(fmt_str, t).encode("latin-1", "replace")
+        text = render_strftime(fmt_str, t)
+        encoding = "utf-16le" if width == 2 else "latin-1"
         if len(text) + 1 > maxsize:
             if maxsize:
-                self.mem_write(dest, b"\x00")
+                self.mem_write(dest, b"\x00" * width)
             self.set_errno(ERANGE)
             return 0
-        self.mem_write(dest, text + b"\x00")
-        ctx.args[0].display = text.decode("latin-1")
+        self.mem_write(dest, (text + "\x00").encode(encoding, "replace"))
+        ctx.args[0].display = text
         return len(text)
 
     @apihook("_tzset", argc=0, conv=e_arch.CALL_CONV_CDECL)

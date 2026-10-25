@@ -1533,6 +1533,23 @@ def test_strftime_returns_zero_when_the_text_does_not_fit(dll_emu: Speakeasy) ->
     assert call(dll_emu, "msvcrt", "strftime", [buf, 4, alloc(dll_emu, b"%Y\x00"), tm])[0] == 0
 
 
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_wcsftime_formats_a_struct_tm_as_a_wide_string(request: pytest.FixtureRequest, emu_name: str) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    tm = alloc(se, struct.pack("<9i", 5, 4, 8, 29, 11, 119, 0, 362, 0))
+    fmt = alloc(se, "[%H:%M:%S] %a\0".encode("utf-16le"))
+    text = "[08:04:05] Sun".encode("utf-16le")
+    buf = alloc(se, b"\xcc" * 64)
+    rv, displays = call(se, "ucrtbase", "wcsftime", [buf, 32, fmt, tm])
+    assert rv == len(text) // 2
+    assert se.mem_read(buf, len(text) + 4) == text + b"\x00\x00\xcc\xcc"
+    assert displays[0] == "[08:04:05] Sun"
+    assert displays[2] == "[%H:%M:%S] %a"
+    buf = alloc(se, b"\xcc" * 64)
+    assert call(se, "ucrtbase", "wcsftime", [buf, 14, fmt, tm])[0] == 0
+    assert se.mem_read(buf, 4) == b"\x00\x00\xcc\xcc"
+
+
 @pytest.mark.parametrize(
     "size, count, rv, out",
     [
