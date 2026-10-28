@@ -769,6 +769,10 @@ class WindowsEmulator(BinaryEmulator):
         last_executed: list[int | None] = [None]
         origin_run = self.curr_run
         hook = None
+        stepping = debugger is not None and count == 1
+
+        def debugger_stops():
+            return debugger is not None and (debugger.has_pending_stop() or stepping)
 
         def recover_execution():
             assert self._pending_exec_recovery is not None
@@ -839,14 +843,12 @@ class WindowsEmulator(BinaryEmulator):
                     else:
                         self._continue_guest_callback()
                     address = self.get_pc()
-                    if self._pending_fault_stop is not None:
-                        return
-                    if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                    if self._pending_fault_stop is not None or debugger_stops():
                         return
                 if deadline is not None and time.monotonic() >= deadline:
                     stop_limit(deadline_kind)
                     return
-                if limit[0] or (budget > 0 and remaining[0] <= 0):
+                if budget > 0 and remaining[0] <= 0:
                     stop_limit("max_instructions")
                     return
                 if self._pending_api_entry is None and not self._pending_control:
@@ -856,16 +858,14 @@ class WindowsEmulator(BinaryEmulator):
                         # tracing hooks from seeing an instruction beyond the cap.
                         # The hook carries exact consumption across private yields.
                         native_count = remaining[0] if budget > 0 else 0
-                        if debugger is not None and count == 1:
-                            native_count = min(native_count, 1) if native_count else 1
+                        if stepping:
+                            native_count = 1
                             registers = self.get_register_state()
+                            if hook is None:
+                                # A step runs the instruction at its start address.
+                                last_executed[0] = address
                         self.emu_eng.start(address, timeout=native_timeout, count=native_count)
-                        if (
-                            debugger is not None
-                            and count == 1
-                            and native_count == 1
-                            and self._step_had_no_effect(registers, debugger)
-                        ):
+                        if stepping and self._step_had_no_effect(registers, debugger):
                             # Unicorn translates a store into the page of its own code
                             # again and runs it again, which uses up a count of 1.
                             self.emu_eng.start(address, timeout=native_timeout, count=2)
@@ -885,13 +885,7 @@ class WindowsEmulator(BinaryEmulator):
                     if (
                         self._pending_cpu_exception is None
                         and self.curr_run is origin_run
-                        and self._stopped_at_hlt(
-                            deadline,
-                            limit[0],
-                            last_executed[0] if hook else address if debugger is not None and count == 1 else None,
-                            native_count,
-                            debugger,
-                        )
+                        and self._stopped_at_hlt(deadline, limit[0], last_executed[0], native_count, debugger)
                     ):
                         self.raise_cpu_exception(
                             cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction"
@@ -899,19 +893,15 @@ class WindowsEmulator(BinaryEmulator):
                     if self._pending_cpu_exception is not None:
                         self._dispatch_cpu_exception()
                         address = self.get_pc()
-                        if self._pending_fault_stop is not None:
+                        if self._pending_fault_stop is not None or debugger_stops():
                             return
                         if self.curr_run is not origin_run or self.emu_complete:
-                            return
-                        if debugger is not None and (debugger.has_pending_stop() or count == 1):
                             return
                         continue
                     if self._pending_trap_fault is not None:
                         self._dispatch_trap_fault()
                         address = self.get_pc()
-                        if self._pending_fault_stop is not None:
-                            return
-                        if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                        if self._pending_fault_stop is not None or debugger_stops():
                             return
                         continue
                     if self._pending_api_entry is None:
@@ -968,9 +958,7 @@ class WindowsEmulator(BinaryEmulator):
                         return
                     self.on_run_complete()
                 address = self.get_pc()
-                if self.curr_run is not origin_run:
-                    return
-                if debugger is not None and (debugger.has_pending_stop() or count == 1):
+                if self.curr_run is not origin_run or debugger_stops():
                     return
         finally:
             elapsed = time.monotonic() - started
