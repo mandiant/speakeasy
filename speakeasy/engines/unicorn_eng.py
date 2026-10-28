@@ -103,13 +103,12 @@ class EmuEngine:
 
     def __init__(self):
         self.name = "unicorn"
-        self.emu = None
-        self.mode = None
-        self.mmap = None
-        self._callbacks = {}
+        self.emu: uc.Uc | None = None
+        self.mode: int | None = None
+        self._callbacks: dict[int, ToggleableHook] = {}
         self.timer = StartTimer(self.stop)
 
-        self.regs = {
+        self.regs: dict[int, int] = {
             arch.X86_REG_EAX: u.UC_X86_REG_EAX,
             arch.X86_REG_EBX: u.UC_X86_REG_EBX,
             arch.X86_REG_ESP: u.UC_X86_REG_ESP,
@@ -158,7 +157,7 @@ class EmuEngine:
         for i in range(8):
             self.regs[arch.X86_REG_FP0 + i] = u.UC_X86_REG_FP0 + i
 
-        self.mem_access = {
+        self.mem_access: dict[int, int] = {
             uc.UC_MEM_FETCH_UNMAPPED: common.INVALID_MEM_EXEC,  # noqa
             uc.UC_MEM_READ_UNMAPPED: common.INVALID_MEM_READ,
             uc.UC_MEM_FETCH_PROT: common.INVAL_PERM_MEM_EXEC,
@@ -167,7 +166,7 @@ class EmuEngine:
             uc.UC_MEM_WRITE_UNMAPPED: common.INVALID_MEM_WRITE,
         }
 
-        self.perms = {
+        self.perms: dict[int, int] = {
             common.PERM_MEM_NONE: uc.UC_PROT_NONE,
             common.PERM_MEM_EXEC: uc.UC_PROT_EXEC,
             common.PERM_MEM_READ: uc.UC_PROT_READ,
@@ -178,7 +177,7 @@ class EmuEngine:
             common.PERM_MEM_RWX: uc.UC_PROT_ALL,
         }
 
-        self.hook_types = {
+        self.hook_types: dict[int, int] = {
             common.HOOK_CODE: uc.UC_HOOK_CODE,
             common.HOOK_MEM_ACCESS: uc.UC_HOOK_MEM_VALID,
             common.HOOK_MEM_INVALID: uc.UC_HOOK_MEM_INVALID,
@@ -213,37 +212,43 @@ class EmuEngine:
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
         """Allocate memory in the cpu engine"""
+        assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
-        return self.emu.mem_map(base, size, perm)  # type: ignore[union-attr]
+        return self.emu.mem_map(base, size, perm)
 
     def mem_unmap(self, addr, size):
         """Free memory in the cpu engine"""
-        return self.emu.mem_unmap(addr, size)  # type: ignore[union-attr]
+        assert self.emu is not None
+        return self.emu.mem_unmap(addr, size)
 
     def mem_regions(self):
         """Get current memory allocations from the engine"""
-        return self.emu.mem_regions()  # type: ignore[union-attr]
+        assert self.emu is not None
+        return self.emu.mem_regions()
 
     def mem_write(self, addr, data):
         """Write data into the address space of the engine"""
-        result = self.emu.mem_write(addr, data)  # type: ignore[union-attr]
+        assert self.emu is not None
+        result = self.emu.mem_write(addr, data)
         if data:
             # Host/debugger writes must invalidate already translated stub bytes.
-            self.emu.ctl_remove_cache(addr, addr + len(data))  # type: ignore[union-attr]
+            self.emu.ctl_remove_cache(addr, addr + len(data))
         return result
 
     def mem_read(self, addr, size):
         """Read data from the address space of the engine"""
-        return self.emu.mem_read(addr, size)  # type: ignore[union-attr]
+        assert self.emu is not None
+        return self.emu.mem_read(addr, size)
 
     def mem_protect(self, addr, size, perms):
         """Change the memory protections for pages in the emu engine"""
+        assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
-        result = self.emu.mem_protect(addr, size, perm)  # type: ignore[union-attr]
+        result = self.emu.mem_protect(addr, size, perm)
         # Unicorn keeps translations and TLB entries made under the old protections,
         # which would let code run or memory be read that the new ones deny.
         self.invalidate_translations(addr, addr + size)
-        self.emu.ctl(uc.UC_CTL_TLB_FLUSH, uc.UC_CTL_IO_WRITE)  # type: ignore[union-attr]
+        self.emu.ctl(uc.UC_CTL_TLB_FLUSH, uc.UC_CTL_IO_WRITE)
         return result
 
     def clear_exception_state(self):
@@ -252,56 +257,64 @@ class EmuEngine:
         general protection fault becomes a double fault, and the one after a triple fault
         that stops emulation without an error.
         """
+        assert self.emu is not None
         offset = get_exception_state_offset(self.mode)
         if offset is None:
             return
-        context = self.emu.context_save()  # type: ignore[union-attr]
+        context = self.emu.context_save()
         ct.memset(context.context.value + offset, 0xFF, 4)
-        self.emu.context_restore(context)  # type: ignore[union-attr]
+        self.emu.context_restore(context)
 
     def advance_tsc(self, ticks):
         """Move the time stamp counter that rdtsc and rdtscp read forward by ticks."""
+        assert self.emu is not None
         location = get_tsc_offset_location(self.mode)
         if location is None:
             return
-        context = self.emu.context_save()  # type: ignore[union-attr]
+        context = self.emu.context_save()
         ct.c_uint64.from_address(context.context.value + location).value += ticks
-        self.emu.context_restore(context)  # type: ignore[union-attr]
+        self.emu.context_restore(context)
 
     def invalidate_translations(self, begin, end):
         """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it"""
-        self.emu.ctl_remove_cache(begin, end)  # type: ignore[union-attr]
+        assert self.emu is not None
+        self.emu.ctl_remove_cache(begin, end)
 
     def flush_translations(self):
         """Drop all translated code, e.g. so that a code hook added since applies to it"""
-        self.emu.ctl_flush_tb()  # type: ignore[union-attr]
+        assert self.emu is not None
+        self.emu.ctl(uc.UC_CTL_TB_FLUSH, uc.UC_CTL_IO_WRITE)
 
     def reg_write(self, reg, val):
         """Modify register values"""
+        assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
             raise EmuEngineError(f"Unknown register: {reg}")
-        return self.emu.reg_write(ereg, val)  # type: ignore[union-attr]
+        return self.emu.reg_write(ereg, val)
 
     def reg_read(self, reg):
         """Read register values"""
+        assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
             raise EmuEngineError(f"Unknown register: {reg}")
-        return self.emu.reg_read(ereg)  # type: ignore[union-attr]
+        return self.emu.reg_read(ereg)
 
     def stop(self):
         """Stop the emulation engine"""
-        return self.emu.emu_stop()  # type: ignore[union-attr]
+        assert self.emu is not None
+        return self.emu.emu_stop()
 
     def start(self, addr, timeout=0, count=0):
         """Start the emulation engine. A timeout of 0 seconds disables it."""
+        assert self.emu is not None
         if count == -1:
             count = 0
         if timeout:
             self.timer.arm(timeout)
         try:
-            return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, count=count)  # type: ignore[union-attr]
+            return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, count=count)
         finally:
             if timeout:
                 self.timer.disarm()
@@ -310,11 +323,12 @@ class EmuEngine:
         """
         Add a callback function for a specific event type or address
         """
+        assert self.emu is not None
         hook_type = self.hook_types.get(htype)
         if not hook_type:
             raise EmuEngineError("Invalid hook type")
 
-        handle = self.emu._uch  # type: ignore[union-attr]
+        handle = self.emu._uch
 
         # The unicorn bindings have a default python wrapper. We want to use
         # our own wrapper and don't need the extra overhead. Add callbacks directly
@@ -333,7 +347,7 @@ class EmuEngine:
         elif hook_type == uc.UC_HOOK_MEM_INVALID:
             cb = ct.cast(UC_HOOK_MEM_INVALID_CB(cb), UC_HOOK_MEM_INVALID_CB)
         else:
-            return self.emu.hook_add(htype=hook_type, callback=cb, begin=begin, end=end)  # type: ignore[union-attr]
+            return self.emu.hook_add(htype=hook_type, callback=cb, begin=begin, end=end)
         ptr = ct.cast(cb, ct.c_void_p)
         # uc_hook_add requires an additional paramter for the hook type UC_HOOK_INSN
         if hook_type == uc.UC_HOOK_INSN:
@@ -366,10 +380,11 @@ class EmuEngine:
             return hook.disable()
 
     def hook_remove(self, hid):
+        assert self.emu is not None
         if hid not in self._callbacks:
-            return self.emu.hook_del(hid)  # type: ignore[union-attr]
+            return self.emu.hook_del(hid)
 
-        status = _uc.uc_hook_del(self.emu._uch, uc_hook_h(hid))  # type: ignore[union-attr]
+        status = _uc.uc_hook_del(self.emu._uch, uc_hook_h(hid))
         if status != uc.UC_ERR_OK:
             raise uc.UcError(status)
         self._callbacks.pop(hid, None)
