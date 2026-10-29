@@ -39,7 +39,7 @@ program() {
 
 implib x64 KERNEL32 Sleep IsProcessorFeaturePresent CreateFileA WriteFile CloseHandle
 implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4 CreateThread@24 ExitThread@4 GetExitCodeThread@8 CreateFileA@28 \
-    WriteFile@20 CloseHandle@4
+    WriteFile@20 CloseHandle@4 LocalAlloc@8 CreateProcessA@40
 implib x64 bcrypt BCryptOpenAlgorithmProvider BCryptSetProperty BCryptGenerateSymmetricKey BCryptGetProperty \
     BCryptEncrypt BCryptDecrypt BCryptDestroyKey
 implib x86 bcrypt BCryptOpenAlgorithmProvider@16 BCryptSetProperty@20 BCryptGenerateSymmetricKey@28 BCryptGetProperty@24 \
@@ -65,3 +65,6 @@ program wmi_cases wmi_cases x86 ole32_x86.lib
 for arch in x64 x86; do
     program bcrypt_cases bcrypt_cases $arch bcrypt_$arch.lib KERNEL32_$arch.lib
 done
+program parent parent x86 KERNEL32_x86.lib
+program child child x86
+program child child_at_10000000 x86 /base:0x10000000

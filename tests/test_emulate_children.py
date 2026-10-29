@@ -2,60 +2,24 @@
 
 import hashlib
 import logging
-import struct
-
-import pefile
 
 from speakeasy import Speakeasy
-from tests.pe_builder import build_pe
 
 CHILD_PATH = "c:\\child.exe"
-CHILD_RESULT = 7
-
-
 CHILD_BASE = 0x10000000
-RETURN_RESULT = b"\xb8" + struct.pack("<I", CHILD_RESULT) + b"\xc3"
-# mov eax, fs:[0x30] (PEB); mov eax, [eax+0xc] (Ldr); mov eax, [eax+0xc]
-# (first entry in load order); mov eax, [eax+0x18] (DllBase); ret
-RETURN_FIRST_LOADED_BASE = bytes.fromhex("64a130000000 8b400c 8b400c 8b4018 c3")
+# parent.c starts c:\child.exe. child.c returns the base of the first image in its loader
+# list; child_x86 has the image base of the parent, child_at_10000000_x86 has CHILD_BASE.
+PARENT = "parent_x86.exe.xz"
+CHILD = "child_x86.exe.xz"
+CHILD_AT_CHILD_BASE = "child_at_10000000_x86.exe.xz"
 
 
-def build_parent(path: str = CHILD_PATH) -> bytes:
-    """Return a parent that calls LocalAlloc, then CreateProcessA(path)."""
-
-    def text(base, iat):
-        app_name, startup_info, process_info = base + 0x2000, base + 0x2100, base + 0x2200
-        code = b"\x6a\x10\x6a\x00"
-        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "LocalAlloc"])
-        code += b"\x68" + struct.pack("<I", process_info)
-        code += b"\x68" + struct.pack("<I", startup_info)
-        code += b"\x6a\x00" * 7
-        code += b"\x68" + struct.pack("<I", app_name)
-        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateProcessA"])
-        return code + b"\xc3"
-
-    data = bytearray(0x300)
-    data[: len(path) + 1] = path.encode() + b"\0"
-    struct.pack_into("<I", data, 0x100, 68)
-    imports = {"kernel32.dll": ["LocalAlloc", "CreateProcessA"]}
-    return build_pe(32, text=text, data=bytes(data), imports=imports)[0]
-
-
-def build_child(text: bytes = RETURN_RESULT, base: int | None = None) -> bytes:
-    data = build_pe(32, text=text)[0]
-    if base is None:
-        return data
-    pe = pefile.PE(data=data)
-    pe.OPTIONAL_HEADER.ImageBase = base
-    return bytes(pe.write())
-
-
-def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
-    parent = build_parent()
+def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
+    parent = load_test_bin(PARENT)
     with Speakeasy(config=config) as se:
         module = se.load_module(data=parent)
         assert se.emu is not None
-        se.emu.fileman.add_existing_file(CHILD_PATH, build_child())
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.run_module(module, emulate_children=True)
         child = se.emu.get_mod_from_addr(module.base)
         pids = [se.emu.processes[0].pid, se.emu.get_current_process().pid]
@@ -67,18 +31,17 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
 
     assert [(ep.ep_type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[0].ret_val == 1
-    assert entries[1].ret_val == CHILD_RESULT
+    assert entries[1].ret_val == module.base
     assert len(set(pids)) == 2
     assert [ep.pid for ep in entries] == pids
 
 
-def test_child_whose_base_is_in_use_is_skipped(config, caplog):
-    base = CHILD_BASE
+def test_child_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
     with Speakeasy(config=config) as se:
-        module = se.load_module(data=build_parent())
+        module = se.load_module(data=load_test_bin(PARENT))
         assert se.emu is not None
-        se.emu.fileman.add_existing_file(CHILD_PATH, build_child(base=base))
-        se.emu.mem_map(0x1000, base=base, tag="test.block")
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
+        se.emu.mem_map(0x1000, base=CHILD_BASE, tag="test.block")
         with caplog.at_level(logging.WARNING):
             se.run_module(module, emulate_children=True)
         report = se.get_report()
@@ -88,11 +51,11 @@ def test_child_whose_base_is_in_use_is_skipped(config, caplog):
     assert "address range is in use" in caplog.text
 
 
-def test_child_finds_its_own_image_first_in_its_loader_list(config):
+def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bin):
     with Speakeasy(config=config) as se:
-        module = se.load_module(data=build_parent())
+        module = se.load_module(data=load_test_bin(PARENT))
         assert se.emu is not None
-        se.emu.fileman.add_existing_file(CHILD_PATH, build_child(RETURN_FIRST_LOADED_BASE, base=CHILD_BASE))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.run_module(module, emulate_children=True)
         child = se.emu.get_current_process()
         entries = se.get_report().entry_points
@@ -107,11 +70,11 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config):
     ]
 
 
-def test_finished_parent_gives_up_its_image_peb_and_heap(config):
+def test_finished_parent_gives_up_its_image_peb_and_heap(config, load_test_bin):
     with Speakeasy(config=config) as se:
-        module = se.load_module(data=build_parent())
+        module = se.load_module(data=load_test_bin(PARENT))
         assert se.emu is not None
-        se.emu.fileman.add_existing_file(CHILD_PATH, build_child(base=CHILD_BASE))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.run_module(module, emulate_children=True)
         parent = se.emu.processes[0]
         maps = se.emu.get_mem_maps()
