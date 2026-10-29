@@ -446,6 +446,8 @@ def test_clipboard_reports_no_text(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "GetClipboardData", [cf_unicodetext])[0] == 0
 
 
+WM_CREATE = 0x1
+WM_NCCREATE = 0x81
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
@@ -553,6 +555,8 @@ def test_integer_resource_ids_display_as_integers(dll64_emu: Speakeasy, api: str
     assert displays[arg] == "0x7f00"
 
 
+JUNGO = "0bfbb7da494de67f22f079f0f8f1f69d43f7b2fdeb58773acbc46f2a51a8e533.exe.xz"
+DELPHI_RUNTIME_DEMO = "0faaab54ea0a43ee49d209046dde8ad55bbaee80810253ebe862ad8f64b60c5e.exe.xz"
 STRING_TABLE_SAMPLE = PMA_DIR / "Practical Malware Analysis Lab 14-02.exe_"
 STRING_1 = "http://127.0.0.1/tenfour.html"
 
@@ -620,12 +624,42 @@ def x86_logging_wndproc(data: int, nccreate_result: int, create_result: int) -> 
     return code + b"\xb8" + d32(create_result) + b"\xc2\x10\x00"
 
 
+def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config: dict, load_test_bin) -> None:
+    """
+    0bfbb7da creates a hidden window of its class "Jungo". Its window procedure handles
+    WM_CREATE: it creates a child button "Star" and posts BM_CLICK to it. The program
+    does no more work unless CreateWindowExW sends WM_NCCREATE and WM_CREATE with a
+    CREATESTRUCTW for the new window.
+    """
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(JUNGO))
+        messages = []
+
+        def window_procedure(emu: Any, address: int, size: int) -> None:
+            hwnd, msg, _, lparam = struct.unpack("<4I", se.mem_read(se.get_stack_ptr() + 4, 16))
+            if msg in (WM_NCCREATE, WM_CREATE):
+                cs = se.mem_cast(u32defs.CREATESTRUCT(se.get_ptr_size()), lparam)
+                messages.append((hwnd, msg, se.read_mem_string(cs.lpszName, 2), se.read_mem_string(cs.lpszClass, 2)))
+
+        se.add_code_hook(window_procedure, begin=module.base + 0x1306, end=module.base + 0x1306)
+        se.run_module(module)
+        events = api_events(se)
+
+    created = [e for e in events if e.api_name == "user32.CreateWindowExW"]
+    hwnd = int(created[0].ret_val, 16)
+    assert hwnd
+    assert messages == [(hwnd, WM_NCCREATE, "180000", "Jungo"), (hwnd, WM_CREATE, "180000", "Jungo")]
+    assert [a.display for a in created[1].args[1:3]] == ["button", "Star"]
+    assert created[1].args[8].value == hwnd
+    assert int(created[1].ret_val, 16)
+
+
 @pytest.mark.parametrize(
-    "nccreate_result, create_result, messages, created",
-    [(1, 0, [0x81, 0x1], True), (0, 0, [0x81], False), (1, -1, [0x81, 0x1], False)],
+    "nccreate_result, create_result, messages",
+    [(0, 0, [WM_NCCREATE]), (1, -1, [WM_NCCREATE, WM_CREATE])],
 )
-def test_create_window_sends_nccreate_and_create_to_the_window_procedure(
-    config: dict, nccreate_result: int, create_result: int, messages: list[int], created: bool
+def test_create_window_fails_when_the_window_procedure_rejects_creation(
+    config: dict, nccreate_result: int, create_result: int, messages: list[int]
 ) -> None:
     with Speakeasy(config=config) as se:
         base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
@@ -646,7 +680,7 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(
 
         assert se.get_report().entry_points[0].error is None
         u32 = struct.unpack("<1024I", se.mem_read(data, 0x1000))
-        assert bool(u32[0]) == created
+        assert u32[0] == 0
         assert list(u32[4 : 4 + u32[1]]) == messages
         lparams = u32[0x10 : 0x10 + u32[1]]
         assert len(set(lparams)) == 1
@@ -681,46 +715,43 @@ def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict,
         assert (result, count, cb_hwnd, cb_lparam) == (rv, 1, hwnd, 0x55)
 
 
-def test_call_window_proc_runs_def_window_proc_for_a_subclassed_window(config: dict) -> None:
+def api_events(se: Speakeasy) -> list[Any]:
+    return [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+
+
+def test_call_window_proc_runs_the_previous_procedure(config: dict, load_test_bin) -> None:
+    """
+    0faaab54 is a UPX-packed Delphi program. CreateWindowExA of its form TForm1 sends
+    WM_NCCREATE to the VCL InitWndProc, which subclasses the window and passes the message
+    on with CallWindowProcA to 0x404ab8, a thunk that jumps to DefWindowProcA. The form
+    is only made if CallWindowProcA calls that procedure and returns its TRUE.
+    """
     with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        assert se.emu is not None
-        data = se.mem_alloc(0x1000)
-        wndproc, name = base + 0x200, base + 0x300
-        code = b"\xff\x74\x24\x10" * 4  # push lParam, wParam, Msg, hWnd
-        code += b"\x68" + d32(se.emu.get_proc("user32", "DefWindowProcA"))
-        code += x86_call(se.emu.get_proc("user32", "CallWindowProcA")) + b"\xc2\x10\x00"
-        se.mem_write(wndproc, code)
-        se.mem_write(name, b"mycls\x00")
-        main = guest_call(
-            4, se.emu.get_proc("user32", "RegisterClassA"), alloc(se, struct.pack("<10I", 0, wndproc, *[0] * 7, name))
-        )
-        main += guest_call(4, se.emu.get_proc("user32", "CreateWindowExA"), 0, name, 0, WS_POPUP, *[0] * 8, store=data)
-        se.mem_write(base, main + b"\xc3")
+        module = se.load_module(data=load_test_bin(DELPHI_RUNTIME_DEMO))
+        results = []
 
-        se.run_shellcode(base)
+        def after_call_window_proc(emu: Any, address: int, size: int) -> None:
+            results.append(se.reg_read("eax"))
+            se.stop()
 
-        assert se.get_report().entry_points[0].error is None
-        assert struct.unpack("<I", se.mem_read(data, 4))[0]
+        se.add_code_hook(after_call_window_proc, begin=0x414D89, end=0x414D89)
+        se.run_module(module)
+        events = api_events(se)
+
+    subclass = [e for e in events if e.api_name == "user32.SetWindowLongA"][-1]
+    hwnd, index = subclass.args[0].value, subclass.args[1].value
+    assert index is not None and index & 0xFFFFFFFF == 0xFFFFFFFC  # GWLP_WNDPROC
+    call_window_proc, def_window_proc = events[-2:]
+    assert call_window_proc.api_name == "user32.CallWindowProcA"
+    assert [a.value for a in call_window_proc.args[:4]] == [0x404AB8, hwnd, WM_NCCREATE, 0]
+    assert def_window_proc.api_name == "user32.DefWindowProcA"
+    assert [a.value for a in def_window_proc.args] == [a.value for a in call_window_proc.args[1:]]
+    assert results == [1]
 
 
-def test_call_window_proc_returns_the_previous_procedure_result(config: dict) -> None:
-    with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        assert se.emu is not None
-        data = se.mem_alloc(0x1000)
-        prev = base + 0x200
-        se.mem_write(data + 8, d32(0xFFFFFFFF))
-        se.mem_write(prev, b"\x8b\x44\x24\x08\xa3" + d32(data + 4) + b"\xb8" + d32(0x1234) + b"\xc2\x10\x00")
-        call_window_proc = se.emu.get_proc("user32", "CallWindowProcA")
-        main = guest_call(4, call_window_proc, prev, 0x10000, 0x111, 0, 0, store=data)
-        main += guest_call(4, call_window_proc, 0, 0x10000, 0x111, 0, 0, store=data + 8)
-        se.mem_write(base, main + b"\xc3")
-
-        se.run_shellcode(base)
-
-        assert se.get_report().entry_points[0].error is None
-        assert struct.unpack("<3I", se.mem_read(data, 12)) == (0x1234, 0x111, 0)
+def test_call_window_proc_without_a_previous_procedure_returns_zero(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "user32", "CallWindowProcA", [0, 0x10000, 0x111, 0, 0])[0] == 0
 
 
 LVM_GETCOLUMNA = 0x1019
