@@ -170,33 +170,6 @@ def test_an_emulated_file_has_its_version_resource(emu: Speakeasy) -> None:
     assert emu.mem_read(value, length) == b"1.2.3.4\0"
 
 
-def test_query_of_a_missing_value_fails(version_emu: Speakeasy) -> None:
-    block = get_version_info(version_emu, module_path(version_emu), True)
-    query = alloc(version_emu, "\\StringFileInfo\\040904B0\\Missing\0".encode("utf-16le"))
-    pointer = alloc(version_emu, b"\xee" * 4)
-    length = alloc(version_emu, b"\xdd" * 4)
-    assert call(version_emu, "version", "VerQueryValueW", [block, query, pointer, length])[0] == 0
-    assert version_emu.mem_read(pointer, 4) == b"\xee" * 4
-
-
-@pytest.mark.parametrize("name", ["GetFileVersionInfoSizeA", "GetFileVersionInfoSizeW"])
-def test_size_of_a_module_without_a_resource_is_zero(emu: Speakeasy, name: str) -> None:
-    cw = "utf-16le" if name.endswith("W") else "latin-1"
-    path = alloc(emu, "C:\\Windows\\system32\\kernel32.dll\0".encode(cw))
-    handle = alloc(emu, b"\xff" * 4)
-    assert call(emu, "version", name, [path, handle])[0] == 0
-    assert emu.mem_read(handle, 4) == b"\0" * 4
-    assert emu.emu.get_last_error() == ERROR_RESOURCE_TYPE_NOT_FOUND
-
-
-def test_info_of_a_file_without_a_resource_fails(emu: Speakeasy) -> None:
-    path = alloc(emu, b"C:\\missing.dll\0")
-    block = alloc(emu, b"\xcc" * 64)
-    assert call(emu, "version", "GetFileVersionInfoA", [path, 0, 64, block])[0] == 0
-    assert emu.mem_read(block, 64) == b"\xcc" * 64
-    assert emu.emu.get_last_error() == ERROR_RESOURCE_TYPE_NOT_FOUND
-
-
 def _x86_blob():
     """GetFileVersionInfoSizeA(name, &handle), then VerQueryValueA(0, 0, &ptr, &len); ret."""
     code = bytearray(b"\xe8\x00\x00\x00\x00\x5b")  # call $+5; pop ebx

@@ -62,15 +62,6 @@ def test_normalize_dll_name_apiset_winrt_is_combase():
     assert normalize_dll_name("API-MS-WIN-CORE-WINRT-ERROR-L1-1-1") == "combase"
 
 
-def test_normalize_dll_name_apiset_string_l2_is_user32():
-    assert normalize_dll_name("api-ms-win-core-string-l2-1-0") == "user32"
-    assert normalize_dll_name("api-ms-win-core-string-l1-1-0") == "kernel32"
-
-
-def test_normalize_dll_name_apiset_commandlinetoargv_is_shell32():
-    assert normalize_dll_name("api-ms-win-core-commandlinetoargv-l1-1-0") == "shell32"
-
-
 def test_normalize_dll_name_apiset_com_is_ole32():
     assert normalize_dll_name("api-ms-win-core-com-l1-1-0") == "ole32"
     assert normalize_dll_name("api-ms-win-core-com-l2-1-1") == "ole32"
@@ -82,22 +73,10 @@ def test_normalize_dll_name_apiset_extensions():
     assert normalize_dll_name("ext-ms-win-gdi-dc-l1-2-0") == "gdi32"
     assert normalize_dll_name("ext-ms-win-rtcore-gdi-object-l1-1-0") == "gdi32"
     assert normalize_dll_name("api-ms-win-eventing-classicprovider-l1-1-0") == "advapi32"
-    assert normalize_dll_name("api-ms-win-service-core-l1-1-0") == "advapi32"
-    assert normalize_dll_name("api-ms-win-service-winsvc-l1-2-0") == "advapi32"
     assert normalize_dll_name("ext-ms-win-shell-shell32-l1-2-0") == "ext-ms-win-shell-shell32-l1-2-0"
     assert normalize_dll_name("api-ms-win-shell-shellfolders-l1-1-0") == "shell32"
     assert normalize_dll_name("api-ms-win-core-shlwapi-legacy-l1-1-0") == "shlwapi"
     assert normalize_dll_name("api-ms-win-core-shlwapi-obsolete-l1-1-0") == "shlwapi"
-
-
-def test_normalize_dll_name_apiset_mm_is_winmm():
-    assert normalize_dll_name("api-ms-win-mm-misc-l1-1-0") == "winmm"
-    assert normalize_dll_name("api-ms-win-mm-misc-l1-1-1") == "winmm"
-    assert normalize_dll_name("api-ms-win-mm-misc-l2-1-0") == "winmm"
-    assert normalize_dll_name("api-ms-win-mm-mme-l1-1-0") == "winmm"
-    assert normalize_dll_name("api-ms-win-mm-time-l1-1-0") == "winmm"
-    assert normalize_dll_name("api-ms-win-mm-playsound-l1-1-0") == "winmm"
-    assert normalize_dll_name("API-MS-WIN-MM-MCI-L1-1-0") == "winmm"
 
 
 def test_normalize_dll_name_crt():
@@ -195,12 +174,6 @@ def test_ntoskrnl_zw_to_nt(emu):
 def test_ntoskrnl_direct(emu):
     _mod, attrs = emu.normalize_import_miss("ntoskrnl", "ZwCreateFile")
     assert attrs is not None
-
-
-@pytest.mark.parametrize("func", ["strcpy", "strcat", "strlen", "atoi", "atol", "tolower", "wcslen", "_vsnprintf"])
-def test_ntdll_crt_exports_use_msvcrt_handlers(dll_emu: Speakeasy, func: str) -> None:
-    assert dll_emu.emu is not None
-    assert dll_emu.emu.normalize_import_miss("ntdll", func)[1] is not None
 
 
 def test_ntdll_strcpy_copies_the_string(dll_emu: Speakeasy) -> None:

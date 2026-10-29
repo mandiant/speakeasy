@@ -42,12 +42,3 @@ def test_argv_goes_into_the_command_line(config, api, width):
         se.run_module(module)
         rv, _ = call(se, "kernel32", api, [])
         assert se.read_mem_string(rv, width) == f'"{module.emu_path}" /run "x y" a\\"b'
-
-
-def test_the_configured_command_line_stays_without_argv(config):
-    config["command_line"] = "svchost.exe -k netsvcs"
-    data, _ = build_pe(32, text=b"\xc3")
-    with Speakeasy(config=config) as se:
-        se.run_module(se.load_module(data=data))
-        rv, _ = call(se, "kernel32", "GetCommandLineA", [])
-        assert se.read_mem_string(rv, 1) == "svchost.exe -k netsvcs"

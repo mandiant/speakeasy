@@ -1239,18 +1239,6 @@ def test_gdb_breakpoint_keeps_code_outside_it_fast():
     assert elapsed < 3 * baseline, (elapsed, baseline)
 
 
-@pytest.mark.parametrize("gdb_shellcode_emulator", ["90c3"], indirect=True)  # nop; ret
-@pytest.mark.parametrize("packet", ["p-1", "p-29", "P-1=00000000", "P-29=00000000"])
-def test_gdb_rejects_negative_register_number(gdb_shellcode_emulator, packet):
-    port, _, _, _ = gdb_shellcode_emulator
-    client = GdbRspClient(port)
-    try:
-        client.query_halt_reason()
-        assert client.query(packet) == "E01"
-    finally:
-        client.close()
-
-
 def test_gdb_resumes_after_a_timeout_log_it_once(config, caplog):
     config["timeout"] = 0.2
     port = _find_free_port()

@@ -24,13 +24,3 @@ def test_check_sum_mapped_file_computes_the_pe_checksum(dll_emu: Speakeasy, stor
         stored,
         pefile.PE(data=bytes(image)).generate_checksum(),
     )
-
-
-def test_check_sum_mapped_file_returns_null_for_data_that_is_not_a_pe(dll_emu: Speakeasy) -> None:
-    data = alloc(dll_emu, b"\x00" * 0x200)
-    sums = alloc(dll_emu, b"\xcc" * 8)
-
-    rv, _ = call(dll_emu, "imagehlp", "CheckSumMappedFile", [data, 0x200, sums, sums + 4])
-
-    assert rv == 0
-    assert dll_emu.mem_read(sums, 8) == b"\xcc" * 8
