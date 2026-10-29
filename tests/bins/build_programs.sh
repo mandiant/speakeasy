@@ -39,8 +39,13 @@ program() {
 
 implib x64 KERNEL32 Sleep IsProcessorFeaturePresent
 implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4
+implib x64 msvcrt pow floor ceil sin fmod ceilf floorf
+implib x86 msvcrt pow floor ceil sin fmod _CIfmod
 
 cflags=
 for arch in x64 x86; do
     program cpu_cases cpu_cases $arch KERNEL32_$arch.lib
 done
+program float_cases float_cases x64 msvcrt_x64.lib
+# x87 only, so that no double that the code passes on the stack is also in an XMM register
+cflags=/arch:IA32 program float_cases float_cases x86 msvcrt_x86.lib
