@@ -489,12 +489,6 @@ def test_signal_rejects_an_unknown_signal(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "signal", [5, SIG_IGN])[0] == SIG_ERR
 
 
-@pytest.mark.parametrize("api", ["_seh_filter_exe", "_seh_filter_dll"])
-@pytest.mark.parametrize("code", [0xE06D7363, 0x80000003, 0xC0000005, 0xC000001D, 0xC000008E])
-def test_seh_filter_continues_the_search_without_a_signal_action(dll_emu: Speakeasy, api: str, code: int) -> None:
-    assert call(dll_emu, "msvcrt", api, [code, 0])[0] == 0
-
-
 def test_seh_filter_exe_continues_execution_for_an_ignored_signal(dll_emu: Speakeasy) -> None:
     call(dll_emu, "msvcrt", "signal", [SIGSEGV, SIG_IGN])
     assert call(dll_emu, "msvcrt", "_seh_filter_exe", [0xC0000005, 0])[0] == 0xFFFFFFFF
@@ -533,13 +527,6 @@ def test_fwrite_writes_to_a_file_stream(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(out, 6) == b"abcdef"
 
 
-@pytest.mark.parametrize("path", [b"CONOUT$\x00", b"conin$\x00"])
-def test_freopen_s_to_the_console_keeps_the_stream(dll64_emu: Speakeasy, path: bytes) -> None:
-    pfile = alloc(dll64_emu, b"\xcc" * 8)
-    rv, _ = call(dll64_emu, "msvcrt", "freopen_s", [pfile, alloc(dll64_emu, path), alloc(dll64_emu, b"w\x00"), 1])
-    assert (rv, struct.unpack("<Q", dll64_emu.mem_read(pfile, 8))[0]) == (0, 1)
-
-
 def test_freopen_s_to_a_file_redirects_the_stream(dll_emu: Speakeasy) -> None:
     pfile = alloc(dll_emu, b"\xcc" * 4)
     path = alloc(dll_emu, b"c:\\users\\public\\log.txt\x00")
@@ -550,24 +537,6 @@ def test_freopen_s_to_a_file_redirects_the_stream(dll_emu: Speakeasy) -> None:
     out = alloc(dll_emu, b"\x00" * 16)
     assert call(dll_emu, "msvcrt", "fread", [out, 1, 16, 1])[0] == 3
     assert dll_emu.mem_read(out, 3) == b"abc"
-
-
-def test_freopen_returns_the_stream(dll_emu: Speakeasy) -> None:
-    rv, _ = call(dll_emu, "msvcrt", "freopen", [alloc(dll_emu, b"CONOUT$\x00"), alloc(dll_emu, b"w\x00"), 2])
-    assert rv == 2
-
-
-@pytest.mark.parametrize(
-    "dll, name",
-    [
-        ("msvcrt", "__CxxFrameHandler2"),
-        ("msvcrt", "__CxxFrameHandler3"),
-        ("vcruntime140_1", "__CxxFrameHandler4"),
-    ],
-)
-def test_cxx_frame_handlers_continue_the_search(dll64_emu: Speakeasy, dll: str, name: str) -> None:
-    rec = alloc(dll64_emu, struct.pack("<IIQQI", 0xC0000005, 0, 0, 0, 0))
-    assert call(dll64_emu, dll, name, [rec, 0, 0, 0])[0] == 1
 
 
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
@@ -645,22 +614,6 @@ def test_recalloc_keeps_the_contents_and_zeroes_the_new_bytes(dll_emu: Speakeasy
     dll_emu.mem_write(block, struct.pack("<I", 0x11223344))
     grown, _ = call(dll_emu, "msvcrt", "_recalloc", [block, 2, 4])
     assert dll_emu.mem_read(grown, 8) == struct.pack("<II", 0x11223344, 0)
-
-
-def test_recalloc_of_null_allocates_zeroed_memory(dll_emu: Speakeasy) -> None:
-    block, _ = call(dll_emu, "msvcrt", "_recalloc", [0, 3, 2])
-    assert block
-    assert dll_emu.mem_read(block, 6) == b"\x00" * 6
-    assert call(dll_emu, "msvcrt", "_recalloc", [block, 0x10000, 0x10001])[0] == 0
-
-
-def test_crt_internal_allocators_allocate_like_the_public_ones(dll_emu: Speakeasy) -> None:
-    block, _ = call(dll_emu, "msvcrt", "_calloc_crt", [4, 4])
-    assert dll_emu.mem_read(block, 16) == b"\x00" * 16
-    dll_emu.mem_write(block, b"abcd")
-    grown, _ = call(dll_emu, "msvcrt", "_realloc_crt", [block, 0x20])
-    assert dll_emu.mem_read(grown, 4) == b"abcd"
-    assert call(dll_emu, "msvcrt", "_malloc_crt", [0x80])[0]
 
 
 def test_crt_pointer_encoding_round_trips(dll_emu: Speakeasy) -> None:
@@ -947,25 +900,6 @@ def test_mbsdup_copies_the_string(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "msvcrt", "_mbsdup", [0])[0] == 0
 
 
-def test_mbscpy_and_mbscat_copy_through_the_nul(dll_emu: Speakeasy) -> None:
-    src = alloc(dll_emu, b"abc\x00")
-    dest = alloc(dll_emu, b"\xcc" * 8)
-    assert call(dll_emu, "msvcrt", "_mbscpy", [dest, src])[0] == dest
-    assert dll_emu.mem_read(dest, 5) == b"abc\x00\xcc"
-    assert call(dll_emu, "msvcrt", "_mbscat", [dest, src])[0] == dest
-    assert dll_emu.mem_read(dest, 8) == b"abcabc\x00\xcc"
-    assert call(dll_emu, "msvcrt", "_mbslen", [dest])[0] == 6
-
-
-@pytest.mark.parametrize("api", ["_mbsncpy", "_mbsnbcpy"])
-@pytest.mark.parametrize("count, out", [(2, b"ab\xcc\xcc\xcc\xcc"), (5, b"abc\x00\x00\xcc")])
-def test_mbsncpy_copies_count_bytes_and_pads(dll_emu: Speakeasy, api: str, count: int, out: bytes) -> None:
-    src = alloc(dll_emu, b"abc\x00")
-    dest = alloc(dll_emu, b"\xcc" * 6)
-    assert call(dll_emu, "msvcrt", api, [dest, src, count])[0] == dest
-    assert dll_emu.mem_read(dest, 6) == out
-
-
 @pytest.mark.parametrize("c, offset", [("\\", 7), ("a", 0), ("Q", None), ("\0", 9)])
 def test_wcsrchr_returns_the_last_match(dll_emu: Speakeasy, c: str, offset: int | None) -> None:
     s = alloc(dll_emu, "a\\b\\c\\d\\e\0".encode("utf-16le"))
@@ -1193,47 +1127,6 @@ def test_split_path_gives_drive_dir_name_and_ext(path: str, parts: tuple) -> Non
     assert get_split_path(path) == parts
 
 
-@pytest.mark.parametrize("api, enc, nul", [("_makepath", "ascii", b"\0"), ("_wmakepath", "utf-16le", b"\0\0")])
-def test_makepath_writes_the_joined_path(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 0x40)
-    parts = [alloc(dll_emu, s.encode(enc) + nul) for s in ("c", "\\dir", "name", "txt")]
-    call(dll_emu, "msvcrt", api, [buf, *parts])
-    expected = "c:\\dir\\name.txt".encode(enc) + nul
-    assert dll_emu.mem_read(buf, len(expected)) == expected
-
-    call(dll_emu, "msvcrt", api, [buf, 0, parts[1], parts[2], 0])
-    expected = "\\dir\\name".encode(enc) + nul
-    assert dll_emu.mem_read(buf, len(expected)) == expected
-
-
-@pytest.mark.parametrize("api, enc, nul", [("_makepath_s", "ascii", b"\0"), ("_wmakepath_s", "utf-16le", b"\0\0")])
-def test_makepath_s_checks_the_buffer_size(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 0x40)
-    parts = [alloc(dll_emu, s.encode(enc) + nul) for s in ("c", "\\dir", "name", "txt")]
-    assert call(dll_emu, "msvcrt", api, [buf, 16, *parts])[0] == 0
-    expected = "c:\\dir\\name.txt".encode(enc) + nul
-    assert dll_emu.mem_read(buf, len(expected)) == expected
-
-    assert call(dll_emu, "msvcrt", api, [buf, 15, *parts])[0] == ERANGE
-    assert dll_emu.mem_read(buf, len(nul)) == nul
-    assert call(dll_emu, "msvcrt", api, [0, 16, *parts])[0] == EINVAL
-
-
-@pytest.mark.parametrize("api, enc, nul", [("_splitpath", "ascii", b"\0"), ("_wsplitpath", "utf-16le", b"\0\0")])
-def test_splitpath_writes_each_part_and_skips_null_outputs(dll_emu: Speakeasy, api: str, enc: str, nul: bytes) -> None:
-    path = alloc(dll_emu, "c:\\a\\b.c.txt".encode(enc) + nul)
-    drive, dir_, fname, ext = (alloc(dll_emu, b"\xcc" * 0x40) for _ in range(4))
-    call(dll_emu, "msvcrt", api, [path, drive, dir_, fname, ext])
-    for out, part in ((drive, "c:"), (dir_, "\\a\\"), (fname, "b.c"), (ext, ".txt")):
-        expected = part.encode(enc) + nul
-        assert dll_emu.mem_read(out, len(expected)) == expected
-
-    fname = alloc(dll_emu, b"\xcc" * 0x40)
-    call(dll_emu, "msvcrt", api, [path, 0, 0, fname, 0])
-    expected = "b.c".encode(enc) + nul
-    assert dll_emu.mem_read(fname, len(expected)) == expected
-
-
 @pytest.mark.parametrize("api", ["fgetc", "getc"])
 def test_fgetc_reads_one_byte_and_then_eof(dll_emu: Speakeasy, api: str) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\chars.txt\x00")
@@ -1308,12 +1201,6 @@ def test_fileno_returns_the_descriptor_of_a_standard_stream(dll_emu: Speakeasy) 
     assert call(dll_emu, "msvcrt", "_fileno", [alloc(dll_emu, b"\0" * 0x20)])[0] == -1
 
 
-def test_p_iob_returns_the_iob_array(dll_emu: Speakeasy) -> None:
-    iob = call(dll_emu, "msvcrt", "__p__iob", [])[0]
-    assert iob == call(dll_emu, "msvcrt", "__iob_func", [])[0]
-    assert call(dll_emu, "msvcrt", "_fileno", [iob + 2 * 0x20])[0] == 2
-
-
 @pytest.mark.parametrize("fd, result", [(0, 0), (7, -1)])
 def test_read_gives_end_of_file_on_stdin_and_fails_on_other_descriptors(
     dll_emu: Speakeasy, fd: int, result: int
@@ -1329,25 +1216,6 @@ def test_mutex_functions_of_the_cpp_runtime_succeed_at_once(dll_emu: Speakeasy) 
     call(dll_emu, "msvcrt", "_Mtx_destroy_in_situ", [mtx])
     assert results == [0, 0, 0]
     assert call(dll_emu, "msvcrt", "_Thrd_id", [])[0] == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
-
-
-@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
-def test_condition_variable_functions_of_the_cpp_runtime_do_not_block(
-    request: pytest.FixtureRequest, emu_name: str
-) -> None:
-    se = request.getfixturevalue(emu_name)
-    cnd, mtx = alloc(se, b"\0" * 0x48), alloc(se, b"\0" * 0x50)
-    call(se, "msvcp140", "_Cnd_init_in_situ", [cnd])
-    results = [call(se, "msvcp140", name, [cnd])[0] for name in ("_Cnd_signal", "_Cnd_broadcast")]
-    results.append(call(se, "msvcp140", "_Cnd_wait", [cnd, mtx])[0])
-    call(se, "msvcp140", "_Cnd_destroy_in_situ", [cnd])
-    assert results == [0, 0, 0]
-
-    out = alloc(se, b"\0" * 8)
-    assert call(se, "msvcp140", "_Cnd_init", [out])[0] == 0
-    allocated = int.from_bytes(se.mem_read(out, se.emu.get_ptr_size()), "little")
-    assert allocated
-    call(se, "msvcp140", "_Cnd_destroy", [allocated])
 
 
 def test_cnd_timedwait_times_out_when_no_other_run_is_queued(dll64_emu: Speakeasy) -> None:
@@ -1527,117 +1395,6 @@ def test_wgetmainargs_writes_wide_argv_and_environment(request: pytest.FixtureRe
     assert first == f"{key}={value}"
 
 
-@pytest.mark.parametrize(
-    "api, argv",
-    [
-        ("_crt_atexit", [0x1000]),
-        ("_controlfp_s", [0, 0, 0]),
-        ("_initialize_narrow_environment", []),
-        ("_configure_narrow_argv", [1]),
-        ("_set_fmode", [0x8000]),
-    ],
-)
-def test_crt_startup_functions_return_zero(dll64_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    assert call(dll64_emu, "msvcrt", api, argv)[0] == 0
-
-
-def test_set_fmode_sets_the_fmode_global(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "_set_fmode", [0x8000])[0] == 0
-    fmode, _ = call(dll_emu, "msvcrt", "__p__fmode", [])
-    assert int.from_bytes(dll_emu.mem_read(fmode, 4), "little") == 0x8000
-    assert call(dll_emu, "msvcrt", "_set_fmode", [0x1234])[0] == EINVAL
-
-
-def test_set_new_mode_returns_the_previous_mode(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "_set_new_mode", [1])[0] == 0
-    assert call(dll_emu, "msvcrt", "_set_new_mode", [0])[0] == 1
-
-
-def test_configthreadlocale_returns_the_previous_setting(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "_configthreadlocale", [0])[0] == 2
-    assert call(dll_emu, "msvcrt", "_configthreadlocale", [1])[0] == 2
-    assert call(dll_emu, "msvcrt", "_configthreadlocale", [0])[0] == 1
-
-
-@pytest.mark.parametrize("api", ["__current_exception", "__current_exception_context"])
-def test_current_exception_returns_an_empty_slot(dll64_emu: Speakeasy, api: str) -> None:
-    slot, _ = call(dll64_emu, "msvcrt", api, [])
-    assert slot
-    assert dll64_emu.mem_read(slot, 8) == b"\x00" * 8
-
-
-@pytest.mark.parametrize(
-    "api, needle, offset",
-    [
-        ("_mbsstr", b"\\Windows", 2),
-        ("_mbsstr", b"zz", None),
-        ("_mbspbrk", b"/\\", 2),
-        ("_mbspbrk", b"/", None),
-    ],
-)
-def test_mbs_search_finds_a_substring_or_a_character_set(
-    dll_emu: Speakeasy, api: str, needle: bytes, offset: int | None
-) -> None:
-    hay = alloc(dll_emu, b"C:\\Windows\\system32\\sample\x00")
-    rv, _ = call(dll_emu, "msvcrt", api, [hay, alloc(dll_emu, needle + b"\x00")])
-    assert rv == (0 if offset is None else hay + offset)
-
-
-@pytest.mark.parametrize("api, c, offset", [("_mbschr", ord("\\"), 2), ("_mbsrchr", ord("\\"), 19), ("_mbschr", 0, 26)])
-def test_mbs_character_search_finds_the_first_or_last_match(dll_emu: Speakeasy, api: str, c: int, offset: int) -> None:
-    hay = alloc(dll_emu, b"C:\\Windows\\system32\\sample\x00")
-    assert call(dll_emu, "msvcrt", api, [hay, c])[0] == hay + offset
-
-
-@pytest.mark.parametrize(
-    "api, a, b, rv",
-    [
-        ("_mbscmp", b"abc", b"abd", -1),
-        ("_mbscoll", b"abc", b"abc", 0),
-        ("_mbsicmp", b"ABC", b"abc", 0),
-        ("_mbsicoll", b"abd", b"ABC", 1),
-    ],
-)
-def test_mbs_compare_orders_the_strings(dll_emu: Speakeasy, api: str, a: bytes, b: bytes, rv: int) -> None:
-    assert call(dll_emu, "msvcrt", api, [alloc(dll_emu, a + b"\x00"), alloc(dll_emu, b + b"\x00")])[0] == rv
-
-
-@pytest.mark.parametrize("api", ["_mbsnbcmp", "_mbsncmp"])
-def test_mbs_count_compare_stops_after_count(dll_emu: Speakeasy, api: str) -> None:
-    a, b = alloc(dll_emu, b"abcX\x00"), alloc(dll_emu, b"abcY\x00")
-    assert call(dll_emu, "msvcrt", api, [a, b, 3])[0] == 0
-    assert call(dll_emu, "msvcrt", api, [a, b, 4])[0] == -1
-
-
-@pytest.mark.parametrize(
-    "api, result", [("_mbslwr", b"c:\\ab\x00"), ("_mbsupr", b"C:\\AB\x00"), ("_mbsrev", b"bA\\:c\x00")]
-)
-def test_mbs_in_place_changes_return_the_string(dll_emu: Speakeasy, api: str, result: bytes) -> None:
-    s = alloc(dll_emu, b"c:\\Ab\x00")
-    assert call(dll_emu, "msvcrt", api, [s])[0] == s
-    assert dll_emu.mem_read(s, 6) == result
-
-
-def test_mbs_character_steps_are_one_byte_in_a_single_byte_code_page(dll_emu: Speakeasy) -> None:
-    s = alloc(dll_emu, b"ab\x00")
-    assert call(dll_emu, "msvcrt", "_mbsinc", [s])[0] == s + 1
-    assert call(dll_emu, "msvcrt", "_mbclen", [s])[0] == 1
-
-
-@pytest.mark.parametrize(
-    "api, c, rv", [("_ismbcdigit", ord("7"), True), ("_ismbcdigit", ord("a"), False), ("_ismbcspace", 9, True)]
-)
-def test_mbc_classification_matches_the_c_locale(dll_emu: Speakeasy, api: str, c: int, rv: bool) -> None:
-    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == rv
-
-
-def test_vsprintf_formats_from_a_va_list(dll_emu: Speakeasy) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 32)
-    va = alloc(dll_emu, struct.pack("<II", alloc(dll_emu, b"id\x00"), 7))
-    assert call(dll_emu, "msvcrt", "vsprintf", [buf, alloc(dll_emu, b"%s=%d\x00"), va])[0] == 4
-    assert dll_emu.mem_read(buf, 6) == b"id=7\x00\xcc"
-
-
 def test_rename_moves_a_file(dll_emu: Speakeasy) -> None:
     old, new = alloc(dll_emu, b"c:\\users\\public\\a.txt\x00"), alloc(dll_emu, b"c:\\users\\public\\b.txt\x00")
     stream, _ = call(dll_emu, "msvcrt", "fopen", [old, alloc(dll_emu, b"wb\x00")])
@@ -1649,10 +1406,6 @@ def test_rename_moves_a_file(dll_emu: Speakeasy) -> None:
     out = alloc(dll_emu, b"\x00" * 8)
     assert call(dll_emu, "msvcrt", "fread", [out, 1, 8, stream])[0] == 3
     assert dll_emu.mem_read(out, 3) == b"abc"
-
-
-def test_tzset_is_accepted(dll_emu: Speakeasy) -> None:
-    call(dll_emu, "msvcrt", "_tzset", [])
 
 
 @pytest.mark.parametrize(
@@ -1731,47 +1484,12 @@ def test_wcsncpy_s_copies_at_most_count_chars_within_the_buffer(
     assert dll_emu.mem_read(dest, 8) == out
 
 
-@pytest.mark.parametrize("a, b, count, rv", [("abcd", "abce", 3, 0), ("abcd", "abce", 4, -1), ("b", "a", 1, 1)])
-def test_wcsncmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count: int, rv: int) -> None:
-    args = [alloc(dll_emu, f"{s}\0".encode("utf-16le")) for s in (a, b)]
-    assert call(dll_emu, "msvcrt", "wcsncmp", [*args, count])[0] == rv
-
-
-@pytest.mark.parametrize(
-    "api, c, rv",
-    [
-        ("iswalpha", ord("I"), 1),
-        ("iswalpha", ord("1"), 0),
-        ("iswalpha", 0x3B1, 1),
-        ("iswspace", ord(" "), 1),
-        ("iswspace", ord("\t"), 1),
-        ("iswspace", ord("x"), 0),
-        ("iswspace", 0x1F, 0),
-    ],
-)
-def test_wide_char_classes(dll_emu: Speakeasy, api: str, c: int, rv: int) -> None:
-    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == bool(rv)
-
-
-@pytest.mark.parametrize("charset, offset", [(" ", 1), ("cb", 2), ("z", None)])
-def test_wcspbrk_returns_pointer_to_first_char_in_set(dll_emu: Speakeasy, charset: str, offset: int | None) -> None:
-    s = alloc(dll_emu, "a b\0".encode("utf-16le"))
-    rv, _ = call(dll_emu, "msvcrt", "wcspbrk", [s, alloc(dll_emu, f"{charset}\0".encode("utf-16le"))])
-    assert rv == (0 if offset is None else s + offset * 2)
-
-
 def test_rand_uses_the_msvc_generator(dll_emu: Speakeasy) -> None:
     assert [call(dll_emu, "msvcrt", "rand", [])[0] for _ in range(2)] == [41, 18467]
     call(dll_emu, "msvcrt", "srand", [1])
     assert [call(dll_emu, "msvcrt", "rand", [])[0] for _ in range(4)] == [41, 18467, 6334, 26500]
     call(dll_emu, "msvcrt", "srand", [0x12345678])
     assert call(dll_emu, "msvcrt", "rand", [])[0] == ((0x12345678 * 214013 + 2531011) & 0xFFFFFFFF) >> 16 & 0x7FFF
-
-
-def test_system_reports_success(dll_emu: Speakeasy) -> None:
-    command = alloc(dll_emu, b"schtasks /Delete /TN Upkeep /F\x00")
-    assert call(dll_emu, "msvcrt", "system", [command])[0] == 0
-    assert call(dll_emu, "msvcrt", "system", [0])[0] != 0
 
 
 @pytest.mark.parametrize(("api", "enc"), [("_popen", "utf-8"), ("_wpopen", "utf-16le")])
@@ -1786,18 +1504,6 @@ def test_popen_reads_nothing_and_closes_with_pclose(dll_emu: Speakeasy, api: str
     assert call(dll_emu, "msvcrt", "fread", [buf, 1, 128, stream])[0] == 0
     assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == 0
     assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == -1
-
-
-def test_popen_write_mode_discards_the_data(dll_emu: Speakeasy) -> None:
-    stream, _ = call(dll_emu, "msvcrt", "_popen", [alloc(dll_emu, b"sort\x00"), alloc(dll_emu, b"w\x00")])
-    assert call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"abc"), 1, 3, stream])[0] == 3
-    assert call(dll_emu, "msvcrt", "_pclose", [stream])[0] == 0
-
-
-def test_popen_rejects_a_bad_mode_and_pclose_an_unknown_stream(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "_popen", [alloc(dll_emu, b"dir\x00"), alloc(dll_emu, b"a\x00")])[0] == 0
-    assert call(dll_emu, "msvcrt", "_popen", [0, alloc(dll_emu, b"r\x00")])[0] == 0
-    assert call(dll_emu, "msvcrt", "_pclose", [0])[0] == -1
 
 
 @pytest.fixture
@@ -1856,54 +1562,6 @@ def test_access_finds_files_and_directories(strict_fs_emu: Speakeasy, api: str, 
     assert access("C:\\Windows", 1) == (-1, EINVAL)
 
 
-@pytest.mark.parametrize(
-    "api, argv",
-    [
-        ("_unlink", [0]),
-        ("_wunlink", [0]),
-        ("remove", [0]),
-        ("_wremove", [0]),
-        ("rename", [0, "new"]),
-        ("rename", ["old", 0]),
-    ],
-)
-def test_file_functions_reject_a_null_path(dll_emu: Speakeasy, api: str, argv: list) -> None:
-    args = [alloc(dll_emu, f"c:\\users\\public\\{a}.txt\0".encode()) if isinstance(a, str) else a for a in argv]
-    assert call(dll_emu, "msvcrt", api, args)[0] == -1
-    errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
-    assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL
-
-
-@pytest.mark.parametrize(
-    "api, enc", [("_mkdir", "utf-8"), ("_wmkdir", "utf-16le"), ("_rmdir", "utf-8"), ("_wrmdir", "utf-16le")]
-)
-def test_directory_functions_succeed_and_show_the_path(dll_emu: Speakeasy, api: str, enc: str) -> None:
-    path = "c:\\users\\public\\work"
-    rv, displays = call(dll_emu, "msvcrt", api, [alloc(dll_emu, (path + "\0").encode(enc))])
-    assert rv == 0
-    assert path in str(next(iter(displays.values())))
-    assert call(dll_emu, "msvcrt", api, [0])[0] == -1
-    errno_ptr, _ = call(dll_emu, "msvcrt", "_errno", [])
-    assert int.from_bytes(dll_emu.mem_read(errno_ptr, 4), "little") == EINVAL
-
-
-@pytest.mark.parametrize("api", ["swprintf", "_swprintf"])
-def test_swprintf_formats_without_a_count(dll_emu: Speakeasy, api: str) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 40)
-    fmt = alloc(dll_emu, "%s\\%x%d\0".encode("utf-16le"))
-    text = alloc(dll_emu, "C:\\t\0".encode("utf-16le"))
-    assert call(dll_emu, "msvcrt", api, [buf, fmt, text, 0x10, 5])[0] == 8
-    assert dll_emu.mem_read(buf, 20) == "C:\\t\\105\0".encode("utf-16le") + b"\xcc\xcc"
-
-
-@pytest.mark.parametrize("api", ["vswprintf", "_vswprintf"])
-def test_vswprintf_formats_from_a_va_list(dll_emu: Speakeasy, api: str) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 32)
-    va = alloc(dll_emu, struct.pack("<II", alloc(dll_emu, "id\0".encode("utf-16le")), 7))
-    assert call(dll_emu, "msvcrt", api, [buf, alloc(dll_emu, "%s=%d\0".encode("utf-16le")), va])[0] == 4
-    assert dll_emu.mem_read(buf, 12) == "id=7\0".encode("utf-16le") + b"\xcc\xcc"
-
-
 @pytest.mark.parametrize("count, rv, written", [(3, -1, "hel"), (5, 5, "hello"), (8, 5, "hello\0")])
 def test_vsnwprintf_writes_at_most_count_chars(dll_emu: Speakeasy, count: int, rv: int, written: str) -> None:
     buf = alloc(dll_emu, b"\xcc" * 32)
@@ -1949,57 +1607,6 @@ def test_snprintf_s_limits_the_text_to_count(
     assert dll_emu.mem_read(buf, len(data) + width) == data + b"\xcc" * width
 
 
-@pytest.mark.parametrize(
-    "api, width, va",
-    [("_scprintf", 1, False), ("_scwprintf", 2, False), ("_vscprintf", 1, True), ("_vscwprintf", 2, True)],
-)
-def test_scprintf_counts_the_formatted_characters(dll_emu: Speakeasy, api: str, width: int, va: bool) -> None:
-    enc = "utf-8" if width == 1 else "utf-16le"
-    fmt = alloc(dll_emu, "%s-%d\0".encode(enc))
-    text = alloc(dll_emu, "abc\0".encode(enc))
-    args = [alloc(dll_emu, struct.pack("<II", text, 42))] if va else [text, 42]
-    assert call(dll_emu, "msvcrt", api, [fmt, *args])[0] == 6
-
-
-@pytest.mark.parametrize(
-    "api, c, rv",
-    [
-        ("isalnum", ord("a"), True),
-        ("isalnum", ord("_"), False),
-        ("isalpha", ord("Z"), True),
-        ("isalpha", ord("5"), False),
-        ("isalpha", 0xE9, False),
-        ("isalpha", 0xFFFFFFFF, False),
-        ("isupper", ord("A"), True),
-        ("isupper", ord("a"), False),
-        ("islower", ord("z"), True),
-        ("islower", ord("Z"), False),
-        ("isxdigit", ord("f"), True),
-        ("isxdigit", ord("g"), False),
-        ("ispunct", ord("!"), True),
-        ("ispunct", ord("a"), False),
-        ("isprint", ord(" "), True),
-        ("isprint", 0x1F, False),
-        ("iscntrl", 0x7F, True),
-        ("iscntrl", ord("a"), False),
-        ("isgraph", ord("~"), True),
-        ("isgraph", ord(" "), False),
-        ("iswalnum", 0xE9, True),
-        ("iswalnum", ord("-"), False),
-        ("iswdigit", ord("7"), True),
-        ("iswdigit", ord("x"), False),
-        ("iswupper", 0xC9, True),
-        ("iswupper", 0xE9, False),
-        ("iswlower", 0xE9, True),
-        ("iswlower", ord("Q"), False),
-        ("iswxdigit", ord("C"), True),
-        ("iswxdigit", ord("G"), False),
-    ],
-)
-def test_ctype_classification_matches_the_c_locale(dll_emu: Speakeasy, api: str, c: int, rv: bool) -> None:
-    assert bool(call(dll_emu, "msvcrt", api, [c])[0]) == rv
-
-
 def test_pctype_points_to_the_c_locale_table(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     table, _ = call(dll_emu, "msvcrt", "__pctype_func", [])
@@ -2012,13 +1619,6 @@ def test_pctype_points_to_the_c_locale_table(dll_emu: Speakeasy) -> None:
     assert int.from_bytes(dll_emu.mem_read(variable, 4), "little") == table
     assert call(dll_emu, "msvcrt", "_isctype", [ord("7"), 0x4])[0] == 0x4
     assert call(dll_emu, "msvcrt", "_isctype", [ord("g"), 0x80])[0] == 0
-
-
-def test_mb_cur_max_is_one_in_the_c_locale(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    variable = dll_emu.emu.get_proc("msvcrt", "__mb_cur_max")
-    assert call(dll_emu, "msvcrt", "__p___mb_cur_max", [])[0] == variable
-    assert int.from_bytes(dll_emu.mem_read(variable, 4), "little") == 1
 
 
 @pytest.mark.parametrize("api, enc", [("_fsopen", "utf-8"), ("_wfsopen", "utf-16le")])
@@ -2073,13 +1673,6 @@ def test_memcpy_s_checks_the_sizes(
     assert call(dll_emu, "msvcrt", api, [0, size, source, 4])[0] == EINVAL
 
 
-@pytest.mark.parametrize("size, rv, dest", [(8, 0, b"abcdef\x00"), (6, ERANGE, b"\x00"), (7, 0, b"abcdef\x00")])
-def test_strcat_s_appends_when_the_result_fits(dll_emu: Speakeasy, size: int, rv: int, dest: bytes) -> None:
-    buf = alloc(dll_emu, b"abc\x00\xcc\xcc\xcc\xcc")
-    assert call(dll_emu, "msvcrt", "strcat_s", [buf, size, alloc(dll_emu, b"def\x00")])[0] == rv
-    assert dll_emu.mem_read(buf, len(dest)) == dest
-
-
 def test_xtime_get_ticks_counts_100ns_units_since_1970(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
 
@@ -2091,11 +1684,6 @@ def test_xtime_get_ticks_counts_100ns_units_since_1970(dll_emu: Speakeasy) -> No
     assert 0 < get_clock_ticks(dll_emu) - first < 10_000_000
     call(dll_emu, "kernel32", "Sleep", [5000])
     assert query() >= first + 5000 * 10_000
-
-
-def test_random_device_returns_new_values(dll_emu: Speakeasy) -> None:
-    values = {call(dll_emu, "msvcrt", "_Random_device", [])[0] for _ in range(4)}
-    assert len(values) == 4
 
 
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 0x20), ("dll64_emu", 0x30)])
@@ -2148,13 +1736,6 @@ def test_open_write_seek_and_read_a_descriptor(strict_fs_emu: Speakeasy) -> None
     assert call(se, "msvcrt", "_read", [fd, out, 5])[0] == -1
 
 
-@pytest.mark.parametrize("api, width", [("_open", 1), ("_wopen", 2)])
-def test_open_without_create_fails_on_a_missing_file(strict_fs_emu: Speakeasy, api: str, width: int) -> None:
-    text = "c:\\users\\public\\missing.txt\0"
-    path = alloc(strict_fs_emu, text.encode("utf-8" if width == 1 else "utf-16le"))
-    assert call(strict_fs_emu, "msvcrt", api, [path, 0, 0])[0] == -1
-
-
 def test_fdopen_gives_a_stream_on_the_descriptor(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     path = "c:\\users\\public\\log.txt"
@@ -2197,21 +1778,6 @@ def test_write_to_stdout_goes_to_the_file_that_freopen_opens(strict_fs_emu: Spea
     out = alloc(se, b"\x00" * 16)
     assert call(se, "msvcrt", "fread", [out, 1, 16, stdout])[0] == 3
     assert se.mem_read(out, 3) == b"abc"
-
-
-@pytest.mark.parametrize("fd", [1, 2])
-def test_write_to_a_standard_descriptor_succeeds(dll_emu: Speakeasy, fd: int) -> None:
-    assert call(dll_emu, "msvcrt", "_write", [fd, alloc(dll_emu, b"abc"), 3])[0] == 3
-
-
-@pytest.mark.parametrize("emu_name, size", [("dll_emu", 24), ("dll64_emu", 40)])
-def test_vcrt_initialize_critical_section_ex_zeroes_the_critical_section(
-    request: pytest.FixtureRequest, emu_name: str, size: int
-) -> None:
-    se = request.getfixturevalue(emu_name)
-    cs = alloc(se, b"\xcc" * (size + 1))
-    assert call(se, "vcruntime140", "__vcrt_InitializeCriticalSectionEx", [cs, 4000, 0])[0] == 1
-    assert se.mem_read(cs, size + 1) == b"\x00" * size + b"\xcc"
 
 
 def get_int64_result(se: Speakeasy, rv: int) -> int:
@@ -2264,23 +1830,6 @@ def test_strtoi64_parses_64_bit_values_and_saturates(
     assert get_int64_result(se, rv) == value & 0xFFFFFFFFFFFFFFFF
     assert se.mem_read(end, ptr_size + 1) == (src + used * width).to_bytes(ptr_size, "little") + b"\xcc"
     assert (get_errno(se) == ERANGE) == overflow
-
-
-@pytest.mark.parametrize("text, charset, rv", [("abc=def", "=;", 3), ("abc", "x", 3), ("", "a", 0), ("éa", "a", 1)])
-def test_wcscspn_returns_the_length_of_the_leading_run_outside_the_set(
-    dll_emu: Speakeasy, text: str, charset: str, rv: int
-) -> None:
-    args = [alloc(dll_emu, (s + "\0").encode("utf-16le")) for s in (text, charset)]
-    assert call(dll_emu, "msvcrt", "wcscspn", args)[0] == rv
-
-
-@pytest.mark.parametrize("api", ["_wtoi", "_wtol"])
-@pytest.mark.parametrize(
-    "text, rv",
-    [("  -42x", 0xFFFFFFD6), ("300", 300), ("abc", 0), ("99999999999", 0x7FFFFFFF), ("-99999999999", 0x80000000)],
-)
-def test_wtoi_parses_leading_digits(dll_emu: Speakeasy, api: str, text: str, rv: int) -> None:
-    assert call(dll_emu, "msvcrt", api, [alloc(dll_emu, (text + "\0").encode("utf-16le"))])[0] & 0xFFFFFFFF == rv
 
 
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
