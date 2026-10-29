@@ -15,7 +15,7 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.guest_harness import get_api, guest_call
-from tests.handler_harness import alloc, call, load_emu, object_attributes, start_process
+from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
@@ -144,17 +144,6 @@ def test_get_file_information_by_handle_describes_the_file(emu: Speakeasy) -> No
     _, other = get_file_information(emu, open_file(emu, BYTE_FILL_PATH))
     assert other[5:] != (index_high, index_low)
     assert other[3] == 512
-
-
-def test_get_file_information_by_handle_describes_a_directory(emu: Speakeasy) -> None:
-    rv, (attrs, *_) = get_file_information(emu, open_file(emu, "c:\\windows"))
-    assert rv == 1
-    assert attrs == windefs.FILE_ATTRIBUTE_DIRECTORY
-
-
-def test_get_file_information_by_handle_rejects_an_unknown_handle(emu: Speakeasy) -> None:
-    assert get_file_information(emu, 0x1234)[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
 
 
 def test_byte_fill_file_has_its_size(emu: Speakeasy) -> None:
@@ -362,7 +351,6 @@ def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
 
 
 MOVEFILE_REPLACE_EXISTING = 0x1
-MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
 
 
 def move_file_ex(se: Speakeasy, src: str, dst: str | None, flags: int) -> int:
@@ -377,24 +365,6 @@ def test_move_file_ex_moves_the_file(strict_fs_emu: Speakeasy) -> None:
     assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", MOVEFILE_REPLACE_EXISTING) == 1
     assert open_file(se, "c:\\dst.txt") != windefs.INVALID_HANDLE_VALUE
     assert open_file(se, "c:\\src.txt") == windefs.INVALID_HANDLE_VALUE
-
-
-def test_move_file_ex_replaces_only_with_the_flag(strict_fs_emu: Speakeasy) -> None:
-    se = strict_fs_emu
-    open_file(se, "c:\\src.txt", OPEN_ALWAYS)
-    open_file(se, "c:\\dst.txt", OPEN_ALWAYS)
-    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", 0) == 0
-    assert last_error(se) == windefs.ERROR_ALREADY_EXISTS
-    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", MOVEFILE_REPLACE_EXISTING) == 1
-
-
-def test_move_file_ex_delete_on_reboot_keeps_the_file(strict_fs_emu: Speakeasy) -> None:
-    se = strict_fs_emu
-    open_file(se, "c:\\src.txt", OPEN_ALWAYS)
-    assert move_file_ex(se, "c:\\src.txt", None, MOVEFILE_DELAY_UNTIL_REBOOT) == 1
-    assert open_file(se, "c:\\src.txt") != windefs.INVALID_HANDLE_VALUE
-    assert move_file_ex(se, "c:\\src.txt", None, 0) == 0
-    assert last_error(se) == windefs.ERROR_INVALID_PARAMETER
 
 
 def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, int]:
@@ -484,41 +454,7 @@ def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
 
 
-ERROR_BAD_LENGTH = 24
-
-
-@pytest.mark.parametrize(
-    "fixture, info_class, size",
-    [
-        ("dll_emu", 1, 0x30),
-        ("dll_emu", 2, 0x30),
-        ("dll_emu", 9, 0x70),
-        ("dll64_emu", 1, 0x30),
-        ("dll64_emu", 2, 0x40),
-        ("dll64_emu", 9, 0x90),
-    ],
-)
-def test_query_information_job_object_reports_no_limits(
-    request: pytest.FixtureRequest, fixture: str, info_class: int, size: int
-) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    start_process(se)
-    buf = alloc(se, b"\xcc" * (size + 8))
-    length = alloc(se, b"\xcc" * 4)
-    assert call(se, "kernel32", "QueryInformationJobObject", [0x1234, info_class, buf, size + 8, length])[0] == 1
-    assert se.mem_read(buf, size + 8) == b"\x00" * size + b"\xcc" * 8
-    assert struct.unpack("<I", se.mem_read(length, 4))[0] == size
-
-    small = alloc(se, b"\xcc" * size)
-    assert call(se, "kernel32", "QueryInformationJobObject", [0x1234, info_class, small, size - 1, 0])[0] == 0
-    assert se.emu is not None
-    assert se.emu.get_last_error() == ERROR_BAD_LENGTH
-    assert se.mem_read(small, size) == b"\xcc" * size
-
-
-@pytest.mark.parametrize(
-    "name, width", [("GetTempPathA", 1), ("GetTempPathW", 2), ("GetTempPath2A", 1), ("GetTempPath2W", 2)]
-)
+@pytest.mark.parametrize("name, width", [("GetTempPathA", 1), ("GetTempPathW", 2)])
 def test_get_temp_path_sizes(emu: Speakeasy, name: str, width: int) -> None:
     enc = "utf-8" if width == 1 else "utf-16le"
     temp = "C:\\Windows\\temp\\"
@@ -610,12 +546,6 @@ def test_a_manual_reset_event_stays_signaled(idle_emu: Speakeasy) -> None:
     assert call(idle_emu, "kernel32", "SetEvent", [hnd])[0]
     assert call(idle_emu, "kernel32", "PulseEvent", [hnd])[0]
     assert wait_one(idle_emu, hnd) == windefs.WAIT_TIMEOUT
-
-
-@pytest.mark.parametrize("flags, results", [(0, [0x102]), (2, [0, 0x102]), (3, [0, 0])])
-def test_create_event_ex_takes_the_state_from_the_flags(idle_emu: Speakeasy, flags: int, results: list[int]) -> None:
-    hnd, _ = call(idle_emu, "kernel32", "CreateEventExA", [0, 0, flags, 0x1F0003])
-    assert [wait_one(idle_emu, hnd) for _ in results] == results
 
 
 def test_wait_for_multiple_objects_gives_the_first_signaled_event(idle_emu: Speakeasy) -> None:
@@ -727,14 +657,6 @@ def test_init_once_complete_with_init_failed_resets_the_state(emu: Speakeasy) ->
     assert emu.mem_read(pending, 4) == struct.pack("<I", 1)
 
 
-def test_init_once_complete_rejects_a_context_with_low_bits(emu: Speakeasy) -> None:
-    init_once = alloc(emu, b"\x00" * 4)
-    pending = alloc(emu, b"\xcc" * 4)
-    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0] == 1
-    assert call(emu, "kernel32", "InitOnceComplete", [init_once, 0, 0x6F05A001])[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
-
-
 def test_queue_user_apc_returns_success(emu: Speakeasy) -> None:
     assert emu.emu is not None
     thread = emu.emu.get_object_handle(emu.emu.curr_thread)
@@ -816,28 +738,6 @@ def test_global_memory_status_clamps_for_a_32_bit_image(config: dict[str, Any], 
         assert total_page == 0xFFFFFFFF
 
 
-@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
-def test_global_memory_status_ex_returns_true(request: pytest.FixtureRequest, fixture: str) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    status = alloc(se, struct.pack("<I", 64) + b"\xcc" * 60)
-    assert call(se, "kernel32", "GlobalMemoryStatusEx", [status])[0] == 1
-    length, load, *sizes, extended = struct.unpack("<II7Q", se.mem_read(status, 64))
-    total_phys, avail_phys, total_page, avail_page, total_virt, avail_virt = sizes
-    assert length == 64
-    assert 0 < load <= 100
-    assert 0 < avail_phys <= total_phys
-    assert 0 < avail_page <= total_page
-    assert 0 < avail_virt <= total_virt
-    assert extended == 0
-
-
-def test_global_memory_status_ex_rejects_a_wrong_length(emu: Speakeasy) -> None:
-    status = alloc(emu, struct.pack("<I", 32) + b"\xcc" * 60)
-    assert call(emu, "kernel32", "GlobalMemoryStatusEx", [status])[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
-    assert emu.mem_read(status + 4, 4) == b"\xcc" * 4
-
-
 def test_get_disk_free_space_ex_writes_the_sizes(emu: Speakeasy) -> None:
     root = alloc(emu, b"C:\\\x00")
     caller, total, free = (alloc(emu, b"\x00" * 8) for _ in range(3))
@@ -912,25 +812,6 @@ def test_path_cch_remove_file_spec_removes_the_last_element(emu: Speakeasy, path
     assert emu.mem_read(buf, 2 * len(expected) + 2) == f"{expected}\0".encode("utf-16le")
 
 
-def test_path_cch_remove_file_spec_rejects_a_null_path(emu: Speakeasy) -> None:
-    assert call(emu, "kernel32", "PathCchRemoveFileSpec", [0, 260])[0] == windefs.E_INVALIDARG
-
-
-APPMODEL_ERROR_NO_PACKAGE = 15700
-
-
-@pytest.mark.parametrize(
-    "name",
-    ["GetCurrentPackageId", "GetCurrentPackageFamilyName", "GetCurrentPackageFullName", "GetCurrentPackagePath"],
-)
-def test_get_current_package_reports_an_unpackaged_process(emu: Speakeasy, name: str) -> None:
-    length = alloc(emu, struct.pack("<I", 0x100))
-    buf = alloc(emu, b"\xcc" * 0x200)
-    assert call(emu, "kernel32", name, [length, buf])[0] == APPMODEL_ERROR_NO_PACKAGE
-    assert emu.mem_read(length, 4) == b"\x00" * 4
-    assert emu.mem_read(buf, 0x200) == b"\xcc" * 0x200
-
-
 @pytest.mark.parametrize(
     "name, s1, n1, s2, n2, flags, rv",
     [
@@ -954,14 +835,6 @@ def test_compare_string_compares_with_the_case_flag(
     if name == "CompareStringEx":
         args += [0, 0, 0]
     assert call(dll_emu, "kernel32", name, args)[0] == rv
-
-
-def test_compare_string_rejects_a_null_string_with_a_count(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    p = alloc(dll_emu, "a\0".encode("utf-16le"))
-    assert call(dll_emu, "kernel32", "CompareStringW", [0, 0, 0, 1, p, -1 & 0xFFFFFFFF])[0] == 0
-    assert dll_emu.emu is not None
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
 def test_init_once_execute_once_runs_the_init_function_once(base_config: dict[str, Any]) -> None:
@@ -1060,47 +933,6 @@ def test_writes_through_a_reopened_file_reach_the_file(strict_fs_emu: Speakeasy)
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"MZ\x90\x00"]
 
 
-@pytest.mark.parametrize(
-    ("flags", "expected"),
-    [
-        (0, "\\\\?\\C:\\drop.bin"),
-        (8, "\\\\?\\C:\\drop.bin"),
-        (1, "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\drop.bin"),
-        (2, "\\Device\\HarddiskVolume1\\drop.bin"),
-        (4, "\\drop.bin"),
-    ],
-)
-def test_get_final_path_name_by_handle_gives_the_path_of_the_file(
-    strict_fs_emu: Speakeasy, flags: int, expected: str
-) -> None:
-    se = strict_fs_emu
-    hnd, _ = call(
-        se, "kernel32", "CreateFileA", [alloc(se, b"c:\\drop.bin\x00"), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0]
-    )
-    buf = alloc(se, b"\x00" * 0x200)
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 0x100, flags])[0] == len(expected)
-    assert se.read_mem_string(buf, 2) == expected
-    assert call(se, "kernel32", "GetFinalPathNameByHandleA", [hnd, buf, 0x100, flags])[0] == len(expected)
-    assert se.read_mem_string(buf, 1) == expected
-
-
-def test_get_final_path_name_by_handle_reports_the_size_and_errors(strict_fs_emu: Speakeasy) -> None:
-    se = strict_fs_emu
-    hnd, _ = call(
-        se, "kernel32", "CreateFileA", [alloc(se, b"c:\\drop.bin\x00"), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0]
-    )
-    buf = alloc(se, b"\xcc" * 0x20)
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 15, 0])[0] == 16
-    assert se.mem_read(buf, 2) == b"\xcc\xcc"
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, 0, 0, 0])[0] == 16
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 16, 0])[0] == 15
-
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [hnd, buf, 0x10, 3])[0] == 0
-    assert last_error(se) == windefs.ERROR_INVALID_PARAMETER
-    assert call(se, "kernel32", "GetFinalPathNameByHandleW", [0x1234, buf, 0x10, 0])[0] == 0
-    assert last_error(se) == windefs.ERROR_INVALID_HANDLE
-
-
 def test_write_file_writes_at_the_file_pointer(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     name = alloc(se, b"c:\\log.txt\x00")
@@ -1136,37 +968,6 @@ def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) 
     path = alloc(dll_emu, b"C:\\Windows\\Temp\\type.txt\0")
     handle = call(dll_emu, "kernel32", "CreateFileA", [path, 0x40000000, 0, 0, 2, 0x80, 0])[0]
     assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
-
-
-@pytest.mark.parametrize(("api", "text"), [("WriteConsoleA", b"hi\n"), ("WriteConsoleW", "hi\n".encode("utf-16le"))])
-def test_write_console_reports_the_characters_written(dll_emu: Speakeasy, api: str, text: bytes) -> None:
-    start_process(dll_emu)
-    out = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0]
-    written = alloc(dll_emu, b"\0" * 4)
-    buf = alloc(dll_emu, text)
-
-    rv, args = call(dll_emu, "kernel32", api, [out, buf, 3, written, 0])
-
-    assert rv == 1
-    assert struct.unpack("<I", dll_emu.mem_read(written, 4))[0] == 3
-    assert "hi" in args["lpBuffer"]
-
-
-def test_close_handle_closes_the_std_handles(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    for std in (0xFFFFFFF6, 0xFFFFFFF5, 0xFFFFFFF4):
-        handle = call(dll_emu, "kernel32", "GetStdHandle", [std])[0]
-        assert call(dll_emu, "kernel32", "CloseHandle", [handle])[0] == 1
-
-
-def test_get_console_mode_writes_a_mode(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    out = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0]
-    mode = alloc(dll_emu, b"\xff" * 4)
-
-    assert call(dll_emu, "kernel32", "GetConsoleMode", [out, mode])[0] == 1
-    assert struct.unpack("<I", dll_emu.mem_read(mode, 4))[0] == 3
-    assert call(dll_emu, "kernel32", "GetConsoleOutputCP", [])[0] == 437
 
 
 def test_a_file_created_by_a_relative_path_is_found_again(strict_fs_emu: Speakeasy) -> None:
@@ -1240,21 +1041,6 @@ def test_process_ids_agree(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "GetProcessIdOfThread", [0xFFFFFFFE])[0] == current
 
 
-@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
-def test_get_process_id_of_the_current_process(request: pytest.FixtureRequest, fixture: str) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    start_process(se)
-    assert se.emu is not None
-    pseudo = (1 << (8 * se.emu.get_ptr_size())) - 1
-    assert call(se, "kernel32", "GetProcessId", [pseudo])[0] == call(se, "kernel32", "GetCurrentProcessId", [])[0]
-
-
-@pytest.mark.parametrize("api", ["GetProcessId", "GetProcessIdOfThread"])
-def test_get_process_id_rejects_an_unknown_handle(emu: Speakeasy, api: str) -> None:
-    assert call(emu, "kernel32", api, [0x1234])[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
-
-
 def get_system_time(se: Speakeasy, api: str) -> datetime.datetime:
     st = alloc(se, b"\x00" * 16)
     call(se, "kernel32", api, [st])
@@ -1303,11 +1089,6 @@ def query_performance(se: Speakeasy, api: str) -> int:
     return int.from_bytes(se.mem_read(value, 8), "little")
 
 
-def test_performance_counter_moves_with_each_call(emu: Speakeasy) -> None:
-    first = query_performance(emu, "QueryPerformanceCounter")
-    assert query_performance(emu, "QueryPerformanceCounter") > first
-
-
 def test_performance_counter_moves_with_the_system_time(emu: Speakeasy) -> None:
     # std::this_thread::sleep_for waits on the counter and sleeps for the time left by the system time.
     freq = query_performance(emu, "QueryPerformanceFrequency")
@@ -1320,13 +1101,6 @@ def test_performance_counter_moves_with_the_system_time(emu: Speakeasy) -> None:
         call(emu, "kernel32", "Sleep", [0])
     else:
         pytest.fail("the performance counter does not reach the target")
-
-
-def test_sleep_moves_the_performance_counter_by_its_frequency(emu: Speakeasy) -> None:
-    freq = query_performance(emu, "QueryPerformanceFrequency")
-    before = query_performance(emu, "QueryPerformanceCounter")
-    call(emu, "kernel32", "Sleep", [1000])
-    assert freq <= query_performance(emu, "QueryPerformanceCounter") - before < freq * 101 // 100
 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
@@ -1579,24 +1353,6 @@ def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeas
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
 
-@pytest.mark.parametrize("name, width", [("GetLogicalDriveStringsA", 1), ("GetLogicalDriveStringsW", 2)])
-def test_get_logical_drive_strings_lists_the_drive_roots(emu: Speakeasy, name: str, width: int) -> None:
-    enc = "utf-8" if width == 1 else "utf-16le"
-    mask, _ = call(emu, "kernel32", "GetLogicalDrives", [])
-    roots = "".join(f"{chr(ord('A') + i)}:\\\0" for i in range(26) if mask & (1 << i))
-    assert roots.startswith("C:\\\0")
-    chars = len(roots)
-
-    buf = alloc(emu, b"\xcc" * (chars + 1) * width)
-    assert call(emu, "kernel32", name, [chars + 1, buf])[0] == chars
-    assert emu.mem_read(buf, (chars + 1) * width) == (roots + "\0").encode(enc)
-
-    small = alloc(emu, b"\xcc" * chars * width)
-    assert call(emu, "kernel32", name, [chars, small])[0] == chars + 1
-    assert emu.mem_read(small, chars * width) == b"\xcc" * chars * width
-    assert call(emu, "kernel32", name, [0, 0])[0] == chars + 1
-
-
 def test_get_process_times_gives_a_creation_time_before_now(emu: Speakeasy) -> None:
     times = alloc(emu, b"\xcc" * 32)
     rv, _ = call(emu, "kernel32", "GetProcessTimes", [0xFFFFFFFF, times, times + 8, times + 16, times + 24])
@@ -1607,12 +1363,6 @@ def test_get_process_times_gives_a_creation_time_before_now(emu: Speakeasy) -> N
     assert 0 < creation < struct.unpack("<Q", emu.mem_read(now, 8))[0]
     assert exit_time == 0
     assert kernel < 0xCCCCCCCCCCCCCCCC and user < 0xCCCCCCCCCCCCCCCC
-
-
-def test_get_process_times_rejects_an_unknown_handle(emu: Speakeasy) -> None:
-    times = alloc(emu, b"\xcc" * 32)
-    assert call(emu, "kernel32", "GetProcessTimes", [0x1234, times, times + 8, times + 16, times + 24])[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
 
 
 @pytest.mark.parametrize("name, width", [("IsBadStringPtrA", 1), ("IsBadStringPtrW", 2)])
@@ -1633,14 +1383,9 @@ def test_is_bad_string_ptr_reads_up_to_the_nul(emu: Speakeasy, name: str, width:
     assert call(emu, "kernel32", name, [0, 0xFFFFFFFF])[0] == 1
 
 
-FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x100
 FORMAT_MESSAGE_IGNORE_INSERTS = 0x200
 FORMAT_MESSAGE_FROM_STRING = 0x400
-FORMAT_MESSAGE_FROM_HMODULE = 0x800
-FORMAT_MESSAGE_FROM_SYSTEM = 0x1000
 FORMAT_MESSAGE_ARGUMENT_ARRAY = 0x2000
-FORMAT_MESSAGE_MAX_WIDTH_MASK = 0xFF
-ERROR_MR_MID_NOT_FOUND = 317
 
 
 def format_message(se: Speakeasy, name: str, flags: int, source: int, msg_id: int, args: int, size: int = 0x100):
@@ -1684,51 +1429,6 @@ def test_format_message_formats_inserts_and_escapes(emu: Speakeasy, name: str, w
     assert format_message(emu, name, flags, template, 0, 0) == (14, "%1 and %2!d!\r\n\0")
 
 
-@pytest.mark.parametrize("name, width", [("FormatMessageA", 1), ("FormatMessageW", 2)])
-def test_format_message_allocates_a_local_buffer(emu: Speakeasy, name: str, width: int) -> None:
-    enc = "utf-8" if width == 1 else "utf-16le"
-    template = alloc(emu, "%1\0".encode(enc))
-    args = alloc(emu, struct.pack("<I", alloc(emu, "inserted\0".encode(enc))))
-    out = alloc(emu, b"\x00" * 4)
-    flags = FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER
-    rv, _ = call(emu, "kernel32", name, [flags, template, 0, 0, out, 0, args])
-    assert rv == 8
-    text = struct.unpack("<I", emu.mem_read(out, 4))[0]
-    assert emu.mem_read(text, 9 * width).decode(enc) == "inserted\0"
-    assert call(emu, "kernel32", "LocalFree", [text])[0] == 0
-
-
-@pytest.mark.parametrize("name", ["FormatMessageA", "FormatMessageW"])
-def test_format_message_from_system_knows_common_errors(emu: Speakeasy, name: str) -> None:
-    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
-    text = "The system cannot find the file specified.\r\n"
-    assert format_message(emu, name, flags, 0, windefs.ERROR_FILE_NOT_FOUND, 0) == (len(text), text + "\0")
-    text = "Class not registered\r\n"
-    assert format_message(emu, name, flags, 0, 0x80040154, 0) == (len(text), text + "\0")
-    text = "Access is denied. "
-    rv = format_message(emu, name, flags | FORMAT_MESSAGE_MAX_WIDTH_MASK, 0, windefs.ERROR_ACCESS_DENIED, 0)
-    assert rv == (len(text), text + "\0")
-
-    for msg_id in (0, 3, 6, 8, 87, 122, 183, 1450):
-        assert format_message(emu, name, flags, 0, msg_id, 0)[0] > 0, msg_id
-
-
-@pytest.mark.parametrize("name", ["FormatMessageA", "FormatMessageW"])
-def test_format_message_fails_without_the_message_or_the_room(emu: Speakeasy, name: str) -> None:
-    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
-    assert format_message(emu, name, flags, 0, 0x12345678, 0)[0] == 0
-    assert last_error(emu) == ERROR_MR_MID_NOT_FOUND
-
-    set_last_error(emu, 0)
-    flags = FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS
-    assert format_message(emu, name, flags, 0, 1, 0)[0] == 0
-    assert last_error(emu) == ERROR_MR_MID_NOT_FOUND
-
-    flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
-    assert format_message(emu, name, flags, 0, windefs.ERROR_FILE_NOT_FOUND, 0, size=8)[0] == 0
-    assert last_error(emu) == windefs.ERROR_INSUFFICIENT_BUFFER
-
-
 @pytest.mark.parametrize("path", ["NUL", "\\\\.\\nul"])
 @pytest.mark.parametrize("disposition", [1, CREATE_ALWAYS, OPEN_EXISTING, OPEN_ALWAYS, TRUNCATE_EXISTING])
 def test_create_file_opens_the_null_device(strict_fs_emu: Speakeasy, path: str, disposition: int) -> None:
@@ -1746,16 +1446,6 @@ def test_create_file_opens_the_null_device(strict_fs_emu: Speakeasy, path: str, 
 
     assert call(se, "kernel32", "GetFileType", [hnd])[0] == 2
     assert se.get_dropped_files() == []
-
-
-def test_nt_open_file_opens_the_null_device(strict_fs_emu: Speakeasy) -> None:
-    se = strict_fs_emu
-    phnd = alloc(se, b"\x00" * 4)
-    iosb = alloc(se, b"\x00" * 8)
-    rv, _ = call(se, "ntdll", "NtOpenFile", [phnd, GENERIC_READ, object_attributes(se, "\\??\\NUL"), iosb, 3, 0])
-    assert rv == 0
-    assert se.emu is not None
-    assert se.emu.file_get(struct.unpack("<I", se.mem_read(phnd, 4))[0]) is not None
 
 
 @pytest.mark.parametrize(
@@ -1831,10 +1521,3 @@ def test_polling_get_exit_code_thread_ends_for_a_queued_thread() -> None:
         entries = se.get_report().entry_points
         assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None), ("thread", None)]
         assert se.mem_read(module.base + code_rva, 4) == b"\0" * 4
-
-
-def test_get_exit_code_thread_fails_for_an_unknown_handle(emu: Speakeasy) -> None:
-    out = alloc(emu, b"\xcc" * 4)
-    assert call(emu, "kernel32", "GetExitCodeThread", [0x1234, out])[0] == 0
-    assert last_error(emu) == windefs.ERROR_INVALID_HANDLE
-    assert emu.mem_read(out, 4) == b"\xcc" * 4

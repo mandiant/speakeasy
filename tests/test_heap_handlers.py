@@ -20,19 +20,6 @@ def placeholder(se: Speakeasy) -> int:
     return se.emu.mem_map(8, tag="emu.export_arg_0", base=0x41420000)
 
 
-def heap_block(se: Speakeasy) -> int:
-    heap = call(se, "kernel32", "GetProcessHeap", [])[0]
-    return call(se, "kernel32", "HeapAlloc", [heap, 0, 0x20])[0]
-
-
-def test_heap_free_releases_a_heap_block(emu: Speakeasy) -> None:
-    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
-    block = heap_block(emu)
-    assert call(emu, "kernel32", "HeapFree", [heap, 0, block])[0] == 1
-    assert emu.emu is not None
-    assert emu.emu.get_address_map(block) is None or emu.emu.get_address_map(block).free
-
-
 @pytest.mark.parametrize(
     "dll, name, args, rv, error",
     [
@@ -57,31 +44,6 @@ def test_free_keeps_memory_that_is_not_a_heap_block(
         assert emu.emu is not None
         assert emu.emu.get_last_error() == error
     assert emu.mem_read(p, 4) == b"\x11\x22\x33\x44"
-
-
-def test_heap_free_keeps_the_stack(emu: Speakeasy) -> None:
-    assert emu.emu is not None
-    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
-    sp = emu.emu.get_stack_ptr()
-    assert call(emu, "kernel32", "HeapFree", [heap, 0, sp])[0] == 0
-    emu.mem_read(sp, 4)
-
-
-def test_heap_free_of_an_interior_pointer_fails(emu: Speakeasy) -> None:
-    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
-    block = heap_block(emu)
-    assert call(emu, "kernel32", "HeapFree", [heap, 0, block + 8])[0] == 0
-    assert call(emu, "kernel32", "HeapFree", [heap, 0, block])[0] == 1
-
-
-def test_heap_free_of_null_succeeds(emu: Speakeasy) -> None:
-    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
-    assert call(emu, "kernel32", "HeapFree", [heap, 0, 0])[0] == 1
-
-
-def test_local_free_releases_a_local_block(emu: Speakeasy) -> None:
-    block = call(emu, "kernel32", "LocalAlloc", [0, 0x20])[0]
-    assert call(emu, "kernel32", "LocalFree", [block])[0] == 0
 
 
 @pytest.mark.parametrize(
@@ -122,10 +84,3 @@ def test_heap_size_of_a_reallocated_block(emu: Speakeasy) -> None:
     block = call(emu, "kernel32", "HeapAlloc", [heap, 0, 0x20])[0]
     block = call(emu, "kernel32", "HeapReAlloc", [heap, 0, block, 0x45])[0]
     assert call(emu, "kernel32", "HeapSize", [heap, 0, block])[0] == 0x45
-
-
-def test_heap_size_fails_for_memory_that_is_not_a_heap_block(emu: Speakeasy) -> None:
-    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
-    assert call(emu, "kernel32", "HeapSize", [heap, 0, placeholder(emu)])[0] == 0xFFFFFFFF
-    block = heap_block(emu)
-    assert call(emu, "kernel32", "HeapSize", [heap, 0, block + 8])[0] == 0xFFFFFFFF

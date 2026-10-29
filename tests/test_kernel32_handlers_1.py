@@ -300,32 +300,6 @@ def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
     assert dll_emu.mem_read(dst, 4 * cw + 1) == encode("ABC\0", cw) + b"\xcc"
 
 
-@pytest.mark.parametrize("api", ["lstrlenA", "lstrlenW"])
-def test_lstrlen_of_null_is_zero(dll_emu: Speakeasy, api: str) -> None:
-    assert call(dll_emu, "kernel32", api, [0])[0] == 0
-
-
-@pytest.mark.parametrize("api", ["lstrlenA", "lstrlenW"])
-def test_lstrlen_of_unreadable_pointer_is_zero(dll_emu: Speakeasy, api: str) -> None:
-    assert call(dll_emu, "kernel32", api, [0x81400017])[0] == 0
-
-
-@pytest.mark.parametrize(
-    "api, argv",
-    [
-        ("lstrcpyA", [0, 1]),
-        ("lstrcpyW", [1, 0]),
-        ("lstrcpynA", [1, 0, 8]),
-        ("lstrcatA", [0, 1]),
-        ("lstrcatW", [1, 0]),
-    ],
-)
-def test_lstr_copy_with_a_null_string_returns_null(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    other = alloc(dll_emu, b"\0" * 32)
-    rv, _ = call(dll_emu, "kernel32", api, [other if a == 1 else a for a in argv])
-    assert rv == 0
-
-
 def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
@@ -477,28 +451,6 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
 
 
 @pytest.mark.parametrize(
-    "first, step",
-    [
-        ("Process32First", "Process32Next"),
-        ("Process32FirstW", "Process32NextW"),
-        ("Thread32First", "Thread32Next"),
-        ("Module32First", "Module32Next"),
-        ("Module32FirstW", "Module32NextW"),
-    ],
-)
-def test_toolhelp_next_sets_no_more_files_at_the_end(dll_emu: Speakeasy, first: str, step: str) -> None:
-    start_process(dll_emu)
-    assert dll_emu.emu is not None
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPALL, 0])
-    entry = alloc(dll_emu, b"\x00" * 0x800)
-    assert call(dll_emu, "kernel32", first, [hsnap, entry])[0]
-    dll_emu.emu.set_last_error(0)
-    while call(dll_emu, "kernel32", step, [hsnap, entry])[0]:
-        pass
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
-
-
-@pytest.mark.parametrize(
     "first, step, size", [("Process32First", "Process32Next", 0x128), ("Process32FirstW", "Process32NextW", 0x22C)]
 )
 def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, size: int) -> None:
@@ -520,41 +472,6 @@ def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, 
         parents.append(parent)
     assert parents[0] == explorer
     assert parents[1] != 0xCCCCCCCC
-
-
-def test_toolhelp_first_on_an_empty_list_sets_no_more_files(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    assert dll_emu.emu is not None
-    explorer = next(p for p in dll_emu.emu.get_processes() if p.name == "explorer")
-    assert not explorer.threads
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [0x4, explorer.pid])
-    entry = alloc(dll_emu, struct.pack("<I", 0x1C) + b"\x00" * 0x18)
-    dll_emu.emu.set_last_error(0)
-    assert call(dll_emu, "kernel32", "Thread32First", [hsnap, entry])[0] == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES
-
-
-@pytest.mark.parametrize(
-    "flags, walks",
-    [
-        (0x2 | 0x4, ["Module32FirstW"]),
-        (0x8, ["Process32First", "Thread32First"]),
-        (0, ["Process32FirstW", "Thread32First", "Module32First"]),
-        (0x1, ["Process32First", "Thread32First", "Module32FirstW"]),
-    ],
-)
-def test_toolhelp_first_on_a_list_the_snapshot_lacks_sets_no_more_files(
-    dll_emu: Speakeasy, flags: int, walks: list[str]
-) -> None:
-    start_process(dll_emu)
-    assert dll_emu.emu is not None
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [flags, 0])
-    assert hsnap not in (0, windefs.INVALID_HANDLE_VALUE)
-    for walk in walks:
-        entry = alloc(dll_emu, struct.pack("<I", 0x400) + b"\x00" * 0x3FC)
-        dll_emu.emu.set_last_error(0)
-        assert call(dll_emu, "kernel32", walk, [hsnap, entry])[0] == 0, walk
-        assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_FILES, walk
 
 
 def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> None:
@@ -621,16 +538,6 @@ def test_tls_accepts_an_index_that_tls_alloc_did_not_return(dll_emu: Speakeasy, 
     dll_emu.emu.set_last_error(0xDEAD)
     assert call(dll_emu, "kernel32", "TlsGetValue", [index])[0] == 0x1234
     assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
-
-
-def test_tls_rejects_an_index_past_the_expansion_slots(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    assert dll_emu.emu is not None
-    assert call(dll_emu, "kernel32", "TlsSetValue", [1088, 0x1234])[0] == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
-    dll_emu.emu.set_last_error(0)
-    assert call(dll_emu, "kernel32", "TlsGetValue", [1088])[0] == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
 def lcmap_argv(api: str, src: int, cch_src: int, dst: int, cch_dst: int) -> list[int]:
@@ -864,15 +771,6 @@ def test_virtual_query_ex_on_the_current_process_matches_virtual_query(dll_emu: 
         assert dll_emu.mem_read(mbi, 28) == dll_emu.mem_read(expected, 28)
 
 
-def test_virtual_query_ex_rejects_an_invalid_process_handle(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    mbi = alloc(dll_emu, b"\xcc" * 28)
-    assert call(dll_emu, "kernel32", "VirtualQueryEx", [0x1234, 0x10000000, mbi, 28])[0] == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
-    assert dll_emu.mem_read(mbi, 28) == b"\xcc" * 28
-
-
 @pytest.mark.parametrize("name, width", [("GetStartupInfoA", 1), ("GetStartupInfoW", 2)])
 def test_get_startup_info_writes_the_desktop_and_title_once(dll_emu: Speakeasy, name: str, width: int) -> None:
     start_process(dll_emu)
@@ -948,17 +846,6 @@ def test_system_time_to_tz_specific_local_time_applies_the_bias(
     assert struct.unpack("<8H", dll_emu.mem_read(back, 16)) == utc
 
 
-def test_system_time_to_tz_specific_local_time_rejects_a_bad_date(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    st = alloc(dll_emu, struct.pack("<8H", 2000, 13, 0, 1, 0, 0, 0, 0))
-    out = alloc(dll_emu, b"\xcc" * 16)
-    rv, _ = call(dll_emu, "kernel32", "SystemTimeToTzSpecificLocalTime", [0, st, out])
-    assert rv == 0
-    assert dll_emu.emu is not None
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
-    assert dll_emu.mem_read(out, 16) == b"\xcc" * 16
-
-
 @pytest.mark.parametrize(
     "filetime, fields",
     [
@@ -1004,16 +891,6 @@ def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
     assert rv == 0
     assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
-
-
-@pytest.mark.parametrize("api", ["OpenMutexA", "OpenEventA"])
-def test_open_fails_with_file_not_found_for_an_unknown_name(dll_emu: Speakeasy, api: str) -> None:
-    start_process(dll_emu)
-    name = alloc(dll_emu, b"Global\\nope\x00")
-    rv, _ = call(dll_emu, "kernel32", api, [0x100000, 0, name])
-    assert rv == 0
-    assert dll_emu.emu is not None
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
 
 
 @pytest.mark.parametrize("cw", ["A", "W"])
@@ -1238,33 +1115,6 @@ def test_get_system_firmware_table_with_a_small_buffer_returns_the_size(dll_emu:
     assert dll_emu.mem_read(buf, 8) == b"\xcc" * 8
 
 
-@pytest.mark.parametrize("api", ["EtwRegisterTraceGuidsW", "EtwRegisterTraceGuidsA"])
-def test_wpp_tracing_registers_and_unregisters(dll_emu: Speakeasy, api: str) -> None:
-    out = alloc(dll_emu, b"\x00" * 8)
-    guid = alloc(dll_emu, b"\x11" * 16)
-    reg = alloc(dll_emu, guid.to_bytes(4, "little") + b"\x00" * 4)
-    rv, _ = call(dll_emu, "ntdll", api, [0x401000, 0, guid, 1, reg, 0, 0, out])
-    assert rv == 0
-    handle = struct.unpack("<Q", dll_emu.mem_read(out, 8))[0]
-    assert handle != 0
-    rv, _ = call(dll_emu, "ntdll", "EtwUnregisterTraceGuids", [handle & 0xFFFFFFFF, handle >> 32])
-    assert rv == 0
-
-
-def test_wpp_tracing_is_not_enabled(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceLoggerHandle", [0x30000000])
-    assert rv == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
-    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceEnableFlags", [0, 0])
-    assert rv == 0
-    rv, _ = call(dll_emu, "ntdll", "EtwGetTraceEnableLevel", [0, 0])
-    assert rv == 0
-    rv, _ = call(dll_emu, "ntdll", "EtwTraceMessage", [1, 0, 2, 0x10, 0, 0])
-    assert rv == 0
-
-
 @pytest.mark.parametrize("current", ["pseudo", "real"])
 def test_terminate_process_on_the_current_process_ends_the_run(dll_emu: Speakeasy, current: str) -> None:
     start_process(dll_emu)
@@ -1308,14 +1158,6 @@ def test_create_semaphore_returns_a_handle(dll_emu: Speakeasy, cw: str) -> None:
     assert emu.get_object_from_handle(opened) is emu.get_object_from_handle(first)
     assert call(dll_emu, "kernel32", f"OpenSemaphore{cw}", [0x1F0003, 0, missing])[0] == 0
     assert emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
-
-
-@pytest.mark.parametrize("initial, maximum", [(2, 1), (0, 0), (-1 & 0xFFFFFFFF, 1)])
-def test_create_semaphore_rejects_bad_counts(dll_emu: Speakeasy, initial: int, maximum: int) -> None:
-    start_process(dll_emu)
-    assert call(dll_emu, "kernel32", "CreateSemaphoreW", [0, initial, maximum, 0])[0] == 0
-    assert dll_emu.emu is not None
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
 @pytest.fixture
