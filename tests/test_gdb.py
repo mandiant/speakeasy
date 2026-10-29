@@ -365,6 +365,9 @@ _MODULE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
     if entry_code:
         se.mem_write(module.base + module.ep, entry_code)
     exports = [module.base + export.address for export in pefile.PE(data=data).DIRECTORY_ENTRY_EXPORT.symbols]
+    if sys.argv[5:] == ["export_fault"]:
+        se.mem_write(exports[0], bytes.fromhex("a100000000"))  # mov eax, [0]
+        se.mem_write(exports[1], b"\\xe9" + (exports[0] - exports[1] - 5).to_bytes(4, "little", signed=True))
     print(json.dumps(exports), flush=True)
     se.run_module(module, all_entrypoints=True)
     print(json.dumps([run.error.type if run.error else None for run in se.get_report().entry_points]), flush=True)
@@ -630,6 +633,24 @@ def gdb_module_result_emulator(request):
     bin_path = os.path.join(TESTS_DIR, "bins", "dll_test_x86.dll.xz")
     proc = subprocess.Popen(
         [sys.executable, "-c", _MODULE_RESULT_SERVER_SCRIPT, str(port), config_path, bin_path, request.param],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _wait_for_port(port, proc)
+    assert proc.stdout is not None
+    exports = json.loads(proc.stdout.readline())
+    yield port, proc, exports
+    _stop_server(proc)
+
+
+@pytest.fixture
+def gdb_export_fault_emulator():
+    """Start dll_test_x86 with a fault on the first export and a jump to it from the second."""
+    port = _find_free_port()
+    config_path = os.path.join(TESTS_DIR, "test.json")
+    bin_path = os.path.join(TESTS_DIR, "bins", "dll_test_x86.dll.xz")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _MODULE_RESULT_SERVER_SCRIPT, str(port), config_path, bin_path, "", "export_fault"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -963,6 +984,60 @@ def test_gdb_breakpoint_on_later_run_start_hits(gdb_module_result_emulator):
     finally:
         client.close()
     assert _read_server_result(proc) == [None, None, None]
+
+
+@pytest.mark.parametrize("gdb_module_result_emulator", ["a100000000"], indirect=True)  # mov eax, [0]
+def test_gdb_breakpoint_on_run_start_after_a_fault_hits(gdb_module_result_emulator):
+    port, proc, exports = gdb_module_result_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        for address in exports:
+            assert client.query(f"Z0,{address:x},1") == "OK"
+        assert client.continue_().startswith("T0b")
+        for address in exports:
+            stop = client.continue_()
+            assert stop.startswith("T05") and "swbreak:;" in stop
+            assert client.read_x86_registers().eip == address
+        assert client.continue_().startswith("T05")
+        assert client.continue_() == "W00"
+    finally:
+        client.close()
+    assert _read_server_result(proc) == ["invalid_read", None, None]
+
+
+@pytest.mark.parametrize("gdb_module_result_emulator", ["a100000000"], indirect=True)  # mov eax, [0]
+def test_gdb_breakpoint_on_fault_pc_does_not_hide_later_run_starts(gdb_module_result_emulator):
+    port, proc, exports = gdb_module_result_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        entry = client.read_x86_registers().eip
+        for address in [entry, *exports]:
+            assert client.query(f"Z0,{address:x},1") == "OK"
+        assert client.continue_().startswith("T0b")
+        for address in exports:
+            stop = client.continue_()
+            assert stop.startswith("T05") and "swbreak:;" in stop
+            assert client.read_x86_registers().eip == address
+    finally:
+        client.close()
+
+
+def test_gdb_breakpoint_at_fault_pc_hits_in_the_next_run(gdb_export_fault_emulator):
+    port, proc, exports = gdb_export_fault_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.query(f"Z0,{exports[0]:x},1") == "OK"
+        assert "swbreak:;" in client.continue_()
+        assert client.read_x86_registers().eip == exports[0]
+        assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip == exports[0]
+        assert "swbreak:;" in client.continue_()
+        assert client.read_x86_registers().eip == exports[0]
+    finally:
+        client.close()
 
 
 @pytest.mark.parametrize("gdb_shellcode_emulator", ["b907000000cd29c3"], indirect=True)  # mov ecx, 7; int 0x29; ret

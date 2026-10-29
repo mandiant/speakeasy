@@ -94,7 +94,8 @@ class GdbServer:
         self._stop_reason = StopReason()
         self._stop_pending = False
         self._library_list_changed = False
-        self._resume_from_breakpoint: int | None = None
+        # The pc where the client resumed. The first instruction there does not hit its
+        # breakpoint, so a resume from a breakpoint stop does not stop again at once.
         self._resume_pc: int | None = None
         self._exec_breakpoints: dict[tuple[int, int, int], int] = {}
         # The code hook runs for each instruction, so it looks up one-byte breakpoints by address.
@@ -305,18 +306,17 @@ class GdbServer:
             if self._stop_pending:
                 return False
             self._stop_reason = StopReason()
-            pc = self.emu.get_pc()
-            # Only the stop the client resumes from skips its breakpoint. A
-            # later run that starts on a breakpoint hits it.
-            resuming, self._resume_pc = self._resume_pc == pc, None
-            at_breakpoint = any(begin <= pc < begin + size for begin, size, _ in self._exec_breakpoints)
-            self._resume_from_breakpoint = pc if resuming and at_breakpoint else None
+            if self._resume_pc != self.emu.get_pc():
+                # A run that starts at another pc, such as the run after a fault, skips no breakpoint.
+                self._resume_pc = None
         self._refresh_hooks()
         return True
 
     def finish_run(self, action: ResumeAction) -> StopReason | None:
         with self._state_lock:
             self._running = False
+            # A later run that starts on a breakpoint hits it.
+            self._resume_pc = None
             if self._stop_pending:
                 return self._stop_reason
         if action.step:
@@ -427,8 +427,8 @@ class GdbServer:
             # unexecuted and preserve the original watch reason/address.
             self.emu.emu_eng.stop()
             return True
-        if self._resume_from_breakpoint == address:
-            self._resume_from_breakpoint = None
+        if self._resume_pc == address:
+            self._resume_pc = None
             return True
         bp_type = self._exec_breakpoint_addresses.get(address)
         if bp_type is None:
