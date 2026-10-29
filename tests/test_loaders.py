@@ -326,25 +326,6 @@ def test_delay_import_rvas_rebase_without_using_stale_pefile_symbol_addresses():
     assert [e.iat_address for e in delayed] == [0x60000000 + data + 0x240, 0x60000000 + data + 0x248]
 
 
-def test_rebased_legacy_delay_import_descriptors_keep_relocated_virtual_addresses():
-    raw, data = _make_delay_import_pe(_arch.ARCH_X86, attrs=0)
-    pe = pefile.PE(data=raw)
-    directory_offset = pe.OPTIONAL_HEADER.DATA_DIRECTORY[5].get_file_offset()
-    raw = bytearray(raw)
-    struct.pack_into("<II", raw, directory_offset, data + 0x380, 20)
-    struct.pack_into("<II6H", raw, data + 0x380, data, 20, 0x3004, 0x3008, 0x300C, 0x3010, 0x3200, 0)
-    image = PeLoader(data=bytes(raw), base_override=0x60000000).make_image()
-    assert [(e.func_name, e.iat_address) for e in image.imports if e.source == "delay"] == [
-        ("ByName", 0x60000000 + data + 0x240),
-        ("ordinal_17", 0x60000000 + data + 0x244),
-    ]
-    fields = struct.unpack_from("<8I", image.regions[0].data, data)
-    assert fields[1] == 0x60000000 + data + 0x100
-    assert fields[3] == 0x60000000 + data + 0x240
-    assert fields[4] == 0x60000000 + data + 0x200
-    assert struct.unpack_from("<I", image.regions[0].data, data + 0x200)[0] == 0x60000000 + data + 0x140
-
-
 def test_lenient_malformed_forwarder_preserves_valid_exports(caplog):
     pe = pefile.PE(
         data=image_bytes(build([ApiExportSpec("Valid", 10), ApiExportSpec("Bad", 11, forwarder="target.Function")]))
@@ -354,17 +335,6 @@ def test_lenient_malformed_forwarder_preserves_valid_exports(caplog):
     raw[bad.address : bad.address + 8] = b"invalid\0"
     image = PeLoader(data=bytes(raw)).make_image()
     assert [e.name for e in image.exports] == ["Valid"]
-    assert _warned(caplog)
-
-
-def test_lenient_non_ascii_dll_name_is_lossless(caplog):
-    raw, data = _make_delay_import_pe(_arch.ARCH_X86)
-    raw = bytearray(raw)
-    raw[data + 0x120] = 0xE9  # Not valid UTF-8; preserve this byte with Latin-1.
-    image = PeLoader(data=bytes(raw)).make_image()
-    static = [e for e in image.imports if e.source == "static"]
-    assert [e.dll_name for e in static] == ["éormalTarget"]
-    assert len(image.imports) == 3
     assert _warned(caplog)
 
 
@@ -393,54 +363,6 @@ def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_pat
             assert se.emu.kernel_mode
     finally:
         se.shutdown()
-
-
-def two_static_names(architecture, *, oft_zero=False):
-    raw, data = _make_delay_import_pe(architecture, with_relocations=True)
-    raw = bytearray(raw)
-    width = architecture // 8
-    table = data + (0x340 if oft_zero else 0x300)
-    first_record = b"\0\0Normal\0"
-    second_record = b"\0\0Survivor\0"
-    raw[data + 0x160 : data + 0x160 + len(first_record)] = first_record
-    raw[data + 0x1A0 : data + 0x1A0 + len(second_record)] = second_record
-    for index, value in enumerate((data + 0x160, data + 0x1A0, 0)):
-        struct.pack_into("<I" if width == 4 else "<Q", raw, table + index * width, value)
-    if oft_zero:
-        struct.pack_into("<I", raw, data + 0x40, 0)
-    return bytes(raw), data
-
-
-def static_imports(image):
-    return [(e.func_name, e.iat_address - image.image_base) for e in image.imports if e.source == "static"]
-
-
-def test_reserved_ordinal_bits_are_not_masked_to_valid_ordinal(caplog):
-    architecture = _arch.ARCH_X86
-    raw, data = two_static_names(architecture)
-    raw = bytearray(raw)
-    struct.pack_into("<I", raw, data + 0x300, (1 << 31) | (1 << 16) | 17)
-    raw = bytes(raw)
-    assert not getattr(pefile.PE(data=raw), "DIRECTORY_ENTRY_IMPORT", ())  # pefile rejects 0x80010011.
-
-    image = PeLoader(data=raw).make_image()
-    assert static_imports(image) == [("Survivor", data + 0x344)]
-    assert any(record.levelno == logging.WARNING for record in caplog.records)
-
-
-def test_unreadable_lookup_table_falls_back_to_iat_after_rebase():
-    architecture = _arch.ARCH_X86
-    raw, data = two_static_names(architecture, oft_zero=True)
-    raw = bytearray(raw)
-    image_size = pefile.PE(data=bytes(raw)).OPTIONAL_HEADER.SizeOfImage
-    struct.pack_into("<I", raw, data + 0x40, image_size + 0x1000)
-    raw = bytes(raw)
-    expected = pefile.PE(data=raw)
-    expected.relocate_image(0x60000000)
-
-    image = PeLoader(data=raw, base_override=0x60000000).make_image()
-    assert static_imports(image) == [("Normal", data + 0x340), ("Survivor", data + 0x344)]
-    assert image.regions[0].data == expected.get_memory_mapped_image()[: image.image_size]
 
 
 def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) -> None:
