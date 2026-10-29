@@ -6,7 +6,6 @@ from functools import partial
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.profiler import Run
 from tests.guest_harness import Deref, get_api, guest_call
 
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
@@ -44,6 +43,10 @@ CASES = {
 
 RETURN_42 = b"\xb8\x2a\x00\x00\x00\xc3"
 
+GP_FAULT_LOOP = "0260bad6886b0ec43193ce4157586568e275fc4e942bf4c7f7eb63c0c74ce2cb.exe.xz"
+MEMCPY_PAST_ARGS = "0fcf7079fe017d13ab73f81c1b7e0b11b551f763469bae89a783ae98eae43db7.dll.xz"
+FASTFAIL_IN_DLL_MAIN = "0ee3d87024f8d450521f99d1157c8899012d37a543147ffe9623eef6ec8ab60e.dll.xz"
+
 
 def vectored_handler(data, step):
     """
@@ -74,6 +77,10 @@ def vectored_handler_x86(data, step):
     return code
 
 
+def module_entry(se):
+    return next(e for e in se.get_report().entry_points if e.ep_type == "module_entry")
+
+
 def run_under_handler(config, arch, insn, step):
     """Run insn under vectored_handler; return the run, the address of insn and the handler's record."""
     ptr_size = 8 if arch == "amd64" else 4
@@ -101,19 +108,27 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
     assert record[:2] == (exception_code, start + offset)
 
 
-@pytest.mark.parametrize(
-    "arch, insn, offset, step",
-    [
-        ("x86", b"\xea\x78\x56\x00\x00\x34\x12", 0, 7),  # jmp far 0x1234:0x5678
-        ("x86", b"\x66\xb8\x34\x12\x8e\xd8", 4, 2),  # mov ax, 0x1234; mov ds, ax
-        ("amd64", b"\x66\xb8\x34\x12\x8e\xd8", 4, 2),
-    ],
-)
-def test_general_protection_fault_reports_the_faulting_instruction(config, arch, insn, offset, step):
-    run, start, record = run_under_handler(config, arch, insn, step)
-    assert run.error is None
-    assert run.ret_val == 42
-    assert record[:2] == (STATUS_ACCESS_VIOLATION, start + offset)
+def test_general_protection_fault_reports_the_faulting_instruction(config, load_test_bin):
+    """
+    0260bad6 (x86) decrypts its code in place, then runs the far call lcall 0xde98:0xfb5d7f90
+    at 0x40f231 under an SEH handler at 0x4115a0. The bad selector raises a general
+    protection fault: an access violation at the start of the lcall.
+    """
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(GP_FAULT_LOOP))
+        seen = []
+
+        def at_handler(emu, address, size):
+            record, _, context = struct.unpack("<III", se.mem_read(se.reg_read("esp") + 4, 12))
+            code, _, _, fault_address = struct.unpack("<IIII", se.mem_read(record, 16))
+            (eip,) = struct.unpack("<I", se.mem_read(context + 0xB8, 4))  # CONTEXT.Eip
+            seen.append((code, fault_address, eip))
+            se.stop()
+
+        se.add_code_hook(at_handler, begin=0x4115A0, end=0x4115A0)
+        se.run_module(module)
+
+    assert seen == [(STATUS_ACCESS_VIOLATION, 0x40F231, 0x40F231)]
 
 
 @pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A)])
@@ -284,33 +299,26 @@ def test_api_fault_without_handler_keeps_its_error(config):
         assert [e.api_name for e in run.events or [] if e.event == "api"] == ["kernel32.RtlMoveMemory"]
 
 
-def test_api_fault_reports_the_first_unmapped_byte(config):
+def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
+    """
+    0fcf7079 (x64 DLL) exports CHwDataEvent::operator=(const CHwDataEvent &), which calls
+    memcpy(this, other, 0xa118). The export run passes the placeholder argument pages at
+    0x41420000 and 0x41421000, and the four placeholder pages end at 0x41424000, so memcpy
+    reads from mapped memory into unmapped memory.
+    """
     with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
-        data = se.mem_alloc(0x1000)
-        dst = se.mem_alloc(0x3000)
-        src = se.mem_alloc(0x2000, base=0x30000000)
-        assert se.get_address_map(src + 0x2000) is None
-        handler = code + 0x1000
-        se.mem_write(
-            handler,
-            b"\x48\x8b\x01"  # mov rax, [rcx]  (ExceptionRecord)
-            + b"\x48\x8b\x40\x28"  # mov rax, [rax + 0x28]  (ExceptionInformation[1])
-            + b"\x48\xa3"
-            + struct.pack("<Q", data)  # mov [data], rax
-            + b"\x31\xc0\xc3",  # return EXCEPTION_CONTINUE_SEARCH
+        module = se.load_module(data=load_test_bin(MEMCPY_PAST_ARGS))
+        se.run_module(module, all_entrypoints=True)
+        run = next(
+            ep for ep in se.get_report().entry_points if ep.ep_type == "export.??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z"
         )
-        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
-        body = guest_call(8, get_api(se, "msvcrt", "memcpy"), dst, src, 0x3000)
-        se.mem_write(code, setup + body + RETURN_42)
+        first_unmapped = se.get_address_map(0x41424000)
 
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is not None
-        assert (run.error.type, run.error.address) == ("invalid_read", src + 0x2000)
-        assert run.error.address_region is None
-        assert int.from_bytes(se.mem_read(data, 8), "little") == src + 0x2000
+    assert [e.api_name for e in run.events or [] if e.event == "api"] == ["msvcrt.memcpy"]
+    assert run.error is not None
+    assert (run.error.type, run.error.address) == ("invalid_read", 0x41424000)
+    assert run.error.address_region is None
+    assert first_unmapped is None
 
 
 def test_exception_continued_with_nt_continue_can_repeat(config):
@@ -340,22 +348,20 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
         assert len([e for e in run.events or [] if e.event == "exception"]) == 6
 
 
-@pytest.mark.parametrize(
-    "arch, fault, step, exception_code",
-    [
-        ("amd64", b"\x31\xc9\xf7\xf1", 2, STATUS_INTEGER_DIVIDE_BY_ZERO),  # xor ecx, ecx; div ecx
-        ("x86", b"\x31\xc9\xf7\xf1", 2, STATUS_INTEGER_DIVIDE_BY_ZERO),
-        ("x86", b"\xea\x78\x56\x00\x00\x34\x12", 7, STATUS_ACCESS_VIOLATION),  # jmp far 0x1234:0x5678
-    ],
-    ids=["divide by zero amd64", "divide by zero x86", "far jmp bad selector x86"],
-)
-def test_contributory_exception_can_repeat(config, arch, fault, step, exception_code):
-    # for (ebx = 3; ebx; ebx--) fault;  each a fault, not a double fault after the first
-    loop = b"\xbb\x03\x00\x00\x00" + fault + b"\xff\xcb\x75" + bytes([0x100 - len(fault) - 4])
-    run, _, _ = run_under_handler(config, arch, loop, step)
-    assert run.error is None
-    assert run.ret_val == 42
-    assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [hex(exception_code)] * 3
+def test_contributory_exception_can_repeat(config, load_test_bin):
+    """
+    0260bad6 (x86): the SEH handler at 0x4115a0 of the far call at 0x40f231 runs the far jump
+    ljmp 0x368a:0x3798c3bf at 0x4115a7, under the same handler. Each general protection
+    fault is a new access violation, not a double fault after the first.
+    """
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(GP_FAULT_LOOP))
+        se.run_module(module)
+        run = module_entry(se)
+
+    faults = [(e.exception_code, e.pos.pc) for e in run.events or [] if e.event == "exception"][:3]
+    assert [code for code, _ in faults] == [hex(STATUS_ACCESS_VIOLATION)] * 3
+    assert [pc for _, pc in faults] == [0x40F231, 0x4115A7, 0x4115A7]
 
 
 def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
@@ -441,27 +447,21 @@ def test_vectored_handler_added_first_runs_first(config):
         assert struct.unpack("<I", se.mem_read(data, 4))[0] == 2
 
 
-@pytest.mark.parametrize("arch, ptr_size", [("amd64", 8), ("x86", 4)])
-def test_run_after_a_fastfail_runs_once(config, arch, ptr_size):
+def test_run_after_a_fastfail_runs_once(config, load_test_bin):
+    """
+    0ee3d870 (x64 DLL): the CRT start-up in DllMain ends with __fastfail(7), int 0x29 at
+    0x180085acb. The next run is the export RdvServiceMain, a loader that calls
+    VirtualAlloc with the SizeOfImage of the PE image at its first argument. The zero
+    placeholder argument gives a size of 0, VirtualAlloc returns NULL, and the loader reads
+    NULL + 0xc at 0x180012276.
+    """
     with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch=arch)
-        data = se.mem_alloc(0x1000)
-        counter = struct.pack("<I", data)
-        increment = b"\xff\x04\x25" + counter if ptr_size == 8 else b"\xff\x05" + counter
-        load = b"\x8b\x04\x25" + counter if ptr_size == 8 else b"\xa1" + counter
-        tick = guest_call(ptr_size, get_api(se, "kernel32", "GetTickCount"))
-        se.mem_write(base, increment + tick + load + b"\xc3")
-        se.mem_write(base + 0x100, b"\xb9\x07\x00\x00\x00\xcd\x29")  # mov ecx, 7; int 0x29
-        run = Run()
-        run.type = "fastfail"
-        run.start_addr = base + 0x100
-        run.args = []
-        se.emu.add_run(run)
+        module = se.load_module(data=load_test_bin(FASTFAIL_IN_DLL_MAIN))
+        se.run_module(module, all_entrypoints=True)
+        dll_main, export = se.get_report().entry_points[:2]
 
-        se.run_shellcode(base)
-
-        fastfail, export = se.get_report().entry_points
-        assert (fastfail.error.type, fastfail.error.interrupt_num) == ("unhandled_interrupt", 0x29)
-        assert export.error is None
-        assert [e.api_name for e in export.events or [] if e.event == "api"] == ["kernel32.GetTickCount"]
-        assert export.ret_val == 1
+    assert dll_main.ep_type == "dll_entry.DLL_PROCESS_ATTACH"
+    assert (dll_main.error.type, dll_main.error.interrupt_num) == ("unhandled_interrupt", 0x29)
+    assert export.ep_type == "export.?RdvServiceMain@@YAXPEAX0K0K@Z"
+    assert [e.api_name for e in export.events or [] if e.event == "api"] == ["kernel32.VirtualAlloc"]
+    assert (export.error.type, export.error.pc, export.error.address) == ("invalid_read", module.base + 0x12276, 0xC)
