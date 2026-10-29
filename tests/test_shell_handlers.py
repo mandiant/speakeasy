@@ -351,25 +351,11 @@ def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.
     assert call(se, "com_api", "IMalloc.HeapMinimize", [obj])[0] is None
 
 
-def _call_wbem_services_slot(se: Speakeasy, slot: int) -> int:
-    """Call IWbemServices method ``slot`` with a pointer for ``ppObject`` and return that pointer."""
-    code = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
-    assert se.emu is not None
-    vtable = se.emu.com.get_interface(se.emu, 4, "IWbemServices").address
-    obj = se.mem_alloc(0x100)
-    se.mem_write(obj, struct.pack("<II", vtable, 0xCCCCCCCC))
-    pushes = b"\x6a\x00" + b"\x68" + struct.pack("<I", obj + 4) + b"\x6a\x00" * 3 + b"\x68" + struct.pack("<I", obj)
-    se.mem_write(code, pushes + b"\xb8" + struct.pack("<I", vtable + slot * 4) + b"\xff\x10\xc3")
-    se.run_shellcode(code)
-    return obj + 4
-
-
-def test_com_method_without_a_handler_is_an_unsupported_api(config: dict) -> None:
-    with Speakeasy(config=config) as se:
-        _call_wbem_services_slot(se, 14)
-        run = se.get_report().entry_points[0]
-        assert run.error is not None
-        assert (run.error.type, run.error.api_name) == ("unsupported_api", "com_api.IWbemServices.PutInstance")
+def test_com_method_without_a_handler_is_an_unsupported_api(config: dict, load_test_bin, run_test) -> None:
+    """wmi_cases.c connects to WMI and calls IWbemServices::PutInstance, which has no handler."""
+    run = run_test(config, load_test_bin("wmi_cases_x86.exe.xz")).entry_points[0]
+    assert run.error is not None
+    assert (run.error.type, run.error.api_name) == ("unsupported_api", "com_api.IWbemServices.PutInstance")
 
 
 def test_rtl_compute_crc32_continues_from_the_initial_value(dll_emu: Speakeasy) -> None:
