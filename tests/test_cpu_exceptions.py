@@ -377,6 +377,18 @@ def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
         assert (run.error.type, run.error.pc) == ("engine_stopped", code + 1)
 
 
+def test_invalid_instruction_without_handler_dispatch_ends_the_run(config):
+    config["exceptions"]["dispatch_handlers"] = False
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\x90\x0f\x0b" + RETURN_42, arch="x86")  # nop; ud2
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.pc) == ("Invalid instruction (UC_ERR_INSN_INVALID)", code + 1)
+
+
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
     # mov al, 0xf4 stopped by the instruction limit right after it
     config.update(max_instructions=1)

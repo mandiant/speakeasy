@@ -81,3 +81,18 @@ def test_each_public_run_has_a_fresh_budget(capped_session):
     for run in runs:
         assert_limit(run, 1)
         assert int(run.error.pc) == base + 1
+
+
+def test_cap_reached_at_an_api_trap_reports_the_public_entry(capped_session):
+    # MOV EAX,GetTickCount; CALL EAX; RET. The x86 API stub is five instructions:
+    # mov edi, edi; push ebp; mov ebp, esp; pop ebp; jmp trap. The cap of seven
+    # runs out when the jump reaches the private trap, before the API runs.
+    se = capped_session(7)
+    base = se.load_shellcode(data=b"\xb8\0\0\0\0\xff\xd0\xc3", arch="x86")
+    api = se.emu.get_proc("kernel32", "GetTickCount")
+    se.mem_write(base + 1, api.to_bytes(4, "little"))
+    se.run_shellcode(base)
+    run = se.get_report().entry_points[0]
+    assert_limit(run, 7)
+    assert int(run.error.pc) == api
+    assert not [event for event in run.events or [] if event.event == "api"]

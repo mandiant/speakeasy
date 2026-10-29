@@ -7,12 +7,15 @@ import sys
 import textwrap
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import capstone
 import pytest
 
 from speakeasy import Speakeasy
+from tests.guest_harness import get_api, guest_call
 
 TESTS_DIR = os.path.dirname(__file__)
 
@@ -119,6 +122,11 @@ class GdbRspClient:
     def send_no_wait(self, data: str):
         packet = f"${data}#{self._checksum(data)}"
         self.sock.sendall(packet.encode())
+
+    def kill(self):
+        """Send k and wait for its ack, as GDB does. The server does not reply to k."""
+        self.send_no_wait("k")
+        assert self.sock.recv(1) == b"+"
 
     def interrupt(self) -> str:
         self.sock.sendall(b"\x03")
@@ -1264,3 +1272,191 @@ def test_gdb_resumes_after_a_timeout_log_it_once(config, caplog):
 
     assert all(stop.startswith("T05") for stop in stops)
     assert sum("Timeout of" in record.message for record in caplog.records) == 1
+
+
+@contextmanager
+def _serve(se: Speakeasy, port: int, address: int) -> Iterator[GdbRspClient]:
+    """Run the shellcode at address in a thread under the GDB server of se, and connect to it."""
+    server = threading.Thread(target=se.run_shellcode, args=(address,))
+    server.start()
+    deadline = time.monotonic() + 15
+    while not _port_is_listening(port) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    client = GdbRspClient(port)
+    try:
+        assert client.query_halt_reason().startswith(("S05", "T05"))
+        yield client
+    finally:
+        client.close()
+        server.join(timeout=10)
+    assert not server.is_alive()
+
+
+def test_gdb_breakpoint_instruction_counts_once_toward_the_instruction_limit(config):
+    config["max_instructions"] = 6
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        # loop: nop; nop; nop; nop; jmp loop
+        address = se.load_shellcode(data=bytes.fromhex("90909090ebfa"), arch="x86")
+        with _serve(se, port, address) as client:
+            assert client.query(f"Z0,{address + 2:x},1") == "OK"
+            assert "swbreak:" in client.continue_()
+            assert client.read_x86_registers().eip == address + 2
+            # nop, nop, then the nop at the breakpoint, nop, jmp, nop: the next one is the seventh.
+            stop = client.continue_()
+            assert stop.startswith("T05") and "swbreak:" not in stop
+            assert client.read_x86_registers().eip == address + 1
+            client.kill()
+
+
+def test_gdb_resume_at_another_pc_runs_the_code_there_instead_of_ending_the_run(config):
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        address = se.load_shellcode(data=b"\x90" * 0x20, arch="x86")
+        scratch = se.mem_alloc(0x1000)
+        code = b"\xc3"  # ret
+        code += b"\x90" * 15
+        code += b"\xc6\x05" + struct.pack("<I", scratch) + b"\x01"  # mov byte [scratch], 1
+        code += b"\x83\xec\x04"  # sub esp, 4
+        code += b"\xc3"  # ret
+        se.mem_write(address, code)
+        with _serve(se, port, address) as client:
+            esp = client.read_x86_registers().esp
+            assert client.query(f"Z3,{esp:x},4") == "OK"
+            # The ret reads the return address and stops at the return hook with the end of the run pending.
+            assert f"rwatch:{esp:x}" in client.continue_()
+            assert client.query(f"z3,{esp:x},4") == "OK"
+            assert client.query(f"P8={struct.pack('<I', address + 0x10).hex()}") == "OK"
+            assert client.query(f"Z0,{address + 0x1A:x},1") == "OK"
+            assert "swbreak:" in client.continue_()
+            assert client.read_memory(scratch, 1) == "01"
+            assert client.continue_().startswith("T05")
+            assert client.continue_() == "W00"
+        (run,) = se.get_report().entry_points
+        assert run.error is None
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["89e0ffe0"], indirect=True)  # mov eax, esp; jmp eax
+def test_gdb_stops_at_fetch_from_non_executable_page(gdb_shellcode_emulator):
+    port, proc, _, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        esp = client.read_x86_registers().esp
+        assert client.continue_().startswith("T0b")
+        assert client.read_x86_registers().eip == esp
+        assert client.continue_() == "X0b"
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] == "invalid_protect_fetch"
+
+
+def test_gdb_stops_at_fault_in_api_handler_that_runs_guest_code(config):
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        record = 0xDEAD0000
+        address = se.load_shellcode(data=b"\xcc" * 0x100, arch="amd64")
+        unwind = get_api(se, "ntdll", "RtlUnwindEx")
+        se.mem_write(address, guest_call(8, unwind, 0, 0, record, 0, 0, 0) + b"\xb8\x2a\0\0\0\xc3")
+        with _serve(se, port, address) as client:
+            assert client.continue_().startswith("T0b")
+            assert client.continue_() == "X0b"
+        (run,) = se.get_report().entry_points
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_read", record)
+
+
+@pytest.mark.parametrize(("resume", "reply"), [("c", "W00"), ("D", "OK"), ("k", None)])
+def test_gdb_resume_after_total_time_ends_emulation(config, resume, reply):
+    config.update(timeout=0, max_total_time=0.2)
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        address = se.load_shellcode(data=b"\xeb\xfe", arch="x86")  # jmp $
+        with _serve(se, port, address) as client:
+            assert client.continue_().startswith("T05")
+            assert client.read_x86_registers().eip == address
+            if reply is None:
+                client.kill()
+            else:
+                assert client.query(resume) == reply
+        (run,) = se.get_report().entry_points
+        assert run.error is not None and run.error.type == "max_total_time"
+
+
+@pytest.mark.parametrize(("resume", "runs"), [("D", 2), ("k", 1)])
+def test_gdb_detach_at_api_handler_error_runs_the_next_runs(config, resume, runs):
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        address = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
+        thread = address + 0x80
+        code = guest_call(4, get_api(se, "kernel32", "CreateThread"), 0, 0, thread, 0, 0, 0)
+        # The handler reads its source at 0x10, which is not mapped.
+        code += guest_call(4, get_api(se, "kernel32", "RtlMoveMemory"), 0x1000, 0x10, 4) + b"\xc3"
+        se.mem_write(address, code)
+        se.mem_write(thread, b"\xb8\x2a\0\0\0\xc3")  # mov eax, 42; ret
+        with _serve(se, port, address) as client:
+            assert client.continue_().startswith("T0b")
+            if resume == "D":
+                assert client.query(resume) == "OK"
+            else:
+                client.kill()
+        reported = se.get_report().entry_points
+        assert len(reported) == runs
+        assert reported[0].error is not None
+        if runs == 2:
+            assert (reported[1].error, reported[1].ret_val) == (None, 42)
+
+
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["c3"], indirect=True)  # ret
+@pytest.mark.parametrize(("resume", "reply"), [("D", "OK"), ("k", None)])
+def test_gdb_leave_at_the_final_stop(gdb_shellcode_emulator, resume, reply):
+    port, proc, _, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        assert client.continue_().startswith("T05")
+        if reply is None:
+            client.send_no_wait(resume)
+        else:
+            assert client.query(resume) == reply
+    finally:
+        client.close()
+    assert _read_server_result(proc)["error"] is None
+
+
+def test_gdb_stops_at_read_of_the_api_trap_reservation(config):
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        address = se.load_shellcode(data=b"\x90" * 6, arch="x86")
+        trap_base = se.emu.api_registry.trap_base
+        se.mem_write(address, b"\xa1" + struct.pack("<I", trap_base) + b"\xc3")  # mov eax, [trap_base]; ret
+        with _serve(se, port, address) as client:
+            assert client.continue_().startswith("T0b")
+            assert client.read_x86_registers().eip == address
+            assert client.continue_() == "X0b"
+        (run,) = se.get_report().entry_points
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_read", trap_base)
+
+
+def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
+    config.update(timeout=0, max_total_time=0.05)
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        # mov eax, GetTickCount; call eax; ret
+        address = se.load_shellcode(data=b"\xb8\0\0\0\0\xff\xd0\xc3", arch="x86")
+        se.mem_write(address + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+
+        def slow_tick_count(e, api, original, args):
+            time.sleep(0.1)
+            return 1
+
+        se.add_api_hook(slow_tick_count, "kernel32", "GetTickCount", argc=0)
+        with _serve(se, port, address) as client:
+            # mov, call, then the API stub: mov edi, edi; push ebp; mov ebp, esp; pop ebp; jmp trap
+            for _ in range(7):
+                assert client.step().startswith("T05")
+            assert client.read_x86_registers().eip == address + 7
+            assert client.continue_() == "W00"
+        (run,) = se.get_report().entry_points
+        assert run.error is not None and run.error.type == "max_total_time"

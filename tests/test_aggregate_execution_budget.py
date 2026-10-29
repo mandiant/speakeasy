@@ -98,3 +98,49 @@ def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
         assert se.reg_read("eax") == 0
     finally:
         se.shutdown()
+
+
+def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
+    config.update(timeout=5, max_total_time=0.05)
+    with Speakeasy(config=config) as se:
+        # PUSH 0; MOV EAX,ExitProcess; CALL EAX; RET
+        base = se.load_shellcode(data=b"\x6a\x00\xb8\0\0\0\0\xff\xd0\xc3", arch="x86")
+        se.mem_write(base + 3, se.emu.get_proc("kernel32", "ExitProcess").to_bytes(4, "little"))
+
+        def slow_exit_process(e, api, original, args):
+            time.sleep(0.1)
+            return original(args)
+
+        se.add_api_hook(slow_exit_process, "kernel32", "ExitProcess")
+        se.run_shellcode(base)
+
+        (run,) = se.get_report().entry_points
+        assert run.error is not None and run.error.type == "max_total_time"
+        assert [event.api_name for event in run.events or [] if event.event == "api"] == ["kernel32.ExitProcess"]
+
+
+def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog):
+    config.update(timeout=5, max_total_time=0.05, max_api_count=1)
+    with Speakeasy(config=config) as se:
+        # CreateThread(NULL, 0, thread, NULL, 0, NULL); MOV EAX,GetTickCount; CALL EAX; RET; thread: RET
+        code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0"
+        code += b"\xb8\0\0\0\0\xff\xd0\xc3"
+        thread = len(code)
+        code += b"\xc3"
+        base = se.load_shellcode(data=code, arch="x86")
+        se.mem_write(base + 7, (base + thread).to_bytes(4, "little"))
+        se.mem_write(base + 16, se.emu.get_proc("kernel32", "CreateThread").to_bytes(4, "little"))
+        se.mem_write(base + 23, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+
+        def slow_tick_count(e, api, original, args):
+            time.sleep(0.1)
+            return 1
+
+        # The second API call reaches max_api_count, so the run ends and the thread's run
+        # is prepared. The time of the slow call then uses up max_total_time.
+        se.add_api_hook(slow_tick_count, "kernel32", "GetTickCount", argc=0)
+        se.run_shellcode(base)
+
+        (run,) = se.get_report().entry_points
+        assert run.error is not None and run.error.type == "max_api_count"
+        assert sum("Total execution time" in record.message for record in caplog.records) == 1
