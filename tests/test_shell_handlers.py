@@ -18,6 +18,8 @@ from speakeasy.winenv.defs.windows import com
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
+UNREAL_LAUNCHER = "0fdd25efd471f2b6c16866c418320102885d179de35da115a8a0a49915e94d38.exe.xz"
+
 
 def wstr(text: str, width: int) -> bytes:
     return (text + "\x00").encode("utf-16le" if width == 2 else "utf-8")
@@ -706,20 +708,48 @@ def test_shell_execute_fails_for_an_empty_program_name(dll_emu: Speakeasy, name:
     assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
 
 
-@pytest.mark.parametrize("mask", [0, 0x40], ids=["no process handle", "SEE_MASK_NOCLOSEPROCESS"])
-def test_shell_execute_ex_writes_h_inst_app_and_h_process(dll_emu: Speakeasy, mask: int) -> None:
+def test_shell_execute_ex_writes_h_inst_app_without_a_process_handle(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     fn = alloc(dll_emu, wstr("C:\\x.exe", 2))
-    sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, mask, 0, 0, fn, 0, 0, 1, 0) + b"\x00" * 24)
+    sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, 0, 0, 0, fn, 0, 0, 1, 0) + b"\x00" * 24)
     rv, _ = call(dll_emu, "shell32", "ShellExecuteExW", [sei])
     assert rv == 1
     assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] > 32
-    h_process = struct.unpack("<I", dll_emu.mem_read(sei + 56, 4))[0]
-    if mask:
-        assert h_process != 0
-        assert call(dll_emu, "kernel32", "WaitForSingleObject", [h_process, 0])[0] != 0xFFFFFFFF
-    else:
-        assert h_process == 0
+    assert struct.unpack("<I", dll_emu.mem_read(sei + 56, 4))[0] == 0
+
+
+def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_test_bin) -> None:
+    """
+    0fdd25ef is an Unreal Engine game launcher (x64). When the VC++ runtime is missing, it
+    runs UEPrereqSetup_x64.exe with ShellExecuteExW and SEE_MASK_NOCLOSEPROCESS, from a
+    SHELLEXECUTEINFOW at rsp+0x40. It then waits on the hProcess member and reads the exit
+    code of the setup program.
+    """
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(UNREAL_LAUNCHER))
+        sei = []
+        wait_result = []
+
+        def after_shell_execute_ex(emu: Any, address: int, size: int) -> None:
+            sei.append(se.mem_read(se.get_stack_ptr() + 0x40, 0x70))
+
+        def after_wait(emu: Any, address: int, size: int) -> None:
+            wait_result.append(se.reg_read("eax"))
+            se.stop()
+
+        se.add_code_hook(after_shell_execute_ex, begin=0x14000136E, end=0x14000136E)
+        se.add_code_hook(after_wait, begin=0x14000138D, end=0x14000138D)
+        se.run_module(module)
+        events = [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+
+    cb_size, mask = struct.unpack_from("<II", sei[0])
+    h_inst_app, h_process = struct.unpack_from("<Q", sei[0], 0x38)[0], struct.unpack_from("<Q", sei[0], 0x68)[0]
+    assert (cb_size, mask) == (0x70, 0x40)  # SEE_MASK_NOCLOSEPROCESS
+    assert h_inst_app > 32
+    assert h_process != 0
+    wait = next(e for e in events if e.api_name == "kernel32.WaitForSingleObject")
+    assert wait.args[0].value == h_process
+    assert wait_result == [0]  # WAIT_OBJECT_0
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
