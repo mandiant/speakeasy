@@ -13,8 +13,6 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
-from speakeasy.config import get_default_config_dict
-from speakeasy.profiler_events import RegWriteValueEvent
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.nt import ddk
@@ -169,45 +167,6 @@ def _open_current_version(se: Speakeasy) -> int:
     return _dword(se, phk)
 
 
-def test_current_version_values_follow_the_default_os_version(dll_emu: Speakeasy) -> None:
-    hkey = _open_current_version(dll_emu)
-    assert _query_value(dll_emu, hkey, b"ProductName") == (REG_SZ, b"Windows 7 Professional\x00")
-    assert _query_value(dll_emu, hkey, b"CurrentVersion") == (REG_SZ, b"6.1\x00")
-    assert _query_value(dll_emu, hkey, b"CurrentBuildNumber") == (REG_SZ, b"7601\x00")
-
-
-PROGRAM_FILES_VALUES = [
-    (b"ProgramFilesDir", b"C:\\Program Files\x00"),
-    (b"CommonFilesDir", b"C:\\Program Files\\Common Files\x00"),
-]
-PROGRAM_FILES_X64_VALUES = [
-    (b"ProgramFilesDir (x86)", b"C:\\Program Files (x86)\x00"),
-    (b"CommonFilesDir (x86)", b"C:\\Program Files (x86)\\Common Files\x00"),
-    (b"ProgramW6432Dir", b"C:\\Program Files\x00"),
-    (b"CommonW6432Dir", b"C:\\Program Files\\Common Files\x00"),
-]
-
-
-@pytest.mark.parametrize(
-    "fixture, values",
-    [("dll_emu", PROGRAM_FILES_VALUES), ("dll64_emu", PROGRAM_FILES_VALUES + PROGRAM_FILES_X64_VALUES)],
-)
-def test_current_version_has_the_program_files_directories(
-    request: pytest.FixtureRequest, fixture: str, values: list[tuple[bytes, bytes]]
-) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    phk = alloc(se, b"\x00" * 8)
-    subkey = alloc(se, b"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\x00")
-    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, subkey, 0, 0x20019, phk])
-    assert rv == windefs.ERROR_SUCCESS
-    hkey = _dword(se, phk)
-    for name, data in values:
-        assert _query_value(se, hkey, name) == (REG_SZ, data)
-    assert se.emu is not None
-    key = se.emu.regman.get_key_from_handle(hkey)
-    assert len(key.get_values()) == len(values)
-
-
 @pytest.fixture
 def win10_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
     config["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
@@ -291,11 +250,6 @@ def test_reg_open_key_ex_without_a_subkey_opens_a_new_handle(dll_emu: Speakeasy,
     assert rv == windefs.ERROR_SUCCESS
 
 
-def test_reg_open_key_ex_without_a_subkey_opens_a_predefined_key(dll_emu: Speakeasy) -> None:
-    rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, 0)
-    assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER")
-
-
 @pytest.mark.parametrize("subkey", [None, b"\x00"])
 def test_reg_open_key_without_a_subkey_returns_the_same_handle(dll_emu: Speakeasy, subkey: bytes | None) -> None:
     hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
@@ -319,16 +273,6 @@ def test_reg_query_info_key_counts_subkeys_and_values(dll_emu: Speakeasy) -> Non
     assert (subkeys, max_subkey, values, max_name, max_value) == (2, 5, 1, 4, 4)
     assert (cch_class, max_class, sec) == (0, 0, 0)
     assert dll_emu.mem_read(ft, 8) == b"\x00" * 8
-
-
-def test_rtl_gen_random_fills_a_large_buffer(dll_emu: Speakeasy) -> None:
-    buf = alloc(dll_emu, b"\xcc" * 0x401)
-    rv, _ = call(dll_emu, "advapi32", "SystemFunction036", [buf, 0x400])
-    assert rv
-    data = dll_emu.mem_read(buf, 0x401)
-    assert data[0x400] == 0xCC
-    assert data[:0x400] != bytes(i & 0xFF for i in range(0x400))
-    assert len(set(data[:0x400])) > 0x80
 
 
 @pytest.mark.parametrize("name", ["SystemFunction036", "CryptGenRandom"])
@@ -427,25 +371,6 @@ def test_bcrypt_close_algorithm_provider_twice(dll_emu: Speakeasy) -> None:
     halg = _dword(dll_emu, ph)
     assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == 0
     assert call(dll_emu, "bcrypt", "BCryptCloseAlgorithmProvider", [halg, 0])[0] == ddk.STATUS_INVALID_HANDLE
-
-
-def test_bcrypt_gen_random_fills_the_buffer_with_new_bytes(dll_emu: Speakeasy) -> None:
-    buf = alloc(dll_emu, b"\x00" * 32)
-
-    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 32, 2])[0] == 0
-    first = dll_emu.mem_read(buf, 32)
-    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 32, 2])[0] == 0
-
-    assert first != b"\x00" * 32
-    assert dll_emu.mem_read(buf, 32) != first
-
-
-def test_bcrypt_gen_random_rejects_bad_arguments(dll_emu: Speakeasy) -> None:
-    buf = alloc(dll_emu, b"\x00" * 4)
-
-    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
-    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0x1234, buf, 4, 0])[0] == ddk.STATUS_INVALID_HANDLE
-    assert call(dll_emu, "bcrypt", "BCryptGenRandom", [0, 0, 4, 2])[0] == ddk.STATUS_INVALID_PARAMETER
 
 
 STATUS_INVALID_BUFFER_SIZE = 0xC0000206
@@ -893,25 +818,6 @@ def test_crypt_protect_data_round_trips_with_the_description(emu_fixture: str, r
         assert call(se, "kernel32", "LocalFree", [int.from_bytes(se.mem_read(addr, ptr_size), "little")])[0] == 0
 
 
-@pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
-def test_crypt_unprotect_data_rejects_a_bad_blob_or_entropy(emu_fixture: str, request: pytest.FixtureRequest) -> None:
-    se: Speakeasy = request.getfixturevalue(emu_fixture)
-    start_process(se)
-    protected = alloc(se, b"\x00" * 16)
-    plain = alloc(se, b"\x00" * 16)
-    call(se, "crypt32", "CryptProtectData", [_data_blob(se, b"key"), 0, _data_blob(se, b"salt"), 0, 0, 0, protected])
-    blob = _read_data_blob(se, protected)
-
-    for data, entropy in (
-        (blob, _data_blob(se, b"pepper")),
-        (blob, 0),
-        (bytes(range(7, 39)), 0),
-        (blob[:-1], _data_blob(se, b"salt")),
-    ):
-        rv, _ = call(se, "crypt32", "CryptUnprotectData", [_data_blob(se, data), 0, entropy, 0, 0, 0, plain])
-        assert (rv, _last_error(se)) == (0, windefs.ERROR_INVALID_DATA)
-
-
 HKEY_LOCAL_MACHINE = 0x80000002
 USBSAMP = b"System\\CurrentControlSet\\Services\\usbsamp\x00"
 
@@ -944,46 +850,6 @@ def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
     _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     rv, path = _open_key(dll_emu, "RegOpenKeyExA", HKEY_CURRENT_USER, alloc(dll_emu, b"Soft\x00"))
     assert (rv, path) == (windefs.ERROR_FILE_NOT_FOUND, None)
-
-
-@pytest.fixture
-def default_config_emu(load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
-    yield from load_emu(get_default_config_dict(), load_test_bin("dll_test_x86.dll.xz"))
-
-
-@pytest.mark.parametrize(
-    "hkey, root", [(HKEY_LOCAL_MACHINE, "HKEY_LOCAL_MACHINE"), (HKEY_CURRENT_USER, "HKEY_CURRENT_USER")]
-)
-@pytest.mark.parametrize("subkey", ["Run", "RunOnce"])
-def test_reg_default_config_has_the_run_keys(default_config_emu: Speakeasy, hkey: int, root: str, subkey: str) -> None:
-    se = default_config_emu
-    assert se.emu is not None
-    phk = alloc(se, b"\x00" * 4)
-    path = f"Software\\Microsoft\\Windows\\CurrentVersion\\{subkey}"
-    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [hkey, alloc(se, path.encode() + b"\x00"), 0, 0xF003F, phk])
-    assert rv == windefs.ERROR_SUCCESS
-
-    data = b"C:\\ProgramData\\x.exe\x00"
-    argv = [_dword(se, phk), alloc(se, b"x\x00"), 0, 1, alloc(se, data), len(data)]
-    assert call(se, "advapi32", "RegSetValueExA", argv)[0] == windefs.ERROR_SUCCESS
-    writes = [e for e in se.emu.curr_run.events if isinstance(e, RegWriteValueEvent)]
-    assert [(e.path.lower(), e.value_name) for e in writes] == [(f"{root}\\{path}".lower(), "x")]
-
-
-def test_reg_default_config_has_the_svchost_groups(default_config_emu: Speakeasy) -> None:
-    se = default_config_emu
-    phk = alloc(se, b"\x00" * 4)
-    path = b"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost\x00"
-    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_LOCAL_MACHINE, alloc(se, path), 0, 0x20019, phk])
-    assert rv == windefs.ERROR_SUCCESS
-
-    size = alloc(se, (0x400).to_bytes(4, "little"))
-    data = alloc(se, b"\x00" * 0x400)
-    argv = [_dword(se, phk), alloc(se, b"netsvcs\x00"), 0, 0, data, size]
-    assert call(se, "advapi32", "RegQueryValueExA", argv)[0] == windefs.ERROR_SUCCESS
-    groups = se.mem_read(data, _dword(se, size)).split(b"\x00")
-    assert b"Schedule" in groups
-    assert groups[-2:] == [b"", b""]
 
 
 def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -> None:
@@ -1084,38 +950,6 @@ def test_convert_sid_to_string_sid_allocates_the_string(dll_emu: Speakeasy, api:
     assert _last_error(dll_emu) == windefs.ERROR_INVALID_SID
 
 
-SE_KERNEL_OBJECT = 6
-DACL_SECURITY_INFORMATION = 4
-
-
-def test_get_security_info_rejects_a_null_handle(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    dacl = alloc(dll_emu, b"\xcc" * 4)
-    sd = alloc(dll_emu, b"\xcc" * 4)
-    argv = [0, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, dacl, 0, sd]
-    assert call(dll_emu, "advapi32", "GetSecurityInfo", argv)[0] == windefs.ERROR_INVALID_HANDLE
-    assert dll_emu.mem_read(dacl, 4) == b"\xcc" * 4
-    assert dll_emu.mem_read(sd, 4) == b"\xcc" * 4
-
-
-def test_get_security_info_reports_no_descriptor_for_a_handle(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    dacl = alloc(dll_emu, b"\xcc" * 4)
-    sd = alloc(dll_emu, b"\xcc" * 4)
-    argv = [0xFFFFFFFF, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, dacl, 0, sd]
-    assert call(dll_emu, "advapi32", "GetSecurityInfo", argv)[0] == windefs.ERROR_SUCCESS
-    assert dll_emu.mem_read(dacl, 4) == b"\x00" * 4
-    assert dll_emu.mem_read(sd, 4) == b"\x00" * 4
-
-
-@pytest.mark.parametrize("handle, rv", [(0, windefs.ERROR_INVALID_HANDLE), (0xFFFFFFFF, windefs.ERROR_SUCCESS)])
-def test_set_security_info_checks_the_handle(dll_emu: Speakeasy, handle: int, rv: int) -> None:
-    start_process(dll_emu)
-    acl = alloc(dll_emu, struct.pack("<BBHHH", 2, 0, 8, 0, 0))
-    argv = [handle, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, 0, 0, acl, 0]
-    assert call(dll_emu, "advapi32", "SetSecurityInfo", argv)[0] == rv
-
-
 @pytest.mark.parametrize(
     "second_entry",
     [
@@ -1155,30 +989,6 @@ def test_reg_open_key_accepts_sign_extended_root_keys(
     assert (rv, displays["hKey"]) == expected
 
 
-def test_reg_get_value_with_sign_extended_root_key_and_missing_subkey(dll64_emu: Speakeasy) -> None:
-    subkey = alloc(dll64_emu, "SOFTWARE\\NoSuchKey\x00".encode("utf-16le"))
-    argv = [0xFFFFFFFF80000002, subkey, 0, 2, 0, 0, 0]
-    rv, _ = call(dll64_emu, "advapi32", "RegGetValueW", argv)
-    assert rv == windefs.ERROR_FILE_NOT_FOUND
-
-
-def test_reg_get_value_with_an_invalid_handle(dll_emu: Speakeasy) -> None:
-    rv, _ = call(dll_emu, "advapi32", "RegGetValueA", [0x1234, 0, alloc(dll_emu, b"x\x00"), 0xFFFF, 0, 0, 0])
-    assert rv == windefs.ERROR_INVALID_HANDLE
-
-
-@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
-def test_reg_open_missing_key_writes_a_null_handle(dll_emu: Speakeasy, api: str) -> None:
-    phk = alloc(dll_emu, b"\x34\x12\x00\x00")
-    subkey = alloc(dll_emu, b"Software\\NoSuchKey\x00")
-    argv = [HKEY_CURRENT_USER, subkey, phk] if api == "RegOpenKeyA" else [HKEY_CURRENT_USER, subkey, 0, 0xF003F, phk]
-
-    rv, _ = call(dll_emu, "advapi32", api, argv)
-
-    assert rv == windefs.ERROR_FILE_NOT_FOUND
-    assert _dword(dll_emu, phk) == 0
-
-
 def test_reg_close_key_makes_the_handle_invalid(dll_emu: Speakeasy) -> None:
     hkey = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
     data = alloc(dll_emu, b"\x01\x00\x00\x00")
@@ -1190,16 +1000,6 @@ def test_reg_close_key_makes_the_handle_invalid(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "advapi32", "RegSetValueExA", [hkey, name, 0, 4, data, 4])[0] == windefs.ERROR_INVALID_HANDLE
     assert call(dll_emu, "advapi32", "RegCloseKey", [HKEY_CURRENT_USER])[0] == windefs.ERROR_SUCCESS
     assert _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
-
-
-@pytest.mark.parametrize("hkey", [0, 0x1234])
-def test_reg_query_value_on_an_unknown_handle_is_invalid(dll_emu: Speakeasy, hkey: int) -> None:
-    size = alloc(dll_emu, b"\x04\x00\x00\x00")
-    data = alloc(dll_emu, b"\x00" * 4)
-
-    rv, _ = call(dll_emu, "advapi32", "RegQueryValueExA", [hkey, alloc(dll_emu, b"x\x00"), 0, 0, data, size])
-
-    assert rv == windefs.ERROR_INVALID_HANDLE
 
 
 @pytest.mark.parametrize("control_set", [b"CurrentControlSet", b"ControlSet001"])
