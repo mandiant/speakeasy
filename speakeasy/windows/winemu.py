@@ -3766,107 +3766,31 @@ class WindowsEmulator(BinaryEmulator):
         """
         if thread:
             return thread.get_context()
+        if self.get_arch() == _arch.ARCH_AMD64:
+            ctx = self.wintypes.CONTEXT64(self.get_ptr_size())
+            ctx.ContextFlags = thread_context.CONTEXT_ALL_AMD64
+            registers = thread_context.CPU_REGISTERS_AMD64
         else:
             ctx = self.wintypes.CONTEXT(self.get_ptr_size())
-            if self.get_arch() == _arch.ARCH_X86:
-                ctx.Edi = self.reg_read(_arch.X86_REG_EDI)
-                ctx.Esi = self.reg_read(_arch.X86_REG_ESI)
-                ctx.Eax = self.reg_read(_arch.X86_REG_EAX)
-                ctx.Ebp = self.reg_read(_arch.X86_REG_EBP)
-                ctx.Edx = self.reg_read(_arch.X86_REG_EDX)
-                ctx.Ecx = self.reg_read(_arch.X86_REG_ECX)
-                ctx.Ebx = self.reg_read(_arch.X86_REG_EBX)
-                ctx.Esp = self.reg_read(_arch.X86_REG_ESP)
-                ctx.Eip = self.reg_read(_arch.X86_REG_EIP)
-
-                ctx.EFlags = self.reg_read(_arch.X86_REG_EFLAGS)
-                ctx.SegCs = self.reg_read(_arch.X86_REG_CS)
-                ctx.SegSs = self.reg_read(_arch.X86_REG_SS)
-                ctx.SegDs = self.reg_read(_arch.X86_REG_DS)
-                ctx.SegFs = self.reg_read(_arch.X86_REG_FS)
-                ctx.SegGs = self.reg_read(_arch.X86_REG_GS)
-                ctx.SegEs = self.reg_read(_arch.X86_REG_ES)
-                ctx.ContextFlags = thread_context.CONTEXT_ALL_I386
-            elif self.get_arch() == _arch.ARCH_AMD64:
-                ctx = self.wintypes.CONTEXT64(self.get_ptr_size())
-                ctx.Rax = self.reg_read(_arch.AMD64_REG_RAX)
-                ctx.Rbx = self.reg_read(_arch.AMD64_REG_RBX)
-                ctx.Rcx = self.reg_read(_arch.AMD64_REG_RCX)
-                ctx.Rdx = self.reg_read(_arch.AMD64_REG_RDX)
-                ctx.Rsi = self.reg_read(_arch.AMD64_REG_RSI)
-                ctx.Rdi = self.reg_read(_arch.AMD64_REG_RDI)
-                ctx.Rbp = self.reg_read(_arch.AMD64_REG_RBP)
-                ctx.Rsp = self.reg_read(_arch.AMD64_REG_RSP)
-                ctx.Rip = self.reg_read(_arch.AMD64_REG_RIP)
-                ctx.R8 = self.reg_read(_arch.AMD64_REG_R8)
-                ctx.R9 = self.reg_read(_arch.AMD64_REG_R9)
-                ctx.R10 = self.reg_read(_arch.AMD64_REG_R10)
-                ctx.R11 = self.reg_read(_arch.AMD64_REG_R11)
-                ctx.R12 = self.reg_read(_arch.AMD64_REG_R12)
-                ctx.R13 = self.reg_read(_arch.AMD64_REG_R13)
-                ctx.R14 = self.reg_read(_arch.AMD64_REG_R14)
-                ctx.R15 = self.reg_read(_arch.AMD64_REG_R15)
-                ctx.EFlags = self.reg_read(_arch.X86_REG_EFLAGS)
-                ctx.SegCs = self.reg_read(_arch.X86_REG_CS)
-                ctx.SegSs = self.reg_read(_arch.X86_REG_SS)
-                ctx.SegDs = self.reg_read(_arch.X86_REG_DS)
-                ctx.SegFs = self.reg_read(_arch.X86_REG_FS)
-                ctx.SegGs = self.reg_read(_arch.X86_REG_GS)
-                ctx.SegEs = self.reg_read(_arch.X86_REG_ES)
-                ctx.ContextFlags = thread_context.CONTEXT_ALL_AMD64
-            thread = self.get_current_thread()
-            if thread is not None:
-                thread_context.get_debug_registers(thread, ctx)
+            ctx.ContextFlags = thread_context.CONTEXT_ALL_I386
+            registers = thread_context.CPU_REGISTERS_I386
+        for name, reg in registers.items():
+            setattr(ctx, name, self.reg_read(reg))
+        thread = self.get_current_thread()
+        if thread is not None:
+            thread_context.get_debug_registers(thread, ctx)
         return ctx
 
     def load_thread_context(self, ctx, thread=None):
         """
         Set the current thread CPU context
         """
-        if self.get_arch() == _arch.ARCH_X86:
-            self.reg_write(_arch.X86_REG_EDI, ctx.Edi)
-            self.reg_write(_arch.X86_REG_ESI, ctx.Esi)
-            self.reg_write(_arch.X86_REG_EAX, ctx.Eax)
-            self.reg_write(_arch.X86_REG_EBP, ctx.Ebp)
-            self.reg_write(_arch.X86_REG_EDX, ctx.Edx)
-            self.reg_write(_arch.X86_REG_ECX, ctx.Ecx)
-            self.reg_write(_arch.X86_REG_EBX, ctx.Ebx)
-            self.reg_write(_arch.X86_REG_ESP, ctx.Esp)
-            self.reg_write(_arch.X86_REG_EIP, ctx.Eip)
-
-            self.reg_write(_arch.X86_REG_EFLAGS, ctx.EFlags)
-            self.reg_write(_arch.X86_REG_CS, ctx.SegCs)
-            self.reg_write(_arch.X86_REG_SS, ctx.SegSs)
-            self.reg_write(_arch.X86_REG_DS, ctx.SegDs)
-            self.reg_write(_arch.X86_REG_FS, ctx.SegFs)
-            self.reg_write(_arch.X86_REG_GS, ctx.SegGs)
-            self.reg_write(_arch.X86_REG_ES, ctx.SegEs)
-
-        elif self.get_arch() == _arch.ARCH_AMD64:
-            self.reg_write(_arch.AMD64_REG_RAX, ctx.Rax)
-            self.reg_write(_arch.AMD64_REG_RBX, ctx.Rbx)
-            self.reg_write(_arch.AMD64_REG_RCX, ctx.Rcx)
-            self.reg_write(_arch.AMD64_REG_RDX, ctx.Rdx)
-            self.reg_write(_arch.AMD64_REG_RSI, ctx.Rsi)
-            self.reg_write(_arch.AMD64_REG_RDI, ctx.Rdi)
-            self.reg_write(_arch.AMD64_REG_RBP, ctx.Rbp)
-            self.reg_write(_arch.AMD64_REG_RSP, ctx.Rsp)
-            self.reg_write(_arch.AMD64_REG_RIP, ctx.Rip)
-            self.reg_write(_arch.AMD64_REG_R8, ctx.R8)
-            self.reg_write(_arch.AMD64_REG_R9, ctx.R9)
-            self.reg_write(_arch.AMD64_REG_R10, ctx.R10)
-            self.reg_write(_arch.AMD64_REG_R11, ctx.R11)
-            self.reg_write(_arch.AMD64_REG_R12, ctx.R12)
-            self.reg_write(_arch.AMD64_REG_R13, ctx.R13)
-            self.reg_write(_arch.AMD64_REG_R14, ctx.R14)
-            self.reg_write(_arch.AMD64_REG_R15, ctx.R15)
-            self.reg_write(_arch.X86_REG_EFLAGS, ctx.EFlags)
-            self.reg_write(_arch.X86_REG_CS, ctx.SegCs)
-            self.reg_write(_arch.X86_REG_SS, ctx.SegSs)
-            self.reg_write(_arch.X86_REG_DS, ctx.SegDs)
-            self.reg_write(_arch.X86_REG_FS, ctx.SegFs)
-            self.reg_write(_arch.X86_REG_GS, ctx.SegGs)
-            self.reg_write(_arch.X86_REG_ES, ctx.SegEs)
+        if self.get_arch() == _arch.ARCH_AMD64:
+            registers = thread_context.CPU_REGISTERS_AMD64
+        else:
+            registers = thread_context.CPU_REGISTERS_I386
+        for name, reg in registers.items():
+            self.reg_write(reg, getattr(ctx, name))
         thread = self.get_current_thread()
         if thread is not None and thread_context.has(ctx.ContextFlags, thread_context.CONTEXT_DEBUG_REGISTERS):
             self.set_debug_registers(thread, ctx)
