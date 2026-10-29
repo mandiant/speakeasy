@@ -772,6 +772,7 @@ class WindowsEmulator(BinaryEmulator):
         # The last instruction the accounting hook saw start, when there is one
         last_executed: list[int | None] = [None]
         origin_run = self.curr_run
+        assert origin_run is not None
         hook = None
         stepping = debugger is not None and count == 1
 
@@ -865,13 +866,17 @@ class WindowsEmulator(BinaryEmulator):
                         if stepping:
                             native_count = 1
                             registers = self.get_register_state()
+                            counted = (remaining[0], origin_run.budget_instructions, origin_run.instr_cnt)
                             if hook is None:
                                 # A step runs the instruction at its start address.
                                 last_executed[0] = address
                         self.emu_eng.start(address, timeout=native_timeout, count=native_count)
                         if stepping and self._step_had_no_effect(registers, debugger):
                             # Unicorn translates a store into the page of its own code
-                            # again and runs it again, which uses up a count of 1.
+                            # again and runs it again, which uses up a count of 1. The
+                            # second start counts the instruction as a run without a
+                            # debugger does, so the first start must not count it.
+                            remaining[0], origin_run.budget_instructions, origin_run.instr_cnt = counted
                             self.emu_eng.start(address, timeout=native_timeout, count=2)
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:

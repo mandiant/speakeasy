@@ -1201,6 +1201,36 @@ def test_gdb_step_over_store_into_own_code_page(gdb_shellcode_emulator):
     assert _read_server_result(proc)["error"] is None
 
 
+def _load_patch_own_page(se: Speakeasy) -> int:
+    address = se.load_shellcode(data=b"\x90" * 0x50, arch="x86")
+    code = bytes.fromhex(_PATCH_OWN_PAGE).replace(struct.pack("<I", 0x11111111), struct.pack("<I", address + 0x40))
+    se.mem_write(address, code)
+    return address
+
+
+def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
+    config["max_instructions"] = 1000
+    with Speakeasy(config=config) as se:
+        se.run_shellcode(_load_patch_own_page(se))
+        (run,) = se.get_report().entry_points
+        assert run.error is None
+        count = run.instr_count
+
+    # The limit that the run without a debugger needs exactly
+    config["max_instructions"] = count
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        address = _load_patch_own_page(se)
+        with _serve(se, port, address) as client:
+            assert client.step().startswith("T05")
+            assert client.step().startswith("T05")
+            assert client.read_x86_registers().eip == address + 9
+            assert client.continue_().startswith("T05")
+            assert client.continue_() == "W00"
+        (run,) = se.get_report().entry_points
+        assert (run.error, run.instr_count) == (None, count)
+
+
 # mov ecx, 0x20000; loop: mov [scratch], ecx; dec ecx; jnz loop; ret
 @pytest.mark.parametrize("gdb_shellcode_emulator", ["b900000200890d222222224975f7c3"], indirect=True)
 def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
