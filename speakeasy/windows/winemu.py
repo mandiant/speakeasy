@@ -849,60 +849,12 @@ class WindowsEmulator(BinaryEmulator):
         assert origin_run is not None
         budget = self.config.max_instructions if debugger is not None else count
         limits = RunLimits.from_run(origin_run, timeout, budget, self._execution_budget)
-        hook = None
+        hook = self._add_accounting_hook(limits, origin_run, debugger) if limits.budget > 0 else None
         stepping = debugger is not None and count == 1
 
         def debugger_stops():
             return debugger is not None and (debugger.has_pending_stop() or stepping)
 
-        def recover_execution():
-            assert self._pending.exec_recovery is not None
-            page, perms = self._pending.exec_recovery
-            self._pending.exec_recovery = None
-            self.mem_protect(page, self.page_size, perms)
-
-        def stop_limit(kind):
-            if self._pending.api_entry is not None:
-                self.set_pc(self._pending.api_entry.address)
-            if kind == "timeout":
-                # Each debugger resume of a timed out run stops at once; log only the first stop.
-                if limits.spent < limits.timeout:
-                    logger.error("* Timeout of %d sec(s) reached.", limits.timeout)
-            elif kind == "max_total_time":
-                assert limits.total_budget is not None
-                logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
-                limits.total_budget.exhausted = True
-                self._cancel_execution_runs()
-                # A limit that expires while a fault is completing keeps the fault as
-                # the run's error.
-                if self.curr_run is origin_run and origin_run.error is None:
-                    origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
-            else:
-                logger.error("* Instruction limit of %d reached.", limits.budget)
-            if debugger is not None:
-                debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
-            elif self.curr_run is origin_run:
-                if origin_run.error is None:
-                    origin_run.error = ErrorInfo(
-                        type=kind, pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
-                    )
-                self.on_run_complete()
-
-        if limits.budget > 0:
-
-            def account_instruction(_emu, _address, _size):
-                if debugger is not None and debugger.has_pending_stop():
-                    return
-                if limits.remaining <= 0:
-                    self.emu_eng.stop()
-                    return
-                limits.remaining -= 1
-                limits.last_executed = _address
-                origin_run.budget_instructions += 1
-                if not self.config.analysis.memory_tracing:
-                    self.curr_run.instr_cnt += 1
-
-            hook = self.add_code_hook(account_instruction)
         try:
             while not self.emu_complete:
                 if self.exit_event and self.exit_event.is_set():
@@ -912,14 +864,14 @@ class WindowsEmulator(BinaryEmulator):
                     if debugger is not None and debugger.has_pending_stop():
                         return
                     if limits.is_total_time_reached():
-                        stop_limit("max_total_time")
+                        self._stop_at_limit("max_total_time", limits, origin_run, debugger)
                         return
                     control, self._pending.control = self._pending.control, None
                     if control in (PendingControl.RUN_RETURN, PendingControl.FAULT_RETURN):
                         self.on_run_complete()
                         return
                     if control == PendingControl.EXEC_RECOVERY:
-                        recover_execution()
+                        self._recover_execution()
                     else:
                         self._continue_guest_callback()
                     address = self.get_pc()
@@ -927,7 +879,7 @@ class WindowsEmulator(BinaryEmulator):
                         return
                 reached = limits.get_reached_limit()
                 if reached is not None:
-                    stop_limit(reached)
+                    self._stop_at_limit(reached, limits, origin_run, debugger)
                     return
                 if self._pending.api_entry is None and not self._pending.control:
                     try:
@@ -1002,7 +954,7 @@ class WindowsEmulator(BinaryEmulator):
                     continue
                 reached = limits.get_reached_limit()
                 if reached is not None:
-                    stop_limit(reached)
+                    self._stop_at_limit(reached, limits, origin_run, debugger)
                     return
                 if entry is None:
                     if debugger is None and not self.run_complete:
@@ -1033,7 +985,7 @@ class WindowsEmulator(BinaryEmulator):
                     return
                 if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
                     if limits.is_total_time_reached():
-                        stop_limit("max_total_time")
+                        self._stop_at_limit("max_total_time", limits, origin_run, debugger)
                         return
                     self.on_run_complete()
                 address = self.get_pc()
@@ -1073,6 +1025,61 @@ class WindowsEmulator(BinaryEmulator):
                         debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             if hook is not None:
                 self.remove_code_hook(hook)
+
+    def _add_accounting_hook(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None):
+        """Add a code hook that counts each instruction against the instruction limit and stops the engine at it."""
+
+        def account_instruction(_emu, address, _size):
+            if debugger is not None and debugger.has_pending_stop():
+                return
+            if limits.remaining <= 0:
+                self.emu_eng.stop()
+                return
+            limits.remaining -= 1
+            limits.last_executed = address
+            origin_run.budget_instructions += 1
+            if not self.config.analysis.memory_tracing:
+                self.curr_run.instr_cnt += 1
+
+        return self.add_code_hook(account_instruction)
+
+    def _recover_execution(self) -> None:
+        """Give the guest PE page that EXEC_RECOVERY records the permissions it needs to run its code."""
+        assert self._pending.exec_recovery is not None
+        page, perms = self._pending.exec_recovery
+        self._pending.exec_recovery = None
+        self.mem_protect(page, self.page_size, perms)
+
+    def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
+        """
+        Stop origin_run at the limit of the given kind. Without a debugger, the limit
+        becomes the error of the run and the run ends. With a debugger, the debugger stops.
+        """
+        if self._pending.api_entry is not None:
+            self.set_pc(self._pending.api_entry.address)
+        if kind == "timeout":
+            # Each debugger resume of a timed out run stops at once; log only the first stop.
+            if limits.spent < limits.timeout:
+                logger.error("* Timeout of %d sec(s) reached.", limits.timeout)
+        elif kind == "max_total_time":
+            assert limits.total_budget is not None
+            logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
+            limits.total_budget.exhausted = True
+            self._cancel_execution_runs()
+            # A limit that expires while a fault is completing keeps the fault as
+            # the run's error.
+            if self.curr_run is origin_run and origin_run.error is None:
+                origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
+        else:
+            logger.error("* Instruction limit of %d reached.", limits.budget)
+        if debugger is not None:
+            debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
+        elif self.curr_run is origin_run:
+            if origin_run.error is None:
+                origin_run.error = ErrorInfo(
+                    type=kind, pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
+                )
+            self.on_run_complete()
 
     def _drop_stale_pending(self, address: int) -> int:
         """
