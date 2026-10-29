@@ -17,7 +17,6 @@ from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
-from tests.pe_builder import build_pe
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
 
@@ -1440,76 +1439,28 @@ def test_create_file_opens_the_null_device(strict_fs_emu: Speakeasy, path: str, 
     assert se.get_dropped_files() == []
 
 
-@pytest.mark.parametrize(
-    "dll, end, cleanup", [("kernel32.dll", "ExitThread", b""), ("msvcrt.dll", "_endthreadex", b"\x83\xc4\x04")]
-)
-def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(dll: str, end: str, cleanup: bytes) -> None:
-    handles_rva, codes_rva = 0x2000, 0x2010
-
-    def text(base: int, iat: dict[tuple[str, str], int]) -> bytes:
-        def get_exit_code(handle: bytes, slot: int) -> bytes:
-            code = b"\x68" + struct.pack("<I", base + codes_rva + 4 * slot) + handle
-            return code + b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetExitCodeThread"])
-
-        def handle(slot: int) -> bytes:
-            return b"\xff\x35" + struct.pack("<I", base + handles_rva + 4 * slot)
-
-        def start(fn: int, slot: int) -> bytes:
-            code = b"\x6a\x00" * 3 + b"\x68" + struct.pack("<I", fn) + b"\x6a\x00" * 2
-            code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateThread"])
-            return code + b"\xa3" + struct.pack("<I", base + handles_rva + 4 * slot)
-
-        main_size = 3 * len(start(0, 0)) + len(get_exit_code(handle(0), 0)) + 1
-        returning = 0x1000 + main_size
-        returning_code = b"\xb8\x07\x00\x00\x00\xc2\x04\x00"
-        ending = returning + len(returning_code)
-        ending_code = b"\x6a\x05\xff\x15" + struct.pack("<I", base + iat[dll, end])
-        ending_code += cleanup + b"\x0f\x0b"
-        checking = ending + len(ending_code)
-        checking_code = get_exit_code(handle(0), 1) + get_exit_code(handle(1), 2)
-        checking_code += get_exit_code(b"\x6a\xfe", 3) + b"\xc2\x04\x00"
-        main = start(base + returning, 0) + start(base + ending, 1) + start(base + checking, 2)
-        main += get_exit_code(handle(0), 0) + b"\xc3"
-        return main + returning_code + ending_code + checking_code
-
-    imports = {"kernel32.dll": ["CreateThread", "GetExitCodeThread"]}
-    imports.setdefault(dll, []).append(end)
-    image, _ = build_pe(32, text=text, data=b"\0" * 0x10 + b"\xcc" * 0x10, imports=imports)
-    with Speakeasy(config=get_default_config_dict()) as se:
-        module = se.load_module(data=image)
-        se.run_module(module)
-        entries = se.get_report().entry_points
-        assert [(entry.ep_type, entry.error) for entry in entries] == [
-            ("module_entry", None),
-            ("thread", None),
-            ("thread", None),
-            ("thread", None),
-        ]
-        codes = struct.unpack("<4I", se.mem_read(module.base + codes_rva, 0x10))
-        assert codes == (0, 7, 5, windefs.STILL_ACTIVE)
+# Bits of the return value of the last thread of thread_cases.c, one per case
+THREAD_EXIT_CODE_CASES = {
+    0x01: "a thread that returns 7 gives 7",
+    0x02: "a thread that calls ExitThread(5) gives 5",
+    0x04: "a thread that calls _endthreadex(6) gives 6",
+    0x08: "a thread that calls _endthread gives 0",
+    0x10: "the current thread gives STILL_ACTIVE",
+}
 
 
-def test_polling_get_exit_code_thread_ends_for_a_queued_thread() -> None:
-    handle_rva, code_rva = 0x2000, 0x2004
+def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
+) -> None:
+    entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
+    assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
+    failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].ret_val & bit]
+    assert not failed
 
-    def text(base: int, iat: dict[tuple[str, str], int]) -> bytes:
-        thread = 0x1000 + 0x40
-        code = b"\x6a\x00" * 3 + b"\x68" + struct.pack("<I", base + thread) + b"\x6a\x00" * 2
-        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateThread"])
-        code += b"\xa3" + struct.pack("<I", base + handle_rva)
-        polling = len(code)
-        code += b"\x68" + struct.pack("<I", base + code_rva) + b"\xff\x35" + struct.pack("<I", base + handle_rva)
-        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetExitCodeThread"])
-        code += b"\x81\x3d" + struct.pack("<II", base + code_rva, windefs.STILL_ACTIVE)
-        code += b"\x74" + bytes([(polling - len(code) - 2) & 0xFF]) + b"\xc3"
-        return code.ljust(0x40, b"\xcc") + b"\xb8\x07\x00\x00\x00\xc2\x04\x00"
 
-    config = get_default_config_dict()
-    config["timeout"] = 5
-    image, _ = build_pe(32, text=text, data=b"\0" * 8, imports={"kernel32.dll": ["CreateThread", "GetExitCodeThread"]})
-    with Speakeasy(config=config) as se:
-        module = se.load_module(data=image)
-        se.run_module(module)
-        entries = se.get_report().entry_points
-        assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None), ("thread", None)]
-        assert se.mem_read(module.base + code_rva, 4) == b"\0" * 4
+def test_polling_get_exit_code_thread_ends_for_a_queued_thread(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
+) -> None:
+    main = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points[0]
+    assert main.error is None
+    assert main.ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"

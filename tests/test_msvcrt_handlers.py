@@ -7,7 +7,6 @@ import pytest
 import unicorn
 
 from speakeasy import Speakeasy
-from speakeasy.config import get_default_config_dict
 from speakeasy.profiler import Run
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
@@ -28,7 +27,6 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     scan_c_format,
 )
 from tests.handler_harness import alloc, call, load_emu, start_process
-from tests.pe_builder import build_pe
 
 FILETIME_UNIX_EPOCH = 116444736000000000
 
@@ -2016,39 +2014,12 @@ def test_endthreadex_ends_only_the_current_thread(
         ]
 
 
-def test_endthread_ends_only_the_current_thread() -> None:
-    handle_rva, exit_code_rva = 0x2000, 0x2008
-
-    def text(base: int, iat: dict[tuple[str, str], int]) -> bytes:
-        def start(fn: int, slot: int) -> bytes:
-            code = b"\x6a\x00\x6a\x00\x68" + struct.pack("<I", fn)
-            code += b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", "_beginthread"]) + b"\x83\xc4\x0c"
-            return code + b"\xa3" + struct.pack("<I", base + handle_rva + 4 * slot)
-
-        main_size = 2 * len(start(0, 0)) + 1
-        ending = 0x1000 + main_size
-        ending_code = b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", "_endthread"]) + b"\x0f\x0b"
-        checking = ending + len(ending_code)
-        checking_code = b"\x68" + struct.pack("<I", base + exit_code_rva)
-        checking_code += b"\xff\x35" + struct.pack("<I", base + handle_rva)
-        checking_code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetExitCodeThread"]) + b"\xc3"
-        main = start(base + ending, 0) + start(base + checking, 1) + b"\xc3"
-        return main + ending_code + checking_code
-
-    image, _ = build_pe(
-        32,
-        text=text,
-        data=b"\0" * 8 + b"\xcc" * 4,
-        imports={"msvcrt.dll": ["_beginthread", "_endthread"], "kernel32.dll": ["GetExitCodeThread"]},
-    )
-    with Speakeasy(config=get_default_config_dict()) as se:
-        module = se.load_module(data=image)
-        se.run_module(module)
-        entries = se.get_report().entry_points
-        assert [(entry.ep_type, entry.error) for entry in entries] == [
-            ("module_entry", None),
-            ("thread", None),
-            ("thread", None),
-        ]
-        assert [event.api_name for event in entries[1].events or [] if event.event == "api"] == ["msvcrt._endthread"]
-        assert se.mem_read(module.base + exit_code_rva, 4) == b"\0" * 4
+def test_endthread_ends_only_the_current_thread(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
+) -> None:
+    entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
+    ending, checking = entries[4], entries[5]
+    assert (ending.ep_type, ending.error) == ("thread", None)
+    assert [event.api_name for event in ending.events or [] if event.event == "api"] == ["msvcrt._endthread"]
+    assert (checking.ep_type, checking.error) == ("thread", None)
+    assert checking.ret_val & 0x08, "the thread that calls _endthread gives 0"

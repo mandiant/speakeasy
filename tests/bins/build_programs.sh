@@ -38,9 +38,9 @@ program() {
 }
 
 implib x64 KERNEL32 Sleep IsProcessorFeaturePresent
-implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4
+implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4 CreateThread@24 ExitThread@4 GetExitCodeThread@8
 implib x64 msvcrt pow floor ceil sin fmod ceilf floorf
-implib x86 msvcrt pow floor ceil sin fmod _CIfmod
+implib x86 msvcrt pow floor ceil sin fmod _CIfmod _beginthread _endthread _endthreadex
 
 cflags=
 for arch in x64 x86; do
@@ -48,4 +48,7 @@ for arch in x64 x86; do
 done
 program float_cases float_cases x64 msvcrt_x64.lib
 # x87 only, so that no double that the code passes on the stack is also in an XMM register
-cflags=/arch:IA32 program float_cases float_cases x86 msvcrt_x86.lib
+cflags=/arch:IA32
+program float_cases float_cases x86 msvcrt_x86.lib
+cflags=
+program thread_cases thread_cases x86 KERNEL32_x86.lib msvcrt_x86.lib
