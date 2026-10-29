@@ -1,5 +1,6 @@
 """Child processes run after the parent when emulate_children is set."""
 
+import hashlib
 import logging
 import struct
 
@@ -38,12 +39,18 @@ def build_child(base: int | None = None) -> bytes:
 
 
 def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
+    parent = build_parent()
     with Speakeasy(config=config) as se:
-        module = se.load_module(data=build_parent())
+        module = se.load_module(data=parent)
         assert se.emu is not None
         se.emu.fileman.add_existing_file(CHILD_PATH, build_child())
         se.run_module(module, emulate_children=True)
-        entries = se.get_report().entry_points
+        child = se.emu.get_mod_from_addr(module.base)
+        report = se.get_report()
+        entries = report.entry_points
+
+    assert (child.name, child.emu_path) == ("child", CHILD_PATH)
+    assert report.sha256 == hashlib.sha256(parent).hexdigest()
 
     assert [(ep.ep_type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[0].ret_val == 1

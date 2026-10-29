@@ -377,13 +377,16 @@ class Win32Emulator(WindowsEmulator):
             # All processes share one address space. The images of the
             # processes that already ran are unmapped where they overlap the
             # child image, so that the child loads at its preferred base.
-            pe = _PeParser(data=child.pe_data, fast_load=True)
-            for image in [i for i in images if i.base < pe.base + pe.image_size and pe.base < i.base + i.image_size]:
-                self._discard_loaded_module(image)
-                images.remove(image)
+            image = PeLoader(data=child.pe_data).make_image()
+            image.name = os.path.splitext(ntpath.basename(child.path))[0]
+            image.emu_path = child.path
+            start, end = image.image_base, image.image_base + image.image_size
+            for loaded in [i for i in images if i.base < end and start < i.base + i.image_size]:
+                self._discard_loaded_module(loaded)
+                images.remove(loaded)
 
             try:
-                child.pe = self.load_module(data=child.pe_data)
+                child.pe = self.load_image(image)
             except WindowsEmuError as error:
                 logger.warning("skipping child process %s: %s", child.path, error)
                 continue
