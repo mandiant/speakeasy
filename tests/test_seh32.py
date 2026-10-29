@@ -54,39 +54,3 @@ def test_handler_that_unwinds_and_jumps_to_its_frame(config):
         run = se.get_report().entry_points[0]
         assert run.error is None
         assert run.ret_val == 5
-
-
-def test_cxx_frame_handler_passes_a_fault_to_the_outer_frame(config):
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        data = se.mem_alloc(0x1000)
-        saved, count = data, data + 4
-        done, outer = code + 0x80, code + 0x100
-
-        main = b"\x89\x25" + dword(saved)  # mov [saved], esp
-        main += b"\x68" + dword(outer)  # push outer
-        main += b"\x64\xff\x35" + dword(0) + b"\x64\x89\x25" + dword(0)  # push fs:[0]; mov fs:[0], esp
-        main += b"\x68" + dword(get_api(se, "msvcrt", "__CxxFrameHandler"))  # push __CxxFrameHandler
-        main += b"\x64\xff\x35" + dword(0) + b"\x64\x89\x25" + dword(0)  # push fs:[0]; mov fs:[0], esp
-        main += b"\xc7\x05" + dword(0) + dword(1)  # mov dword [0], 1
-        finish = b"\x8b\x25" + dword(saved)  # mov esp, [saved]
-        finish += b"\xa1" + dword(count) + b"\xc3"  # mov eax, [count]; ret
-
-        search = b"\xb8" + dword(1) + b"\xc3"  # return ExceptionContinueSearch
-        resume = b"\xff\x05" + dword(count)  # inc dword [count]
-        resume += b"\x8b\x44\x24\x0c"  # mov eax, [esp + 0xc]  (context)
-        resume += b"\xc7\x80\xb8\x00\x00\x00" + dword(done)  # mov [eax + Eip], done
-        resume += b"\x31\xc0\xc3"  # return ExceptionContinueExecution
-        handler = b"\x8b\x44\x24\x04"  # mov eax, [esp + 4]  (record)
-        handler += b"\xf7\x40\x04" + dword(6)  # test dword [eax + 4], EXCEPTION_UNWINDING | EXIT_UNWIND
-        handler += b"\x75" + bytes([len(resume)]) + resume + search  # jnz search
-
-        se.mem_write(code, main)
-        se.mem_write(done, finish)
-        se.mem_write(outer, handler)
-
-        se.run_shellcode(code)
-
-        run = se.get_report().entry_points[0]
-        assert run.error is None
-        assert run.ret_val == 1

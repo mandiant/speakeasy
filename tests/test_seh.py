@@ -65,6 +65,13 @@ SEH_CASES = {
     0x40: "bad pointer read by an API faults in its caller",
     0x80: "hardware breakpoint from SetThreadContext, resume flag, and disarming",
     0x100: "vectored handler catches a fault of its own in __try, then continues",
+    0x200: "read of the reserved range above the stack faults at that address",
+    0x400: "C++ frame with no catch block passes a fault on to the outer frame",
+}
+
+SEH_CASES_X86 = {
+    0x800: "fault context has the native x86 selectors",
+    0x1000: "NtContinue resumes at a context from RtlCaptureContext",
 }
 
 
@@ -76,7 +83,8 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
 
     ep = report.entry_points[0]
     assert ep.error is None
-    failed = [case for bit, case in SEH_CASES.items() if not ep.ret_val & bit]
+    cases = SEH_CASES | SEH_CASES_X86 if arch == "x86" else SEH_CASES
+    failed = [case for bit, case in cases.items() if not ep.ret_val & bit]
     assert not failed
 
     exceptions = [(e.exception_code, e.faulting_address) for e in ep.events or [] if e.event == "exception"]
@@ -92,4 +100,6 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
         ("0x80000004", None),
         ("0xe0000009", None),
         ("0xc0000005", "0x0"),
-    ]
+        ("0xc0000005", "0x1300000"),
+        ("0xc0000005", "0x0"),
+    ] + ([("0xc0000005", "0x0")] if arch == "x86" else [])

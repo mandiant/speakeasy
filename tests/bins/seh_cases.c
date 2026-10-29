@@ -1,6 +1,7 @@
 // SEH cases for speakeasy's exception dispatch, on x64 and x86. main returns
-// a bitmask with one bit per case that behaves as it does on Windows (0x1FF: all).
-// x64 uses __C_specific_handler, x86 the _except_handler3 of msvcrt.
+// a bitmask with one bit per case that behaves as it does on Windows (x64 0x7FF,
+// x86 0x1FFF: all). x64 uses __C_specific_handler, x86 the _except_handler3 of msvcrt.
+// seh_cases_cxx.cpp has the C++ frame of one case.
 //
 // Built without a CRT or SDK, against import libraries for the few imports;
 // build_seh_cases.sh in this directory builds both.
@@ -30,6 +31,9 @@ __declspec(dllimport) void __stdcall RaiseException(DWORD, DWORD, DWORD, const U
 __declspec(dllimport) void *__stdcall AddVectoredExceptionHandler(DWORD, long(__stdcall *)(EXCEPTION_POINTERS *));
 __declspec(dllimport) void __stdcall RtlMoveMemory(void *, const void *, ULONG_PTR);
 __declspec(dllimport) int __stdcall SetThreadContext(void *, const void *);
+__declspec(dllimport) void __stdcall RtlCaptureContext(void *);
+__declspec(dllimport) long __stdcall NtContinue(void *, unsigned char);
+void fault_in_cxx_frame(volatile int *target, volatile int *destroyed);
 unsigned long __cdecl _exception_code(void);
 void *__cdecl _exception_info(void);
 
@@ -58,6 +62,9 @@ void *__cdecl _exception_info(void);
 #define CONTEXT_IP 0xB8
 #define CONTEXT_EFLAGS 0xC0
 #define CONTEXT_SP 0xC4
+#define CONTEXT_SEGFS 0x90
+#define CONTEXT_SEGDS 0x98
+#define CONTEXT_SEGCS 0xBC
 #define CONTEXT_DEBUG_REGISTERS 0x10010
 #endif
 #define RESUME_FLAG 0x10000
@@ -228,8 +235,71 @@ __declspec(noinline) static int exception_in_handler(void) {
     return caught_in_handler == 1;
 }
 
+// a read of the reserved range above the stack faults at that address
+__declspec(noinline) static int read_above_stack(void) {
+#ifdef _WIN64
+    volatile char *stack_base;
+    __asm__ volatile("movq %%gs:8, %0" : "=r"(stack_base));
+#else
+    volatile char *stack_base;
+    __asm__ volatile("movl %%fs:4, %0" : "=r"(stack_base));
+#endif
+    __try {
+        (void)*stack_base;
+    } __except (is_bad_read(_exception_info(), (ULONG_PTR)stack_base)) {
+        return 1;
+    }
+    return 0;
+}
+
+// a C++ frame with no catch block passes a fault on to the outer frame
+__declspec(noinline) static int fault_through_cxx_frame(void) {
+    static volatile int destroyed;
+    __try {
+        fault_in_cxx_frame(null_pointer, &destroyed);
+    } __except (_exception_code() == 0xC0000005) {
+        return 1;
+    }
+    return 0;
+}
+
+#ifndef _WIN64
+__declspec(noinline) static int has_native_x86_selectors(EXCEPTION_POINTERS *info) {
+    unsigned char *context = info->ContextRecord;
+    return FIELD(context, CONTEXT_SEGCS) == 0x1B && FIELD(context, CONTEXT_SEGDS) == 0x23 &&
+           FIELD(context, CONTEXT_SEGFS) == 0x3B;
+}
+
+// the context of a fault has the selectors of native 32-bit Windows: CS 0x1B, DS 0x23, FS 0x3B
+__declspec(noinline) static int fault_context_selectors(void) {
+    __try {
+        *null_pointer = 1;
+    } __except (has_native_x86_selectors(_exception_info())) {
+        return 1;
+    }
+    return 0;
+}
+
+static __declspec(align(16)) unsigned char captured_context[CONTEXT_SIZE];
+static volatile int continued;
+
+// NtContinue resumes at a context from RtlCaptureContext, with the code selector it holds
+__declspec(noinline) static int nt_continue_to_captured_context(void) {
+    unsigned short cs;
+    RtlCaptureContext(captured_context);
+    if (++continued < 2)
+        NtContinue(captured_context, 0);
+    __asm__ volatile("movw %%cs, %0" : "=r"(cs));
+    return continued == 2 && cs == 0x1B && FIELD(captured_context, CONTEXT_SEGCS) == 0x1B;
+}
+#endif
+
 int main(void) {
     return raise_caught() | filter_then_finally() << 1 | access_violation(0) << 2 | continue_execution() << 3 |
            vectored_int3() << 4 | caught_by_caller() << 5 | fault_in_api() << 6 | hardware_breakpoint() << 7 |
-           exception_in_handler() << 8;
+           exception_in_handler() << 8 | read_above_stack() << 9 | fault_through_cxx_frame() << 10 |
+#ifndef _WIN64
+           fault_context_selectors() << 11 | nt_continue_to_captured_context() << 12 |
+#endif
+           0;
 }
