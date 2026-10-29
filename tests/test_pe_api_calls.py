@@ -1,4 +1,4 @@
-"""Built PE32/PE32+ images that call APIs through their IAT."""
+"""PE32/PE32+ images, built or real samples, that call APIs through their IAT."""
 
 import struct
 import time
@@ -9,8 +9,10 @@ import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
-from tests.pe_builder import build_pe, build_resources
+from tests.pe_builder import build_pe
 
+STAGER = "0d0988a3401fe356ba73e1ae63d007eb4c69a021ddeb05d03bd3d6c2a52eb255.exe.xz"
+HHCTRL = "08ddd39118289af1fbbd641e587b69dd9f819342f0061a38030536d1909353b1.dll.xz"
 TICK = {"kernel32.dll": ["GetTickCount"]}
 
 
@@ -271,110 +273,59 @@ def test_api_event_pc_is_the_call_site(architecture, memory_tracing):
     assert event.pos.pc == (call if memory_tracing else call + 6)
 
 
-NT_THREAD = {
-    "ntdll.dll": ["NtCreateThreadEx", "NtWaitForSingleObject"],
-    "kernel32.dll": ["GetTickCount"],
-}
+def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
+    """
+    0d0988a3 (x64) maps an RWX section view, decodes its shellcode into it and starts it
+    with NtCreateThreadEx(&handle, THREAD_ALL_ACCESS, NULL, NtCurrentProcess(), view, ...),
+    then waits on the handle. The thread loads wininet to fetch the next stage.
+    """
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=load_test_bin(STAGER)))
+        main, *threads = se.get_report().entry_points
+
+    assert main.error is None
+    assert api_names(main)[-3:] == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject", "ntdll.NtTerminateProcess"]
+    create = next(e for e in main.events if e.event == "api" and e.api_name == "ntdll.NtCreateThreadEx")
+    start_routine = create.args[4].value
+    assert [(thread.ep_type, thread.start_addr) for thread in threads] == [("thread", start_routine)]
+    assert api_names(threads[0])[:2] == ["kernel32.LoadLibraryA", "wininet.InternetOpenA"]
 
 
-def nt_create_thread(base, iat):
-    code = bytearray()
-
-    def call_iat(dll, name):
-        code.extend(b"\xff\x15" + struct.pack("<i", iat[dll, name] - (0x1000 + len(code) + 6)))
-
-    code += b"\x48\x83\xec\x68"  # sub rsp, 0x68
-    code += b"\x48\x8d\x4c\x24\x60"  # lea rcx, [rsp+0x60]
-    code += b"\xba\xff\xff\x1f\x00"  # mov edx, 0x1fffff
-    code += b"\x45\x31\xc0"  # xor r8d, r8d
-    code += b"\x49\x83\xc9\xff"  # or r9, -1
-    lea = len(code)
-    code += b"\x48\x8d\x05\0\0\0\0"  # lea rax, [rip+thread_proc]
-    code += b"\x48\x89\x44\x24\x20"  # mov [rsp+0x20], rax
-    code += b"\x31\xc0"  # xor eax, eax
-    for slot in range(0x28, 0x58, 8):
-        code += b"\x48\x89\x44\x24" + bytes([slot])  # mov [rsp+slot], rax
-    call_iat("ntdll.dll", "NtCreateThreadEx")
-    code += b"\x48\x8b\x4c\x24\x60"  # mov rcx, [rsp+0x60]
-    code += b"\x31\xd2"  # xor edx, edx
-    code += b"\x45\x31\xc0"  # xor r8d, r8d
-    call_iat("ntdll.dll", "NtWaitForSingleObject")
-    code += b"\x48\x83\xc4\x68\xc3"  # add rsp, 0x68; ret
-    struct.pack_into("<i", code, lea + 3, len(code) - (lea + 7))
-    code += b"\x48\x83\xec\x28"  # sub rsp, 0x28
-    call_iat("kernel32.dll", "GetTickCount")
-    code += b"\x48\x83\xc4\x28\xc3"  # add rsp, 0x28; ret
-    return bytes(code)
-
-
-def test_nt_create_thread_ex_runs_the_thread():
-    data, _ = build_pe(64, text=nt_create_thread, imports=NT_THREAD)
-    with Speakeasy(config=configured()) as se:
-        module = se.load_module(data=data)
-        se.run_module(module)
-        entries = se.get_report().entry_points
-        assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None), ("thread", None)]
-        assert api_names(entries[0]) == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject"]
-        assert api_names(entries[1]) == ["kernel32.GetTickCount"]
-        assert entries[1].start_addr == module.base + 0x105C
-
-
-def test_nt_terminate_process_ends_the_run():
-    def text(base, iat):
-        code = b"\x48\x83\xec\x28"  # sub rsp, 0x28
-        code += b"\x48\x83\xc9\xff"  # or rcx, -1
-        code += b"\x31\xd2"  # xor edx, edx
-        code += b"\xff\x15" + struct.pack("<i", iat["ntdll.dll", "NtTerminateProcess"] - (0x1000 + len(code) + 6))
-        return code + b"\x0f\x0b"  # ud2
-
-    data, _ = build_pe(64, text=text, imports={"ntdll.dll": ["NtTerminateProcess"]})
-    with Speakeasy(config=configured()) as se:
-        se.run_module(se.load_module(data=data))
+def test_nt_terminate_process_ends_the_run(config, load_test_bin):
+    """
+    0d0988a3 ends at RVA 0x1000 with NtTerminateProcess(NtCurrentProcess(), 0), followed by ud2.
+    """
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=load_test_bin(STAGER)), entry_point=0x1000)
         entry = se.get_report().entry_points[0]
-        assert entry.error is None
-        assert api_names(entry) == ["ntdll.NtTerminateProcess"]
+
+    assert entry.error is None
+    assert api_names(entry) == ["ntdll.NtTerminateProcess"]
 
 
-def run_enum_resource_names(se, resource_type, imports):
-    resources = build_resources(
-        0x2000,
-        {
-            ("MYTYPE", "XY", 0x409): b"one",
-            ("MYTYPE", 7, 0x409): b"two",
-            ("MYTYPE", 7, 0x407): b"zwei",
-            (16, 1, 0x409): b"ver",
-        },
-    )
-    data = resources.ljust(0x900, b"\0") + f"{resource_type}\0".encode("utf-16le")
+def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_bin):
+    """
+    08ddd391 is a Wine build of hhctrl.ocx. Its DllRegisterServer (RVA 0xC200) calls
+    EnumResourceNamesW(module, "WINE_REGISTRY", callback, &params), and the callback
+    (RVA 0xCB30) loads each named registry script with FindResourceW. The module has
+    one WINE_REGISTRY resource, with a string name.
+    """
+    callbacks = []
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(HHCTRL))
 
-    def text(base, iat):
-        count, records = struct.pack("<I", base + 0x2800), base + 0x2808
-        prefix = b"\x6a\x55\x68" + struct.pack("<I", base + 0x1100) + b"\x68" + struct.pack("<I", base + 0x2900)
-        main = calls(32, [("kernel32.dll", name) for name in imports], prefix=prefix + b"\x6a\x00")(base, iat)
-        callback = b"\x8b\x44\x24\x04\xa3" + struct.pack("<I", base + 0x2840)  # mov eax, [esp+4]; mov [hModule], eax
-        callback += b"\x8b\x44\x24\x10\xa3" + struct.pack("<I", base + 0x2844)  # mov eax, [esp+16]; mov [lParam], eax
-        callback += b"\x8b\x44\x24\x0c\x8b\x0d" + count  # mov eax, [esp+12]; mov ecx, [count]
-        callback += b"\x89\x04\xcd" + struct.pack("<I", records)  # mov [records+ecx*8], eax
-        callback += b"\xa9\x00\x00\xff\xff\x74\x09\x8b\x00"  # test eax, 0xffff0000; jz +9; mov eax, [eax]
-        callback += b"\x89\x04\xcd" + struct.pack("<I", records + 4)  # mov [records+ecx*8+4], eax
-        callback += b"\xff\x05" + count + b"\xb8\x01\x00\x00\x00\xc2\x10\x00"  # inc [count]; mov eax, 1; ret 16
-        return main.ljust(0x100, b"\xcc") + callback
+        def callback(emu, address, size):
+            module_base, kind, name, param = struct.unpack("<4I", se.mem_read(se.reg_read("esp") + 4, 16))
+            callbacks.append((module_base, se.read_mem_string(kind, width=2), se.read_mem_string(name, width=2), param))
 
-    pe, _ = build_pe(
-        32, text=text, data=data, imports={"kernel32.dll": imports}, extra_dirs={2: (0x2000, len(resources))}
-    )
-    module = se.load_module(data=pe)
-    se.run_module(module)
-    return module
-
-
-def test_enum_resource_names_calls_the_callback_for_each_name():
-    with Speakeasy(config=configured()) as se:
-        module = run_enum_resource_names(se, "MYTYPE", ["EnumResourceNamesW"])
+        se.add_code_hook(callback, begin=module.base + 0xCB30, end=module.base + 0xCB30)
+        se.run_module(module, entry_point=0xC200)
         entry = se.get_report().entry_points[0]
-        assert entry.error is None
-        assert entry.ret_val == 1
-        count, _, name1, text1, name2, text2 = struct.unpack("<6I", se.mem_read(module.base + 0x2800, 24))
-        assert (count, text1, name2, text2) == (2, int.from_bytes("XY".encode("utf-16le"), "little"), 7, 0)
-        assert name1 >> 16
-        assert struct.unpack("<2I", se.mem_read(module.base + 0x2840, 8)) == (module.base, 0x55)
+
+    enum, find = [event for event in entry.events if event.event == "api"][:2]
+    assert enum.api_name == "kernel32.EnumResourceNamesW"
+    name = "DLLS/HHCTRL.OCX/I386-WINDOWS/HHCTRL_TLB_T.RES"
+    assert callbacks == [(module.base, "WINE_REGISTRY", name, enum.args[3].value)]
+    assert find.api_name == "kernel32.FindResourceW"
+    assert [arg.display for arg in find.args[1:]] == [name, "WINE_REGISTRY"]
+    assert int(find.ret_val, 16)
