@@ -443,7 +443,7 @@ class User32(api.ApiHandler):
         );
         """
         msg, flag = argv
-        emu.enable_code_hook()
+        emu.enable_deferred_work_hook()
         return True
 
     @apihook("UpdateWindow", argc=1)

@@ -80,8 +80,8 @@ class BinaryEmulator(MemoryManager, ABC):
     input: dict[str, Any] | None
 
     @abstractmethod
-    def _set_emu_hooks(self) -> None:
-        """Set up emulator hooks. Subclasses must implement."""
+    def _unmap_reserved_range(self) -> None:
+        """Unmap the reserved memory range. Subclasses must implement."""
         ...
 
     @abstractmethod
@@ -194,7 +194,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         assert self.emu_eng is not None
         self.set_hooks()
-        self._set_emu_hooks()
+        self._unmap_reserved_range()
         if self.profiler:
             self.profiler.set_start_time()
         try:
