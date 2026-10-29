@@ -1,103 +1,64 @@
+import copy
 import struct
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.windows.windows import ERROR_RESOURCE_TYPE_NOT_FOUND
-from tests.handler_harness import alloc, call, load_emu, start_process
-from tests.pe_builder import build_pe
+from tests.handler_harness import alloc, call, load_emu
 
-RT_VERSION = 16
+MPSIGSTUB = "012740784079e4bdc9f48d28d3156031626889c12d58ed0ecd84d04cd6b29342.exe.xz"
 VS_FFI_SIGNATURE = 0xFEEF04BD
-FILE_VERSION = (1, 2, 3, 4)
+FILE_VERSION = (1, 461, 119, 0)
+INSTALLED_STUB = "C:\\Windows\\system32\\MpSigStub.exe"
 
 
-def version_node(key: str, value: bytes = b"", text: bool = False, children: tuple[bytes, ...] = ()) -> bytes:
-    """Encode one VS_VERSIONINFO node. A text value is UTF-16 with a terminating NUL."""
-    header_size = 6
-    body = (key + "\0").encode("utf-16le")
-    node = bytearray(header_size) + body
-    node += b"\0" * (-len(node) % 4)
-    node += value
-    for child in children:
-        node += b"\0" * (-len(node) % 4)
-        node += child
-    value_length = len(value) // 2 if text else len(value)
-    struct.pack_into("<HHH", node, 0, len(node), value_length, 1 if text else 0)
-    return bytes(node)
+@dataclass
+class VersionRun:
+    module_path: str
+    calls: list[tuple[str, str, str]] = field(default_factory=list)
+    roots: list[tuple[int, bytes]] = field(default_factory=list)
 
 
-def text_node(key: str, value: str) -> bytes:
-    return version_node(key, (value + "\0").encode("utf-16le"), text=True)
+@pytest.fixture(scope="module")
+def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> VersionRun:
+    """
+    Run 01274078, with a copy of it at the path where it looks for the installed
+    MpSigStub.exe. Record the version calls that name a file, and the size and the
+    first 16 bytes of each value that VerQueryValueW returns.
+    """
+    data = load_test_bin(MPSIGSTUB)
+    with Speakeasy(config=copy.deepcopy(base_config)) as se:
+        module = se.load_module(data=data)
+        assert se.emu is not None
+        se.emu.get_file_manager().add_existing_file(INSTALLED_STUB, data)
+        run = VersionRun(se.emu.modules[0].emu_path)
+
+        def query(emu, api, original, args):
+            result = original(args)
+            pointer = int.from_bytes(emu.mem_read(args[2], 8), "little")
+            (length,) = struct.unpack("<I", emu.mem_read(args[3], 4))
+            run.roots.append((length, bytes(emu.mem_read(pointer, 16))))
+            return result
+
+        se.add_api_hook(query, "version", "VerQueryValueW", argc=4)
+        se.run_module(module)
+        events = se.get_report().entry_points[0].events or []
+
+    for event in events:
+        if event.event == "api" and event.api_name.startswith("version.GetFileVersionInfo"):
+            path = event.args[1].display
+            if path:
+                run.calls.append((event.api_name, path, event.ret_val))
+    return run
 
 
-def version_info() -> bytes:
-    major, minor, build, patch = FILE_VERSION
-    fixed = struct.pack(
-        "<13I",
-        VS_FFI_SIGNATURE,
-        0x10000,
-        major << 16 | minor,
-        build << 16 | patch,
-        major << 16 | minor,
-        build << 16 | patch,
-        0x3F,
-        0,
-        0x40004,
-        1,
-        0,
-        0,
-        0,
-    )
-    strings = version_node(
-        "StringFileInfo",
-        text=True,
-        children=(
-            version_node(
-                "040904b0",
-                text=True,
-                children=(text_node("CompanyName", "Acme"), text_node("FileVersion", "1.2.3.4")),
-            ),
-        ),
-    )
-    translation = version_node(
-        "VarFileInfo", text=True, children=(version_node("Translation", struct.pack("<HH", 0x409, 0x4B0)),)
-    )
-    return version_node("VS_VERSION_INFO", fixed, children=(strings, translation))
-
-
-def resource_section(rva: int, payload: bytes) -> bytes:
-    """Encode a resource tree with one RT_VERSION entry, ID 1, language 0x409."""
-    directory = struct.Struct("<IIHHHH")
-    entry = struct.Struct("<II")
-    level = directory.size + entry.size
-    data_entry = 3 * level
-    data = data_entry + 16
-    section = bytearray()
-    for offset, name in ((level, RT_VERSION), (2 * level, 1), (data_entry, 0x409)):
-        section += directory.pack(0, 0, 0, 0, 0, 1)
-        section += entry.pack(name, offset | (0x80000000 if offset != data_entry else 0))
-    section += struct.pack("<IIII", rva + data, len(payload), 0, 0)
-    return bytes(section + payload)
-
-
-def version_pe() -> bytes:
-    rsrc = resource_section(0x2000, version_info())
-    data, _ = build_pe(32, text=b"\xc3", data=rsrc, extra_dirs={2: (0x2000, len(rsrc))})
-    return data
-
-
-@pytest.fixture
-def emu(dll_emu: Speakeasy) -> Speakeasy:
-    start_process(dll_emu)
-    return dll_emu
-
-
-@pytest.fixture
-def version_emu(config: dict[str, Any]) -> Iterator[Speakeasy]:
-    yield from load_emu(config, version_pe())
+@pytest.fixture(scope="module")
+def mpsigstub(base_config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    yield from load_emu(copy.deepcopy(base_config), load_test_bin(MPSIGSTUB))
 
 
 def module_path(se: Speakeasy) -> str:
@@ -117,57 +78,79 @@ def get_version_info(se: Speakeasy, name: str, wide: bool) -> int:
     return block
 
 
-def query_value(se: Speakeasy, block: int, sub_block: str, wide: bool) -> tuple[int, bytes]:
+def query_value(se: Speakeasy, block: int, sub_block: str, wide: bool) -> tuple[int, int]:
     suffix = "W" if wide else "A"
     query = alloc(se, (sub_block + "\0").encode("utf-16le" if wide else "latin-1"))
-    pointer = alloc(se, b"\0" * 4)
+    pointer = alloc(se, b"\0" * 8)
     length = alloc(se, b"\0" * 4)
     assert call(se, "version", "VerQueryValue" + suffix, [block, query, pointer, length])[0] == 1
     (value_length,) = struct.unpack("<I", se.mem_read(length, 4))
-    (value,) = struct.unpack("<I", se.mem_read(pointer, 4))
+    (value,) = struct.unpack("<Q", se.mem_read(pointer, 8))
     return value_length, value
 
 
-@pytest.mark.parametrize("wide", [False, True])
-def test_query_root_returns_the_fixed_file_info(version_emu: Speakeasy, wide: bool) -> None:
-    block = get_version_info(version_emu, module_path(version_emu), wide)
-    length, value = query_value(version_emu, block, "\\", wide)
-    assert length == 52
-    signature, _, ms, ls = struct.unpack("<4I", version_emu.mem_read(value, 16))
+def file_version(fixed_file_info: bytes) -> tuple[int, int, int, int]:
+    signature, _, ms, ls = struct.unpack("<4I", fixed_file_info)
     assert signature == VS_FFI_SIGNATURE
-    assert (ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF) == FILE_VERSION
+    return ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF
+
+
+def test_query_root_returns_the_fixed_file_info(mpsigstub_run: VersionRun) -> None:
+    """
+    01274078 is MpSigStub, the Microsoft Defender update stub. It reads the version of its
+    own image: GetFileVersionInfoSizeExW and GetFileVersionInfoExW on the path from
+    GetModuleFileNameW, then VerQueryValueW(block, "\\") for the VS_FIXEDFILEINFO.
+    """
+    own = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == mpsigstub_run.module_path]
+    assert own[:2] == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]
+    length, fixed_file_info = mpsigstub_run.roots[0]
+    assert length == 52
+    assert file_version(fixed_file_info) == FILE_VERSION
 
 
 @pytest.mark.parametrize("wide", [False, True])
-def test_query_translation_returns_the_language_and_code_page(version_emu: Speakeasy, wide: bool) -> None:
-    block = get_version_info(version_emu, module_path(version_emu), wide)
-    length, value = query_value(version_emu, block, "\\VarFileInfo\\Translation", wide)
+def test_query_translation_returns_the_language_and_code_page(mpsigstub: Speakeasy, wide: bool) -> None:
+    """
+    The VarFileInfo of 01274078 gives US English (0x409) and Unicode (code page 1200).
+    """
+    block = get_version_info(mpsigstub, module_path(mpsigstub), wide)
+    length, value = query_value(mpsigstub, block, "\\VarFileInfo\\Translation", wide)
     assert length == 4
-    assert version_emu.mem_read(value, 4) == struct.pack("<HH", 0x409, 0x4B0)
+    assert mpsigstub.mem_read(value, 4) == struct.pack("<HH", 0x409, 1200)
 
 
 @pytest.mark.parametrize("wide", [False, True])
-def test_query_string_returns_the_text_in_the_call_width(version_emu: Speakeasy, wide: bool) -> None:
-    block = get_version_info(version_emu, module_path(version_emu), wide)
-    length, value = query_value(version_emu, block, "\\StringFileInfo\\040904B0\\CompanyName", wide)
-    expected = "Acme\0".encode("utf-16le" if wide else "latin-1")
-    assert length == 5
-    assert version_emu.mem_read(value, len(expected)) == expected
+def test_query_string_returns_the_text_in_the_call_width(mpsigstub: Speakeasy, wide: bool) -> None:
+    """
+    The string table 040904b0 of 01274078 has CompanyName "Microsoft Corporation". The
+    query uses upper case hex digits, which match without regard to case.
+    """
+    block = get_version_info(mpsigstub, module_path(mpsigstub), wide)
+    length, value = query_value(mpsigstub, block, "\\StringFileInfo\\040904B0\\CompanyName", wide)
+    expected = "Microsoft Corporation\0".encode("utf-16le" if wide else "latin-1")
+    assert length == 22
+    assert mpsigstub.mem_read(value, len(expected)) == expected
 
 
-def test_the_module_matches_by_file_name(version_emu: Speakeasy) -> None:
-    name = module_path(version_emu).rsplit("\\", 1)[1]
-    block = get_version_info(version_emu, name.upper(), True)
-    assert query_value(version_emu, block, "\\", True)[0] == 52
+def test_the_module_matches_by_file_name(mpsigstub: Speakeasy) -> None:
+    name = module_path(mpsigstub).rsplit("\\", 1)[1]
+    block = get_version_info(mpsigstub, name.upper(), True)
+    length, value = query_value(mpsigstub, block, "\\", True)
+    assert length == 52
+    assert file_version(bytes(mpsigstub.mem_read(value, 16))) == FILE_VERSION
 
 
-def test_an_emulated_file_has_its_version_resource(emu: Speakeasy) -> None:
-    assert emu.emu is not None
-    emu.emu.get_file_manager().add_existing_file("C:\\Users\\Public\\dropped.dll", version_pe())
-    block = get_version_info(emu, "C:\\Users\\Public\\dropped.dll", False)
-    length, value = query_value(emu, block, "\\StringFileInfo\\040904b0\\FileVersion", False)
-    assert length == 8
-    assert emu.mem_read(value, length) == b"1.2.3.4\0"
+def test_an_emulated_file_has_its_version_resource(mpsigstub_run: VersionRun) -> None:
+    """
+    After its own version, 01274078 reads the version of the installed
+    C:\\Windows\\system32\\MpSigStub.exe. That path holds a copy of the sample in the
+    emulated file system, so the query gives the same VS_FIXEDFILEINFO.
+    """
+    installed = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == INSTALLED_STUB]
+    assert installed == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]
+    length, fixed_file_info = mpsigstub_run.roots[-1]
+    assert length == 52
+    assert file_version(fixed_file_info) == FILE_VERSION
 
 
 def _x86_blob():
