@@ -583,6 +583,10 @@ class SpeakeasyConfig(BaseModel):
         default=DEFAULT_CONFIG_DATA["stack_size"],
         description="Override stack size in bytes. 0 uses the PE header value or the built-in default (0x12000).",
     )
+    random_seed: int = Field(
+        default=0,
+        description="Seed of the random number generator that gives random bytes and GUIDs to emulated code.",
+    )
     system: Literal["windows"] = Field(
         default=DEFAULT_CONFIG_DATA["system"], description="Emulated operating system family."
     )

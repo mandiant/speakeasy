@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import random
 import uuid
 
 import speakeasy.winenv.defs.registry.reg as regdefs
@@ -34,13 +33,7 @@ class RPCRT4(api.ApiHandler):
         if not uuidp:
             return 1
 
-        new_uuid = windefs.GUID()
-        new_uuid.Data1 = random.randint(0, 0xFFFFFFFF)
-        new_uuid.Data2 = random.randint(0, 0xFFFFFFFF) & 0xFFFF
-        new_uuid.Data3 = random.randint(0, 0xFFFFFFFF) & 0xFFFF
-        new_uuid.Data4 = random.randbytes(8)
-
-        self.mem_write(uuidp, new_uuid.get_bytes())
+        self.mem_write(uuidp, uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le)
 
         return 0
 

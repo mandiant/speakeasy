@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import hashlib
-import random
 import struct
 from typing import Any
 
@@ -42,7 +41,6 @@ class AdvApi32(api.ApiHandler):
         self.key_objects: dict[int, Any] = {}
         self.k32types = k32
         self.win = adv32
-        self.rng = random.Random(0)
         self.curr_handle: int = 0x2800
         self.service_status_handle: int = SERVICE_STATUS_HANDLE_BASE
 
@@ -1021,7 +1019,7 @@ class AdvApi32(api.ApiHandler):
 
         rv = False
         if RandomBuffer and RandomBufferLength:
-            self.mem_write(RandomBuffer, self.rng.randbytes(RandomBufferLength))
+            self.mem_write(RandomBuffer, emu.rng.randbytes(RandomBufferLength))
             rv = True
 
         return rv
@@ -1072,7 +1070,7 @@ class AdvApi32(api.ApiHandler):
         rv = False
 
         if pbBuffer:
-            self.mem_write(pbBuffer, self.rng.randbytes(dwLen))
+            self.mem_write(pbBuffer, emu.rng.randbytes(dwLen))
             rv = True
 
         return rv

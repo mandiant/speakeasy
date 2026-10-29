@@ -133,13 +133,13 @@ class Fwpkclnt(api.ApiHandler):
 
         subkey = self.get_bytes(layer.subLayerKey)
         if all(x == 0 for x in subkey):
-            subkey = uuid.uuid4().bytes
+            subkey = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         subkey = uuid.UUID(bytes_le=subkey)
         subkey = str(subkey)
 
         provkey = self.get_bytes(layer.providerKey)
         if all(x == 0 for x in provkey):
-            provkey = uuid.uuid4().bytes
+            provkey = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         provkey = uuid.UUID(bytes_le=provkey)
         provkey = str(provkey)
 
@@ -171,7 +171,7 @@ class Fwpkclnt(api.ApiHandler):
 
         co_key = self.get_bytes(callout.calloutKey)
         if all(x == 0 for x in co_key):
-            co_key = uuid.uuid4().bytes
+            co_key = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         co_key = uuid.UUID(bytes_le=co_key)
         co_key = str(co_key)
 
@@ -218,7 +218,7 @@ class Fwpkclnt(api.ApiHandler):
         co_key = self.get_bytes(callout.calloutKey)
         # was the guid set to 0?
         if all(x == 0 for x in co_key):
-            co_key = uuid.uuid4().bytes
+            co_key = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         co_key = uuid.UUID(bytes_le=co_key)
         co_key = str(co_key)
 
@@ -261,7 +261,7 @@ class Fwpkclnt(api.ApiHandler):
 
         # was the guid set to 0?
         if all(x == 0 for x in flt_key):
-            flt_key = uuid.uuid4().bytes
+            flt_key = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
 
         flt_key = uuid.UUID(bytes_le=flt_key)
         flt_key = str(flt_key)

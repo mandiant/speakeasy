@@ -72,6 +72,7 @@ Scalars:
 - `--timeout`
 - `--max-api-count`
 - `--max-instructions`
+- `--random-seed`
 - `--os-ver-major`
 - `--os-ver-minor`
 - `--os-ver-release`

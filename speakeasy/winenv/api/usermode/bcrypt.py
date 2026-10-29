@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import base64
-import random
 import struct
 
 from Crypto.Cipher import AES
@@ -47,7 +46,6 @@ class Bcrypt(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.rng = random.Random(0)
 
         super().__get_hook_attrs__(self)
 
@@ -407,7 +405,7 @@ class Bcrypt(api.ApiHandler):
             return ntdefs.STATUS_SUCCESS
         if not pbBuffer:
             return ntdefs.STATUS_INVALID_PARAMETER
-        self.mem_write(pbBuffer, self.rng.randbytes(cbBuffer))
+        self.mem_write(pbBuffer, emu.rng.randbytes(cbBuffer))
         return ntdefs.STATUS_SUCCESS
 
 

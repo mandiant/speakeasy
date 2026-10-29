@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import logging
-import random
 import uuid
 
 import speakeasy.winenv.defs.windows.com as com
@@ -24,7 +23,6 @@ class Ole32(api.ApiHandler):
         super().__get_hook_attrs__(self)
         self.netman = emu.get_network_manager()
         self.names = {}
-        self.rng = random.Random(0)
         self.com_init = {}
 
     def co_initialize(self, emu, model):
@@ -318,8 +316,5 @@ class Ole32(api.ApiHandler):
         (pguid,) = argv
         if not pguid:
             return windefs.E_INVALIDARG
-        guid = bytearray(self.rng.randbytes(16))
-        guid[7] = guid[7] & 0x0F | 0x40
-        guid[8] = guid[8] & 0x3F | 0x80
-        self.mem_write(pguid, bytes(guid))
+        self.mem_write(pguid, uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le)
         return windefs.S_OK

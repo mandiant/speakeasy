@@ -1,5 +1,3 @@
-import os
-
 from .. import api
 
 
@@ -24,6 +22,5 @@ class Bcryptprimitives(api.ApiHandler):
         BOOL ProcessPrng(PBYTE pbData, SIZE_T cbData);
         """
         pbData, cbData = argv
-        rand_bytes = os.urandom(cbData)
-        self.mem_write(pbData, rand_bytes)
+        self.mem_write(pbData, emu.rng.randbytes(cbData))
         return 1

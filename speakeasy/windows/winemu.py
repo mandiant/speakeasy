@@ -3,6 +3,7 @@
 import logging
 import ntpath
 import os
+import random
 import shlex
 import struct
 import time
@@ -269,6 +270,7 @@ class WindowsEmulator(BinaryEmulator):
         self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network)
         self.driveman: DriveManager = DriveManager(config=self.config.drives)
         self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
+        self.rng: random.Random = random.Random(self.config.random_seed)
         self.hammer: ApiHammer = ApiHammer(self)
         self._io_manager: Any | None = None
 

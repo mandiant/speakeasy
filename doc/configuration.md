@@ -39,6 +39,11 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Set to e.g. 0x100000 (1 MiB) for samples that allocate a large stack.
   "stack_size": 0,
 
+  // Seed of the random number generator behind RtlGenRandom, CryptGenRandom,
+  // BCryptGenRandom, ProcessPrng, CoCreateGuid and UuidCreate.
+  // Runs with the same seed give the same random bytes and GUIDs to the sample.
+  "random_seed": 0,
+
   // OS family model. Only "windows" is supported.
   "system": "windows",
 
