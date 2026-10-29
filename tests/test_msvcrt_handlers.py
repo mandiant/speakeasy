@@ -1913,29 +1913,47 @@ def strict_fs64_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes
         yield se
 
 
-def test_ifstream_of_a_missing_file_sets_failbit(strict_fs64_emu: Speakeasy) -> None:
-    se = strict_fs64_emu
-    vbtable = alloc(se, struct.pack("<ii", 0, 0xB0))
-    obj = alloc(se, vbtable.to_bytes(8, "little") + b"\x00" * 0x108)
-    sb, ios = obj + 0x10, obj + 0xB0
-    path = alloc(se, "c:\\users\\public\\config.json\0".encode("utf-16le"))
+SOCOLATA_INJECTOR = "019522d0f3965b4e99b725a7f9279a08aac5c2e933e611a0340c15234e4d6c95.exe.xz"
 
-    assert call(se, "msvcp140", f"??0{BASIC_IOS}IEAA@XZ", [ios])[0] == ios
-    istream_ctor = f"??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z"
-    assert call(se, "msvcp140", istream_ctor, [obj, sb, 0, 0])[0] == obj
-    assert call(se, "msvcp140", f"??0{BASIC_STREAMBUF}IEAA@XZ", [sb])[0] == sb
-    call(se, "msvcp140", f"?_Init@{BASIC_STREAMBUF}IEAAXXZ", [sb])
-    assert call(se, "msvcp140", FIOPEN_W, [path, 1, 64])[0] == 0
-    call(se, "msvcp140", f"?setstate@{BASIC_IOS}QEAAXH_N@Z", [ios, 2, 0])
 
-    state, exceptions, flags, _, precision, width = struct.unpack("<IIIIQQ", se.mem_read(ios + 0x10, 0x20))
-    assert (state, exceptions, flags, precision, width) == (2, 0, 0x201, 6, 0)
-    assert se.mem_read(ios + 0x48, 0x11) == sb.to_bytes(8, "little") + b"\x00" * 8 + b" "
-    pointers = struct.unpack("<12Q", se.mem_read(sb + 8, 0x60))
-    assert pointers == (0, 0, sb + 8, sb + 0x10, 0, 0, sb + 0x28, sb + 0x30, 0, sb + 0x48, sb + 0x4C, 0)
+def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
+    """
+    019522d0 (x64) opens config.json in its directory with an MSVCP140 std::ifstream
+    before it makes its window. The file is missing, so _Fiopen returns NULL, the
+    constructor sets failbit, and the program takes its branch for a stream that is not
+    open (RVA 0x3BA8).
+    """
+    config["filesystem"]["files"] = [f for f in config["filesystem"]["files"] if f["mode"] == "full_path"]
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(SOCOLATA_INJECTOR))
+        reached = []
 
-    for name in (f"??1{BASIC_STREAMBUF}UEAA@XZ", f"??1{BASIC_ISTREAM}UEAA@XZ", f"??1{BASIC_IOS}UEAA@XZ"):
-        assert call(se, "msvcp140", name, [ios])[0] is None
+        def not_open(emu, address, size):
+            reached.append(address)
+            se.stop()
+
+        se.add_code_hook(not_open, begin=module.base + 0x3BA8, end=module.base + 0x3BA8)
+        se.run_module(module)
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert reached == [module.base + 0x3BA8]
+        apis = [e for e in run.events or [] if e.event == "api"]
+        ios = apis[-1].args[0].value or 0
+        state = struct.unpack("<I", se.mem_read(ios + 0x10, 4))[0]
+
+    ctors, (init, fiopen, setstate) = apis[-6:-3], apis[-3:]
+    assert [e.api_name for e in ctors] == [
+        f"msvcrt.??0{BASIC_IOS}IEAA@XZ",
+        f"msvcrt.??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
+        f"msvcrt.??0{BASIC_STREAMBUF}IEAA@XZ",
+    ]
+    assert all(e.ret_val == hex(e.args[0].value or 0) for e in ctors)
+    assert init.api_name == f"msvcrt.?_Init@{BASIC_STREAMBUF}IEAAXXZ"
+    assert fiopen.api_name == f"msvcrt.{FIOPEN_W}"
+    assert fiopen.args[0].display.endswith("\\config.json")
+    assert fiopen.ret_val == "0x0"
+    assert setstate.api_name == f"msvcrt.?setstate@{BASIC_IOS}QEAAXH_N@Z"
+    assert state == 2  # failbit
 
 
 def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speakeasy) -> None:
@@ -1962,28 +1980,54 @@ def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speak
     assert call(se, "msvcrt", "ftell", [stream])[0] == 4
 
 
-@pytest.mark.parametrize(
-    "begin, end, begin_args, end_args",
-    [("_beginthreadex", "_endthreadex", 6, 1), ("_beginthread", "_endthread", 3, 0)],
-)
-def test_endthread_ends_only_the_current_thread(begin: str, end: str, begin_args: int, end_args: int) -> None:
+EUPDATE_HELPER = "024e5e537c02b2a5b9a41be151cc36807498f5e338b8c7ee592305af0398283e.exe.xz"
+
+
+def test_endthreadex_ends_only_the_current_thread(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    """
+    024e5e53 (x86), run as "Eupdate Helper.exe -no-rotate", is a proxy on port 8000. Its
+    accept loop starts a thread with _beginthreadex for each connection (RVA 0x133D2), and
+    the thread reads the request, closes the socket and calls _endthreadex(0) (RVA 0x14763).
+    The loop does not end, so the test jumps to its epilogue (RVA 0x133FC) after two
+    connections. Each connection thread then runs to _endthreadex, which ends only that
+    thread, and the next queued thread runs.
+    """
+    with Speakeasy(config=config, argv=["-no-rotate"]) as se:
+        module = se.load_module(data=load_test_bin(EUPDATE_HELPER), filename="Eupdate Helper.exe")
+        connections = []
+
+        def end_accept_loop(emu, address, size):
+            connections.append(address)
+            if len(connections) == 2:
+                emu.set_pc(module.base + 0x133FC)
+
+        se.add_code_hook(end_accept_loop, begin=module.base + 0x133F7, end=module.base + 0x133F7)
+        se.run_module(module)
+        runs = [run for run in se.get_report().entry_points if run.start_addr == module.base + 0x144FC]
+
+    assert [(run.ep_type, run.error) for run in runs] == [("thread", None), ("thread", None)]
+    for run in runs:
+        apis = [e for e in run.events or [] if e.event == "api"]
+        assert [(e.api_name, e.args[0].value) for e in apis[-2:]] == [
+            ("ws2_32.closesocket", apis[0].args[0].value),
+            ("msvcrt._endthreadex", 0),
+        ]
+
+
+def test_endthread_ends_only_the_current_thread() -> None:
     handle_rva, exit_code_rva = 0x2000, 0x2008
 
     def text(base: int, iat: dict[tuple[str, str], int]) -> bytes:
         def start(fn: int, slot: int) -> bytes:
-            # the start address is the third argument of _beginthreadex and the first of _beginthread
-            pushes = [0] * begin_args
-            pushes[2 if begin_args == 6 else 0] = fn
-            code = b"".join(b"\x68" + struct.pack("<I", value) for value in reversed(pushes))
-            code += b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", begin])
-            code += b"\x83\xc4" + bytes([4 * begin_args])
+            code = b"\x6a\x00\x6a\x00\x68" + struct.pack("<I", fn)
+            code += b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", "_beginthread"]) + b"\x83\xc4\x0c"
             return code + b"\xa3" + struct.pack("<I", base + handle_rva + 4 * slot)
 
         main_size = 2 * len(start(0, 0)) + 1
         ending = 0x1000 + main_size
-        ending_code = (
-            b"\x6a\x00" * end_args + b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", end]) + b"\x0f\x0b"
-        )
+        ending_code = b"\xff\x15" + struct.pack("<I", base + iat["msvcrt.dll", "_endthread"]) + b"\x0f\x0b"
         checking = ending + len(ending_code)
         checking_code = b"\x68" + struct.pack("<I", base + exit_code_rva)
         checking_code += b"\xff\x35" + struct.pack("<I", base + handle_rva)
@@ -1995,7 +2039,7 @@ def test_endthread_ends_only_the_current_thread(begin: str, end: str, begin_args
         32,
         text=text,
         data=b"\0" * 8 + b"\xcc" * 4,
-        imports={"msvcrt.dll": [begin, end], "kernel32.dll": ["GetExitCodeThread"]},
+        imports={"msvcrt.dll": ["_beginthread", "_endthread"], "kernel32.dll": ["GetExitCodeThread"]},
     )
     with Speakeasy(config=get_default_config_dict()) as se:
         module = se.load_module(data=image)
@@ -2006,5 +2050,5 @@ def test_endthread_ends_only_the_current_thread(begin: str, end: str, begin_args
             ("thread", None),
             ("thread", None),
         ]
-        assert [event.api_name for event in entries[1].events or [] if event.event == "api"] == [f"msvcrt.{end}"]
+        assert [event.api_name for event in entries[1].events or [] if event.event == "api"] == ["msvcrt._endthread"]
         assert se.mem_read(module.base + exit_code_rva, 4) == b"\0" * 4
