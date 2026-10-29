@@ -861,19 +861,8 @@ class WindowsEmulator(BinaryEmulator):
                     self.emu_eng.stop()
                     return
                 if self._pending.control:
-                    if debugger is not None and debugger.has_pending_stop():
+                    if not self._run_pending_control(limits, origin_run, debugger):
                         return
-                    if limits.is_total_time_reached():
-                        self._stop_at_limit("max_total_time", limits, origin_run, debugger)
-                        return
-                    control, self._pending.control = self._pending.control, None
-                    if control in (PendingControl.RUN_RETURN, PendingControl.FAULT_RETURN):
-                        self.on_run_complete()
-                        return
-                    if control == PendingControl.EXEC_RECOVERY:
-                        self._recover_execution()
-                    else:
-                        self._continue_guest_callback()
                     address = self.get_pc()
                     if self._pending_fault_stop is not None or debugger_stops():
                         return
@@ -1042,6 +1031,26 @@ class WindowsEmulator(BinaryEmulator):
                 self.curr_run.instr_cnt += 1
 
         return self.add_code_hook(account_instruction)
+
+    def _run_pending_control(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
+        """
+        Run the pending control step. Get False if the call of the run loop must return,
+        because the debugger has a stop, the total execution time ran out, or the run ended.
+        """
+        if debugger is not None and debugger.has_pending_stop():
+            return False
+        if limits.is_total_time_reached():
+            self._stop_at_limit("max_total_time", limits, origin_run, debugger)
+            return False
+        control, self._pending.control = self._pending.control, None
+        if control in (PendingControl.RUN_RETURN, PendingControl.FAULT_RETURN):
+            self.on_run_complete()
+            return False
+        if control == PendingControl.EXEC_RECOVERY:
+            self._recover_execution()
+        else:
+            self._continue_guest_callback()
+        return True
 
     def _recover_execution(self) -> None:
         """Give the guest PE page that EXEC_RECOVERY records the permissions it needs to run its code."""
