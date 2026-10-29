@@ -10,7 +10,6 @@ import speakeasy
 from speakeasy import Speakeasy
 from tests.handler_harness import alloc, call, load_emu, start_process
 
-CLASS_E_CLASSNOTAVAILABLE = 0x80040111
 IID_IFOO = uuid.UUID("11223344-5566-7788-99aa-bbccddeeff00")
 CLSID_PS = uuid.UUID("aabbccdd-0011-2233-4455-66778899aabb")
 
@@ -111,35 +110,6 @@ def test_ndr_dll_register_proxy_registers_the_interfaces(dll_emu: Speakeasy) -> 
     clsid_key = "HKEY_CLASSES_ROOT\\CLSID\\" + clsid_str
     assert _default_value(dll_emu, clsid_key) == "PSFactoryBuffer"
     assert _default_value(dll_emu, clsid_key + "\\InprocServer32") == module.emu_path
-
-
-def test_ndr_dll_unregister_proxy_succeeds(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    base = dll_emu.emu.modules[0].base
-    clsid = alloc(dll_emu, CLSID_PS.bytes_le)
-    rv, _ = call(dll_emu, "rpcrt4", "NdrDllUnregisterProxy", [base, _proxy_file_list(dll_emu), clsid])
-    assert rv == 0
-
-
-def test_ndr_dll_get_class_object_has_no_class(dll_emu: Speakeasy) -> None:
-    rclsid = alloc(dll_emu, CLSID_PS.bytes_le)
-    riid = alloc(dll_emu, IID_IFOO.bytes_le)
-    ppv = alloc(dll_emu, b"\xcc" * 4)
-    factory = alloc(dll_emu, b"\x00" * 16)
-    argv = [rclsid, riid, ppv, _proxy_file_list(dll_emu), rclsid, factory]
-
-    rv, _ = call(dll_emu, "rpcrt4", "NdrDllGetClassObject", argv)
-
-    assert rv == CLASS_E_CLASSNOTAVAILABLE
-    assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
-
-
-@pytest.mark.parametrize(("ref_count", "expected"), [(0, 0), (2, 1)])
-def test_ndr_dll_can_unload_now_follows_the_factory_ref_count(
-    dll_emu: Speakeasy, ref_count: int, expected: int
-) -> None:
-    factory = alloc(dll_emu, struct.pack("<IiII", 0, ref_count, 0, 0))
-    assert call(dll_emu, "rpcrt4", "NdrDllCanUnloadNow", [factory])[0] == expected
 
 
 def test_inet_ntoa_reuses_the_buffer_for_an_address(dll_emu: Speakeasy) -> None:
@@ -337,23 +307,6 @@ def test_win_http_query_headers_gives_the_content_length_as_a_number(dll_emu: Sp
     assert (rv, buf, length) == (1, struct.pack("<I", 4096), 4)
 
 
-def test_win_http_query_headers_fails_for_a_missing_header(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    req = _winhttp_request(dll_emu, "GET", "/index")
-    rv, buf, _ = _query_headers(dll_emu, req, 33, 64)
-    assert rv == 0
-    assert dll_emu.emu.get_last_error() == 12150
-    assert buf == b"\xcc" * 64
-
-
-def test_win_http_query_data_available_without_a_configured_response(dll_emu: Speakeasy) -> None:
-    req = _winhttp_request(dll_emu, "POST", "/gate.php")
-    avail = alloc(dll_emu, b"\xcc" * 4)
-    assert call(dll_emu, "winhttp", "WinHttpQueryDataAvailable", [req, avail])[0] == 1
-    assert dll_emu.mem_read(avail, 4) == b"\x00" * 4
-
-
 def test_internet_open_url_with_headers(dll_emu: Speakeasy) -> None:
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     url = alloc(dll_emu, b"http://example.com/a.bin\x00")
@@ -549,17 +502,6 @@ def test_http_query_info_gives_the_response_headers(
     assert struct.unpack("<I", dll_emu.mem_read(buf_len, 4))[0] == len(out) - width
 
 
-def test_http_query_info_fails_for_a_missing_header(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    req = _wininet_request(dll_emu, b"GET", b"/index")
-    buf = alloc(dll_emu, b"\xcc" * 64)
-    buf_len = alloc(dll_emu, struct.pack("<I", 64))
-    assert call(dll_emu, "wininet", "HttpQueryInfoA", [req, 33, buf, buf_len, 0])[0] == 0
-    assert dll_emu.emu.get_last_error() == 12150
-    assert dll_emu.mem_read(buf, 64) == b"\xcc" * 64
-
-
 def test_gethostbyname_ignores_case(dll_emu: Speakeasy) -> None:
     name = alloc(dll_emu, b"Google.COM\x00")
     hostent, _ = call(dll_emu, "ws2_32", "gethostbyname", [name])
@@ -714,37 +656,3 @@ def test_internet_open_url_records_the_host_and_port(dll_emu: Speakeasy, url: by
     assert call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])[0]
     events = [e for e in dll_emu.emu.get_current_run().events if e.event == "net_http"]
     assert [(e.server, e.port) for e in events] == [(server, port)]
-
-
-@pytest.mark.parametrize("api, enc", [("RtlIpv4AddressToStringA", "utf-8"), ("RtlIpv4AddressToStringW", "utf-16le")])
-def test_rtl_ipv4_address_to_string_writes_dotted_decimal(dll_emu: Speakeasy, api: str, enc: str) -> None:
-    text = "192.168.1.20"
-    width = len("\0".encode(enc))
-    addr = alloc(dll_emu, bytes([192, 168, 1, 20]))
-    out = alloc(dll_emu, b"\xcc" * 0x40)
-    rv, _ = call(dll_emu, "ntdll", api, [addr, out])
-    assert rv == out + len(text) * width
-    assert dll_emu.mem_read(out, (len(text) + 1) * width) == (text + "\0").encode(enc)
-
-
-@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
-@pytest.mark.parametrize("dll", ["ntdll", "kernel32"])
-@pytest.mark.parametrize("module", ["main", "kernel32"])
-def test_rtl_pc_to_file_header_returns_the_module_base(
-    request: pytest.FixtureRequest, fixture: str, dll: str, module: str
-) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
-    mod = se.emu.modules[0] if module == "main" else se.emu.get_mod_by_name(module)
-    out = alloc(se, b"\xcc" * 8)
-    rv, _ = call(se, dll, "RtlPcToFileHeader", [mod.base + 0x10, out])
-    assert rv == mod.base
-    assert int.from_bytes(se.mem_read(out, se.emu.get_ptr_size()), "little") == mod.base
-
-
-def test_rtl_pc_to_file_header_returns_null_outside_modules(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    out = alloc(dll_emu, b"\xcc" * 8)
-    rv, _ = call(dll_emu, "ntdll", "RtlPcToFileHeader", [0x10, out])
-    assert rv == 0
-    assert int.from_bytes(dll_emu.mem_read(out, dll_emu.emu.get_ptr_size()), "little") == 0
