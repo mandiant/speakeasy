@@ -14,6 +14,14 @@ Use these together to bound long-running or looping samples.
 
 The CLI emulates in a child process. It stops that process after the larger of `--timeout` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop.
 
+`--timeout` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same timeout can stop at different instructions and give different reports. For a repeatable report, set `--timeout 0` and stop the run with `--max-instructions` or `--max-api-count`:
+
+```bash
+speakeasy -t sample.exe --timeout 0 --max-instructions 3000000 --max-api-count 10000 -o report.json
+```
+
+[Repeatable runs](limitations.md#repeatable-runs) lists the values that can still change between runs.
+
 ## Execution mode controls
 
 Primary flags:

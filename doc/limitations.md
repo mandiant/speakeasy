@@ -41,6 +41,16 @@ A sample may expect files, registry keys, network responses, loaded modules, or 
 
 Use config and CLI overrides to model the expected environment before concluding a sample is unsupported.
 
+## Repeatable runs
+
+Two runs of the same sample with the same config give the same random bytes, GUIDs and times to the sample. The `random_seed` and `start_time` options in the [configuration](configuration.md) set these values.
+
+The `rdtsc` and `rdtscp` instructions are an exception. They read the time stamp counter of Unicorn, which counts host time at 1 GHz. Unicorn 2.1.4 has no hook for `rdtsc`, so Speakeasy cannot give a fixed value. `Sleep` and the wait APIs add the waited time to the counter, so the difference across a `Sleep` call is correct. A sample that uses `rdtsc` as a seed, or that measures how long its code takes, can take a different path in each run.
+
+A wall-clock limit (`--timeout`, `--max-total-time`) stops a run at a point that depends on the speed of the host. See [CLI execution controls](cli-execution-controls.md#stopping-conditions).
+
+The report fields `emulation_total_runtime` and `timestamp` are host times, so they are different in each report.
+
 ## Related docs
 
 - [Project README](../README.md)
