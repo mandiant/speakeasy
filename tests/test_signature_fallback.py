@@ -2,11 +2,10 @@
 End-to-end tests for emulating imports that have no speakeasy handler using
 the bundled Win32 API signature database.
 
-Each test loads a small hand-assembled shellcode blob that calls
-``kernel32!CreateSymbolicLinkW`` (no handler in speakeasy) followed by
-``kernel32!ExitProcess`` (handled). The argument to ExitProcess is pushed
-*before* the CreateSymbolicLinkW call so that, on x86, it is only seen correctly if
-the fallback cleaned up exactly the right number of stack slots.
+Most tests load a small hand-assembled shellcode blob that calls one such API
+followed by ``kernel32!ExitProcess`` (handled). The argument to ExitProcess is
+pushed *before* the call so that, on x86, it is only seen correctly if the
+fallback cleaned up exactly the right number of stack slots.
 """
 
 import struct
@@ -24,48 +23,11 @@ TARGET_NAME = "C:\\target"
 EXIT_CODE = 0x1234
 SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1
 
+RESOURCE_UPDATER = "023f838239b6d3f9dbe5a1a0468dc99805bdced685616887d1b59afff4c3243d.exe.xz"
+
 
 def _wstr(s: str) -> bytes:
     return s.encode("utf-16le") + b"\x00\x00"
-
-
-def _build_x86() -> tuple[bytes, dict[str, tuple[int, int]]]:
-    """
-    call $+5 / pop ebx            ; ebx = blob + 5
-    push EXIT_CODE                ; argument for ExitProcess, must survive the stdcall cleanup
-    push SYMBOLIC_LINK_FLAG_DIRECTORY
-    lea eax, [ebx + target] / push eax
-    lea eax, [ebx + link] / push eax
-    mov eax, <CreateSymbolicLinkW> ; patched
-    call eax
-    mov eax, <ExitProcess>        ; patched
-    call eax
-    """
-    code = bytearray()
-    code += b"\xe8\x00\x00\x00\x00"  # call $+5
-    code += b"\x5b"  # pop ebx
-    code += b"\x68" + struct.pack("<I", EXIT_CODE)  # push EXIT_CODE
-    code += b"\x68" + struct.pack("<I", SYMBOLIC_LINK_FLAG_DIRECTORY)  # push dwFlags
-    lea_target_off = len(code)
-    code += b"\x8d\x83" + b"\x00\x00\x00\x00"  # lea eax, [ebx+disp]
-    code += b"\x50"  # push eax
-    lea_link_off = len(code)
-    code += b"\x8d\x83" + b"\x00\x00\x00\x00"  # lea eax, [ebx+disp]
-    code += b"\x50"  # push eax
-    api_off = len(code) + 1
-    code += b"\xb8" + b"\x00\x00\x00\x00"  # mov eax, imm32
-    code += b"\xff\xd0"  # call eax
-    exit_off = len(code) + 1
-    code += b"\xb8" + b"\x00\x00\x00\x00"  # mov eax, imm32
-    code += b"\xff\xd0"  # call eax
-    link_off = len(code)
-    code += _wstr(LINK_NAME)
-    target_off = len(code)
-    code += _wstr(TARGET_NAME)
-    # ebx holds the address of the byte after the initial call (offset 5)
-    code[lea_target_off + 2 : lea_target_off + 6] = struct.pack("<i", target_off - 5)
-    code[lea_link_off + 2 : lea_link_off + 6] = struct.pack("<i", link_off - 5)
-    return bytes(code), {"CreateSymbolicLinkW": (api_off, 4), "ExitProcess": (exit_off, 4)}
 
 
 def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
@@ -171,16 +133,14 @@ def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> 
 
 PROFILE_BUFFER_CHARS = 8
 
-BUILDERS = {"x86": _build_x86, "amd64": _build_x64}
 
-
-def _run(config: dict[str, Any], arch: str) -> Report:
+def _run_x64(config: dict[str, Any]) -> Report:
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")
-    code, patches = BUILDERS[arch]()
+    code, patches = _build_x64()
     se = Speakeasy(config=config)
     try:
-        sc_addr = se.load_shellcode(data=code, arch=arch)
+        sc_addr = se.load_shellcode(data=code, arch="amd64")
         emu = se.emu
         assert emu is not None
         # Resolve import stubs the same way GetProcAddress would and patch the
@@ -199,9 +159,64 @@ def _api_events(report: Report) -> list[ApiEvent]:
     return [e for e in (report.entry_points[0].events or []) if e.event == "api"]
 
 
-@pytest.mark.parametrize("arch", ["x86", "amd64"])
-def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch: str) -> None:
-    report = _run(config, arch)
+def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load_test_bin) -> None:
+    """
+    At the end of its run 023f8382 (x86) writes a resource into the copy of itself that
+    it dropped, with BeginUpdateResourceA, UpdateResourceA and EndUpdateResourceA, which
+    have no handler, then calls CloseHandle and ExitProcess. These calls are in start
+    between RVA 0x1413 and 0x1449, where the stack pointer must be the same if each
+    stdcall callee removed exactly its own arguments.
+    """
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")
+    stack_pointers = {}
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(RESOURCE_UPDATER))
+        for rva in (0x1413, 0x1449):
+
+            def record(emu, address, size, rva=rva):
+                stack_pointers[rva] = emu.get_stack_ptr()
+
+            se.add_code_hook(record, begin=module.base + rva, end=module.base + rva)
+        se.run_module(module)
+        report = se.get_report()
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    events = _api_events(report)
+    assert [e.api_name for e in events[-5:]] == [
+        "kernel32.BeginUpdateResourceA",
+        "kernel32.UpdateResourceA",
+        "kernel32.EndUpdateResourceA",
+        "kernel32.CloseHandle",
+        "kernel32.ExitProcess",
+    ]
+    begin, update, end = events[-5:-2]
+    assert [(a.name, a.type, a.display) for a in begin.args] == [
+        ("pFileName", "str", "\\RemoteRegistry.exe"),
+        ("bDeleteExistingResources", "bool", "FALSE"),
+    ]
+    handle = begin.ret_val
+    assert handle != "0x0"
+    assert [(a.name, a.type, a.display) for a in update.args] == [
+        ("hUpdate", "handle", handle),
+        ("lpType", "str", "RT_RCDATA"),
+        ("lpName", "ptr", "0x66"),
+        ("wLanguage", "int", "0x409"),
+        ("lpData", "ptr", "0x4050b4"),
+        ("cb", "int", "0x3000"),
+    ]
+    assert update.ret_val == "0x1"
+    assert [(a.name, a.type, a.display) for a in end.args] == [
+        ("hUpdate", "handle", handle),
+        ("fDiscard", "bool", "FALSE"),
+    ]
+    assert end.ret_val == "0x1"
+    assert stack_pointers[0x1413] == stack_pointers[0x1449]
+
+
+def test_unhooked_import_is_emulated_from_signature_on_x64(config: dict[str, Any]) -> None:
+    report = _run_x64(config)
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
 
@@ -219,7 +234,7 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], arch
     # BOOLEAN return: fake success
     assert created.ret_val == "0x1"
 
-    # The stack (x86) / registers (x64) were left exactly as the caller expects
+    # the registers were left exactly as the caller expects
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
