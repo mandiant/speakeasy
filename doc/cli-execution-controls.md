@@ -31,6 +31,8 @@ Primary flags:
 - `--emulate-children`: emulate spawned child processes
 - `--no-mp`: run in current process instead of worker process
 
+With `--emulate-children`, a child process runs after the process that started it stops. All processes share one address space and the loaded DLLs. Before a child runs, the image, PEB and heap blocks of the process that ran before it are unmapped. The child gets its own PEB, with its image first in the loader list, and a new TEB. A child whose image base is used by other memory is skipped with a warning. The API handlers keep one state for all processes, for example the process heap handle and the C runtime data.
+
 Example: raw shellcode run with bounded execution
 
 ```bash

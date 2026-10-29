@@ -364,46 +364,61 @@ class Win32Emulator(WindowsEmulator):
             return
 
         # Emulate any child processes
-        images = [module]
+        finished = self.curr_process
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
             if not child.pe_data:
                 logger.warning("skipping child process %s: no image in the emulated file system", child.path)
                 continue
 
+            # All processes share one address space. The process that ran
+            # before gives up its image, PEB and heap, so that the child loads
+            # at its preferred base and gets its own PEB and heap.
+            if finished is not None:
+                self._free_process_memory(finished)
+                finished = None
+
             self.curr_process = child
             self.curr_thread = child.threads[0]
 
-            # All processes share one address space. The images of the
-            # processes that already ran are unmapped where they overlap the
-            # child image, so that the child loads at its preferred base.
             image = PeLoader(data=child.pe_data).make_image()
             image.name = os.path.splitext(ntpath.basename(child.path))[0]
             image.emu_path = child.path
-            start, end = image.image_base, image.image_base + image.image_size
-            for loaded in [i for i in images if i.base < end and start < i.base + i.image_size]:
-                self._discard_loaded_module(loaded)
-                images.remove(loaded)
-
             try:
                 child.pe = self.load_image(image)
             except WindowsEmuError as error:
                 logger.warning("skipping child process %s: %s", child.path, error)
                 continue
-            images.append(child.pe)
+
+            child.base = child.pe.base
+            self.curr_thread.stack_base = self.stack_base
+            self.curr_thread.stack_commit = child.pe.stack_commit
+            self.alloc_peb(child)
+            self.init_peb([m for m in self.get_peb_modules() if m.is_dll()], proc=child)
             for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
-                run.thread = child.threads[0]
+                run.thread = self.curr_thread
 
             self.command_line = child.cmdline
-            self.curr_process.base = child.pe.base
-
             self.om.objects.update({self.curr_thread.address: self.curr_thread})  # type: ignore[union-attr]
-
-            # PEB and TEB will be initialized when the next run happens
-
             self.start()
+            finished = child
 
-        return
+    def _free_process_memory(self, process):
+        """
+        Unmap the image, PEB, loader list and heap blocks of a process that
+        finished. Memory that API handlers keep a pointer to stays mapped.
+        """
+        if process.pe in self.modules:
+            self._discard_loaded_module(process.pe)
+        addresses = [process.peb.address, process.peb.object.ProcessParameters]
+        if process.is_peb_active:
+            addresses += [process.peb_ldr_data.address] + [entry.address for entry in process.ldr_entries]
+        addresses += [m.base for m in self.maps if m.process is process and (m.tag or "").startswith("api.heap")]
+        process.is_peb_active = False
+        process.ldr_entries.clear()
+        process._peb_modules.clear()
+        for address in addresses:
+            self.mem_free(address)
 
     def _init_name(self, path, data=None, filename=None):
         if filename:
