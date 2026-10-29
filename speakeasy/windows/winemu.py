@@ -836,16 +836,16 @@ class WindowsEmulator(BinaryEmulator):
                 if spent < timeout:
                     logger.error("* Timeout of %d sec(s) reached.", timeout)
             elif kind == "max_total_time":
+                assert total_budget is not None
                 logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
-            else:
-                logger.error("* Instruction limit of %d reached.", budget)
-            # A limit that expires while a fault is completing keeps the fault as
-            # the run's error.
-            if kind == "max_total_time":
                 total_budget.exhausted = True
                 self._cancel_execution_runs()
+                # A limit that expires while a fault is completing keeps the fault as
+                # the run's error.
                 if self.curr_run is origin_run and origin_run.error is None:
                     origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
+            else:
+                logger.error("* Instruction limit of %d reached.", budget)
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
             elif self.curr_run is origin_run:
