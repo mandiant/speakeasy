@@ -844,27 +844,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _run_api_engine(self, address, timeout=0, count=-1, debugger=None):
         """Keep one logical execution action across private API trap yields."""
-        pending = self._pending.api_entry
-        if pending is not None and address not in (pending.address, pending.trap):
-            # A debugger register edit abandons the suspended dispatch.
-            self._pending.api_entry = None
-        elif pending is not None and self._api_call_snapshot(pending) != self._pending.api_snapshot:
-            # Patches and frame edits while stopped must execute the revised
-            # public bytes instead of bypassing them through a retained trap.
-            self._pending.api_entry = None
-            address = pending.address
-            self.set_pc(address)
-        if (
-            self._pending.control
-            and self._pending.control != PendingControl.EXEC_RECOVERY
-            and address
-            not in (
-                winemu.GUEST_CALLBACK_RETURN_ADDR,
-                self.return_hook,
-                self.exit_hook,
-            )
-        ):
-            self._pending.control = None
+        address = self._drop_stale_pending(address)
         origin_run = self.curr_run
         assert origin_run is not None
         budget = self.config.max_instructions if debugger is not None else count
@@ -1093,6 +1073,34 @@ class WindowsEmulator(BinaryEmulator):
                         debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
             if hook is not None:
                 self.remove_code_hook(hook)
+
+    def _drop_stale_pending(self, address: int) -> int:
+        """
+        Drop the pending work that a debugger made stale while the target was stopped,
+        and get the address where execution continues.
+        """
+        pending = self._pending.api_entry
+        if pending is not None and address not in (pending.address, pending.trap):
+            # A debugger register edit abandons the suspended dispatch.
+            self._pending.api_entry = None
+        elif pending is not None and self._api_call_snapshot(pending) != self._pending.api_snapshot:
+            # Patches and frame edits while stopped must execute the revised
+            # public bytes instead of bypassing them through a retained trap.
+            self._pending.api_entry = None
+            address = pending.address
+            self.set_pc(address)
+        if (
+            self._pending.control
+            and self._pending.control != PendingControl.EXEC_RECOVERY
+            and address
+            not in (
+                winemu.GUEST_CALLBACK_RETURN_ADDR,
+                self.return_hook,
+                self.exit_hook,
+            )
+        ):
+            self._pending.control = None
+        return address
 
     def _cancel_execution_runs(self, prepared=None):
         """Cancel unexecuted work without leaving DLL attachments initializing."""
