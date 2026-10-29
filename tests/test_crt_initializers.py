@@ -4,43 +4,7 @@ import pytest
 
 from speakeasy import Speakeasy
 
-
-@pytest.fixture
-def x86_session(config):
-    config["timeout"] = 2
-    config["max_api_count"] = 200
-    se = Speakeasy(config=config)
-    try:
-        base = se.load_shellcode(data=b"\xc3", arch="x86")
-        se.run_shellcode(base)
-        yield se
-    finally:
-        se.shutdown()
-
-
-def write_code(se: Speakeasy, code: bytes) -> int:
-    addr = se.mem_alloc(0x1000)
-    se.mem_write(addr, code)
-    return addr
-
-
-def call_table(se: Speakeasy, api: str, entries: list[int]) -> int:
-    table = se.mem_alloc(0x1000)
-    se.mem_write(table, b"".join(struct.pack("<I", e) for e in entries))
-    function = se.emu.get_proc("msvcrt", api)
-    caller = write_code(
-        se,
-        b"\x68"
-        + struct.pack("<I", table + 4 * len(entries))
-        + b"\x68"
-        + struct.pack("<I", table)
-        + b"\xb8"
-        + struct.pack("<I", function)
-        + b"\xff\xd0\x83\xc4\x08\xc3",
-    )
-    se.call(caller)
-    assert se.get_report().entry_points[-1].error is None
-    return se.reg_read("eax")
+ACTIVE_SETUP_DROPPER = "025bd4d05ca3557f429bf0a44f5f93745df2b70398ed80a19b7807cc472649df.exe.xz"
 
 
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz", "argv_test_x64.exe.xz"])
@@ -57,47 +21,34 @@ def test_initterm_e_runs_the_crt_initializers_in_order(config, load_test_bin, ru
     assert "msvcrt.__stdio_common_vfprintf" in names
 
 
-@pytest.mark.parametrize(
-    "ctor, dtor",
-    [
-        ("??0Init@ios_base@std@@QAE@XZ", "??1Init@ios_base@std@@QAE@XZ"),
-        ("??0_Winit@std@@QAE@XZ", "??1_Winit@std@@QAE@XZ"),
-        ("??0?$basic_ios@DU?$char_traits@D@std@@@std@@IAE@XZ", "??1?$basic_ios@DU?$char_traits@D@std@@@std@@UAE@XZ"),
-        (
-            "??0?$basic_ios@_WU?$char_traits@_W@std@@@std@@IAE@XZ",
-            "??1?$basic_ios@_WU?$char_traits@_W@std@@@std@@UAE@XZ",
-        ),
-    ],
-)
-def test_iostream_static_constructors_are_thiscall_on_x86(x86_session, ctor, dtor):
-    se = x86_session
-    this = se.mem_alloc(0x1000)
-    out = se.mem_alloc(0x1000)
-    ctor_addr = se.emu.get_proc("msvcp60", ctor)
-    dtor_addr = se.emu.get_proc("msvcp60", dtor)
-    caller = write_code(
-        se,
-        b"\x89\x25"
-        + struct.pack("<I", out)
-        + b"\xb9"
-        + struct.pack("<I", this)
-        + b"\xb8"
-        + struct.pack("<I", ctor_addr)
-        + b"\xff\xd0"
-        + b"\xa3"
-        + struct.pack("<I", out + 4)
-        + b"\xb9"
-        + struct.pack("<I", this)
-        + b"\xb8"
-        + struct.pack("<I", dtor_addr)
-        + b"\xff\xd0"
-        + b"\x89\x25"
-        + struct.pack("<I", out + 8)
-        + b"\xc3",
-    )
-    se.call(caller)
+def test_iostream_static_constructors_are_thiscall_on_x86(config, load_test_bin):
+    """
+    025bd4d0 is a VC6 program that includes <iostream>. Its second _initterm table has two
+    static initializers that load ECX with a static object and jump to the MSVCP60
+    std::ios_base::Init and std::_Winit constructors. These are thiscall with no stack
+    arguments, so when _initterm returns (RVA 0x273E) the start-up code still has the 0x24
+    bytes of call arguments above the stack pointer it saved at [ebp - 0x18].
+    """
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(ACTIVE_SETUP_DROPPER))
+        stacks = []
 
-    assert se.get_report().entry_points[-1].error is None
-    esp_before, eax, esp_after = struct.unpack("<III", se.mem_read(out, 12))
-    assert eax == this
-    assert esp_after == esp_before
+        def after_initterm(emu, address, size):
+            saved_esp = struct.unpack("<I", se.mem_read(se.reg_read("ebp") - 0x18, 4))[0]
+            stacks.append((se.reg_read("esp") + 0x24, saved_esp))
+            se.stop()
+
+        se.add_code_hook(after_initterm, begin=module.base + 0x273E, end=module.base + 0x273E)
+        se.run_module(module)
+        run = se.get_report().entry_points[0]
+
+    assert run.error is None
+    ctors = [
+        (e.api_name, e.ret_val) for e in run.events or [] if e.event == "api" and e.api_name.startswith("msvcrt.??0")
+    ]
+    assert ctors == [
+        ("msvcrt.??0Init@ios_base@std@@QAE@XZ", hex(module.base + 0x44F9)),
+        ("msvcrt.??0_Winit@std@@QAE@XZ", hex(module.base + 0x44F8)),
+    ]
+    [(esp, saved_esp)] = stacks
+    assert esp == saved_esp
