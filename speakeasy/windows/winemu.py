@@ -905,32 +905,8 @@ class WindowsEmulator(BinaryEmulator):
                         origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
                         self.on_run_complete()
                     return
-                # A missing ABI remains a suspended call under the debugger.
-                if debugger is not None:
-                    mod, attrs = self.api.get_export_func_handler(entry.dll, entry.name)
-                    if not attrs:
-                        mod, attrs = self.normalize_import_miss(entry.dll, entry.name)
-                    if (
-                        not attrs
-                        and not self.get_api_hooks(entry.dll, entry.name)
-                        and not self.lookup_api_signature(entry.dll, entry.name)
-                        and not self._can_stub_unknown_api(entry.dll, entry.name)
-                    ):
-                        self.set_pc(entry.address)
-                        debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
-                        return
-                self._pending.api_entry = None
-                self._pending.api_snapshot = None
-                site, self._api_call_site = self._api_call_site, None
-                self.prev_pc = site[1] if site is not None and site[0] == entry.address else 0
-                self.handle_import_func(entry.dll, entry.name)
-                if self._pending_fault_stop is not None:
+                if not self._dispatch_api_entry(entry, limits, origin_run, debugger):
                     return
-                if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
-                    if limits.is_total_time_reached():
-                        self._stop_at_limit("max_total_time", limits, origin_run, debugger)
-                        return
-                    self.on_run_complete()
                 address = self.get_pc()
                 if self.curr_run is not origin_run or debugger_stops():
                     return
@@ -1049,6 +1025,43 @@ class WindowsEmulator(BinaryEmulator):
                 self.curr_run.instr_cnt += 1
 
         return self.add_code_hook(account_instruction)
+
+    def _dispatch_api_entry(
+        self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
+    ) -> bool:
+        """
+        Run the handler of the API whose trap the guest reached, and end the run if the
+        handler completed it. Get False if the call of the run loop must return, because
+        the debugger stops at an API with no handler, a fault stops the debugger, or the
+        total execution time ran out.
+        """
+        # A missing ABI remains a suspended call under the debugger.
+        if debugger is not None:
+            mod, attrs = self.api.get_export_func_handler(entry.dll, entry.name)
+            if not attrs:
+                mod, attrs = self.normalize_import_miss(entry.dll, entry.name)
+            if (
+                not attrs
+                and not self.get_api_hooks(entry.dll, entry.name)
+                and not self.lookup_api_signature(entry.dll, entry.name)
+                and not self._can_stub_unknown_api(entry.dll, entry.name)
+            ):
+                self.set_pc(entry.address)
+                debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
+                return False
+        self._pending.api_entry = None
+        self._pending.api_snapshot = None
+        site, self._api_call_site = self._api_call_site, None
+        self.prev_pc = site[1] if site is not None and site[0] == entry.address else 0
+        self.handle_import_func(entry.dll, entry.name)
+        if self._pending_fault_stop is not None:
+            return False
+        if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
+            if limits.is_total_time_reached():
+                self._stop_at_limit("max_total_time", limits, origin_run, debugger)
+                return False
+            self.on_run_complete()
+        return True
 
     def _run_pending_control(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
         """
