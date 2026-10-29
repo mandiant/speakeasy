@@ -58,6 +58,7 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
         se.emu.fileman.add_existing_file(CHILD_PATH, build_child())
         se.run_module(module, emulate_children=True)
         child = se.emu.get_mod_from_addr(module.base)
+        pids = [se.emu.processes[0].pid, se.emu.get_current_process().pid]
         report = se.get_report()
         entries = report.entry_points
 
@@ -67,7 +68,8 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
     assert [(ep.ep_type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[0].ret_val == 1
     assert entries[1].ret_val == CHILD_RESULT
-    assert entries[0].pid != entries[1].pid
+    assert len(set(pids)) == 2
+    assert [ep.pid for ep in entries] == pids
 
 
 def test_child_without_an_image_is_skipped(config):

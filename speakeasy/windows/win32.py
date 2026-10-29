@@ -344,6 +344,7 @@ class Win32Emulator(WindowsEmulator):
                 mm.process = self.curr_process
 
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=module.stack_commit)
+        t.process = self.curr_process
 
         self.om.objects.update({t.address: t})  # type: ignore[union-attr]
         self.curr_process.threads.append(t)  # type: ignore[union-attr]
