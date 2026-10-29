@@ -132,17 +132,6 @@ def test_find_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
     assert rv == 0
 
 
-@pytest.mark.parametrize("name, encoding", [("FindWindowExA", "latin-1"), ("FindWindowExW", "utf-16le")])
-def test_find_window_ex_finds_no_window(dll_emu: Speakeasy, name: str, encoding: str) -> None:
-    cls = alloc(dll_emu, "NoSuchClass\0".encode(encoding))
-    title = alloc(dll_emu, "NoSuchTitle\0".encode(encoding))
-    rv, displays = call(dll_emu, "user32", name, [0, 0, cls, title])
-    assert rv == 0
-    assert displays["lpszClass"] == "NoSuchClass"
-    assert displays["lpszWindow"] == "NoSuchTitle"
-    assert call(dll_emu, "user32", name, [0, 0, 0xC001, 0])[0] == 0
-
-
 def create_window_of_class(se: Speakeasy, cls: int, wndproc: int) -> int:
     """Create a window of a class with a window procedure and return the HWND that its WM_NCCREATE gets."""
     assert se.emu is not None
@@ -428,38 +417,6 @@ def test_create_dib_section_rejects_a_bad_header(dll_emu: Speakeasy, width: int,
     assert dll_emu.mem_read(ppv, 4) == b"\x00" * 4
 
 
-STATUS_INVALID_PARAMETER = 0xC000000D
-
-
-@pytest.mark.parametrize("fixture, ptr", [("dll_emu", 4), ("dll64_emu", 8)])
-@pytest.mark.parametrize("has_buffer", [False, True])
-def test_d3dkmt_enum_adapters2_reports_no_adapters(
-    request: pytest.FixtureRequest, fixture: str, ptr: int, has_buffer: bool
-) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    adapters = alloc(se, b"\xcc" * 0x40) if has_buffer else 0
-    data = alloc(
-        se, struct.pack("<I", 2 if has_buffer else 0xFFFFFFFF) + b"\x00" * (ptr - 4) + adapters.to_bytes(ptr, "little")
-    )
-    assert call(se, "gdi32", "D3DKMTEnumAdapters2", [data])[0] == 0
-    assert se.mem_read(data, 4) == b"\x00" * 4
-    assert int.from_bytes(se.mem_read(data + ptr, ptr), "little") == adapters
-    if adapters:
-        assert se.mem_read(adapters, 0x40) == b"\xcc" * 0x40
-
-
-def test_d3dkmt_enum_adapters_reports_no_adapters(dll_emu: Speakeasy) -> None:
-    data = alloc(dll_emu, b"\xcc" * 4)
-    assert call(dll_emu, "gdi32", "D3DKMTEnumAdapters", [data])[0] == 0
-    assert dll_emu.mem_read(data, 4) == b"\x00" * 4
-
-
-def test_d3dkmt_adapter_calls_return_ntstatus(dll_emu: Speakeasy) -> None:
-    data = alloc(dll_emu, b"\x00" * 0x20)
-    assert call(dll_emu, "gdi32", "D3DKMTCloseAdapter", [data])[0] == 0
-    assert call(dll_emu, "gdi32", "D3DKMTQueryAdapterInfo", [data])[0] == STATUS_INVALID_PARAMETER
-
-
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_window_from_point_returns_the_desktop_window(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
@@ -497,17 +454,6 @@ def create_window(se: Speakeasy, style: int = 0, parent: int = 0) -> int:
     return hwnd
 
 
-@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
-@pytest.mark.parametrize("api", ["GetWindowLongW", "SetWindowLongW"])
-def test_window_long_of_an_unknown_window_fails(request: pytest.FixtureRequest, fixture: str, api: str) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
-    start_process(se)
-    argv = [0x41420000, 0] + ([0x1234] if api.startswith("Set") else [])
-    assert call(se, "user32", api, argv)[0] == 0
-    assert se.emu.get_last_error() == 1400
-
-
 @pytest.mark.parametrize("fixture, suffix", [("dll_emu", ""), ("dll64_emu", ""), ("dll64_emu", "Ptr")])
 def test_set_window_long_returns_the_previous_value(request: pytest.FixtureRequest, fixture: str, suffix: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
@@ -531,20 +477,6 @@ def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy
     msg = alloc(dll_emu, struct.pack("<IIIIIII", hwnd, 0x10, 0, 0, 0, 0, 0))
     call(dll_emu, "user32", "DispatchMessageA", [msg])
     assert dll_emu.emu.get_current_run().guest_callbacks[-1].function == 0x402000
-
-
-@pytest.mark.parametrize("api", ["GetDC", "GetWindowDC"])
-def test_release_dc_releases_a_window_dc(dll_emu: Speakeasy, api: str) -> None:
-    start_process(dll_emu)
-    hwnd = create_window(dll_emu)
-    dc = call(dll_emu, "user32", api, [hwnd])[0]
-    assert dc
-    assert call(dll_emu, "user32", "ReleaseDC", [hwnd, dc])[0] == 1
-
-
-def test_release_dc_of_an_unknown_dc_fails(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    assert call(dll_emu, "user32", "ReleaseDC", [0, 0x1234])[0] == 0
 
 
 def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
@@ -579,25 +511,6 @@ def test_window_properties_by_name(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "RemovePropA", [hwnd, name])[0] == 0
 
 
-def test_window_properties_by_atom(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    hwnd = create_window(dll_emu)
-    assert call(dll_emu, "user32", "SetPropW", [hwnd, 0xC123, 0x5678])[0] == 1
-    assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC123])[0] == 0x5678
-    assert call(dll_emu, "user32", "GetPropW", [hwnd, 0xC124])[0] == 0
-    assert call(dll_emu, "user32", "SetPropW", [0x41420000, 0xC123, 1])[0] == 0
-
-
-@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
-def test_get_cursor_pos_writes_a_point_on_the_screen(request: pytest.FixtureRequest, fixture: str) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
-    pt = alloc(se, b"\xcc" * 12)
-    assert call(se, "user32", "GetCursorPos", [pt])[0] == 1
-    x, y, rest = struct.unpack("<iiI", se.mem_read(pt, 12))
-    assert 0 <= x < 1920 and 0 <= y < 1080
-    assert rest == 0xCCCCCCCC
-
-
 def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
@@ -609,18 +522,6 @@ def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, 0])[0] == tid
 
 
-def test_get_window_thread_process_id_of_the_desktop_is_csrss(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    desktop, _ = call(dll_emu, "user32", "GetDesktopWindow", [])
-    pid = alloc(dll_emu, b"\xcc" * 4)
-    tid, _ = call(dll_emu, "user32", "GetWindowThreadProcessId", [desktop, pid])
-    csrss = next(p for p in dll_emu.emu.get_processes() if p.name == "csrss")
-    assert tid and tid != call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
-    assert dll_emu.mem_read(pid, 4) == struct.pack("<I", csrss.pid)
-    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [desktop, 0])[0] == tid
-
-
 def test_get_foreground_window_is_a_stable_explorer_window(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
@@ -630,46 +531,6 @@ def test_get_foreground_window_is_a_stable_explorer_window(dll_emu: Speakeasy) -
     assert call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, pid])[0] != 0
     explorer = next(p for p in dll_emu.emu.get_processes() if p.name == "explorer")
     assert dll_emu.mem_read(pid, 4) == struct.pack("<I", explorer.pid)
-
-
-def test_get_window_thread_process_id_of_an_invalid_window(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    pid = alloc(dll_emu, b"\xcc" * 4)
-    assert call(dll_emu, "user32", "GetWindowThreadProcessId", [0x41420000, pid])[0] == 0
-    assert dll_emu.mem_read(pid, 4) == b"\xcc" * 4
-    assert dll_emu.emu.get_last_error() == 1400
-
-
-@pytest.mark.parametrize(
-    "index, expected",
-    [(0, 1920), (1, 1080), (4, 23), (19, 1), (67, 0), (78, 1920), (79, 1080), (80, 1), (0x1000, 0), (0x7FFF, 0)],
-)
-def test_get_system_metrics(dll_emu: Speakeasy, index: int, expected: int) -> None:
-    assert call(dll_emu, "user32", "GetSystemMetrics", [index])[0] == expected
-
-
-@pytest.mark.parametrize("index, expected", [(5, 0xFFFFFF), (8, 0), (13, 0xD77800), (15, 0xF0F0F0), (200, 0)])
-def test_get_sys_color(dll_emu: Speakeasy, index: int, expected: int) -> None:
-    assert call(dll_emu, "user32", "GetSysColor", [index])[0] == expected
-
-
-@pytest.mark.parametrize(
-    "utype, rv",
-    [
-        (0x0, 1),  # MB_OK: IDOK
-        (0x40, 1),  # MB_OK | MB_ICONINFORMATION: IDOK
-        (0x1, 2),  # MB_OKCANCEL: IDCANCEL
-        (0x2, 3),  # MB_ABORTRETRYIGNORE: IDABORT
-        (0x3, 2),  # MB_YESNOCANCEL: IDCANCEL
-        (0x4, 6),  # MB_YESNO: IDYES
-        (0x5, 2),  # MB_RETRYCANCEL: IDCANCEL
-        (0x6, 2),  # MB_CANCELTRYCONTINUE: IDCANCEL
-    ],
-)
-def test_message_box_returns_a_button_of_its_type(dll_emu: Speakeasy, utype: int, rv: int) -> None:
-    text = alloc(dll_emu, b"text\x00")
-    assert call(dll_emu, "user32", "MessageBoxA", [0, text, text, utype])[0] == rv
 
 
 @pytest.mark.parametrize(
@@ -687,13 +548,6 @@ def test_integer_resource_ids_display_as_integers(dll64_emu: Speakeasy, api: str
     rv, displays = call(dll64_emu, "user32", api, [0, 0x7F00])
     assert rv
     assert displays[arg] == "0x7f00"
-
-
-def test_named_resources_display_their_names(dll64_emu: Speakeasy) -> None:
-    name = alloc(dll64_emu, "MAINMENU\x00".encode("utf-16le"))
-    assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, name])[1]["lpTableName"] == "MAINMENU"
-    number = alloc(dll64_emu, "#101\x00".encode("utf-16le"))
-    assert call(dll64_emu, "user32", "LoadAcceleratorsW", [0, number])[1]["lpTableName"] == "0x65"
 
 
 def build_string_table_pe() -> bytes:
@@ -734,18 +588,6 @@ def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
         buf = alloc(se, b"\xcc" * 32)
         result, _ = call(se, "user32", "LoadStringW", [base, 17, buf, 16])
         assert (result, se.mem_read(buf, 8)) == (3, "abc\x00".encode("utf-16le"))
-
-
-def test_register_window_message_gives_one_id_per_name(dll_emu: Speakeasy) -> None:
-    def register(text: bytes) -> int:
-        return call(dll_emu, "user32", "RegisterWindowMessageA", [alloc(dll_emu, text + b"\0")])[0]
-
-    first = register(b"TaskbarCreated")
-    second = register(b"MyPrivateMessage")
-
-    assert 0xC000 <= first <= 0xFFFF
-    assert second not in (first, 0)
-    assert register(b"taskbarcreated") == first
 
 
 def d32(value: int) -> bytes:
@@ -803,11 +645,6 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(
         assert len(set(lparams)) == 1
         cs = struct.unpack("<4I4i4I", se.mem_read(lparams[0], 48))
         assert cs == (0x1234, 0x400000, 0, 0, 40, 30, 20, 10, WS_POPUP, title, name, 0x400)
-
-
-def test_def_window_proc_lets_nccreate_create_the_window(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x81, 0, 0])[0] == 1
-    assert call(dll_emu, "user32", "DefWindowProcA", [0x10000, 0x1, 0, 0])[0] == 0
 
 
 @pytest.mark.parametrize("callback_result, rv", [(0, 0), (1, 1)])

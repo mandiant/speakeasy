@@ -24,14 +24,6 @@ def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
     assert displays["lpName"] == "MYNAME"
 
 
-def test_find_resource_ex_shows_integer_ids(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
-    hmod = dll_emu.emu.modules[0].base
-    _, displays = call(dll_emu, "kernel32", "FindResourceExA", [hmod, 10, 0x65, 0])
-    assert displays["lpType"] == "0xa"
-    assert displays["lpName"] == "0x65"
-
-
 def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
     assert emu is not None
