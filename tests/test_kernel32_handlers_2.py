@@ -7,6 +7,7 @@ import struct
 from collections.abc import Callable, Iterator
 from typing import Any
 
+import pefile
 import pytest
 import unicorn
 
@@ -725,11 +726,14 @@ def test_global_memory_status_fills_the_struct(request: pytest.FixtureRequest, f
 
 
 @pytest.mark.parametrize("large_address_aware", [False, True])
-def test_global_memory_status_clamps_for_a_32_bit_image(config: dict[str, Any], large_address_aware: bool) -> None:
-    image = bytearray(build_pe(32)[0])
+def test_global_memory_status_clamps_for_a_32_bit_image(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], large_address_aware: bool
+) -> None:
+    pe = pefile.PE(data=load_test_bin("argv_test_x86.exe.xz"))
+    assert not pe.FILE_HEADER.IMAGE_FILE_LARGE_ADDRESS_AWARE
     if large_address_aware:
-        image[0x96] |= 0x20
-    for se in load_emu(config, bytes(image)):
+        pe.FILE_HEADER.Characteristics |= pefile.IMAGE_CHARACTERISTICS["IMAGE_FILE_LARGE_ADDRESS_AWARE"]
+    for se in load_emu(config, pe.write()):
         start_process(se)
         status = alloc(se, b"\x00" * 32)
         call(se, "kernel32", "GlobalMemoryStatus", [status])

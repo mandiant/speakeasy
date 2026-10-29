@@ -43,15 +43,18 @@ def call_table(se: Speakeasy, api: str, entries: list[int]) -> int:
     return se.reg_read("eax")
 
 
-def test_initterm_calls_each_initializer_in_order(x86_session):
-    se = x86_session
-    value = se.mem_alloc(0x1000)
-    store_seven = write_code(se, b"\xc7\x05" + struct.pack("<II", value, 7) + b"\xc3")
-    double = write_code(se, b"\xd1\x25" + struct.pack("<I", value) + b"\xc3")
-
-    call_table(se, "_initterm", [0, store_seven, 0, double])
-
-    assert struct.unpack("<I", se.mem_read(value, 4))[0] == 14
+@pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz", "argv_test_x64.exe.xz"])
+def test_initterm_e_runs_the_crt_initializers_in_order(config, load_test_bin, run_test, bin_file):
+    report = run_test(config, load_test_bin(bin_file))
+    names = [evt.api_name for evt in report.entry_points[0].events or [] if evt.event == "api"]
+    initializers = names[names.index("msvcrt._initterm_e") + 1 : names.index("msvcrt._initterm")]
+    calls = [
+        name
+        for name in initializers
+        if name in ("msvcrt._configure_narrow_argv", "msvcrt._initialize_narrow_environment")
+    ]
+    assert calls == ["msvcrt._configure_narrow_argv", "msvcrt._initialize_narrow_environment"]
+    assert "msvcrt.__stdio_common_vfprintf" in names
 
 
 @pytest.mark.parametrize(

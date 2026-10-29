@@ -2,7 +2,6 @@ import pytest
 
 from speakeasy import Speakeasy
 from tests.handler_harness import call
-from tests.pe_builder import build_pe
 
 
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz"])
@@ -35,10 +34,9 @@ def test_argv_zero_is_the_program_path(config, load_test_bin):
 
 
 @pytest.mark.parametrize(("api", "width"), [("GetCommandLineA", 1), ("GetCommandLineW", 2)])
-def test_argv_goes_into_the_command_line(config, api, width):
-    data, _ = build_pe(32, text=b"\xc3")
+def test_argv_goes_into_the_command_line(config, load_test_bin, api, width):
     with Speakeasy(config=config, argv=["/run", "x y", 'a"b']) as se:
-        module = se.load_module(data=data)
+        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
         se.run_module(module)
         rv, _ = call(se, "kernel32", api, [])
         assert se.read_mem_string(rv, width) == f'"{module.emu_path}" /run "x y" a\\"b'
