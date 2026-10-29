@@ -16,7 +16,6 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
 
@@ -1114,32 +1113,13 @@ def test_performance_counter_moves_with_the_system_time(emu: Speakeasy) -> None:
         pytest.fail("the performance counter does not reach the target")
 
 
-@pytest.mark.parametrize("arch", ["x86", "amd64"])
-def test_sleep_advances_the_time_stamp_counter(config: dict[str, Any], arch: str) -> None:
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch=arch)
-        data = se.mem_alloc(0x1000)
-        if arch == "x86":
-            ptr_size = 4
-
-            def store_tsc(address: int) -> bytes:
-                # rdtsc; mov [address], eax; mov [address + 4], edx
-                return b"\x0f\x31\xa3" + struct.pack("<I", address) + b"\x89\x15" + struct.pack("<I", address + 4)
-        else:
-            ptr_size = 8
-
-            def store_tsc(address: int) -> bytes:
-                # rdtsc; shl rdx, 32; or rax, rdx; mov [address], rax
-                return b"\x0f\x31\x48\xc1\xe2\x20\x48\x09\xd0\x48\xa3" + struct.pack("<Q", address)
-
-        sleep = guest_call(ptr_size, get_api(se, "kernel32", "Sleep"), 50)
-        se.mem_write(code, store_tsc(data) + sleep + store_tsc(data + 8) + b"\xc3")
-
-        se.run_shellcode(code)
-
-        assert se.get_report().entry_points[0].error is None
-        before, after = struct.unpack("<QQ", se.mem_read(data, 16))
-        assert after - before >= 50 * 1_000_000
+@pytest.mark.parametrize("arch", ["x86", "x64"])
+def test_sleep_advances_the_time_stamp_counter(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any], arch: str
+) -> None:
+    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
+    assert run.error is None
+    assert run.ret_val & 1, "rdtsc; Sleep(50); rdtsc gives a delta of at least 50 ms at 1 GHz"
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])

@@ -1215,17 +1215,11 @@ def test_toolhelp_names_the_main_process_image(exe_emu: Speakeasy) -> None:
     assert name
 
 
-def test_is_processor_feature_present_agrees_with_cpuid_for_avx(config: dict[str, Any]) -> None:
-    with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xc3", arch="x86")
-        se.run_shellcode(base)
-        out = se.mem_alloc(0x1000)
-        code = b"\xb8\x01\x00\x00\x00\x0f\xa2\x89\x0d" + struct.pack("<I", out)
-        code += b"\xb8\x07\x00\x00\x00\x31\xc9\x0f\xa2\x89\x1d" + struct.pack("<I", out + 4) + b"\xc3"
-        addr = se.mem_alloc(0x1000)
-        se.mem_write(addr, code)
-        se.call(addr)
-        ecx1, ebx7 = struct.unpack("<II", se.mem_read(out, 8))
-
-        assert call(se, "kernel32", "IsProcessorFeaturePresent", [39])[0] == (ecx1 >> 28) & 1
-        assert call(se, "kernel32", "IsProcessorFeaturePresent", [40])[0] == (ebx7 >> 5) & 1
+@pytest.mark.parametrize("arch", ["x86", "x64"])
+def test_is_processor_feature_present_agrees_with_cpuid_for_avx(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any], arch: str
+) -> None:
+    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
+    assert run.error is None
+    assert run.ret_val & 0x2, "IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
+    assert run.ret_val & 0x4, "IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
