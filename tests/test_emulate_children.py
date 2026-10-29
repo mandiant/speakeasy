@@ -1,6 +1,9 @@
 """Child processes run after the parent when emulate_children is set."""
 
+import logging
 import struct
+
+import pefile
 
 from speakeasy import Speakeasy
 from tests.pe_builder import build_pe
@@ -25,8 +28,13 @@ def build_parent(path: str = CHILD_PATH) -> bytes:
     return build_pe(32, text=text, data=bytes(data), imports={"kernel32.dll": ["CreateProcessA"]})[0]
 
 
-def build_child() -> bytes:
-    return build_pe(32, text=b"\xb8" + struct.pack("<I", CHILD_RESULT) + b"\xc3")[0]
+def build_child(base: int | None = None) -> bytes:
+    data = build_pe(32, text=b"\xb8" + struct.pack("<I", CHILD_RESULT) + b"\xc3")[0]
+    if base is None:
+        return data
+    pe = pefile.PE(data=data)
+    pe.OPTIONAL_HEADER.ImageBase = base
+    return bytes(pe.write())
 
 
 def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
@@ -52,3 +60,19 @@ def test_child_without_an_image_is_skipped(config):
     assert [(ep.ep_type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
     assert report.entry_points[0].start_addr == module.base + module.ep
     assert report.entry_points[0].ret_val == 1
+
+
+def test_child_whose_base_is_in_use_is_skipped(config, caplog):
+    base = 0x10000000
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_parent())
+        assert se.emu is not None
+        se.emu.fileman.add_existing_file(CHILD_PATH, build_child(base))
+        se.emu.mem_map(0x1000, base=base, tag="test.block")
+        with caplog.at_level(logging.WARNING):
+            se.run_module(module, emulate_children=True)
+        report = se.get_report()
+
+    assert [(ep.ep_type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
+    assert f"skipping child process {CHILD_PATH}" in caplog.text
+    assert "address range is in use" in caplog.text

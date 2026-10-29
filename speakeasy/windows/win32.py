@@ -13,7 +13,7 @@ from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 import speakeasy.common as common
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
-from speakeasy.errors import OutOfMemoryError, Win32EmuError
+from speakeasy.errors import OutOfMemoryError, Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
 from speakeasy.windows.common import _PeParser
@@ -371,23 +371,28 @@ class Win32Emulator(WindowsEmulator):
                 logger.warning("skipping child process %s: no image in the emulated file system", child.path)
                 continue
 
-            # Each process has its own address space, so the image of a process
-            # that already ran gives way to a child image at the same base.
-            pe = _PeParser(data=child.pe_data, fast_load=True)
-            for image in images:
-                if image.base < pe.base + pe.image_size and pe.base < image.base + image.image_size:
-                    self._discard_loaded_module(image)
+            self.curr_process = child
+            self.curr_thread = child.threads[0]
 
-            child.pe = self.load_module(data=child.pe_data)
+            # All processes share one address space. The images of the
+            # processes that already ran are unmapped where they overlap the
+            # child image, so that the child loads at its preferred base.
+            pe = _PeParser(data=child.pe_data, fast_load=True)
+            for image in [i for i in images if i.base < pe.base + pe.image_size and pe.base < i.base + i.image_size]:
+                self._discard_loaded_module(image)
+                images.remove(image)
+
+            try:
+                child.pe = self.load_module(data=child.pe_data)
+            except WindowsEmuError as error:
+                logger.warning("skipping child process %s: %s", child.path, error)
+                continue
             images.append(child.pe)
             for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
                 run.thread = child.threads[0]
 
             self.command_line = child.cmdline
-
-            self.curr_process = child
             self.curr_process.base = child.pe.base
-            self.curr_thread = child.threads[0]
 
             self.om.objects.update({self.curr_thread.address: self.curr_thread})  # type: ignore[union-attr]
 
