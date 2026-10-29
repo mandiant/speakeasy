@@ -15,6 +15,8 @@ from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
+from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, load_emu, start_process
 
@@ -450,26 +452,42 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
         assert rv, walk
 
 
+def list_processes(se: Speakeasy) -> dict[int, str]:
+    hsnap, _ = call(se, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = k32defs.PROCESSENTRY32(se.get_ptr_size(), 1)
+    entry.dwSize = entry.sizeof()
+    addr = alloc(se, entry.get_bytes())
+    names = {}
+    walk = "Process32First"
+    while call(se, "kernel32", walk, [hsnap, addr])[0]:
+        entry = se.mem_cast(entry, addr)
+        names[entry.th32ProcessID] = bytes(entry.szExeFile).split(b"\x00")[0].decode()
+        walk = "Process32Next"
+    return names
+
+
 @pytest.mark.parametrize(
-    "first, step, size", [("Process32First", "Process32Next", 0x128), ("Process32FirstW", "Process32NextW", 0x22C)]
+    "first, step, width", [("Process32First", "Process32Next", 1), ("Process32FirstW", "Process32NextW", 2)]
 )
-def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, size: int) -> None:
+def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, width: int) -> None:
     start_process(dll_emu)
     assert dll_emu.emu is not None
     explorer = next(p.pid for p in dll_emu.emu.get_processes() if p.name == "explorer")
     hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
-    entry = alloc(dll_emu, b"\x00" * size)
+    entry = k32defs.PROCESSENTRY32(dll_emu.get_ptr_size(), width)
+    size = entry.sizeof()
+    addr = alloc(dll_emu, b"\x00" * size)
     parents = []
     for walk in (first, step):
-        dll_emu.mem_write(entry, struct.pack("<I", size) + b"\xcc" * (size - 4))
-        assert call(dll_emu, "kernel32", walk, [hsnap, entry])[0] == 1
-        fields = struct.unpack("<9I", dll_emu.mem_read(entry, 0x24))
-        size_field, usage, _, heap, module, threads, parent, priority, flags = fields
-        assert size_field == size
-        assert (usage, heap, module, priority, flags) == (0, 0, 0, 8, 0)
-        assert threads >= 1
-        assert b"\xcc" not in dll_emu.mem_read(entry + 0x24, size - 0x24)
-        parents.append(parent)
+        dll_emu.mem_write(addr, struct.pack("<I", size) + b"\xcc" * (size - 4))
+        assert call(dll_emu, "kernel32", walk, [hsnap, addr])[0] == 1
+        entry = dll_emu.mem_cast(entry, addr)
+        assert entry.dwSize == size
+        assert (entry.cntUsage, entry.th32DefaultHeapID, entry.th32ModuleID) == (0, 0, 0)
+        assert (entry.pcPriClassBase, entry.dwFlags) == (8, 0)
+        assert entry.cntThreads >= 1
+        assert b"\xcc" not in bytes(entry.szExeFile)
+        parents.append(entry.th32ParentProcessID)
     assert parents[0] == explorer
     assert parents[1] != 0xCCCCCCCC
 
@@ -480,16 +498,7 @@ def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> 
     fn = alloc(dll_emu, b"C:\\Windows\\system32\\calc.exe\x00")
     assert call(dll_emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, 0, 1])[0] == 33
     pid = dll_emu.emu.get_processes()[-1].pid
-
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
-    entry = alloc(dll_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
-    names = {}
-    walk = "Process32First"
-    while call(dll_emu, "kernel32", walk, [hsnap, entry])[0]:
-        name = dll_emu.mem_read(entry + 0x24, 260).split(b"\x00")[0]
-        names[struct.unpack("<I", dll_emu.mem_read(entry + 8, 4))[0]] = name
-        walk = "Process32Next"
-    assert names[pid] == b"calc.exe"
+    assert list_processes(dll_emu)[pid] == "calc.exe"
 
 
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
@@ -779,9 +788,11 @@ def test_get_startup_info_writes_the_desktop_and_title_once(dll_emu: Speakeasy, 
     proc = emu.get_current_process()
     pointers = []
     for _ in range(2):
-        si = alloc(dll_emu, b"\xcc" * 68)
-        call(dll_emu, "kernel32", name, [si])
-        pointers.append(struct.unpack("<II", dll_emu.mem_read(si + 8, 8)))
+        si = k32defs.STARTUPINFO(dll_emu.get_ptr_size())
+        addr = alloc(dll_emu, b"\xcc" * si.sizeof())
+        call(dll_emu, "kernel32", name, [addr])
+        si = dll_emu.mem_cast(si, addr)
+        pointers.append((si.lpDesktop, si.lpTitle))
     assert pointers[0] == pointers[1]
     desktop, title = pointers[0]
     assert desktop and title
@@ -977,9 +988,15 @@ def test_verify_version_info_compares_with_the_emulated_version(
     for bit in (VER_MAJORVERSION, VER_MINORVERSION, VER_SERVICEPACKMAJOR):
         if type_mask & bit:
             mask = ver_set_condition_mask(dll_emu, mask, bit, VER_GREATER_EQUAL)
-    info = struct.pack("<5I256sHHHBB", 284, major, minor, 0, 0, b"", sp_major, 0, 0, 0, 0)
+    info = ntdefs.RTL_OSVERSIONINFOEXW(dll_emu.get_ptr_size())
+    info.dwOSVersionInfoSize = info.sizeof()
+    info.dwMajorVersion = major
+    info.dwMinorVersion = minor
+    info.wServicePackMajor = sp_major
     emu.set_last_error(0)
-    assert call(dll_emu, "kernel32", "VerifyVersionInfoW", [alloc(dll_emu, info), type_mask, mask, 0])[0] == rv
+    assert (
+        call(dll_emu, "kernel32", "VerifyVersionInfoW", [alloc(dll_emu, info.get_bytes()), type_mask, mask, 0])[0] == rv
+    )
     assert emu.get_last_error() == (0 if rv else ERROR_OLD_WIN_VERSION)
 
 
@@ -1178,29 +1195,24 @@ def test_the_main_process_can_open_itself(exe_emu: Speakeasy) -> None:
 
 def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
     pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
-    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
-    entry = alloc(exe_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
     pids = []
-    rv, _ = call(exe_emu, "kernel32", "Process32First", [hsnap, entry])
-    while rv:
-        pids.append(struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0])
-        rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
+    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    entry = k32defs.PROCESSENTRY32(exe_emu.get_ptr_size(), 1)
+    entry.dwSize = entry.sizeof()
+    addr = alloc(exe_emu, entry.get_bytes())
+    walk = "Process32First"
+    while call(exe_emu, "kernel32", walk, [hsnap, addr])[0]:
+        pids.append(exe_emu.mem_cast(entry, addr).th32ProcessID)
+        walk = "Process32Next"
     assert pids.count(pid) == 1
 
 
 def test_toolhelp_names_the_main_process_image(exe_emu: Speakeasy) -> None:
     assert exe_emu.emu is not None
     pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
-    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
-    entry = alloc(exe_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
-    names = {}
-    rv, _ = call(exe_emu, "kernel32", "Process32First", [hsnap, entry])
-    while rv:
-        entry_pid = struct.unpack("<I", exe_emu.mem_read(entry + 8, 4))[0]
-        names[entry_pid] = exe_emu.mem_read(entry + 0x24, 260).split(b"\x00")[0].decode()
-        rv, _ = call(exe_emu, "kernel32", "Process32Next", [hsnap, entry])
-    assert names[pid] == ntpath.basename(exe_emu.emu.modules[0].emu_path)
-    assert names[pid]
+    name = list_processes(exe_emu)[pid]
+    assert name == ntpath.basename(exe_emu.emu.modules[0].emu_path)
+    assert name
 
 
 def test_is_processor_feature_present_agrees_with_cpuid_for_avx(config: dict[str, Any]) -> None:

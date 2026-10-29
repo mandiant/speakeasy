@@ -13,6 +13,7 @@ import unicorn
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
@@ -121,29 +122,32 @@ def open_file(se: Speakeasy, path: str, disposition: int = OPEN_EXISTING) -> int
     return hnd
 
 
-def get_file_information(se: Speakeasy, hnd: int) -> tuple[int, tuple[int, ...]]:
-    info = alloc(se, b"\xcc" * 52)
-    rv, _ = call(se, "kernel32", "GetFileInformationByHandle", [hnd, info])
-    return rv, struct.unpack("<I24xIIIIII", se.mem_read(info, 52))
+def get_file_information(se: Speakeasy, hnd: int) -> tuple[int, k32defs.BY_HANDLE_FILE_INFORMATION]:
+    info = k32defs.BY_HANDLE_FILE_INFORMATION(se.get_ptr_size())
+    addr = alloc(se, b"\xcc" * info.sizeof())
+    rv, _ = call(se, "kernel32", "GetFileInformationByHandle", [hnd, addr])
+    return rv, se.mem_cast(info, addr)
 
 
 def test_get_file_information_by_handle_describes_the_file(emu: Speakeasy) -> None:
     hnd = open_file(emu, "c:\\windows\\system32\\cmd.exe")
-    rv, (attrs, serial, size_high, size_low, links, index_high, index_low) = get_file_information(emu, hnd)
+    rv, info = get_file_information(emu, hnd)
     assert rv == 1
-    assert attrs == 0x20
-    assert (size_high << 32) | size_low == call(emu, "kernel32", "GetFileSize", [hnd, 0])[0]
-    assert links == 1
+    assert info.dwFileAttributes == 0x20
+    size = (info.nFileSizeHigh << 32) | info.nFileSizeLow
+    assert size == call(emu, "kernel32", "GetFileSize", [hnd, 0])[0]
+    assert info.nNumberOfLinks == 1
 
     out = alloc(emu, b"\x00" * 4)
     call(emu, "kernel32", "GetVolumeInformationA", [0, 0, 0, out, 0, 0, 0, 0])
-    assert serial == struct.unpack("<I", emu.mem_read(out, 4))[0]
+    assert info.dwVolumeSerialNumber == struct.unpack("<I", emu.mem_read(out, 4))[0]
 
+    index = (info.nFileIndexHigh, info.nFileIndexLow)
     _, again = get_file_information(emu, open_file(emu, "C:\\Windows\\System32\\cmd.exe"))
-    assert again[5:] == (index_high, index_low)
+    assert (again.nFileIndexHigh, again.nFileIndexLow) == index
     _, other = get_file_information(emu, open_file(emu, BYTE_FILL_PATH))
-    assert other[5:] != (index_high, index_low)
-    assert other[3] == 512
+    assert (other.nFileIndexHigh, other.nFileIndexLow) != index
+    assert other.nFileSizeLow == 512
 
 
 def test_byte_fill_file_has_its_size(emu: Speakeasy) -> None:
@@ -685,10 +689,11 @@ def test_get_system_info_fills_the_struct(request: pytest.FixtureRequest, fixtur
 def test_processor_counts_agree_with_get_system_info(request: pytest.FixtureRequest, fixture: str, ptr: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
-    layout = f"<HHI{ptr}{ptr}{ptr}IIIHH"
-    info = alloc(se, b"\x00" * struct.calcsize(layout))
-    call(se, "kernel32", "GetSystemInfo", [info])
-    _, _, _, _, _, mask, cpus, _, _, _, _ = struct.unpack(layout, se.mem_read(info, struct.calcsize(layout)))
+    info = k32defs.SYSTEM_INFO(se.get_ptr_size())
+    addr = alloc(se, b"\x00" * info.sizeof())
+    call(se, "kernel32", "GetSystemInfo", [addr])
+    info = se.mem_cast(info, addr)
+    mask, cpus = info.dwActiveProcessorMask, info.dwNumberOfProcessors
 
     assert call(se, "kernel32", "GetActiveProcessorGroupCount", [])[0] == 1
     assert call(se, "kernel32", "GetMaximumProcessorGroupCount", [])[0] == 1
@@ -1012,6 +1017,16 @@ def test_writes_to_an_append_only_handle_go_to_the_end(strict_fs_emu: Speakeasy)
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"DAAABC"]
 
 
+def create_process(se: Speakeasy, path: str) -> k32defs.PROCESS_INFORMATION:
+    ptr_size = se.get_ptr_size()
+    cmd = alloc(se, path.encode() + b"\x00")
+    si = alloc(se, b"\x00" * k32defs.STARTUPINFO(ptr_size).sizeof())
+    pi = k32defs.PROCESS_INFORMATION(ptr_size)
+    addr = alloc(se, b"\x00" * pi.sizeof())
+    assert call(se, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, addr])[0]
+    return se.mem_cast(pi, addr)
+
+
 def test_thread_ids_agree(emu: Speakeasy) -> None:
     assert emu.emu is not None
     tid = alloc(emu, b"\x00" * 4)
@@ -1020,22 +1035,14 @@ def test_thread_ids_agree(emu: Speakeasy) -> None:
     assert run.thread.tid == int.from_bytes(emu.mem_read(tid, 4), "little")
     assert call(emu, "kernel32", "GetThreadId", [hnd])[0] == run.thread.tid
 
-    cmd = alloc(emu, b"C:\\Windows\\system32\\notepad.exe\x00")
-    si = alloc(emu, b"\x00" * 0x44)
-    pi = alloc(emu, b"\x00" * 0x10)
-    assert call(emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])[0]
-    _, hthread, _, dwThreadId = struct.unpack("<4I", emu.mem_read(pi, 16))
-    assert call(emu, "kernel32", "GetThreadId", [hthread])[0] == dwThreadId
+    pi = create_process(emu, "C:\\Windows\\system32\\notepad.exe")
+    assert call(emu, "kernel32", "GetThreadId", [pi.hThread])[0] == pi.dwThreadId
 
 
 def test_process_ids_agree(emu: Speakeasy) -> None:
-    cmd = alloc(emu, b"C:\\Windows\\system32\\notepad.exe\x00")
-    si = alloc(emu, b"\x00" * 0x44)
-    pi = alloc(emu, b"\x00" * 0x10)
-    assert call(emu, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, pi])[0]
-    hprocess, hthread, pid, _ = struct.unpack("<4I", emu.mem_read(pi, 16))
-    assert call(emu, "kernel32", "GetProcessId", [hprocess])[0] == pid
-    assert call(emu, "kernel32", "GetProcessIdOfThread", [hthread])[0] == pid
+    pi = create_process(emu, "C:\\Windows\\system32\\notepad.exe")
+    assert call(emu, "kernel32", "GetProcessId", [pi.hProcess])[0] == pi.dwProcessId
+    assert call(emu, "kernel32", "GetProcessIdOfThread", [pi.hThread])[0] == pi.dwProcessId
 
     current = call(emu, "kernel32", "GetCurrentProcessId", [])[0]
     assert call(emu, "kernel32", "GetProcessIdOfThread", [0xFFFFFFFE])[0] == current
@@ -1214,12 +1221,13 @@ def test_get_file_attributes_knows_directories(strict_fs_emu: Speakeasy, cw: str
     name = alloc(se, (path + "\x00").encode("utf-16le" if cw == "W" else "latin-1"))
     assert call(se, "kernel32", f"GetFileAttributes{cw}", [name])[0] == attrs
 
-    data = alloc(se, b"\xcc" * 36)
+    info = k32defs.WIN32_FILE_ATTRIBUTE_DATA(se.get_ptr_size())
+    data = alloc(se, b"\xcc" * info.sizeof())
     ok, _ = call(se, "kernel32", f"GetFileAttributesEx{cw}", [name, 0, data])
     assert ok == (attrs != windefs.INVALID_FILE_ATTRIBUTES)
     if attrs == windefs.FILE_ATTRIBUTE_DIRECTORY:
-        found, *_, high, low = struct.unpack("<IQQQII", se.mem_read(data, 36))
-        assert (found, high, low) == (attrs, 0, 0)
+        info = se.mem_cast(info, data)
+        assert (info.dwFileAttributes, info.nFileSizeHigh, info.nFileSizeLow) == (attrs, 0, 0)
 
 
 def test_get_file_attributes_knows_the_environment_directories(
