@@ -1271,10 +1271,7 @@ class WindowsEmulator(BinaryEmulator):
                         resume_addr, timeout=self.config.timeout, count=instruction_count, debugger=debugger
                     )
                 if debugger is None and total_budget.exhausted:
-                    self._cancel_execution_runs()
-                    if not self.run_complete:
-                        self.on_run_complete()
-                    self.on_emu_complete()
+                    self._end_at_total_budget()
                     break
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
@@ -1293,12 +1290,7 @@ class WindowsEmulator(BinaryEmulator):
                             self._detach_debugger(debugger)
                             debugger = None
                         if total_budget.exhausted:
-                            self._cancel_execution_runs()
-                            if not self.run_complete:
-                                self.on_run_complete()
-                            if debugger is not None and not debug_action.kill:
-                                debugger.notify_exit(0)
-                            self.on_emu_complete()
+                            self._end_at_total_budget(debugger if not debug_action.kill else None)
                             return True
                         if fault_stop is not None:
                             if not self.on_run_complete():
@@ -1362,6 +1354,19 @@ class WindowsEmulator(BinaryEmulator):
                     return True
                 debugger.notify_exit(0)
         return True
+
+    def _end_at_total_budget(self, debugger: GdbServer | None = None) -> None:
+        """Cancel the runs that are left and end the emulation, because the total budget is spent.
+
+        Args:
+            debugger: the GDB session to send the exit reply to, if the client still waits for one.
+        """
+        self._cancel_execution_runs()
+        if not self.run_complete:
+            self.on_run_complete()
+        if debugger is not None:
+            debugger.notify_exit(0)
+        self.on_emu_complete()
 
     def _detach_debugger(self, debugger: GdbServer) -> None:
         """Close the GDB session, so that the runs continue without a debugger."""
