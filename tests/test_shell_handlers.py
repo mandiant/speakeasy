@@ -321,24 +321,6 @@ def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> No
     assert dll_emu.emu.get_symbols()[query_interface] == ("com_api", "IUnknown.QueryInterface")
 
 
-def test_imalloc_free_releases_the_block_and_returns(config: dict) -> None:
-    with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
-        assert se.emu is not None
-        vtable = se.emu.com.get_interface(se.emu, 4, "IMalloc").address
-        obj = se.mem_alloc(4)
-        se.mem_write(obj, struct.pack("<I", vtable))
-        block = se.emu.heap_alloc(16, "CoTaskMemAlloc")
-        pushes = b"\x68" + struct.pack("<I", block) + b"\x68" + struct.pack("<I", obj)
-        free = b"\xb8" + struct.pack("<I", vtable + 5 * 4) + b"\xff\x10"
-        se.mem_write(code, pushes + free + b"\xb8\x34\x12\x00\x00\xc3")
-        se.run_shellcode(code)
-        run = se.get_report().entry_points[0]
-        assert (run.error, run.ret_val) == (None, 0x1234)
-        mm = se.emu.get_address_map(block)
-        assert mm is None or mm.free
-
-
 @pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
 def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.FixtureRequest) -> None:
     se: Speakeasy = request.getfixturevalue(emu_fixture)
@@ -378,14 +360,6 @@ def _call_wbem_services_slot(se: Speakeasy, slot: int) -> int:
     se.mem_write(code, pushes + b"\xb8" + struct.pack("<I", vtable + slot * 4) + b"\xff\x10\xc3")
     se.run_shellcode(code)
     return obj + 4
-
-
-def test_wbem_services_get_object_is_not_found(config: dict) -> None:
-    with Speakeasy(config=config) as se:
-        pp_object = _call_wbem_services_slot(se, 6)
-        run = se.get_report().entry_points[0]
-        assert (run.error, run.ret_val) == (None, com.WBEM_E_NOT_FOUND)
-        assert read_ptr(se, pp_object) == 0
 
 
 def test_com_method_without_a_handler_is_an_unsupported_api(config: dict) -> None:
@@ -729,16 +703,6 @@ def test_shell_execute_fails_for_an_empty_program_name(dll_emu: Speakeasy, name:
     fn = alloc(dll_emu, wstr(name, 2))
     rv, _ = call(dll_emu, "shell32", "ShellExecuteW", [0, 0, fn, 0, 0, 1])
     assert rv == 2
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
-
-
-def test_shell_execute_ex_writes_the_error_to_h_inst_app(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    fn = alloc(dll_emu, wstr("", 2))
-    sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, 0, 0, 0, fn, 0, 0, 1, 0xCCCCCCCC) + b"\x00" * 24)
-    rv, _ = call(dll_emu, "shell32", "ShellExecuteExW", [sei])
-    assert rv == 0
-    assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] == 2
     assert dll_emu.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
 
 

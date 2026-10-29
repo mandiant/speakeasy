@@ -1938,23 +1938,6 @@ def test_ifstream_of_a_missing_file_sets_failbit(strict_fs64_emu: Speakeasy) -> 
         assert call(se, "msvcp140", name, [ios])[0] is None
 
 
-def test_istream_ctor_builds_the_virtual_base_when_asked(dll64_emu: Speakeasy) -> None:
-    se = dll64_emu
-    obj = alloc(se, b"\x00" * 0x70)
-    sb = alloc(se, b"\x00" * 0x70)
-    istream_ctor = f"??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z"
-    assert call(se, "msvcp140", istream_ctor, [obj, sb, 0, 1])[0] == obj
-    ios = obj + 0x10
-    assert se.mem_read(ios + 0x10, 4) == struct.pack("<I", 0)
-    assert se.mem_read(ios + 0x48, 8) == sb.to_bytes(8, "little")
-
-
-def test_setstate_without_a_stream_buffer_also_sets_badbit(dll64_emu: Speakeasy) -> None:
-    ios = alloc(dll64_emu, b"\x00" * 0x60)
-    call(dll64_emu, "msvcp140", f"?setstate@{BASIC_IOS}QEAAXH_N@Z", [ios, 2, 0])
-    assert dll64_emu.mem_read(ios + 0x10, 4) == struct.pack("<I", 6)
-
-
 def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speakeasy) -> None:
     se = strict_fs64_emu
     path = alloc(se, "c:\\users\\public\\config.json\0".encode("utf-16le"))

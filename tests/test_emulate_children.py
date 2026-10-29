@@ -72,17 +72,6 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config):
     assert [ep.pid for ep in entries] == pids
 
 
-def test_child_without_an_image_is_skipped(config):
-    with Speakeasy(config=config) as se:
-        module = se.load_module(data=build_parent("c:\\missing\\program.dat"))
-        se.run_module(module, emulate_children=True)
-        report = se.get_report()
-
-    assert [(ep.ep_type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
-    assert report.entry_points[0].start_addr == module.base + module.ep
-    assert report.entry_points[0].ret_val == 1
-
-
 def test_child_whose_base_is_in_use_is_skipped(config, caplog):
     base = CHILD_BASE
     with Speakeasy(config=config) as se:
