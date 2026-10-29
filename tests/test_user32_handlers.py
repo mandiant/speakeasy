@@ -12,7 +12,6 @@ from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import user32 as u32defs
-from tests.guest_harness import Deref, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pma_harness import PMA_DIR
 
@@ -88,39 +87,31 @@ def test_dialog_box_param_takes_a_resource_id(dll_emu: Speakeasy) -> None:
     assert rv
 
 
-def run_dialog_box(config: dict[str, Any], end_dialog: bool) -> tuple[int, int, int]:
-    """
-    Run DialogBoxParamA with a dialog procedure that records its message and lParam and,
-    if end_dialog, calls EndDialog(hDlg, 0x1234). Return the result, the message and the lParam.
-    """
-    config["timeout"] = 2
-    config["max_api_count"] = 200
-    with Speakeasy(config=config) as se:
-        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="x86"))
-        assert se.emu is not None
-        data = se.mem_alloc(0x1000)
-        proc = se.mem_alloc(0x1000)
-        code = b"\x8b\x44\x24\x08\xa3" + struct.pack("<I", data + 4)
-        code += b"\x8b\x44\x24\x10\xa3" + struct.pack("<I", data + 8)
-        if end_dialog:
-            code += b"\x68" + struct.pack("<I", 0x1234) + b"\xff\x74\x24\x08"
-            code += b"\xb8" + struct.pack("<I", se.emu.get_proc("user32", "EndDialog")) + b"\xff\xd0"
-        code += b"\xb8" + struct.pack("<I", int(end_dialog)) + b"\xc2\x10\x00"
-        se.mem_write(proc, code)
-        caller = se.mem_alloc(0x1000)
-        dialog_box = se.emu.get_proc("user32", "DialogBoxParamA")
-        se.mem_write(caller, guest_call(4, dialog_box, 0, 1, 0, proc, 0x55, store=data) + b"\xc3")
-        se.call(caller)
-        assert se.get_report().entry_points[-1].error is None
-        return struct.unpack("<III", se.mem_read(data, 12))
+# Bits of the return value of window_cases.c, one per case
+DIALOG_CASES = {
+    0x01: "DialogBoxParam sends WM_INITDIALOG with dwInitParam and returns the EndDialog result",
+    0x02: "DialogBoxParam returns IDCANCEL when the procedure does not call EndDialog",
+}
+
+ENUM_WINDOWS_CASES = {
+    0x04: "EnumWindows returns 0 after the first callback that returns FALSE",
+    0x08: "EnumWindows calls the callback for the top-level window, but not for its child, and returns nonzero",
+}
+
+CREATE_WINDOW_CASES = {
+    0x10: "CreateWindowEx sends WM_NCCREATE with a CREATESTRUCT of its arguments and fails when it returns FALSE",
+    0x20: "CreateWindowEx sends WM_NCCREATE and WM_CREATE with a CREATESTRUCT and fails when WM_CREATE returns -1",
+}
 
 
-def test_dialog_box_param_returns_the_end_dialog_result(config: dict[str, Any]) -> None:
-    assert run_dialog_box(config, end_dialog=True) == (0x1234, 0x110, 0x55)
+def get_failed_window_cases(config: dict, load_test_bin, run_test, cases: dict[int, str]) -> list[str]:
+    ep = run_test(config, load_test_bin("window_cases_x86.exe.xz")).entry_points[0]
+    assert ep.error is None
+    return [case for bit, case in cases.items() if not ep.ret_val & bit]
 
 
-def test_dialog_box_param_returns_idcancel_without_end_dialog(config: dict[str, Any]) -> None:
-    assert run_dialog_box(config, end_dialog=False) == (2, 0x110, 0x55)
+def test_dialog_box_param_runs_the_dialog_procedure(config: dict, load_test_bin, run_test) -> None:
+    assert not get_failed_window_cases(config, load_test_bin, run_test, DIALOG_CASES)
 
 
 def test_register_class_takes_a_class_atom(dll_emu: Speakeasy) -> None:
@@ -601,29 +592,6 @@ def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
         assert (result, se.mem_read(buf, 8)) == (3, "abc\x00".encode("utf-16le"))
 
 
-def d32(value: int) -> bytes:
-    return struct.pack("<I", value & 0xFFFFFFFF)
-
-
-def x86_call(function: int) -> bytes:
-    return b"\xb8" + d32(function) + b"\xff\xd0"
-
-
-def x86_logging_wndproc(data: int, nccreate_result: int, create_result: int) -> bytes:
-    """
-    A window procedure that appends each message to data + 0x10 and its lParam
-    to data + 0x40, counting them at data + 4, and returns nccreate_result for
-    WM_NCCREATE and create_result for all other messages.
-    """
-    code = b"\x8b\x44\x24\x08\x8b\x0d" + d32(data + 4)  # mov eax, [esp+8]; mov ecx, [data+4]
-    code += b"\x89\x04\x8d" + d32(data + 0x10)  # mov [data+0x10+ecx*4], eax
-    code += b"\x8b\x54\x24\x10\x89\x14\x8d" + d32(data + 0x40)  # mov edx, [esp+16]; mov [data+0x40+ecx*4], edx
-    code += b"\xff\x05" + d32(data + 4)  # inc dword [data+4]
-    code += b"\x3d\x81\x00\x00\x00\x75\x08"  # cmp eax, WM_NCCREATE; jne other
-    code += b"\xb8" + d32(nccreate_result) + b"\xc2\x10\x00"
-    return code + b"\xb8" + d32(create_result) + b"\xc2\x10\x00"
-
-
 def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config: dict, load_test_bin) -> None:
     """
     0bfbb7da creates a hidden window of its class "Jungo". Its window procedure handles
@@ -654,65 +622,12 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config:
     assert int(created[1].ret_val, 16)
 
 
-@pytest.mark.parametrize(
-    "nccreate_result, create_result, messages",
-    [(0, 0, [WM_NCCREATE]), (1, -1, [WM_NCCREATE, WM_CREATE])],
-)
-def test_create_window_fails_when_the_window_procedure_rejects_creation(
-    config: dict, nccreate_result: int, create_result: int, messages: list[int]
-) -> None:
-    with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        assert se.emu is not None
-        data = se.mem_alloc(0x1000)
-        wndproc, name, title, wc = base + 0x200, base + 0x300, base + 0x310, base + 0x320
-        se.mem_write(wndproc, x86_logging_wndproc(data, nccreate_result, create_result))
-        se.mem_write(name, b"mycls\x00")
-        se.mem_write(title, b"mytitle\x00")
-        se.mem_write(wc, struct.pack("<12I", 48, 0, wndproc, 0, 0, 0, 0, 0, 0, 0, name, 0))
-        args = [0x400, name, title, WS_POPUP, 10, 20, 30, 40, 0, 0, 0x400000, 0x1234]
-        main = b"\x68" + d32(wc) + x86_call(se.emu.get_proc("user32", "RegisterClassExA"))
-        main += b"".join(b"\x68" + d32(arg) for arg in reversed(args))
-        main += x86_call(se.emu.get_proc("user32", "CreateWindowExA")) + b"\xa3" + d32(data) + b"\xc3"
-        se.mem_write(base, main)
-
-        se.run_shellcode(base)
-
-        assert se.get_report().entry_points[0].error is None
-        u32 = struct.unpack("<1024I", se.mem_read(data, 0x1000))
-        assert u32[0] == 0
-        assert list(u32[4 : 4 + u32[1]]) == messages
-        lparams = u32[0x10 : 0x10 + u32[1]]
-        assert len(set(lparams)) == 1
-        cs = struct.unpack("<4I4i4I", se.mem_read(lparams[0], 48))
-        assert cs == (0x1234, 0x400000, 0, 0, 40, 30, 20, 10, WS_POPUP, title, name, 0x400)
+def test_create_window_fails_when_the_window_procedure_rejects_creation(config: dict, load_test_bin, run_test) -> None:
+    assert not get_failed_window_cases(config, load_test_bin, run_test, CREATE_WINDOW_CASES)
 
 
-@pytest.mark.parametrize("callback_result, rv", [(0, 0), (1, 1)])
-def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict, callback_result: int, rv: int) -> None:
-    with Speakeasy(config=config) as se:
-        base = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
-        assert se.emu is not None
-        data = se.mem_alloc(0x1000)
-        callback, name = base + 0x200, base + 0x300
-        code = b"\x8b\x44\x24\x04\xa3" + d32(data + 0x10)  # mov eax, [esp+4]; mov [data+0x10], eax
-        code += b"\x8b\x44\x24\x08\xa3" + d32(data + 0x14)  # mov eax, [esp+8]; mov [data+0x14], eax
-        code += b"\xff\x05" + d32(data + 8)  # inc dword [data+8]
-        code += b"\xb8" + d32(callback_result) + b"\xc2\x08\x00"
-        se.mem_write(callback, code)
-        se.mem_write(name, b"mycls\x00")
-        create = se.emu.get_proc("user32", "CreateWindowExA")
-        main = guest_call(4, create, 0, name, 0, WS_POPUP, 0, 0, 0, 0, 0, 0, 0, 0, store=data)
-        main += guest_call(4, create, 0, name, 0, WS_CHILD, 0, 0, 0, 0, Deref(data), 0, 0, 0)
-        main += guest_call(4, se.emu.get_proc("user32", "EnumWindows"), callback, 0x55, store=data + 4)
-        se.mem_write(base, main + b"\xc3")
-
-        se.run_shellcode(base)
-
-        assert se.get_report().entry_points[0].error is None
-        hwnd, result, count, _, cb_hwnd, cb_lparam = struct.unpack("<6I", se.mem_read(data, 0x18))
-        assert hwnd
-        assert (result, count, cb_hwnd, cb_lparam) == (rv, 1, hwnd, 0x55)
+def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict, load_test_bin, run_test) -> None:
+    assert not get_failed_window_cases(config, load_test_bin, run_test, ENUM_WINDOWS_CASES)
 
 
 def api_events(se: Speakeasy) -> list[Any]:
