@@ -35,6 +35,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
+from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
@@ -271,6 +272,7 @@ class WindowsEmulator(BinaryEmulator):
         self.driveman: DriveManager = DriveManager(config=self.config.drives)
         self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
         self.rng: random.Random = random.Random(self.config.random_seed)
+        self.start_time: int = winemu.get_filetime(parse_start_time(self.config.start_time))
         self.hammer: ApiHammer = ApiHammer(self)
         self._io_manager: Any | None = None
 

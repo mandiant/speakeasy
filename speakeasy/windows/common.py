@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import datetime
 import hashlib
 import os
 from collections import namedtuple
@@ -39,6 +40,11 @@ EMU_RESERVED_END = EMU_RESERVED + EMU_RESERVE_SIZE
 EMU_RETURN_ADDR = EMU_RESERVED
 EXIT_RETURN_ADDR = EMU_RETURN_ADDR + 1
 GUEST_CALLBACK_RETURN_ADDR = EMU_RETURN_ADDR + 8
+
+# The emulated system booted one day before emulation starts.
+START_TICK_COUNT = 24 * 60 * 60 * 1000
+
+FILETIME_EPOCH = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 class ImageSectionCharacteristics(IntFlag):
@@ -85,6 +91,13 @@ class ImageSectionCharacteristics(IntFlag):
     IMAGE_SCN_MEM_EXECUTE = 0x20000000
     IMAGE_SCN_MEM_READ = 0x40000000
     IMAGE_SCN_MEM_WRITE = 0x80000000
+
+
+def get_filetime(when: datetime.datetime) -> int:
+    """
+    Return a time with a time zone as a FILETIME value, in 100 ns units since 1601.
+    """
+    return (when - FILETIME_EPOCH) // datetime.timedelta(microseconds=1) * 10
 
 
 def normalize_dll_name(name):

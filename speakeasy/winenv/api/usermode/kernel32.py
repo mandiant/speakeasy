@@ -156,10 +156,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.snapshots = {}
         self.tls_count = 0
         self.fls_count = 0
-        self.tick_counter = 86400000  # 1 day in millisecs
+        self.tick_counter = winemu.START_TICK_COUNT
         self.perf_base = 0x5FD27D571F - self.tick_counter * 10000
-        self.boot_time = 116444736000000000 + time.time_ns() // 100 - self.tick_counter * 10000
-        self.start_time = self.boot_time + self.tick_counter * 10000
+        self.start_time = emu.start_time
+        self.boot_time = self.start_time - self.tick_counter * 10000
 
         self.command_lines = [None] * 3
         self.startup_info = {}

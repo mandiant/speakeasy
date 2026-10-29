@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -280,6 +281,17 @@ def _copy_default_value(key: str) -> Any:
     return copy.deepcopy(DEFAULT_CONFIG_DATA[key])
 
 
+def parse_start_time(text: str) -> datetime.datetime:
+    """
+    Parse an ISO 8601 time with a time zone, such as 2026-10-31T15:15:00Z.
+    """
+    # Python 3.10 fromisoformat does not accept the Z suffix.
+    when = datetime.datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    if when.tzinfo is None:
+        raise ValueError(f"start time {text!r} has no time zone")
+    return when
+
+
 class AnalysisConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -547,6 +559,12 @@ class ModulesConfig(BaseModel):
 class SpeakeasyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    @field_validator("start_time")
+    @classmethod
+    def validate_start_time(cls, v: str) -> str:
+        parse_start_time(v)
+        return v
+
     @model_validator(mode="before")
     @classmethod
     def migrate_legacy_memory_snapshot_field(cls, data: Any) -> Any:
@@ -586,6 +604,11 @@ class SpeakeasyConfig(BaseModel):
     random_seed: int = Field(
         default=0,
         description="Seed of the random number generator that gives random bytes and GUIDs to emulated code.",
+    )
+    start_time: str = Field(
+        default="2026-10-31T15:15:00Z",
+        description="System time when emulation starts, in ISO 8601 with a time zone."
+        " The emulated clock counts from it. The default is fixed so that runs repeat.",
     )
     system: Literal["windows"] = Field(
         default=DEFAULT_CONFIG_DATA["system"], description="Emulated operating system family."

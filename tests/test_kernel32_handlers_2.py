@@ -18,6 +18,8 @@ from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, load_emu, object_attributes, start_process
 from tests.pe_builder import build_pe
 
+START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
+
 
 @pytest.fixture
 def emu(dll_emu: Speakeasy) -> Speakeasy:
@@ -436,7 +438,7 @@ def test_get_system_time_precise_as_file_time(emu: Speakeasy) -> None:
     call(emu, "kernel32", "GetSystemTimePreciseAsFileTime", [ft])
     ticks = int.from_bytes(emu.mem_read(ft, 8), "little")
     when = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ticks // 10)
-    assert abs(when - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)) < datetime.timedelta(minutes=1)
+    assert START_TIME < when < START_TIME + datetime.timedelta(seconds=1)
 
 
 def test_get_file_attributes_ex(strict_fs_emu: Speakeasy) -> None:
@@ -1272,8 +1274,7 @@ def test_system_time_follows_the_emulated_clock(emu: Speakeasy) -> None:
     times = [get_system_time(emu, "GetLocalTime") for _ in range(3)]
     assert times == sorted(set(times))
 
-    utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    assert abs(get_system_time(emu, "GetSystemTime") - utc) < datetime.timedelta(minutes=1)
+    assert START_TIME < get_system_time(emu, "GetSystemTime") < START_TIME + datetime.timedelta(seconds=1)
 
     ft = get_file_time(emu)
     from_ft = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=ft // 10)

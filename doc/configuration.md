@@ -44,6 +44,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // Runs with the same seed give the same random bytes and GUIDs to the sample.
   "random_seed": 0,
 
+  // System time when emulation starts, in ISO 8601 with a time zone.
+  // The system time and the msvcrt time functions count from it.
+  // Sleep and waits move the clock forward.
+  // The default is fixed so that runs give the same times to the sample.
+  "start_time": "2026-10-31T15:15:00Z",
+
   // OS family model. Only "windows" is supported.
   "system": "windows",
 
