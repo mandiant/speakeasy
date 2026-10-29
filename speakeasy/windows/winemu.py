@@ -206,6 +206,72 @@ class BootstrapPhase(IntEnum):
     FULL_SETUP_READY = 3
 
 
+@dataclass
+class RunLimits:
+    """The time and instruction limits of one call of the run loop, and the instructions it counts."""
+
+    # When the call started, from time.monotonic().
+    started: float
+    # The execution time of the run before the call started.
+    spent: float
+    # The time limit of the run in seconds, or 0 for no limit.
+    timeout: float
+    # When the call must stop, from time.monotonic(), or None for no time limit.
+    deadline: float | None
+    # "max_total_time" if the total execution time gives the deadline, otherwise "timeout".
+    deadline_kind: str
+    # The total execution time of all runs, or None for no total limit.
+    total_budget: _ExecutionBudget | None
+    # The instruction limit of the run, or 0 or less for no limit.
+    budget: int
+    # The instructions that the run can still execute, or -1 for no limit.
+    remaining: int
+    # The last instruction that the accounting hook saw start, when there is one.
+    last_executed: int | None = None
+
+    @classmethod
+    def from_run(cls, run: Run, timeout: float, budget: int, total_budget: _ExecutionBudget | None) -> "RunLimits":
+        """Get the limits that apply to run from now, with the nearer of the two time limits as the deadline."""
+        started = time.monotonic()
+        spent = run.execution_elapsed
+        deadline = started + max(timeout - spent, 0) if timeout > 0 else None
+        deadline_kind = "timeout"
+        if total_budget is not None and total_budget.limit > 0:
+            total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
+            if deadline is None or total_deadline < deadline:
+                deadline = total_deadline
+                deadline_kind = "max_total_time"
+        remaining = max(budget - run.budget_instructions, 0) if budget > 0 else -1
+        return cls(started, spent, timeout, deadline, deadline_kind, total_budget, budget, remaining)
+
+    def get_reached_limit(self) -> str | None:
+        """Get the kind of the limit that the run reached, or None if it reached no limit."""
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            return self.deadline_kind
+        if self.budget > 0 and self.remaining <= 0:
+            return "max_instructions"
+        return None
+
+    def is_total_time_reached(self) -> bool:
+        """Get whether the run reached the total execution time of all runs."""
+        return (
+            self.deadline_kind == "max_total_time" and self.deadline is not None and time.monotonic() >= self.deadline
+        )
+
+    def get_native_timeout(self) -> float:
+        """Get the timeout for the next native start: the time to the deadline, or 0 for none."""
+        return max(self.deadline - time.monotonic(), 0.000001) if self.deadline is not None else 0
+
+    def get_native_count(self) -> int:
+        """Get the instruction count for the next native start, or 0 for no limit.
+
+        The count stops native execution at the instruction limit, so that
+        tracing hooks do not see an instruction beyond it. The accounting hook
+        counts the instructions across the native starts of one call.
+        """
+        return self.remaining if self.budget > 0 else 0
+
+
 class WindowsEmulator(BinaryEmulator):
     """
     Base class providing emulation of all Windows modules and shellcode.
@@ -799,23 +865,10 @@ class WindowsEmulator(BinaryEmulator):
             )
         ):
             self._pending.control = None
-        started = time.monotonic()
-        spent = self.curr_run.execution_elapsed
-        deadline = started + max(timeout - spent, 0) if timeout > 0 else None
-        deadline_kind = "timeout"
-        total_budget = self._execution_budget
-        if total_budget is not None and total_budget.limit > 0:
-            total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
-            if deadline is None or total_deadline < deadline:
-                deadline = total_deadline
-                deadline_kind = "max_total_time"
-        budget = self.config.max_instructions if debugger is not None else count
-        used = self.curr_run.budget_instructions
-        remaining = [max(budget - used, 0) if budget > 0 else -1]
-        # The last instruction the accounting hook saw start, when there is one
-        last_executed: list[int | None] = [None]
         origin_run = self.curr_run
         assert origin_run is not None
+        budget = self.config.max_instructions if debugger is not None else count
+        limits = RunLimits.from_run(origin_run, timeout, budget, self._execution_budget)
         hook = None
         stepping = debugger is not None and count == 1
 
@@ -833,38 +886,38 @@ class WindowsEmulator(BinaryEmulator):
                 self.set_pc(self._pending.api_entry.address)
             if kind == "timeout":
                 # Each debugger resume of a timed out run stops at once; log only the first stop.
-                if spent < timeout:
-                    logger.error("* Timeout of %d sec(s) reached.", timeout)
+                if limits.spent < limits.timeout:
+                    logger.error("* Timeout of %d sec(s) reached.", limits.timeout)
             elif kind == "max_total_time":
-                assert total_budget is not None
-                logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
-                total_budget.exhausted = True
+                assert limits.total_budget is not None
+                logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
+                limits.total_budget.exhausted = True
                 self._cancel_execution_runs()
                 # A limit that expires while a fault is completing keeps the fault as
                 # the run's error.
                 if self.curr_run is origin_run and origin_run.error is None:
                     origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
             else:
-                logger.error("* Instruction limit of %d reached.", budget)
+                logger.error("* Instruction limit of %d reached.", limits.budget)
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
             elif self.curr_run is origin_run:
                 if origin_run.error is None:
                     origin_run.error = ErrorInfo(
-                        type=kind, pc=self.get_pc(), count=budget if kind == "max_instructions" else None
+                        type=kind, pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
                     )
                 self.on_run_complete()
 
-        if budget > 0:
+        if limits.budget > 0:
 
             def account_instruction(_emu, _address, _size):
                 if debugger is not None and debugger.has_pending_stop():
                     return
-                if remaining[0] <= 0:
+                if limits.remaining <= 0:
                     self.emu_eng.stop()
                     return
-                remaining[0] -= 1
-                last_executed[0] = _address
+                limits.remaining -= 1
+                limits.last_executed = _address
                 origin_run.budget_instructions += 1
                 if not self.config.analysis.memory_tracing:
                     self.curr_run.instr_cnt += 1
@@ -878,7 +931,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending.control:
                     if debugger is not None and debugger.has_pending_stop():
                         return
-                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                    if limits.is_total_time_reached():
                         stop_limit("max_total_time")
                         return
                     control, self._pending.control = self._pending.control, None
@@ -892,33 +945,28 @@ class WindowsEmulator(BinaryEmulator):
                     address = self.get_pc()
                     if self._pending_fault_stop is not None or debugger_stops():
                         return
-                if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit(deadline_kind)
-                    return
-                if budget > 0 and remaining[0] <= 0:
-                    stop_limit("max_instructions")
+                reached = limits.get_reached_limit()
+                if reached is not None:
+                    stop_limit(reached)
                     return
                 if self._pending.api_entry is None and not self._pending.control:
                     try:
-                        native_timeout = max(deadline - time.monotonic(), 0.000001) if deadline is not None else 0
-                        # Native count is a ceiling for this invocation, preventing
-                        # tracing hooks from seeing an instruction beyond the cap.
-                        # The hook carries exact consumption across private yields.
-                        native_count = remaining[0] if budget > 0 else 0
+                        native_timeout = limits.get_native_timeout()
+                        native_count = limits.get_native_count()
                         if stepping:
                             native_count = 1
                             registers = self.get_register_state()
-                            counted = (remaining[0], origin_run.budget_instructions, origin_run.instr_cnt)
+                            counted = (limits.remaining, origin_run.budget_instructions, origin_run.instr_cnt)
                             if hook is None:
                                 # A step runs the instruction at its start address.
-                                last_executed[0] = address
+                                limits.last_executed = address
                         self.emu_eng.start(address, timeout=native_timeout, count=native_count)
                         if stepping and self._step_had_no_effect(registers, debugger):
                             # Unicorn translates a store into the page of its own code
                             # again and runs it again, which uses up a count of 1. The
                             # second start counts the instruction as a run without a
                             # debugger does, so the first start must not count it.
-                            remaining[0], origin_run.budget_instructions, origin_run.instr_cnt = counted
+                            limits.remaining, origin_run.budget_instructions, origin_run.instr_cnt = counted
                             self.emu_eng.start(address, timeout=native_timeout, count=2)
                     except uc.UcError as exc:
                         if self._pending_fault_stop is not None:
@@ -938,7 +986,7 @@ class WindowsEmulator(BinaryEmulator):
                     if (
                         self._pending.cpu_exception is None
                         and self.curr_run is origin_run
-                        and self._stopped_at_hlt(deadline, last_executed[0], native_count, debugger)
+                        and self._stopped_at_hlt(limits.deadline, limits.last_executed, native_count, debugger)
                     ):
                         self.raise_cpu_exception(
                             cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction"
@@ -972,11 +1020,9 @@ class WindowsEmulator(BinaryEmulator):
                     return
                 if self._pending.control:
                     continue
-                if deadline is not None and time.monotonic() >= deadline:
-                    stop_limit(deadline_kind)
-                    return
-                if budget > 0 and remaining[0] <= 0:
-                    stop_limit("max_instructions")
+                reached = limits.get_reached_limit()
+                if reached is not None:
+                    stop_limit(reached)
                     return
                 if entry is None:
                     if debugger is None and not self.run_complete:
@@ -1006,7 +1052,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self._pending_fault_stop is not None:
                     return
                 if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
-                    if deadline_kind == "max_total_time" and deadline is not None and time.monotonic() >= deadline:
+                    if limits.is_total_time_reached():
                         stop_limit("max_total_time")
                         return
                     self.on_run_complete()
@@ -1014,13 +1060,14 @@ class WindowsEmulator(BinaryEmulator):
                 if self.curr_run is not origin_run or debugger_stops():
                     return
         finally:
-            elapsed = time.monotonic() - started
-            origin_run.execution_elapsed = spent + elapsed
+            elapsed = time.monotonic() - limits.started
+            origin_run.execution_elapsed = limits.spent + elapsed
             stopped = self.exit_event is not None and self.exit_event.is_set()
             if stopped and debugger is None and self.curr_run is origin_run and not self.run_complete:
                 if origin_run.error is None:
                     origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
                 self._cancel_execution_runs()
+            total_budget = limits.total_budget
             if total_budget is not None:
                 total_budget.elapsed += elapsed
                 if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
