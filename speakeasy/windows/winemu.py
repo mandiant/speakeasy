@@ -1250,7 +1250,6 @@ class WindowsEmulator(BinaryEmulator):
         assert total_budget is not None
         detached_resume_addr = None
         terminal_signal = 0
-        timeout = self.config.timeout
         self._stop_on_faults = debugger is not None
         self._pending_fault_stop = None
 
@@ -1268,7 +1267,9 @@ class WindowsEmulator(BinaryEmulator):
                 should_execute = debugger is None or debugger.begin_run(debug_action)
                 executing_run = self.curr_run
                 if should_execute:
-                    self._run_api_engine(resume_addr, timeout=timeout, count=instruction_count, debugger=debugger)
+                    self._run_api_engine(
+                        resume_addr, timeout=self.config.timeout, count=instruction_count, debugger=debugger
+                    )
                 if debugger is None and total_budget.exhausted:
                     self._cancel_execution_runs()
                     if not self.run_complete:
@@ -1289,10 +1290,8 @@ class WindowsEmulator(BinaryEmulator):
                         if debug_action.kill and not total_budget.exhausted:
                             return True
                         if debug_action.detach:
-                            debugger.close()
+                            self._detach_debugger(debugger)
                             debugger = None
-                            self._stop_on_faults = False
-                            timeout = self.config.timeout
                         if total_budget.exhausted:
                             self._cancel_execution_runs()
                             if not self.run_complete:
@@ -1339,10 +1338,8 @@ class WindowsEmulator(BinaryEmulator):
                     if debug_action.kill:
                         return True
                     if debug_action.detach:
-                        debugger.close()
+                        self._detach_debugger(debugger)
                         debugger = None
-                        self._stop_on_faults = False
-                        timeout = self.config.timeout
 
                 run = self.on_run_complete()
                 if not run:
@@ -1365,6 +1362,11 @@ class WindowsEmulator(BinaryEmulator):
                     return True
                 debugger.notify_exit(0)
         return True
+
+    def _detach_debugger(self, debugger: GdbServer) -> None:
+        """Close the GDB session, so that the runs continue without a debugger."""
+        debugger.close()
+        self._stop_on_faults = False
 
     def get_current_run(self):
         """
