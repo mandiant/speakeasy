@@ -37,8 +37,13 @@ program() {
     fi
 }
 
-implib x64 KERNEL32 Sleep IsProcessorFeaturePresent
-implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4 CreateThread@24 ExitThread@4 GetExitCodeThread@8
+implib x64 KERNEL32 Sleep IsProcessorFeaturePresent CreateFileA WriteFile CloseHandle
+implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4 CreateThread@24 ExitThread@4 GetExitCodeThread@8 CreateFileA@28 \
+    WriteFile@20 CloseHandle@4
+implib x64 bcrypt BCryptOpenAlgorithmProvider BCryptSetProperty BCryptGenerateSymmetricKey BCryptGetProperty \
+    BCryptEncrypt BCryptDecrypt BCryptDestroyKey
+implib x86 bcrypt BCryptOpenAlgorithmProvider@16 BCryptSetProperty@20 BCryptGenerateSymmetricKey@28 BCryptGetProperty@24 \
+    BCryptEncrypt@40 BCryptDecrypt@40 BCryptDestroyKey@4
 implib x64 msvcrt pow floor ceil sin fmod ceilf floorf
 implib x86 USER32 DialogBoxParamA@20 EndDialog@8 EnumWindows@8 CreateWindowExA@48 RegisterClassExA@4 DefWindowProcA@16
 implib x86 ole32 CoInitializeEx@8 CoCreateInstance@20
@@ -57,3 +62,6 @@ program thread_cases thread_cases x86 KERNEL32_x86.lib msvcrt_x86.lib
 llvm-rc /fo window_cases.res -- "$here/window_cases.rc"
 program window_cases window_cases x86 USER32_x86.lib window_cases.res
 program wmi_cases wmi_cases x86 ole32_x86.lib
+for arch in x64 x86; do
+    program bcrypt_cases bcrypt_cases $arch bcrypt_$arch.lib KERNEL32_$arch.lib
+done

@@ -374,7 +374,6 @@ def test_bcrypt_close_algorithm_provider_twice(dll_emu: Speakeasy) -> None:
 
 
 STATUS_INVALID_BUFFER_SIZE = 0xC0000206
-STATUS_AUTH_TAG_MISMATCH = 0xC000A002
 
 
 def _wstr(se: Speakeasy, text: str) -> int:
@@ -402,46 +401,31 @@ def _aes_key(se: Speakeasy, mode: str, secret: bytes) -> int:
     return _ptr(se, phkey)
 
 
-def _get_property(se: Speakeasy, handle: int, name: str, size: int) -> tuple[int, bytes]:
-    out = alloc(se, b"\x00" * size)
-    pcb = alloc(se, b"\x00" * 4)
-    rv, _ = call(se, "bcrypt", "BCryptGetProperty", [handle, _wstr(se, name), out, size, pcb, 0])
-    return rv, se.mem_read(out, _dword(se, pcb))
+# Bits of the return value of bcrypt_cases.c, one per case
+BCRYPT_GCM_CASES = {
+    0x01: "AuthTagLength of a GCM key is 12 to 16 in steps of 1",
+    0x02: "BlockLength of an AES key is 16",
+    0x04: "BCryptEncrypt without an output buffer gives the output size",
+    0x08: "BCryptEncrypt encrypts and writes the tag",
+    0x10: "BCryptDecrypt decrypts and checks the tag",
+    0x20: "BCryptDecrypt of a bad tag fails with STATUS_AUTH_TAG_MISMATCH",
+    0x40: "BCryptDestroyKey destroys the key",
+}
 
 
-@pytest.mark.parametrize(
-    "fixture, info_format, info_size",
-    [("dll_emu", "<IIIIIIIIIII4xQI4x", 0x40), ("dll64_emu", "<IIQI4xQI4xQI4xQIIQI4x", 0x58)],
-)
-def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(
-    request: pytest.FixtureRequest, fixture: str, info_format: str, info_size: int
-) -> None:
-    se: Speakeasy = request.getfixturevalue(fixture)
+@pytest.mark.parametrize("arch", ["x86", "x64"])
+def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(config: dict, load_test_bin, arch: str) -> None:
+    """bcrypt_cases.c encrypts with AES-GCM and writes the cipher text and the tag to c:\\gcm.bin."""
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=load_test_bin(f"bcrypt_cases_{arch}.exe.xz")))
+        run = se.get_report().entry_points[0]
+        dropped = [f.get_contents() for f in se.get_dropped_files()]
+
+    assert run.error is None
+    assert not [case for bit, case in BCRYPT_GCM_CASES.items() if not run.ret_val & bit]
     secret, nonce, aad, plain = bytes(range(32)), b"\x07" * 12, b"UK01", bytes(range(0x40, 0x80))
-    hkey = _aes_key(se, "ChainingModeGCM", secret)
-    assert _get_property(se, hkey, "AuthTagLength", 12) == (0, struct.pack("<III", 12, 16, 1))
-    assert _get_property(se, hkey, "BlockLength", 4) == (0, struct.pack("<I", 16))
-
-    tag = alloc(se, b"\x00" * 16)
-    info = alloc(
-        se,
-        struct.pack(info_format, info_size, 1, alloc(se, nonce), 12, alloc(se, aad), 4, tag, 16, 0, 0, 0, 0, 0),
-    )
-    src, enc, dec, pcb = (alloc(se, data) for data in (plain, b"\x00" * 64, b"\x00" * 64, b"\x00" * 4))
-    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 64, info, 0, 0, 0, 0, pcb, 0])[0] == 0
-    assert _dword(se, pcb) == 64
-    assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 64, info, 0, 0, enc, 64, pcb, 0])[0] == 0
-
     expected, expected_tag = AES.new(secret, AES.MODE_GCM, nonce=nonce).update(aad).encrypt_and_digest(plain)
-    assert (se.mem_read(enc, 64), se.mem_read(tag, 16)) == (expected, expected_tag)
-    assert call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 64, info, 0, 0, dec, 64, pcb, 0])[0] == 0
-    assert se.mem_read(dec, 64) == plain
-
-    se.mem_write(tag, b"\x00" * 16)
-    assert (
-        call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 64, info, 0, 0, dec, 64, pcb, 0])[0] == STATUS_AUTH_TAG_MISMATCH
-    )
-    assert call(se, "bcrypt", "BCryptDestroyKey", [hkey])[0] == 0
+    assert dropped == [expected + expected_tag]
 
 
 @pytest.mark.parametrize("mode, cipher", [("ChainingModeCBC", AES.MODE_CBC), ("ChainingModeECB", AES.MODE_ECB)])
