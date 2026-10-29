@@ -45,8 +45,10 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   "random_seed": 0,
 
   // System time when emulation starts, in ISO 8601 with a time zone.
-  // The system time and the msvcrt time functions count from it.
-  // Sleep and waits move the clock forward.
+  // The system time, the file times, the msvcrt time functions, timeGetTime,
+  // KUSER_SHARED_DATA and the kernel-mode system time count from it.
+  // The emulated system booted one day before this time. In user mode, each
+  // time query and each Sleep or wait moves the clock forward.
   // The default is fixed so that runs give the same times to the sample.
   "start_time": "2026-10-31T15:15:00Z",
 

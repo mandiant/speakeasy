@@ -707,13 +707,13 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(base, data)
 
     def _build_user_shared_data(self):
-        now_100ns = int(time.time() * 10_000_000) + 116444736000000000
-        tick_ms = int(time.monotonic() * 1000) & 0xFFFFFFFF
+        now_100ns = self.start_time
+        tick_ms = winemu.START_TICK_COUNT
 
         data = bytearray(0x400)
 
         # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
-        interrupt_100ns = int(time.monotonic() * 10_000_000)
+        interrupt_100ns = winemu.START_TICK_COUNT * 10000
         struct.pack_into(
             "<IiI", data, 0x008, interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32
         )

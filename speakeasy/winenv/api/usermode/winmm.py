@@ -1,5 +1,3 @@
-import time
-
 from .. import api
 
 DRV_LOAD = 0x0001
@@ -52,4 +50,4 @@ class Winmm(api.ApiHandler):
         """
         DWORD timeGetTime(); // return the system time, in milliseconds
         """
-        return int(time.monotonic() * 1000) & 0xFFFFFFFF
+        return emu.api.load_api_handler("kernel32").get_tick_count() & 0xFFFFFFFF

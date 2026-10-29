@@ -21,8 +21,6 @@ EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
 
 MAX_EXPORTS_TO_EMULATE = 10
 
-SYSTEM_TIME_START = 131911108955110000
-
 
 class WinKernelEmulator(WindowsEmulator, IoManager):
     """
@@ -41,7 +39,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.kernel_mode: bool = True
         self.irql: int = ddk.PASSIVE_LEVEL
         self.delayed_runs: list[Run] = []
-        self.system_time: int = SYSTEM_TIME_START
+        self.system_time: int = self.start_time
         self.ktypes = ntos
 
     def get_system_time(self):

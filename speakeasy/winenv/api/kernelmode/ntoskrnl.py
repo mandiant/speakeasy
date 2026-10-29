@@ -9,6 +9,7 @@ import uuid
 import lznt1
 
 import speakeasy.common as common
+import speakeasy.windows.common as winemu
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -800,8 +801,8 @@ class Ntoskrnl(api.ApiHandler):
 
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemTimeOfDayInformation:
             tod = self.win.SYSTEM_TIMEOFDAY_INFORMATION(emu.get_ptr_size())
-            tod.BootTime = 0x100000
-            tod.CurrentTime = 0x200000
+            tod.BootTime = emu.start_time - winemu.START_TICK_COUNT * 10000
+            tod.CurrentTime = emu.get_system_time()
             tod.TimeZoneBias = 0
             tod.TimeZoneId = 0
             tod.Reserved = 0

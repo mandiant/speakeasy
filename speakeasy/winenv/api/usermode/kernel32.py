@@ -6,7 +6,6 @@ import ntpath
 import os
 import string
 import struct
-import time
 import zlib
 
 import speakeasy.common as common
@@ -168,12 +167,25 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         super().__get_hook_attrs__(self)
 
+    def get_tick_count(self):
+        """
+        Advance the tick count by 1 ms and return it.
+        """
+        self.tick_counter += 1
+        return self.tick_counter
+
     def get_system_time(self):
         """
         Advance the tick count by 1 ms and return the system time as a FILETIME value.
         """
-        self.tick_counter += 1
-        return self.boot_time + self.tick_counter * 10000
+        return self.boot_time + self.get_tick_count() * 10000
+
+    def get_local_time(self) -> datetime.datetime:
+        """
+        Advance the tick count by 1 ms and return the local time.
+        The time zone that GetTimeZoneInformation reports has no bias.
+        """
+        return datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=self.get_system_time() // 10)
 
     def get_performance_counter(self):
         """
@@ -4198,9 +4210,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # Set WIN32_FILE_ATTRIBUTE_DATA.dwFileAttributes to Normal
         file_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
 
-        # Set WIN32_FILE_ATTRIBUTE_DATA.ftCreationTime + .ftLastAccessTime + .ftLastWriteTime,
-        # using current date time
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        timestamp = self.get_system_time()
         for ft in (file_data.ftCreationTime, file_data.ftLastAccessTime, file_data.ftLastWriteTime):
             ft.dwLowDateTime = 0xFFFFFFFF & timestamp
             ft.dwHighDateTime = timestamp >> 32
@@ -4239,7 +4249,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         _hFile, lpCreationTime, lpLastAccessTime, lpLastWriteTime = argv
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        timestamp = self.get_system_time()
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp
         ft.dwHighDateTime = timestamp >> 32
         data = self.get_bytes(ft)
@@ -6877,7 +6887,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             size = f.get_size()
             info.nFileSizeHigh = 0xFFFFFFFF & (size >> 32)
             info.nFileSizeLow = 0xFFFFFFFF & size
-        timestamp = 116444736000000000 + int(datetime.datetime.now(datetime.timezone.utc).timestamp()) * 10000000
+        timestamp = self.get_system_time()
         for ft in (info.ftCreationTime, info.ftLastAccessTime, info.ftLastWriteTime):
             ft.dwLowDateTime = 0xFFFFFFFF & timestamp
             ft.dwHighDateTime = timestamp >> 32
@@ -7439,7 +7449,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 sys_time = self.mem_cast(sys_time, lpDate)
                 date = datetime.date(sys_time.wYear, sys_time.wMonth, sys_time.wDay)
             else:
-                date = datetime.date.today()
+                date = self.get_local_time().date()
             date_str = date.strftime(date_format)
         except Exception:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -7550,7 +7560,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 sys_time = self.mem_cast(sys_time, lpTime)
                 t = datetime.time(hour=sys_time.wHour, minute=sys_time.wMinute, second=sys_time.wSecond)
             else:
-                t = datetime.datetime.now().time()
+                t = self.get_local_time().time()
             time_str = t.strftime(time_format)
         except Exception:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -7834,7 +7844,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         unique = uUnique & 0xFFFF
         create = not unique
         if create:
-            unique = (time.time_ns() // 1000) & 0xFFFF or 1
+            unique = self.get_tick_count() & 0xFFFF or 1
         out = path.rstrip("\\") + f"\\{prefix[:3]}{unique:X}.TMP"
         ctx.args["lpTempFileName"].display = out
         self.write_mem_string(out, lpTempFileName, cw)

@@ -9,6 +9,12 @@ from speakeasy import Speakeasy
 from speakeasy.config import SpeakeasyConfig
 from tests.handler_harness import alloc, call, load_emu
 
+# 2026-10-31T15:15:00Z
+START_TIME_UNIX = 1793459700
+START_TIME_FILETIME = 116444736000000000 + START_TIME_UNIX * 10000000
+
+KUSER_SYSTEM_TIME = 0x7FFE0014
+
 RANDOM_APIS: list[tuple[str, str, Callable[[int], list[int]]]] = [
     ("advapi32", "SystemFunction036", lambda buf: [buf, 16]),
     ("advapi32", "CryptGenRandom", lambda buf: [0x1234, 16, buf]),
@@ -49,19 +55,28 @@ def test_random_seed_changes_the_random_values(
 
 
 def get_clock_values(se: Speakeasy) -> list[int]:
-    buf = alloc(se, b"\x00" * 16)
-    call(se, "kernel32", "GetSystemTimeAsFileTime", [buf])
-    file_time = int.from_bytes(se.mem_read(buf, 8), "little")
-    call(se, "kernel32", "QueryPerformanceCounter", [buf])
-    counter = int.from_bytes(se.mem_read(buf, 8), "little")
-    return [file_time, counter, call(se, "msvcrt", "time", [0])[0], call(se, "kernel32", "GetTickCount", [])[0]]
+    buf = alloc(se, b"\x00" * 260)
+    values = []
+    for dll, name, argv in [
+        ("kernel32", "GetSystemTimeAsFileTime", [buf]),
+        ("kernel32", "QueryPerformanceCounter", [buf]),
+        ("kernel32", "GetFileTime", [0, buf, 0, 0]),
+    ]:
+        call(se, dll, name, argv)
+        values.append(int.from_bytes(se.mem_read(buf, 8), "little"))
+    values.append(call(se, "msvcrt", "time", [0])[0])
+    values.append(call(se, "kernel32", "GetTickCount", [])[0])
+    values.append(call(se, "winmm", "timeGetTime", [])[0])
+    values.append(call(se, "kernel32", "GetTempFileNameA", [alloc(se, b"C:\\tmp\x00"), 0, 0, buf])[0])
+    values.append(int.from_bytes(se.mem_read(KUSER_SYSTEM_TIME, 8), "little"))
+    return values
 
 
 def test_clock_apis_repeat_across_emulators(dll_emu: Speakeasy, other_dll_emu: Speakeasy) -> None:
     values = get_clock_values(dll_emu)
     assert values == get_clock_values(other_dll_emu)
-    # 2026-10-31T15:15:00Z
-    assert values[2] == 1793459700
+    assert values[3] == START_TIME_UNIX
+    assert values[-1] == START_TIME_FILETIME
 
 
 def test_start_time_sets_the_system_time(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:

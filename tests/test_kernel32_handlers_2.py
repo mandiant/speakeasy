@@ -206,14 +206,14 @@ def test_get_time_format_counts_characters(emu: Speakeasy, name: str, width: int
     assert emu.mem_read(buf, 10 * width) == "17:04:05\x00".encode(enc) + b"\xcc" * width
 
 
-def test_get_date_and_time_format_use_now_for_null_time(emu: Speakeasy) -> None:
+def test_get_date_and_time_format_use_the_emulated_clock_for_null_time(emu: Speakeasy) -> None:
     buf = alloc(emu, b"\x00" * 64)
-    fmt = alloc(emu, b"yyyy\x00")
-    assert call(emu, "kernel32", "GetDateFormatA", [0x400, 0, 0, fmt, buf, 64])[0] == 5
-    assert emu.mem_read(buf, 4).decode() == str(datetime.datetime.now().year)
+    assert call(emu, "kernel32", "GetDateFormatA", [0x400, 0, 0, 0, buf, 64])[0] == 11
+    assert emu.mem_read(buf, 11) == b"10/31/2026\x00"
 
-    assert call(emu, "kernel32", "GetDateFormatA", [0x400, 0, 0, 0, buf, 64])[0] > 1
-    assert call(emu, "kernel32", "GetTimeFormatA", [0x400, 0, 0, 0, buf, 64])[0] == 9
+    fmt = alloc(emu, b"HH:mm\x00")
+    assert call(emu, "kernel32", "GetTimeFormatA", [0x400, 0, 0, fmt, buf, 64])[0] == 6
+    assert emu.mem_read(buf, 6) == b"15:15\x00"
 
 
 def test_open_thread(emu: Speakeasy) -> None:
