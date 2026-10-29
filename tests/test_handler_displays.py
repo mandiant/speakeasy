@@ -11,7 +11,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, load_emu, object_attributes, unicode_string
-from tests.test_user32_handlers import build_string_table_pe
+from tests.test_user32_handlers import load_string_table_sample
 
 
 def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
@@ -678,15 +678,15 @@ def test_vsprintf_s_overflow_leaves_an_empty_string(driver_emu: Speakeasy, count
 @pytest.mark.parametrize(
     "api, count, rv, out",
     [
-        ("LoadStringA", 16, 7, b"tenfour\x00"),
-        ("LoadStringA", 4, 3, b"ten\x00"),
-        ("LoadStringW", 4, 3, "ten\x00".encode("utf-16le")),
+        ("LoadStringA", 64, 29, b"http://127.0.0.1/tenfour.html\x00"),
+        ("LoadStringA", 5, 4, b"http\x00"),
+        ("LoadStringW", 5, 4, "http\x00".encode("utf-16le")),
     ],
 )
 def test_load_string_counts_characters(config: dict[str, Any], api: str, count: int, rv: int, out: bytes) -> None:
-    for se in load_emu(config, build_string_table_pe()):
-        buf = alloc(se, b"\xcc" * 32)
-        result, displays = call(se, "user32", api, [0, 17, buf, count])
+    for se in load_emu(config, load_string_table_sample()):
+        buf = alloc(se, b"\xcc" * 128)
+        result, displays = call(se, "user32", api, [0, 1, buf, count])
         assert (result, se.mem_read(buf, len(out))) == (rv, out)
         assert displays["lpBuffer"] == out.decode("utf-16le" if api.endswith("W") else "utf-8").rstrip("\x00")
 

@@ -5,6 +5,7 @@ User32 handlers return what Windows returns and write only what the caller owns.
 import struct
 from typing import Any
 
+import pefile
 import pytest
 
 from speakeasy import Speakeasy
@@ -13,7 +14,7 @@ from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import user32 as u32defs
 from tests.guest_harness import Deref, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
-from tests.pe_builder import build_pe
+from tests.pma_harness import PMA_DIR
 
 
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 28), ("dll64_emu", 48)])
@@ -552,43 +553,47 @@ def test_integer_resource_ids_display_as_integers(dll64_emu: Speakeasy, api: str
     assert displays[arg] == "0x7f00"
 
 
-def build_string_table_pe() -> bytes:
-    """Return a PE whose RT_STRING block 2 holds ID 17 = "tenfour" and ID 18 = "x"."""
-    rsrc = 0x2000
-    block = b"\0\0" + struct.pack("<H", 7) + "tenfour".encode("utf-16le") + struct.pack("<H", 1) + b"x\0"
-    block += b"\0\0" * 13
-    data = struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 6, 0x80000018)
-    data += struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 2, 0x80000030)
-    data += struct.pack("<IIHHHHII", 0, 0, 0, 0, 0, 1, 0x409, 0x48)
-    data += struct.pack("<IIII", rsrc + 0x60, len(block), 0, 0)
-    data = data.ljust(0x60, b"\0") + block
-    image, _ = build_pe(32, data=data, extra_dirs={2: (rsrc, 0x60)})
-    return image
+STRING_TABLE_SAMPLE = PMA_DIR / "Practical Malware Analysis Lab 14-02.exe_"
+STRING_1 = "http://127.0.0.1/tenfour.html"
+
+
+def load_string_table_sample() -> bytes:
+    """Return Lab 14-02, whose RT_STRING block 1 holds only string ID 1."""
+    if not STRING_TABLE_SAMPLE.is_file():
+        pytest.skip("capa-testfiles is not checked out")
+    return STRING_TABLE_SAMPLE.read_bytes()
 
 
 @pytest.mark.parametrize(
     "api, uid, rv, out",
     [
-        ("LoadStringW", 17, 7, "tenfour\x00".encode("utf-16le")),
-        ("LoadStringA", 18, 1, b"x\x00"),
+        ("LoadStringW", 1, 29, (STRING_1 + "\x00").encode("utf-16le")),
+        ("LoadStringA", 1, 29, (STRING_1 + "\x00").encode()),
+        ("LoadStringA", 0, 0, b"\xcc"),
         ("LoadStringA", 16, 0, b"\xcc"),
     ],
 )
 def test_load_string_reads_the_string_table(config: dict, api: str, uid: int, rv: int, out: bytes) -> None:
-    for se in load_emu(config, build_string_table_pe()):
+    for se in load_emu(config, load_string_table_sample()):
         assert se.emu is not None
-        buf = alloc(se, b"\xcc" * 32)
-        result, _ = call(se, "user32", api, [se.emu.modules[0].base, uid, buf, 16])
+        buf = alloc(se, b"\xcc" * 64)
+        result, _ = call(se, "user32", api, [se.emu.modules[0].base, uid, buf, 32])
         assert (result, se.mem_read(buf, len(out))) == (rv, out)
 
 
 def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
-    for se in load_emu(config, build_string_table_pe()):
+    data = load_string_table_sample()
+    pe = pefile.PE(data=data)
+    strings = next(e for e in pe.DIRECTORY_ENTRY_RESOURCE.entries if e.id == pefile.RESOURCE_TYPE["RT_STRING"])
+    block = strings.directory.entries[0].directory.entries[0].data.struct
+    for se in load_emu(config, data):
         assert se.emu is not None
         base = se.emu.modules[0].base
-        se.mem_write(base + 0x2060, b"\0\0" + struct.pack("<H", 3) + "abc".encode("utf-16le") + b"\0\0" * 14)
+        se.mem_write(
+            base + block.OffsetToData, b"\0\0" + struct.pack("<H", 3) + "abc".encode("utf-16le") + b"\0\0" * 14
+        )
         buf = alloc(se, b"\xcc" * 32)
-        result, _ = call(se, "user32", "LoadStringW", [base, 17, buf, 16])
+        result, _ = call(se, "user32", "LoadStringW", [base, 1, buf, 16])
         assert (result, se.mem_read(buf, 8)) == (3, "abc\x00".encode("utf-16le"))
 
 
