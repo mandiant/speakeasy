@@ -812,7 +812,6 @@ class WindowsEmulator(BinaryEmulator):
         budget = self.config.max_instructions if debugger is not None else count
         used = self.curr_run.budget_instructions
         remaining = [max(budget - used, 0) if budget > 0 else -1]
-        limit = [False]
         # The last instruction the accounting hook saw start, when there is one
         last_executed: list[int | None] = [None]
         origin_run = self.curr_run
@@ -862,7 +861,6 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None and debugger.has_pending_stop():
                     return
                 if remaining[0] <= 0:
-                    limit[0] = True
                     self.emu_eng.stop()
                     return
                 remaining[0] -= 1
@@ -940,7 +938,7 @@ class WindowsEmulator(BinaryEmulator):
                     if (
                         self._pending.cpu_exception is None
                         and self.curr_run is origin_run
-                        and self._stopped_at_hlt(deadline, limit[0], last_executed[0], native_count, debugger)
+                        and self._stopped_at_hlt(deadline, last_executed[0], native_count, debugger)
                     ):
                         self.raise_cpu_exception(
                             cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction"
@@ -2356,7 +2354,7 @@ class WindowsEmulator(BinaryEmulator):
             return False
         return self._pending_fault_stop is None and self.get_register_state() == registers
 
-    def _stopped_at_hlt(self, deadline, limited, last_executed, counted, debugger):
+    def _stopped_at_hlt(self, deadline, last_executed, counted, debugger):
         """
         Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
         Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran:
@@ -2369,7 +2367,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         if self.kernel_mode or not self.config.exceptions.dispatch_handlers:
             return False
-        if limited or self._pending.api_entry is not None or self._pending.control:
+        if self._pending.api_entry is not None or self._pending.control:
             return False
         if deadline is not None and time.monotonic() >= deadline:
             return False
