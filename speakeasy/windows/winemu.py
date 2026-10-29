@@ -9,6 +9,7 @@ import struct
 import time
 import traceback
 from abc import abstractmethod
+from collections import deque
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import Enum, IntEnum
@@ -3284,11 +3285,7 @@ class WindowsEmulator(BinaryEmulator):
             elif access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value)
         except Exception as e:
-            logger.exception("Invalid memory exception")
-            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Invalid memory exception", str(e))
 
     def _handle_prot_write(self, emu, address, size, value):
         guarded = address & ~(self.page_size - 1) in self.guard_pages
@@ -3366,59 +3363,69 @@ class WindowsEmulator(BinaryEmulator):
         """Snapshot public function/data and auxiliary symbols as string labels."""
         return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
 
+    def _end_run_on_hook_error(self, description: str, message: str) -> bool:
+        """Log the current exception, save it as the run error, and stop emulation."""
+        logger.exception(description)
+        error = self.get_error_info(message, self.get_pc(), traceback=traceback.format_exc())
+        self.curr_run.error = error  # type: ignore[union-attr]
+        self.on_emu_complete()
+        return False
+
+    def _count_symbol_access(self, counter: str, address: int, symbol: str) -> None:
+        """Count a read, write or execute of a symbol. counter is "reads", "writes" or "execs"."""
+        run = self.curr_run
+        assert run is not None
+        access = run.sym_access.get(address) or MemAccess(sym=symbol)
+        setattr(access, counter, getattr(access, counter) + 1)
+        run.sym_access[address] = access
+
+    def _get_cached_region_access(self, address: int, cache: deque[MemAccess]) -> MemAccess | None:
+        """
+        Get the access counts of the section or memory map that contains address.
+        Look in cache first. Return None if address is not mapped.
+        """
+        for access in cache:
+            if access.base <= address < access.base + access.size:
+                return access
+        region = self._get_region_access(address)
+        if region is not None:
+            cache.appendleft(region)
+        return region
+
+    def _get_region_access(self, address: int) -> MemAccess | None:
+        run = self.curr_run
+        assert run is not None
+        mod = self.get_mod_from_addr(address)
+        if mod and mod.sections:
+            sect = mod.get_section_for_addr(address)
+            if sect:
+                key = (mod.base, sect.virtual_address)
+                if key not in run.section_access:
+                    run.section_access[key] = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
+                return run.section_access[key]
+
+        mmap = self.get_address_map(address)
+        if not mmap:
+            return None
+        return run.mem_access.setdefault(mmap, MemAccess(base=mmap.base, size=mmap.size))
+
     def _hook_mem_read(self, emu, access, address, size, value):
         """
         Hook each memory read event that occurs. This hook is used to lookup symbols and modules
         that are read from during emulation.
         """
-
         try:
             symbol = self.get_symbol_from_address(address)
-
             if symbol:
+                self._count_symbol_access("reads", address, symbol)
                 logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-                mac = self.curr_run.sym_access.get(address)
-                if not mac:
-                    mac = MemAccess(sym=symbol)
-                mac.reads += 1
-                self.curr_run.sym_access.update({address: mac})
-
-            for read_access in self.curr_run.read_cache:  # type: ignore[union-attr]
-                if read_access.base <= address <= (read_access.base + read_access.size) - 1:
-                    read_access.reads += 1
-                    return True
-
-            mod = self.get_mod_from_addr(address)
-            if mod and mod.sections:
-                sect = mod.get_section_for_addr(address)
-                if sect:
-                    key = (mod.base, sect.virtual_address)
-                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
-                    if not maccess:
-                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
-                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
-                    self.curr_run.read_cache.appendleft(maccess)  # type: ignore[union-attr]
-                    maccess.reads += 1
-                    return True
-
-            mmap = self.get_address_map(address)
-            if not mmap:
+            region = self._get_cached_region_access(address, self.curr_run.read_cache)  # type: ignore[union-attr]
+            if region is None:
                 return False
-
-            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
-            if not maccess:
-                maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.read_cache.appendleft(maccess)  # type: ignore[union-attr]
-            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
-            maccess.reads += 1
-
+            region.reads += 1
             return True
         except Exception as e:
-            logger.exception("Exception during memory read")
-            error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Exception during memory read", type(e).__name__)
 
     def _hook_mem_write(self, emu, access, address, size, value):
         """
@@ -3428,50 +3435,15 @@ class WindowsEmulator(BinaryEmulator):
         try:
             symbol = self.get_symbol_from_address(address)
             if symbol:
+                self._count_symbol_access("writes", address, symbol)
                 logger.debug("mem_write: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-                mac = self.curr_run.sym_access.get(address)  # type: ignore[union-attr]
-                if not mac:
-                    mac = MemAccess(sym=symbol)
-                mac.writes += 1
-                self.curr_run.sym_access.update({address: mac})  # type: ignore[union-attr]
-
-            for write_access in self.curr_run.write_cache:  # type: ignore[union-attr]
-                if write_access.base <= address <= (write_access.base + write_access.size) - 1:
-                    write_access.writes += 1
-                    return True
-
-            mod = self.get_mod_from_addr(address)
-            if mod and mod.sections:
-                sect = mod.get_section_for_addr(address)
-                if sect:
-                    key = (mod.base, sect.virtual_address)
-                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
-                    if not maccess:
-                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
-                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
-                    self.curr_run.write_cache.appendleft(maccess)  # type: ignore[union-attr]
-                    maccess.writes += 1
-                    return True
-
-            mmap = self.get_address_map(address)
-            if not mmap:
+            region = self._get_cached_region_access(address, self.curr_run.write_cache)  # type: ignore[union-attr]
+            if region is None:
                 return False
-
-            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
-            if not maccess:
-                maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.write_cache.appendleft(maccess)  # type: ignore[union-attr]
-            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
-            maccess.writes += 1
-
+            region.writes += 1
             return True
-
         except Exception as e:
-            logger.exception("Exception during memory write")
-            error = self.get_error_info(str(type(e).__name__), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Exception during memory write", type(e).__name__)
 
     def _handle_invalid_read(self, emu, address, size, value):
         """
@@ -3578,13 +3550,8 @@ class WindowsEmulator(BinaryEmulator):
             if self._seh_resume_pc is None:
                 self.disable_code_hook()
             return True
-
         except Exception as e:
-            logger.exception("Exception during code hook (core)")
-            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Exception during code hook (core)", str(e))
 
     def _hook_code_coverage(self, emu, addr, size):
         """
@@ -3594,11 +3561,7 @@ class WindowsEmulator(BinaryEmulator):
             self.curr_run.coverage.add(addr)  # type: ignore[union-attr]
             return True
         except Exception as e:
-            logger.exception("Exception during code hook (coverage)")
-            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Exception during code hook (coverage)", str(e))
 
     def _hook_code_tracing(self, emu, addr, size):
         """
@@ -3612,54 +3575,20 @@ class WindowsEmulator(BinaryEmulator):
 
             symbol = self.get_symbol_from_address(addr)
             if symbol:
-                mac = self.curr_run.sym_access.get(addr)  # type: ignore[union-attr]
-                if not mac:
-                    mac = MemAccess(sym=symbol)
-                mac.execs += 1
-                self.curr_run.sym_access.update({addr: mac})  # type: ignore[union-attr]
+                self._count_symbol_access("execs", addr, symbol)
                 entry = self.api_registry.entries.get(addr)
                 if entry is not None and entry.trap is not None:
                     self._api_call_site = (addr, self.prev_pc)
 
             self.prev_pc = addr
             self.curr_run.instr_cnt += 1  # type: ignore[union-attr]
-
-            for exec_access in self.curr_run.exec_cache:  # type: ignore[union-attr]
-                if exec_access.base <= addr <= (exec_access.base + exec_access.size) - 1:
-                    exec_access.execs += 1
-                    return True
-
-            mod = self.get_mod_from_addr(addr)
-            if mod and mod.sections:
-                sect = mod.get_section_for_addr(addr)
-                if sect:
-                    key = (mod.base, sect.virtual_address)
-                    maccess = self.curr_run.section_access.get(key)  # type: ignore[union-attr]
-                    if not maccess:
-                        maccess = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
-                        self.curr_run.section_access[key] = maccess  # type: ignore[union-attr]
-                    self.curr_run.exec_cache.appendleft(maccess)  # type: ignore[union-attr]
-                    maccess.execs += 1
-                    return True
-
-            mmap = self.get_address_map(addr)
-            if not mmap:
+            region = self._get_cached_region_access(addr, self.curr_run.exec_cache)  # type: ignore[union-attr]
+            if region is None:
                 return False
-            maccess = self.curr_run.mem_access.get(mmap)  # type: ignore[union-attr]
-            if not maccess:
-                maccess = MemAccess(base=mmap.base, size=mmap.size)
-            self.curr_run.exec_cache.appendleft(maccess)  # type: ignore[union-attr]
-            self.curr_run.mem_access.update({mmap: maccess})  # type: ignore[union-attr]
-            maccess.execs += 1
-
+            region.execs += 1
             return True
-
         except Exception as e:
-            logger.exception("Exception during code hook (tracing)")
-            error = self.get_error_info(str(e), self.get_pc(), traceback=traceback.format_exc())
-            self.curr_run.error = error  # type: ignore[union-attr]
-            self.on_emu_complete()
-            return False
+            return self._end_run_on_hook_error("Exception during code hook (tracing)", str(e))
 
     def _hook_code_debug(self, emu, addr, size):
         """
