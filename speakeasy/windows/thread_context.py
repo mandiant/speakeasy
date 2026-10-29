@@ -7,6 +7,8 @@ for; the debug registers in particular belong to the thread, not the CPU,
 since Unicorn does not implement them.
 """
 
+import speakeasy.winenv.arch as _arch
+
 CONTEXT_AMD64 = 0x100000
 CONTEXT_i386 = 0x10000
 CONTEXT_CONTROL = 0x1
@@ -30,6 +32,50 @@ SECTIONS_I386 = {
     CONTEXT_INTEGER: ("Edi", "Esi", "Ebx", "Edx", "Ecx", "Eax"),
     CONTEXT_SEGMENTS: ("SegGs", "SegFs", "SegEs", "SegDs"),
     CONTEXT_DEBUG_REGISTERS: DEBUG_REGISTERS,
+}
+
+_FLAGS_AND_SEGMENT_REGISTERS = {
+    "EFlags": _arch.X86_REG_EFLAGS,
+    "SegCs": _arch.X86_REG_CS,
+    "SegSs": _arch.X86_REG_SS,
+    "SegDs": _arch.X86_REG_DS,
+    "SegFs": _arch.X86_REG_FS,
+    "SegGs": _arch.X86_REG_GS,
+    "SegEs": _arch.X86_REG_ES,
+}
+
+# CONTEXT fields and the CPU registers they map to
+CPU_REGISTERS_I386 = {
+    "Edi": _arch.X86_REG_EDI,
+    "Esi": _arch.X86_REG_ESI,
+    "Eax": _arch.X86_REG_EAX,
+    "Ebp": _arch.X86_REG_EBP,
+    "Edx": _arch.X86_REG_EDX,
+    "Ecx": _arch.X86_REG_ECX,
+    "Ebx": _arch.X86_REG_EBX,
+    "Esp": _arch.X86_REG_ESP,
+    "Eip": _arch.X86_REG_EIP,
+    **_FLAGS_AND_SEGMENT_REGISTERS,
+}
+CPU_REGISTERS_AMD64 = {
+    "Rax": _arch.AMD64_REG_RAX,
+    "Rbx": _arch.AMD64_REG_RBX,
+    "Rcx": _arch.AMD64_REG_RCX,
+    "Rdx": _arch.AMD64_REG_RDX,
+    "Rsi": _arch.AMD64_REG_RSI,
+    "Rdi": _arch.AMD64_REG_RDI,
+    "Rbp": _arch.AMD64_REG_RBP,
+    "Rsp": _arch.AMD64_REG_RSP,
+    "Rip": _arch.AMD64_REG_RIP,
+    "R8": _arch.AMD64_REG_R8,
+    "R9": _arch.AMD64_REG_R9,
+    "R10": _arch.AMD64_REG_R10,
+    "R11": _arch.AMD64_REG_R11,
+    "R12": _arch.AMD64_REG_R12,
+    "R13": _arch.AMD64_REG_R13,
+    "R14": _arch.AMD64_REG_R14,
+    "R15": _arch.AMD64_REG_R15,
+    **_FLAGS_AND_SEGMENT_REGISTERS,
 }
 
 
