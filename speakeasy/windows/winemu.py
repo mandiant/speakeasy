@@ -911,37 +911,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self.curr_run is not origin_run or debugger_stops():
                     return
         finally:
-            elapsed = time.monotonic() - limits.started
-            origin_run.execution_elapsed = limits.spent + elapsed
-            stopped = self.exit_event is not None and self.exit_event.is_set()
-            if stopped and debugger is None and self.curr_run is origin_run and not self.run_complete:
-                if origin_run.error is None:
-                    origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
-                self._cancel_execution_runs()
-            total_budget = limits.total_budget
-            if total_budget is not None:
-                total_budget.elapsed += elapsed
-                if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
-                    if not total_budget.exhausted:
-                        logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
-                    total_budget.exhausted = True
-                    self._cancel_execution_runs()
-                    prepared = self.curr_run
-                    if prepared is origin_run:
-                        if not self.run_complete and origin_run.error is None:
-                            origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
-                    else:
-                        # Completing the run already prepared the next one. It
-                        # did not execute and must not appear as a started run.
-                        self._cancel_execution_runs(prepared)
-                        if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
-                            self.runs[:] = [run for run in self.runs if run is not prepared]
-                            if self.profiler:
-                                self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
-                            self.curr_run = origin_run
-                            self.run_complete = True
-                    if debugger is not None:
-                        debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
+            self._finish_api_engine(limits, origin_run, debugger)
             if hook is not None:
                 self.remove_code_hook(hook)
 
@@ -1025,6 +995,43 @@ class WindowsEmulator(BinaryEmulator):
                 self.curr_run.instr_cnt += 1
 
         return self.add_code_hook(account_instruction)
+
+    def _finish_api_engine(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
+        """
+        Add the time of the call to origin_run and to the total execution time. End the
+        run if the exit event stopped it, and cancel all runs if the total time ran out.
+        """
+        elapsed = time.monotonic() - limits.started
+        origin_run.execution_elapsed = limits.spent + elapsed
+        stopped = self.exit_event is not None and self.exit_event.is_set()
+        if stopped and debugger is None and self.curr_run is origin_run and not self.run_complete:
+            if origin_run.error is None:
+                origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
+            self._cancel_execution_runs()
+        total_budget = limits.total_budget
+        if total_budget is not None:
+            total_budget.elapsed += elapsed
+            if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
+                if not total_budget.exhausted:
+                    logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
+                total_budget.exhausted = True
+                self._cancel_execution_runs()
+                prepared = self.curr_run
+                if prepared is origin_run:
+                    if not self.run_complete and origin_run.error is None:
+                        origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
+                else:
+                    # Completing the run already prepared the next one. It
+                    # did not execute and must not appear as a started run.
+                    self._cancel_execution_runs(prepared)
+                    if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
+                        self.runs[:] = [run for run in self.runs if run is not prepared]
+                        if self.profiler:
+                            self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
+                        self.curr_run = origin_run
+                        self.run_complete = True
+                if debugger is not None:
+                    debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
 
     def _dispatch_api_entry(
         self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
