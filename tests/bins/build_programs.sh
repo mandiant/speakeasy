@@ -39,7 +39,7 @@ program() {
 
 implib x64 KERNEL32 Sleep IsProcessorFeaturePresent CreateFileA WriteFile CloseHandle
 implib x86 KERNEL32 Sleep@4 IsProcessorFeaturePresent@4 CreateThread@24 ExitThread@4 GetExitCodeThread@8 CreateFileA@28 \
-    WriteFile@20 CloseHandle@4 LocalAlloc@8 CreateProcessA@40
+    WriteFile@20 CloseHandle@4 LocalAlloc@8 CreateProcessA@40 GetTickCount@0
 implib x64 bcrypt BCryptOpenAlgorithmProvider BCryptSetProperty BCryptGenerateSymmetricKey BCryptGetProperty \
     BCryptEncrypt BCryptDecrypt BCryptDestroyKey
 implib x86 bcrypt BCryptOpenAlgorithmProvider@16 BCryptSetProperty@20 BCryptGenerateSymmetricKey@28 BCryptGetProperty@24 \
@@ -68,3 +68,4 @@ done
 program parent parent x86 KERNEL32_x86.lib
 program child child x86
 program child child_at_10000000 x86 /base:0x10000000
+program api_loop api_loop x86 KERNEL32_x86.lib

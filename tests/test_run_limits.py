@@ -38,21 +38,12 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         se.shutdown()
 
 
-def test_exit_event_stops_an_api_loop_as_a_timeout(config):
+def test_exit_event_stops_an_api_loop_as_a_timeout(config, load_test_bin):
     config.update({"timeout": 60, "max_api_count": 10_000_000})
     exit_event = threading.Event()
     se = Speakeasy(config=config, exit_event=exit_event)
     try:
-        # CreateThread(NULL, 0, thread, NULL, 0, NULL); loop: mov eax, GetTickCount; call eax; jmp loop
-        code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0"
-        loop = len(code)
-        code += b"\xb8" + b"\0" * 4 + b"\xff\xd0\xeb\xf7"
-        thread = len(code)
-        code += b"\xb8\x2a\0\0\0\xc3"
-        base = se.load_shellcode(data=code, arch="x86")
-        se.mem_write(base + 7, (base + thread).to_bytes(4, "little"))
-        se.mem_write(base + 16, se.emu.get_proc("kernel32", "CreateThread").to_bytes(4, "little"))
-        se.mem_write(base + loop + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+        module = se.load_module(data=load_test_bin("api_loop_x86.exe.xz"))
         calls = []
 
         def count_ticks(emu, api_name, func, params):
@@ -63,13 +54,13 @@ def test_exit_event_stops_an_api_loop_as_a_timeout(config):
 
         se.add_api_hook(count_ticks, "kernel32", "GetTickCount", argc=0)
 
-        se.run_shellcode(base)
+        se.run_module(module)
 
         assert exit_event.is_set()
         (entry,) = se.get_report().entry_points
         assert entry.error is not None
         assert entry.error.type == "timeout"
-        assert base + loop <= int(entry.error.pc) < base + thread
+        assert module.base <= int(entry.error.pc) < module.base + module.image_size
     finally:
         se.shutdown()
 
