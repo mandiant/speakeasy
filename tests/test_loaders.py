@@ -386,13 +386,17 @@ def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):
     assert image[0x2C000:0x2CA20] == raw[0x2C000:0x2CA20]
 
 
-def test_last_section_raw_data_past_end_of_file_stays_inside_the_image():
-    raw = bytearray(build_pe(data=b"x" * 16)[0]) + b"y" * 0x8000
+def test_last_section_raw_data_past_end_of_file_stays_inside_the_image(load_test_bin):
+    raw = bytearray(load_test_bin("child_x86.exe.xz")) + b"y" * 0x8000
     pe = pefile.PE(data=bytes(raw))
-    struct.pack_into("<I", raw, pe.sections[-1].get_file_offset() + 16, 0x00C3B000)
-    size_of_image = pe.OPTIONAL_HEADER.SizeOfImage
+    last = pe.sections[-1]
+    struct.pack_into("<I", raw, last.get_file_offset() + 16, 0x00C3B000)
 
     parser = _PeParser(data=bytes(raw))
 
-    assert len(parser.mapped_image) <= size_of_image
-    assert parser.mapped_image[0x2000:0x2010] == b"x" * 16
+    assert len(parser.mapped_image) <= pe.OPTIONAL_HEADER.SizeOfImage
+    start = last.PointerToRawData
+    assert (
+        parser.mapped_image[last.VirtualAddress : last.VirtualAddress + last.Misc_VirtualSize]
+        == raw[start : start + last.Misc_VirtualSize]
+    )
