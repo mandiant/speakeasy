@@ -965,7 +965,13 @@ def test_start_service_ctrl_dispatcher_ends_the_table_at_a_bad_entry(
     start_process(se)
     name = alloc(se, "svc\x00".encode("utf-16le"))
     service_main = alloc(se, b"\xc3")
-    table = alloc(se, struct.pack("<6I", name, service_main, *second_entry, 0, 0))
+    entries = []
+    for service_name, proc in ((name, service_main), second_entry, (0, 0)):
+        entry = adv32defs.SERVICE_TABLE_ENTRY(se.get_ptr_size())
+        entry.lpServiceName = service_name
+        entry.lpServiceProc = proc
+        entries.append(entry.get_bytes())
+    table = alloc(se, b"".join(entries))
     se.emu.run_queue.clear()
 
     rv, _ = call(se, "advapi32", "StartServiceCtrlDispatcherW", [table])

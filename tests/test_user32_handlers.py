@@ -10,6 +10,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.defs.windows import user32 as u32defs
 from tests.guest_harness import Deref, guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 from tests.pe_builder import build_pe
@@ -73,13 +74,11 @@ def test_timer_messages_rotate_and_stop_after_kill_timer(dll_emu: Speakeasy) -> 
 
 
 def register_class(se: Speakeasy, name: bytes | int, wndproc: int) -> int:
-    assert se.emu is not None
-    p = "I" if se.emu.get_ptr_size() == 4 else "Q"
-    fmt = "<II" + p + "II" + p * 7
-    size = struct.calcsize(fmt)
-    lpsz = name if isinstance(name, int) else alloc(se, name + b"\x00")
-    wc = struct.pack(fmt, size, 0, wndproc, 0, 0, *([0] * 5), lpsz, 0)
-    atom, _ = call(se, "user32", "RegisterClassExA", [alloc(se, wc)])
+    wc = u32defs.WNDCLASSEX(se.get_ptr_size())
+    wc.cbSize = wc.sizeof()
+    wc.lpfnWndProc = wndproc
+    wc.lpszClassName = name if isinstance(name, int) else alloc(se, name + b"\x00")
+    atom, _ = call(se, "user32", "RegisterClassExA", [alloc(se, wc.get_bytes())])
     return atom
 
 
@@ -429,9 +428,10 @@ def test_register_class_without_ex_registers_the_window_procedure(request: pytes
     se: Speakeasy = request.getfixturevalue(fixture)
     assert se.emu is not None
     name = "Edp Notify".encode("utf-16le") + b"\x00\x00"
-    fmt = "<IIii6I" if se.emu.get_ptr_size() == 4 else "<I4xQii6Q"
-    wc = struct.pack(fmt, 0, 0x401000, 0, 0, 0, 0, 0, 0, 0, alloc(se, name))
-    atom, _ = call(se, "user32", "RegisterClassW", [alloc(se, wc)])
+    wc = u32defs.WNDCLASS(se.get_ptr_size())
+    wc.lpfnWndProc = 0x401000
+    wc.lpszClassName = alloc(se, name)
+    atom, _ = call(se, "user32", "RegisterClassW", [alloc(se, wc.get_bytes())])
     assert atom
     rv, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert rv is None
@@ -474,8 +474,10 @@ def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy
     assert call(dll_emu, "user32", "GetWindowLongA", [hwnd, 0xFFFFFFFC])[0] == 0x401000
     assert call(dll_emu, "user32", "SetWindowLongA", [hwnd, 0xFFFFFFFC, 0x402000])[0] == 0x401000
     assert call(dll_emu, "user32", "GetWindowLongA", [hwnd, 0xFFFFFFFC])[0] == 0x402000
-    msg = alloc(dll_emu, struct.pack("<IIIIIII", hwnd, 0x10, 0, 0, 0, 0, 0))
-    call(dll_emu, "user32", "DispatchMessageA", [msg])
+    msg = u32defs.MSG(dll_emu.get_ptr_size())
+    msg.hwnd = hwnd
+    msg.message = 0x10
+    call(dll_emu, "user32", "DispatchMessageA", [alloc(dll_emu, msg.get_bytes())])
     assert dll_emu.emu.get_current_run().guest_callbacks[-1].function == 0x402000
 
 
@@ -728,31 +730,36 @@ LVCF_TEXT = 4
 LVCF_SUBITEM = 8
 
 
-def lvcolumn(ptr_size: int, mask: int, fmt: int = 0, cx: int = 0, text: int = 0, cch: int = 0, sub: int = 0) -> bytes:
-    if ptr_size == 4:
-        return struct.pack("<IiiIiiii", mask, fmt, cx, text, cch, sub, 0, 0)
-    return struct.pack("<IiiIQiiii", mask, fmt, cx, 0, text, cch, sub, 0, 0)
+def lvcolumn(se: Speakeasy, mask: int, fmt: int = 0, cx: int = 0, text: int = 0, cch: int = 0) -> int:
+    col = u32defs.LVCOLUMN(se.get_ptr_size())
+    col.mask = mask
+    col.fmt = fmt
+    col.cx = cx
+    col.pszText = text
+    col.cchTextMax = cch
+    return alloc(se, col.get_bytes())
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_list_view_columns_keep_their_widths(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     assert se.emu is not None
-    ps = se.emu.get_ptr_size()
     hwnd, _ = call(se, "user32", "CreateWindowExA", [0, alloc(se, b"SysListView32\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     name = alloc(se, b"Name\x00")
-    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 0, alloc(se, lvcolumn(ps, 7, 0, 150, name))])
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 0, lvcolumn(se, 7, 0, 150, name)])
     assert rv == 0
-    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 5, alloc(se, lvcolumn(ps, 3, 1, 100))])
+    rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 5, lvcolumn(se, 3, 1, 100)])
     assert rv == 1
 
-    col = alloc(se, lvcolumn(ps, LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM))
+    col = lvcolumn(se, LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM)
     rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_GETCOLUMNA, 0, col])
     assert rv == 1
-    assert se.mem_read(col, len(lvcolumn(ps, 0))) == lvcolumn(ps, LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM, 0, 150)
+    got = se.mem_cast(u32defs.LVCOLUMN(se.get_ptr_size()), col)
+    assert (got.mask, got.fmt, got.cx, got.iSubItem) == (LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM, 0, 150, 0)
+    assert (got.pszText, got.cchTextMax) == (0, 0)
 
     buf = alloc(se, b"\xcc" * 16)
-    col = alloc(se, lvcolumn(ps, LVCF_TEXT, text=buf, cch=16))
+    col = lvcolumn(se, LVCF_TEXT, text=buf, cch=16)
     rv, _ = call(se, "user32", "SendMessageW", [hwnd, LVM_GETCOLUMNW, 0, col])
     assert rv == 1
     assert se.mem_read(buf, 10) == "Name\x00".encode("utf-16le")
