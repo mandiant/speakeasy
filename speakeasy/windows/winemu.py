@@ -26,6 +26,7 @@ import speakeasy.windows.common as winemu
 import speakeasy.windows.cpu_exceptions as cpu_exceptions
 import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.hardware_breakpoints as hardware_breakpoints
+import speakeasy.windows.mapped_imports as mapped_imports
 import speakeasy.windows.objman as objman
 import speakeasy.windows.seh as seh
 import speakeasy.windows.seh32 as seh32
@@ -327,7 +328,7 @@ class WindowsEmulator(BinaryEmulator):
         self.run_queue: list[Run] = []
         self.suspended_runs: list[Run] = []
         self.cd: str = ""
-        self.emu_hooks_set: bool = True
+        self.is_reserved_range_unmapped: bool = True
         self.api: Any | None = None
         self.curr_process: Any | None = None
         self.om: objman.ObjectManager | None = None
@@ -352,7 +353,9 @@ class WindowsEmulator(BinaryEmulator):
         self.kernel_mode: bool = False
         self.virtual_mem_base: int = 0x50000
 
-        self.tmp_code_hook: Any | None = None
+        # Code hook for work that must wait until the next instruction, such as the end
+        # of a run or the unmap of temporary fault pages. It is enabled only when there is such work.
+        self.deferred_work_hook: Any | None = None
         self.veh_handlers: list[int] = []
 
         self.run_complete: bool = False
@@ -459,16 +462,16 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()  # type: ignore[union-attr]
 
-    def enable_code_hook(self):
-        if not self.tmp_code_hook:
-            self.tmp_code_hook = self.add_code_hook(cb=self._hook_code_core)
+    def enable_deferred_work_hook(self):
+        if not self.deferred_work_hook:
+            self.deferred_work_hook = self.add_code_hook(cb=self._hook_code_deferred_work)
 
-        if self.tmp_code_hook:
-            self.tmp_code_hook.enable()
+        if self.deferred_work_hook:
+            self.deferred_work_hook.enable()
 
-    def disable_code_hook(self):
-        if self.tmp_code_hook:
-            self.tmp_code_hook.disable()
+    def disable_deferred_work_hook(self):
+        if self.deferred_work_hook:
+            self.deferred_work_hook.disable()
 
     def set_mem_tracing_hooks(self):
         if not self.config.analysis.memory_tracing:
@@ -510,14 +513,6 @@ class WindowsEmulator(BinaryEmulator):
         if not isinstance(obj, EmuStruct):
             raise WindowsEmuError("Invalid object for cast")
         return obj.cast(bytez)
-
-    def _unset_emu_hooks(self):
-        """
-        Create a formatted structure from bytes
-        """
-        if self.emu_hooks_set:
-            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)  # type: ignore[union-attr]
-        self.emu_hooks_set = False
 
     def file_open(self, path, create=False, truncate=False):
         """
@@ -621,14 +616,23 @@ class WindowsEmulator(BinaryEmulator):
             return self.regman.get_key_from_path(path)
         return self.regman.get_key_from_handle(handle)
 
-    def _set_emu_hooks(self):
+    def _unmap_reserved_range(self):
         """
         Unmap reserved memory space so we can handle events (e.g. import APIs,
         entry point returns, etc.)
         """
-        if not self.emu_hooks_set:
+        if not self.is_reserved_range_unmapped:
             self.mem_unmap(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
-            self.emu_hooks_set = True
+            self.is_reserved_range_unmapped = True
+
+    def _map_reserved_range(self):
+        """
+        Map the reserved memory range, so that Unicorn can complete an access to it.
+        The deferred work hook or the next run unmaps it again.
+        """
+        if self.is_reserved_range_unmapped:
+            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)  # type: ignore[union-attr]
+        self.is_reserved_range_unmapped = False
 
     def get_valid_ranges(self, size, addr=None):
         """
@@ -773,7 +777,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_unmap(winemu.EMU_RESERVED, winemu.EMU_RESERVE_SIZE)
             except Exception:
                 pass
-            self.emu_hooks_set = True
+            self.is_reserved_range_unmapped = True
 
         self.set_pc(run.start_addr)
         return run
@@ -1214,7 +1218,7 @@ class WindowsEmulator(BinaryEmulator):
         self.run_complete = False
         self.emu_complete = False
         self.set_hooks()
-        self._set_emu_hooks()
+        self._unmap_reserved_range()
 
         # Initialize run context/register state before exposing the target to GDB,
         # so the first stop reports a meaningful PC/SP/etc.
@@ -1639,7 +1643,6 @@ class WindowsEmulator(BinaryEmulator):
     def ensure_pe_import_hooks(self, base_addr):
         """Bind imports of an injected mapped PE using the public API registry.
 
-        Validate every RVA against SizeOfImage and bound both table walks.
         Bind each valid IAT slot independently and skip invalid slots.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
         bindings preserve idempotence without interpreting code addresses as RVAs.
@@ -1648,124 +1651,36 @@ class WindowsEmulator(BinaryEmulator):
         that bypass the normal module loader.
         """
         ptr_size = self.get_ptr_size()
-        import_errors = (ValueError, UnicodeError, struct.error, uc.UcError, WindowsEmuError)
+        import_errors = (ValueError, struct.error, uc.UcError, WindowsEmuError)
+
+        def read(address, size):
+            try:
+                return self.mem_read(address, size)
+            except uc.UcError as error:
+                raise ValueError(str(error)) from error
+
+        pending = []
         try:
-            dos = self.mem_read(base_addr, 0x40)
-            if dos[:2] != b"MZ":
-                return
-            nt_rva = struct.unpack_from("<I", dos, 0x3C)[0]
-            if nt_rva > 0x100000:
-                return
-            header = self.mem_read(base_addr + nt_rva, 24)
-            if header[:4] != b"PE\x00\x00":
-                return
-            opt_size = struct.unpack_from("<H", header, 20)[0]
-            if opt_size < (0x80 if ptr_size == 8 else 0x70) or opt_size > 0x1000:
-                return
-            opt = self.mem_read(base_addr + nt_rva + 24, opt_size)
-            magic = struct.unpack_from("<H", opt)[0]
-            if magic != (0x20B if ptr_size == 8 else 0x10B):
-                return
-            image_size = struct.unpack_from("<I", opt, 56)[0]
-            directory_offset = 112 if ptr_size == 8 else 96
-            if struct.unpack_from("<I", opt, directory_offset - 4)[0] < 2:
-                return
-            import_rva, import_size = struct.unpack_from("<II", opt, directory_offset + 8)
-            if not import_rva and not import_size:
-                return
-            if not import_rva or not import_size or import_rva + import_size > image_size:
-                raise ValueError("import directory outside image")
-
-            def read_rva(rva, size):
-                if rva < 0 or size < 0 or rva + size > image_size:
-                    raise ValueError("import RVA outside image")
-                return self.mem_read(base_addr + rva, size)
-
-            def read_name(rva, *, dll=False):
-                # Bounded byte reads also support names ending at a page boundary.
-                if not 0 <= rva < image_size:
-                    raise ValueError("import name RVA outside image")
-                value = bytearray()
-                for offset in range(min(4096, image_size - rva)):
-                    byte = read_rva(rva + offset, 1)
-                    if byte == b"\x00":
-                        if not value:
-                            raise ValueError("invalid import name")
-                        if dll:
-                            ascii_name = bytes(byte if byte < 128 else ord("x") for byte in value)
-                            if not pefile.is_valid_dos_filename(ascii_name):
-                                raise ValueError("invalid import DLL name")
-                            try:
-                                return value.decode("ascii")
-                            except UnicodeError:
-                                name = value.decode("latin-1")
-                                logger.warning("non-ASCII injected import DLL name decoded as Latin-1: %r", name)
-                                return name
-                        if not pefile.is_valid_function_name(bytes(value)):
-                            raise ValueError("invalid import function name")
-                        return value.decode("ascii")
-                    value.extend(byte)
-                raise ValueError("unterminated import name")
-
-            pending = []
-            for index in range(min(import_size // 20, 4096)):
-                try:
-                    descriptor = read_rva(import_rva + index * 20, 20)
-                except import_errors as error:
-                    logger.warning("unreadable injected PE import descriptor at %#x: %s", base_addr, error)
-                    break
-                if descriptor == b"\x00" * 20:
-                    break
-                ilt_rva, _, _, name_rva, iat_rva = struct.unpack("<5I", descriptor)
-                try:
-                    if not name_rva or not iat_rva:
-                        raise ValueError("incomplete import descriptor")
-                    dll_name = read_name(name_rva, dll=True)
-                except import_errors as error:
-                    logger.warning("skipping injected PE import descriptor %s at %#x: %s", index, base_addr, error)
+            for slot in mapped_imports.get_import_slots(read, base_addr, ptr_size):
+                if self._import_bindings.get(slot.iat) == slot.current:
                     continue
-                thunk_rva = ilt_rva or iat_rva
-                for offset in range(min(image_size // ptr_size, 65536)):
-                    iat = iat_rva + offset * ptr_size
-                    try:
-                        thunk = int.from_bytes(read_rva(thunk_rva + offset * ptr_size, ptr_size), "little")
-                        if not thunk:
-                            break
-                        current = int.from_bytes(read_rva(iat, ptr_size), "little")
-                    except import_errors as error:
-                        # Without readable slots, the remainder of this table
-                        # cannot be walked safely; other descriptors are independent.
-                        logger.warning("skipping injected PE import table %s at %#x: %s", dll_name, base_addr, error)
-                        break
-                    if self._import_bindings.get(base_addr + iat) == current:
-                        continue
-                    if base_addr + iat in self._import_bindings and (not ilt_rva or current != thunk):
-                        # Preserve a guest hook. A separate ILT can identify an
-                        # explicitly restored unbound slot; zero-OFT images cannot.
-                        continue
-                    if not ilt_rva and not thunk & (1 << (ptr_size * 8 - 1)) and thunk >= image_size:
-                        # Already bound externally, with no surviving name table.
-                        continue
-                    try:
-                        if thunk & (1 << (ptr_size * 8 - 1)):
-                            if thunk & ~((1 << (ptr_size * 8 - 1)) | 0xFFFF):
-                                raise ValueError("reserved bits in ordinal import")
-                            reference = f"ordinal_{thunk & 0xFFFF}"
-                        else:
-                            reference = read_name(thunk + 2)
-                        address = self.get_proc(dll_name, reference)
-                        if not address:
-                            raise WindowsEmuError(f"unresolved import {dll_name}!{reference}")
-                        if not 0 <= address < 1 << (ptr_size * 8):
-                            raise ValueError("import address does not fit pointer size")
-                    except import_errors as error:
-                        logger.warning("skipping injected PE import slot at %#x: %s", base_addr + iat, error)
-                        continue
-                    pending.append((base_addr + iat, address))
-                else:
-                    logger.warning("unterminated injected PE import thunk table at %#x", base_addr)
-            else:
-                logger.warning("unterminated injected PE import descriptor table at %#x", base_addr)
+                if slot.iat in self._import_bindings and (not slot.has_ilt or slot.current != slot.thunk):
+                    # The guest changed an entry that we bound. Keep the guest's value,
+                    # unless the guest wrote back the original value from the ILT.
+                    continue
+                if slot.is_bound_externally:
+                    continue
+                try:
+                    reference = slot.get_reference()
+                    address = self.get_proc(slot.dll, reference)
+                    if not address:
+                        raise WindowsEmuError(f"unresolved import {slot.dll}!{reference}")
+                    if not 0 <= address < 1 << (ptr_size * 8):
+                        raise ValueError("import address does not fit pointer size")
+                except import_errors as error:
+                    logger.warning("skipping injected PE import slot at %#x: %s", slot.iat, error)
+                    continue
+                pending.append((slot.iat, address))
 
             for iat, address in pending:
                 self.mem_write(iat, address.to_bytes(ptr_size, "little"))
@@ -2383,7 +2298,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending.trap_fault = None
         self.prev_pc = self.get_pc()
         if self.config.exceptions.dispatch_handlers and self.dispatch_seh(address, kind):
-            self.enable_code_hook()
+            self.enable_deferred_work_hook()
             return
         self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
         self.end_run_on_fault()
@@ -2540,7 +2455,7 @@ class WindowsEmulator(BinaryEmulator):
         Called when an attempt to emulate an instruction from an invalid address
         """
         if address == self.return_hook or address == self.exit_hook:
-            self._unset_emu_hooks()
+            self._map_reserved_range()
             return True
 
         # The rest of an instruction that crosses into the next page; the run already ends at its start
@@ -2981,7 +2896,7 @@ class WindowsEmulator(BinaryEmulator):
         self.log_api(call_pc, imp_api, rv, args)
         self.do_call_return(argc, ret, rv, conv=conv)
         if not self.run_complete:
-            self.enable_code_hook()
+            self.enable_deferred_work_hook()
         return rv
 
     def get_api_args(self) -> list[ApiArg]:
@@ -3116,7 +3031,7 @@ class WindowsEmulator(BinaryEmulator):
 
             # Deferred lifecycle/SEH work is processed before guest execution resumes.
             if not self.run_complete:
-                self.enable_code_hook()
+                self.enable_deferred_work_hook()
 
         else:
             # Unsupported API: no speakeasy handler exists, so argc/call_conv
@@ -3149,7 +3064,7 @@ class WindowsEmulator(BinaryEmulator):
                 if self.curr_run is origin_run and self.get_pc() == opc and ret == oret and self.get_stack_ptr() == osp:
                     self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
                 if not self.run_complete:
-                    self.enable_code_hook()
+                    self.enable_deferred_work_hook()
                 self._check_api_limit(origin_run, imp_api)
                 return
 
@@ -3262,10 +3177,7 @@ class WindowsEmulator(BinaryEmulator):
             if access != common.INVALID_MEM_EXEC:
                 self.prev_pc = self.get_pc()
 
-            if not self.tmp_code_hook:
-                self.tmp_code_hook = self.add_code_hook(cb=self._hook_code_core)
-
-            self.enable_code_hook()
+            self.enable_deferred_work_hook()
 
             if access == common.INVALID_MEM_EXEC:
                 return self._handle_invalid_fetch(emu, address, size, value)
@@ -3454,7 +3366,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
-            self._unset_emu_hooks()
+            self._map_reserved_range()
             return True
 
         if self.config.exceptions.dispatch_handlers:
@@ -3515,11 +3427,11 @@ class WindowsEmulator(BinaryEmulator):
         self.end_run_on_fault()
         return True
 
-    def _hook_code_core(self, emu, addr, size):
+    def _hook_code_deferred_work(self, emu, addr, size):
         """
-        Transient code hook for deferred work: SEH dispatch, run lifecycle,
-        and temporary fault-map cleanup. Enabled on demand
-        and disables itself once the pending work is drained.
+        Code hook that runs at the next instruction after an API call, a fault or a request to end the run.
+        It ends the run if it is complete, unmaps temporary fault pages, and unmaps the reserved range.
+        It disables itself when it has no more work.
         """
         try:
             if addr == self.return_hook or self.run_complete:
@@ -3539,19 +3451,19 @@ class WindowsEmulator(BinaryEmulator):
                         self.mem_unmap(base, size)
                     except Exception:
                         if self._seh_resume_pc is None:
-                            self.disable_code_hook()
+                            self.disable_deferred_work_hook()
                         return True
                     mapping = self.get_address_map(base)
                     if mapping is not None and mapping.base == base:
                         self.maps.remove(mapping)
                 self.tmp_maps = []
 
-            self._set_emu_hooks()
+            self._unmap_reserved_range()
             if self._seh_resume_pc is None:
-                self.disable_code_hook()
+                self.disable_deferred_work_hook()
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during code hook (core)", str(e))
+            return self._end_run_on_hook_error("Exception during code hook (deferred work)", str(e))
 
     def _hook_code_coverage(self, emu, addr, size):
         """
@@ -3898,7 +3810,7 @@ class WindowsEmulator(BinaryEmulator):
             return
         if pc == self._seh_last_fault[0]:
             self._seh_resume_pc = pc
-            self.enable_code_hook()
+            self.enable_deferred_work_hook()
         else:
             self._seh_last_fault = None
             self._seh_repeat_count = 0

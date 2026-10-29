@@ -693,7 +693,7 @@ class Win32Emulator(WindowsEmulator):
         An emulated binary is attempted to terminate its current process.
         Signal that the run has finished.
         """
-        self.enable_code_hook()
+        self.enable_deferred_work_hook()
         self.run_complete = True
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
@@ -729,7 +729,7 @@ class Win32Emulator(WindowsEmulator):
 
     def stop(self):
         self.run_complete = True
-        # self._unset_emu_hooks()
+        # self._map_reserved_range()
         # self.unset_hooks()
         super().stop()
 
