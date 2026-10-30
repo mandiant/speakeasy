@@ -229,18 +229,18 @@ class LoadState(Enum):
 class RuntimeModule:
     def __init__(self, image: LoadedImage) -> None:
         self.load_states: dict[int, LoadState] = {}
-        self._image = image
-        self.base = image.image_base
-        self.image_size = image.image_size
-        self.ep = (image.entry_points[0] - image.image_base) if image.entry_points else 0
-        self.arch = image.arch
-        self.emu_path = image.emu_path
-        self.path = image.emu_path
-        self.module_type = image.module_type
-        self.stack_commit = image.stack_size
-        self.visible_in_peb = image.visible_in_peb
-        self.name = image.name
-        self.sections = image.sections
+        self._image: LoadedImage = image
+        self.base: int = image.image_base
+        self.image_size: int = image.image_size
+        self.ep: int = (image.entry_points[0] - image.image_base) if image.entry_points else 0
+        self.arch: int = image.arch
+        self.emu_path: str = image.emu_path
+        self.path: str = image.emu_path
+        self.module_type: str = image.module_type
+        self.stack_commit: int = image.stack_size
+        self.visible_in_peb: bool = image.visible_in_peb
+        self.name: str = image.name
+        self.sections: list[SectionEntry] = image.sections
 
     def __repr__(self) -> str:
         return f"RuntimeModule({self._image.name!r} at {self.base:#x}, {self._image.source})"
@@ -366,9 +366,9 @@ class PeLoader:
         data: bytes | None = None,
         emu_path: str = "",
     ) -> None:
-        self._path = path
-        self._data = data
-        self._emu_path = emu_path
+        self._path: str | None = path
+        self._data: bytes | None = data
+        self._emu_path: str = emu_path
 
     def _optional_error(self, context: str, error: Exception) -> None:
         logger.warning("Skipping malformed PE %s: %s", context, error)
@@ -380,7 +380,7 @@ class PeLoader:
         if not 0 < rva < pe.image_size:
             raise ValueError("Import DLL name lies outside the image")
         try:
-            raw = pe.get_data(rva, min(pefile.MAX_DLL_LENGTH, pe.image_size - rva))
+            raw: bytes = pe.get_data(rva, min(pefile.MAX_DLL_LENGTH, pe.image_size - rva))
         except pefile.PEFormatError as error:
             raise ValueError("Unreadable imported DLL name") from error
         terminator = raw.find(b"\0")
@@ -534,7 +534,7 @@ class PeLoader:
                     raw = b""
                 if len(raw) == size:
                     delay_raw = raw
-        mapped_image = pe.get_mapped_image()[: pe.image_size]
+        mapped_image: bytes | bytearray = pe.get_mapped_image()[: pe.image_size]
         if delay_raw:
             mapped_image = bytearray(mapped_image)
             mapped_image[delay_rva : delay_rva + len(delay_raw)] = delay_raw
@@ -780,8 +780,8 @@ class PeLoader:
 
 class ShellcodeLoader:
     def __init__(self, *, data: bytes, arch: int) -> None:
-        self._data = data
-        self._arch = arch
+        self._data: bytes = data
+        self._arch: int = arch
 
     def make_image(self) -> LoadedImage:
         region = MemoryRegion(

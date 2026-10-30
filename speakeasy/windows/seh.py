@@ -7,9 +7,12 @@ architecture's dispatcher.
 The functions here are generator handlers (see guest_callbacks.py).
 """
 
+from __future__ import annotations
+
 import ctypes as ct
 import struct
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.thread_context as thread_context
@@ -19,6 +22,9 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler import GuestCallbackFrame
 from speakeasy.windows.cpu_exceptions import ACCESS_CODES, STATUS_GUARD_PAGE_VIOLATION, CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
+
+if TYPE_CHECKING:
+    from speakeasy.windows.winemu import WindowsEmulator
 
 EXCEPTION_NONCONTINUABLE = 0x01
 EXCEPTION_UNWINDING = 0x02
@@ -59,7 +65,7 @@ class UnhandledException(guest_callbacks.CallbackError):
             super().__init__(f"invalid_{access_type}", information[1], access_type, pc=address)
         else:
             super().__init__("unhandled_exception", address, pc=address)
-        self.code = code
+        self.code: int = code
 
 
 def as_long(value: int) -> int:
@@ -96,14 +102,19 @@ def resume_at(emu, ctx) -> Resume:
 class Dispatch:
     """An exception being dispatched: its record and context, in guest memory."""
 
-    def __init__(self, emu, record: int, context: int):
-        self.emu = emu
-        self.record = record
-        self.context = context
+    code: int
+    flags: int
+    address: int
+    information: list[int]
+
+    def __init__(self, emu: WindowsEmulator, record: int, context: int):
+        self.emu: WindowsEmulator = emu
+        self.record: int = record
+        self.context: int = context
         self.code, self.flags, _, self.address, _, *self.information = read_record(emu, record)
         pack = "<QQ" if emu.get_ptr_size() == 8 else "<II"
-        self.pointers = guest_callbacks.alloca(emu, struct.pack(pack, record, context))
-        self.reported = False
+        self.pointers: int = guest_callbacks.alloca(emu, struct.pack(pack, record, context))
+        self.reported: bool = False
 
     def offer(self, handler: int) -> None:
         """Report the exception once, when the first handler receives it."""

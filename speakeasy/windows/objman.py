@@ -1,16 +1,23 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import ntpath
 import os
 from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Any
+from types import MappingProxyType, ModuleType
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.windows.common as winemu
 import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
+
+if TYPE_CHECKING:
+    from speakeasy.windows.loaders import RuntimeModule
+    from speakeasy.windows.winemu import WindowsEmulator
+
 
 # STD_INPUT_HANDLE, STD_OUTPUT_HANDLE and STD_ERROR_HANDLE
 STD_HANDLE_ATTRS = {0xFFFFFFF6: "stdin", 0xFFFFFFF5: "stdout", 0xFFFFFFF4: "stderr"}
@@ -71,9 +78,9 @@ class Console:
     """
 
     def __init__(self, allocator: HandleAllocator):
-        self.allocator = allocator
-        self.handle = self._alloc_handle()
-        self.window = 0
+        self.allocator: HandleAllocator = allocator
+        self.handle: int = self._alloc_handle()
+        self.window: int = 0
 
     def _alloc_handle(self):
         return self.allocator.allocate_console_handle()
@@ -84,8 +91,8 @@ class KernelObject:
     Base class for Kernel objects managed by the object manager
     """
 
-    def __init__(self, emu):
-        self.emu: Any = emu
+    def __init__(self, emu: WindowsEmulator):
+        self.emu: WindowsEmulator = emu
         self.address: int | None = None
         self.name: str = ""
         self.object: Any = 0
@@ -94,7 +101,7 @@ class KernelObject:
         self.arch: int = emu.get_arch()
         self.id: int = emu.handle_allocator.allocate_kernel_object_id()
 
-        self.nt_types = ntoskrnl
+        self.nt_types: ModuleType = ntoskrnl
 
     def sizeof(self, obj=None):
         if obj:
@@ -136,7 +143,7 @@ class Driver(KernelObject):
 
     def __init__(self, emu):
         super().__init__(emu=emu)
-        self.pe: Any | None = None
+        self.pe: RuntimeModule | None = None
         self.devices: list[Device] = []
         self.ldr_entries: list[LdrDataTableEntry] = []
         self.mj_funcs: list[int | None] = [None] * (ddk.IRP_MJ_MAXIMUM_FUNCTION + 1)
@@ -350,7 +357,7 @@ class Irp(KernelObject):
         super().__init__(emu=emu)
         self.object = self.nt_types.IRP(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
-        self.stack_locations = []
+        self.stack_locations: list[IoStackLocation] = []
 
         ios = IoStackLocation(emu=emu)
         ios.write_back()
@@ -465,11 +472,11 @@ class Process(KernelObject):
             self.emu.mem_write(list_entry, list_entry.to_bytes(8, "little"))
             self.emu.mem_write(list_entry + 8, list_entry.to_bytes(8, "little"))
         self.ldr_entries: list[LdrDataTableEntry] = []
-        self._peb_modules: dict[int, Any] = {}
+        self._peb_modules: dict[int, RuntimeModule] = {}
         self.name: str = name
         self.base: int = base
         self.pid: int = self.id
-        self.modules: list[Any] = user_modules if user_modules is not None else []
+        self.modules: list[RuntimeModule] = user_modules if user_modules is not None else []
         self.threads: list[Thread] = []
         self.console: Console | None = None
         self.curr_thread: Thread | None = None
@@ -477,23 +484,23 @@ class Process(KernelObject):
         self.session: int = session
         self.token: Token = Token(self.emu)
         emu.add_object(self.token)
-        self.pe: Any | None = pe
+        self.pe: RuntimeModule | None = pe
         self.pe_data: bytes | None = None
-        self.is_modified = False
+        self.is_modified: bool = False
 
-        self.stdin = (0xF000) + 1
-        self.stdout = (0xF000) + 2
-        self.stderr = (0xF000) + 3
+        self.stdin: int = (0xF000) + 1
+        self.stdout: int = (0xF000) + 2
+        self.stderr: int = (0xF000) + 3
 
         # Initialize the process PEB
-        self.peb = PEB(emu=emu)
-        self.peb_ldr_data = PebLdrData(self.emu)
-        self.is_peb_active = False
-        self.initializing_peb = False
-        self.path = path
+        self.peb: PEB = PEB(emu=emu)
+        self.peb_ldr_data: PebLdrData = PebLdrData(self.emu)
+        self.is_peb_active: bool = False
+        self.initializing_peb: bool = False
+        self.path: str = path
         self.set_process_parameters(emu)
-        self.image = ntpath.basename(path)
-        self.title = ""
+        self.image: str = ntpath.basename(path)
+        self.title: str = ""
 
         is_console = False
         pe_meta = None
@@ -554,7 +561,7 @@ class Process(KernelObject):
             return self.pe.get_ep()
 
     @property
-    def peb_modules(self) -> Mapping[int, Any]:
+    def peb_modules(self) -> Mapping[int, RuntimeModule]:
         """The modules in the loader lists of this process, by base address."""
         return MappingProxyType(self._peb_modules)
 
@@ -812,8 +819,8 @@ class Event(KernelObject):
         self.object = self.nt_types.KEVENT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
         # Events whose state no handler tracks stay signaled, so waits on them return.
-        self.signaled = True
-        self.manual_reset = True
+        self.signaled: bool = True
+        self.manual_reset: bool = True
 
 
 class Mutant(KernelObject):
@@ -843,11 +850,11 @@ class ObjectManager:
     Class that manages kernel objects during emulation
     """
 
-    def __init__(self, emu):
+    def __init__(self, emu: WindowsEmulator):
         super().__init__()
-        self.emu = emu
-        self.objects = {}
-        self.symlinks = []
+        self.emu: WindowsEmulator = emu
+        self.objects: dict[int | None, KernelObject] = {}
+        self.symlinks: list[tuple[str, str]] = []
 
     def add_symlink(self, link, dev):
         self.symlinks.append((link, dev))

@@ -1,10 +1,16 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import ctypes
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.api.usermode.com_api as com_api
 import speakeasy.winenv.defs.windows.com as comdefs
 from speakeasy.errors import Win32EmuError
+
+if TYPE_CHECKING:
+    from speakeasy.config import SpeakeasyConfig
 
 
 class COM:
@@ -12,10 +18,10 @@ class COM:
     The Component Object Model (COM) manager for the emulator. This will manage COM interfaces.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: SpeakeasyConfig):
         super().__init__()
-        self.interfaces = {}
-        self.config = config
+        self.interfaces: dict[str, comdefs.ComInterface] = {}
+        self.config: SpeakeasyConfig = config
 
     def get_method_callback(self, emu, iface_name, method_name):
         """
