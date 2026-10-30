@@ -186,6 +186,23 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num
         assert len([e for e in run.events or [] if e.event == "exception"]) == handler
 
 
+@pytest.mark.parametrize("arch", ["amd64", "x86"])
+@pytest.mark.parametrize("insn", [b"\xec", b"\xee"], ids=["in", "out"])
+def test_fault_after_in_or_out_does_not_replace_its_exception(config, arch, insn):
+    """
+    Unicorn does not stop at once after `in` or `out`, and it runs the next instruction.
+    The exception of `in` or `out` stays, and the fault of the next instruction does not replace it.
+    """
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=insn + b"\x31\xc0\x8b\x00" + RETURN_42, arch=arch)  # xor eax, eax; mov eax, [rax]
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.pc) == ("privileged_instruction", code)
+
+
 def run_with_page(config, protect, access, step=0, before=None):
     """
     Allocate a page with protect, then run access against it, its address in rax,
