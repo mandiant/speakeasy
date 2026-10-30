@@ -5599,6 +5599,21 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return rv
 
+    @apihook("IsWow64Process2", argc=3)
+    def IsWow64Process2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL IsWow64Process2(
+          HANDLE  hProcess,
+          USHORT  *pProcessMachine,
+          USHORT  *pNativeMachine
+        );
+        """
+        hProcess, pProcessMachine, pNativeMachine = argv
+        self.mem_write(pProcessMachine, windefs.IMAGE_FILE_MACHINE_UNKNOWN.to_bytes(2, "little"))
+        if pNativeMachine:
+            self.mem_write(pNativeMachine, emu.get_native_machine().to_bytes(2, "little"))
+        return True
+
     @apihook("CheckRemoteDebuggerPresent", argc=2)
     def CheckRemoteDebuggerPresent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
