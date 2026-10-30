@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import subprocess
+from typing import Any
 
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
@@ -44,15 +45,17 @@ class Win32Emulator(WindowsEmulator):
     User Mode Windows Emulator Class
     """
 
+    file_name: str
+    mod_name: str
+
     def __init__(self, config, argv=None, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
-        self.last_error = 0
         self.peb_addr = 0
-        self.container_image = None
-        self.argv = argv if argv is not None else []
-        self.sessman = SessionManager(config, self.handle_allocator)
-        self.com = COM(config)
+        self.container_image: RuntimeModule | None = None
+        self.argv: list[str] = argv if argv is not None else []
+        self.sessman: SessionManager = SessionManager(config, self.handle_allocator)
+        self.com: COM = COM(config)
 
     def get_argv(self):
         """
@@ -110,20 +113,6 @@ class Win32Emulator(WindowsEmulator):
         if export_name.endswith("W"):
             return 2
         return 2
-
-    def set_last_error(self, code):
-        """
-        Set the last error code for the current thread
-        """
-        if self.curr_thread:
-            self.curr_thread.last_error = code
-
-    def get_last_error(self):
-        """
-        Get the last error code for the current thread
-        """
-        if self.curr_thread:
-            return self.curr_thread.last_error
 
     def get_session_manager(self):
         """
@@ -314,7 +303,7 @@ class Win32Emulator(WindowsEmulator):
 
         return startup
 
-    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None):
+    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
         Begin emulating a previously loaded module
 
@@ -331,7 +320,7 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
             self.processes.append(p)
             self.curr_process = p
-            self.om.objects.update({p.address: p})  # type: ignore[union-attr]
+            self.get_object_manager("process registration").objects.update({p.address: p})
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
@@ -339,8 +328,9 @@ class Win32Emulator(WindowsEmulator):
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=module.stack_commit)
         t.process = self.curr_process
 
-        self.om.objects.update({t.address: t})  # type: ignore[union-attr]
-        self.curr_process.threads.append(t)  # type: ignore[union-attr]
+        self.get_object_manager("thread registration").objects.update({t.address: t})
+        if self.curr_process is not None:
+            self.curr_process.threads.append(t)
         self.curr_thread = t
 
         for run in startup:
@@ -393,7 +383,7 @@ class Win32Emulator(WindowsEmulator):
                 run.thread = self.curr_thread
 
             self.command_line = child.cmdline
-            self.om.objects.update({self.curr_thread.address: self.curr_thread})  # type: ignore[union-attr]
+            self.get_object_manager("thread registration").objects.update({self.curr_thread.address: self.curr_thread})
             self.start()
             finished = child
 
@@ -421,13 +411,10 @@ class Win32Emulator(WindowsEmulator):
             self.file_name = os.path.basename(path)
             self.mod_name = os.path.splitext(self.file_name)[0]
         else:
-            mod_hash = hashlib.sha256()
-            mod_hash.update(data)
-            mod_hash = mod_hash.hexdigest()  # type: ignore[assignment]
-            self.mod_name = mod_hash
+            self.mod_name = hashlib.sha256(data).hexdigest()
             self.file_name = f"{self.mod_name}.exe"
 
-    def load_shellcode(self, path, arch, data=None, filename=None):
+    def load_shellcode(self, path, arch, data=None, filename=None) -> int:
         self._init_name(path, data, filename=filename)
         if arch == "x86":
             arch = _arch.ARCH_X86
@@ -468,7 +455,7 @@ class Win32Emulator(WindowsEmulator):
 
         return sc_addr
 
-    def run_shellcode(self, sc_addr, stack_commit=0x4000, offset=0):
+    def run_shellcode(self, sc_addr, stack_commit=0x4000, offset=0) -> None:
         """
         Begin emulating position independent code (i.e. shellcode) to prepare for emulation
         """
@@ -508,7 +495,7 @@ class Win32Emulator(WindowsEmulator):
             mm.process = self.curr_process
 
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=stack_commit)
-        self.om.objects.update({t.address: t})  # type: ignore[union-attr]
+        self.get_object_manager("thread registration").objects.update({t.address: t})
         self.curr_process.threads.append(t)
 
         self.curr_thread = t
@@ -609,7 +596,7 @@ class Win32Emulator(WindowsEmulator):
             self.peb_addr = self.gs_addr + 0x60
 
         for sl in self.config.symlinks:
-            self.om.add_symlink(sl.name, sl.target)
+            self.get_object_manager("symlink creation").add_symlink(sl.name, sl.target)
 
         self.init_sys_modules(self.config.modules.system_modules)
         self.init_user_modules(self.config.modules.user_modules)
@@ -677,7 +664,7 @@ class Win32Emulator(WindowsEmulator):
         self.is_run_complete = True
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
-        _access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
+        _access = self.emu_eng.mem_access.get(access)
 
         if _access == common.INVALID_MEM_READ:
             p = self.get_current_process()
@@ -707,7 +694,7 @@ class Win32Emulator(WindowsEmulator):
         self.set_coverage_hooks()
         self.set_debug_hooks()
 
-    def stop(self):
+    def stop(self) -> None:
         self.is_run_complete = True
         # self._map_reserved_range()
         # self.unset_hooks()
@@ -733,17 +720,19 @@ class Win32Emulator(WindowsEmulator):
         next run from the run queue and emulate it.
         """
         self.is_run_complete = True
-        self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
-        thread = self.curr_run.thread  # type: ignore[union-attr]
-        if thread and thread.exit_code is None:
-            thread.exit_code = self.curr_run.ret_val & 0xFFFFFFFF  # type: ignore[union-attr]
-        if self.profiler:
-            self.profiler.record_dropped_files_event(self.curr_run, self.get_dropped_files())
-            self._capture_memory_layout()
+        run = self.curr_run
+        if run is not None:
+            run.ret_val = self.get_return_val()
+            thread = run.thread
+            if thread and thread.exit_code is None:
+                thread.exit_code = run.ret_val & 0xFFFFFFFF
+            if self.profiler:
+                self.profiler.record_dropped_files_event(run, self.get_dropped_files())
+                self._capture_memory_layout(run)
 
         return self._prepare_next_run()
 
-    def _capture_memory_layout(self):
+    def _capture_memory_layout(self, run: Run) -> None:
         """
         Capture current memory layout and loaded modules for the run report.
         """
@@ -762,7 +751,7 @@ class Win32Emulator(WindowsEmulator):
 
         capture_dumps = getattr(self.config, "snapshot_memory_regions", False)
 
-        modules_by_base: dict[int, object] = {}
+        modules_by_base: dict[int, Any] = {}
         for m in self.modules:
             if m.image_size > 0:
                 modules_by_base[m.base] = m
@@ -770,8 +759,8 @@ class Win32Emulator(WindowsEmulator):
         for mm in self.get_mem_maps():
             prot = prot_map.get(mm.prot, "???")
             access_stats = None
-            if mm in self.curr_run.mem_access:  # type: ignore[union-attr]
-                ma = self.curr_run.mem_access[mm]  # type: ignore[union-attr]
+            if mm in run.mem_access:
+                ma = run.mem_access[mm]
                 access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
 
             tag = mm.tag or ""
@@ -781,8 +770,8 @@ class Win32Emulator(WindowsEmulator):
             mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
             sections = getattr(mod, "sections", None) if mod else None
 
-            if sections:
-                mod_name = ntpath.basename(mod.emu_path) or "unknown"  # type: ignore[union-attr]
+            if mod is not None and sections:
+                mod_name = ntpath.basename(mod.emu_path) or "unknown"
                 try:
                     full_data = self.mem_read(mm_base, mm_size) if capture_dumps else None
                 except Exception:
@@ -793,7 +782,7 @@ class Win32Emulator(WindowsEmulator):
                 hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
                 hdr_access = access_stats
                 hdr_key = (mm_base, 0)
-                hdr_ma = self.curr_run.section_access.get(hdr_key)  # type: ignore[union-attr]
+                hdr_ma = run.section_access.get(hdr_key)
                 if hdr_ma:
                     hdr_access = {"reads": hdr_ma.reads, "writes": hdr_ma.writes, "execs": hdr_ma.execs}
                 hdr_dict: dict = {
@@ -809,7 +798,7 @@ class Win32Emulator(WindowsEmulator):
                         hdr_dict["data_ref"] = self.profiler.artifact_store.put_bytes(full_data[:hdr_size])
                     except Exception:
                         pass
-                self.curr_run.memory_regions.append(hdr_dict)  # type: ignore[union-attr]
+                run.memory_regions.append(hdr_dict)
 
                 for sect in sections:
                     sec_addr = sect.virtual_address + mm_base
@@ -817,7 +806,7 @@ class Win32Emulator(WindowsEmulator):
 
                     sec_access = access_stats
                     sec_key = (mm_base, sect.virtual_address)
-                    sec_ma = self.curr_run.section_access.get(sec_key)  # type: ignore[union-attr]
+                    sec_ma = run.section_access.get(sec_key)
                     if sec_ma:
                         sec_access = {"reads": sec_ma.reads, "writes": sec_ma.writes, "execs": sec_ma.execs}
 
@@ -837,7 +826,7 @@ class Win32Emulator(WindowsEmulator):
                             )
                         except Exception:
                             pass
-                    self.curr_run.memory_regions.append(sec_dict)  # type: ignore[union-attr]
+                    run.memory_regions.append(sec_dict)
             else:
                 region_dict: dict = {
                     "tag": tag,
@@ -855,7 +844,7 @@ class Win32Emulator(WindowsEmulator):
                     except Exception:
                         pass
 
-                self.curr_run.memory_regions.append(region_dict)  # type: ignore[union-attr]
+                run.memory_regions.append(region_dict)
 
         for m in self.modules:
             if m.image_size == 0:
@@ -871,7 +860,7 @@ class Win32Emulator(WindowsEmulator):
                         "prot": get_prot_string(sect.perms),
                     }
                 )
-            self.curr_run.loaded_modules.append(  # type: ignore[union-attr]
+            run.loaded_modules.append(
                 {
                     "name": mod_name,
                     "path": m.emu_path,

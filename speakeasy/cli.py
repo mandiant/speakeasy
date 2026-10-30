@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -27,6 +29,8 @@ from speakeasy.volumes import apply_volumes
 logger = logging.getLogger(__name__)
 
 CHILD_EXIT_GRACE = 5
+
+ChildResult = tuple[str | None, str | None]
 
 
 def setup_logging(verbose: bool) -> None:
@@ -88,7 +92,7 @@ def emulate_binary(
         logger.debug("emulation failed", exc_info=True)
         error = str(err) or type(err).__name__
     finally:
-        if se is not None and se.emu is not None:
+        if se is not None and se.has_emulator:
             try:
                 report = se.get_json_report()
             except Exception as err:
@@ -96,7 +100,7 @@ def emulate_binary(
                 error = error or f"failed to build the report: {err or type(err).__name__}"
         q.put((report, error))
 
-        if dropped_files_path and se is not None and se.emu is not None:
+        if dropped_files_path and se is not None and se.has_emulator:
             data = se.create_file_archive()
             if data:
                 logger.info("* Saving dropped files archive to %s", dropped_files_path)
@@ -106,7 +110,7 @@ def emulate_binary(
                 logger.info("* No dropped files found")
 
 
-def get_child_result(q, p, wait):
+def get_child_result(q: mp.Queue[ChildResult], p: mp.Process, wait: float) -> ChildResult | None:
     deadline = time.monotonic() + wait
     while True:
         try:
@@ -121,7 +125,7 @@ def get_child_result(q, p, wait):
                 return None
 
 
-def wait_for_child(q, p, evt, wall_limit) -> tuple[str | None, str | None]:
+def wait_for_child(q: mp.Queue[ChildResult], p: mp.Process, evt, wall_limit) -> ChildResult:
     """
     Wait for the result of the emulation process and stop it after ``wall_limit`` seconds.
     A child that exits or stops without a result gives an error.
@@ -203,7 +207,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     if not target:
         parser.error("No target file supplied")
 
-    q: mp.Queue = mp.Queue()
+    q: mp.Queue[ChildResult] = mp.Queue()
     evt = mp.Event()
 
     if args.no_mp:

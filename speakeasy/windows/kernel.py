@@ -27,12 +27,11 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
     Class used to emulate Windows drivers
     """
 
+    ssdt_ptr: int
+
     def __init__(self, config, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
-        self.disasm_eng: object | None = None
-        self.curr_mod: object | None = None
-        self.debug: bool = debug
         self.drivers: list[objman.Driver] = []
         self.pool_allocs: list[tuple[int, int, int, str]] = []
         self.all_entrypoints: bool = False
@@ -100,10 +99,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             with open(path, "rb") as f:
                 data = f.read()
         else:
-            drv_hash = hashlib.sha256()
-            drv_hash.update(data)
-            drv_hash = drv_hash.hexdigest()  # type: ignore[assignment]
-            mod_name = drv_hash
+            mod_name = hashlib.sha256(data).hexdigest()
             file_name = f"{mod_name}.sys"
 
         emu_path = f"{self.get_system_root()}drivers\\{file_name}"
@@ -172,7 +168,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 p.path = "System"
 
             if not p.pid:
-                p.pid = self.om.new_id()  # type: ignore[union-attr]
+                p.pid = self.get_object_manager("process id allocation").new_id()
             base = proc.base_addr
 
             if isinstance(base, str):
@@ -225,14 +221,14 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Get the current process context
         """
-        self.validate_object_services("kernel current-process resolution")
+        self.get_object_manager("kernel current-process resolution")
 
         if not self.processes:
             self.processes = self.get_processes()
 
         return self.curr_process
 
-    def run_module(self, module, all_entrypoints=False, entry_point=None):
+    def run_module(self, module, all_entrypoints=False, entry_point=None) -> None:
         """
         Begin emulation fo a previously loaded kernel module
         """
@@ -311,14 +307,14 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         # Create a FILE_OBJECT for the device
         fobj = objman.FileObject(self)
-        dev.object.DeviceObject = dev.address  # type: ignore[attr-defined]
+        dev.object.DeviceObject = dev.address
         dev.file_object = fobj
 
         self.add_object(dev)
 
         if drv:
             drv.read_back()
-            dev.object.DriverObject = drv.address  # type: ignore[attr-defined]
+            dev.object.DriverObject = drv.address
             dev.driver = drv
 
             if not drv.object.DeviceObject:
@@ -337,10 +333,10 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         drv.devices.append(dev)
 
-        dev.object.Characteristics = chars  # type: ignore[attr-defined]
-        dev.object.DeviceType = devtype  # type: ignore[attr-defined]
+        dev.object.Characteristics = chars
+        dev.object.DeviceType = devtype
         if ext_size > 0:
-            dev.object.DeviceExtension = dev.address + dev.sizeof()  # type: ignore[attr-defined]
+            dev.object.DeviceExtension = dev.address + dev.sizeof()
 
         dev.write_back()
 
@@ -350,7 +346,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Add a symlink for a device
         """
-        self.om.add_symlink(symlink, devname)  # type: ignore[union-attr]
+        self.get_object_manager("symlink creation").add_symlink(symlink, devname)
 
     def _call_driver_dispatch(self, func, dev_addr, irp_addr):
         """
@@ -435,8 +431,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         func_addr = None
         func_handler = None
 
-        if self.curr_run.type is not None:  # type: ignore[union-attr]
-            self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
+        if self.curr_run is not None and self.curr_run.type is not None:
+            self.curr_run.ret_val = self.get_return_val()
 
         # Check if theres anything in the run queue
         if len(self.run_queue):
@@ -487,7 +483,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.add_run(run)
 
     def on_run_complete(self):
-        self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
+        if self.curr_run is not None:
+            self.curr_run.ret_val = self.get_return_val()
 
         for drv in self.drivers:
             drv.read_back()
@@ -542,7 +539,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         raise KernelEmuError("Failed to get kernel base")
 
     def _set_entry_point_names(self):
-        run_types = {
+        run_types: dict[str | int | None, str] = {
             ddk.IRP_MJ_CREATE: "irp_mj_create",
             ddk.IRP_MJ_DEVICE_CONTROL: "irp_mj_device_control",
             ddk.IRP_MJ_READ: "irp_mj_read",
@@ -573,7 +570,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         idt.init_descriptors()
 
         # selector, base, limit, flags
-        self.reg_write(_arch.X86_REG_IDTR, (0, idt.object.Descriptors, idt.object.Limit, 0))  # type: ignore[attr-defined]
+        self.reg_write(_arch.X86_REG_IDTR, (0, idt.object.Descriptors, idt.object.Limit, 0))
 
         # Setup the SSDT
         ssdt = self.ktypes.SSDT(self.get_ptr_size())
@@ -587,7 +584,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.setup_msrs()
 
         for sl in self.config.symlinks:
-            self.om.add_symlink(sl.name, sl.target)  # type: ignore[union-attr]
+            self.get_object_manager("symlink creation").add_symlink(sl.name, sl.target)
 
     def setup_msrs(self):
         """
