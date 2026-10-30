@@ -5450,6 +5450,16 @@ class Msvcrt(api.ApiHandler):
         """
         return 0
 
+    @apihook("_lock_locales", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _lock_locales(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _lock_locales(void);"""
+        return
+
+    @apihook("_unlock_locales", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _unlock_locales(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _unlock_locales(void);"""
+        return
+
     @apihook("setlocale", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def setlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
