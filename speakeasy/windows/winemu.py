@@ -314,7 +314,6 @@ class WindowsEmulator(BinaryEmulator):
         self.modules: list[Any] = []
         self.module_change_listeners: list[Callable[[], None]] = []
         self.is_machine_ready: bool = False
-        self.machine_module_count: int = 0
         self.curr_run: Run | None = None
         self.api_ctx: ApiContext = NO_CONTEXT
         self._should_stop_on_faults: bool = False
@@ -439,7 +438,6 @@ class WindowsEmulator(BinaryEmulator):
         with self.allocations_from(winemu.MACHINE_BASE):
             self.init_machine_structures(container)
             self.is_machine_ready = True
-            self.machine_module_count = len(self.modules)
             for entry in tuple(self.api_registry.entries.values()):
                 if entry.export.kind == "data":
                     self._initialize_api_data(entry)
@@ -1721,10 +1719,14 @@ class WindowsEmulator(BinaryEmulator):
     def get_peb_modules(self):
         return [mod for mod in self.modules if mod.visible_in_peb]
 
-    def load_image(self, image, base=None):
-        return self.module_loader.load_image(image, base)
+    def load_image(self, image, base=None, *, is_input=False):
+        """
+        Load an image and its dependencies. Set is_input for the input image. The input
+        image is the first module in modules, and only the input image allocates the stack.
+        """
+        return self.module_loader.load_image(image, base, is_input=is_input)
 
-    def _load_image(self, image, base=None):
+    def _load_image(self, image, base=None, *, is_input=False):
         """
         Map an image at base, or at its preferred base, or at the next free range after it.
         An image with preferred base 0 loads at any free address.
@@ -1760,14 +1762,12 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(region.base, region.data)
 
         mod = RuntimeModule(image)
-        if self.is_machine_ready and len(self.modules) == self.machine_module_count:
-            # The first image after the machine modules is the input image. Put it first in the list.
+        if is_input:
             self.modules.insert(0, mod)
         else:
             self.modules.append(mod)
         self.api_registry.register_module(mod)
-        # The modules of the machine do not allocate the stack
-        if self.is_machine_ready and image.source == "guest_pe" and not self.stack_base and image.stack_size:
+        if is_input and image.source == "guest_pe" and not self.stack_base and image.stack_size:
             self.stack_base, _stack_addr = self.alloc_stack(self.config.stack_size or image.stack_size)
 
         ptr_size = self.get_ptr_size()

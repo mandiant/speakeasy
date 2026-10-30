@@ -112,7 +112,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         image.name = mod_name
         image.emu_path = emu_path
 
-        rtmod = self.load_image(image)
+        rtmod = self.load_image(image, is_input=True)
 
         return rtmod
 
