@@ -18,6 +18,7 @@ from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPE
 
 from .. import api
 
+MD5_INITIAL_STATE = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 TOKEN_USER = 1
 TOKEN_INTEGRITY_LEVEL = 25
@@ -39,6 +40,7 @@ class AdvApi32(api.ApiHandler):
         self.data: dict[str, Any] = {}
         self.hash_objects: dict[int, Any] = {}
         self.key_objects: dict[int, Any] = {}
+        self.md5_contexts: dict[int, Any] = {}
         self.k32types = k32
         self.win = adv32
         self.curr_handle: int = 0x2800
@@ -1767,6 +1769,60 @@ class AdvApi32(api.ApiHandler):
             return 0
         self.mem_write(pbData, value)
         return 1
+
+    def get_md5_context(self, ctx_addr):
+        md5 = self.md5_contexts.get(ctx_addr)
+        if md5 is None:
+            md5 = self.md5_contexts[ctx_addr] = hashlib.md5()
+        return md5
+
+    @apihook("MD5Init", argc=1)
+    def MD5Init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void MD5Init(
+          MD5_CTX *context
+        );
+        """
+        (context,) = argv
+        self.md5_contexts[context] = hashlib.md5()
+        self.mem_write(context, struct.pack("<2I4I", 0, 0, *MD5_INITIAL_STATE) + b"\x00" * 80)
+
+    @apihook("MD5Update", argc=3)
+    def MD5Update(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void MD5Update(
+          MD5_CTX             *context,
+          const unsigned char *input,
+          unsigned int        inlen
+        );
+
+        The bit count and the bytes of the last partial block go into the
+        context. The hash state stays with the handler.
+        """
+        context, data, size = argv
+        bits = int.from_bytes(self.mem_read(context, 8), "little")
+        block = self.mem_read(data, size) if size else b""
+        self.get_md5_context(context).update(block)
+        buffered = bits // 8 % 64
+        pending = (self.mem_read(context + 24, buffered) if buffered else b"") + block
+        partial = pending[len(pending) - (bits // 8 + size) % 64 :]
+        self.mem_write(context, ((bits + size * 8) & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little"))
+        self.mem_write(context + 24, partial)
+
+    @apihook("MD5Final", argc=1)
+    def MD5Final(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void MD5Final(
+          MD5_CTX *context
+        );
+
+        The digest goes into the digest member of the context.
+        """
+        (context,) = argv
+        digest = self.get_md5_context(context).digest()
+        self.mem_write(context + 8, digest)
+        self.mem_write(context + 88, digest)
+        self.md5_contexts.pop(context, None)
 
     @apihook("CryptDestroyHash", argc=1)
     def CryptDestroyHash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

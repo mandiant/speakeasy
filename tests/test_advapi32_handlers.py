@@ -635,6 +635,27 @@ def test_crypt_hash_data_accepts_empty_data(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(buf, 16) == hashlib.md5(b"").digest()
 
 
+def test_md5_final_writes_the_digest_of_all_updates(dll_emu: Speakeasy) -> None:
+    data = bytes(range(80))
+    first = alloc(dll_emu, b"\xcc" * 104)
+    second = alloc(dll_emu, b"\xcc" * 104)
+    call(dll_emu, "advapi32", "MD5Init", [first])
+    call(dll_emu, "advapi32", "MD5Init", [second])
+    assert dll_emu.mem_read(first, 24) == struct.pack("<6I", 0, 0, 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
+
+    call(dll_emu, "advapi32", "MD5Update", [first, alloc(dll_emu, data[:70]), 70])
+    call(dll_emu, "advapi32", "MD5Update", [second, alloc(dll_emu, b"abc"), 3])
+    call(dll_emu, "advapi32", "MD5Update", [first, alloc(dll_emu, data[70:]), 10])
+    call(dll_emu, "advapi32", "MD5Update", [first, 0, 0])
+    assert struct.unpack("<Q", dll_emu.mem_read(first, 8))[0] == 80 * 8
+    assert dll_emu.mem_read(first + 24, 16) == data[64:]
+
+    call(dll_emu, "advapi32", "MD5Final", [first])
+    call(dll_emu, "advapi32", "MD5Final", [second])
+    assert dll_emu.mem_read(first + 88, 16) == hashlib.md5(data).digest()
+    assert dll_emu.mem_read(second + 88, 16) == hashlib.md5(b"abc").digest()
+
+
 @pytest.fixture
 def sid_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
     config["user"]["sid"] = "S-1-5-21-1-2-3-1001"
