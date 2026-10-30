@@ -23,14 +23,14 @@ RT_STRING = 6
 
 @pytest.fixture(params=["dll_emu", "dll64_emu"])
 def any_emu(request: pytest.FixtureRequest) -> Speakeasy:
-    se = request.getfixturevalue(request.param)
+    se: Speakeasy = request.getfixturevalue(request.param)
     start_process(se)
     return se
 
 
 def ptr_size(se: Speakeasy) -> int:
-    assert se.emu is not None
-    return se.emu.get_ptr_size()
+    size: int = se.emu.get_ptr_size()
+    return size
 
 
 def read_ptr(se: Speakeasy, addr: int) -> int:
@@ -38,8 +38,8 @@ def read_ptr(se: Speakeasy, addr: int) -> int:
 
 
 def last_error(se: Speakeasy) -> int:
-    assert se.emu is not None
-    return se.emu.get_last_error()
+    error: int = se.emu.get_last_error()
+    return error
 
 
 def api_names(se: Speakeasy) -> list[list[str]]:
@@ -149,7 +149,6 @@ def delay_descriptor(se: Speakeasy, dll: str, thunks: list[int | str]) -> tuple[
 def test_resolve_delay_loaded_api_writes_the_iat_slot(
     any_emu: Speakeasy, dll: str, thunk: int | str, symbol: str
 ) -> None:
-    assert any_emu.emu is not None
     base, [other, slot] = delay_descriptor(any_emu, dll, ["Unused", thunk])
     rv = call(any_emu, "kernel32", "ResolveDelayLoadedAPI", [base, base, 0, 0, slot, 0])[0]
     assert any_emu.emu.api_registry.symbol(rv) == symbol
@@ -159,7 +158,6 @@ def test_resolve_delay_loaded_api_writes_the_iat_slot(
 
 
 def test_resolve_delay_loaded_api_fails_for_a_missing_export(any_emu: Speakeasy) -> None:
-    assert any_emu.emu is not None
     name = any_emu.emu.modules[0].name
     base, [slot] = delay_descriptor(any_emu, name + ".dll", ["NoSuchExport"])
     assert call(any_emu, "kernel32", "ResolveDelayLoadedAPI", [base, base, 0, 0, slot, 0])[0] == 0
@@ -240,7 +238,6 @@ def string_table_pe(arch: int, block: int, strings: list[str]) -> bytes:
 def test_load_string_w_with_zero_size_returns_a_pointer(config: dict, arch: int) -> None:
     data = string_table_pe(arch, 2, ["", "", "hello", "world"])
     for se in load_emu(config, data):
-        assert se.emu is not None
         base = se.emu.modules[0].base
         out = alloc(se, b"\xcc" * 8)
         rv, displays = call(se, "user32", "LoadStringW", [base, 18, out, 0])

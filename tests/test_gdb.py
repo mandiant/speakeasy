@@ -40,7 +40,7 @@ class X86Registers:
     gs: int
 
     @classmethod
-    def from_rsp(cls, encoded: str):
+    def from_rsp(cls, encoded: str) -> "X86Registers":
         # The i386 core feature begins with these sixteen 32-bit registers in
         # the same order as the dataclass fields above.
         core_layout = struct.Struct("<16I")
@@ -136,7 +136,8 @@ class GdbRspClient:
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        port: int = s.getsockname()[1]
+        return port
 
 
 def _port_is_listening(port: int) -> bool:

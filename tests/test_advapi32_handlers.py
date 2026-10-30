@@ -79,7 +79,6 @@ def test_get_subkeys_lists_each_child_once() -> None:
 
 
 def test_reg_create_key_returns_a_handle_to_the_subkey(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     phk = alloc(dll_emu, b"\x00" * 4)
     rv, _ = call(dll_emu, "advapi32", "RegCreateKeyA", [HKEY_CURRENT_USER, alloc(dll_emu, b"Software\\Evil\x00"), phk])
     assert rv == windefs.ERROR_SUCCESS
@@ -201,7 +200,6 @@ def test_configured_current_version_values_win(product_name_emu: Speakeasy) -> N
 
 def _open_key(se: Speakeasy, api: str, hkey: int, subkey: int) -> tuple[int, str | None]:
     """Open ``subkey`` below ``hkey`` and return the status and the path of the new handle."""
-    assert se.emu is not None
     phk = alloc(se, b"\x00" * 4)
     argv = [hkey, subkey, phk] if api == "RegOpenKeyA" else [hkey, subkey, 0, 0xF003F, phk]
     rv, _ = call(se, "advapi32", api, argv)
@@ -237,7 +235,6 @@ def test_reg_open_key_ex_without_a_subkey_opens_a_new_handle(dll_emu: Speakeasy,
     rv, _ = call(dll_emu, "advapi32", "RegOpenKeyExA", [hfoo, lp, 0, 0x20006, phk])
     h2 = _dword(dll_emu, phk)
     assert rv == windefs.ERROR_SUCCESS and h2 != hfoo
-    assert dll_emu.emu is not None
     key = dll_emu.emu.regman.get_key_from_handle(h2)
     assert key is not None and key.get_path() == "HKEY_CURRENT_USER\\Software\\Foo"
     assert call(dll_emu, "advapi32", "RegCloseKey", [h2])[0] == windefs.ERROR_SUCCESS
@@ -289,8 +286,8 @@ def test_gen_random_gives_a_nonzero_byte_in_a_few_calls(dll_emu: Speakeasy, name
 
 
 def _last_error(se: Speakeasy) -> int:
-    assert se.emu is not None
-    return se.emu.get_last_error()
+    error: int = se.emu.get_last_error()
+    return error
 
 
 def test_lookup_account_sid_reports_the_sizes(dll_emu: Speakeasy) -> None:
@@ -316,7 +313,6 @@ def test_lookup_account_sid_reports_the_sizes(dll_emu: Speakeasy) -> None:
 
 def test_get_user_name_ex_reports_the_size(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     user = dll_emu.emu.config.user.name
     size = alloc(dll_emu, struct.pack("<I", 0))
     rv, _ = call(dll_emu, "secur32", "GetUserNameExA", [2, 0, size])
@@ -331,7 +327,6 @@ def test_get_user_name_ex_reports_the_size(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("api, encoding", [("GetUserNameA", "utf-8"), ("GetUserNameW", "utf-16le")])
 def test_get_user_name_reports_the_size(dll_emu: Speakeasy, api: str, encoding: str) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     expected = (dll_emu.emu.config.user.name + "\x00").encode(encoding)
     need = len(dll_emu.emu.config.user.name) + 1
     size = alloc(dll_emu, struct.pack("<I", 0))
@@ -376,7 +371,6 @@ def _wstr(se: Speakeasy, text: str) -> int:
 
 
 def _ptr(se: Speakeasy, addr: int) -> int:
-    assert se.emu is not None
     size = se.emu.get_ptr_size()
     return int.from_bytes(se.mem_read(addr, size), "little")
 
@@ -444,7 +438,7 @@ def test_bcrypt_aes_block_padding_round_trip_matches_pycryptodome(dll_emu: Speak
     )
     assert call(se, "bcrypt", "BCryptEncrypt", [hkey, src, 20, 0, piv, civ, enc, 32, pcb, padding])[0] == 0
 
-    aes = AES.new(secret, cipher, iv=iv) if piv else AES.new(secret, cipher)
+    aes = AES.new(secret, cipher, iv=iv) if piv else AES.new(secret, cipher)  # type: ignore[call-overload]
     expected = aes.encrypt(pad(plain, 16))
     assert se.mem_read(enc, 32) == expected
     if piv:
@@ -455,7 +449,6 @@ def test_bcrypt_aes_block_padding_round_trip_matches_pycryptodome(dll_emu: Speak
 
 
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
-    assert se.emu is not None
     ph = alloc(se, b"\xcc" * 8)
     pname = alloc(se, (name + "\x00").encode("utf-16le")) if name is not None else 0
     rv, _ = call(se, "ncrypt", "NCryptOpenStorageProvider", [ph, pname, 0])
@@ -465,7 +458,6 @@ def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
 
 @pytest.mark.parametrize("name", [None, "Microsoft Software Key Storage Provider"])
 def test_ncrypt_open_storage_provider_returns_a_handle(dll_emu: Speakeasy, name: str | None) -> None:
-    assert dll_emu.emu is not None
     hprov = _open_storage_provider(dll_emu, name)
     assert dll_emu.emu.get_crypt_manager().crypt_get(hprov) is not None
 
@@ -643,7 +635,6 @@ def sid_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> It
 
 def test_lookup_account_name_reports_both_sizes(sid_emu: Speakeasy) -> None:
     start_process(sid_emu)
-    assert sid_emu.emu is not None
     domain = sid_emu.emu.config.domain
     assert domain
     account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
@@ -665,7 +656,6 @@ def test_lookup_account_name_reports_both_sizes(sid_emu: Speakeasy) -> None:
 
 def test_lookup_account_name_small_domain_buffer(sid_emu: Speakeasy) -> None:
     start_process(sid_emu)
-    assert sid_emu.emu is not None
     domain = sid_emu.emu.config.domain
     assert domain
     account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
@@ -692,7 +682,6 @@ def admin_emu(
 
 
 def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> None:
-    assert admin_emu.emu is not None
     info = alloc(admin_emu, b"\xcc" * 4)
     ret_len = alloc(admin_emu, b"\xcc" * 4)
     rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 20, info, 4, ret_len])
@@ -700,7 +689,6 @@ def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> Non
 
 
 def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy) -> None:
-    assert admin_emu.emu is not None
     start_process(admin_emu)
     ret_len = alloc(admin_emu, b"\xcc" * 4)
     rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 25, 0, 0, ret_len])
@@ -753,13 +741,13 @@ DPAPI_HEADER = bytes.fromhex("01000000d08c9ddf0115d1118c7a00c04fc297eb")
 
 
 def _data_blob(se: Speakeasy, data: bytes) -> int:
-    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    ptr_size = se.emu.get_ptr_size()
     blob = struct.pack("<I", len(data)).ljust(ptr_size, b"\x00") + alloc(se, data).to_bytes(ptr_size, "little")
     return alloc(se, blob)
 
 
 def _read_data_blob(se: Speakeasy, addr: int) -> bytes:
-    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    ptr_size = se.emu.get_ptr_size()
     data = int.from_bytes(se.mem_read(addr + ptr_size, ptr_size), "little")
     return se.mem_read(data, _dword(se, addr))
 
@@ -767,7 +755,7 @@ def _read_data_blob(se: Speakeasy, addr: int) -> bytes:
 @pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
 def test_crypt_protect_data_round_trips_with_the_description(emu_fixture: str, request: pytest.FixtureRequest) -> None:
     se: Speakeasy = request.getfixturevalue(emu_fixture)
-    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    ptr_size = se.emu.get_ptr_size()
     secret = bytes(range(32))
     protected = alloc(se, b"\x00" * 16)
     entropy = _data_blob(se, b"salt")
@@ -786,7 +774,7 @@ def test_crypt_protect_data_round_trips_with_the_description(emu_fixture: str, r
     assert rv == 1
     assert _read_data_blob(se, plain) == secret
     descr_addr = int.from_bytes(se.mem_read(descr, ptr_size), "little")
-    assert se.emu.read_mem_string(descr_addr, 2) == "Upkeep"  # type: ignore[union-attr]
+    assert se.emu.read_mem_string(descr_addr, 2) == "Upkeep"
     for addr in (protected + ptr_size, plain + ptr_size, descr):
         assert call(se, "kernel32", "LocalFree", [int.from_bytes(se.mem_read(addr, ptr_size), "little")])[0] == 0
 
@@ -826,7 +814,6 @@ def test_reg_open_key_needs_a_whole_path_component(dll_emu: Speakeasy) -> None:
 
 
 def test_create_process_as_user_without_program_name_fails(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     cmd = alloc(dll_emu, b'"" arg\x00')
     si = alloc(dll_emu, b"\x00" * 0x44)
@@ -895,7 +882,6 @@ def test_sid_functions_reject_an_unmapped_sid(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_get_token_information_returns_the_user_sid(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     start_process(se)
     ptr_size = se.emu.get_ptr_size()
     ret_len = alloc(se, b"\xcc" * 4)
@@ -934,7 +920,6 @@ def test_start_service_ctrl_dispatcher_ends_the_table_at_a_bad_entry(
     dll_emu: Speakeasy, second_entry: tuple[int, int]
 ) -> None:
     se = dll_emu
-    assert se.emu is not None
     start_process(se)
     name = alloc(se, "svc\x00".encode("utf-16le"))
     service_main = alloc(se, b"\xc3")

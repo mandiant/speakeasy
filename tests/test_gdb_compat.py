@@ -24,6 +24,8 @@ class DummyHook:
         self.added = True
         self.native_hook = True
         self.handle = 1
+        self.begin = 1
+        self.end = 0
         self.emu_eng = SimpleNamespace(hook_remove=lambda handle: None)
 
     def add(self):
@@ -77,7 +79,7 @@ def make_server():
 
 def test_supported_features_include_ida_process_queries():
     server = make_server()
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
 
     server._handle_command(b"qSupported:multiprocess+;xmlRegisters=i386")
@@ -134,14 +136,17 @@ def test_packet_extraction_validates_checksum_across_fragmented_input():
 
     corrupt = bytearray(raw)
     corrupt[-1] = ord("0") if corrupt[-1] != ord("0") else ord("1")
-    assert GdbServer._extract_packet(corrupt)[2] is False
+    packet = GdbServer._extract_packet(corrupt)
+    assert packet is not None and packet[2] is False
 
     trailing_escape = _rsp_packet(b"qC}")
-    assert GdbServer._extract_packet(bytearray(trailing_escape))[2] is False
+    packet = GdbServer._extract_packet(bytearray(trailing_escape))
+    assert packet is not None and packet[2] is False
 
     oversized_payload = b"q" * (_PACKET_SIZE + 1)
     oversized = _rsp_packet(oversized_payload)
-    assert GdbServer._extract_packet(bytearray(oversized))[2] is False
+    packet = GdbServer._extract_packet(bytearray(oversized))
+    assert packet is not None and packet[2] is False
 
 
 def test_interrupt_during_resume_transition_is_preserved():
@@ -198,7 +203,7 @@ def test_overlapping_breakpoints_share_one_code_hook():
 
 def test_access_watchpoint_does_not_clobber_write_watchpoint():
     server = make_server()
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
 
     server._change_breakpoint(b"Z4,1000,4")
@@ -212,7 +217,7 @@ def test_access_watchpoint_does_not_clobber_write_watchpoint():
 
 def test_access_watchpoint_reports_awatch_stop_reason():
     server = make_server()
-    reasons = []
+    reasons: list[StopReason] = []
     server._access_watchpoints[(0x1000, 4)] = 4
     server._request_stop = reasons.append
 
@@ -225,7 +230,7 @@ def test_access_watchpoint_reports_awatch_stop_reason():
 
 def test_module_change_requests_library_stop_reason():
     server = make_server()
-    reasons = []
+    reasons: list[StopReason] = []
     server._request_stop = reasons.append
 
     server._on_module_change()
@@ -286,7 +291,7 @@ def test_xfer_escaping_respects_advertised_packet_size():
 
 def test_hardware_breakpoint_accepts_large_ranges():
     server = make_server()
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
     server._install_hooks()
 
@@ -298,7 +303,7 @@ def test_hardware_breakpoint_accepts_large_ranges():
 
 def test_hardware_breakpoint_range_hit_detection():
     server = make_server()
-    reasons = []
+    reasons: list[StopReason] = []
     server._request_stop = reasons.append
     server._reply = lambda _payload: None
     server._install_hooks()
@@ -316,7 +321,7 @@ def test_hardware_breakpoint_range_hit_detection():
 
 def test_change_breakpoint_survives_hook_error(caplog):
     server = make_server()
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
 
     def failing_refresh():
@@ -332,7 +337,7 @@ def test_change_breakpoint_survives_hook_error(caplog):
 def test_read_memory_fills_advertised_packet_size():
     server = make_server()
     server.emu.mem_read = lambda address, size: bytes(range(256)) * (size // 256)
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
 
     server._read_memory(f"402000,{_PACKET_SIZE // 2:x}".encode())
@@ -345,7 +350,7 @@ def test_read_memory_fills_advertised_packet_size():
 
 def test_software_and_hardware_breakpoints_at_one_address_are_separate():
     server = make_server()
-    reasons = []
+    reasons: list[StopReason] = []
     server._request_stop = reasons.append
     server._reply = lambda _payload: None
     server._install_hooks()
@@ -360,7 +365,7 @@ def test_software_and_hardware_breakpoints_at_one_address_are_separate():
 
 def test_vkill_replies_ok_and_k_replies_with_an_exit():
     server = make_server()
-    replies = []
+    replies: list[bytes] = []
     server._reply = replies.append
 
     assert server._handle_command(b"vKill;1").kill

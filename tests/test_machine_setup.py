@@ -81,7 +81,10 @@ def test_large_native_container_fits_below_the_teb(config, tmp_path):
     se = Speakeasy(config=native_container_config(config, tmp_path, 0x1000000))
     try:
         code = se.load_shellcode(data=b"\xc3", arch="x86")
-        container = se.emu.container_image
+        emu = se.emu
+        assert isinstance(emu, Win32Emulator)
+        container = emu.container_image
+        assert container is not None
         assert container.image_size == 0x1000000
         assert container.base + container.image_size <= winemu.TEB_ADDRESS
         se.run_shellcode(code)

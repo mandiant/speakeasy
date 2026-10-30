@@ -36,8 +36,8 @@ def any_driver_emu(request: pytest.FixtureRequest, config: dict[str, Any], load_
 
 
 def _ptr_size(se: Speakeasy) -> int:
-    assert se.emu is not None
-    return se.emu.get_ptr_size()
+    size: int = se.emu.get_ptr_size()
+    return size
 
 
 def _read_ptr(se: Speakeasy, addr: int) -> int:
@@ -219,7 +219,6 @@ def test_wdf_parameters_key_opens(config: dict[str, Any], load_test_bin: Any) ->
     ],
 )
 def test_wdf_registry_query_ulong(any_driver_emu: Speakeasy, name: str, rv: int, value: bytes) -> None:
-    assert any_driver_emu.emu is not None
     key = any_driver_emu.emu.reg_open_key(USBSAMP)
     out = alloc(any_driver_emu, b"\xcc" * 4)
     args = [0, key, _unicode_string(any_driver_emu, name), out]
@@ -261,8 +260,8 @@ def test_wdf_usb_unknown_handle(any_driver_emu: Speakeasy, api: str, argv: list[
     driver_globals = _wdf_driver(any_driver_emu)
     params = wdf.WDF_USB_DEVICE_SELECT_CONFIG_PARAMS(_ptr_size(any_driver_emu))
     params.Type = wdf.WdfUsbTargetDeviceSelectConfigType.WdfUsbTargetDeviceSelectConfigTypeSingleInterface
-    params_addr = alloc(any_driver_emu, params.get_bytes())
-    args = [driver_globals] + [params_addr if a == "params" else a for a in argv]
+    slots = {"params": alloc(any_driver_emu, params.get_bytes())}
+    args = [driver_globals] + [slots[a] if isinstance(a, str) else a for a in argv]
     assert call(any_driver_emu, "wdfldr", api, args)[0] == rv
 
 

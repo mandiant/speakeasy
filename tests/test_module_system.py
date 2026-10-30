@@ -1,4 +1,5 @@
 from speakeasy import Speakeasy
+from speakeasy.windows.win32 import Win32Emulator
 
 
 def test_get_mod_from_addr_finds_primary_module(config, load_test_bin):
@@ -33,10 +34,12 @@ def test_win32_shellcode_peb_uses_mapped_user_modules(config):
     try:
         sc_addr = se.load_shellcode(data=b"\x90\x90", arch="amd64")
         se.run_shellcode(sc_addr)
-        peb_mods = se.emu.get_peb_modules()
+        emu = se.emu
+        assert isinstance(emu, Win32Emulator)
+        peb_mods = emu.get_peb_modules()
         peb_names = {mod.name.lower() for mod in peb_mods}
-        loaded_names = {mod.name.lower() for mod in se.emu.modules}
-        mapped_headers = [se.emu.mem_read(mod.base, 2) for mod in peb_mods]
+        loaded_names = {mod.name.lower() for mod in emu.modules}
+        mapped_headers = [emu.mem_read(mod.base, 2) for mod in peb_mods]
     finally:
         se.shutdown()
 

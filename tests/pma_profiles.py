@@ -36,7 +36,7 @@ def profile_pma_0104(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def ensure_pma_0304_registry(cfg: dict[str, Any]) -> None:
-    key = {
+    key: dict[str, Any] = {
         "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft \\XPS",
         "values": [{"name": "Configuration", "type": "REG_SZ", "data": "1"}],
     }

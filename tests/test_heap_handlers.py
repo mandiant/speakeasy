@@ -16,7 +16,6 @@ def emu(dll_emu: Speakeasy) -> Speakeasy:
 
 
 def placeholder(se: Speakeasy) -> int:
-    assert se.emu is not None
     return se.emu.mem_map(8, tag="emu.export_arg_0", base=0x41420000)
 
 
@@ -41,7 +40,6 @@ def test_free_keeps_memory_that_is_not_a_heap_block(
     if rv is not None:
         assert result == int(names.get(rv, rv))
     if error is not None:
-        assert emu.emu is not None
         assert emu.emu.get_last_error() == error
     assert emu.mem_read(p, 4) == b"\x11\x22\x33\x44"
 
@@ -65,7 +63,6 @@ def test_operator_delete_releases_operator_new_memory(
     se.mem_write(p, b"\x41" * 0x20)
     call(se, "msvcrt", delete, [p])
     call(se, "msvcrt", delete, [0])
-    assert se.emu is not None
     mm = se.emu.get_address_map(p)
     assert mm is None or mm.free
 

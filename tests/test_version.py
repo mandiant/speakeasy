@@ -33,7 +33,6 @@ def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], by
     data = load_test_bin(MPSIGSTUB)
     with Speakeasy(config=copy.deepcopy(base_config)) as se:
         module = se.load_module(data=data)
-        assert se.emu is not None
         se.emu.get_file_manager().add_existing_file(INSTALLED_STUB, data)
         run = VersionRun(se.emu.modules[0].emu_path)
 
@@ -62,8 +61,8 @@ def mpsigstub(base_config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 
 
 def module_path(se: Speakeasy) -> str:
-    assert se.emu is not None
-    return se.emu.modules[0].emu_path
+    path: str = se.emu.modules[0].emu_path
+    return path
 
 
 def get_version_info(se: Speakeasy, name: str, wide: bool) -> int:

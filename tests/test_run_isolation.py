@@ -51,7 +51,7 @@ def test_registers_reset_between_runs(config, load_test_bin, bin_file, arch):
         run_id = id(se.emu.curr_run)
         if run_id not in seen_runs:
             seen_runs.add(run_id)
-            snapshot = {}
+            snapshot: dict[int | str, int] = {}
             for reg in gp_regs:
                 snapshot[reg] = se.emu.reg_read(reg)
             eflags = se.emu.reg_read(e_arch.X86_REG_EFLAGS)
@@ -93,7 +93,7 @@ def test_stack_cleared_between_runs(config, load_test_bin, bin_file):
     se = Speakeasy(config=config, argv=[])
     module = se.load_module(data=data)
 
-    stack_snapshots = []
+    stack_snapshots: list[bytes | None] = []
     seen_runs = set()
     SAMPLE_SIZE = 256
 

@@ -114,7 +114,6 @@ def test_command_line_to_argv_resolves_through_its_api_set(dll_emu: Speakeasy) -
 
 @pytest.mark.parametrize("csidl", [0x1A, 0x801A, 0x401A])
 def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) -> None:
-    assert dll_emu.emu is not None
     out = alloc(dll_emu, b"\x00" * 520)
     rv, _ = call(dll_emu, "shell32", "SHGetFolderPathW", [0, csidl, 0, 0, out])
     assert rv == 0
@@ -129,7 +128,6 @@ def test_sh_get_folder_path_ignores_csidl_flags(dll_emu: Speakeasy, csidl: int) 
     ],
 )
 def test_sh_get_known_folder_path_allocates_the_path(dll_emu: Speakeasy, folder: str, expected: str) -> None:
-    assert dll_emu.emu is not None
     rfid = alloc(dll_emu, uuid.UUID(folder).bytes_le)
     out = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "api-ms-win-shell-shellfolders-l1-1-0", "SHGetKnownFolderPath", [rfid, 0, 0, out])
@@ -204,7 +202,6 @@ def test_sh_get_special_folder_location_maps_to_the_folder_path(dll_emu: Speakea
 
 
 def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     proc = dll_emu.emu.get_current_process()
     current = 0xFFFFFFFF
@@ -225,7 +222,6 @@ def test_psapi_resolves_the_current_process_pseudo_handle(dll_emu: Speakeasy) ->
 
 
 def test_psapi_enum_process_modules_ex_lists_the_modules(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     current = 0xFFFFFFFF
     list_modules_all = 3
@@ -252,7 +248,8 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
 
 
 def read_ptr(se: Speakeasy, addr: int) -> int:
-    return struct.unpack("<I", se.mem_read(addr, 4))[0]
+    ptr: int = struct.unpack("<I", se.mem_read(addr, 4))[0]
+    return ptr
 
 
 def guid(se: Speakeasy, text: str) -> int:
@@ -314,7 +311,6 @@ def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
 
 
 def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     pp = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "shell32", "SHGetMalloc", [pp])
     assert rv == com.S_OK
@@ -326,7 +322,7 @@ def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> No
 @pytest.mark.parametrize("emu_fixture", ["dll_emu", "dll64_emu"])
 def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.FixtureRequest) -> None:
     se: Speakeasy = request.getfixturevalue(emu_fixture)
-    ptr_size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    ptr_size = se.emu.get_ptr_size()
     pp = alloc(se, b"\xcc" * ptr_size)
     rv, _ = call(se, "shell32", "SHGetMalloc", [pp])
     assert rv == com.S_OK
@@ -538,7 +534,6 @@ def strict_fs_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes])
 )
 @pytest.mark.parametrize("width", [1, 2])
 def test_path_file_exists(strict_fs_emu: Speakeasy, path: str, exists: int, width: int) -> None:
-    assert strict_fs_emu.emu is not None
     strict_fs_emu.emu.set_last_error(0)
     p = alloc(strict_fs_emu, wstr(path, width))
     rv, _ = call(strict_fs_emu, "shlwapi", "PathFileExists" + ("W" if width == 2 else "A"), [p])
@@ -594,7 +589,6 @@ def test_enum_processes_reports_bytes_written(dll_emu: Speakeasy) -> None:
 def test_get_module_information_describes_the_module(
     dll_emu: Speakeasy, dll: str, api: str, module: str | None
 ) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     mod = (
         dll_emu.emu.get_mod_by_name(module)
@@ -608,7 +602,6 @@ def test_get_module_information_describes_the_module(
 
 
 def test_get_module_information_needs_room_for_the_structure(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     info = alloc(dll_emu, b"\xcc" * 12)
     rv, _ = call(dll_emu, "kernel32", "K32GetModuleInformation", [0xFFFFFFFF, 0, info, 8])
@@ -642,7 +635,6 @@ def test_url_combine_joins_a_relative_url(
 
 
 def is_freed(se: Speakeasy, addr: int) -> bool:
-    assert se.emu is not None
     mm = se.emu.get_address_map(addr)
     return mm is None or mm.free or mm.base != addr
 
@@ -724,7 +716,6 @@ def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_tes
 def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
-    assert se.emu is not None
     ptr = se.emu.get_ptr_size()
     current_process = (1 << (8 * ptr)) - 1
     out = alloc(se, b"\x00" * ptr)
@@ -733,12 +724,12 @@ def test_nt_create_thread_ex_queues_a_thread(request: pytest.FixtureRequest, fix
     hnd = int.from_bytes(se.mem_read(out, ptr), "little")
     run = se.emu.run_queue[-1]
     assert (run.type, run.start_addr, run.args) == ("thread", 0x401000, (0x55,))
+    assert run.thread is not None
     assert call(se, "kernel32", "GetThreadId", [hnd])[0] == run.thread.tid
 
 
 def test_nt_create_thread_ex_creates_a_suspended_thread(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     runs = len(dll_emu.emu.run_queue)
     out = alloc(dll_emu, b"\x00" * 4)
     rv, _ = call(dll_emu, "ntdll", "NtCreateThreadEx", [out, 0x1FFFFF, 0, 0xFFFFFFFF, 0x401000, 0, 1, 0, 0, 0, 0])
@@ -751,7 +742,6 @@ def test_nt_create_thread_ex_creates_a_suspended_thread(dll_emu: Speakeasy) -> N
 
 def test_nt_terminate_process_ends_the_current_process(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0, 0])
     assert rv == ddk.STATUS_SUCCESS
     assert not dll_emu.emu.is_run_complete
@@ -763,7 +753,6 @@ def test_nt_terminate_process_ends_the_current_process(dll_emu: Speakeasy) -> No
 
 def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
     si = alloc(dll_emu, b"\x00" * 0x44)
     pi = alloc(dll_emu, b"\x00" * 0x10)

@@ -50,7 +50,6 @@ def test_map_view_of_unknown_mapping_fails(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     rv, _ = call(dll_emu, "kernel32", "MapViewOfFile", [0x9999, FILE_MAP_READ, 0, 0, 0])
     assert rv == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
@@ -67,7 +66,6 @@ def test_map_view_of_pagefile_section_maps_the_whole_section(dll_emu: Speakeasy)
 @pytest.mark.parametrize(("base", "mapped"), [(0, True), (0x30000000, True), (0x30001000, False)])
 def test_map_view_of_file_ex_maps_at_the_requested_base(dll_emu: Speakeasy, base: int, mapped: bool) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     hmap, _ = call(
         dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x1000, 0]
     )
@@ -98,7 +96,6 @@ def test_unmap_view_of_section_frees_a_view_of_the_current_process(dll_emu: Spea
 
 
 def test_unmap_view_of_section_frees_the_main_image(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     base = dll_emu.emu.get_current_process().base
     rv, _ = call(dll_emu, "ntdll", "ZwUnmapViewOfSection", [0xFFFFFFFF, base])
@@ -108,7 +105,6 @@ def test_unmap_view_of_section_frees_the_main_image(dll_emu: Speakeasy) -> None:
 
 
 def test_virtual_alloc_at_an_address_in_use_fails(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     base = dll_emu.emu.get_current_process().base
     rv, _ = call(dll_emu, "kernel32", "VirtualAlloc", [base, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
@@ -222,7 +218,6 @@ def test_wide_char_to_multi_byte_fills_a_small_buffer_and_fails(dll_emu: Speakea
     dst = alloc(dll_emu, b"\xcc" * 8)
     rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_UTF8, 0, src, 0xFFFFFFFF, dst, size, 0, 0])
     assert rv == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(dst, 8) == b"abc"[:size] + b"\xcc" * (8 - size)
 
@@ -246,7 +241,6 @@ def test_multi_byte_to_wide_char_fills_a_small_buffer_and_fails(dll_emu: Speakea
     dst = alloc(dll_emu, b"\xcc" * 16)
     rv, _ = call(dll_emu, "kernel32", "MultiByteToWideChar", [CP_UTF8, 0, src, count, dst, 3])
     assert rv == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(dst, 16) == "hel".encode("utf-16le") + b"\xcc" * 10
 
@@ -285,7 +279,6 @@ def test_expand_environment_strings_returns_size_with_nul(
     [("GetEnvironmentStrings", 1), ("GetEnvironmentStringsA", 1), ("GetEnvironmentStringsW", 2)],
 )
 def test_environment_strings_is_a_double_nul_terminated_block(dll_emu: Speakeasy, api: str, cw: int) -> None:
-    assert dll_emu.emu is not None
     env = dll_emu.emu.get_env()
     block = encode("".join(f"{k}={v}\0" for k, v in env.items()) + "\0", cw)
     ptr, _ = call(dll_emu, "kernel32", api, [])
@@ -316,7 +309,6 @@ def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
 
 @pytest.mark.parametrize("cmdline", [b'"" "C:\\Windows\\system32\\sample" myarg1', b"   "])
 def test_create_process_without_program_name_fails(dll_emu: Speakeasy, cmdline: bytes) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     cmd = alloc(dll_emu, cmdline + b"\x00")
     si = alloc(dll_emu, b"\x00" * 0x44)
@@ -347,7 +339,6 @@ def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
 
 
 def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     _, hthread = create_suspended_child(dll_emu)
     queued = len(dll_emu.emu.run_queue)
     rv, _ = call(dll_emu, "kernel32", "ResumeThread", [hthread])
@@ -357,7 +348,6 @@ def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: S
 
 
 def test_resume_thread_starts_a_child_after_write_process_memory(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     hproc, hthread = create_suspended_child(dll_emu)
     child = dll_emu.emu.child_processes[0]
     data = alloc(dll_emu, b"\x90" * 4)
@@ -409,7 +399,6 @@ def map_view_with_nt_map_view_of_section(se: Speakeasy, hproc: int, hthread: int
 def test_resume_thread_starts_a_child_after_an_ntdll_change(
     dll_emu: Speakeasy, change: Callable[[Speakeasy, int, int], None]
 ) -> None:
-    assert dll_emu.emu is not None
     hproc, hthread = create_suspended_child(dll_emu)
     child = dll_emu.emu.child_processes[0]
     change(dll_emu, hproc, hthread)
@@ -420,7 +409,6 @@ def test_resume_thread_starts_a_child_after_an_ntdll_change(
 
 
 def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     _, hthread = create_suspended_child(dll_emu)
     map_view_with_nt_map_view_of_section(dll_emu, 0xFFFFFFFF, hthread)
     queued = len(dll_emu.emu.run_queue)
@@ -471,7 +459,6 @@ def list_processes(se: Speakeasy) -> dict[int, str]:
 )
 def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, width: int) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     explorer = next(p.pid for p in dll_emu.emu.get_processes() if p.name == "explorer")
     hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
     entry = k32defs.PROCESSENTRY32(dll_emu.get_ptr_size(), width)
@@ -494,7 +481,6 @@ def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, 
 
 def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     fn = alloc(dll_emu, b"C:\\Windows\\system32\\calc.exe\x00")
     assert call(dll_emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, 0, 1])[0] == 33
     pid = dll_emu.emu.get_processes()[-1].pid
@@ -512,9 +498,9 @@ def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
 
 def switch_to_new_thread(se: Speakeasy) -> None:
     emu = se.emu
-    assert emu is not None and emu.curr_process is not None
+    assert emu.curr_process is not None and emu.om is not None
     t = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=0x1000)
-    emu.om.objects.update({t.address: t})  # type: ignore[union-attr]
+    emu.om.objects.update({t.address: t})
     emu.curr_process.threads.append(t)
     emu.curr_thread = t
 
@@ -532,14 +518,12 @@ def test_tls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
     switch_to_new_thread(dll_emu)
     value, _ = call(dll_emu, "kernel32", "TlsGetValue", [second])
     assert value == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
 
 
 @pytest.mark.parametrize("index", [5, 63, 64, 1087])
 def test_tls_accepts_an_index_that_tls_alloc_did_not_return(dll_emu: Speakeasy, index: int) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     dll_emu.emu.set_last_error(0xDEAD)
     assert call(dll_emu, "kernel32", "TlsGetValue", [index])[0] == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_SUCCESS
@@ -564,7 +548,6 @@ def test_lcmap_string_reads_a_nul_terminated_source(dll_emu: Speakeasy, api: str
     dst = alloc(dll_emu, b"\xcc" * 32)
     rv, _ = call(dll_emu, "kernel32", api, lcmap_argv(api, src, 0xFFFFFFFF, dst, 2))
     assert rv == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(dst, 32) == b"\xcc" * 32
     rv, _ = call(dll_emu, "kernel32", api, lcmap_argv(api, src, 0xFFFFFFFF, dst, 16))
@@ -589,7 +572,6 @@ GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x2
 
 
 def test_get_module_handle_ex_from_address_finds_the_image(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     base = dll_emu.emu.modules[0].base
     out = alloc(dll_emu, b"\x00" * 4)
     flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
@@ -601,7 +583,7 @@ def test_get_module_handle_ex_from_address_finds_the_image(dll_emu: Speakeasy) -
 
 @pytest.mark.parametrize("api, cw", [("GetModuleFileNameA", 1), ("GetModuleFileNameW", 2)])
 def test_get_module_file_name_without_a_current_module(dll_emu: Speakeasy, api: str, cw: int) -> None:
-    assert dll_emu.emu is not None and dll_emu.emu.get_current_module() is None
+    assert dll_emu.emu.get_current_module() is None
     name = alloc(dll_emu, b"kernel32.dll\x00")
     hmod, _ = call(dll_emu, "kernel32", "GetModuleHandleA", [name])
     buf = alloc(dll_emu, b"\xcc" * 0x400)
@@ -645,7 +627,6 @@ def test_get_module_file_name_truncates_in_characters(dll_emu: Speakeasy, api: s
     buf = alloc(dll_emu, b"\xcc" * 0x400)
     rv, _ = call(dll_emu, "kernel32", api, [0, buf, n])
     assert rv == n
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(buf, n * cw + 1) == encode(path[: n - 1] + "\0", cw) + b"\xcc"
 
@@ -696,7 +677,6 @@ def test_code_page_1252_has_no_lead_bytes(dll_emu: Speakeasy, byte: int) -> None
     ],
 )
 def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: int, protect: int) -> None:
-    assert dll_emu.emu is not None
     addr = dll_emu.emu.mem_map(0x1000, perms=perms)
     mbi = alloc(dll_emu, b"\x00" * 28)
     rv, _ = call(dll_emu, "kernel32", "VirtualQuery", [addr, mbi, 28])
@@ -724,7 +704,6 @@ def test_virtual_query_reports_the_section_of_a_loaded_image(
 
 
 def test_virtual_query_reports_free_memory_up_to_the_next_allocation(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     gap = 0x60000000
     assert all(dll_emu.emu.get_address_map(a) is None for a in range(gap, gap + 0x10000, 0x1000))
     dll_emu.emu.mem_map(0x1000, base=gap + 0x10000)
@@ -736,7 +715,6 @@ def test_virtual_query_reports_free_memory_up_to_the_next_allocation(dll_emu: Sp
 
 
 def test_virtual_query_reports_reserved_memory(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     base = dll_emu.emu.mem_reserve(0x3000, base=0x60000000)
     mbi = alloc(dll_emu, b"\x00" * 28)
     assert call(dll_emu, "kernel32", "VirtualQuery", [base + 0x1010, mbi, 28])[0] == 28
@@ -745,7 +723,6 @@ def test_virtual_query_reports_reserved_memory(dll_emu: Speakeasy) -> None:
 
 
 def test_virtual_query_reports_committed_reserved_memory(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     base = dll_emu.emu.mem_reserve(0x1000, base=0x60000000)
     dll_emu.emu.mem_map_reserve(base)
     mbi = alloc(dll_emu, b"\x00" * 28)
@@ -756,7 +733,6 @@ def test_virtual_query_reports_committed_reserved_memory(dll_emu: Speakeasy) -> 
 
 
 def test_virtual_query_rejects_addresses_above_the_application_range(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     mbi = alloc(dll_emu, b"\x00" * 28)
     assert call(dll_emu, "kernel32", "VirtualQuery", [0x7FFF0000, mbi, 28])[0] == 0
@@ -784,7 +760,6 @@ def test_virtual_query_ex_on_the_current_process_matches_virtual_query(dll_emu: 
 def test_get_startup_info_writes_the_desktop_and_title_once(dll_emu: Speakeasy, name: str, width: int) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     proc = emu.get_current_process()
     pointers = []
     for _ in range(2):
@@ -827,7 +802,6 @@ def test_system_time_to_file_time_rejects_a_bad_date(dll_emu: Speakeasy, fields:
     ft = alloc(dll_emu, b"\xcc" * 8)
     rv, _ = call(dll_emu, "kernel32", "SystemTimeToFileTime", [st, ft])
     assert not rv
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
     assert dll_emu.mem_read(ft, 8) == b"\xcc" * 8
 
@@ -891,7 +865,6 @@ def test_unknown_process_handle_is_invalid(dll_emu: Speakeasy, api: str, argv: C
     buf = alloc(dll_emu, b"\x00" * 16)
     rv, _ = call(dll_emu, "kernel32", api, argv(buf))
     assert not rv
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
 
 
@@ -900,7 +873,6 @@ def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
     start_process(dll_emu)
     rv, _ = call(dll_emu, "kernel32", api, [0x1F0001, 0, 0])
     assert rv == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
@@ -908,7 +880,6 @@ def test_open_mutex_without_a_name_fails(dll_emu: Speakeasy, api: str) -> None:
 def test_open_event_opens_a_named_event(dll_emu: Speakeasy, cw: str) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     name = alloc(dll_emu, "Global\\evt\x00".encode("utf-16le" if cw == "W" else "latin-1"))
     created, _ = call(dll_emu, "kernel32", f"CreateEvent{cw}", [0, 1, 0, name])
 
@@ -929,7 +900,6 @@ def test_is_processor_feature_present_knows_unlisted_features(dll_emu: Speakeasy
 
 def test_get_tick_count64_sets_the_high_half_on_x86(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     k32, _ = emu.get_api_handler("kernel32", "GetTickCount64")
     k32.tick_counter = 0x1_0000_0000
     emu.reg_write(e_arch.X86_REG_EDX, 0xDEADBEEF)
@@ -948,7 +918,6 @@ ERROR_OLD_WIN_VERSION = 1150
 
 def ver_set_condition_mask(se: Speakeasy, mask: int, type_mask: int, condition: int) -> int:
     emu = se.emu
-    assert emu is not None
     emu.reg_write(e_arch.X86_REG_EDX, 0xDEADBEEF)
     rv, _ = call(se, "kernel32", "VerSetConditionMask", [mask & 0xFFFFFFFF, mask >> 32, type_mask, condition])
     return emu.reg_read(e_arch.X86_REG_EDX) << 32 | rv
@@ -983,7 +952,6 @@ def test_verify_version_info_compares_with_the_emulated_version(
 ) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     mask = 0
     for bit in (VER_MAJORVERSION, VER_MINORVERSION, VER_SERVICEPACKMAJOR):
         if type_mask & bit:
@@ -1003,7 +971,6 @@ def test_verify_version_info_compares_with_the_emulated_version(
 def test_process_id_to_session_id(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     proc = emu.get_current_process()
     out = alloc(dll_emu, b"\xcc" * 4)
     assert call(dll_emu, "kernel32", "ProcessIdToSessionId", [proc.id, out])[0] is True
@@ -1016,7 +983,6 @@ def test_process_id_to_session_id_failure_sets_the_last_error(
 ) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     emu.set_last_error(0)
     out = alloc(dll_emu, b"\xcc" * 4) if has_out else 0
     pid = emu.get_current_process().id if pid is None else pid
@@ -1027,7 +993,6 @@ def test_process_id_to_session_id_failure_sets_the_last_error(
 def test_fls_get_value2_reads_the_slot_without_setting_the_last_error(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     index, _ = call(dll_emu, "kernel32", "FlsAlloc", [0])
     assert call(dll_emu, "kernel32", "FlsSetValue", [index, 0x12345678])[0]
     emu.set_last_error(0x57)
@@ -1039,7 +1004,6 @@ def test_fls_get_value2_reads_the_slot_without_setting_the_last_error(dll_emu: S
 def test_fls_index_is_valid_in_every_thread(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     first = emu.get_current_thread()
     indexes = [call(dll_emu, "kernel32", "FlsAlloc", [0])[0] for _ in range(2)]
     assert indexes[0] != indexes[1]
@@ -1065,7 +1029,6 @@ def test_module32_first_fills_the_module_entry(
     se: Speakeasy = request.getfixturevalue(fixture)
     start_process(se)
     emu = se.emu
-    assert emu is not None
     module = emu.get_peb_modules()[0]
     hsnap, _ = call(se, "kernel32", "CreateToolhelp32Snapshot", [0x8, 0])
     entry = alloc(se, b"\xcc" * 0x800)
@@ -1089,7 +1052,6 @@ def test_module32_first_fills_the_module_entry(
 
 def test_map_view_of_image_section_keeps_the_input_metadata(pe_file_emu: Speakeasy) -> None:
     emu = pe_file_emu.emu
-    assert emu is not None and emu.profiler is not None
     before = dict(emu.profiler.meta)
     assert before["arch"] == "x86"
     name = alloc(pe_file_emu, b"c:\\image.dll\x00")
@@ -1153,7 +1115,6 @@ def test_terminate_process_on_the_current_process_ends_the_run(dll_emu: Speakeas
 @pytest.mark.parametrize("cw", ["A", "W"])
 def test_create_semaphore_returns_a_handle(dll_emu: Speakeasy, cw: str) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     start_process(dll_emu)
     encoding = "utf-16le" if cw == "W" else "latin-1"
     name = alloc(dll_emu, "Global\\sem1\x00".encode(encoding))
@@ -1208,7 +1169,6 @@ def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
 
 
 def test_toolhelp_names_the_main_process_image(exe_emu: Speakeasy) -> None:
-    assert exe_emu.emu is not None
     pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
     name = list_processes(exe_emu)[pid]
     assert name == ntpath.basename(exe_emu.emu.modules[0].emu_path)

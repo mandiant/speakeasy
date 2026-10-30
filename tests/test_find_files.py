@@ -2,13 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from speakeasy.config import SpeakeasyConfig
+from speakeasy.config import FilesystemConfig, SpeakeasyConfig
 from speakeasy.windows.fileman import FileManager
 
 
 def make_file_manager(file_entries):
     cfg = SpeakeasyConfig(
-        filesystem={"files": file_entries},
+        filesystem=FilesystemConfig.model_validate({"files": file_entries}),
         command_line="",
     )
     emu = SimpleNamespace(arch=0)

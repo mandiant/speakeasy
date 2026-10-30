@@ -131,7 +131,7 @@ def collect_behavior(report) -> ObservedBehavior:
         normalize_value(evt.server) for evt in events if evt.event == "net_http" and getattr(evt, "server", None)
     )
 
-    urls = set()
+    urls: set[str] = set()
     for evt in api_events:
         for arg in evt.args or []:
             urls.update(normalize_value(match) for match in URL_PATTERN.findall(arg.display))

@@ -11,6 +11,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.profiler import GuestCallbackFrame, Run
 from speakeasy.windows import guest_callbacks, objman
+from speakeasy.windows.kernel import WinKernelEmulator
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api import sigdb
@@ -23,11 +24,22 @@ def load_emu(config: dict[str, Any], data: bytes) -> Iterator[Speakeasy]:
     se = Speakeasy(config=config)
     try:
         se.load_module(data=data)
-        assert se.emu is not None
         se.emu.curr_run = Run()
         yield se
     finally:
         se.shutdown()
+
+
+def get_win32_emu(se: Speakeasy) -> Win32Emulator:
+    emu = se.emu
+    assert isinstance(emu, Win32Emulator)
+    return emu
+
+
+def get_kernel_emu(se: Speakeasy) -> WinKernelEmulator:
+    emu = se.emu
+    assert isinstance(emu, WinKernelEmulator)
+    return emu
 
 
 def alloc(se: Speakeasy, data: bytes) -> int:
@@ -56,7 +68,6 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
     that calls guest code starts its first guest call, and its result is None.
     """
     emu = se.emu
-    assert emu is not None and emu.api is not None
     mod, func_attrs = emu.get_api_handler(dll, name)
     _, func, argc, conv, _ = func_attrs
     if argc == e_arch.VAR_ARGS:
@@ -88,15 +99,17 @@ def start_process(se: Speakeasy) -> None:
     """
     emu = se.emu
     assert isinstance(emu, Win32Emulator)
+    assert emu.om is not None
     module = emu.modules[0]
     emu.prepare_module_for_emulation(module, False)
     if not emu.processes:
         p = objman.Process(emu, path=module.emu_path, base=module.base, pe=module, cmdline=emu.command_line)
         emu.processes.append(p)
         emu.curr_process = p
-        emu.om.objects.update({p.address: p})  # type: ignore[union-attr]
+        emu.om.objects.update({p.address: p})
     t = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=module.stack_commit)
-    emu.om.objects.update({t.address: t})  # type: ignore[union-attr]
-    emu.curr_process.threads.append(t)  # type: ignore[union-attr]
+    emu.om.objects.update({t.address: t})
+    assert emu.curr_process is not None
+    emu.curr_process.threads.append(t)
     emu.curr_thread = t
     emu.curr_mod = module

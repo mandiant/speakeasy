@@ -107,7 +107,7 @@ def test_public_guest_data_execution_and_nx_policy():
 @pytest.mark.parametrize("malformation", ["delay-outside", "export-outside"])
 def test_public_malformed_optional_pe_inventory_still_executes(malformation, caplog):
     if malformation == "delay-outside":
-        section = b""
+        section = bytearray()
         dirs = {13: (0x7FFF0000, 64)}
     else:
         section = bytearray(0x80)

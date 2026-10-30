@@ -89,9 +89,11 @@ def breakpoint_target(se):
 
 def test_breakpoint_on_translated_code(config):
     # The target runs before the breakpoint is set, so its code is already translated.
+    counter = 0
+
     def build(se, data, call):
+        nonlocal counter
         target, handler, counter = breakpoint_target(se)
-        build.counter = counter
         return (
             call("AddVectoredExceptionHandler", 1, handler)
             + call_absolute(target)
@@ -102,7 +104,7 @@ def test_breakpoint_on_translated_code(config):
 
     se, _, report = run(config, build)
     assert report.error is None
-    assert field(se, build.counter, 0) == 2
+    assert field(se, counter, 0) == 2
 
 
 def test_set_debug_registers_keeps_the_rest_of_a_suspended_thread(config):

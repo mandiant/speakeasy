@@ -103,8 +103,7 @@ class UsbEmu(speakeasy.Speakeasy):
         DriverGlobals, UsbDevice, ConfigDescriptor, ConfigDescriptorLength = params
 
         rv = ddk.STATUS_BUFFER_TOO_SMALL
-        buf_len = self.mem_read(ConfigDescriptorLength, 2)
-        buf_len = int.from_bytes(buf_len, "little")
+        buf_len = int.from_bytes(self.mem_read(ConfigDescriptorLength, 2), "little")
 
         cfg = self.emit_config_descriptor()
         if buf_len < len(cfg):

@@ -88,14 +88,12 @@ def _proxy_file_list(se: Speakeasy) -> int:
 
 
 def _default_value(se: Speakeasy, path: str) -> Any:
-    assert se.emu is not None
     key = se.emu.regman.get_key_from_path(path)
     assert key is not None
     return key.get_value("").get_data()
 
 
 def test_ndr_dll_register_proxy_registers_the_interfaces(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     module = dll_emu.emu.modules[0]
     clsid = alloc(dll_emu, CLSID_PS.bytes_le)
 
@@ -146,7 +144,7 @@ def test_wsa_startup_fills_wsadata(
 
 
 def _read_ptr(se: Speakeasy, addr: int) -> int:
-    size = se.emu.get_ptr_size()  # type: ignore[union-attr]
+    size = se.emu.get_ptr_size()
     return int.from_bytes(se.mem_read(addr, size), "little")
 
 
@@ -165,7 +163,7 @@ def test_getaddrinfo_without_hints(
         call(se, "ws2_32", "inet_ntoa", [last << 24])
     info = _read_ptr(se, result)
     assert struct.unpack("<II", se.mem_read(info + 4, 8)) == (2, 0)
-    assert _read_ptr(se, info + addr_offset - se.emu.get_ptr_size()) == 0  # type: ignore[union-attr]
+    assert _read_ptr(se, info + addr_offset - se.emu.get_ptr_size()) == 0
     sockaddr = se.mem_read(_read_ptr(se, info + addr_offset), 8)
     assert struct.unpack("<H", sockaddr[:2])[0] == 2
     assert struct.unpack(">H", sockaddr[2:4])[0] == port
@@ -187,7 +185,6 @@ def test_x86_ordinal_call_does_not_reach_another_handler(config: dict[str, Any],
     se = Speakeasy(config=config)
     try:
         sc_addr = se.load_shellcode(data=code, arch="x86")
-        assert se.emu is not None
         se.mem_write(sc_addr + 1, se.mem_alloc(0x100).to_bytes(4, "little"))
         se.mem_write(sc_addr + 10, se.emu.get_proc("ws2_32", f"ordinal_{ordinal}").to_bytes(4, "little"))
         se.run_shellcode(sc_addr)
@@ -265,7 +262,7 @@ def _query_headers(se: Speakeasy, req: int, level: int, size: int | None) -> tup
     buf_len = alloc(se, struct.pack("<I", size or 0))
     rv, _ = call(se, "winhttp", "WinHttpQueryHeaders", [req, level, 0, buf, buf_len, 0])
     length = struct.unpack("<I", se.mem_read(buf_len, 4))[0]
-    return rv, se.mem_read(buf, size) if buf else b"", length
+    return rv, se.mem_read(buf, size) if size is not None else b"", length
 
 
 @pytest.mark.parametrize(
@@ -277,7 +274,6 @@ def _query_headers(se: Speakeasy, req: int, level: int, size: int | None) -> tup
     ],
 )
 def test_win_http_query_headers_gives_the_response_headers(dll_emu: Speakeasy, level: int, text: str) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     req = _winhttp_request(dll_emu, "GET", "/index")
     assert call(dll_emu, "winhttp", "WinHttpSendRequest", [req, 0, 0, 0, 0, 0, 0])[0] == 1
@@ -485,7 +481,6 @@ def test_http_query_info_status_code(
 def test_http_query_info_gives_the_response_headers(
     dll_emu: Speakeasy, name: str, encoding: str, level: int, text: str
 ) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     req = _wininet_request(dll_emu, b"GET", b"/index")
     out = (text + "\0").encode(encoding)
@@ -559,11 +554,11 @@ def test_socket_calls_reject_an_unknown_socket(dll_emu: Speakeasy, name: str, ar
     buf = alloc(dll_emu, b"\x00" * 16)
     argv = [0x999] + [buf if a == 0 and i == 0 else a for i, a in enumerate(args)]
     assert call(dll_emu, "ws2_32", name, argv)[0] == rv
-    assert dll_emu.emu.get_last_error() == 10038  # type: ignore[union-attr]
+    assert dll_emu.emu.get_last_error() == 10038
 
 
 def test_gethostname_fills_an_exact_buffer(dll_emu: Speakeasy) -> None:
-    host = dll_emu.emu.config.hostname.encode()  # type: ignore[union-attr]
+    host = dll_emu.emu.config.hostname.encode()
     buf = alloc(dll_emu, b"\xcc" * 64)
     assert call(dll_emu, "ws2_32", "gethostname", [buf, len(host) + 1])[0] == 0
     assert dll_emu.mem_read(buf, len(host) + 2) == host + b"\x00\xcc"
@@ -633,7 +628,6 @@ ERROR_INTERNET_UNRECOGNIZED_SCHEME = 12006
 @pytest.mark.parametrize("url", [b"manda.php?id=1", b"file:///c:/a.txt", b"/gate.php"])
 def test_internet_open_url_rejects_a_url_without_a_known_scheme(dll_emu: Speakeasy, url: bytes) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     rv, _ = call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])
     assert rv == 0
@@ -651,7 +645,6 @@ def test_internet_open_url_rejects_a_url_without_a_known_scheme(dll_emu: Speakea
     ],
 )
 def test_internet_open_url_records_the_host_and_port(dll_emu: Speakeasy, url: bytes, server: str, port: int) -> None:
-    assert dll_emu.emu is not None
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     assert call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])[0]
     events = [e for e in dll_emu.emu.get_current_run().events if e.event == "net_http"]

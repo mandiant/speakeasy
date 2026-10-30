@@ -29,7 +29,12 @@ def test_x86_guest_five_byte_hook_calls_original_trampoline(config, memory_traci
         se.mem_write(caller, code)
         se.emu.mem_protect(address & ~0xFFF, 0x1000, common.PERM_MEM_RWX)
         hits = []
-        se.add_api_hook(lambda e, api, original, args: hits.append(api) or 77, "kernel32", "GetTickCount", argc=0)
+
+        def hook(e, api, original, args):
+            hits.append(api)
+            return 77
+
+        se.add_api_hook(hook, "kernel32", "GetTickCount", argc=0)
 
         se.run_shellcode(caller)
 

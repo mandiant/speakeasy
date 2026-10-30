@@ -26,7 +26,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     get_winmain_command_line,
     scan_c_format,
 )
-from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.handler_harness import alloc, call, get_win32_emu, load_emu, start_process
 
 FILETIME_UNIX_EPOCH = 116444736000000000
 
@@ -149,7 +149,6 @@ def test_strncat_s_appends_within_buffer(
     request: pytest.FixtureRequest, emu_name: str, size: int, src: bytes, count: int | None, rv: int, result: bytes
 ) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     if count is None:
         count = (1 << (8 * se.emu.get_ptr_size())) - 1
     dest = alloc(se, b"ab\x00" + b"\xcc" * 13)
@@ -220,7 +219,6 @@ XTOX_S_APIS = [
 
 
 def call_xtox_s(se: Speakeasy, api: str, value: int, buf: int, size: int, radix: int) -> int:
-    assert se.emu is not None
     value &= 0xFFFFFFFFFFFFFFFF
     if se.emu.get_ptr_size() == 4:
         argv = [value & 0xFFFFFFFF, value >> 32] if "64" in api else [value & 0xFFFFFFFF]
@@ -343,7 +341,6 @@ def test_mbstowcs_s_converts_within_buffer(
     written: str,
 ) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     if count is None:
         count = (1 << (8 * ptr_size)) - 1
@@ -364,7 +361,6 @@ def test_mbstowcs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_fseek_takes_a_signed_offset(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     minus = (1 << (8 * se.emu.get_ptr_size())) - 1
     path = alloc(se, b"c:\\windows\\system32\\cmd.exe\x00")
     stream, _ = call(se, "msvcrt", "fopen", [path, alloc(se, b"rb\x00")])
@@ -499,7 +495,6 @@ def test_seh_filter_exe_calls_the_signal_handler_once(
     dll_emu: Speakeasy, code: int, sig: int, args: tuple[int, ...]
 ) -> None:
     call(dll_emu, "msvcrt", "signal", [sig, 0x401000])
-    assert dll_emu.emu is not None
     rv, _ = call(dll_emu, "msvcrt", "_seh_filter_exe", [code, 0])
     assert rv is None
     assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
@@ -540,7 +535,6 @@ def test_freopen_s_to_a_file_redirects_the_stream(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_localeconv_has_a_dot_decimal_point(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     lconv, _ = call(se, "msvcrt", "localeconv", [])
     decimal_point = int.from_bytes(se.mem_read(lconv, ptr_size), "little")
@@ -630,7 +624,6 @@ def test_realloc_that_cannot_grow_returns_null_and_keeps_the_block(dll_emu: Spea
 
 
 def test_getenv_ignores_case_and_returns_null_when_missing(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     name, value = next(iter(dll_emu.emu.get_env().items()))
     rv, _ = call(dll_emu, "msvcrt", "getenv", [alloc(dll_emu, name.upper().encode() + b"\x00")])
     assert dll_emu.mem_read(rv, len(value) + 1) == value.encode() + b"\x00"
@@ -725,7 +718,6 @@ def test_sscanf_writes_through_the_variadic_pointers(dll_emu: Speakeasy) -> None
 
 
 def call_stdio_common_vsscanf(se: Speakeasy, options: int, text: bytes, count: int, fmt: bytes, va: list[int]) -> int:
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     va_list = alloc(se, b"".join(v.to_bytes(ptr_size, "little") for v in va))
     count &= (1 << (8 * ptr_size)) - 1
@@ -812,7 +804,6 @@ def test_stat_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_b
 
 @pytest.mark.parametrize("api, enc", [("_unlink", "latin-1"), ("_wunlink", "utf-16le"), ("remove", "latin-1")])
 def test_unlink_deletes_a_written_file(dll_emu: Speakeasy, api: str, enc: str) -> None:
-    assert dll_emu.emu is not None
     name = "c:\\users\\public\\drop.bin"
     stream, _ = call(dll_emu, "msvcrt", "fopen", [alloc(dll_emu, name.encode() + b"\x00"), alloc(dll_emu, b"wb\x00")])
     call(dll_emu, "msvcrt", "fwrite", [alloc(dll_emu, b"MZ"), 1, 2, stream])
@@ -856,7 +847,6 @@ def test_winmain_command_line_skips_the_program_name(cmdline: str, tail: str) ->
 
 @pytest.mark.parametrize("api, width", [("_get_narrow_winmain_command_line", 1), ("_get_wide_winmain_command_line", 2)])
 def test_get_winmain_command_line_points_after_the_program_name(dll_emu: Speakeasy, api: str, width: int) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     dll_emu.emu.get_current_process().cmdline = '"C:\\x y\\a.exe" -v one'
     rv, _ = call(dll_emu, "msvcrt", api, [])
@@ -882,7 +872,6 @@ def test_setvbuf_accepts_only_known_modes(dll_emu: Speakeasy, mode: int, rv: int
 
 def test_getpid_matches_the_current_process(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     assert call(dll_emu, "msvcrt", "_getpid", [])[0] == dll_emu.emu.get_current_process().id
 
 
@@ -936,11 +925,10 @@ def test_isspace_rejects_other_characters(dll_emu: Speakeasy, c: int) -> None:
 
 
 def test_crtdll_get_main_args_fills_the_arguments(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     out = alloc(dll_emu, b"\xcc" * 12)
     call(dll_emu, "crtdll", "__GetMainArgs", [out, out + 4, out + 8, 0])
     argc, argv, envp = struct.unpack("<III", dll_emu.mem_read(out, 12))
-    assert argc == len(dll_emu.emu.get_argv())
+    assert argc == len(get_win32_emu(dll_emu).get_argv())
     assert dll_emu.mem_read(argv + 4 * argc, 4) == b"\x00" * 4
     assert envp != 0xCCCCCCCC
 
@@ -993,7 +981,6 @@ TM_2_POW_33 = (32, 56, 12, 16, 2, 342, 3, 74, 0)
 
 
 def get_int64_return(se: Speakeasy, low: int) -> int:
-    assert se.emu is not None
     if se.emu.get_arch() == e_arch.ARCH_X86:
         return se.emu.reg_read(e_arch.X86_REG_EDX) << 32 | low
     return low
@@ -1074,7 +1061,6 @@ def test_full_path_resolves_relative_paths(cwd: str, path: str, full: str) -> No
 
 
 def test_fullpath_writes_into_the_buffer(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     full = get_full_path(dll_emu.emu.get_cd(), "a.txt").encode() + b"\x00"
     buf = alloc(dll_emu, b"\xcc" * 0x100)
     assert call(dll_emu, "msvcrt", "_fullpath", [buf, alloc(dll_emu, b"a.txt\x00"), 0x100])[0] == buf
@@ -1127,7 +1113,6 @@ def test_fgetc_reads_one_byte_and_then_eof(dll_emu: Speakeasy, api: str) -> None
 @pytest.mark.parametrize("api, width", [("_dupenv_s", 1), ("_wdupenv_s", 2)])
 def test_dupenv_s_copies_the_value(request: pytest.FixtureRequest, emu_name: str, api: str, width: int) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     encoding = "utf-16le" if width == 2 else "latin-1"
     name, value = next(iter(se.emu.get_env().items()))
@@ -1175,7 +1160,7 @@ def test_p_wcmdln_points_at_the_wide_command_line(dll_emu: Speakeasy) -> None:
     p = int.from_bytes(dll_emu.mem_read(pp, 4), "little")
     cmdln = dll_emu.mem_read(p, 0x200)
     text = cmdln[: next(i for i in range(0, len(cmdln), 2) if cmdln[i : i + 2] == b"\0\0")].decode("utf-16le")
-    assert text == " ".join(dll_emu.emu.get_argv())
+    assert text == " ".join(get_win32_emu(dll_emu).get_argv())
 
 
 def test_fileno_returns_the_descriptor_of_a_standard_stream(dll_emu: Speakeasy) -> None:
@@ -1200,7 +1185,7 @@ def test_thrd_id_matches_the_current_thread(dll_emu: Speakeasy) -> None:
 
 def test_cnd_timedwait_times_out_when_no_other_run_is_queued(dll64_emu: Speakeasy) -> None:
     se = dll64_emu
-    assert se.emu is not None and not se.emu.run_queue
+    assert not se.emu.run_queue
     cnd, mtx = alloc(se, b"\0" * 0x48), alloc(se, b"\0" * 0x50)
     target = get_clock_ticks(se) + 5 * 10_000_000
     xtime = alloc(se, struct.pack("<qi", target // 10_000_000, target % 10_000_000 * 100))
@@ -1235,8 +1220,8 @@ def put_with(api: str) -> Callable[[Speakeasy, int], None]:
         elif api == "fputws":
             assert call(se, "msvcrt", "fputws", [alloc(se, "id=7\x00".encode("utf-16le")), stream])[0] == 0
         elif api == "fputwc":
-            for c in "id=7":
-                assert call(se, "msvcrt", "fputwc", [ord(c), stream])[0] == ord(c)
+            for ch in "id=7":
+                assert call(se, "msvcrt", "fputwc", [ord(ch), stream])[0] == ord(ch)
         elif api == "fprintf":
             call(se, "msvcrt", "fprintf", [stream, alloc(se, b"%s=%d\x00"), alloc(se, b"id\x00"), 7])
         elif api == "fwprintf":
@@ -1320,7 +1305,6 @@ def test_wcscat_s_appends_only_when_the_result_fits(dll_emu: Speakeasy, size: in
 
 
 def test_query_perf_counter_returns_64_bits_at_the_reported_frequency(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
 
     def query(api: str) -> int:
         low = call(dll_emu, "msvcrt", api, [])[0]
@@ -1335,8 +1319,7 @@ def test_query_perf_counter_returns_64_bits_at_the_reported_frequency(dll_emu: S
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_wgetmainargs_writes_wide_argv_and_environment(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    emu = se.emu
-    assert emu is not None
+    emu = get_win32_emu(se)
     ptr_size = emu.get_ptr_size()
     argc_out = alloc(se, b"\xff" * 4)
     argv_out = alloc(se, b"\xff" * ptr_size)
@@ -1572,7 +1555,6 @@ def test_snprintf_s_limits_the_text_to_count(
 
 
 def test_pctype_points_to_the_c_locale_table(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     table, _ = call(dll_emu, "msvcrt", "__pctype_func", [])
     flags = struct.unpack("<257H", dll_emu.mem_read(table - 2, 514))
     assert flags[0] == 0
@@ -1638,7 +1620,6 @@ def test_memcpy_s_checks_the_sizes(
 
 
 def test_xtime_get_ticks_counts_100ns_units_since_1970(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
 
     def query() -> int:
         low = call(dll_emu, "msvcrt", "_Xtime_get_ticks", [])[0]
@@ -1745,7 +1726,6 @@ def test_write_to_stdout_goes_to_the_file_that_freopen_opens(strict_fs_emu: Spea
 
 
 def get_int64_result(se: Speakeasy, rv: int) -> int:
-    assert se.emu is not None
     if se.emu.get_ptr_size() == 4:
         rv |= se.emu.reg_read(e_arch.X86_REG_EDX) << 32
     return rv & 0xFFFFFFFFFFFFFFFF
@@ -1785,7 +1765,6 @@ def test_strtoi64_parses_64_bit_values_and_saturates(
     overflow: bool,
 ) -> None:
     se = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     width = 2 if api.startswith("_wcs") else 1
     ptr_size = se.emu.get_ptr_size()
     src = alloc(se, (text + "\0").encode("utf-16le" if width == 2 else "latin-1"))
@@ -1816,7 +1795,6 @@ def test_set_invalid_parameter_handler_returns_the_previous_handler(dll_emu: Spe
 
 def test_thread_local_invalid_parameter_handler_is_per_thread(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert dll_emu.emu is not None
     first = dll_emu.emu.curr_thread
     assert call(dll_emu, "msvcrt", "_set_thread_local_invalid_parameter_handler", [0x401000])[0] == 0
     assert call(dll_emu, "msvcrt", "_get_thread_local_invalid_parameter_handler", [])[0] == 0x401000
@@ -1830,7 +1808,6 @@ def test_thread_local_invalid_parameter_handler_is_per_thread(dll_emu: Speakeasy
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_std_exception_copy_duplicates_an_owned_message(request: pytest.FixtureRequest, emu_name: str) -> None:
     se = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     what = alloc(se, b"bad allocation\x00")
     src = alloc(se, what.to_bytes(ptr_size, "little") + b"\x01" + b"\x00" * (ptr_size - 1))
@@ -1849,7 +1826,6 @@ def test_std_exception_copy_duplicates_an_owned_message(request: pytest.FixtureR
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_std_exception_copy_shares_a_message_it_does_not_own(request: pytest.FixtureRequest, emu_name: str) -> None:
     se = request.getfixturevalue(emu_name)
-    assert se.emu is not None
     ptr_size = se.emu.get_ptr_size()
     what = alloc(se, b"bad allocation\x00")
     src = alloc(se, what.to_bytes(ptr_size, "little") + b"\x00" * ptr_size)

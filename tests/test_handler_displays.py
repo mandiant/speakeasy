@@ -15,7 +15,6 @@ from tests.test_user32_handlers import load_string_table_sample
 
 
 def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     hmod = dll_emu.emu.modules[0].base
     lp_type = alloc(dll_emu, b"MYTYPE\x00")
     lp_name = alloc(dll_emu, b"MYNAME\x00")
@@ -26,7 +25,6 @@ def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
 
 def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     k32, _ = emu.get_api_handler("kernel32", "FindResourceA")
     addr = alloc(dll_emu, b"MYNAME\x00")
     assert addr >> 24
@@ -36,7 +34,6 @@ def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
 
 def test_resource_name_with_bad_ordinal_stays_a_string(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     k32, _ = emu.get_api_handler("kernel32", "FindResourceA")
     assert k32.normalize_res_identifier(emu, 1, alloc(dll_emu, b"#abc\x00")) == "#abc"
     assert k32.normalize_res_identifier(emu, 1, alloc(dll_emu, b"#101\x00")) == 101
@@ -52,7 +49,6 @@ def test_get_temp_file_name_shows_the_output_path(dll_emu: Speakeasy) -> None:
     assert displays["lpPrefixString"] == "abcd"
     assert displays["lpTempFileName"] == "C:\\tmp\\abc1A2B.TMP"
     assert dll_emu.mem_read(out, 19) == b"C:\\tmp\\abc1A2B.TMP\x00"
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_file_manager().get_file_from_path("C:\\tmp\\abc1A2B.TMP") is None
 
 
@@ -62,7 +58,6 @@ def test_get_temp_file_name_without_a_prefix_creates_a_unique_file(dll_emu: Spea
     rv, displays = call(dll_emu, "kernel32", "GetTempFileNameA", [path, 0, 0, out])
     assert 0 < rv <= 0xFFFF
     assert displays["lpTempFileName"] == f"C:\\tmp\\{rv:X}.TMP"
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_file_manager().get_file_from_path(f"C:\\tmp\\{rv:X}.TMP") is not None
 
 
@@ -573,7 +568,6 @@ def test_reg_get_value_missing_subkey(dll_emu: Speakeasy) -> None:
     ],
 )
 def test_get_computer_name_copies_the_host(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    assert dll_emu.emu is not None
     host = dll_emu.emu.config.hostname
     buf = alloc(dll_emu, b"\xcc" * 64)
     size = alloc(dll_emu, (64).to_bytes(4, "little"))
@@ -593,7 +587,6 @@ def test_get_computer_name_copies_the_host(dll_emu: Speakeasy, api: str, argv: l
     ],
 )
 def test_get_computer_name_small_buffer(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    assert dll_emu.emu is not None
     host = dll_emu.emu.config.hostname
     buf = alloc(dll_emu, b"\xcc" * 4)
     size = alloc(dll_emu, len(host).to_bytes(4, "little"))
@@ -633,7 +626,6 @@ def test_register_service_ctrl_handler_ex_returns_a_handle(dll_emu: Speakeasy) -
 
 def test_ldr_get_procedure_address_by_ordinal(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     mod = next(m for m in emu.get_peb_modules() if m.get_base_name().lower() == "kernel32.dll")
     out = alloc(dll_emu, b"\x00" * 4)
     rv, _ = call(dll_emu, "ntdll", "LdrGetProcedureAddress", [mod.base, 0, 5, out])
