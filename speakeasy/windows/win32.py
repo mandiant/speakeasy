@@ -245,7 +245,7 @@ class Win32Emulator(WindowsEmulator):
         if entry_point is not None:
             ep = module.base + entry_point
         else:
-            ep = module.base + module.ep
+            ep = module.get_ep()
 
         run = Run()
         run.start_addr = ep

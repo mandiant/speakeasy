@@ -250,7 +250,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         if entry_point is not None:
             ep = module.base + entry_point
         else:
-            ep = module.base + module.ep
+            ep = module.get_ep()
 
         if entry_point is not None or module.ep > 0:
             run = Run()

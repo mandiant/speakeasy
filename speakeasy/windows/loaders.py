@@ -149,6 +149,7 @@ class LoadedImage:
     pe_metadata: PeMetadata | None = None
     source: str = "guest_pe"
     relocations: list[BaseRelocation] | None = None
+    problems: list[str] = field(default_factory=list)
 
 
 def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
@@ -258,7 +259,7 @@ class RuntimeModule:
         return ntpath.basename(self.emu_path)
 
     def get_ep(self) -> int:
-        return self.base + self.ep
+        return (self.base + self.ep) & ((1 << self.arch) - 1)
 
     def get_exports(self) -> list[ExportEntry]:
         return self._image.exports
@@ -372,6 +373,32 @@ class PeLoader:
 
     def _optional_error(self, context: str, error: Exception) -> None:
         logger.warning("Skipping malformed PE %s: %s", context, error)
+
+    def _get_image_problems(self, pe: Any) -> list[str]:
+        problems = []
+        ep_rva = pe.OPTIONAL_HEADER.AddressOfEntryPoint
+        if ep_rva >= pe.image_size:
+            problems.append(f"entry point RVA {ep_rva:#x} is outside the image (size {pe.image_size:#x})")
+        # Only raw data up to VirtualSize is mapped, and files often end
+        # inside the FileAlignment padding of the last section.
+        alignment = pe.OPTIONAL_HEADER.FileAlignment or 1
+        file_end = -(-pe.file_size // alignment) * alignment
+        truncated = [
+            sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            for sect in pe.sections
+            if sect.SizeOfRawData
+            and sect.PointerToRawData + min(sect.SizeOfRawData, sect.Misc_VirtualSize or sect.SizeOfRawData) > file_end
+        ]
+        if truncated:
+            names = ", ".join(truncated)
+            problems.append(f"section raw data is past the end of the file (size {pe.file_size:#x}): {names}")
+        if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > 1:
+            import_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].VirtualAddress
+            if import_rva >= pe.image_size:
+                problems.append(f"import directory RVA {import_rva:#x} is outside the image (size {pe.image_size:#x})")
+        for problem in problems:
+            logger.warning("Invalid PE image: %s", problem)
+        return problems
 
     def _import_dll_name(self, pe: Any, entry: Any, source: str) -> str:
         # pefile replaces non-ASCII names with *invalid*. Read the original
@@ -775,6 +802,7 @@ class PeLoader:
             sections=sections,
             pe_metadata=pe_metadata,
             relocations=relocations,
+            problems=self._get_image_problems(pe),
         )
 
 

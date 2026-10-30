@@ -1829,6 +1829,8 @@ class WindowsEmulator(BinaryEmulator):
         mod = RuntimeModule(image)
         if is_input:
             self.modules.insert(0, mod)
+            for problem in image.problems:
+                self.profiler.record_error_event(ErrorInfo(type="invalid_image", context_summary=problem))
         else:
             self.modules.append(mod)
         self.api_registry.register_module(mod)
