@@ -29,15 +29,17 @@ A `Run` is one call into guest code: the entry point, a DLL export, a thread, a 
 
 Each export of an emulated DLL has 32 bytes of code in the DLL image. The code jumps to a token in a reserved range that is never mapped. When the guest calls the API, Unicorn fails to fetch the token, and `_intercept_api_trap` finds the API for the token. The export table, the IAT and `GetProcAddress` give the address of the export code. The guest can read, patch and hook this code. See [Unified Windows API addresses](unified-api-addresses.md).
 
-`handle_import_func(dll, name)` looks for the code to run, in this order:
+`dispatch_api_call(dll, name)` calls `resolve_api_implementation` to find the code to run. `speakeasy/windows/api_resolution.py` has one class for each result, in this order:
 
-1. The handler for the name. User hooks for the API run first, and they can call the handler.
-2. The handler for a related name, from `normalize_import_miss`. For example, the name without the `A` or `W` suffix, or the `Zw` name for an `Nt` name.
-3. A user hook without a handler.
-4. A function from the signature database. It logs the arguments and returns a success value.
-5. With `functions_always_exist`, a stub that returns 1.
+1. `HandlerImplementation`: the handler for the name, or for a related name. User hooks for the API run first, and they can call the handler.
+2. `UserHookImplementation`: a user hook without a handler. The last hook that was added runs.
+3. `SignatureImplementation`: a function from the signature database. It logs the arguments and returns a success value.
+4. `StubImplementation`: with `functions_always_exist`, a stub that returns 1.
+5. `UnsupportedImplementation`: the run ends with an `unsupported_api` error.
 
-If none of these is found, the run ends with an `unsupported_api` error.
+Each result has its own method: `_handle_api_with_handler`, `_handle_api_hook`, `_handle_api_from_signature`, `_handle_api_stub` and `_handle_unsupported_api`.
+
+`get_handler_candidates(dll, name)` gives the related names, in order. For example, the name without the `A` or `W` suffix, the `Zw` name for an `Nt` name, or the DLL that implements an API set. `get_api_handler` uses the first related name that has a handler.
 
 A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls.
 
