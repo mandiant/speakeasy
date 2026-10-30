@@ -45,11 +45,15 @@ A handler can call guest code, for example a window procedure, with `setup_callb
 
 ## Loader
 
-`load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. The first call of `_load_image` also creates the Unicorn engine, and `setup()` loads the system modules. For each image, `_load_image` maps it, binds its imports and adds it to the PEB.
+`load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. `ModuleLoader` (`speakeasy/windows/module_loader.py`, the `module_loader` attribute of the emulator) keeps the data that it must restore: the import bindings, the DLLs whose DllMain and TLS callbacks must run, and the DLLs that each new process gets in its PEB. Do not confuse it with `RuntimeModule.loader`, which reads the image file of one module.
+
+The first call of `_load_image` also creates the Unicorn engine, and `setup()` loads the system modules. For each image, `_load_image` maps it, binds its imports and adds it to the PEB.
 
 `ensure_pe_import_hooks` binds the imports of a PE that the guest maps itself, for example by process hollowing. `speakeasy/windows/mapped_imports.py` reads the import table from guest memory.
 
 DllMain and TLS callbacks run in two ways. For the DLLs that the input imports, `start()` adds them to the run queue. If one fails, the process continues. For `LoadLibrary`, `load_library` calls them as guest callbacks. If one fails, `LoadLibrary` returns NULL with error 1114 (`ERROR_DLL_INIT_FAILED`) and unloads the DLL.
+
+Both ways use the same data. `Process.peb_modules` has the modules in the loader lists of a process. `RuntimeModule.load_states` has the state of the module in each process, with names from the Windows `LDR_DDAG_STATE` values: `INITIALIZING` while its DllMain and TLS callbacks run, then `READY_TO_RUN` or `INIT_ERROR`. `ModuleLoader.collect_initializers` returns an `InitRoutine` for each DllMain and TLS callback to run.
 
 ## Hooks and faults
 
