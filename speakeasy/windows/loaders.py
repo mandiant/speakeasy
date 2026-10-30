@@ -199,6 +199,9 @@ class RuntimeModule:
         return self._image.pe_metadata
 
 
+DLL_PROCESS_ATTACH = 1
+
+
 @dataclass(frozen=True)
 class InitRoutine:
     """A TLS callback or the DllMain of a module, to run in one process."""
@@ -208,6 +211,10 @@ class InitRoutine:
     is_entry_point: bool
     is_last: bool
     pid: int
+
+    @property
+    def args(self) -> tuple[int, int, int]:
+        return (self.module.base, DLL_PROCESS_ATTACH, 0)
 
 
 def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
