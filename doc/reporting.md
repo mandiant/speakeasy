@@ -13,7 +13,7 @@ The examples use JSONC for explanation. Remove comments for machine parsing.
 - `emulation_total_runtime`: profiler start/stop wall-clock duration.
 - `timestamp`: profiler start time epoch seconds.
 - `arch`, `filepath`, `sha256`, `size`, `filetype`: loader/input metadata.
-- `errors`: top-level session errors recorded by profiler.
+- `errors`: top-level session errors recorded by profiler. The loader adds an `invalid_image` error, with the defect in `context_summary`, when the entry point or the import directory of the input PE is outside the image, or when the raw data of a section is past the end of the file. Emulation then continues.
 - `strings`: only present if string extraction is enabled and non-empty.
 - `entry_points`: one per run (`Run` object) in execution order.
 

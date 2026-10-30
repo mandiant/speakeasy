@@ -397,3 +397,28 @@ def test_last_section_raw_data_past_end_of_file_stays_inside_the_image(load_test
         parser.mapped_image[last.VirtualAddress : last.VirtualAddress + last.Misc_VirtualSize]
         == raw[start : start + last.Misc_VirtualSize]
     )
+
+
+@pytest.mark.parametrize(
+    "mutation,invalid",
+    [("entry_point", True), ("truncated", True), ("import_directory", True), ("alignment_padding", False)],
+)
+def test_broken_input_image_is_reported_and_still_runs(mutation, invalid, config, run_test):
+    pe = pefile.PE(data=build_pe()[0])
+    pe.sections[-1].Misc_VirtualSize = pe.sections[-1].SizeOfRawData
+    if mutation == "entry_point":
+        pe.OPTIONAL_HEADER.AddressOfEntryPoint = 0xFFC00001
+    elif mutation == "import_directory":
+        pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].VirtualAddress = 0x550000
+        pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].Size = 20
+    data = pe.write()
+    if mutation == "truncated":
+        data = data[: pe.sections[1].PointerToRawData]
+    elif mutation == "alignment_padding":
+        data = data[:-0x10]
+
+    report = run_test(config, data)
+
+    assert [error.type for error in report.errors or []] == (["invalid_image"] if invalid else [])
+    assert len(report.entry_points) == 1
+    assert report.entry_points[0].start_addr < 1 << 32
