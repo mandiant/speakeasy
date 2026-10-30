@@ -108,52 +108,55 @@ def get_filetime(when: datetime.datetime) -> int:
     return (when - FILETIME_EPOCH) // datetime.timedelta(microseconds=1) * 10
 
 
-def normalize_dll_name(name):
-    ret = name
+# DLL and API set name prefixes, and the modules that have handlers for their
+# functions. The first prefix that matches is used. When the functions of a set
+# are in more than one module, the main module is first.
+DLL_HOSTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        ("api-ms-win-crt", "api-ms-win-core-crt", "vcruntime", "ucrtbased", "ucrtbase", "msvcr", "msvcp", "crtdll"),
+        ("msvcrt",),
+    ),
+    (("winsock", "wsock32"), ("ws2_32",)),
+    (
+        ("ext-ms-win-ntuser", "ext-ms-win-rtcore-ntuser", "api-ms-win-rtcore-ntuser", "api-ms-win-ntuser-"),
+        ("user32",),
+    ),
+    (("ext-ms-win-gdi", "ext-ms-win-rtcore-gdi"), ("gdi32",)),
+    (("api-ms-win-eventing", "api-ms-win-service", "api-ms-win-security"), ("advapi32",)),
+    (("api-ms-win-shell-", "api-ms-win-core-commandlinetoargv", "ext-ms-win-shell32-"), ("shell32",)),
+    (("api-ms-win-shcore-obsolete",), ("shell32", "shlwapi")),
+    (("api-ms-win-core-shlwapi",), ("shlwapi",)),
+    (("api-ms-win-core-com-l", "ext-ms-win-com-ole32", "ext-ms-win-ole32-"), ("ole32",)),
+    (("api-ms-win-core-winrt",), ("combase",)),
+    (("api-ms-win-core-string-l2",), ("user32",)),
+    (("api-ms-win-mm-",), ("winmm",)),
+    (("api-ms-win-core-version",), ("version",)),
+    (("api-ms-win-core-processthreads",), ("kernel32", "advapi32")),
+    (("api-ms-win-core-libraryloader", "api-ms-win-core-stringansi"), ("kernel32", "user32")),
+    (("api-ms-win-core",), ("kernel32",)),
+    (("ext-ms-win-session-wtsapi32",), ("wtsapi32",)),
+    (("ext-ms-win-setupapi-",), ("setupapi",)),
+    (("sspicli",), ("secur32",)),
+    (("kernelbase",), ("kernelbase", "kernel32")),
+    (("ntoskrnl",), ("ntoskrnl", "msvcrt")),
+)
 
-    # Funnel CRTs into a single handler
-    if name.lower().startswith(("api-ms-win-crt", "vcruntime", "ucrtbased", "ucrtbase", "msvcr", "msvcp", "crtdll")):
-        ret = "msvcrt"
 
-    # Redirect windows sockets 1.0 to windows sockets 2.0
-    elif name.lower().startswith(("winsock", "wsock32")):
-        ret = "ws2_32"
+def get_dll_hosts(name: str) -> tuple[str, ...]:
+    """
+    Get the modules that have handlers for the functions of a DLL or API set.
+    A DLL that is not in DLL_HOSTS has its own handlers.
+    """
+    lower = name.lower()
+    for prefixes, hosts in DLL_HOSTS:
+        if lower.startswith(prefixes):
+            return hosts
+    return (name,)
 
-    # API sets use the handlers of the module that implements them
-    elif name.lower().startswith(("ext-ms-win-ntuser", "ext-ms-win-rtcore-ntuser")):
-        ret = "user32"
 
-    elif name.lower().startswith(("ext-ms-win-gdi", "ext-ms-win-rtcore-gdi")):
-        ret = "gdi32"
-
-    elif name.lower().startswith(("api-ms-win-eventing", "api-ms-win-service")):
-        ret = "advapi32"
-
-    elif name.lower().startswith("api-ms-win-shell-shellfolders"):
-        ret = "shell32"
-
-    elif name.lower().startswith("api-ms-win-core-shlwapi"):
-        ret = "shlwapi"
-
-    elif name.lower().startswith("api-ms-win-core-com-l"):
-        ret = "ole32"
-
-    elif name.lower().startswith("api-ms-win-core-winrt"):
-        ret = "combase"
-
-    elif name.lower().startswith("api-ms-win-core-string-l2"):
-        ret = "user32"
-
-    elif name.lower().startswith("api-ms-win-core-commandlinetoargv"):
-        ret = "shell32"
-
-    elif name.lower().startswith("api-ms-win-mm-"):
-        ret = "winmm"
-
-    elif name.lower().startswith("api-ms-win-core"):
-        ret = "kernel32"
-
-    return ret
+def normalize_dll_name(name: str) -> str:
+    """Get the main module that has handlers for a DLL or API set."""
+    return get_dll_hosts(name)[0]
 
 
 class _PeParser(pefile.PE):

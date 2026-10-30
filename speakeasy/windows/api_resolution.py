@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import speakeasy.common as common
-from speakeasy.windows.common import normalize_dll_name
+from speakeasy.windows.common import get_dll_hosts
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiHandler
 
@@ -88,8 +88,8 @@ def get_handler_candidates(dll: str, name: str) -> Iterator[tuple[str, str]]:
     Yield other (dll, name) pairs whose handler can run for dll!name, best first.
     For example: the name without the A or W suffix, the name without the CRT
     "_o_" prefix, the Zw name for an Nt name, ntoskrnl and msvcrt for ntdll, the
-    DLL that implements an API set, advapi32 for kernel32 Reg functions, and psapi
-    for kernel32 K32 functions.
+    modules that have the handlers of an API set or DLL, advapi32 for kernel32
+    Reg functions, and psapi for kernel32 K32 functions.
     """
     seen = {(dll.lower(), name)}
     for cand_dll, cand_name in _get_aliases(dll, name):
@@ -123,19 +123,18 @@ def _get_aliases(dll: str, name: str) -> Iterator[tuple[str, str]]:
     if dll.lower().startswith("ntoskrnl"):
         alias = _get_nt_zw_alias(name) or alias
 
-    alt_dll = normalize_dll_name(dll)
     if alias:
         yield dll, alias
-    if alt_dll:
-        yield alt_dll, name
+    for host in get_dll_hosts(dll):
+        yield host, name
         if alias:
-            yield alt_dll, alias
-    if alt_dll.lower() == "kernel32":
-        if name.startswith("Reg"):
-            yield "advapi32", name
-            if alias:
-                yield "advapi32", alias
-        elif name.startswith("K32"):
-            for func in (name[3:], alias[3:]):
-                if func:
-                    yield "psapi", func
+            yield host, alias
+        if host.lower() == "kernel32":
+            if name.startswith("Reg"):
+                yield "advapi32", name
+                if alias:
+                    yield "advapi32", alias
+            elif name.startswith("K32"):
+                for func in (name[3:], alias[3:]):
+                    if func:
+                        yield "psapi", func

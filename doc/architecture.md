@@ -43,7 +43,7 @@ Each export of an emulated DLL has 32 bytes of code in the DLL image. The code j
 
 Each result has its own method: `_handle_api_with_handler`, `_handle_api_hook`, `_handle_api_from_signature`, `_handle_api_stub` and `_handle_unsupported_api`.
 
-`get_handler_candidates(dll, name)` gives the related names, in order. For example, the name without the `A` or `W` suffix, the `Zw` name for an `Nt` name, or the DLL that implements an API set. `get_api_handler` uses the first related name that has a handler.
+`get_handler_candidates(dll, name)` gives the related names, in order. For example, the name without the `A` or `W` suffix, the `Zw` name for an `Nt` name, or the modules that implement an API set (`get_dll_hosts`). `get_api_handler` uses the first related name that has a handler. `get_proc` gets the module for an import from `get_import_host`. For an API set with functions in more than one module, this is the first module that has a handler for the name.
 
 A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls.
 

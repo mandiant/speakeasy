@@ -2110,10 +2110,22 @@ class WindowsEmulator(BinaryEmulator):
         except (uc.UcError, struct.error):
             return None
 
+    def get_import_host(self, dll: str, name: str | int) -> str:
+        """
+        Get the module that handles an import of dll!name. When the functions of
+        an API set are in more than one module, use the first module that has a
+        handler for the name.
+        """
+        hosts = winemu.get_dll_hosts(module_name(dll))
+        if len(hosts) > 1 and isinstance(name, str):
+            for host in hosts:
+                if self.get_api_handler(host, name)[1] or self.api.get_data_export_handler(host, name)[1]:  # type: ignore[union-attr]
+                    return host
+        return hosts[0]
+
     def get_proc(self, mod_name, func_name):
         """Resolve an explicit import request to stable mapped code or storage."""
-        name = module_name(mod_name)
-        host = winemu.normalize_dll_name(name)
+        host = self.get_import_host(mod_name, func_name)
         module = self.get_mod_by_name(host)
         if module is None:
             module = self.load_module_by_name(host)
@@ -2528,7 +2540,7 @@ class WindowsEmulator(BinaryEmulator):
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         sig = db.lookup(dll, name, arch)
-        if sig is None or not sig.dll.lower().startswith("api-ms-win-"):
+        if sig is None or not sig.dll.lower().startswith(("api-ms-win-", "ext-ms-win-")):
             return None
         if winemu.normalize_dll_name(sig.dll).lower() != winemu.normalize_dll_name(dll).lower():
             return None
