@@ -25,6 +25,24 @@ jobs:
           uvx ruff check
           uvx ruff format --check
 
+  mypy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Check out the signature submodules
+        run: git submodule update --init --depth 1 deps/win32json deps/phnt
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[dev]'
+      - name: Type check with mypy
+        run: mypy speakeasy
+
   test:
     runs-on: ubuntu-latest
     permissions:
