@@ -211,6 +211,57 @@ def test_native_rebase_moves_imports_and_exports(filename, load_test_bin):
     ]
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "dll_test_x86.dll.xz",
+        "dll_test_x64.dll.xz",
+        "argv_test_x86.exe.xz",
+        "argv_test_x64.exe.xz",
+        "wdm_test_x86.sys.xz",
+        "wdm_test_x64.sys.xz",
+    ],
+)
+def test_relocated_image_matches_pefile_rebase(filename, load_test_bin):
+    raw = load_test_bin(filename)
+    base = 0x60000000
+    data = relocate_image(PeLoader(data=raw).make_image(), base).regions[0].data
+    expected = _PeParser(data=raw)
+    expected.rebase(base)
+    mapped = expected.get_mapped_image()[: len(data)]
+    # pefile does not write the new ImageBase into its mapped image.
+    field = expected.OPTIONAL_HEADER.get_file_offset() + (24 if expected.arch == 64 else 28)
+    end = field + expected.arch // 8
+    assert int.from_bytes(data[field:end], "little") == base
+    assert data[:field] + data[end:] == mapped[:field] + mapped[end:]
+
+
+def test_image_without_relocations_loads_only_at_its_preferred_base(load_test_bin):
+    image = PeLoader(data=load_test_bin("child_x86.exe.xz")).make_image()
+    assert image.relocations is None
+    assert relocate_image(image, image.image_base).entry_points == [image.image_base + image.entry_points[0]]
+    with pytest.raises(ValueError, match="Cannot rebase a guest PE without valid relocation data"):
+        relocate_image(image, 0x60000000)
+
+
+def test_image_whose_preferred_base_is_in_use_loads_at_the_next_free_range(config, load_test_bin):
+    image = PeLoader(data=load_test_bin("dll_test_x86.dll.xz")).make_image()
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(data=b"\xc3", arch="x86")
+        se.emu.mem_map(0x1000, base=image.image_base, tag="test.block")
+        module = se.emu.load_image(image)
+        expected = relocate_image(image, module.base)
+        assert module.base > image.image_base
+        text = next(s for s in image.sections if s.name == ".text")
+        start, end = text.virtual_address, text.virtual_address + text.virtual_size
+        assert se.mem_read(module.base + start, end - start) == expected.regions[0].data[start:end]
+        assert se.mem_read(module.base + start, end - start) != image.regions[0].data[start:end]
+        assert module.get_export_by_name("emu_test_one").address == expected.exports[0].address
+    finally:
+        se.shutdown()
+
+
 def test_native_raw_padding_outside_image_is_clipped():
     pe = pefile.PE(data=image_bytes(build([])))
     last = pe.sections[-1]
