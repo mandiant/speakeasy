@@ -1,5 +1,9 @@
 import ctypes as ct
+from typing import Any
 
+import pytest
+
+import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy.struct import EmuStruct, Ptr
 
 EXPECTED_32BIT_BYTES = (
@@ -71,3 +75,12 @@ def test_struct_layout_follows_constructor_arguments():
     assert WIDE_OR_NARROW(4, 2).sizeof() == 12
     assert WIDE_OR_NARROW(4, 1).sizeof() == 8
     assert type(WIDE_OR_NARROW(4, 2).get_cstruct()) is type(WIDE_OR_NARROW(4, 2).get_cstruct())
+
+
+@pytest.mark.parametrize("ptr_size", [4, 8])
+def test_irp_cast_reads_nested_fields_after_padding(ptr_size: int) -> None:
+    irp: Any = ntdefs.IRP(ptr_size)
+    irp.IoStatus.Information = 0x1122
+    irp.Tail.Overlay.CurrentStackLocation = 0x3344
+    copy: Any = ntdefs.IRP(ptr_size).cast(irp.get_bytes())
+    assert (copy.IoStatus.Information, copy.Tail.Overlay.CurrentStackLocation) == (0x1122, 0x3344)
