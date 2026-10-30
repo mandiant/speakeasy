@@ -7,12 +7,10 @@ ruff:
     uvx --quiet ruff check --quiet --fix
     uvx --quiet ruff check --quiet --select I --fix
 
-# lots of errors due to dynamic access to C structures
-# address this later
-# mypy:
-#     uvx mypy --check-untyped-defs speakeasy tests examples
+mypy:
+    ./.venv/bin/mypy speakeasy
 
-lint: format ruff
+lint: format ruff mypy
 
 # regenerate the API signature databases from the deps/win32json and deps/phnt submodules
 gen-signatures:
