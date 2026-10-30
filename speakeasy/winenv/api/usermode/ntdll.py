@@ -55,8 +55,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.trace_handle = 0x1000
-        self.random_values = list(RTL_RANDOM_VALUES)
+        self.trace_handle: int = 0x1000
+        self.random_values: list[int] = list(RTL_RANDOM_VALUES)
 
         super().__get_hook_attrs__(self)
 
@@ -514,8 +514,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         data = (path + "\x00").encode("utf-16le")
 
         us = ntos.UNICODE_STRING(emu.get_ptr_size())
-        us.Length = len(data) - 2
-        us.MaximumLength = len(data)
+        us.Length = len(data) - 2  # type: ignore[assignment]
+        us.MaximumLength = len(data)  # type: ignore[assignment]
         us.Buffer = self.mem_alloc(len(data), tag="api.RtlFormatCurrentUserKeyPath")
         self.mem_write(us.Buffer, data)
         self.mem_write(CurrentUserKeyPath, self.get_bytes(us))

@@ -448,9 +448,9 @@ class Win32MetadataSource(SignatureSource):
     _missing_warned = False
 
     def __init__(self, path: str | None = None) -> None:
-        self.path = path or self.default_path
-        self._lock = threading.Lock()
-        self._loaded = False
+        self.path: str = path or self.default_path
+        self._lock: threading.Lock = threading.Lock()
+        self._loaded: bool = False
         self._functions: dict[str, list[dict]] = {}
         self._functions_by_dll: dict[str, dict[str, list[tuple[int, dict]]]] = {}
         self._enums: dict[str, dict] = {}

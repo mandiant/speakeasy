@@ -2,7 +2,7 @@
 
 import hashlib
 import struct
-from typing import Any
+from typing import TYPE_CHECKING
 
 from Crypto.Cipher import ARC4
 
@@ -17,6 +17,9 @@ from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 
 from .. import api
+
+if TYPE_CHECKING:
+    from Crypto.Cipher.ARC4 import ARC4Cipher
 
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 TOKEN_USER = 1
@@ -35,16 +38,15 @@ class AdvApi32(api.ApiHandler):
 
     def __init__(self, emu):
         super().__init__(emu)
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
-        self.hash_objects: dict[int, Any] = {}
-        self.key_objects: dict[int, Any] = {}
+        self.funcs = {}
+        self.data = {}
+        self.hash_objects: dict[int, hashlib._Hash] = {}
         self.k32types = k32
         self.win = adv32
         self.curr_handle: int = 0x2800
         self.service_status_handle: int = SERVICE_STATUS_HANDLE_BASE
 
-        self.rc4: Any | None = None
+        self.rc4: ARC4Cipher | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -223,7 +225,7 @@ class AdvApi32(api.ApiHandler):
             value_name = self.read_mem_string(lpValueName, cw)
             ctx.args["lpValueName"].display = value_name
 
-        value_data = ""
+        value_data: str | int | bytes = ""
         if lpData and cbData:
             raw = self.mem_read(lpData, cbData)
             if dwType in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ):

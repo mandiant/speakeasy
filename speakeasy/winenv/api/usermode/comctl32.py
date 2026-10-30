@@ -1,8 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 
+from typing import TYPE_CHECKING
+
 from .. import api
 from .shell32 import write_dll_version
+
+if TYPE_CHECKING:
+    from speakeasy.windows.netman import NetworkManager
 
 
 class Comctl32(api.ApiHandler):
@@ -15,8 +20,7 @@ class Comctl32(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         super().__get_hook_attrs__(self)
-        self.netman = emu.get_network_manager()
-        self.names = {}
+        self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("InitCommonControlsEx", argc=1)
     def InitCommonControlsEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -2,11 +2,15 @@
 
 import logging
 import uuid
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.netman import NetworkManager
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +25,8 @@ class Ole32(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         super().__get_hook_attrs__(self)
-        self.netman = emu.get_network_manager()
-        self.names = {}
-        self.com_init = {}
+        self.netman: NetworkManager = emu.get_network_manager()
+        self.com_init: dict[int, tuple[int, int]] = {}
 
     def co_initialize(self, emu, model):
         tid = emu.get_current_thread().id
@@ -35,7 +38,7 @@ class Ole32(api.ApiHandler):
 
     def co_uninitialize(self, emu):
         tid = emu.get_current_thread().id
-        count, model = self.com_init.get(tid, (0, None))
+        count, model = self.com_init.get(tid, (0, 0))
         if count > 1:
             self.com_init[tid] = (count - 1, model)
         else:

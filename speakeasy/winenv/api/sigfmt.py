@@ -58,10 +58,10 @@ class ArgFormatter:
     def __init__(
         self, db: sigdb.SignatureDatabase, ptr_size: int, read_mem: ReadMem, read_xmm: ReadXmm | None = None
     ) -> None:
-        self.db = db
-        self.ptr_size = ptr_size
-        self.read_mem = read_mem
-        self.read_xmm = read_xmm
+        self.db: sigdb.SignatureDatabase = db
+        self.ptr_size: int = ptr_size
+        self.read_mem: ReadMem = read_mem
+        self.read_xmm: ReadXmm | None = read_xmm
 
     # -- parameters --------------------------------------------------------
 

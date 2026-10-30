@@ -822,10 +822,11 @@ class Ntoskrnl(api.ApiHandler):
                     sm = self.win.SYSTEM_MODULE(emu.get_ptr_size())
                     sm.Base = mod.base
                     sm.Size = mod.image_size
-                    sm.ImageName = b"\\??\\" + mod.emu_path.encode("utf-8")
+                    image_name = b"\\??\\" + mod.emu_path.encode("utf-8")
+                    sm.ImageName = image_name
                     sm.LoadCount = 1
                     sm.Index = i
-                    sm.ModuleNameOffset = bytes(sm.ImageName)[:].rfind(b"\\") + 1
+                    sm.ModuleNameOffset = image_name.rfind(b"\\") + 1
                     self.mem_write(buf_ptr, self.get_bytes(sm))
                     buf_ptr += self.sizeof(sm)
                 nts = ddk.STATUS_SUCCESS

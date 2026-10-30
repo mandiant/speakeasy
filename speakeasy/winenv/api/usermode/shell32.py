@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 import struct
-from typing import Any
 
 import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
@@ -99,11 +98,10 @@ class Shell32(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
+        self.funcs = {}
+        self.data = {}
         self.window_hooks: dict[int, tuple] = {}
         self.handle: int = 0
-        self.win: Any | None = None
         self.curr_handle: int = 0x2800
         self.pidls: dict[int, str] = {}
 

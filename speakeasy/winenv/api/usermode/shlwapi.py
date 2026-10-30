@@ -2,7 +2,6 @@
 
 import ntpath
 import os
-from typing import Any
 from urllib.parse import urljoin
 
 import speakeasy.winenv.arch as e_arch
@@ -83,11 +82,10 @@ class Shlwapi(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
+        self.funcs = {}
+        self.data = {}
         self.window_hooks: dict[int, tuple] = {}
         self.handle: int = 0
-        self.win: Any | None = None
 
         super().__get_hook_attrs__(self)
 

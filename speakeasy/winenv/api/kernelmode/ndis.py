@@ -25,10 +25,10 @@ class Ndis(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle = 4
-        self.wrappers = {}
-        self.drivers = {}
-        self.protocols = {}
+        self.handle: int = 4
+        self.wrappers: dict[int, bool] = {}
+        self.drivers: dict[int, bytes] = {}
+        self.protocols: dict[int, bytes] = {}
 
         self.emu = emu
 
@@ -58,7 +58,7 @@ class Ndis(api.ApiHandler):
         ndis_major = 5
         ndis_minor = 0
         osver = self.emu.config.os_ver
-        major, minor = osver.major, osver.minor
+        major, minor = osver.major or 0, osver.minor or 0
 
         if major >= 6:
             ndis_major = 6

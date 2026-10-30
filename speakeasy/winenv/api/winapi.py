@@ -2,10 +2,14 @@
 
 import inspect
 import sys
+from typing import TYPE_CHECKING
 
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.kernelmode import *  # noqa
 from speakeasy.winenv.api.usermode import *  # noqa
+
+if TYPE_CHECKING:
+    from speakeasy.windows.winemu import WindowsEmulator
 
 
 def autoload_api_handlers():
@@ -26,8 +30,8 @@ API_HANDLERS = autoload_api_handlers()
 
 class WindowsApi:
     def __init__(self, emu):
-        self.mods = {}
-        self.emu = emu
+        self.mods: dict[str, api.ApiHandler] = {}
+        self.emu: WindowsEmulator = emu
 
     def load_api_handler(self, mod_name):
         for name, hdl in API_HANDLERS:

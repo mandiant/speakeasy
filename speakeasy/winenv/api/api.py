@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import re
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
@@ -15,6 +17,9 @@ from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
+
+if TYPE_CHECKING:
+    from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +55,8 @@ class HandlerArg:
     """
 
     def __init__(self, arg: ApiArg, param: sigdb.ParamSig | None = None) -> None:
-        self._arg = arg
-        self._param = param
+        self._arg: ApiArg = arg
+        self._param: sigdb.ParamSig | None = param
 
     @property
     def name(self) -> str | None:
@@ -99,9 +104,9 @@ class HandlerArgs:
     """
 
     def __init__(self, args: list[ApiArg], params: list[sigdb.ParamSig] | None = None, discard: bool = False) -> None:
-        self._args = args
-        self._params = params
-        self._discard = discard
+        self._args: list[ApiArg] = args
+        self._params: list[sigdb.ParamSig] | None = params
+        self._discard: bool = discard
 
     @classmethod
     def from_signature(
@@ -190,13 +195,13 @@ class ApiHandler:
 
     def __init__(self, emu):
         super().__init__()
-        self.funcs = {}
-        self.data = {}
-        self.emu = emu
+        self.funcs: dict[str | int, tuple[str, Callable[..., Any], int, int, int | None]] = {}
+        self.data: dict[str, Callable[..., Any]] = {}
+        self.emu: WindowsEmulator = emu
         arch = self.emu.get_arch()
 
         if arch == _arch.ARCH_X86:
-            self.ptr_size = 4
+            self.ptr_size: int = 4
         elif arch == _arch.ARCH_AMD64:
             self.ptr_size = 8
         else:
@@ -250,7 +255,7 @@ class ApiHandler:
                     return handler
         return self.funcs.get(exp_name)
 
-    def get_ptr_size(self):
+    def get_ptr_size(self) -> int:
         return self.ptr_size
 
     def sizeof(self, obj):
@@ -317,7 +322,7 @@ class ApiHandler:
     def mem_copy(self, dst, src, n):
         return self.emu.mem_copy(dst, src, n)
 
-    def read_mem_string(self, addr, width, max_chars=0):
+    def read_mem_string(self, addr, width, max_chars=0) -> str:
         string = self.emu.read_mem_string(addr, width=width, max_chars=max_chars)
         return string
 
@@ -578,6 +583,8 @@ class ApiHandler:
         run = self.emu.get_current_run()
 
         frame = self.emu.active_api_frame
+        if frame is None:
+            raise ApiEmuError("No API call is active")
         if any(item is frame for item in run.guest_callbacks):
             frame.pending.append((func, tuple(args)))
             return

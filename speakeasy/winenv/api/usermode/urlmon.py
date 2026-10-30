@@ -1,11 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.netman import NetworkManager
 
 
 class Urlmon(api.ApiHandler):
@@ -18,8 +22,7 @@ class Urlmon(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         super().__get_hook_attrs__(self)
-        self.netman = emu.get_network_manager()
-        self.names = {}
+        self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("URLDownloadToFile", argc=5)
     def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
