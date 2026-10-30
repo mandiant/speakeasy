@@ -1628,15 +1628,10 @@ class WindowsEmulator(BinaryEmulator):
         return winemu._PeParser(path=path, data=data)
 
     def get_mod_from_addr(self, addr):
-        if self.curr_mod:
-            end = self.curr_mod.base + self.curr_mod.image_size
-            if addr >= self.curr_mod.base and addr <= end:
-                return self.curr_mod
-
+        if self.curr_mod and self.curr_mod.base <= addr < self.curr_mod.base + self.curr_mod.image_size:
+            return self.curr_mod
         for m in self.modules:
-            base = m.base
-            size = m.image_size
-            if addr >= base and addr < base + size:
+            if m.base <= addr < m.base + m.image_size:
                 return m
         return None
 
