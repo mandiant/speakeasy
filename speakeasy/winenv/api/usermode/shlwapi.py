@@ -15,6 +15,15 @@ MAX_PATH = 260
 E_INVALIDARG = 0x80070057
 E_POINTER = 0x80004003
 
+OS_NT = 1
+OS_NT4ORGREATER = 3
+OS_WIN2000ORGREATER_ALT = 4
+OS_WIN2000ORGREATER = 7
+OS_XPORGREATER = 18
+OS_PROFESSIONAL = 20
+OS_FASTUSERSWITCHING = 26
+OS_WELCOMELOGONUI = 27
+
 
 def get_path_without_file_spec(s: str) -> str | None:
     """
@@ -596,3 +605,26 @@ class Shlwapi(api.ApiHandler):
         (pdvi,) = argv
         ver = emu.config.os_ver
         return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)
+
+    @apihook("IsOS", argc=1)
+    def IsOS(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL IsOS(DWORD dwOS);
+
+        The emulated system is a native NT workstation of the configured version,
+        not a server and not a WOW64 process.
+        """
+        (dwOS,) = argv
+        ver = emu.config.os_ver
+        version = (ver.major or 0, ver.minor or 0)
+        minimum = {
+            OS_NT: (0, 0),
+            OS_NT4ORGREATER: (4, 0),
+            OS_WIN2000ORGREATER_ALT: (5, 0),
+            OS_WIN2000ORGREATER: (5, 0),
+            OS_XPORGREATER: (5, 1),
+            OS_PROFESSIONAL: (0, 0),
+            OS_FASTUSERSWITCHING: (5, 1),
+            OS_WELCOMELOGONUI: (5, 1),
+        }.get(dwOS)
+        return int(minimum is not None and version >= minimum)
