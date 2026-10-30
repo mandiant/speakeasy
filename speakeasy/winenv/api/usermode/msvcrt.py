@@ -1049,14 +1049,16 @@ class Msvcrt(api.ApiHandler):
         Return the _iob array of stdin, stdout, and stderr. A FILE is 0x20
         bytes on x86 and 0x30 bytes on x64, and _file is its fifth field.
         """
-        if self.iob:
-            return self.iob
+        return self.iob or emu.get_proc("msvcrt", "_iob")
 
+    @impdata("_iob")
+    def _iob(self, ptr):
+        """FILE _iob[3]: stdin, stdout and stderr."""
         size, file_offset = self.get_file_layout()
-        self.iob = self.mem_alloc(size * 3, tag="api.msvcrt._iob")
         for fd in (self.stdin, self.stdout, self.stderr):
-            self.mem_write(self.iob + fd * size + file_offset, fd.to_bytes(4, "little"))
-        return self.iob
+            self.mem_write(ptr + fd * size + file_offset, fd.to_bytes(4, "little"))
+        self.iob = ptr
+        return ptr
 
     @apihook("__p__iob", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__iob(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
