@@ -5112,6 +5112,53 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(wcstr, ws + b"\x00\x00" if len(s) < count else ws)
         return len(s)
 
+    @apihook("mbrtowc", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def mbrtowc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t mbrtowc(
+            wchar_t *wchar,
+            const char *mbchar,
+            size_t count,
+            mbstate_t *mbstate
+        );
+
+        A byte is one character, as in the "C" locale.
+        """
+        wchar, mbchar, count, _ = argv
+        if not mbchar:
+            return 0
+        if not count:
+            return -2
+        char = self.mem_read(mbchar, 1)
+        if wchar:
+            self.mem_write(wchar, char + b"\x00")
+        return 1 if char != b"\x00" else 0
+
+    @apihook("mbsrtowcs", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def mbsrtowcs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t mbsrtowcs(
+            wchar_t *wcstr,
+            const char **mbstr,
+            size_t count,
+            mbstate_t *mbstate
+        );
+        """
+        wcstr, mbstr, count, _ = argv
+        src = emu.read_ptr(mbstr)
+        s = self.read_cstr(src, max_chars=count if wcstr else 0)
+        ctx.args[1].display = s.decode("latin-1")
+        if not wcstr:
+            return len(s)
+        ws = s.decode("latin-1").encode("utf-16le")
+        if len(s) < count:
+            self.mem_write(wcstr, ws + b"\x00\x00")
+            emu.write_ptr(mbstr, 0)
+        else:
+            self.mem_write(wcstr, ws)
+            emu.write_ptr(mbstr, src + len(s))
+        return len(s)
+
     @apihook("_stricmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _stricmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
