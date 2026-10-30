@@ -155,7 +155,7 @@ def test_wvsprintf_is_stdcall_and_writes_its_width(
 ) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
     assert se.emu is not None and se.emu.api is not None
-    _, (_, _, argc, conv, _) = se.emu.normalize_import_miss("user32", name)
+    _, (_, _, argc, conv, _) = se.emu.get_api_handler("user32", name)
     assert (argc, conv) == (3, e_arch.CALL_CONV_STDCALL)
 
     enc = "utf-8" if cw == 1 else "utf-16le"
