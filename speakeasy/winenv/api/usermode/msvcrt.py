@@ -3794,6 +3794,28 @@ class Msvcrt(api.ApiHandler):
             return 0
         return self.new_stream(fd, self.fds.get(fd), "api.msvcrt._fdopen")
 
+    @apihook("_get_stream_buffer_pointers", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _get_stream_buffer_pointers(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _get_stream_buffer_pointers(
+            FILE *stream,
+            char ***base,
+            char ***ptr,
+            int **count
+        );
+
+        Return the addresses of the _base, _ptr and _cnt fields of a UCRT FILE.
+        """
+        stream, base, ptr, count = argv
+        if not stream:
+            self.set_errno(EINVAL)
+            return EINVAL
+        ptr_size = self.get_ptr_size()
+        for out, field in ((base, stream + ptr_size), (ptr, stream), (count, stream + 2 * ptr_size)):
+            if out:
+                emu.write_ptr(out, field)
+        return 0
+
     def get_file_layout(self):
         """
         Return the size of a FILE and the offset of its _file field. A FILE is
