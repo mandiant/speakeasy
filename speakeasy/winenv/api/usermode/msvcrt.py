@@ -2250,6 +2250,16 @@ class Msvcrt(api.ApiHandler):
 
         return rv
 
+    def read_onexit_table(self, emu, table: int) -> tuple[int, int, int]:
+        ptr_size = self.get_ptr_size()
+        first, last, end = (emu.read_ptr(table + i * ptr_size) for i in range(3))
+        return first, last, end
+
+    def write_onexit_table(self, emu, table: int, first: int, last: int, end: int) -> None:
+        ptr_size = self.get_ptr_size()
+        for i, value in enumerate((first, last, end)):
+            emu.write_ptr(table + i * ptr_size, value)
+
     @apihook("_initialize_onexit_table", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_onexit_table(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2257,9 +2267,12 @@ class Msvcrt(api.ApiHandler):
             _onexit_table_t* table
             );
         """
-        rv = 0
-
-        return rv
+        (table,) = argv
+        if not table:
+            return -1
+        if not self.read_onexit_table(emu, table)[0]:
+            self.write_onexit_table(emu, table, 0, 0, 0)
+        return 0
 
     @apihook("_register_onexit_function", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _register_onexit_function(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2269,9 +2282,57 @@ class Msvcrt(api.ApiHandler):
             _onexit_t        function
             );
         """
-        rv = 0
+        table, function = argv
+        if not table:
+            return -1
+        ptr_size = self.get_ptr_size()
+        first, last, end = self.read_onexit_table(emu, table)
+        if first in (0, (1 << (ptr_size * 8)) - 1):
+            first = last = end = 0
+        if last == end:
+            count = (last - first) // ptr_size
+            array = self.heap_alloc(max(count * 2, 32) * ptr_size, heap="HeapAlloc")
+            if count:
+                self.mem_write(array, self.mem_read(first, count * ptr_size))
+                self.heap_free(first)
+            first, last, end = array, array + count * ptr_size, array + max(count * 2, 32) * ptr_size
+        emu.write_ptr(last, function)
+        self.write_onexit_table(emu, table, first, last + ptr_size, end)
+        return 0
 
-        return rv
+    @apihook("_execute_onexit_table", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _execute_onexit_table(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _execute_onexit_table(
+            _onexit_table_t* table
+            );
+        """
+        (table,) = argv
+        if not table:
+            return -1
+        return self.call_onexit_functions(emu, table)
+
+    def call_onexit_functions(self, emu, table: int):
+        ptr_size = self.get_ptr_size()
+        first, last, _ = self.read_onexit_table(emu, table)
+        if first in (0, (1 << (ptr_size * 8)) - 1):
+            return 0
+        saved = (first, last)
+        while True:
+            last -= ptr_size
+            while last >= first and not emu.read_ptr(last):
+                last -= ptr_size
+            if last < first:
+                break
+            function = emu.read_ptr(last)
+            emu.write_ptr(last, 0)
+            yield GuestCall(function)
+            new_first, new_last, _ = self.read_onexit_table(emu, table)
+            if (new_first, new_last) != saved:
+                first, last = saved = (new_first, new_last)
+        self.heap_free(first)
+        self.write_onexit_table(emu, table, 0, 0, 0)
+        return 0
 
     @apihook("malloc", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def malloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
