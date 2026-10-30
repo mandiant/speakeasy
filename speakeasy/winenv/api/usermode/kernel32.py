@@ -7188,17 +7188,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         dm = emu.get_drive_manager()
-        dw = dm.walk_drives()
-        hnd = self.get_handle()
-        self.find_volumes.update({hnd: {"walker": dw}})
+        dw = (d.volume_guid_path for d in dm.walk_drives() if d.volume_guid_path)
 
         # Each drive contains a single volume
-        curr_drive = next(dw)
-        if curr_drive:
-            volume_guid_path = curr_drive.volume_guid_path
-            ctx.args["lpszVolumeName"].display = volume_guid_path
+        volume_guid_path = next(dw, None)
+        if volume_guid_path is None:
+            emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
+            return self.get_max_int()
 
-            self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
+        hnd = self.get_handle()
+        self.find_volumes.update({hnd: {"walker": dw}})
+        ctx.args["lpszVolumeName"].display = volume_guid_path
+        self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
         return hnd
 
@@ -7222,12 +7223,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # Get next drive; each drive contains one volume
         walker = dsearch.get("walker")
         try:
-            next_drive = next(walker)
+            volume_guid_path = next(walker)
         except StopIteration:
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return 0
 
-        volume_guid_path = next_drive.volume_guid_path
         ctx.args["lpszVolumeName"].display = volume_guid_path
         self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
