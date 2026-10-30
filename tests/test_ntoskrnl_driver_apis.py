@@ -1,0 +1,185 @@
+"""
+Kernel APIs that corpus drivers import: registry keys, IRPs, I/O space,
+feature staging, string helpers, and bug checks.
+"""
+
+import struct
+from typing import Any
+
+import pytest
+
+import speakeasy.winenv.defs.nt.ddk as ddk
+import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
+import speakeasy.winenv.defs.registry.reg as regdefs
+from speakeasy import Speakeasy
+from speakeasy.profiler import Run
+from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
+from tests.handler_harness import alloc, call
+
+SOFTWARE_KEY = "\\Registry\\Machine\\Software\\Contoso"
+IOCTL_BUFFERED = 0x222000
+IOCTL_NEITHER = 0x222003
+
+
+@pytest.fixture(params=["x86", "x64"])
+def any_driver_emu(request: pytest.FixtureRequest) -> Speakeasy:
+    se: Speakeasy = request.getfixturevalue("driver_emu" if request.param == "x86" else "driver64_emu")
+    return se
+
+
+def _ptr_size(se: Speakeasy) -> int:
+    assert se.emu is not None
+    size: int = se.emu.get_ptr_size()
+    return size
+
+
+def _ptr(se: Speakeasy, value: int) -> bytes:
+    return value.to_bytes(_ptr_size(se), "little")
+
+
+def _read_ptr(se: Speakeasy, addr: int) -> int:
+    return int.from_bytes(se.mem_read(addr, _ptr_size(se)), "little")
+
+
+def _unicode_string(se: Speakeasy, text: str, max_chars: int | None = None) -> int:
+    data = text.encode("utf-16le")
+    size = 2 * (len(text) + 1 if max_chars is None else max_chars)
+    buf = alloc(se, data.ljust(size, b"\x00"))
+    pad = b"\x00" * (_ptr_size(se) - 4)
+    return alloc(se, struct.pack("<HH", len(data), size) + pad + _ptr(se, buf))
+
+
+def _read_unicode_string(se: Speakeasy, addr: int) -> tuple[str, int, int]:
+    length, max_length = struct.unpack("<HH", se.mem_read(addr, 4))
+    buf = _read_ptr(se, addr + _ptr_size(se))
+    return se.mem_read(buf, length).decode("utf-16le"), length, max_length
+
+
+def _object_attributes(se: Speakeasy, name: str, root: int = 0) -> int:
+    oa: Any = ntdefs.OBJECT_ATTRIBUTES(_ptr_size(se))
+    oa.Length = oa.sizeof()
+    oa.RootDirectory = root
+    oa.ObjectName = _unicode_string(se, name)
+    return alloc(se, oa.get_bytes())
+
+
+def _current_run(se: Speakeasy) -> Run:
+    assert se.emu is not None
+    run = se.emu.curr_run
+    assert run is not None
+    return run
+
+
+def _create_key(se: Speakeasy, name: str, root: int = 0) -> tuple[int, int, int]:
+    """Create a key and return the status, the handle, and the disposition."""
+    phnd = alloc(se, b"\x00" * _ptr_size(se))
+    disposition = alloc(se, b"\xcc" * 4)
+    oa = _object_attributes(se, name, root)
+    rv, _ = call(se, "ntoskrnl", "ZwCreateKey", [phnd, 0xF003F, oa, 0, 0, 0, disposition])
+    return rv, _read_ptr(se, phnd), struct.unpack("<I", se.mem_read(disposition, 4))[0]
+
+
+def _query_value(se: Speakeasy, hnd: int, name: str) -> tuple[int, bytes]:
+    """Read a value with ZwQueryValueKey and return its type and data."""
+    out = alloc(se, b"\x00" * 0x100)
+    ret_len = alloc(se, b"\x00" * 4)
+    info_class = regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation
+    rv, _ = call(se, "ntoskrnl", "ZwQueryValueKey", [hnd, _unicode_string(se, name), info_class, out, 0x100, ret_len])
+    assert rv == ddk.STATUS_SUCCESS
+    _, val_type, length = struct.unpack("<III", se.mem_read(out, 12))
+    return val_type, se.mem_read(out + 12, length)
+
+
+def test_zw_create_key_creates_a_key_once(any_driver_emu: Speakeasy) -> None:
+    rv, hnd, disposition = _create_key(any_driver_emu, SOFTWARE_KEY)
+    assert rv == ddk.STATUS_SUCCESS
+    assert hnd
+    assert disposition == regdefs.REG_CREATED_NEW_KEY
+
+    rv, again, disposition = _create_key(any_driver_emu, SOFTWARE_KEY)
+    assert rv == ddk.STATUS_SUCCESS
+    assert again
+    assert disposition == regdefs.REG_OPENED_EXISTING_KEY
+
+    assert any_driver_emu.emu is not None
+    key = any_driver_emu.emu.reg_get_key(hnd)
+    assert key.get_path() == "HKEY_LOCAL_MACHINE\\Software\\Contoso"
+    assert any_driver_emu.emu.reg_get_key(again) is key
+
+
+def test_zw_create_key_opens_a_subkey_of_the_root_directory(driver_emu: Speakeasy) -> None:
+    _, parent, _ = _create_key(driver_emu, SOFTWARE_KEY)
+    rv, child, disposition = _create_key(driver_emu, "Parameters", root=parent)
+    assert rv == ddk.STATUS_SUCCESS
+    assert disposition == regdefs.REG_CREATED_NEW_KEY
+    assert driver_emu.emu is not None
+    assert driver_emu.emu.reg_get_key(child).get_path() == "HKEY_LOCAL_MACHINE\\Software\\Contoso\\Parameters"
+
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    oa = _object_attributes(driver_emu, SOFTWARE_KEY + "\\Parameters")
+    assert call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0xF003F, oa])[0] == ddk.STATUS_SUCCESS
+
+
+def test_zw_create_key_rejects_an_unknown_root_directory(driver_emu: Speakeasy) -> None:
+    rv, hnd, disposition = _create_key(driver_emu, "Parameters", root=0x1234)
+    assert rv == ddk.STATUS_INVALID_HANDLE
+    assert hnd == 0
+    assert disposition == 0xCCCCCCCC
+
+
+def test_zw_create_key_records_a_create_event(driver_emu: Speakeasy) -> None:
+    run = _current_run(driver_emu)
+    _, hnd, _ = _create_key(driver_emu, SOFTWARE_KEY)
+    events = [e for e in run.events if isinstance(e, RegCreateKeyEvent)]
+    assert [(e.path, e.handle) for e in events] == [("HKEY_LOCAL_MACHINE\\Software\\Contoso", hex(hnd))]
+
+
+@pytest.mark.parametrize(
+    ("val_type", "data", "expected"),
+    [
+        (regdefs.REG_SZ, "C:\\evil.sys\x00".encode("utf-16le"), "C:\\evil.sys\x00".encode("utf-16le")),
+        (regdefs.REG_DWORD, struct.pack("<I", 4), struct.pack("<I", 4)),
+        (regdefs.REG_BINARY, b"\x01\x02\x03", b"\x01\x02\x03"),
+    ],
+    ids=["sz", "dword", "binary"],
+)
+def test_zw_set_value_key_writes_a_value_that_zw_query_value_key_reads(
+    any_driver_emu: Speakeasy, val_type: int, data: bytes, expected: bytes
+) -> None:
+    _, hnd, _ = _create_key(any_driver_emu, SOFTWARE_KEY)
+    rv, displays = call(
+        any_driver_emu,
+        "ntoskrnl",
+        "ZwSetValueKey",
+        [hnd, _unicode_string(any_driver_emu, "Start"), 0, val_type, alloc(any_driver_emu, data), len(data)],
+    )
+    assert rv == ddk.STATUS_SUCCESS
+    assert displays["ValueName"] == "Start"
+    assert _query_value(any_driver_emu, hnd, "Start") == (val_type, expected)
+
+
+def test_zw_set_value_key_replaces_a_value(driver_emu: Speakeasy) -> None:
+    _, hnd, _ = _create_key(driver_emu, SOFTWARE_KEY)
+    for start in (2, 4):
+        data = alloc(driver_emu, struct.pack("<I", start))
+        name = _unicode_string(driver_emu, "Start")
+        call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, regdefs.REG_DWORD, data, 4])
+    assert _query_value(driver_emu, hnd, "Start") == (regdefs.REG_DWORD, struct.pack("<I", 4))
+    assert driver_emu.emu is not None
+    assert len(driver_emu.emu.reg_get_key(hnd).get_values()) == 1
+
+
+def test_zw_set_value_key_records_a_write_event(driver_emu: Speakeasy) -> None:
+    run = _current_run(driver_emu)
+    _, hnd, _ = _create_key(driver_emu, SOFTWARE_KEY)
+    name = _unicode_string(driver_emu, "Start")
+    data = alloc(driver_emu, struct.pack("<I", 2))
+    call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, regdefs.REG_DWORD, data, 4])
+    events = [e for e in run.events if isinstance(e, RegWriteValueEvent)]
+    assert [(e.path, e.value_name) for e in events] == [("HKEY_LOCAL_MACHINE\\Software\\Contoso", "Start")]
+
+
+def test_zw_set_value_key_rejects_an_unknown_handle(driver_emu: Speakeasy) -> None:
+    name = _unicode_string(driver_emu, "Start")
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwSetValueKey", [0x1234, name, 0, regdefs.REG_DWORD, 0, 0])
+    assert rv == ddk.STATUS_INVALID_HANDLE
