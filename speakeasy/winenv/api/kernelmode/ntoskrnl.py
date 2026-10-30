@@ -3992,3 +3992,100 @@ class Ntoskrnl(api.ApiHandler):
         data = self.mem_read(us.Buffer, us.Length) if us.Buffer and us.Length else b""
         ctx.args["Source"].display = data.decode("utf-16le", "replace")
         return self._append_to_unicode_string(dest, data)
+
+    @apihook("RtlQueryFeatureConfiguration", argc=4)
+    def RtlQueryFeatureConfiguration(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlQueryFeatureConfiguration(
+            RTL_FEATURE_ID                 FeatureId,
+            RTL_FEATURE_CONFIGURATION_TYPE ConfigurationType,
+            PRTL_FEATURE_CHANGE_STAMP      ChangeStamp,
+            PRTL_FEATURE_CONFIGURATION     FeatureConfiguration
+        );
+
+        No feature has a configuration, so drivers use their defaults.
+        """
+        return ddk.STATUS_NOT_FOUND
+
+    @apihook("RtlQueryFeatureConfigurationChangeStamp", argc=0)
+    def RtlQueryFeatureConfigurationChangeStamp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI RTL_FEATURE_CHANGE_STAMP RtlQueryFeatureConfigurationChangeStamp(VOID);
+        """
+        if emu.get_ptr_size() == 4:
+            emu.reg_write(_arch.X86_REG_EDX, 0)
+        return 1
+
+    @apihook("RtlRegisterFeatureConfigurationChangeNotification", argc=4)
+    def RtlRegisterFeatureConfigurationChangeNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlRegisterFeatureConfigurationChangeNotification(
+            PRTL_FEATURE_CONFIGURATION_CHANGE_CALLBACK Callback,
+            PVOID                                      Context,
+            PRTL_FEATURE_CHANGE_STAMP                  ObservedChangeStamp,
+            PRTL_FEATURE_CONFIGURATION_CHANGE_REGISTRATION RegistrationHandle
+        );
+        """
+        callback, context, stamp, phnd = argv
+        if phnd:
+            self.mem_write(phnd, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlUnregisterFeatureConfigurationChangeNotification", argc=1)
+    def RtlUnregisterFeatureConfigurationChangeNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlUnregisterFeatureConfigurationChangeNotification(
+            RTL_FEATURE_CONFIGURATION_CHANGE_REGISTRATION RegistrationHandle
+        );
+        """
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlRegisterFeatureUsageProvider", argc=3)
+    def RtlRegisterFeatureUsageProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlRegisterFeatureUsageProvider(
+            PVOID   Callback,
+            PVOID   Descriptor,
+            PHANDLE ProviderHandle
+        );
+        """
+        callback, descriptor, phnd = argv
+        if phnd:
+            self.mem_write(phnd, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlUnregisterFeatureUsageProvider", argc=1)
+    def RtlUnregisterFeatureUsageProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlUnregisterFeatureUsageProvider(HANDLE ProviderHandle);
+        """
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlArmFeatureUsageProviderFlushNotification", argc=2)
+    def RtlArmFeatureUsageProviderFlushNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlArmFeatureUsageProviderFlushNotification(
+            HANDLE ProviderHandle,
+            ULONG  Flags
+        );
+        """
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlRecordFeatureUsage", argc=2)
+    def RtlRecordFeatureUsage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlRecordFeatureUsage(
+            PVOID Record,
+            ULONG Flags
+        );
+        """
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlNotifyFeatureUsage", argc=1)
+    def RtlNotifyFeatureUsage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlNotifyFeatureUsage(
+            PRTL_FEATURE_USAGE_REPORT FeatureUsageReport
+        );
+        """
+        return ddk.STATUS_SUCCESS

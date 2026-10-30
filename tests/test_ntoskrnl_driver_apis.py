@@ -332,3 +332,25 @@ def test_rtl_append_unicode_string_to_string_appends_the_source(any_driver_emu: 
     rv, _ = call(se, "ntoskrnl", "RtlAppendUnicodeStringToString", [dest, _unicode_string(se, "cd")])
     assert rv == ddk.STATUS_SUCCESS
     assert _read_unicode_string(se, dest) == ("abcd", 8, 8)
+
+
+@pytest.mark.parametrize(
+    ("register", "argv", "unregister"),
+    [
+        (
+            "RtlRegisterFeatureConfigurationChangeNotification",
+            [0x401000, 0, 0, None],
+            "RtlUnregisterFeatureConfigurationChangeNotification",
+        ),
+        ("RtlRegisterFeatureUsageProvider", [0x401000, 0x7000, None], "RtlUnregisterFeatureUsageProvider"),
+    ],
+)
+def test_feature_registrations_return_a_handle(
+    driver64_emu: Speakeasy, register: str, argv: list[int | None], unregister: str
+) -> None:
+    out = alloc(driver64_emu, b"\x00" * 8)
+    rv, _ = call(driver64_emu, "ntoskrnl", register, [out if a is None else a for a in argv])
+    assert rv == ddk.STATUS_SUCCESS
+    hnd = _read_ptr(driver64_emu, out)
+    assert hnd
+    assert call(driver64_emu, "ntoskrnl", unregister, [hnd])[0] == ddk.STATUS_SUCCESS
