@@ -107,6 +107,20 @@ class Ntoskrnl(api.ApiHandler):
             return None
         return self.read_unicode_string(oa.ObjectName)
 
+    def _new_mdl(self, va: int, length: int) -> int:
+        """Allocate an MDL that describes ``length`` bytes at ``va``."""
+        start = va & ~0xFFF
+        mdl = self.win.MDL(self.emu.get_ptr_size())
+        mdl.Size = 0x56
+        mdl.MdlFlags = 0x8
+        mdl.StartVa = start
+        mdl.ByteCount = length
+        mdl.ByteOffset = va - start
+
+        ptr: int = self.mem_alloc(self.sizeof(mdl), tag=f"api.MDL.0x{va:x}")
+        self.mem_write(ptr, self.get_bytes(mdl))
+        return ptr
+
     def _write_counted_string(self, string, buf, count, width):
         """
         Write at most ``count`` characters of ``string`` the way _snprintf
@@ -1380,20 +1394,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         va, length, sec_buf, quota, irp = argv
-
-        mdl = self.win.MDL(emu.get_ptr_size())
-        size = self.sizeof(mdl)
-
-        mdl.Size = 0x56
-        mdl.MdlFlags = 0x8
-        mdl.StartVa = va & ~0xFFF
-        mdl.ByteCount = length
-        mdl.ByteOffset = va - mdl.StartVa
-
-        ptr = self.mem_alloc(size, tag=f"api.MDL.0x{va:x}")
-        self.mem_write(ptr, self.get_bytes(mdl))
-
-        return ptr
+        return self._new_mdl(va, length)
 
     @apihook("MmProbeAndLockPages", argc=3)
     def MmProbeAndLockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2461,6 +2462,8 @@ class Ntoskrnl(api.ApiHandler):
 
         _irp.IoStatus.Status = 0
         self.mem_write(pIrp, _irp.get_bytes())
+        if _irp.UserIosb:
+            self.mem_write(_irp.UserIosb, self.get_bytes(_irp.IoStatus))
 
         return rv
 
@@ -3797,3 +3800,77 @@ class Ntoskrnl(api.ApiHandler):
         if lpMem and not self.heap_free(lpMem):
             return 0
         return 1
+
+    @apihook("KeBugCheckEx", argc=5)
+    def KeBugCheckEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTKERNELAPI DECLSPEC_NORETURN VOID KeBugCheckEx(
+            ULONG     BugCheckCode,
+            ULONG_PTR BugCheckParameter1,
+            ULONG_PTR BugCheckParameter2,
+            ULONG_PTR BugCheckParameter3,
+            ULONG_PTR BugCheckParameter4
+        );
+        """
+        code, *params = argv
+        reason = f"bug check 0x{code & 0xFFFFFFFF:x} ({', '.join(hex(p) for p in params)})"
+        logger.error("%s: %s", ctx.func_name, reason)
+
+        error = emu.get_error_info("bug_check", emu.get_ret_address(), api_name=ctx.func_name)
+        error.api_name = ctx.func_name
+        error.context_summary = f"{error.context_summary}: {reason}"
+        emu.curr_run.error = error
+        emu.is_run_complete = True
+
+    @apihook("IoBuildDeviceIoControlRequest", argc=9)
+    def IoBuildDeviceIoControlRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PIRP IoBuildDeviceIoControlRequest(
+            ULONG            IoControlCode,
+            PDEVICE_OBJECT   DeviceObject,
+            PVOID            InputBuffer,
+            ULONG            InputBufferLength,
+            PVOID            OutputBuffer,
+            ULONG            OutputBufferLength,
+            BOOLEAN          InternalDeviceIoControl,
+            PKEVENT          Event,
+            PIO_STATUS_BLOCK IoStatusBlock
+        );
+        """
+        code, dev, in_buf, in_len, out_buf, out_len, internal, event, iosb = argv
+        code &= 0xFFFFFFFF
+        in_len &= 0xFFFFFFFF
+        out_len &= 0xFFFFFFFF
+
+        irp = emu.new_irp()
+        ios = irp.get_curr_stack_loc()
+        ios.object.MajorFunction = ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL if internal & 0xFF else ddk.IRP_MJ_DEVICE_CONTROL
+        params = ios.object.Parameters.DeviceIoControl
+        params.IoControlCode = code
+        params.InputBufferLength = in_len
+        params.OutputBufferLength = out_len
+
+        method = code & 3
+        if method == ddk.METHOD_NEITHER:
+            params.Type3InputBuffer = in_buf
+        else:
+            sys_len = max(in_len, out_len) if method == ddk.METHOD_BUFFERED else in_len
+            if sys_len:
+                sys_buf = self.pool_alloc(ddk.POOL_TYPE.NonPagedPool, sys_len, "IoBuildDeviceIoControlRequest")
+                data = self.mem_read(in_buf, in_len) if in_buf and in_len else b""
+                self.mem_write(sys_buf, data.ljust(sys_len, b"\x00"))
+                irp.object.AssociatedIrp = sys_buf
+                irp.object.Flags = ddk.IRP_BUFFERED_IO | ddk.IRP_DEALLOCATE_BUFFER
+                if method == ddk.METHOD_BUFFERED and out_len:
+                    irp.object.Flags |= ddk.IRP_INPUT_OPERATION
+            if method != ddk.METHOD_BUFFERED and out_buf and out_len:
+                irp.object.MdlAddress = self._new_mdl(out_buf, out_len)
+
+        irp.object.UserBuffer = out_buf
+        irp.object.UserIosb = iosb
+        irp.object.UserEvent = event
+        ios.write_back()
+        irp.write_back()
+
+        ctx.args[0].display = hex(code)
+        return irp.address
