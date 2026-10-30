@@ -1013,6 +1013,21 @@ class Msvcrt(api.ApiHandler):
 
         self.exit_process()
 
+    @apihook("_assert", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def _assert(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _assert(
+            const char *message,
+            const char *filename,
+            unsigned line
+        );
+        """
+        message, filename, _ = argv
+        for i, string in ((0, message), (1, filename)):
+            if string:
+                ctx.args[i].display = self.read_cstr(string).decode("latin-1")
+        self.exit_process()
+
     @apihook("_XcptFilter", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _XcptFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
