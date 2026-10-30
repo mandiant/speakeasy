@@ -51,9 +51,17 @@ The first call of `_load_image` also creates the Unicorn engine, and `setup()` l
 
 `ensure_pe_import_hooks` binds the imports of a PE that the guest maps itself, for example by process hollowing. `speakeasy/windows/mapped_imports.py` reads the import table from guest memory.
 
-DllMain and TLS callbacks run in two ways. For the DLLs that the input imports, `start()` adds them to the run queue. If one fails, the process continues. For `LoadLibrary`, `load_library` calls them as guest callbacks. If one fails, `LoadLibrary` returns NULL with error 1114 (`ERROR_DLL_INIT_FAILED`) and unloads the DLL.
+DllMain and TLS callbacks run in two ways. For the DLLs that the input imports, `_queue_startup_initializers` adds a run for each callback before the first run in the queue. For `LoadLibrary`, `load_library` calls them as guest callbacks.
 
-Both ways use the same data. `Process.peb_modules` has the modules in the loader lists of a process. `RuntimeModule.load_states` has the state of the module in each process, with names from the Windows `LDR_DDAG_STATE` values: `INITIALIZING` while its DllMain and TLS callbacks run, then `READY_TO_RUN` or `INIT_ERROR`. `ModuleLoader.collect_initializers` returns an `InitRoutine` for each DllMain and TLS callback to run.
+Usually there are few runs before the entry point. Only a DLL with a real PE image has a DllMain or TLS callbacks: a DLL from the module directory (`module_directory_x86` or `module_directory_x64`, not set by default), or a DLL that the guest loads with `LoadLibrary` from the emulated file system. The other DLLs, such as kernel32, are synthetic API modules without initializers. Imports never load from the emulated file system, so a DLL that the guest drops and a child process imports is also a synthetic module. All processes share one set of modules, and a child process gets in its PEB all the DLLs that are mapped. If the parent loaded a dropped DLL with `LoadLibrary`, its initializers run again before the entry point of the child.
+
+Both ways use the same data. `Process.peb_modules` has the modules in the loader lists of a process. `RuntimeModule.load_states` has the state of the module in each process, with names from the Windows `LDR_DDAG_STATE` values: `INITIALIZING` while its DllMain and TLS callbacks run, then `READY_TO_RUN` or `INIT_ERROR`. `ModuleLoader.collect_initializers` returns an `InitRoutine` for each DllMain and TLS callback to run. `InitRoutine.args` has the arguments of the call for `DLL_PROCESS_ATTACH`.
+
+After each callback, `ModuleLoader.finish_initializer` decides if it succeeded. A DllMain fails if it faults, or if the low byte of its result is zero. A TLS callback fails only if it faults. After the last callback of a module succeeds, its state is `READY_TO_RUN`.
+
+The two ways do different things when a callback fails. At start, `_finish_run_initializers` sets the module state to `INIT_ERROR` and removes the other runs of the module from the queue. The module stays mapped, and the process continues. In `LoadLibrary`, `_fail_library_initializer` makes the call return NULL with error 1114 (`ERROR_DLL_INIT_FAILED`) and unloads the DLL. If a callback faults in `LoadLibrary`, the run ends. Before the next run, `_finish_run_initializers` undoes the loads that the run did not complete.
+
+If the emulator cancels the runs in the queue, for example when the total time limit is reached, `ModuleLoader.cancel_initializers` clears the `INITIALIZING` state of the callbacks that did not run.
 
 ## Hooks and faults
 
