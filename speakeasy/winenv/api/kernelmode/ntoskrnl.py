@@ -2743,41 +2743,6 @@ class Ntoskrnl(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("strnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def strnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        size_t strnlen(
-           const char *str,
-           size_t numberOfElements
-        );
-        """
-        src, num_elements = argv
-        ctx.args[0].display = self.read_mem_string(src, 1, max_chars=num_elements)
-
-        rv = 0
-        while rv < num_elements and self.mem_read(src + rv, 1) != b"\x00":
-            rv += 1
-        return rv
-
-    @apihook("wcsnlen", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        size_t wcsnlen(
-           const wchar_t *str,
-           size_t numberOfElements
-        );
-        """
-
-        src, num_elements = argv
-        ws = self.read_wide_string(src, max_chars=num_elements)
-
-        ctx.args[0].display = ws
-
-        rv = 0
-        while rv < num_elements and self.mem_read(src + rv * 2, 2) != b"\x00\x00":
-            rv += 1
-        return rv
-
     @apihook("IoRegisterShutdownNotification", argc=1)
     def IoRegisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
