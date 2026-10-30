@@ -136,8 +136,6 @@ class PendingState:
     control: PendingControl | None = None
     # (page, perms) that EXEC_RECOVERY sets on the page that the guest fetched.
     exec_recovery: tuple[int, int] | None = None
-    # (access kind, address) of an access to the private trap reservation, which raises an access violation.
-    trap_fault: tuple[str, int] | None = None
     # A CPU exception that goes to the guest's exception handlers.
     cpu_exception: PendingCpuException | None = None
 
@@ -147,7 +145,6 @@ class PendingState:
         self.api_snapshot = None
         self.control = None
         self.exec_recovery = None
-        self.trap_fault = None
         self.cpu_exception = None
 
     def is_empty(self) -> bool:
@@ -156,7 +153,6 @@ class PendingState:
             self.api_entry is None
             and self.control is None
             and self.exec_recovery is None
-            and self.trap_fault is None
             and self.cpu_exception is None
         )
 
@@ -344,7 +340,6 @@ class WindowsEmulator(BinaryEmulator):
         self.symbols: dict[int, str] = {}
         self.ansi_strings: list[str] = []
         self.unicode_strings: list[str] = []
-        self.tmp_maps: list[tuple[int, int]] = []
         self.run_queue: list[Run] = []
         self.suspended_runs: list[Run] = []
         self.cd: str = ""
@@ -371,7 +366,7 @@ class WindowsEmulator(BinaryEmulator):
         self.virtual_mem_base: int = 0x50000
 
         # Code hook for work that must wait until the next instruction, such as the end
-        # of a run or the unmap of temporary fault pages. It is enabled only when there is such work.
+        # of a run. It is enabled only when there is such work.
         self.deferred_work_hook: Any | None = None
         self.veh_handlers: list[int] = []
 
@@ -926,12 +921,6 @@ class WindowsEmulator(BinaryEmulator):
                         if self.curr_run is not origin_run or self.is_emu_complete:
                             return
                         continue
-                    if self._pending.trap_fault is not None:
-                        self._dispatch_trap_fault()
-                        address = self.get_pc()
-                        if self._pending_fault_stop is not None or debugger_stops():
-                            return
-                        continue
                     self._set_pending_at_pc()
                 if self.curr_run is not origin_run or self.is_emu_complete:
                     return
@@ -992,7 +981,7 @@ class WindowsEmulator(BinaryEmulator):
         except uc.UcError as exc:
             if self._pending_fault_stop is not None:
                 return False
-            if self._pending.trap_fault is not None or self._pending.cpu_exception is not None:
+            if self._pending.cpu_exception is not None:
                 pass
             elif self._pending.control == PendingControl.EXEC_RECOVERY and exc.errno == uc.UC_ERR_FETCH_PROT:
                 pass
@@ -2164,31 +2153,21 @@ class WindowsEmulator(BinaryEmulator):
                 self.emu_eng.stop()
                 return True
         if self.api_registry.overlaps_traps(address, size):
-            # No fake-page recovery may ever materialize the private reservation.
             kind = {
                 common.INVALID_MEM_READ: "read",
                 common.INVALID_MEM_WRITE: "write",
                 common.INVALID_MEM_EXEC: "fetch",
             }.get(self.emu_eng.mem_access.get(access), "read")
-            self._pending.trap_fault = (kind, address)
-            self.emu_eng.stop()
+            self._raise_memory_fault(address, kind)
             return True
         return False
 
-    def _dispatch_trap_fault(self):
-        """Deliver private-reservation faults after native execution unwinds.
-
-        Unlike ordinary recovery, this path must not map a temporary page at
-        the target. Guest SEH may redirect execution or repair its registers.
-        """
-        kind, address = self._pending.trap_fault
-        self._pending.trap_fault = None
-        self.prev_pc = self.get_pc()
-        if self.config.exceptions.dispatch_handlers and self.dispatch_seh(address, kind):
-            self.enable_deferred_work_hook()
-            return
-        self.curr_run.error = self.get_error_info(f"invalid_{kind}", address, access_type=kind)
-        self.end_run_on_fault()
+    def _raise_memory_fault(self, address, access_type):
+        """From a Unicorn hook: raise the access violation of an access to unmapped memory."""
+        pc = address if access_type == "fetch" else self.get_pc()
+        exception = cpu_exceptions.memory_fault(pc, address, access_type)
+        self.raise_cpu_exception(exception, f"invalid_{access_type}", access_type=access_type)
+        return False
 
     def raise_cpu_exception(self, exception, error_type, **details):
         """From a Unicorn hook: stop and dispatch exception once native execution unwinds."""
@@ -2216,7 +2195,7 @@ class WindowsEmulator(BinaryEmulator):
             interrupt_num=pending.interrupt_num,
         )
         dispatch = self.config.exceptions.dispatch_handlers
-        if dispatch and self.dispatch_seh(faulting_address, pending.access_type, exception, error):
+        if dispatch and self.dispatch_seh(faulting_address, exception, error):
             return
         guest_callbacks.fail(self, error)
 
@@ -2349,18 +2328,7 @@ class WindowsEmulator(BinaryEmulator):
         if self._pending.control == PendingControl.FAULT_RETURN or self._pending_fault_stop is not None:
             return False
 
-        # Are there any SEH handlers registered?
-        if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(address, "fetch")
-            if rv:
-                return True
-
-        self._map_fault_page(address)
-
-        error = self.get_error_info("invalid_fetch", address, access_type="fetch")
-        self.curr_run.error = error  # type: ignore[union-attr]
-        self.end_run_on_fault()
-        return True
+        return self._raise_memory_fault(address, "fetch")
 
     def _resolve_module_offset(self, addr: int) -> str | None:
         """Return 'module+0xoffset' string for an address inside a loaded module, or None."""
@@ -3066,7 +3034,6 @@ class WindowsEmulator(BinaryEmulator):
             elif access == common.INVAL_PERM_MEM_READ and not self.is_kernel_mode:
                 return self._raise_protection_fault(address, "read")
             elif access == common.INVALID_MEM_WRITE:
-                self._map_fault_page(address)
                 return self._handle_invalid_write(emu, address, size, value)
             elif access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value)
@@ -3082,13 +3049,8 @@ class WindowsEmulator(BinaryEmulator):
         if not self.is_kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
             return self._raise_protection_fault(address, "write")
 
-        fakeout = address & 0xFFFFFFFFFFFFF000
-        self.mem_map(self.page_size, base=fakeout)
-
         error = self.get_error_info("invalid_protect_write", address, access_type="write")
         self.curr_run.error = error  # type: ignore[union-attr]
-
-        self.tmp_maps.append((fakeout, self.page_size))
         self.end_run_on_fault()
         return True
 
@@ -3243,16 +3205,7 @@ class WindowsEmulator(BinaryEmulator):
             self._map_reserved_range()
             return True
 
-        if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(address, "read")
-            if rv:
-                return True
-        self._map_fault_page(address)
-
-        error = self.get_error_info("invalid_read", address, access_type="read")
-        self.curr_run.error = error  # type: ignore[union-attr]
-        self.end_run_on_fault()
-        return True
+        return self._raise_memory_fault(address, "read")
 
     def _handle_prot_fetch(self, emu, address, size, value):
         """
@@ -3289,22 +3242,15 @@ class WindowsEmulator(BinaryEmulator):
         """
         # ignore patches to APIs
         if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
+            self._map_reserved_range()
             return True
 
-        if self.config.exceptions.dispatch_handlers:
-            rv = self.dispatch_seh(address, "write")
-            if rv:
-                return True
-
-        error = self.get_error_info("invalid_write", address, access_type="write")
-        self.curr_run.error = error  # type: ignore[union-attr]
-        self.end_run_on_fault()
-        return True
+        return self._raise_memory_fault(address, "write")
 
     def _hook_code_deferred_work(self, emu, addr, size):
         """
         Code hook that runs at the next instruction after an API call, a fault or a request to end the run.
-        It ends the run if it is complete, unmaps temporary fault pages, and unmaps the reserved range.
+        It ends the run if it is complete and unmaps the reserved range.
         It disables itself when it has no more work.
         """
         try:
@@ -3318,19 +3264,6 @@ class WindowsEmulator(BinaryEmulator):
                 self._seh_last_fault = None
                 self._seh_repeat_count = 0
                 self._seh_resume_pc = None
-
-            if self.tmp_maps:
-                for base, size in self.tmp_maps:
-                    try:
-                        self.mem_unmap(base, size)
-                    except Exception:
-                        if self._seh_resume_pc is None:
-                            self.disable_deferred_work_hook()
-                        return True
-                    mapping = self.get_address_map(base)
-                    if mapping is not None and mapping.base == base:
-                        self.maps.remove(mapping)
-                self.tmp_maps = []
 
             self._unmap_reserved_range()
             if self._seh_resume_pc is None:
@@ -3618,34 +3551,10 @@ class WindowsEmulator(BinaryEmulator):
                 stack_trace=self.get_stack_trace(),
             )
 
-    def _map_fault_page(self, address):
-        """
-        Map the page of a faulting address until the next instruction, so that Unicorn can
-        complete the access. Return whether the page is mapped at that address.
-        """
-        page = address & ~(self.page_size - 1)
-        if self.get_reserve_map(page) is None:
-            base = self.mem_map(self.page_size, base=page)
-        else:
-            # The memory manager does not map into a reservation, so map the page in the engine
-            self.emu_eng.mem_map(page, self.page_size)
-            base = page
-        self.tmp_maps.append((base, self.page_size))
-        return base == page
-
-    def _map_faulting_page_for_exception(self, faulting_address):
-        fakeout = faulting_address & 0xFFFFFFFFFFFFF000
-        if self.api_registry.overlaps_traps(fakeout, self.page_size):
-            return True
-        for base, end, _ in self.get_mem_regions():
-            if base <= fakeout <= end:
-                return True
-        return self._map_fault_page(faulting_address)
-
     _SEH_MAX_REPEAT = 4
 
-    def dispatch_seh(self, faulting_address, access_type, exception=None, error=None):
-        """Dispatch exception, by default an access violation; return whether a handler takes it."""
+    def dispatch_seh(self, faulting_address, exception, error):
+        """Dispatch exception to the guest handlers. Return whether a handler takes it."""
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3656,13 +3565,7 @@ class WindowsEmulator(BinaryEmulator):
             self._seh_last_fault = fault_key
             self._seh_repeat_count = 1
 
-        if exception is None:
-            exception = cpu_exceptions.memory_fault(self.get_pc(), faulting_address, access_type)
-        rv = self.exception_dispatcher().dispatch_fault(self, exception, error)
-        if rv and faulting_address is not None:
-            rv = self._map_faulting_page_for_exception(faulting_address)
-
-        return rv
+        return self.exception_dispatcher().dispatch_fault(self, exception, error)
 
     @property
     def active_api_frame(self) -> GuestCallbackFrame | None:

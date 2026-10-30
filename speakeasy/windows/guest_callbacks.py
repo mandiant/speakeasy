@@ -140,7 +140,6 @@ def resume(emu, frame: GuestCallbackFrame) -> None:
 def fail(emu, e: CallbackError) -> None:
     """End the run with the error e describes."""
     run = emu.get_current_run()
-    run.guest_callbacks.clear()
     if e.pc is not None:
         emu.set_pc(e.pc)
     run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type)
