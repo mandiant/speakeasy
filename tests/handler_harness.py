@@ -57,9 +57,7 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
     """
     emu = se.emu
     assert emu is not None and emu.api is not None
-    mod, func_attrs = emu.api.get_export_func_handler(dll, name)
-    if not func_attrs:
-        mod, func_attrs = emu.normalize_import_miss(dll, name)
+    mod, func_attrs = emu.get_api_handler(dll, name)
     _, func, argc, conv, _ = func_attrs
     if argc == e_arch.VAR_ARGS:
         emu.set_func_args(emu.stack_base, 0, *argv, conv=conv)

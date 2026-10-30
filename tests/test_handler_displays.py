@@ -27,7 +27,7 @@ def test_find_resource_ex_names_match_params(dll_emu: Speakeasy) -> None:
 def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
     assert emu is not None
-    k32, _ = emu.normalize_import_miss("kernel32", "FindResourceA")
+    k32, _ = emu.get_api_handler("kernel32", "FindResourceA")
     addr = alloc(dll_emu, b"MYNAME\x00")
     assert addr >> 24
     assert k32.normalize_res_identifier(emu, 1, addr) == "MYNAME"
@@ -37,7 +37,7 @@ def test_resource_name_above_16mb_is_a_string(dll_emu: Speakeasy) -> None:
 def test_resource_name_with_bad_ordinal_stays_a_string(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
     assert emu is not None
-    k32, _ = emu.normalize_import_miss("kernel32", "FindResourceA")
+    k32, _ = emu.get_api_handler("kernel32", "FindResourceA")
     assert k32.normalize_res_identifier(emu, 1, alloc(dll_emu, b"#abc\x00")) == "#abc"
     assert k32.normalize_res_identifier(emu, 1, alloc(dll_emu, b"#101\x00")) == 101
     assert k32.normalize_res_identifier(emu, 1, alloc(dll_emu, b"\x00")) == ""

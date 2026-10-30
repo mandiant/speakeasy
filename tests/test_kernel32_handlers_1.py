@@ -930,7 +930,7 @@ def test_is_processor_feature_present_knows_unlisted_features(dll_emu: Speakeasy
 def test_get_tick_count64_sets_the_high_half_on_x86(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
     assert emu is not None
-    k32, _ = emu.normalize_import_miss("kernel32", "GetTickCount64")
+    k32, _ = emu.get_api_handler("kernel32", "GetTickCount64")
     k32.tick_counter = 0x1_0000_0000
     emu.reg_write(e_arch.X86_REG_EDX, 0xDEADBEEF)
     rv, _ = call(dll_emu, "kernel32", "GetTickCount64", [])

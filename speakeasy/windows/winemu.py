@@ -22,6 +22,7 @@ import pefile
 import unicorn as uc
 
 import speakeasy.common as common
+import speakeasy.windows.api_resolution as api_resolution
 import speakeasy.windows.common as winemu
 import speakeasy.windows.cpu_exceptions as cpu_exceptions
 import speakeasy.windows.guest_callbacks as guest_callbacks
@@ -1049,9 +1050,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         # A missing ABI remains a suspended call under the debugger.
         if debugger is not None:
-            mod, attrs = self.api.get_export_func_handler(entry.dll, entry.name)
-            if not attrs:
-                mod, attrs = self.normalize_import_miss(entry.dll, entry.name)
+            mod, attrs = self.get_api_handler(entry.dll, entry.name)
             if (
                 not attrs
                 and not self.get_api_hooks(entry.dll, entry.name)
@@ -2609,65 +2608,17 @@ class WindowsEmulator(BinaryEmulator):
             traceback=traceback,
         )
 
-    def normalize_import_miss(self, dll, name):
+    def get_api_handler(self, dll: str, name: str) -> tuple[Any, Any]:
         """
-        This function attempts to fold as many function handlers together as possible.
-        For example, ntdll functions will be handled by the ntoskrnl handlers, multiple versions
-        of the C runtime are folded together, and Zw/Nt functions use the same handler.
+        Get the module and attributes of the handler for dll!name. If there is no
+        handler for the name, try the names from get_handler_candidates. Return
+        (None, None) if no handler is found.
         """
-        alt_imp_api = ""
-        alt_imp_dll = ""
-        mod, func_attrs = None, None
-
-        # Handle ANSI vs UNICODE functions
-        if name.endswith("A") or name.endswith("W"):
-            alt_imp_api = name[:-1]
-
-        # The private CRT exports _o_ copies of public CRT functions
-        if name.startswith("_o_"):
-            alt_imp_api = name[3:]
-
-        # Handle Zw*/Nt* function overlap
-        if dll.lower().startswith("ntoskrnl"):
-            if name.startswith("Zw"):
-                alt_imp_api = f"Nt{name[2:]}"
-            elif name.startswith("Nt"):
-                name = "Zw" + name[2:]
-                alt_imp_api = f"Zw{name[2:]}"
-
-        alt_imp_dll = winemu.normalize_dll_name(dll)
-
-        # Bridge ntdll funcs to ntoskrnl if supported
-        if dll.lower().startswith("ntdll"):
-            alt_imp_dll = "ntoskrnl"
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
-            if not func_attrs:
-                if name.startswith("Zw"):
-                    alt_imp_api = f"Nt{name[2:]}"
-                elif name.startswith("Nt"):
-                    name = "Zw" + name[2:]
-                    alt_imp_api = f"Zw{name[2:]}"
-                mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
-            # ntdll also exports a subset of the C runtime
-            if not func_attrs:
-                mod, func_attrs = self.api.get_export_func_handler("msvcrt", name)  # type: ignore[union-attr]
-            return mod, func_attrs
-
-        if alt_imp_api:
-            mod, func_attrs = self.api.get_export_func_handler(dll, alt_imp_api)  # type: ignore[union-attr]
-        if not func_attrs and alt_imp_dll:
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, name)  # type: ignore[union-attr]
-        if not func_attrs and alt_imp_dll and alt_imp_api:
-            mod, func_attrs = self.api.get_export_func_handler(alt_imp_dll, alt_imp_api)  # type: ignore[union-attr]
-        if not func_attrs and alt_imp_dll.lower() == "kernel32" and name.startswith("Reg"):
-            for func in (name, alt_imp_api):
-                if func and not func_attrs:
-                    mod, func_attrs = self.api.get_export_func_handler("advapi32", func)  # type: ignore[union-attr]
-        if not func_attrs and alt_imp_dll.lower() == "kernel32" and name.startswith("K32"):
-            for func in (name[3:], alt_imp_api[3:]):
-                if func and not func_attrs:
-                    mod, func_attrs = self.api.get_export_func_handler("psapi", func)  # type: ignore[union-attr]
-        return mod, func_attrs
+        for cand_dll, cand_name in ((dll, name), *api_resolution.get_handler_candidates(dll, name)):
+            mod, func_attrs = self.api.get_export_func_handler(cand_dll, cand_name)  # type: ignore[union-attr]
+            if func_attrs:
+                return mod, func_attrs
+        return None, None
 
     def read_unicode_string(self, addr):
         """
@@ -2938,9 +2889,7 @@ class WindowsEmulator(BinaryEmulator):
         osp = self.get_stack_ptr()
         origin_run = self.curr_run
         call_pc = self.prev_pc if self.prev_pc != 0 else oret
-        mod, func_attrs = self.api.get_export_func_handler(dll, name)  # type: ignore[union-attr]
-        if not func_attrs:
-            mod, func_attrs = self.normalize_import_miss(dll, name)
+        mod, func_attrs = self.get_api_handler(dll, name)
 
         if func_attrs:
             handler_name, func, argc, conv, ordinal = func_attrs
