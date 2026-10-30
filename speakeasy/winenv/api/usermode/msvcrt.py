@@ -4608,6 +4608,17 @@ class Msvcrt(api.ApiHandler):
         self.new_mode = mode & 0xFFFFFFFF
         return rv
 
+    @apihook("_callnewh", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _callnewh(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _callnewh(
+            size_t size
+        );
+
+        No new handler is installed, so the allocation fails.
+        """
+        return 0
+
     @apihook("_configthreadlocale", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configthreadlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """int _configthreadlocale(int per_thread_locale_type);"""
