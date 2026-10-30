@@ -416,8 +416,7 @@ class Win32Emulator(WindowsEmulator):
             addresses += [process.peb_ldr_data.address] + [entry.address for entry in process.ldr_entries]
         addresses += [m.base for m in self.maps if m.process is process and (m.tag or "").startswith("api.heap")]
         process.is_peb_active = False
-        process.ldr_entries.clear()
-        process._peb_modules.clear()
+        process.remove_all_modules_from_peb()
         for address in addresses:
             self.mem_free(address)
 
@@ -572,7 +571,7 @@ class Win32Emulator(WindowsEmulator):
         CORE_ORDER = {"ntdll": 0, "kernel32": 1, "kernelbase": 2}
         mods = self.get_peb_modules()
         proc = proc or self.get_current_process()
-        attached = set(proc._peb_modules) if proc is not None else set()
+        attached = set(proc.peb_modules) if proc is not None else set()
         exe_mods = []
         core_mods = []
         other_mods = []

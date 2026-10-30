@@ -53,12 +53,12 @@ def loader_bases(proc):
 def assert_process_rings(proc):
     main_base = proc.pe.base if proc.pe is not None else proc.base
     bases = loader_bases(proc)
-    if main_base in proc._peb_modules and proc._peb_modules[main_base].is_exe():
+    if main_base in proc.peb_modules and proc.peb_modules[main_base].is_exe():
         assert bases[0] == main_base, "Process main executable must lead the loader lists"
-    assert all(base == main_base or not proc._peb_modules[base].is_exe() for base in bases), (
+    assert all(base == main_base or not proc.peb_modules[base].is_exe() for base in bases), (
         "Process loader lists contain a foreign executable"
     )
-    init_bases = [base for base in bases if base != main_base or not proc._peb_modules[base].is_exe()]
+    init_bases = [base for base in bases if base != main_base or not proc.peb_modules[base].is_exe()]
     assert_rings(proc, bases, init_bases)
     for base in bases:
         assert proc.emu.mem_read(base, 2) == b"MZ"

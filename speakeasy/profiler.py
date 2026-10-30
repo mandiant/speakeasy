@@ -69,6 +69,7 @@ from speakeasy.report import (
     StringsReport,
     SymAccessReport,
 )
+from speakeasy.windows.loaders import InitRoutine
 
 
 class MemAccess:
@@ -96,12 +97,12 @@ class GuestCallbackFrame:
     function: int = 0
     pending: list[tuple[int, tuple[int, ...]]] = field(default_factory=list)
     result: int | None = None
-    initializers: dict[int, tuple[Any, bool, bool, int]] = field(default_factory=dict)
+    initializers: dict[int, InitRoutine] = field(default_factory=dict)
     failure_result: int = 0
     failure_writes: list[tuple[int, bytes]] = field(default_factory=list)
     event: ApiEvent | None = None
     created_modules: list[Any] = field(default_factory=list)
-    loader_attachments: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
+    peb_module_snapshot: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
     # Set while a generator handler (speakeasy.windows.guest_callbacks) runs on this frame
     handler: Any = None
     # (register, value) pairs of the nonvolatile registers when the first guest call starts
@@ -119,7 +120,7 @@ class Run:
         self.instr_cnt: int = 0
         self.execution_elapsed: float = 0.0
         self.budget_instructions: int = 0
-        self.guest_initialization: tuple[Any, bool, bool, int] | None = None
+        self.guest_initialization: InitRoutine | None = None
         self.ret_val: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}

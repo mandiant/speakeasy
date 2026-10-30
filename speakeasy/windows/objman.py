@@ -2,6 +2,8 @@
 
 import ntpath
 import os
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
 import speakeasy.windows.thread_context as thread_context
@@ -551,6 +553,15 @@ class Process(KernelObject):
     def get_ep(self):
         if self.pe:
             return self.pe.get_ep()
+
+    @property
+    def peb_modules(self) -> Mapping[int, Any]:
+        """The modules in the loader lists of this process, by base address."""
+        return MappingProxyType(self._peb_modules)
+
+    def remove_all_modules_from_peb(self):
+        self.ldr_entries.clear()
+        self._peb_modules.clear()
 
     def add_module_to_peb(self, module):
         # One loader entry per mapped image in this process. _peb_modules
