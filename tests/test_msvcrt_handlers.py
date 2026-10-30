@@ -137,24 +137,34 @@ def test_strncat_appends_at_most_count_bytes(dll_emu: Speakeasy, count: int, res
 @pytest.mark.parametrize(
     "size, src, count, rv, result",
     [
-        (16, b"cdef", 2, 0, b"abcd"),
-        (16, b"cd", 5, 0, b"abcd"),
-        (16, b"cdef", None, 0, b"abcdef"),
-        (5, b"cdef", None, STRUNCATE, b"abcd"),
-        (5, b"cdef", 3, ERANGE, b""),
+        (16, "cdef", 2, 0, "abcd"),
+        (16, "cd", 5, 0, "abcd"),
+        (16, "cdef", None, 0, "abcdef"),
+        (5, "cdef", None, STRUNCATE, "abcd"),
+        (5, "cdef", 3, ERANGE, ""),
     ],
 )
+@pytest.mark.parametrize("api, encoding", [("strncat_s", "latin-1"), ("wcsncat_s", "utf-16le")])
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_strncat_s_appends_within_buffer(
-    request: pytest.FixtureRequest, emu_name: str, size: int, src: bytes, count: int | None, rv: int, result: bytes
+    request: pytest.FixtureRequest,
+    emu_name: str,
+    api: str,
+    encoding: str,
+    size: int,
+    src: str,
+    count: int | None,
+    rv: int,
+    result: str,
 ) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
     assert se.emu is not None
     if count is None:
         count = (1 << (8 * se.emu.get_ptr_size())) - 1
-    dest = alloc(se, b"ab\x00" + b"\xcc" * 13)
-    assert call(se, "msvcrt", "strncat_s", [dest, size, alloc(se, src + b"\x00"), count])[0] == rv
-    assert se.mem_read(dest, len(result) + 1) == result + b"\x00"
+    dest = alloc(se, "ab\0".encode(encoding) + b"\xcc" * 26)
+    assert call(se, "msvcrt", api, [dest, size, alloc(se, (src + "\0").encode(encoding)), count])[0] == rv
+    expected = (result + "\0").encode(encoding)
+    assert se.mem_read(dest, len(expected)) == expected
 
 
 @pytest.mark.parametrize(

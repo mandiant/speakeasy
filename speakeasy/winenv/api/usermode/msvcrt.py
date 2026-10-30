@@ -1313,28 +1313,45 @@ class Msvcrt(api.ApiHandler):
            size_t count
         );
         """
-        strDest, num, src, count = argv
+        return self.append_n_s(ctx, argv, 1)
 
+    @apihook("wcsncat_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def wcsncat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcsncat_s(
+           wchar_t *strDest,
+           size_t numberOfElements,
+           const wchar_t *strSource,
+           size_t count
+        );
+        """
+        return self.append_n_s(ctx, argv, 2)
+
+    def append_n_s(self, ctx, argv, width):
+        """Append at most ``count`` characters of ``src`` to ``dest`` as strncat_s and wcsncat_s do."""
+        dest, num, src, count = argv
         is_truncated = count == self.get_max_int()
+        encoding = "utf-8" if width == 1 else "utf-16le"
+        nul = b"\x00" * width
 
-        s1 = self.read_cstr(strDest)
-        s2 = self.read_cstr(src, max_chars=0 if is_truncated else count) if count else b""
-        ctx.args[0].display = s1.decode("utf-8", "ignore")
-        ctx.args[2].display = s2.decode("utf-8", "ignore")
+        s1 = self.read_cstr(dest, width=width)
+        s2 = self.read_cstr(src, max_chars=0 if is_truncated else count, width=width) if count else b""
+        ctx.args[0].display = s1.decode(encoding, "ignore")
+        ctx.args[2].display = s2.decode(encoding, "ignore")
 
-        rem = num - len(s1)
+        rem = num - len(s1) // width
         if rem <= 0:
             return EINVAL
 
-        if len(s2) < rem:
-            self.mem_write(strDest + len(s1), s2 + b"\x00")
+        if len(s2) // width < rem:
+            self.mem_write(dest + len(s1), s2 + nul)
             return 0
 
         if is_truncated:
-            self.mem_write(strDest + len(s1), s2[: rem - 1] + b"\x00")
+            self.mem_write(dest + len(s1), s2[: (rem - 1) * width] + nul)
             return STRUNCATE
 
-        self.mem_write(strDest, b"\x00")
+        self.mem_write(dest, nul)
         return ERANGE
 
     @apihook("__stdio_common_vfprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
