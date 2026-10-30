@@ -121,6 +121,23 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(ptr, self.get_bytes(mdl))
         return ptr
 
+    def _append_to_unicode_string(self, dest_addr: int, data: bytes) -> int:
+        """
+        Append ``data`` to the UNICODE_STRING at ``dest_addr``, and end the
+        buffer with a NUL when there is room.
+        """
+        dest = self.mem_cast(self.win.UNICODE_STRING(self.emu.get_ptr_size()), dest_addr)
+        if not data:
+            return ddk.STATUS_SUCCESS
+        if dest.Length + len(data) > dest.MaximumLength:
+            return ddk.STATUS_BUFFER_TOO_SMALL
+        self.mem_write(dest.Buffer + dest.Length, data)
+        dest.Length += len(data)
+        if dest.Length + 2 <= dest.MaximumLength:
+            self.mem_write(dest.Buffer + dest.Length, b"\x00\x00")
+        self.mem_write(dest_addr, self.get_bytes(dest))
+        return ddk.STATUS_SUCCESS
+
     def _write_counted_string(self, string, buf, count, width):
         """
         Write at most ``count`` characters of ``string`` the way _snprintf
@@ -3839,3 +3856,104 @@ class Ntoskrnl(api.ApiHandler):
 
         ctx.args[0].display = hex(code)
         return irp.address
+
+    @apihook("ProbeForRead", argc=3)
+    def ProbeForRead(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void ProbeForRead(
+            const volatile VOID *Address,
+            SIZE_T              Length,
+            ULONG               Alignment
+        );
+        """
+        return
+
+    @apihook("ProbeForWrite", argc=3)
+    def ProbeForWrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void ProbeForWrite(
+            volatile VOID *Address,
+            SIZE_T        Length,
+            ULONG         Alignment
+        );
+        """
+        return
+
+    @apihook("MmMapIoSpace", argc=4)
+    def MmMapIoSpace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PVOID MmMapIoSpace(
+            PHYSICAL_ADDRESS    PhysicalAddress,
+            SIZE_T              NumberOfBytes,
+            MEMORY_CACHING_TYPE CacheType
+        );
+
+        PhysicalAddress is passed by value: two stack slots on x86, one
+        register on x64. argc=4 covers the x86 layout.
+        """
+        if emu.get_ptr_size() == 4:
+            lo, hi, size, _cache = argv
+            phys = hi << 32 | lo
+        else:
+            phys, size, _cache = argv[:3]
+        if not size:
+            return 0
+
+        offset = phys & 0xFFF
+        base = self.mem_alloc((offset + size + 0xFFF) & ~0xFFF, tag=f"api.MmMapIoSpace.0x{phys:x}")
+        ctx.args[0].display = hex(phys)
+        return base + offset
+
+    @apihook("MmUnmapIoSpace", argc=2)
+    def MmUnmapIoSpace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void MmUnmapIoSpace(
+            PVOID  BaseAddress,
+            SIZE_T NumberOfBytes
+        );
+        """
+        base, _size = argv
+        if base:
+            self.mem_free(base)
+
+    @apihook("_wcsnset", argc=3, conv=_arch.CALL_CONV_CDECL)
+    def _wcsnset(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *_wcsnset(
+            wchar_t *str,
+            wchar_t c,
+            size_t count
+        );
+        """
+        string, c, count = argv
+        n = min(self.mem_string_len(string, 2), count)
+        self.mem_write(string, (c & 0xFFFF).to_bytes(2, "little") * n)
+        return string
+
+    @apihook("RtlAppendUnicodeToString", argc=2)
+    def RtlAppendUnicodeToString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlAppendUnicodeToString(
+            PUNICODE_STRING Destination,
+            PCWSTR          Source
+        );
+        """
+        dest, src = argv
+        if not src:
+            return ddk.STATUS_SUCCESS
+        ctx.args["Source"].display = self.read_wide_string(src)
+        return self._append_to_unicode_string(dest, self.mem_read(src, self.mem_string_len(src, 2) * 2))
+
+    @apihook("RtlAppendUnicodeStringToString", argc=2)
+    def RtlAppendUnicodeStringToString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS RtlAppendUnicodeStringToString(
+            PUNICODE_STRING  Destination,
+            PCUNICODE_STRING Source
+        );
+        """
+        dest, src = argv
+        us = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), src)
+        data = self.mem_read(us.Buffer, us.Length) if us.Buffer and us.Length else b""
+        ctx.args["Source"].display = data.decode("utf-16le", "replace")
+        return self._append_to_unicode_string(dest, data)

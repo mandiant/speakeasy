@@ -15,6 +15,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
 from tests.handler_harness import alloc, call
+from tests.test_ntoskrnl_handlers import CDECL, STDCALL, call_x86
 
 SOFTWARE_KEY = "\\Registry\\Machine\\Software\\Contoso"
 IOCTL_BUFFERED = 0x222000
@@ -265,3 +266,69 @@ def test_iof_call_driver_completes_the_caller_io_status_block(any_driver_emu: Sp
     )
     assert call(se, "ntoskrnl", "IofCallDriver", [0x7000, irp_addr])[0] == ddk.STATUS_SUCCESS
     assert se.mem_read(iosb, 2 * _ptr_size(se)) == b"\x00" * 2 * _ptr_size(se)
+
+
+def test_x86_mm_map_io_space_reads_the_64_bit_physical_address(driver_emu: Speakeasy) -> None:
+    va, left = call_x86(driver_emu, "MmMapIoSpace", [0xFEC00010, 0, 0x20, 0], STDCALL)
+    assert left == 0
+    assert va & 0xFFF == 0x10
+    assert driver_emu.mem_read(va, 0x20) == b"\x00" * 0x20
+
+
+def test_x64_mm_map_io_space_maps_writable_memory_until_unmapped(driver64_emu: Speakeasy) -> None:
+    se = driver64_emu
+    assert se.emu is not None
+    va, _ = call(se, "ntoskrnl", "MmMapIoSpace", [0x1_0000_2000, 0x1800, 0, 0])
+    assert va & 0xFFF == 0
+    se.mem_write(va + 0x17FF, b"\x41")
+    assert se.mem_read(va + 0x17FF, 1) == b"\x41"
+    call(se, "ntoskrnl", "MmUnmapIoSpace", [va, 0x1800])
+    assert se.emu.get_address_map(va) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "count", "expected"),
+    [("abcdef", 3, "xxxdef"), ("abc", 10, "xxx"), ("abc", 0, "abc")],
+)
+def test_x86_wcsnset_sets_at_most_count_characters(driver_emu: Speakeasy, text: str, count: int, expected: str) -> None:
+    buf = alloc(driver_emu, (text + "\x00!").encode("utf-16le"))
+    rv, left = call_x86(driver_emu, "_wcsnset", [buf, ord("x"), count], CDECL)
+    assert rv == buf
+    assert left == 12
+    assert driver_emu.mem_read(buf, 2 * (len(text) + 2)).decode("utf-16le") == expected + "\x00!"
+
+
+@pytest.mark.parametrize(
+    ("source", "max_chars", "status", "expected"),
+    [
+        ("cd", 8, ddk.STATUS_SUCCESS, "abcd"),
+        ("cd", 4, ddk.STATUS_SUCCESS, "abcd"),
+        ("cde", 4, ddk.STATUS_BUFFER_TOO_SMALL, "ab"),
+        (None, 4, ddk.STATUS_SUCCESS, "ab"),
+    ],
+)
+def test_rtl_append_unicode_to_string_appends_within_the_maximum_length(
+    any_driver_emu: Speakeasy, source: str | None, max_chars: int, status: int, expected: str
+) -> None:
+    se = any_driver_emu
+    dest = _unicode_string(se, "ab", max_chars=max_chars)
+    src = alloc(se, (source + "\x00").encode("utf-16le")) if source is not None else 0
+    rv, _ = call(se, "ntoskrnl", "RtlAppendUnicodeToString", [dest, src])
+    assert rv == status
+    assert _read_unicode_string(se, dest) == (expected, 2 * len(expected), 2 * max_chars)
+
+
+def test_rtl_append_unicode_to_string_ends_the_buffer_when_there_is_room(driver_emu: Speakeasy) -> None:
+    dest = _unicode_string(driver_emu, "ab", max_chars=8)
+    buf = _read_ptr(driver_emu, dest + 4)
+    driver_emu.mem_write(buf + 4, "!!!!!!".encode("utf-16le"))
+    call(driver_emu, "ntoskrnl", "RtlAppendUnicodeToString", [dest, alloc(driver_emu, "cd\x00".encode("utf-16le"))])
+    assert driver_emu.mem_read(buf, 12).decode("utf-16le") == "abcd\x00!"
+
+
+def test_rtl_append_unicode_string_to_string_appends_the_source(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    dest = _unicode_string(se, "ab", max_chars=4)
+    rv, _ = call(se, "ntoskrnl", "RtlAppendUnicodeStringToString", [dest, _unicode_string(se, "cd")])
+    assert rv == ddk.STATUS_SUCCESS
+    assert _read_unicode_string(se, dest) == ("abcd", 8, 8)
