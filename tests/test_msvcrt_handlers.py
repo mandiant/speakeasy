@@ -813,6 +813,30 @@ def test_stat_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_b
         assert int.from_bytes(se.mem_read(errno_ptr, 4), "little") == ENOENT
 
 
+@pytest.mark.parametrize("emu_name, name_offset, length", [("dll_emu", 20, 280), ("dll64_emu", 36, 296)])
+def test_findfirst_and_findnext_list_the_matching_files(
+    request: pytest.FixtureRequest, emu_name: str, name_offset: int, length: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    buf = alloc(se, b"\xcc" * (length + 8))
+    spec = alloc(se, b"c:\\windows\\system32\\*.exe\x00")
+
+    handle, _ = call(se, "msvcrt", "_findfirst", [spec, buf])
+    assert handle not in (0, -1)
+    names = []
+    while True:
+        data = se.mem_read(buf, length + 8)
+        assert struct.unpack_from("<I", data)[0] == 0
+        assert data[length:] == b"\xcc" * 8
+        names.append(data[name_offset:].split(b"\x00")[0])
+        if call(se, "msvcrt", "_findnext", [handle, buf])[0] != 0:
+            break
+    assert get_errno(se) == ENOENT
+    assert sorted(names) == [b"cmd.exe", b"svchost.exe"]
+    assert call(se, "msvcrt", "_findclose", [handle])[0] == 0
+    assert call(se, "msvcrt", "_findnext", [handle, buf])[0] == -1
+
+
 @pytest.mark.parametrize("api, enc", [("_unlink", "latin-1"), ("_wunlink", "utf-16le"), ("remove", "latin-1")])
 def test_unlink_deletes_a_written_file(dll_emu: Speakeasy, api: str, enc: str) -> None:
     name = "c:\\users\\public\\drop.bin"
