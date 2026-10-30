@@ -13,7 +13,7 @@ from tests.guest_harness import Deref, get_api, guest_call, read_pointer
 NSIS_INSTALLER = "0ef34c5d595dc3d165d54bf14cc994de39d4009d4ea5762e3e74385437d2a178.exe.xz"
 
 
-def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False, fault=None):
+def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False, fault=None, fault_body=None):
     base, _ = emu.get_valid_ranges(0x20000, addr=0x62000000)
     image = build_api_image(
         name="guest_dependency",
@@ -41,7 +41,7 @@ def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False, faul
             struct.pack("<I", flag) if emu.ptr_size == 4 else struct.pack("<i", flag - address - 6)
         )
         if name == fault:
-            body = b"\xa1\0\0\0\0" if emu.ptr_size == 4 else b"\x8b\x04\x25\0\0\0\0"
+            body = fault_body or (b"\xa1\0\0\0\0" if emu.ptr_size == 4 else b"\x8b\x04\x25\0\0\0\0")
         else:
             body = b"\xb8" + struct.pack("<I", value)
         code = increment + body + ret
@@ -222,12 +222,42 @@ def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch
         se.shutdown()
 
 
+@pytest.mark.parametrize(
+    "fault_body, error",
+    [(None, "invalid_read"), (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)")],
+    ids=["read", "ud2"],
+)
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
-def test_faulting_dllmain_ends_run_and_unmaps_dll(config, tmp_path, arch):
+def test_faulting_dllmain_ends_run_and_unmaps_dll(config, tmp_path, arch, fault_body, error):
     se = Speakeasy(config=native_config(config, tmp_path))
     try:
         code = se.load_shellcode(data=b"\xc3" * 0x400, arch=arch)
-        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", fault="Initializer")
+        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", fault="Initializer", fault_body=fault_body)
+        dll_name = se.mem_alloc(0x100, base=0x20000000)
+        se.mem_write(dll_name, b"guest_dependency.dll\0")
+        program = guest_call(se.get_ptr_size(), get_api(se, "kernel32", "LoadLibraryA"), dll_name)
+        se.mem_write(code, program + b"\xc3")
+
+        se.run_shellcode(code)
+
+        errors = [ep.error.type if ep.error else None for ep in se.get_report().entry_points]
+        assert errors == [error]
+        assert se.emu.get_mod_by_name("guest_dependency") is None
+        assert se.get_address_map(exports["Flag"]) is None
+    finally:
+        se.shutdown()
+
+
+def test_faulting_dllmain_with_declining_handler_unmaps_dll(config, tmp_path):
+    se = Speakeasy(config=native_config(config, tmp_path))
+    try:
+        code = se.load_shellcode(data=b"\xc3" * 0x400, arch="x86")
+        # The handler returns ExceptionContinueSearch
+        handler = code + 0x300
+        se.mem_write(handler, b"\xb8\x01\0\0\0\xc3")
+        # push handler; push fs:[0]; mov fs:[0], esp; mov eax, [0]
+        body = b"\x68" + struct.pack("<I", handler) + b"\x64\xff\x35\0\0\0\0\x64\x89\x25\0\0\0\0\xa1\0\0\0\0"
+        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", fault="Initializer", fault_body=body)
         dll_name = se.mem_alloc(0x100, base=0x20000000)
         se.mem_write(dll_name, b"guest_dependency.dll\0")
         program = guest_call(se.get_ptr_size(), get_api(se, "kernel32", "LoadLibraryA"), dll_name)
