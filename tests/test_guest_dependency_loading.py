@@ -13,7 +13,7 @@ from tests.guest_harness import Deref, get_api, guest_call, read_pointer
 NSIS_INSTALLER = "0ef34c5d595dc3d165d54bf14cc994de39d4009d4ea5762e3e74385437d2a178.exe.xz"
 
 
-def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False):
+def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False, fault=None):
     base, _ = emu.get_valid_ranges(0x20000, addr=0x62000000)
     image = build_api_image(
         name="guest_dependency",
@@ -40,7 +40,11 @@ def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False):
         increment = b"\xff\x05" + (
             struct.pack("<I", flag) if emu.ptr_size == 4 else struct.pack("<i", flag - address - 6)
         )
-        code = increment + b"\xb8" + struct.pack("<I", value) + ret
+        if name == fault:
+            body = b"\xa1\0\0\0\0" if emu.ptr_size == 4 else b"\x8b\x04\x25\0\0\0\0"
+        else:
+            body = b"\xb8" + struct.pack("<I", value)
+        code = increment + body + ret
         data[address - base : address - base + len(code)] = code
     address = exports["GetTickCount"]
     code = (
@@ -218,11 +222,41 @@ def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch
         se.shutdown()
 
 
-def test_startup_dllmain_failure_continues_startup(config, tmp_path):
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_faulting_dllmain_ends_run_and_unmaps_dll(config, tmp_path, arch):
+    se = Speakeasy(config=native_config(config, tmp_path))
+    try:
+        code = se.load_shellcode(data=b"\xc3" * 0x400, arch=arch)
+        exports = make_native_dll(se.emu, tmp_path / "guest_dependency.dll", fault="Initializer")
+        dll_name = se.mem_alloc(0x100, base=0x20000000)
+        se.mem_write(dll_name, b"guest_dependency.dll\0")
+        program = guest_call(se.get_ptr_size(), get_api(se, "kernel32", "LoadLibraryA"), dll_name)
+        se.mem_write(code, program + b"\xc3")
+
+        se.run_shellcode(code)
+
+        errors = [ep.error.type if ep.error else None for ep in se.get_report().entry_points]
+        assert errors == ["invalid_read"]
+        assert se.emu.get_mod_by_name("guest_dependency") is None
+        assert se.get_address_map(exports["Flag"]) is None
+    finally:
+        se.shutdown()
+
+
+@pytest.mark.parametrize(
+    "result, fault, first_runs, flag",
+    [
+        (0, None, [("tls_callback", None), ("dll_entry", "dll_initialization_failed")], 2),
+        (1, "Initializer", [("tls_callback", None), ("dll_entry", "invalid_read")], 2),
+        (1, "TlsCallback", [("tls_callback", "invalid_read")], 1),
+    ],
+    ids=["dllmain-false", "dllmain-fault", "tls-callback-fault"],
+)
+def test_startup_initializer_failure_continues_startup(config, tmp_path, result, fault, first_runs, flag):
     builder = Speakeasy(config=config)
     try:
         builder.load_shellcode(data=b"\xc3", arch="x86")
-        first = make_native_dll(builder.emu, tmp_path / "first.dll", result=0)
+        first = make_native_dll(builder.emu, tmp_path / "first.dll", result=result, fault=fault)
         builder.mem_alloc(0x20000, base=image_base(tmp_path / "first.dll"))
         second = make_native_dll(builder.emu, tmp_path / "second.dll")
     finally:
@@ -244,14 +278,13 @@ def test_startup_dllmain_failure_continues_startup(config, tmp_path):
 
         runs = [(ep.ep_type, ep.error.type if ep.error else None) for ep in se.get_report().entry_points]
         assert runs == [
-            ("dependency.first.tls_callback", None),
-            ("dependency.first.dll_entry", "dll_initialization_failed"),
+            *((f"dependency.first.{kind}", error) for kind, error in first_runs),
             ("dependency.second.tls_callback", None),
             ("dependency.second.dll_entry", None),
             ("shellcode", None),
         ]
         assert se.get_report().entry_points[-1].ret_val == 2
-        assert int.from_bytes(se.mem_read(first["Flag"], 4), "little") == 2
+        assert int.from_bytes(se.mem_read(first["Flag"], 4), "little") == flag
     finally:
         se.shutdown()
 
