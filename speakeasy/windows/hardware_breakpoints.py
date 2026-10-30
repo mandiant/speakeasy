@@ -38,7 +38,7 @@ class HardwareBreakpoints:
         """Hook the current thread's enabled execute breakpoints, and unhook the rest."""
         thread = self.emu.get_current_thread()
         wanted = {}
-        if thread is not None and not self.emu.kernel_mode:
+        if thread is not None and not self.emu.is_kernel_mode:
             wanted = execute_breakpoints(thread.debug_registers)
         for address in self.hooks.keys() - wanted.keys():
             self.emu.remove_code_hook(self.hooks.pop(address))

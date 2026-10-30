@@ -312,7 +312,7 @@ class WindowsEmulator(BinaryEmulator):
         self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
         self.curr_run: Run | None = None
         self.api_ctx: ApiContext = NO_CONTEXT
-        self._stop_on_faults: bool = False
+        self._should_stop_on_faults: bool = False
         self._pending_fault_stop: StopReason | None = None
         self.curr_mod: Any | None = None
         self.runs: list[Run] = []
@@ -350,7 +350,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
         self.debug_hook: Any | None = None
-        self.kernel_mode: bool = False
+        self.is_kernel_mode: bool = False
         self.virtual_mem_base: int = 0x50000
 
         # Code hook for work that must wait until the next instruction, such as the end
@@ -358,8 +358,8 @@ class WindowsEmulator(BinaryEmulator):
         self.deferred_work_hook: Any | None = None
         self.veh_handlers: list[int] = []
 
-        self.run_complete: bool = False
-        self.emu_complete: bool = False
+        self.is_run_complete: bool = False
+        self.is_emu_complete: bool = False
         self.processes: list[Any] = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
@@ -452,7 +452,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         pc = self.get_pc()
         in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
-        if not self._stop_on_faults or in_reserved:
+        if not self._should_stop_on_faults or in_reserved:
             # A fault callback still belongs to the native invocation of this
             # run. Advance only after Unicorn unwinds, even if it raises after
             # emu_stop; otherwise the old fault can overwrite the next run.
@@ -688,7 +688,7 @@ class WindowsEmulator(BinaryEmulator):
             self.on_emu_complete()
             return None
 
-        self.run_complete = False
+        self.is_run_complete = False
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
@@ -755,7 +755,7 @@ class WindowsEmulator(BinaryEmulator):
             self.set_current_process(run.process_context)
         if run.thread:
             self.set_current_thread(run.thread)
-        elif not self.kernel_mode:
+        elif not self.is_kernel_mode:
             thread = objman.Thread(self, stack_base=self.stack_base)
             self.om.objects.update({thread.address: thread})
             if self.curr_process:
@@ -764,7 +764,7 @@ class WindowsEmulator(BinaryEmulator):
             run.thread = thread
             self.set_current_thread(thread)
 
-        if not self.kernel_mode:
+        if not self.is_kernel_mode:
             # Reset the TIB data
             thread = self.get_current_thread()
             if thread:
@@ -861,7 +861,7 @@ class WindowsEmulator(BinaryEmulator):
             return debugger is not None and (debugger.has_pending_stop() or stepping)
 
         try:
-            while not self.emu_complete:
+            while not self.is_emu_complete:
                 if self.exit_event and self.exit_event.is_set():
                     self.emu_eng.stop()
                     return
@@ -883,7 +883,7 @@ class WindowsEmulator(BinaryEmulator):
                         address = self.get_pc()
                         if self._pending_fault_stop is not None or debugger_stops():
                             return
-                        if self.curr_run is not origin_run or self.emu_complete:
+                        if self.curr_run is not origin_run or self.is_emu_complete:
                             return
                         continue
                     if self._pending.trap_fault is not None:
@@ -893,7 +893,7 @@ class WindowsEmulator(BinaryEmulator):
                             return
                         continue
                     self._set_pending_at_pc()
-                if self.curr_run is not origin_run or self.emu_complete:
+                if self.curr_run is not origin_run or self.is_emu_complete:
                     return
                 entry = self._pending.api_entry
                 if debugger is not None and debugger.has_pending_stop():
@@ -905,7 +905,7 @@ class WindowsEmulator(BinaryEmulator):
                     self._stop_at_limit(reached, limits, origin_run, debugger)
                     return
                 if entry is None:
-                    if debugger is None and not self.run_complete:
+                    if debugger is None and not self.is_run_complete:
                         logger.error("0x%x: Emulation engine stopped", self.get_pc())
                         origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
                         self.on_run_complete()
@@ -1009,7 +1009,7 @@ class WindowsEmulator(BinaryEmulator):
         elapsed = time.monotonic() - limits.started
         origin_run.execution_elapsed = limits.spent + elapsed
         stopped = self.exit_event is not None and self.exit_event.is_set()
-        if stopped and debugger is None and self.curr_run is origin_run and not self.run_complete:
+        if stopped and debugger is None and self.curr_run is origin_run and not self.is_run_complete:
             if origin_run.error is None:
                 origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
             self._cancel_execution_runs()
@@ -1023,7 +1023,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._cancel_execution_runs()
                 prepared = self.curr_run
                 if prepared is origin_run:
-                    if not self.run_complete and origin_run.error is None:
+                    if not self.is_run_complete and origin_run.error is None:
                         origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
                 else:
                     # Completing the run already prepared the next one. It
@@ -1034,7 +1034,7 @@ class WindowsEmulator(BinaryEmulator):
                         if self.profiler:
                             self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
                         self.curr_run = origin_run
-                        self.run_complete = True
+                        self.is_run_complete = True
                 if debugger is not None:
                     debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
 
@@ -1068,7 +1068,7 @@ class WindowsEmulator(BinaryEmulator):
         self.handle_import_func(entry.dll, entry.name)
         if self._pending_fault_stop is not None:
             return False
-        if self.run_complete and not self.emu_complete and self.curr_run is origin_run:
+        if self.is_run_complete and not self.is_emu_complete and self.curr_run is origin_run:
             if limits.is_total_time_reached():
                 self._stop_at_limit("max_total_time", limits, origin_run, debugger)
                 return False
@@ -1183,7 +1183,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         if self.curr_run is None:
             self.curr_run = Run()
-        self.emu_complete = False
+        self.is_emu_complete = False
         timeout = 0 if self.gdb_port is not None else self.config.timeout
         self._execute_current_run(addr, timeout=timeout, count=count)
 
@@ -1197,7 +1197,7 @@ class WindowsEmulator(BinaryEmulator):
         if total_budget.exhausted:
             self._cancel_execution_runs()
             return
-        if not self.kernel_mode and self.run_queue:
+        if not self.is_kernel_mode and self.run_queue:
             initializers = self._collect_guest_initializers()
             queued = []
             for module, function, last, is_dll, pid in initializers:
@@ -1215,8 +1215,8 @@ class WindowsEmulator(BinaryEmulator):
         except IndexError:
             return
 
-        self.run_complete = False
-        self.emu_complete = False
+        self.is_run_complete = False
+        self.is_emu_complete = False
         self.set_hooks()
         self._unmap_reserved_range()
 
@@ -1255,7 +1255,7 @@ class WindowsEmulator(BinaryEmulator):
         assert total_budget is not None
         detached_resume_addr = None
         terminal_signal = 0
-        self._stop_on_faults = debugger is not None
+        self._should_stop_on_faults = debugger is not None
         self._pending_fault_stop = None
 
         if self.profiler:
@@ -1280,7 +1280,7 @@ class WindowsEmulator(BinaryEmulator):
                     break
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
-                    if stop_reason is not None and stop_reason.kind == "step" and self.emu_complete:
+                    if stop_reason is not None and stop_reason.kind == "step" and self.is_emu_complete:
                         # A step that ends emulation gets the final stop instead.
                         stop_reason = None
                     fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
@@ -1304,7 +1304,7 @@ class WindowsEmulator(BinaryEmulator):
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
-                if self.curr_run is not executing_run and not self.emu_complete:
+                if self.curr_run is not executing_run and not self.is_emu_complete:
                     continue
             except KeyboardInterrupt:
                 logger.error("* User exited.")
@@ -1367,7 +1367,7 @@ class WindowsEmulator(BinaryEmulator):
             debugger: the GDB session to send the exit reply to, if the client still waits for one.
         """
         self._cancel_execution_runs()
-        if not self.run_complete:
+        if not self.is_run_complete:
             self.on_run_complete()
         if debugger is not None:
             debugger.notify_exit(0)
@@ -1376,7 +1376,7 @@ class WindowsEmulator(BinaryEmulator):
     def _detach_debugger(self, debugger: GdbServer) -> None:
         """Close the GDB session, so that the runs continue without a debugger."""
         debugger.close()
-        self._stop_on_faults = False
+        self._should_stop_on_faults = False
 
     def get_current_run(self):
         """
@@ -1489,7 +1489,7 @@ class WindowsEmulator(BinaryEmulator):
 
         # x86 user mode uses the selectors of native 32-bit Windows: CS 0x1B, DS and ES 0x23, FS 0x3B.
         # SS stays a ring 0 selector because Unicorn runs the guest at CPL 0 and rejects an RPL 3 SS.
-        native_x86 = _arch.ARCH_X86 == arch and not self.kernel_mode
+        native_x86 = _arch.ARCH_X86 == arch and not self.is_kernel_mode
         data_index, code_index, fs_index = (4, 3, 7) if native_x86 else (16, 17, 19)
 
         gdt_addr, gdt_size = self.get_valid_ranges(GDT_SIZE)
@@ -1884,7 +1884,7 @@ class WindowsEmulator(BinaryEmulator):
             image.image_size,
             base=requested_base or None,
             tag=f"emu.module.{image.name}",
-            process=self.get_current_process() if self.kernel_mode else None,
+            process=self.get_current_process() if self.is_kernel_mode else None,
         )
         if requested_base and base != requested_base:
             raise WindowsEmuError(f"cannot map module {image.name} at {requested_base:#x}: address range is in use")
@@ -1953,7 +1953,7 @@ class WindowsEmulator(BinaryEmulator):
             raw = image.regions[0].data
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
-        if not self.kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
+        if not self.is_kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
             self._shared_peb_modules.add(mod.base)
         self._attach_module_to_current_process(mod)
         return mod
@@ -2164,7 +2164,7 @@ class WindowsEmulator(BinaryEmulator):
     def _initialize_api_data(self, entry):
         if self.bootstrap_phase < BootstrapPhase.FULL_SETUP_READY:
             return
-        if entry.dll == "ntoskrnl" and not self.kernel_mode:
+        if entry.dll == "ntoskrnl" and not self.is_kernel_mode:
             return
         if entry.initialized or entry.module._image.source != "synthetic":
             return
@@ -2329,7 +2329,7 @@ class WindowsEmulator(BinaryEmulator):
         guest_callbacks.fail(self, error)
 
     def _can_raise_api_fault(self):
-        return not self.kernel_mode and self.config.exceptions.dispatch_handlers
+        return not self.is_kernel_mode and self.config.exceptions.dispatch_handlers
 
     def _raise_api_fault(self, frame, access_type, address):
         """
@@ -2392,7 +2392,7 @@ class WindowsEmulator(BinaryEmulator):
         and `cpuid` among x86 instructions, `hlt` raises no interrupt, and a code hook on
         every instruction would slow all emulation down.
         """
-        if self.kernel_mode or not self.config.exceptions.dispatch_handlers:
+        if self.is_kernel_mode or not self.config.exceptions.dispatch_handlers:
             return False
         if self._pending.api_entry is not None or self._pending.control:
             return False
@@ -2890,7 +2890,7 @@ class WindowsEmulator(BinaryEmulator):
         ret = self.get_ret_address()
         self.log_api(call_pc, imp_api, rv, args)
         self.do_call_return(argc, ret, rv, conv=conv)
-        if not self.run_complete:
+        if not self.is_run_complete:
             self.enable_deferred_work_hook()
         return rv
 
@@ -2914,8 +2914,8 @@ class WindowsEmulator(BinaryEmulator):
             self._dispatch_import_func(dll, name, frame)
             if (
                 self.curr_run is origin_run
-                and not self.run_complete
-                and not self.emu_complete
+                and not self.is_run_complete
+                and not self.is_emu_complete
                 and self.get_pc() == entry_pc
                 and self.get_stack_ptr() != frame.stack_pointer
                 and not self._pending.control
@@ -2980,7 +2980,7 @@ class WindowsEmulator(BinaryEmulator):
                 try:
                     rv = self.api.call_api_func(mod, func, argv, ctx=ctx)  # type: ignore[union-attr]
                 except Exception as e:
-                    if self._stop_on_faults:
+                    if self._should_stop_on_faults:
                         # Let the outer GDB fault path expose the failed frame
                         # before run cleanup and report signal termination.
                         raise
@@ -3017,7 +3017,7 @@ class WindowsEmulator(BinaryEmulator):
 
             if (
                 self.curr_run is origin_run
-                and not self.run_complete
+                and not self.is_run_complete
                 and ret == oret
                 and pc == opc
                 and self.get_stack_ptr() == osp
@@ -3025,7 +3025,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.do_call_return(argc, ret, rv, conv=conv)
 
             # Deferred lifecycle/SEH work is processed before guest execution resumes.
-            if not self.run_complete:
+            if not self.is_run_complete:
                 self.enable_deferred_work_hook()
 
         else:
@@ -3058,7 +3058,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv), run=origin_run)
                 if self.curr_run is origin_run and self.get_pc() == opc and ret == oret and self.get_stack_ptr() == osp:
                     self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
-                if not self.run_complete:
+                if not self.is_run_complete:
                     self.enable_deferred_work_hook()
                 self._check_api_limit(origin_run, imp_api)
                 return
@@ -3184,7 +3184,7 @@ class WindowsEmulator(BinaryEmulator):
                 if address & ~(self.page_size - 1) in self.guard_pages:
                     return self._raise_protection_fault(address, "fetch")
                 return self._handle_prot_fetch(emu, address, size, value)
-            elif access == common.INVAL_PERM_MEM_READ and not self.kernel_mode:
+            elif access == common.INVAL_PERM_MEM_READ and not self.is_kernel_mode:
                 return self._raise_protection_fault(address, "read")
             elif access == common.INVALID_MEM_WRITE:
                 self._map_fault_page(address)
@@ -3200,7 +3200,7 @@ class WindowsEmulator(BinaryEmulator):
             # Unicorn drops a store that a protection hook handles, so do the store here.
             self.mem_write(address, (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little"))
             return True
-        if not self.kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
+        if not self.is_kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
             return self._raise_protection_fault(address, "write")
 
         fakeout = address & 0xFFFFFFFFFFFFF000
@@ -3384,7 +3384,7 @@ class WindowsEmulator(BinaryEmulator):
         # authoritative; a symbol never causes dispatch from this hook.
         module = self.get_mod_from_addr(address)
         if (
-            not self._stop_on_faults
+            not self._should_stop_on_faults
             and (module is None or module._image.source != "synthetic")
             and not self.api_registry.overlaps_traps(address)
         ):
@@ -3429,7 +3429,7 @@ class WindowsEmulator(BinaryEmulator):
         It disables itself when it has no more work.
         """
         try:
-            if addr == self.return_hook or self.run_complete:
+            if addr == self.return_hook or self.is_run_complete:
                 self.on_run_complete()
                 return False
 
@@ -3526,7 +3526,7 @@ class WindowsEmulator(BinaryEmulator):
         return None
 
     def _attach_module_to_current_process(self, module):
-        if self.kernel_mode or not module.visible_in_peb or module.is_driver():
+        if self.is_kernel_mode or not module.visible_in_peb or module.is_driver():
             return
         process = self.get_current_process()
         if process is None or not self.get_address_map(process.peb_ldr_data.address):
@@ -3561,7 +3561,7 @@ class WindowsEmulator(BinaryEmulator):
                 return 0
         self._attach_module_to_current_process(module)
         frame = self._active_api_frame
-        if frame is not None and not self.kernel_mode:
+        if frame is not None and not self.is_kernel_mode:
             # Keep the earliest snapshot for each process across reentrant loads.
             tracked = {process.id for process, _ in frame.loader_attachments}
             frame.loader_attachments.extend(item for item in original_attachments if item[0].id not in tracked)
@@ -3623,7 +3623,7 @@ class WindowsEmulator(BinaryEmulator):
         image.name = name
         image.module_type = _module_type_from_path(emu_path)
         module = self.load_image(image)
-        if image.source == "guest_pe" and module.is_dll() and not self.kernel_mode:
+        if image.source == "guest_pe" and module.is_dll() and not self.is_kernel_mode:
             module._initialization = {}
             self._guest_dependencies.append(module)
         return module
@@ -3856,7 +3856,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         self.emu_eng.clear_exception_state()
         if (
-            not self.kernel_mode
+            not self.is_kernel_mode
             and self.config.exceptions.dispatch_handlers
             and intnum not in cpu_exceptions.SYSTEM_GATES[self.get_arch()]
         ):
@@ -3895,7 +3895,7 @@ class WindowsEmulator(BinaryEmulator):
         error.interrupt_num = intnum
         self.curr_run.error = error  # type: ignore[union-attr]
 
-        if self._stop_on_faults:
+        if self._should_stop_on_faults:
             self.end_run_on_fault()
             return False
         self.on_run_complete()
