@@ -4089,6 +4089,15 @@ class Msvcrt(api.ApiHandler):
         emu.write_ptr(data, 0)
         self.mem_write(data + self.get_ptr_size(), b"\x00")
 
+    @apihook("__std_type_info_destroy_list", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def __std_type_info_destroy_list(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void __std_type_info_destroy_list(
+            __type_info_node *root_node
+        );
+        """
+        return
+
     @apihook("__CxxFrameHandler", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
