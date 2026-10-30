@@ -6437,6 +6437,29 @@ class Msvcrt(api.ApiHandler):
             if addr:
                 self.write_path_part(addr, part, width)
 
+    def split_path_s(self, ctx, path, outputs, width):
+        """
+        Split the path as _splitpath_s does. ``outputs`` has a buffer and its
+        size in characters for each part. A failure clears the buffers.
+        """
+        buffers = list(zip(outputs[::2], outputs[1::2]))
+        text = self.read_path_part(path, width)
+        if text is None or any(bool(addr) != bool(size) for addr, size in buffers):
+            rv = EINVAL
+        else:
+            ctx.args[0].display = text
+            parts = get_split_path(text)
+            if not any(addr and len(part) >= size for (addr, size), part in zip(buffers, parts)):
+                for (addr, _), part in zip(buffers, parts):
+                    if addr:
+                        self.write_path_part(addr, part, width)
+                return 0
+            rv = ERANGE
+        for addr, size in buffers:
+            if addr and size:
+                self.write_path_part(addr, "", width)
+        return rv
+
     @apihook("_makepath", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def _makepath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -6516,6 +6539,40 @@ class Msvcrt(api.ApiHandler):
         );
         """
         self.split_path(ctx, argv[0], argv[1:], 2)
+
+    @apihook("_splitpath_s", argc=9, conv=e_arch.CALL_CONV_CDECL)
+    def _splitpath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _splitpath_s(
+           const char *path,
+           char *drive,
+           size_t driveNumberOfElements,
+           char *dir,
+           size_t dirNumberOfElements,
+           char *fname,
+           size_t nameNumberOfElements,
+           char *ext,
+           size_t extNumberOfElements
+        );
+        """
+        return self.split_path_s(ctx, argv[0], argv[1:], 1)
+
+    @apihook("_wsplitpath_s", argc=9, conv=e_arch.CALL_CONV_CDECL)
+    def _wsplitpath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _wsplitpath_s(
+           const wchar_t *path,
+           wchar_t *drive,
+           size_t driveNumberOfElements,
+           wchar_t *dir,
+           size_t dirNumberOfElements,
+           wchar_t *fname,
+           size_t nameNumberOfElements,
+           wchar_t *ext,
+           size_t extNumberOfElements
+        );
+        """
+        return self.split_path_s(ctx, argv[0], argv[1:], 2)
 
     @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
