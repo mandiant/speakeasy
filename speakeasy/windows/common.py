@@ -33,6 +33,9 @@ DEFAULT_LOAD_ADDR = 0x40000
 
 PAGE_SIZE = 0x1000
 
+# The machine setup allocates memory from this base, so that the input image can use its preferred base.
+# On x86, the container image must fit between this base and TEB_ADDRESS.
+MACHINE_BASE = 0x7D000000
 # The user mode addresses of the first TEB and the first PEB in 32-bit Windows.
 # x64 uses them too, because the GS base comes from a 32-bit GDT descriptor.
 TEB_ADDRESS = 0x7FFDE000

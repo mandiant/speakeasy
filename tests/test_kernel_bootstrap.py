@@ -17,10 +17,10 @@ KUSER_X64_CANONICAL_ALIAS = 0xFFFFF78000000000
 KUSER_X64_EXEC_MIRROR = 0xFF78000000000
 
 
-def test_kernel_current_process_requires_bootstrap_phase(config):
+def test_kernel_current_process_requires_machine(config):
     emu = WinKernelEmulator(config=SpeakeasyConfig.model_validate(config))
 
-    with pytest.raises(WindowsEmuError, match="bootstrap phase"):
+    with pytest.raises(WindowsEmuError, match="object services"):
         emu.get_current_process()
 
 

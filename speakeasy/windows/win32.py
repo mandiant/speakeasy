@@ -11,6 +11,7 @@ import subprocess
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
 import speakeasy.common as common
+import speakeasy.windows.common as winemu
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 from speakeasy.errors import OutOfMemoryError, Win32EmuError, WindowsEmuError
@@ -27,7 +28,6 @@ from speakeasy.windows.loaders import (
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import WindowsEmulator
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
-from speakeasy.winenv.api.winapi import WindowsApi
 
 logger = logging.getLogger(__name__)
 
@@ -191,8 +191,7 @@ class Win32Emulator(WindowsEmulator):
 
         self._set_input_metadata(path, data)
 
-        loader = PeLoader(path=path, data=data)
-        image = loader.make_image()
+        image = self._make_image_at_free_base(lambda base: PeLoader(path=path, data=data, base_override=base), None)
         image.name = self.mod_name
         image.emu_path = emu_path
 
@@ -607,26 +606,23 @@ class Win32Emulator(WindowsEmulator):
         """
         self.unhandled_exception_filter = handler_addr
 
-    def setup(self):
+    def init_machine_structures(self, container):
         self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()
         self._setup_gdt(arch)
         self.setup_user_shared_data()
-        self.set_ptr_size(self.arch)
 
         if arch == _arch.ARCH_X86:
             self.peb_addr = self.fs_addr + 0x30
         elif arch == _arch.ARCH_AMD64:
             self.peb_addr = self.gs_addr + 0x60
 
-        self.api = WindowsApi(self)
-
         for sl in self.config.symlinks:
             self.om.add_symlink(sl.name, sl.target)
 
         self.init_sys_modules(self.config.modules.system_modules)
-        self._init_user_modules_from_config()
+        self._init_user_modules_from_config(container)
 
     def init_sys_modules(self, modules_config):
         """
@@ -665,19 +661,14 @@ class Win32Emulator(WindowsEmulator):
                 return proc
         return None
 
-    def _init_user_modules_from_config(self):
+    def _init_user_modules_from_config(self, container):
         proc_mod = None
-        for p in self.config.processes:
-            if p.is_main_exe:
-                proc_mod = p
-                break
-
-        # Setup runs while the input module loads, so it is the only module so far.
-        # An EXE input is its own process image and needs no container image.
-        if self.modules and self.modules[0].is_exe():
-            proc_mod = None
+        if container:
+            proc_mod = next((p for p in self.config.processes if p.is_main_exe), None)
 
         if proc_mod:
+            # Load the container image in the machine range, so that the input image can use its preferred base.
+            proc_mod = proc_mod.model_copy(update={"base_addr": hex(winemu.MACHINE_BASE)})
             all_user_mods = [proc_mod] + list(self.config.modules.user_modules)
         else:
             all_user_mods = list(self.config.modules.user_modules)

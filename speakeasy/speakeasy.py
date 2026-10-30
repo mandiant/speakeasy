@@ -19,8 +19,17 @@ from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
 from speakeasy.windows.common import _PeParser
 from speakeasy.windows.winemu import execution_scope
+from speakeasy.winenv import arch as _arch
 
 logger = logging.getLogger(__name__)
+
+SHELLCODE_ARCH = {
+    "x86": _arch.ARCH_X86,
+    "x64": _arch.ARCH_AMD64,
+    "amd64": _arch.ARCH_AMD64,
+    _arch.ARCH_X86: _arch.ARCH_X86,
+    _arch.ARCH_AMD64: _arch.ARCH_AMD64,
+}
 
 
 class Speakeasy:
@@ -108,8 +117,8 @@ class Speakeasy:
     def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
         """
         Based on the PE metadata, use the appropriate emulator. That is,
-        a user mode emulator vs a kernel mode emulator
-
+        a user mode emulator vs a kernel mode emulator. For a PE, also create
+        the machine for the architecture of the PE.
         """
         if not is_raw_code:
             pe = _PeParser(path=path, data=data)
@@ -138,6 +147,7 @@ class Speakeasy:
                     gdb_port=self.gdb_port,
                     gdb_host=self.gdb_host,
                 )
+            self.emu.init_machine(pe.arch, container=not pe.is_exe())
         else:
             self.emu = Win32Emulator(
                 config=self.config,
@@ -303,6 +313,8 @@ class Speakeasy:
         """
         if not self.emu:
             self._init_emulator(is_raw_code=True)
+            arch = image.arch if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) else _arch.ARCH_X86
+            self.emu.init_machine(arch, container=image.module_type != "exe")  # type: ignore[union-attr]
         self._init_hooks()
         return self.emu.load_image(image)  # type: ignore[union-attr]
 
@@ -350,6 +362,7 @@ class Speakeasy:
             Address of the loaded shellcode in the emulation space
         """
         self._init_emulator(is_raw_code=True)
+        self.emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86), container=True)  # type: ignore[union-attr]
         self.loaded_bins.append(fpath)
 
         return self.emu.load_shellcode(fpath, arch, data=data, filename=filename)  # type: ignore[no-any-return, union-attr]
