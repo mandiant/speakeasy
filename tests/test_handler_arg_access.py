@@ -52,7 +52,7 @@ def _get_accesses() -> Iterator[ArgAccess]:
 
 
 def _get_signatures(db: sigdb.SignatureDatabase, access: ArgAccess, arch: str) -> list[sigdb.FuncSig]:
-    """Signatures of the imports that ``handle_import_func`` sends to the handler."""
+    """Signatures of the imports that ``dispatch_api_call`` sends to the handler."""
     names = {access.name, access.name + "A", access.name + "W"}
     if access.mod_name.lower() == "ntoskrnl" and access.name[:2] in ("Nt", "Zw"):
         names |= {"Nt" + access.name[2:], "Zw" + access.name[2:]}
