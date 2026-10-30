@@ -1,180 +1,53 @@
-"""Test that DLL-name normalization and A/W (Zw/Nt) folding compose in get_api_handler."""
+"""Test that imports from API sets, aliases and C runtime DLLs reach a handler."""
 
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.windows.api_resolution import get_handler_candidates
-from speakeasy.windows.common import normalize_dll_name
-from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.windows.api_resolution import HandlerImplementation
 from tests.handler_harness import alloc, call
 
-SENTINEL_HANDLER = ("handler", lambda: None, 4, "stdcall", None)
 
-
-class HandlerTable:
-    """Concrete handler lookup that resolves a fixed set of (dll, func) pairs."""
-
-    def __init__(self, entries):
-        self._entries = {(d.lower(), f): SENTINEL_HANDLER for d, f in entries}
-
-    def get_export_func_handler(self, dll, name):
-        key = (dll.lower() if dll else dll, name)
-        handler = self._entries.get(key)
-        return (self, handler) if handler else (None, None)
-
-    def get_data_export_handler(self, dll, name):
-        return None, None
-
-
-class FakeEmulator:
-    """Minimal object satisfying get_api_handler's self.api contract."""
-
-    def __init__(self, handler_entries):
-        self.api = HandlerTable(handler_entries)
-
-    def get_api_handler(self, dll, name):
-        return WindowsEmulator.get_api_handler(self, dll, name)
-
-
-CANONICAL_HANDLERS = [
-    ("kernel32", "CreateProcess"),
-    ("kernel32", "LoadLibraryEx"),
-    ("kernel32", "GetModuleFileName"),
-    ("kernel32", "SetLastError"),
-    ("msvcrt", "malloc"),
-    ("ws2_32", "connect"),
-    ("ntoskrnl", "ZwCreateFile"),
-    ("ntoskrnl", "NtQueryInformationProcess"),
-]
-
-
-@pytest.fixture
-def emu():
-    return FakeEmulator(CANONICAL_HANDLERS)
-
-
-def test_normalize_dll_name_apiset_core():
-    assert normalize_dll_name("api-ms-win-core-processthreads-l1-1-1") == "kernel32"
-
-
-def test_normalize_dll_name_apiset_winrt_is_combase():
-    assert normalize_dll_name("api-ms-win-core-winrt-l1-1-0") == "combase"
-    assert normalize_dll_name("api-ms-win-core-winrt-string-l1-1-0") == "combase"
-    assert normalize_dll_name("API-MS-WIN-CORE-WINRT-ERROR-L1-1-1") == "combase"
-
-
-def test_normalize_dll_name_apiset_com_is_ole32():
-    assert normalize_dll_name("api-ms-win-core-com-l1-1-0") == "ole32"
-    assert normalize_dll_name("api-ms-win-core-com-l2-1-1") == "ole32"
-
-
-def test_normalize_dll_name_apiset_extensions():
-    assert normalize_dll_name("ext-ms-win-rtcore-ntuser-window-ext-l1-1-0") == "user32"
-    assert normalize_dll_name("ext-ms-win-ntuser-message-l1-1-1") == "user32"
-    assert normalize_dll_name("ext-ms-win-gdi-dc-l1-2-0") == "gdi32"
-    assert normalize_dll_name("ext-ms-win-rtcore-gdi-object-l1-1-0") == "gdi32"
-    assert normalize_dll_name("api-ms-win-eventing-classicprovider-l1-1-0") == "advapi32"
-    assert normalize_dll_name("ext-ms-win-shell-shell32-l1-2-0") == "ext-ms-win-shell-shell32-l1-2-0"
-    assert normalize_dll_name("api-ms-win-shell-shellfolders-l1-1-0") == "shell32"
-    assert normalize_dll_name("api-ms-win-core-shlwapi-legacy-l1-1-0") == "shlwapi"
-    assert normalize_dll_name("api-ms-win-core-shlwapi-obsolete-l1-1-0") == "shlwapi"
-
-
-def test_normalize_dll_name_crt():
-    assert normalize_dll_name("api-ms-win-crt-heap-l1-1-0") == "msvcrt"
-    assert normalize_dll_name("vcruntime140") == "msvcrt"
-    assert normalize_dll_name("ucrtbase") == "msvcrt"
-
-
-def test_normalize_dll_name_winsock():
-    assert normalize_dll_name("wsock32") == "ws2_32"
-    assert normalize_dll_name("winsock") == "ws2_32"
-
-
-def test_normalize_dll_name_no_change():
-    assert normalize_dll_name("kernel32") == "kernel32"
-    assert normalize_dll_name("ntdll") == "ntdll"
+def has_handler(se: Speakeasy, dll: str, name: str) -> bool:
+    emu = se.emu
+    assert emu is not None
+    entry = emu.api_registry.entries[emu.get_proc(dll, name)]
+    return isinstance(emu.resolve_api_implementation(entry.dll, entry.name), HandlerImplementation)
 
 
 @pytest.mark.parametrize(
-    "dll, func",
+    "dll, name",
     [
-        ("kernel32", "CreateProcess"),
         ("kernel32", "CreateProcessA"),
-        ("kernel32", "CreateProcessW"),
-        ("api-ms-win-core-processthreads-l1-1-1", "CreateProcess"),
-        ("api-ms-win-core-processthreads-l1-1-1", "CreateProcessA"),
         ("api-ms-win-core-processthreads-l1-1-1", "CreateProcessW"),
-    ],
-)
-def test_apiset_with_aw_suffix(emu, dll, func):
-    _mod, attrs = emu.get_api_handler(dll, func)
-    assert attrs is not None, f"({dll}, {func}) should resolve"
-
-
-@pytest.mark.parametrize(
-    "dll, func",
-    [
-        ("api-ms-win-core-libraryloader-l1-2-0", "LoadLibraryEx"),
-        ("api-ms-win-core-libraryloader-l1-2-0", "LoadLibraryExA"),
+        ("api-ms-win-core-processthreads-l1-1-0", "OpenProcessToken"),
         ("api-ms-win-core-libraryloader-l1-2-0", "LoadLibraryExW"),
-    ],
-)
-def test_apiset_libraryloader(emu, dll, func):
-    _mod, attrs = emu.get_api_handler(dll, func)
-    assert attrs is not None, f"({dll}, {func}) should resolve"
-
-
-@pytest.mark.parametrize(
-    "dll, func",
-    [
+        ("api-ms-win-core-libraryloader-l1-2-0", "LoadStringW"),
+        ("api-ms-win-core-registry-l1-1-0", "RegQueryValueExW"),
+        ("kernel32", "RegOpenKeyExA"),
+        ("kernel32", "K32GetModuleBaseNameA"),
+        ("api-ms-win-core-com-l1-1-0", "CoInitializeEx"),
+        ("api-ms-win-core-crt-l2-1-0", "_initterm_e"),
         ("api-ms-win-crt-heap-l1-1-0", "malloc"),
-        ("vcruntime140", "malloc"),
+        ("vcruntime140", "memset"),
         ("ucrtbase", "malloc"),
-    ],
-)
-def test_crt_normalization(emu, dll, func):
-    _mod, attrs = emu.get_api_handler(dll, func)
-    assert attrs is not None, f"({dll}, {func}) should resolve"
-
-
-@pytest.mark.parametrize(
-    "dll, func",
-    [
+        ("api-ms-win-security-base-l1-1-0", "GetTokenInformation"),
+        ("api-ms-win-core-version-l1-1-0", "VerQueryValueW"),
+        ("ext-ms-win-ntuser-message-l1-1-1", "PeekMessageW"),
+        ("ext-ms-win-session-wtsapi32-l1-1-0", "WTSFreeMemory"),
+        ("sspicli", "GetUserNameExW"),
         ("wsock32", "connect"),
-        ("winsock", "connect"),
+        ("kernelbase", "EncodePointer"),
+        ("ntdll", "NtClose"),
+        ("ntdll", "ZwClose"),
     ],
 )
-def test_winsock_normalization(emu, dll, func):
-    _mod, attrs = emu.get_api_handler(dll, func)
-    assert attrs is not None, f"({dll}, {func}) should resolve"
+def test_user_mode_import_has_a_handler(dll_emu: Speakeasy, dll: str, name: str) -> None:
+    assert has_handler(dll_emu, dll, name)
 
 
-def test_unresolvable_returns_none(emu):
-    _mod, attrs = emu.get_api_handler("unknown", "NoSuchFunc")
-    assert attrs is None
-
-
-@pytest.mark.parametrize(
-    "func, expected_func",
-    [
-        ("ZwCreateFile", "ZwCreateFile"),
-        ("NtCreateFile", "ZwCreateFile"),
-    ],
-)
-def test_ntdll_to_ntoskrnl(emu, func, expected_func):
-    _mod, attrs = emu.get_api_handler("ntdll", func)
-    assert attrs is not None, f"ntdll.{func} should bridge to ntoskrnl.{expected_func}"
-
-
-def test_ntoskrnl_zw_to_nt(emu):
-    _mod, attrs = emu.get_api_handler("ntoskrnl", "ZwQueryInformationProcess")
-    assert attrs is not None, "ntoskrnl.ZwQueryInformationProcess -> NtQueryInformationProcess"
-
-
-def test_ntoskrnl_direct(emu):
-    _mod, attrs = emu.get_api_handler("ntoskrnl", "ZwCreateFile")
-    assert attrs is not None
+@pytest.mark.parametrize("name", ["ZwQueryInformationProcess", "NtClose", "wcsstr", "strnlen"])
+def test_ntoskrnl_import_has_a_handler(driver_emu: Speakeasy, name: str) -> None:
+    assert has_handler(driver_emu, "ntoskrnl", name)
 
 
 def test_ntdll_strcpy_copies_the_string(dll_emu: Speakeasy) -> None:
@@ -184,48 +57,8 @@ def test_ntdll_strcpy_copies_the_string(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "ntdll", "strlen", [dst])[0] == 3
 
 
-@pytest.mark.parametrize(
-    "dll, func",
-    [
-        ("kernel32", "RegGetValueW"),
-        ("KERNEL32", "RegOpenKeyExA"),
-        ("api-ms-win-core-registry-l1-1-0", "RegQueryValueExW"),
-    ],
-)
-def test_kernel32_registry_functions_use_advapi32_handlers(dll, func):
-    emu = FakeEmulator([("advapi32", "RegGetValue"), ("advapi32", "RegOpenKeyEx"), ("advapi32", "RegQueryValueEx")])
-    _mod, attrs = emu.get_api_handler(dll, func)
-    assert attrs is not None, f"({dll}, {func}) should resolve to advapi32"
-
-
-def test_kernel32_non_registry_function_does_not_use_advapi32_handlers():
-    emu = FakeEmulator([("advapi32", "RegisterEventSource"), ("advapi32", "OpenProcessToken")])
-    assert emu.get_api_handler("kernel32", "OpenProcessToken")[1] is None
-
-
-@pytest.mark.parametrize("func", ["K32GetModuleBaseNameA", "K32GetModuleBaseNameW", "K32GetModuleInformation"])
-def test_kernel32_k32_aliases_use_psapi(func):
-    emu = FakeEmulator([("psapi", "GetModuleBaseName"), ("psapi", "GetModuleInformation")])
-    _mod, attrs = emu.get_api_handler("kernel32", func)
-    assert attrs is not None
-
-
-@pytest.mark.parametrize(
-    "dll, func, expected",
-    [
-        (
-            "api-ms-win-core-processthreads-l1-1-1",
-            "CreateProcessW",
-            [
-                ("api-ms-win-core-processthreads-l1-1-1", "CreateProcess"),
-                ("kernel32", "CreateProcessW"),
-                ("kernel32", "CreateProcess"),
-            ],
-        ),
-        ("ntoskrnl", "NtClose", [("ntoskrnl", "ZwClose")]),
-        ("ntdll", "NtClose", [("ntoskrnl", "NtClose"), ("ntoskrnl", "ZwClose"), ("msvcrt", "NtClose")]),
-        ("KERNEL32", "K32EnumProcesses", [("psapi", "EnumProcesses")]),
-    ],
-)
-def test_handler_candidates_are_in_order_of_preference(dll, func, expected):
-    assert list(get_handler_candidates(dll, func)) == expected
+def test_ntoskrnl_sprintf_s_formats_in_a_driver(driver_emu: Speakeasy) -> None:
+    buf = alloc(driver_emu, b"\xee" * 32)
+    rv, _ = call(driver_emu, "ntoskrnl", "sprintf_s", [buf, 32, alloc(driver_emu, b"pid=%d\0"), 42])
+    assert rv == 6
+    assert driver_emu.mem_read(buf, 7) == b"pid=42\0"
