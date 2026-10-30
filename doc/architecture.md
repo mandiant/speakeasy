@@ -57,7 +57,7 @@ The machine uses fixed addresses, so that the input image can use its preferred 
 
 ## Loader
 
-`load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. `ModuleLoader` (`speakeasy/windows/module_loader.py`, the `module_loader` attribute of the emulator) keeps the data that it must restore: the import bindings, the DLLs whose DllMain and TLS callbacks must run, and the DLLs that each new process gets in its PEB. Do not confuse it with `RuntimeModule.loader`, which reads the image file of one module.
+`load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. `ModuleLoader` (`speakeasy/windows/module_loader.py`, the `module_loader` attribute of the emulator) keeps the data that it must restore: the import bindings, the DLLs whose DllMain and TLS callbacks must run, and the DLLs that each new process gets in its PEB.
 
 For each image, `_load_image` maps it, binds its imports and adds it to the PEB. The caller marks the input image with `is_input`. The input image is the first module in `modules`, and only the input image allocates the stack. If a machine module or the container image uses the preferred base of the input image, the input image loads at the next free base.
 

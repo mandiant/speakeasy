@@ -221,7 +221,6 @@ def build_api_image(
         imports=[],
         exports=[ExportEntry(s.name, rvas[o], o, kind=s.kind, forwarder=s.forwarder) for s, o in assigned],
         entry_points=[],
-        loader=None,
         sections=sections,
         pe_metadata=PeMetadata(2, 0, machine, magic),
         source="synthetic",
@@ -309,5 +308,4 @@ class ApiModuleLoader:
             exports=exports,
         )
         image.name = self._name
-        image.loader = self
         return image
