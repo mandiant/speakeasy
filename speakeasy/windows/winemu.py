@@ -52,7 +52,7 @@ from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.ioman import IoManager
-from speakeasy.windows.loaders import PeLoader, RuntimeModule, get_prot_string
+from speakeasy.windows.loaders import InitRoutine, LoadState, PeLoader, RuntimeModule, get_prot_string
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, get_program_files_values
@@ -677,10 +677,10 @@ class WindowsEmulator(BinaryEmulator):
             self._rollback_guest_load(frame)
         self.curr_run.guest_callbacks.clear()
         self._pending.clear()
-        stage = self.curr_run.guest_initialization
-        if stage is not None:
-            module, last, is_dll, pid = stage
-            if self.curr_run.error or (is_dll and not self._dll_main_succeeded()):
+        routine = self.curr_run.guest_initialization
+        if routine is not None:
+            module, pid = routine.module, routine.pid
+            if self.curr_run.error or (routine.is_entry_point and not self._dll_main_succeeded()):
                 self.curr_run.error = self.curr_run.error or ErrorInfo(
                     type="dll_initialization_failed", pc=self.get_pc()
                 )
@@ -689,18 +689,18 @@ class WindowsEmulator(BinaryEmulator):
                 )
                 # Keep mapped exports alive for already bound IAT slots, while
                 # recording failure rather than claiming successful attachment.
-                module._initialization[pid] = "failed"
+                module.load_states[pid] = LoadState.INIT_ERROR
                 self.run_queue[:] = [
                     queued
                     for queued in self.run_queue
                     if not (
                         (pending := queued.guest_initialization) is not None
-                        and pending[0] is module
-                        and pending[3] == pid
+                        and pending.module is module
+                        and pending.pid == pid
                     )
                 ]
-            elif last:
-                module._initialization[pid] = "ready"
+            elif routine.is_last:
+                module.load_states[pid] = LoadState.READY_TO_RUN
         try:
             run = self.run_queue.pop(0)
         except IndexError:
@@ -1179,11 +1179,9 @@ class WindowsEmulator(BinaryEmulator):
         if prepared is not None:
             canceled.append(prepared)
         for run in canceled:
-            stage = run.guest_initialization
-            if stage is not None:
-                module, _last, _is_dll, pid = stage
-                if module._initialization.get(pid) == "initializing":
-                    module._initialization.pop(pid, None)
+            routine = run.guest_initialization
+            if routine is not None and routine.module.load_states.get(routine.pid) is LoadState.INITIALIZING:
+                routine.module.load_states.pop(routine.pid)
         self.run_queue.clear()
         self.suspended_runs.clear()
 
@@ -1212,14 +1210,15 @@ class WindowsEmulator(BinaryEmulator):
         if not self.is_kernel_mode and self.run_queue:
             initializers = self._collect_guest_initializers()
             queued = []
-            for module, function, last, is_dll, pid in initializers:
+            for routine in initializers:
+                module = routine.module
                 run = Run()
-                run.type = f"dependency.{module.name}.{'dll_entry' if is_dll else 'tls_callback'}"
-                run.start_addr = function
+                run.type = f"dependency.{module.name}.{'dll_entry' if routine.is_entry_point else 'tls_callback'}"
+                run.start_addr = routine.address
                 run.args = (module.base, 1, 0)
                 run.thread = self.run_queue[0].thread or self.curr_thread
                 run.process_context = self.curr_process
-                run.guest_initialization = (module, last, is_dll, pid)
+                run.guest_initialization = routine
                 queued.append(run)
             self.run_queue[:0] = queued
         try:
@@ -1717,7 +1716,7 @@ class WindowsEmulator(BinaryEmulator):
             original_maps = {id(mapping) for mapping in self.maps}
             original_bindings = dict(self._import_bindings)
             original_shared = set(self._shared_peb_modules)
-            original_attachments = self._snapshot_peb_attachments()
+            original_peb_modules = self._snapshot_peb_modules()
         self._load_depth += 1
         try:
             module = self._load_image(image)
@@ -1732,7 +1731,7 @@ class WindowsEmulator(BinaryEmulator):
                         if process.is_peb_active and self.get_address_map(process.peb_ldr_data.address):
                             process.remove_module_from_peb(module)
                     self.api_registry.unregister_module(module)
-                self._rollback_peb_attachments(original_attachments)
+                self._rollback_peb_modules(original_peb_modules)
                 self.modules[:] = original_modules
                 self._import_bindings = original_bindings
                 self._shared_peb_modules = original_shared
@@ -1782,40 +1781,41 @@ class WindowsEmulator(BinaryEmulator):
         }
         self._notify_module_change()
 
-    def _snapshot_peb_attachments(self):
+    def _snapshot_peb_modules(self):
         processes = list(self.processes)
         if self.curr_process is not None and self.curr_process not in processes:
             processes.append(self.curr_process)
-        return [(process, dict(process._peb_modules)) for process in processes]
+        return [(process, dict(process.peb_modules)) for process in processes]
 
-    def _rollback_peb_attachments(self, snapshot):
+    def _rollback_peb_modules(self, snapshot):
         for process, original in snapshot:
-            for base, module in tuple(process._peb_modules.items()):
+            for base, module in tuple(process.peb_modules.items()):
                 if base not in original:
                     process.remove_module_from_peb(module)
 
     def _detach_failed_guest_initialization(self, module, pid):
         """Fail one process attachment without destroying other owners."""
-        module._initialization.pop(pid, None)
-        for process, _ in self._snapshot_peb_attachments():
+        module.load_states.pop(pid, None)
+        for process, _ in self._snapshot_peb_modules():
             if process.id == pid:
                 process.remove_module_from_peb(module)
 
     def _rollback_guest_load(self, frame):
         # Callback frames retain the attachment delta separately from newly
         # allocated images. Cached images belong to the surviving load graph.
-        self._rollback_peb_attachments(frame.loader_attachments)
-        original = {process.id: modules for process, modules in frame.loader_attachments}
-        for module, _last, _is_dll, pid in frame.initializers.values():
-            if module._initialization.get(pid) == "initializing" or module.base not in original.get(pid, {}):
-                module._initialization.pop(pid, None)
+        self._rollback_peb_modules(frame.peb_module_snapshot)
+        original = {process.id: modules for process, modules in frame.peb_module_snapshot}
+        for routine in frame.initializers.values():
+            module, pid = routine.module, routine.pid
+            if module.load_states.get(pid) is LoadState.INITIALIZING or module.base not in original.get(pid, {}):
+                module.load_states.pop(pid, None)
         for module in reversed(frame.created_modules):
-            if not any(module.base in process._peb_modules for process, _ in self._snapshot_peb_attachments()):
+            if not any(module.base in process.peb_modules for process, _ in self._snapshot_peb_modules()):
                 self._discard_loaded_module(module)
         frame.pending[:] = [(function, args) for function, args in frame.pending if function not in frame.initializers]
         frame.initializers.clear()
         frame.created_modules.clear()
-        frame.loader_attachments = []
+        frame.peb_module_snapshot = []
 
     def _collect_guest_initializers(self):
         process = self.get_current_process()
@@ -1823,20 +1823,16 @@ class WindowsEmulator(BinaryEmulator):
             return []
         result = []
         for module in self._guest_dependencies:
-            if (
-                module not in self.modules
-                or module.base not in process._peb_modules
-                or module._initialization.get(process.id)
-            ):
+            if module not in self.modules or module.base not in process.peb_modules or process.id in module.load_states:
                 continue
-            module._initialization[process.id] = "initializing"
+            module.load_states[process.id] = LoadState.INITIALIZING
             functions = [(function, False) for function in module.get_tls_callbacks()]
             if module.ep:
                 functions.append((module.base + module.ep, True))
             if not functions:
-                module._initialization[process.id] = "ready"
-            for index, (function, is_dll) in enumerate(functions):
-                result.append((module, function, index == len(functions) - 1, is_dll, process.id))
+                module.load_states[process.id] = LoadState.READY_TO_RUN
+            for index, (function, is_entry_point) in enumerate(functions):
+                result.append(InitRoutine(module, function, is_entry_point, index == len(functions) - 1, process.id))
         return result
 
     def _load_image(self, image):
@@ -1967,7 +1963,7 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
         if not self.is_kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
             self._shared_peb_modules.add(mod.base)
-        self._attach_module_to_current_process(mod)
+        self._add_module_to_current_peb(mod)
         return mod
 
     def setup(self):
@@ -3134,18 +3130,17 @@ class WindowsEmulator(BinaryEmulator):
         if frame.handler is not None:
             guest_callbacks.resume(self, frame)
             return
-        stage = frame.initializers.get(frame.function)
-        if stage is not None:
-            module, last, is_dll, pid = stage
-            if is_dll and not self._dll_main_succeeded():
+        routine = frame.initializers.get(frame.function)
+        if routine is not None:
+            if routine.is_entry_point and not self._dll_main_succeeded():
                 frame.result = frame.failure_result
                 for address, data in frame.failure_writes:
                     self.mem_write(address, data)
                 self.set_last_error(1114)  # ERROR_DLL_INIT_FAILED
-                self._detach_failed_guest_initialization(module, pid)
+                self._detach_failed_guest_initialization(routine.module, routine.pid)
                 self._rollback_guest_load(frame)
-            elif last:
-                module._initialization[pid] = "ready"
+            elif routine.is_last:
+                routine.module.load_states[routine.pid] = LoadState.READY_TO_RUN
         self.set_stack_ptr(frame.stack_pointer)
         if frame.pending:
             function, args = frame.pending.pop(0)
@@ -3526,7 +3521,7 @@ class WindowsEmulator(BinaryEmulator):
                 return os.path.join(path, fn)
         return None
 
-    def _attach_module_to_current_process(self, module):
+    def _add_module_to_current_peb(self, module):
         if self.is_kernel_mode or not module.visible_in_peb or module.is_driver():
             return
         process = self.get_current_process()
@@ -3540,7 +3535,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def load_library(self, mod_name):
         original_modules = list(self.modules)
-        original_attachments = self._snapshot_peb_attachments()
+        original_peb_modules = self._snapshot_peb_modules()
         name = winemu.normalize_dll_name(module_name(mod_name))
         module = self.get_mod_by_name(name)
         data = self.get_module_data_from_emu_file(mod_name) if module is None else None
@@ -3560,18 +3555,18 @@ class WindowsEmulator(BinaryEmulator):
             except WindowsEmuError as error:
                 logger.warning("failed to load %s: %s", name, error)
                 return 0
-        self._attach_module_to_current_process(module)
+        self._add_module_to_current_peb(module)
         frame = self._active_api_frame
         if frame is not None and not self.is_kernel_mode:
             # Keep the earliest snapshot for each process across reentrant loads.
-            tracked = {process.id for process, _ in frame.loader_attachments}
-            frame.loader_attachments.extend(item for item in original_attachments if item[0].id not in tracked)
+            tracked = {process.id for process, _ in frame.peb_module_snapshot}
+            frame.peb_module_snapshot.extend(item for item in original_peb_modules if item[0].id not in tracked)
             frame.created_modules.extend(module for module in self.modules if module not in original_modules)
             initializers = self._collect_guest_initializers()
             handler = self.api.load_api_handler("kernel32")
-            for dependency, function, last, is_dll, pid in initializers:
-                handler.setup_callback(function, (dependency.base, 1, 0))
-                frame.initializers[function] = (dependency, last, is_dll, pid)
+            for routine in initializers:
+                handler.setup_callback(routine.address, (routine.module.base, 1, 0))
+                frame.initializers[routine.address] = routine
         return module.base
 
     def _make_image_at_free_base(self, make_loader: Callable[[int | None], Any], base: int | None):
@@ -3593,7 +3588,7 @@ class WindowsEmulator(BinaryEmulator):
         name = module_name(name)
         existing = self.get_mod_by_name(name)
         if existing is not None:
-            self._attach_module_to_current_process(existing)
+            self._add_module_to_current_peb(existing)
             return existing
         if not emu_path:
             emu_path = (self.config.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"
@@ -3625,7 +3620,6 @@ class WindowsEmulator(BinaryEmulator):
         image.module_type = _module_type_from_path(emu_path)
         module = self.load_image(image)
         if image.source == "guest_pe" and module.is_dll() and not self.is_kernel_mode:
-            module._initialization = {}
             self._guest_dependencies.append(module)
         return module
 

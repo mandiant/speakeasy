@@ -5,6 +5,7 @@ import ntpath
 import os
 import struct
 from dataclasses import dataclass, field
+from enum import Enum
 from types import SimpleNamespace
 from typing import Any, Protocol
 
@@ -131,8 +132,17 @@ class Loader(Protocol):
     def make_image(self) -> LoadedImage: ...
 
 
+class LoadState(Enum):
+    """The initialization state of a module in one process. The names follow LDR_DDAG_STATE in Windows."""
+
+    INITIALIZING = "initializing"
+    READY_TO_RUN = "ready_to_run"
+    INIT_ERROR = "init_error"
+
+
 class RuntimeModule:
     def __init__(self, image: LoadedImage) -> None:
+        self.load_states: dict[int, LoadState] = {}
         self._image = image
         self.base = image.image_base
         self.image_size = image.image_size
@@ -187,6 +197,17 @@ class RuntimeModule:
 
     def get_pe_metadata(self) -> PeMetadata | None:
         return self._image.pe_metadata
+
+
+@dataclass(frozen=True)
+class InitRoutine:
+    """A TLS callback or the DllMain of a module, to run in one process."""
+
+    module: RuntimeModule
+    address: int
+    is_entry_point: bool
+    is_last: bool
+    pid: int
 
 
 def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
