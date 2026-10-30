@@ -4755,6 +4755,11 @@ class Msvcrt(api.ApiHandler):
         """int _crt_atexit(_PVFV function);"""
         return 0
 
+    @apihook("_crt_at_quick_exit", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _crt_at_quick_exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _crt_at_quick_exit(_PVFV function);"""
+        return 0
+
     @apihook("_controlfp_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """errno_t _controlfp_s(unsigned int *currentControl, unsigned int newControl, unsigned int mask);"""
