@@ -4050,6 +4050,41 @@ class Msvcrt(api.ApiHandler):
         """_invalid_parameter_handler _get_thread_local_invalid_parameter_handler(void);"""
         return self.thread_invalid_parameter_handlers.get(emu.get_current_thread().id, 0)
 
+    @apihook("_invalid_parameter_noinfo", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _invalid_parameter_noinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _invalid_parameter_noinfo(void);
+
+        Call the thread or global invalid parameter handler. Without a handler,
+        return to the caller, which then fails with EINVAL.
+        """
+        tid = emu.get_current_thread().id
+        handler = self.thread_invalid_parameter_handlers.get(tid) or self.invalid_parameter_handler
+        if not handler:
+            return
+        return self.call_invalid_parameter_handler(handler)
+
+    def call_invalid_parameter_handler(self, handler):
+        yield GuestCall(handler, (0, 0, 0, 0, 0))
+
+    @apihook("_invalid_parameter_noinfo_noreturn", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _invalid_parameter_noinfo_noreturn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _invalid_parameter_noinfo_noreturn(void);"""
+        self.exit_process()
+
+    @apihook("_invoke_watson", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def _invoke_watson(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _invoke_watson(
+            const wchar_t *expression,
+            const wchar_t *function_name,
+            const wchar_t *file_name,
+            unsigned int line_number,
+            uintptr_t reserved
+        );
+        """
+        self.exit_process()
+
     @apihook("__vcrt_InitializeCriticalSectionEx", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def __vcrt_InitializeCriticalSectionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
