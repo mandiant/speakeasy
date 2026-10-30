@@ -14,7 +14,7 @@ import speakeasy.common as common
 import speakeasy.windows.common as winemu
 import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
-from speakeasy.errors import OutOfMemoryError, Win32EmuError, WindowsEmuError
+from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
 from speakeasy.windows.common import _PeParser
@@ -49,7 +49,6 @@ class Win32Emulator(WindowsEmulator):
 
         self.last_error = 0
         self.peb_addr = 0
-        self.heap_allocs = []
         self.container_image = None
         self.argv = argv if argv is not None else []
         self.sessman = SessionManager(config, self.handle_allocator)
@@ -881,14 +880,3 @@ class Win32Emulator(WindowsEmulator):
                     "segments": segments,
                 }
             )
-
-    def heap_alloc(self, size, heap="None"):
-        """
-        Allocate a memory chunk and add it to the "heap"
-        """
-        try:
-            addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
-        except OutOfMemoryError:
-            return 0
-        self.heap_allocs.append((addr, size, heap))
-        return addr

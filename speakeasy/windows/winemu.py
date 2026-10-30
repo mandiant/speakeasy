@@ -38,7 +38,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.config import parse_start_time
-from speakeasy.errors import FileSystemEmuError, WindowsEmuError
+from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
@@ -361,6 +361,7 @@ class WindowsEmulator(BinaryEmulator):
         self.is_run_complete: bool = False
         self.is_emu_complete: bool = False
         self.processes: list[Any] = []
+        self.heap_allocs = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
         # to not mix up config processes with child processes
@@ -1452,6 +1453,17 @@ class WindowsEmulator(BinaryEmulator):
         Get the current thread that is emulating
         """
         return self.curr_thread
+
+    def heap_alloc(self, size, heap="None"):
+        """
+        Allocate a memory chunk and add it to the "heap"
+        """
+        try:
+            addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
+        except OutOfMemoryError:
+            return 0
+        self.heap_allocs.append((addr, size, heap))
+        return addr
 
     def get_current_process(self):
         """
