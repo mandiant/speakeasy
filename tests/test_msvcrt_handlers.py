@@ -1109,6 +1109,26 @@ def test_split_path_gives_drive_dir_name_and_ext(path: str, parts: tuple) -> Non
     assert get_split_path(path) == parts
 
 
+@pytest.mark.parametrize("api, encoding", [("_splitpath_s", "latin-1"), ("ucrtbase._o__wsplitpath_s", "utf-16le")])
+@pytest.mark.parametrize(
+    "name_size, rv, name, ext",
+    [(8, 0, "notepad", ".exe"), (7, ERANGE, "", "")],
+)
+def test_splitpath_s_writes_the_parts_or_clears_them_on_erange(
+    dll_emu: Speakeasy, api: str, encoding: str, name_size: int, rv: int, name: str, ext: str
+) -> None:
+    se = dll_emu
+    dll, _, func = api.rpartition(".")
+    path = alloc(se, "c:\\windows\\notepad.exe\0".encode(encoding))
+    fname = alloc(se, b"\xcc" * 32)
+    fext = alloc(se, b"\xcc" * 32)
+    args = [path, 0, 0, 0, 0, fname, name_size, fext, 8]
+    assert call(se, dll or "msvcrt", func, args)[0] == rv
+    for addr, part in ((fname, name), (fext, ext)):
+        expected = (part + "\0").encode(encoding)
+        assert se.mem_read(addr, len(expected)) == expected
+
+
 @pytest.mark.parametrize("api", ["fgetc", "getc"])
 def test_fgetc_reads_one_byte_and_then_eof(dll_emu: Speakeasy, api: str) -> None:
     path = alloc(dll_emu, b"c:\\users\\public\\chars.txt\x00")
