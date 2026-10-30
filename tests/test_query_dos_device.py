@@ -1,66 +1,45 @@
 import pytest
 
-from speakeasy.winenv.api.api import ApiContext
-from speakeasy.winenv.api.usermode.kernel32 import Kernel32
+from speakeasy import Speakeasy
+from tests.handler_harness import alloc, call, start_process
 
 
-class Memory:
-    get_char_width = Kernel32.get_char_width
-
-    def __init__(self, device="C:"):
-        self.device = device
-        self.writes = {}
-        self.error = None
-        self.read_width = None
-
-    def mem_write(self, address, data):
-        self.writes[address] = data
-
-    def read_mem_string(self, address, width):
-        self.read_width = width
-        return self.device
-
-    def set_last_error(self, value):
-        self.error = value
+def _query(se: Speakeasy, wide: bool, device: str | None, count: int) -> tuple[int, bytes, int]:
+    assert se.emu is not None
+    name = alloc(se, (device + "\0").encode("utf-16le" if wide else "ascii")) if device is not None else 0
+    buf = alloc(se, b"\xcc" * 128)
+    rv, _ = call(se, "kernel32", "QueryDosDeviceW" if wide else "QueryDosDeviceA", [name, buf, count])
+    return rv, se.mem_read(buf, 128), se.emu.get_last_error()
 
 
 @pytest.mark.parametrize("wide", [False, True])
-def test_query_dos_device_mapping_and_exact_capacity(wide):
-    memory = Memory("c:")
-    ctx = ApiContext(func_name="kernel32.QueryDosDeviceW" if wide else "kernel32.QueryDosDeviceA")
+def test_query_dos_device_mapping_and_exact_capacity(dll_emu: Speakeasy, wide: bool) -> None:
+    start_process(dll_emu)
     expected = "\\Device\\HarddiskVolume1\0\0".encode("utf-16le" if wide else "ascii")
-    width = 2 if wide else 1
-    count = len(expected) // width
-    assert Kernel32.QueryDosDevice(memory, memory, [8, 16, count], ctx) == count
-    assert memory.writes == {16: expected}
-    assert memory.read_width == width
-    memory.writes.clear()
-    assert Kernel32.QueryDosDevice(memory, memory, [8, 16, count - 1], ctx) == 0
-    assert memory.error == 122
-    assert not memory.writes
+    count = len(expected) // (2 if wide else 1)
+    rv, data, _ = _query(dll_emu, wide, "c:", count)
+    assert (rv, data[: len(expected) + 1]) == (count, expected + b"\xcc")
+    rv, data, error = _query(dll_emu, wide, "c:", count - 1)
+    assert (rv, data, error) == (0, b"\xcc" * 128, 122)
 
 
 @pytest.mark.parametrize("wide", [False, True])
-def test_query_dos_device_enumerates_names(wide):
-    memory = Memory()
-    ctx = ApiContext(func_name="kernel32.QueryDosDeviceW" if wide else "kernel32.QueryDosDeviceA")
-    assert Kernel32.QueryDosDevice(memory, memory, [0, 16, 4], ctx) == 4
-    assert memory.writes == {16: "C:\0\0".encode("utf-16le" if wide else "ascii")}
-    assert memory.read_width is None
+def test_query_dos_device_enumerates_names(dll_emu: Speakeasy, wide: bool) -> None:
+    start_process(dll_emu)
+    expected = "C:\0\0".encode("utf-16le" if wide else "ascii")
+    rv, data, _ = _query(dll_emu, wide, None, 4)
+    assert (rv, data[: len(expected) + 1]) == (4, expected + b"\xcc")
 
 
 @pytest.mark.parametrize("device", ["", "Z:", "C:\\"])
 @pytest.mark.parametrize("wide", [False, True])
-def test_query_dos_device_unknown_name_leaves_buffer_untouched(device, wide):
-    memory = Memory(device)
-    ctx = ApiContext(func_name="kernel32.QueryDosDeviceW" if wide else "kernel32.QueryDosDeviceA")
-    assert Kernel32.QueryDosDevice(memory, memory, [8, 16, 100], ctx) == 0
-    assert memory.error == 2
-    assert not memory.writes
+def test_query_dos_device_unknown_name_leaves_buffer_untouched(dll_emu: Speakeasy, device: str, wide: bool) -> None:
+    start_process(dll_emu)
+    assert _query(dll_emu, wide, device, 100) == (0, b"\xcc" * 128, 2)
 
 
-def test_query_dos_device_rejects_null_output():
-    memory = Memory()
-    assert Kernel32.QueryDosDevice(memory, memory, [0, 0, 100], ApiContext(func_name="QueryDosDeviceA")) == 0
-    assert memory.error == 87
-    assert not memory.writes
+def test_query_dos_device_rejects_null_output(dll_emu: Speakeasy) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    rv, _ = call(dll_emu, "kernel32", "QueryDosDeviceA", [0, 0, 100])
+    assert (rv, dll_emu.emu.get_last_error()) == (0, 87)
