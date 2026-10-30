@@ -1,11 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import logging
+import multiprocessing.synchronize
 import ntpath
 import os
 import random
 import shlex
 import struct
+import threading
 import time
 import traceback
 from abc import abstractmethod
@@ -14,7 +16,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from functools import wraps
 from types import MethodType
-from typing import Any, cast
+from typing import Any
 
 import capstone as cs
 import pefile
@@ -48,7 +50,7 @@ from speakeasy.windows.api_image import ApiModuleLoader
 from speakeasy.windows.api_registry import ApiEntry, ApiRegistry, module_name, symbol_ref
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
-from speakeasy.windows.fileman import FileManager
+from speakeasy.windows.fileman import File, FileManager
 from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string, relocate_image
@@ -293,6 +295,7 @@ class WindowsEmulator(BinaryEmulator):
 
     _execution_budget: _ExecutionBudget | None = None
     peb_addr: int
+    api: WindowsApi
 
     @abstractmethod
     def alloc_peb(self, proc: Any) -> None:
@@ -321,23 +324,20 @@ class WindowsEmulator(BinaryEmulator):
         self.curr_mod: Any | None = None
         self.runs: list[Run] = []
         self.input: dict[str, Any] | None = None
-        self.exit_event: Any | None = exit_event
-        self.page_size: int = 4096
-        self.ptr_size: int | None = None
+        self.exit_event: threading.Event | multiprocessing.synchronize.Event | None = exit_event
         self.max_runs: int = 100
-        self.symbols: dict[int, str] = {}
+        self.symbols: dict[int, tuple[str, str]] = {}
         self.ansi_strings: list[str] = []
         self.unicode_strings: list[str] = []
         self.run_queue: list[Run] = []
         self.suspended_runs: list[Run] = []
         self.cd: str = ""
         self.is_reserved_range_unmapped: bool = True
-        self.api: Any | None = None
         self.curr_process: Any | None = None
         self.om: objman.ObjectManager | None = None
         self._sigdb: sigdb.SignatureDatabase | None = None
         self._sigfmt: sigfmt.ArgFormatter | None = None
-        self.api_registry = ApiRegistry(self)
+        self.api_registry: ApiRegistry = ApiRegistry(self)
         self._native_exit: NativeExit | None = None
         self._api_call_site: tuple[int, int] | None = None
         # Guard pages, mapped without access, with the protection their first access restores
@@ -345,7 +345,7 @@ class WindowsEmulator(BinaryEmulator):
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
         # Unwind data registered at runtime for code outside loaded images
         self.function_tables: list[unwind.FunctionTable] = []
-        self.module_loader = ModuleLoader(self)
+        self.module_loader: ModuleLoader = ModuleLoader(self)
         self._active_api_frame: GuestCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
@@ -361,7 +361,7 @@ class WindowsEmulator(BinaryEmulator):
         self.is_run_complete: bool = False
         self.is_emu_complete: bool = False
         self.processes: list[Any] = []
-        self.heap_allocs = []
+        self.heap_allocs: list[tuple[int, int, str]] = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
         # to not mix up config processes with child processes
@@ -401,7 +401,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         super()._parse_config(config)
         self.cd = self.config.current_dir
-        self.command_line = self.config.command_line
+        self.command_line: str = self.config.command_line
 
     def init_machine(self, arch):
         """
@@ -446,9 +446,16 @@ class WindowsEmulator(BinaryEmulator):
         Create the object manager, segments, shared data and modules of the machine
         """
 
-    def validate_object_services(self, reason):
+    def get_object_manager(self, reason: str) -> objman.ObjectManager:
+        """
+        Get the object manager of the machine.
+
+        Raises:
+            WindowsEmuError: the machine structures are not initialized yet.
+        """
         if self.om is None:
             raise WindowsEmuError(f"{reason} requires initialized object services")
+        return self.om
 
     def on_run_complete(self):
         """
@@ -474,7 +481,7 @@ class WindowsEmulator(BinaryEmulator):
             self._record_exit(FaultReturn())
             return
         self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
-        self.emu_eng.stop()  # type: ignore[union-attr]
+        self.emu_eng.stop()
 
     def enable_deferred_work_hook(self):
         if not self.deferred_work_hook:
@@ -645,7 +652,7 @@ class WindowsEmulator(BinaryEmulator):
         The deferred work hook or the next run unmaps it again.
         """
         if self.is_reserved_range_unmapped:
-            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)  # type: ignore[union-attr]
+            self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
         self.is_reserved_range_unmapped = False
 
     def get_valid_ranges(self, size, addr=None):
@@ -734,7 +741,7 @@ class WindowsEmulator(BinaryEmulator):
             )
         ]
 
-    def call(self, addr, params=[]):
+    def call(self, addr, params=[]) -> None:
         """
         Start emulating at the specified address
         """
@@ -794,7 +801,7 @@ class WindowsEmulator(BinaryEmulator):
             self.set_current_thread(run.thread)
         elif not self.is_kernel_mode:
             thread = objman.Thread(self, stack_base=self.stack_base)
-            self.om.objects.update({thread.address: thread})
+            self.get_object_manager("thread registration").objects.update({thread.address: thread})
             if self.curr_process:
                 thread.process = self.curr_process
                 self.curr_process.threads.append(thread)
@@ -806,7 +813,8 @@ class WindowsEmulator(BinaryEmulator):
             thread = self.get_current_thread()
             if thread:
                 thread.exit_code = None
-                self.init_teb(thread, self.curr_process.peb)  # type: ignore[union-attr]
+                if self.curr_process is not None:
+                    self.init_teb(thread, self.curr_process.peb)
                 self.init_tls(thread)
 
         if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
@@ -1009,7 +1017,8 @@ class WindowsEmulator(BinaryEmulator):
         entry = self.api_registry.traps.get(pc)
         if entry is not None:
             return self._get_suspended_api_call(entry)
-        if pc == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run.guest_callbacks:
+        run = self.curr_run
+        if pc == winemu.GUEST_CALLBACK_RETURN_ADDR and run is not None and run.guest_callbacks:
             return CallbackReturn()
         if pc in (self.return_hook, self.exit_hook):
             return RunReturn()
@@ -1028,7 +1037,9 @@ class WindowsEmulator(BinaryEmulator):
             limits.last_executed = address
             origin_run.budget_instructions += 1
             if not self.config.analysis.memory_tracing:
-                self.curr_run.instr_cnt += 1
+                run = self.curr_run
+                if run is not None:
+                    run.instr_cnt += 1
 
         return self.add_code_hook(account_instruction)
 
@@ -1056,7 +1067,7 @@ class WindowsEmulator(BinaryEmulator):
                 if prepared is origin_run:
                     if not self.is_run_complete and origin_run.error is None:
                         origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
-                else:
+                elif prepared is not None:
                     # Completing the run already prepared the next one. It
                     # did not execute and must not appear as a started run.
                     self._cancel_execution_runs(prepared)
@@ -1214,7 +1225,7 @@ class WindowsEmulator(BinaryEmulator):
         self.run_queue.clear()
         self.suspended_runs.clear()
 
-    def resume(self, addr, count=-1):
+    def resume(self, addr, count=-1) -> None:
         """Resume emulation directly at an address.
 
         This low-level API bypasses the GDB command loop; callers that enable
@@ -1273,14 +1284,12 @@ class WindowsEmulator(BinaryEmulator):
     def _execute_runs(
         self,
         debugger: GdbServer | None = None,
-        debug_action: ResumeAction | None = None,
+        debug_action: ResumeAction = ResumeAction(),
     ) -> bool:
         """Execute prepared runs, optionally under control of an active GDB session."""
-        if debugger is not None:
-            assert debug_action is not None
         total_budget = self._execution_budget
         assert total_budget is not None
-        detached_resume_addr = None
+        detached_resume_addr: int | None = None
         terminal_signal = 0
         self._should_stop_on_faults = debugger is not None
         self._pending_fault_stop = None
@@ -1290,14 +1299,19 @@ class WindowsEmulator(BinaryEmulator):
 
         while True:
             try:
+                executing_run = self.curr_run
+                if executing_run is None:
+                    break
                 if debugger is not None:
                     resume_addr = self.get_pc()
                 else:
-                    resume_addr = detached_resume_addr or self.curr_run.start_addr  # type: ignore[union-attr]
+                    start_addr = detached_resume_addr or executing_run.start_addr
+                    if start_addr is None:
+                        raise WindowsEmuError("the run has no start address")
+                    resume_addr = start_addr
                     detached_resume_addr = None
                 instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
                 should_execute = debugger is None or debugger.begin_run(debug_action)
-                executing_run = self.curr_run
                 if should_execute:
                     self._execute_current_run(
                         resume_addr, timeout=self.config.timeout, count=instruction_count, debugger=debugger
@@ -1349,7 +1363,7 @@ class WindowsEmulator(BinaryEmulator):
                     logger.error(str(dis_err))
 
                 error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
-                self.curr_run.error = error  # type: ignore[union-attr]
+                self._set_run_error(error)
                 terminal_signal = SIGSEGV
 
                 if debugger is not None:
@@ -1417,12 +1431,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.curr_mod
 
-    def get_dropped_files(self):
+    def get_dropped_files(self) -> list[File]:
         """
         Get all files written by the sample from the file manager
         """
-        if self.fileman:
-            return self.fileman.get_dropped_files()
+        return self.fileman.get_dropped_files()
 
     def set_hooks(self):
         """
@@ -1454,6 +1467,20 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.curr_thread
 
+    def set_last_error(self, code):
+        """
+        Set the last error code for the current thread
+        """
+        if self.curr_thread:
+            self.curr_thread.last_error = code
+
+    def get_last_error(self):
+        """
+        Get the last error code for the current thread
+        """
+        if self.curr_thread:
+            return self.curr_thread.last_error
+
     def heap_alloc(self, size, heap="None"):
         """
         Allocate a memory chunk and add it to the "heap"
@@ -1464,6 +1491,24 @@ class WindowsEmulator(BinaryEmulator):
             return 0
         self.heap_allocs.append((addr, size, heap))
         return addr
+
+    def pool_alloc(self, pooltype, size, tag="None") -> int:
+        """
+        Allocate memory in the emulated pool
+
+        Raises:
+            WindowsEmuError: the emulator runs in user mode, which has no pool.
+        """
+        raise WindowsEmuError("pool allocations need kernel mode")
+
+    def exit_process(self) -> None:
+        """
+        Signal that the current process ends
+
+        Raises:
+            WindowsEmuError: the emulator runs in kernel mode, which has no process to end.
+        """
+        raise WindowsEmuError("process exit needs user mode")
 
     def get_current_process(self):
         """
@@ -1609,7 +1654,9 @@ class WindowsEmulator(BinaryEmulator):
         called after init_teb.
         """
         run = self.curr_run
-        module = self.get_mod_from_addr(run.start_addr)  # type: ignore[union-attr]
+        if run is None:
+            return
+        module = self.get_mod_from_addr(run.start_addr)
 
         if module:
             if isinstance(module, RuntimeModule):
@@ -1646,7 +1693,7 @@ class WindowsEmulator(BinaryEmulator):
         data = b""
         if size:
             try:
-                data = bytes(self.mem_read(start, size))
+                data = self.mem_read(start, size)
             except Exception:
                 data = b""
         if index_addr:
@@ -1654,7 +1701,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_write(index_addr, b"\0\0\0\0")
             except Exception:
                 pass
-        return data + b"\0" * zero_fill
+        return data + bytes(zero_fill)
 
     def load_pe(self, path=None, data=None):
         """
@@ -1737,7 +1784,7 @@ class WindowsEmulator(BinaryEmulator):
     def get_peb_modules(self):
         return [mod for mod in self.modules if mod.visible_in_peb]
 
-    def load_image(self, image, base=None, *, is_input=False):
+    def load_image(self, image, base: int | None = None, *, is_input: bool = False) -> RuntimeModule:
         """
         Load an image and its dependencies. Set is_input for the input image. The input
         image is the first module in modules, and only the input image allocates the stack.
@@ -1813,7 +1860,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_protect(
                     mod.base, (first_rva + self.page_size - 1) & ~(self.page_size - 1), common.PERM_MEM_READ
                 )
-            page_perms = {}
+            page_perms: dict[int, int] = {}
             for section in image.sections:
                 start = (mod.base + section.virtual_address) & ~(self.page_size - 1)
                 end = (mod.base + section.virtual_address + section.virtual_size + self.page_size - 1) & ~(
@@ -1877,20 +1924,20 @@ class WindowsEmulator(BinaryEmulator):
         return self.env.update({var.lower(): val})
 
     def get_object_from_addr(self, addr):
-        self.validate_object_services("object lookup by address")
-        return self.om.get_object_from_addr(addr)  # type: ignore[union-attr]
+        om = self.get_object_manager("object lookup by address")
+        return om.get_object_from_addr(addr)
 
     def get_object_from_id(self, id):
-        self.validate_object_services("object lookup by id")
-        return self.om.get_object_from_id(id)  # type: ignore[union-attr]
+        om = self.get_object_manager("object lookup by id")
+        return om.get_object_from_id(id)
 
     def get_object_from_name(self, name):
-        self.validate_object_services("object lookup by name")
-        return self.om.get_object_from_name(name)  # type: ignore[union-attr]
+        om = self.get_object_manager("object lookup by name")
+        return om.get_object_from_name(name)
 
     def get_object_from_handle(self, handle):
-        self.validate_object_services("object lookup by handle")
-        obj = self.om.get_object_from_handle(handle)  # type: ignore[union-attr]
+        om = self.get_object_manager("object lookup by handle")
+        obj = om.get_object_from_handle(handle)
         if obj:
             return obj
         obj = self.fileman.get_object_from_handle(handle)
@@ -1898,24 +1945,24 @@ class WindowsEmulator(BinaryEmulator):
             return obj
 
     def get_object_handle(self, obj):
-        self.validate_object_services("object handle lookup")
-        obj = self.om.objects.get(obj.address)  # type: ignore[union-attr]
+        om = self.get_object_manager("object handle lookup")
+        obj = om.objects.get(obj.address)
         if obj:
-            return self.om.get_handle(obj)  # type: ignore[union-attr]
+            return om.get_handle(obj)
 
     def add_object(self, obj):
-        self.validate_object_services("object registration")
-        self.om.add_object(obj)  # type: ignore[union-attr]
+        om = self.get_object_manager("object registration")
+        om.add_object(obj)
 
     def new_object(self, otype):
-        self.validate_object_services("object creation")
-        return self.om.new_object(otype)  # type: ignore[union-attr]
+        om = self.get_object_manager("object creation")
+        return om.new_object(otype)
 
     def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
         Create a process object that will exist in the emulator
         """
-        self.validate_object_services("process creation")
+        om = self.get_object_manager("process creation")
 
         if path:
             file_path = path.strip().strip('"')
@@ -1928,7 +1975,7 @@ class WindowsEmulator(BinaryEmulator):
         if not file_path:
             raise FileSystemEmuError("process creation needs a program name")
 
-        p = self.om.new_object(objman.Process)  # type: ignore[union-attr]
+        p = om.new_object(objman.Process)
 
         mod_data = self.get_module_data_from_emu_file(file_path)
 
@@ -1943,7 +1990,7 @@ class WindowsEmulator(BinaryEmulator):
         p.cmdline = cmdline
 
         # Create a thread object for the new process
-        t = self.om.new_object(objman.Thread)  # type: ignore[union-attr]
+        t = om.new_object(objman.Thread)
         t.process = p
 
         peb_addr = p.peb.address
@@ -1980,14 +2027,14 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a thread object that will exist in the emulator
         """
-        self.validate_object_services("thread creation")
+        om = self.get_object_manager("thread creation")
 
         if len(self.run_queue) >= self.max_runs:
             return 0, None
 
-        thread = self.om.new_object(objman.Thread)  # type: ignore[union-attr]
+        thread = om.new_object(objman.Thread)
         thread.process = proc_obj
-        hnd = self.om.get_handle(thread)  # type: ignore[union-attr]
+        hnd = om.get_handle(thread)
 
         run = Run()
         run.type = thread_type
@@ -2140,7 +2187,7 @@ class WindowsEmulator(BinaryEmulator):
         hosts = winemu.get_dll_hosts(module_name(dll))
         if len(hosts) > 1 and isinstance(name, str):
             for host in hosts:
-                if self.get_api_handler(host, name)[1] or self.api.get_data_export_handler(host, name)[1]:  # type: ignore[union-attr]
+                if self.get_api_handler(host, name)[1] or self.api.get_data_export_handler(host, name)[1]:
                     return host
         return hosts[0]
 
@@ -2169,7 +2216,7 @@ class WindowsEmulator(BinaryEmulator):
                 common.INVALID_MEM_READ: "read",
                 common.INVALID_MEM_WRITE: "write",
                 common.INVALID_MEM_EXEC: "fetch",
-            }.get(self.emu_eng.mem_access.get(access), "read")
+            }.get(self.emu_eng.mem_access.get(access, common.INVALID_MEM_READ), "read")
             self._raise_memory_fault(address, kind)
             return True
         return False
@@ -2482,7 +2529,7 @@ class WindowsEmulator(BinaryEmulator):
         (None, None) if no handler is found.
         """
         for cand_dll, cand_name in ((dll, name), *api_resolution.get_handler_candidates(dll, name)):
-            mod, func_attrs = self.api.get_export_func_handler(cand_dll, cand_name)  # type: ignore[union-attr]
+            mod, func_attrs = self.api.get_export_func_handler(cand_dll, cand_name)
             if func_attrs:
                 return mod, func_attrs
         return None, None
@@ -2524,9 +2571,10 @@ class WindowsEmulator(BinaryEmulator):
             pid = process.id if process else 0
             pos = TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
             frame = self._active_api_frame
-            deferred = frame is not None and any(item is frame for item in run.guest_callbacks)
-            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=not deferred)
-            if deferred:
+            if frame is not None and not any(item is frame for item in run.guest_callbacks):
+                frame = None
+            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=frame is None)
+            if frame is not None:
                 frame.event = event
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
@@ -2756,7 +2804,8 @@ class WindowsEmulator(BinaryEmulator):
         try:
             self._call_api_implementation(dll, name, frame)
             if (
-                self.curr_run is origin_run
+                origin_run is not None
+                and self.curr_run is origin_run
                 and not self.is_run_complete
                 and not self.is_emu_complete
                 and self.get_pc() == entry_pc
@@ -2838,7 +2887,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.api_ctx = prev_ctx
         else:
             try:
-                rv = self.api.call_api_func(impl.module, impl.func, argv, ctx=ctx)  # type: ignore[union-attr]
+                rv = self.api.call_api_func(impl.module, impl.func, argv, ctx=ctx)
             except Exception as e:
                 if self._should_stop_on_faults:
                     # Let the outer GDB fault path expose the failed frame
@@ -2851,7 +2900,7 @@ class WindowsEmulator(BinaryEmulator):
                         return False
                 logger.exception("0x%x: Error while calling API handler for %s:", call.return_address, imp_api)
                 error = self.get_error_info(desc, address, traceback=traceback.format_exc(), access_type=access_type)
-                self.curr_run.error = error  # type: ignore[union-attr]
+                self._set_run_error(error)
                 self.on_run_complete()
                 return False
 
@@ -2942,7 +2991,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
         self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
         error.api_name = call.api_name
-        self.curr_run.error = error  # type: ignore[union-attr]
+        self._set_run_error(error)
         self.on_run_complete()
 
     def _check_api_limit(self, origin_run, imp_api):
@@ -3020,7 +3069,7 @@ class WindowsEmulator(BinaryEmulator):
         emulation
         """
         try:
-            access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
+            access = self.emu_eng.mem_access.get(access)
             logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
             if access != common.INVALID_MEM_EXEC:
                 self.prev_pc = self.get_pc()
@@ -3056,7 +3105,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._raise_protection_fault(address, "write")
 
         error = self.get_error_info("invalid_protect_write", address, access_type="write")
-        self.curr_run.error = error  # type: ignore[union-attr]
+        self._set_run_error(error)
         self.end_run_on_fault()
         return True
 
@@ -3078,7 +3127,7 @@ class WindowsEmulator(BinaryEmulator):
         self.mem_protect(base, end - base, common.PERM_MEM_RW)
         return True
 
-    def get_symbol_from_address(self, address):
+    def get_symbol_from_address(self, address) -> str | None:
         """
         If the supplied address is related to a known symbol, look it up here
         """
@@ -3090,17 +3139,15 @@ class WindowsEmulator(BinaryEmulator):
         auxiliary = self.symbols.get(address)
         return "{}.{}".format(*auxiliary) if auxiliary else None
 
-    def get_symbols(self):
+    def get_symbols(self) -> dict[int, tuple[str, str]]:
         """Snapshot public addresses as legacy (dll, name) tuples.
 
         Registry entries take precedence over auxiliary labels at the same address.
         Forwarder strings and private dispatch tokens are not public symbols.
         """
-        # The legacy storage annotation says str, but producers store tuples.
-        auxiliary_symbols = cast(dict[int, tuple[str, str]], self.symbols)
         symbols = {
             address: value
-            for address, value in auxiliary_symbols.items()
+            for address, value in self.symbols.items()
             if not self.api_registry.overlaps_traps(address)
             and not (
                 address in self.api_registry.entries and self.api_registry.entries[address].export.forwarder is not None
@@ -3113,15 +3160,20 @@ class WindowsEmulator(BinaryEmulator):
         )
         return symbols
 
-    def get_api_symbols(self):
+    def get_api_symbols(self) -> dict[int, str]:
         """Snapshot public function/data and auxiliary symbols as string labels."""
         return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
+
+    def _set_run_error(self, error: ErrorInfo) -> None:
+        """Save error as the error of the current run, if a run is active."""
+        if self.curr_run is not None:
+            self.curr_run.error = error
 
     def _end_run_on_hook_error(self, description: str, message: str) -> bool:
         """Log the current exception, save it as the run error, and stop emulation."""
         logger.exception(description)
         error = self.get_error_info(message, self.get_pc(), traceback=traceback.format_exc())
-        self.curr_run.error = error  # type: ignore[union-attr]
+        self._set_run_error(error)
         self.on_emu_complete()
         return False
 
@@ -3139,7 +3191,7 @@ class WindowsEmulator(BinaryEmulator):
         Look in cache first. Return None if address is not mapped.
         """
         for access in cache:
-            if access.base <= address < access.base + access.size:
+            if access.base is not None and access.base <= address < access.base + access.size:
                 return access
         region = self._get_region_access(address)
         if region is not None:
@@ -3173,7 +3225,10 @@ class WindowsEmulator(BinaryEmulator):
             if symbol:
                 self._count_symbol_access("reads", address, symbol)
                 logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-            region = self._get_cached_region_access(address, self.curr_run.read_cache)  # type: ignore[union-attr]
+            run = self.curr_run
+            if run is None:
+                return True
+            region = self._get_cached_region_access(address, run.read_cache)
             if region is None:
                 return False
             region.reads += 1
@@ -3191,7 +3246,10 @@ class WindowsEmulator(BinaryEmulator):
             if symbol:
                 self._count_symbol_access("writes", address, symbol)
                 logger.debug("mem_write: addr=0x%x size=0x%x sym=%s", address, size, symbol)
-            region = self._get_cached_region_access(address, self.curr_run.write_cache)  # type: ignore[union-attr]
+            run = self.curr_run
+            if run is None:
+                return True
+            region = self._get_cached_region_access(address, run.write_cache)
             if region is None:
                 return False
             region.writes += 1
@@ -3236,7 +3294,7 @@ class WindowsEmulator(BinaryEmulator):
                 return False
             return True
         error = self.get_error_info("invalid_protect_fetch", address, access_type="fetch")
-        self.curr_run.error = error
+        self._set_run_error(error)
         self.end_run_on_fault()
         return False
 
@@ -3281,7 +3339,8 @@ class WindowsEmulator(BinaryEmulator):
         Persistent code hook that records every executed address for coverage.
         """
         try:
-            self.curr_run.coverage.add(addr)  # type: ignore[union-attr]
+            if self.curr_run is not None:
+                self.curr_run.coverage.add(addr)
             return True
         except Exception as e:
             return self._end_run_on_hook_error("Exception during code hook (coverage)", str(e))
@@ -3304,8 +3363,11 @@ class WindowsEmulator(BinaryEmulator):
                     self._api_call_site = (addr, self.prev_pc)
 
             self.prev_pc = addr
-            self.curr_run.instr_cnt += 1  # type: ignore[union-attr]
-            region = self._get_cached_region_access(addr, self.curr_run.exec_cache)  # type: ignore[union-attr]
+            run = self.curr_run
+            if run is None:
+                return True
+            run.instr_cnt += 1
+            region = self._get_cached_region_access(addr, run.exec_cache)
             if region is None:
                 return False
             region.execs += 1
@@ -3320,7 +3382,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         x = self.get_disasm(addr, size)[2]
         if self.get_arch() == _arch.ARCH_AMD64:
-            regs = ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9")
+            regs: tuple[str, ...] = ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9")
         else:
             regs = ("eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp")
         vals = " : ".join(f"{r}=0x{self.reg_read(r):x}" for r in regs)
@@ -3400,7 +3462,7 @@ class WindowsEmulator(BinaryEmulator):
         native_path = native_path or self.get_native_module_path(mod_name=name)
         if base is None and not native_path and data is None:
             base = 0x6F000000
-        handler = self.api.load_api_handler(name) if self.api else None
+        handler = self.api.load_api_handler(name)
         if handler and name == "ntdll":
             nt_handler = self.api.load_api_handler("ntoskrnl")
             if nt_handler:
@@ -3583,39 +3645,39 @@ class WindowsEmulator(BinaryEmulator):
         """
         Create a kernel event object
         """
-        self.validate_object_services("event creation")
+        om = self.get_object_manager("event creation")
         evt = self.new_object(objman.Event)
         evt.name = name
-        hnd = self.om.get_handle(evt)  # type: ignore[union-attr]
+        hnd = om.get_handle(evt)
         return hnd, evt
 
     def dec_ref(self, obj):
         """
         Dereference an object
         """
-        self.validate_object_services("object dereference")
-        return self.om.dec_ref(obj)  # type: ignore[union-attr]
+        om = self.get_object_manager("object dereference")
+        return om.dec_ref(obj)
 
     def create_mutant(self, name=""):
         """
         Create a kernel mutant object
         """
-        self.validate_object_services("mutant creation")
+        om = self.get_object_manager("mutant creation")
         if name == 0:
             name = ""
         mtx = self.new_object(objman.Mutant)
         mtx.name = name
-        hnd = self.om.get_handle(mtx)  # type: ignore[union-attr]
+        hnd = om.get_handle(mtx)
         return hnd, mtx
 
     def create_semaphore(self, name=""):
         """
         Create a kernel semaphore object
         """
-        self.validate_object_services("semaphore creation")
+        om = self.get_object_manager("semaphore creation")
         sem = self.new_object(objman.Semaphore)
         sem.name = name
-        hnd = self.om.get_handle(sem)  # type: ignore[union-attr]
+        hnd = om.get_handle(sem)
         return hnd, sem
 
     def _hook_interrupt(self, emu, intnum):
@@ -3646,14 +3708,13 @@ class WindowsEmulator(BinaryEmulator):
             ecx = self.reg_read(_arch.X86_REG_ECX)
             # Cookie security init failed, just return since we are in __security_init_cookie
             if ecx == 6:
-                hook_ref = [None]
 
                 def _tmp_hook(emu, addr, size):
                     ret = self.pop_stack()
                     self.set_pc(ret)
-                    hook_ref[0].disable()
+                    hook.disable()
 
-                hook_ref[0] = self.add_code_hook(cb=_tmp_hook)
+                hook = self.add_code_hook(cb=_tmp_hook)
                 return True
 
         pc = self.get_pc()
@@ -3661,7 +3722,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
         error = self.get_error_info("unhandled_interrupt", pc)
         error.interrupt_num = intnum
-        self.curr_run.error = error  # type: ignore[union-attr]
+        self._set_run_error(error)
 
         if self._should_stop_on_faults:
             self.end_run_on_fault()

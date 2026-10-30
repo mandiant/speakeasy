@@ -10,6 +10,7 @@ import speakeasy.common as common
 from speakeasy.errors import OutOfMemoryError
 
 if TYPE_CHECKING:
+    from speakeasy.config import SpeakeasyConfig
     from speakeasy.engines.unicorn_eng import EmuEngine
 
 
@@ -19,8 +20,8 @@ class MemMap:
     """
 
     def __init__(self, base, size, tag, prot, flags, block_base, block_size, shared=False, process=None):
-        self.base = base
-        self.size = size
+        self.base: int = base
+        self.size: int = size
 
         base_addr_tag = f".0x{base:x}"
         if tag and base_addr_tag not in tag:
@@ -32,14 +33,14 @@ class MemMap:
             [tag.__setitem__(j, "_") for j in [i for i, e in enumerate(tag) if e in bad_chars]]
             tag = "".join(tag)
 
-        self.tag = tag
-        self.prot = prot
-        self.flags = flags
-        self.shared = shared
-        self.free = False
-        self.process = process
-        self.block_base = block_base
-        self.block_size = block_size
+        self.tag: str | None = tag
+        self.prot: int = prot
+        self.flags: int = flags
+        self.shared: bool = shared
+        self.free: bool = False
+        self.process: Any = process
+        self.block_base: int = block_base
+        self.block_size: int = block_size
 
     def __hash__(self):
         return hash(self.base)
@@ -62,11 +63,12 @@ class MemoryManager:
 
     Subclasses must define the following attributes:
         hooks: Dictionary of hooks
-        keep_memory_on_free: Whether to keep memory on free
+        config: Emulation configuration
     """
 
     hooks: dict[int, Any]
-    keep_memory_on_free: bool
+    emu_eng: EmuEngine
+    config: SpeakeasyConfig
 
     def get_current_process(self) -> Any:
         return None
@@ -79,14 +81,13 @@ class MemoryManager:
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.maps = []
-        self.emu_eng: EmuEngine | None = None
-        self.mem_reserves = []
-        self.block_base = 0
-        self.block_size = 0
-        self.block_offset = 0
-        self.page_size = 0x1000
-        self.alloc_base = ALLOCATION_GRANULARITY
+        self.maps: list[MemMap] = []
+        self.mem_reserves: list[MemMap] = []
+        self.block_base: int = 0
+        self.block_size: int = 0
+        self.block_offset: int = 0
+        self.page_size: int = 0x1000
+        self.alloc_base: int = ALLOCATION_GRANULARITY
 
     @contextmanager
     def allocations_from(self, base: int) -> Iterator[None]:
@@ -114,7 +115,16 @@ class MemoryManager:
                     if not mem_map_hook.end or mem_map_hook.end > mm.base:
                         mem_map_hook.cb(self, mm.base, mm.size, mm.tag, mm.prot, mm.flags)
 
-    def mem_map(self, size, base=None, perms=common.PERM_MEM_RWX, tag=None, flags=0, shared=False, process=None):
+    def mem_map(
+        self,
+        size: int,
+        base: int | None = None,
+        perms: int = common.PERM_MEM_RWX,
+        tag: str | None = None,
+        flags: int = 0,
+        shared: bool = False,
+        process: Any = None,
+    ) -> int:
         """
         Map a block of memory with specified permissions and a tag
         """
@@ -130,7 +140,7 @@ class MemoryManager:
                     block = self.get_valid_ranges(self.page_size)
                     self.block_base, self.block_size = block
 
-                    self.emu_eng.mem_map(self.block_base, self.block_size)  # type: ignore[union-attr]
+                    self.emu_eng.mem_map(self.block_base, self.block_size)
                     self.block_offset = 0
                     addr = self.block_base + self.block_offset
 
@@ -150,12 +160,12 @@ class MemoryManager:
         if size > self.block_size:
             block_size = size
         mm = MemMap(base, size, tag, perms, flags, base, block_size, shared, process)
-        self.emu_eng.mem_map(base, size, perms=perms)  # type: ignore[union-attr]
+        self.emu_eng.mem_map(base, size, perms=perms)
         self.maps.append(mm)
         self._hook_mem_map_dispatch(mm)
         return base
 
-    def mem_free(self, base):
+    def mem_free(self, base) -> None:
         """
         Free a block of memory, if all blocks in a block are set to free, unmap the entire block
         """
@@ -164,7 +174,7 @@ class MemoryManager:
             mm.free = True
 
             # If we want to freeze memory, just return
-            if self.config.keep_memory_on_free:  # type: ignore[attr-defined]  # config is defined on subclasses
+            if self.config.keep_memory_on_free:
                 return
 
             ml = [m for m in self.get_mem_maps() if m.block_base == mm.block_base]
@@ -172,37 +182,38 @@ class MemoryManager:
             if all([m.free for m in ml]):
                 self.block_base = 0
                 self.mem_unmap(mm.block_base, mm.block_size)
-                [self.maps.remove(mm) for mm in ml]  # type: ignore[func-returns-value]  # list comp used for side effect
+                for m in ml:
+                    self.maps.remove(m)
 
     def mem_unmap(self, base, size):
         """
         Free a block of emulated memory
         """
-        self.emu_eng.mem_unmap(base, size)  # type: ignore[union-attr]
+        self.emu_eng.mem_unmap(base, size)
 
-    def mem_write(self, addr, data):
+    def mem_write(self, addr, data) -> None:
         """
         Write bytes into the emulated address space
         """
-        self.emu_eng.mem_write(addr, data)  # type: ignore[union-attr]
+        self.emu_eng.mem_write(addr, data)
 
-    def mem_read(self, addr, size):
+    def mem_read(self, addr, size) -> bytes:
         """
         Read bytes from the emulated address space
         """
-        return bytes(self.emu_eng.mem_read(addr, size))  # type: ignore[union-attr]
+        return bytes(self.emu_eng.mem_read(addr, size))
 
     def mem_protect(self, addr, size, perms):
         """
         Change memory protections
         """
-        self.emu_eng.mem_protect(addr, size, perms)  # type: ignore[union-attr]
+        self.emu_eng.mem_protect(addr, size, perms)
 
     def _mem_unmap_region(self, base, size):
         """
         Remove an entire memory region that may not have blocks allocated within it
         """
-        self.emu_eng.mem_unmap(base, size)  # type: ignore[union-attr]
+        self.emu_eng.mem_unmap(base, size)
 
     def get_address_map(self, address):
         """
@@ -220,7 +231,7 @@ class MemoryManager:
             if m.base <= address <= (m.base + m.size) - 1:
                 return m
 
-    def is_address_valid(self, address):
+    def is_address_valid(self, address) -> bool:
         """
         Was this address previously reserved or mapped?
         """
@@ -257,7 +268,7 @@ class MemoryManager:
         """
         self.mem_reserves = [r for r in self.mem_reserves if r.base != base]
 
-    def get_mem_maps(self):
+    def get_mem_maps(self) -> list[MemMap]:
         """
         Get the listing of current memory maps
         """
@@ -278,9 +289,9 @@ class MemoryManager:
         """
         Get the current regions of mapped memory
         """
-        return self.emu_eng.mem_regions()  # type: ignore[union-attr]
+        return self.emu_eng.mem_regions()
 
-    def get_valid_ranges(self, size, addr=None):
+    def get_valid_ranges(self, size: int, addr: int | None = None) -> tuple[int, int]:
         """
         Retrieve a valid address range that can satisfy the requested size.
         Optionally, a base address can be specified to test if it can be used

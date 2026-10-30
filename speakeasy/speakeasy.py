@@ -1,8 +1,10 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import logging
+import multiprocessing.synchronize
 import ntpath
 import os
+import threading
 import zipfile
 from collections.abc import Callable
 from io import BytesIO
@@ -37,12 +39,14 @@ class Speakeasy:
     Wrapper class for invoking the speakeasy emulators
     """
 
+    config: SpeakeasyConfig
+
     @staticmethod
     def check_init(func):
         """Wrapper to make sure the emulator is initialized"""
 
         def wrap(self, *args, **kwargs):
-            if not self.emu:
+            if self._emu is None:
                 raise SpeakeasyError("Emulator not initialized")
             return func(self, *args, **kwargs)
 
@@ -68,17 +72,17 @@ class Speakeasy:
             apply_volumes(config, volumes)
 
         self._init_config(config)
-        self.emu: Win32Emulator | WinKernelEmulator | None = None
+        self._emu: Win32Emulator | WinKernelEmulator | None = None
         self.api_hooks: list[tuple[Callable, str, str, int, object | None]] = []
         self.code_hooks: list[tuple[Callable, int, int]] = []
         self.dyn_code_hooks: list[tuple[Callable]] = []
         self.invalid_insn_hooks: list[tuple[Callable]] = []
         self.mem_read_hooks: list[tuple[Callable, int, int]] = []
-        self.argv = argv if argv is not None else []
-        self.exit_event = exit_event
-        self.debug = debug
-        self.gdb_port = gdb_port
-        self.gdb_host = gdb_host
+        self.argv: list[str] = argv if argv is not None else []
+        self.exit_event: threading.Event | multiprocessing.synchronize.Event | None = exit_event
+        self.debug: bool = debug
+        self.gdb_port: int | None = gdb_port
+        self.gdb_host: str = gdb_host
         self.loaded_bins: list[str | None] = []
         self.mem_write_hooks: list[tuple[Callable, int, int]] = []
         self.in_insn_hooks: list[tuple[Callable, int, int]] = []
@@ -86,6 +90,25 @@ class Speakeasy:
         self.mem_invalid_hooks: list[tuple[Callable]] = []
         self.interrupt_hooks: list[tuple[Callable]] = []
         self.mem_map_hooks: list[tuple[Callable, int, int]] = []
+
+    @property
+    def has_emulator(self) -> bool:
+        """
+        Whether a load created the emulator, so that emu is available.
+        """
+        return self._emu is not None
+
+    @property
+    def emu(self) -> Win32Emulator | WinKernelEmulator:
+        """
+        The emulator for the loaded input.
+
+        Raises:
+            SpeakeasyError: no input is loaded yet.
+        """
+        if self._emu is None:
+            raise SpeakeasyError("Emulator not initialized")
+        return self._emu
 
     def __enter__(self):
         return self
@@ -114,100 +137,85 @@ class Speakeasy:
                 logger.exception("Invalid config: %s", str(err))
                 raise ConfigError("Invalid config") from err
 
-    def _init_emulator(self, path=None, data=None, is_raw_code=False) -> None:
+    def _init_pe_emulator(self, path=None, data=None) -> None:
         """
         Based on the PE metadata, use the appropriate emulator. That is,
-        a user mode emulator vs a kernel mode emulator. For a PE, also create
+        a user mode emulator vs a kernel mode emulator. Also create
         the machine for the architecture of the PE.
         """
-        if not is_raw_code:
-            pe = _PeParser(path=path, data=data)
-            # Get the machine type we only support x86/x64 atm
-            mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
-            if mach not in ("amd64", "i386"):
-                raise SpeakeasyError(f"Unsupported architecture: {mach}")
+        pe = _PeParser(path=path, data=data)
+        # Get the machine type we only support x86/x64 atm
+        mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
+        if mach not in ("amd64", "i386"):
+            raise SpeakeasyError(f"Unsupported architecture: {mach}")
 
-            if pe.is_dotnet():
-                raise NotSupportedError(".NET assemblies are not currently supported")
+        if pe.is_dotnet():
+            raise NotSupportedError(".NET assemblies are not currently supported")
 
-            if pe.is_driver():
-                self.emu = WinKernelEmulator(
-                    config=self.config,
-                    debug=self.debug,
-                    exit_event=self.exit_event,
-                    gdb_port=self.gdb_port,
-                    gdb_host=self.gdb_host,
-                )
-            else:
-                self.emu = Win32Emulator(
-                    config=self.config,
-                    argv=self.argv,
-                    debug=self.debug,
-                    exit_event=self.exit_event,
-                    gdb_port=self.gdb_port,
-                    gdb_host=self.gdb_host,
-                )
-            self.emu.init_machine(pe.arch)
-            if isinstance(self.emu, Win32Emulator) and not pe.is_exe():
-                self.emu.load_container()
-        else:
-            self.emu = Win32Emulator(
+        if pe.is_driver():
+            emu = WinKernelEmulator(
                 config=self.config,
-                argv=self.argv,
                 debug=self.debug,
                 exit_event=self.exit_event,
                 gdb_port=self.gdb_port,
                 gdb_host=self.gdb_host,
             )
+            self._emu = emu
+            emu.init_machine(pe.arch)
+        else:
+            user_emu = self._init_user_emulator()
+            user_emu.init_machine(pe.arch)
+            if not pe.is_exe():
+                user_emu.load_container()
+
+    def _init_user_emulator(self) -> Win32Emulator:
+        emu = Win32Emulator(
+            config=self.config,
+            argv=self.argv,
+            debug=self.debug,
+            exit_event=self.exit_event,
+            gdb_port=self.gdb_port,
+            gdb_host=self.gdb_host,
+        )
+        self._emu = emu
+        return emu
 
     def _init_hooks(self) -> None:
         """
         Lazily add hooks if users added them early before emulator engine was instantiated
         """
-        # Add any configured hooks here
         while self.api_hooks:
-            h = self.api_hooks.pop(0)
-            cb, mod, func, argc, cconv = h
+            cb, mod, func, argc, cconv = self.api_hooks.pop(0)
             self.add_api_hook(cb, mod, func, argc, cconv)
         while self.code_hooks:
-            h = self.code_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.code_hooks.pop(0)
             self.add_code_hook(cb, begin, end)
         while self.dyn_code_hooks:
-            h = self.dyn_code_hooks.pop(0)
-            (cb,) = h
+            (cb,) = self.dyn_code_hooks.pop(0)
             self.add_dyn_code_hook(cb)
         while self.invalid_insn_hooks:
-            h = self.invalid_insn_hooks.pop(0)
-            (cb,) = h
+            (cb,) = self.invalid_insn_hooks.pop(0)
             self.add_invalid_instruction_hook(cb)
         while self.mem_read_hooks:
-            h = self.mem_read_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.mem_read_hooks.pop(0)
             self.add_mem_read_hook(cb, begin, end)
         while self.mem_write_hooks:
-            h = self.mem_write_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.mem_write_hooks.pop(0)
             self.add_mem_write_hook(cb, begin, end)
         while self.in_insn_hooks:
-            h = self.in_insn_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.in_insn_hooks.pop(0)
             self.add_IN_instruction_hook(cb, begin, end)
         while self.syscall_insn_hooks:
-            h = self.syscall_insn_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.syscall_insn_hooks.pop(0)
             self.add_SYSCALL_instruction_hook(cb, begin, end)
         while self.mem_invalid_hooks:
-            h = self.mem_invalid_hooks.pop(0)
-            (cb,) = h
+            (cb,) = self.mem_invalid_hooks.pop(0)
             self.add_mem_invalid_hook(cb)
         while self.interrupt_hooks:
-            h = self.interrupt_hooks.pop(0)
-            (cb,) = h
+            (cb,) = self.interrupt_hooks.pop(0)
             self.add_interrupt_hook(cb)
         while self.mem_map_hooks:
-            h = self.mem_map_hooks.pop(0)
-            cb, begin, end = h
+            cb, begin, end = self.mem_map_hooks.pop(0)
             self.add_mem_map_hook(cb, begin, end)
 
     def disasm(self, addr: int, size: int, fast=True):
@@ -221,7 +229,7 @@ class Speakeasy:
             A tuple of: (mnemonic, operands, and the full instruction)
         """
         try:
-            return self.emu.get_disasm(addr, size, fast)  # type: ignore[union-attr]
+            return self.emu.get_disasm(addr, size, fast)
         except Exception:
             raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}")
 
@@ -306,24 +314,24 @@ class Speakeasy:
         if path:
             self._auto_mount_target_directory(path)
 
-        self._init_emulator(path=path, data=data)
+        self._init_pe_emulator(path=path, data=data)
 
-        return self.emu.load_module(path=path, data=data, filename=filename)  # type: ignore[union-attr]
+        return self.emu.load_module(path=path, data=data, filename=filename)
 
     def load_image(self, image):
         """
         Load a LoadedImage into the emulator. If there is no emulator yet, create it,
         and the image is the input image.
         """
-        is_input = not self.emu
+        is_input = self._emu is None
         if is_input:
-            self._init_emulator(is_raw_code=True)
+            emu = self._init_user_emulator()
             arch = image.arch if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) else _arch.ARCH_X86
-            self.emu.init_machine(arch)  # type: ignore[union-attr]
+            emu.init_machine(arch)
             if image.module_type != "exe":
-                self.emu.load_container()  # type: ignore[union-attr]
+                emu.load_container()
         self._init_hooks()
-        return self.emu.load_image(image, is_input=is_input)  # type: ignore[union-attr]
+        return self.emu.load_image(image, is_input=is_input)
 
     @check_init
     @execution_scope
@@ -347,14 +355,14 @@ class Speakeasy:
         self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
-            return self.emu.run_module(  # type: ignore[no-any-return]
+            return self.emu.run_module(
                 module=module,
                 all_entrypoints=all_entrypoints,
                 emulate_children=emulate_children,
                 entry_point=entry_point,
             )
         else:
-            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)  # type: ignore[no-any-return, union-attr]
+            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)
 
     def load_shellcode(self, fpath=None, arch=None, data=None, filename=None) -> int:
         """
@@ -368,12 +376,12 @@ class Speakeasy:
         return:
             Address of the loaded shellcode in the emulation space
         """
-        self._init_emulator(is_raw_code=True)
-        self.emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86))  # type: ignore[union-attr]
-        self.emu.load_container()  # type: ignore[union-attr]
+        emu = self._init_user_emulator()
+        emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86))
+        emu.load_container()
         self.loaded_bins.append(fpath)
 
-        return self.emu.load_shellcode(fpath, arch, data=data, filename=filename)  # type: ignore[no-any-return, union-attr]
+        return emu.load_shellcode(fpath, arch, data=data, filename=filename)
 
     @check_init
     @execution_scope
@@ -387,9 +395,12 @@ class Speakeasy:
         return:
             None
         """
+        emu = self.emu
+        if not isinstance(emu, Win32Emulator):
+            raise SpeakeasyError("Shellcode runs only in the user mode emulator")
         output_active_config(self.config, logger)
         self._init_hooks()
-        return self.emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)  # type: ignore[no-any-return, union-attr]
+        return emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
 
     @check_init
     def get_report(self) -> Report:
@@ -399,7 +410,7 @@ class Speakeasy:
         return:
             Get the emulation report as a Pydantic Report model
         """
-        return self.emu.get_report()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_report()
 
     @check_init
     def get_json_report(self) -> str:
@@ -408,7 +419,7 @@ class Speakeasy:
         return:
             Get the emulation report as a JSON object
         """
-        return self.emu.get_json_report()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_json_report()
 
     def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
         """
@@ -423,7 +434,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
             return
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
@@ -440,14 +451,14 @@ class Speakeasy:
             None
         """
         output_active_config(self.config, logger)
-        self.emu.is_run_complete = False  # type: ignore[union-attr]
-        self.emu.resume(addr, count=count)  # type: ignore[union-attr]
+        self.emu.is_run_complete = False
+        self.emu.resume(addr, count=count)
 
     def stop(self) -> None:
         """
         Stops emulation
         """
-        return self.emu.stop()  # type: ignore[no-any-return, union-attr]
+        return self.emu.stop()
 
     def shutdown(self) -> None:
         """
@@ -460,10 +471,8 @@ class Speakeasy:
         instances, so we let the normal GC + weak-ref finalizer handle it when
         the object graph is fully unreachable.
         """
-        if self.emu is None:
-            return
-        if hasattr(self.emu, "emu_eng") and self.emu.emu_eng is not None:
-            self.emu.emu_eng.close()
+        if self._emu is not None:
+            self._emu.emu_eng.close()
 
     @execution_scope
     def call(self, addr: int, params=[]) -> None:
@@ -477,7 +486,7 @@ class Speakeasy:
             None
         """
         output_active_config(self.config, logger)
-        return self.emu.call(addr, params=params)  # type: ignore[no-any-return, union-attr]
+        return self.emu.call(addr, params=params)
 
     def add_code_hook(self, cb: Callable, begin=1, end=0):
         """
@@ -490,7 +499,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.code_hooks.append((cb, begin, end))
             return
         return self.emu.add_code_hook(cb, begin=begin, end=end, emu=self)
@@ -504,7 +513,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.dyn_code_hooks.append((cb,))
             return
         return self.emu.add_dyn_code_hook(cb, emu=self)
@@ -520,7 +529,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.mem_read_hooks.append((cb, begin, end))
             return
         return self.emu.add_mem_read_hook(cb, begin=begin, end=end, emu=self)
@@ -536,7 +545,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.mem_write_hooks.append((cb, begin, end))
             return
         return self.emu.add_mem_write_hook(cb, begin=begin, end=end, emu=self)
@@ -552,7 +561,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.in_insn_hooks.append((cb, begin, end))
             return
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=218)
@@ -568,7 +577,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.syscall_insn_hooks.append((cb, begin, end))
             return
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
@@ -583,7 +592,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.invalid_insn_hooks.append((cb,))
             return
         return self.emu.add_invalid_instruction_hook(cb)
@@ -597,7 +606,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.mem_invalid_hooks.append((cb,))
             return
         return self.emu.add_mem_invalid_hook(cb, emu=self)
@@ -611,7 +620,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.interrupt_hooks.append((cb,))
             return
         return self.emu.add_interrupt_hook(cb, emu=self)
@@ -626,7 +635,7 @@ class Speakeasy:
         return:
             If valid, a registry key object
         """
-        return self.emu.reg_get_key(handle=handle, path=path)  # type: ignore[union-attr]
+        return self.emu.reg_get_key(handle=handle, path=path)
 
     def get_address_map(self, addr: int):
         """
@@ -637,7 +646,7 @@ class Speakeasy:
         return:
             A memory map object that holds the specified address
         """
-        return self.emu.get_address_map(addr)  # type: ignore[union-attr]
+        return self.emu.get_address_map(addr)
 
     def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
         """
@@ -651,7 +660,7 @@ class Speakeasy:
         return:
             Address of the newly allocated memory block
         """
-        return self.emu.mem_map(size, base=base, tag=tag)  # type: ignore[no-any-return, union-attr]
+        return self.emu.mem_map(size, base=base, tag=tag)
 
     def mem_free(self, base: int) -> None:
         """
@@ -661,7 +670,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.mem_free(base)  # type: ignore[no-any-return, union-attr]
+        return self.emu.mem_free(base)
 
     def mem_read(self, addr: int, size: int) -> bytes:
         """
@@ -674,7 +683,7 @@ class Speakeasy:
             Python bytes object contained the data read
         """
         try:
-            return self.emu.mem_read(addr, size)  # type: ignore[no-any-return, union-attr]
+            return self.emu.mem_read(addr, size)
         except Exception:
             raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}")
 
@@ -689,7 +698,7 @@ class Speakeasy:
             None
         """
         try:
-            return self.emu.mem_write(addr, data)  # type: ignore[no-any-return, union-attr]
+            return self.emu.mem_write(addr, data)
         except Exception:
             raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}")
 
@@ -703,7 +712,7 @@ class Speakeasy:
         return:
             Python object based on the data located at addr
         """
-        return self.emu.mem_cast(obj, addr)  # type: ignore[union-attr]
+        return self.emu.mem_cast(obj, addr)
 
     def reg_read(self, reg: str) -> int:
         """
@@ -714,7 +723,7 @@ class Speakeasy:
         return:
             value contained in the requested register
         """
-        return self.emu.reg_read(reg)  # type: ignore[no-any-return, union-attr]
+        return self.emu.reg_read(reg)
 
     def reg_write(self, reg: str, val: int) -> None:
         """
@@ -725,7 +734,7 @@ class Speakeasy:
         return:
             None
         """
-        return self.emu.reg_write(reg, val)  # type: ignore[no-any-return, union-attr]
+        return self.emu.reg_write(reg, val)
 
     def get_dropped_files(self) -> list:
         """
@@ -734,7 +743,7 @@ class Speakeasy:
         return:
             Returns a list of files that were written by the sample
         """
-        return self.emu.get_dropped_files()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_dropped_files()
 
     def create_file_archive(self) -> bytes:
         """
@@ -777,7 +786,7 @@ class Speakeasy:
         return:
             A list of all valid memory maps from the emulator
         """
-        return self.emu.get_mem_maps()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_mem_maps()
 
     def get_memory_dumps(self):
         """
@@ -786,14 +795,14 @@ class Speakeasy:
         return:
             A generator of tuples of all valid memory with context
         """
-        for mm in self.emu.get_mem_maps():  # type: ignore[union-attr]
+        for mm in self.emu.get_mem_maps():
             base = mm.base
             size = mm.size
             tag = mm.tag
             proc = mm.process
             is_free = mm.free
             try:
-                data = self.emu.mem_read(base, size)  # type: ignore[union-attr]
+                data = self.emu.mem_read(base, size)
             except Exception:
                 continue
             yield (tag, base, size, is_free, proc, data)
@@ -810,16 +819,16 @@ class Speakeasy:
         return:
             decoded string
         """
-        return self.emu.read_mem_string(address, width, max_chars)  # type: ignore[no-any-return, union-attr]
+        return self.emu.read_mem_string(address, width, max_chars)
 
-    def get_symbols(self) -> dict:
+    def get_symbols(self) -> dict[int, tuple[str, str]]:
         """
         Return a snapshot of public addresses mapped to (dll, name) tuples.
 
         Includes mapped API entries and auxiliary symbols. Snapshot again after
         resolving new modules or functions; private dispatch tokens are excluded.
         """
-        return self.emu.get_symbols()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_symbols()
 
     def get_ret_address(self) -> int:
         """
@@ -828,16 +837,16 @@ class Speakeasy:
         return:
             value stored at the top of the stack
         """
-        return self.emu.get_ret_address()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_ret_address()
 
-    def set_ret_address(self, addr) -> int:
+    def set_ret_address(self, addr) -> None:
         """
         Sets the return address on the stack
 
         return:
             None
         """
-        return self.emu.set_ret_address(addr)  # type: ignore[no-any-return, union-attr]
+        return self.emu.set_ret_address(addr)
 
     def push_stack(self, val: int) -> None:
         """
@@ -848,7 +857,7 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.push_stack(val)  # type: ignore[union-attr]
+        self.emu.push_stack(val)
 
     def pop_stack(self) -> int:
         """
@@ -857,7 +866,7 @@ class Speakeasy:
         return:
             value stored at the top of the stack
         """
-        return self.emu.pop_stack()  # type: ignore[no-any-return, union-attr]
+        return self.emu.pop_stack()
 
     def get_stack_ptr(self) -> int:
         """
@@ -866,7 +875,7 @@ class Speakeasy:
         return:
             address of stack pointer
         """
-        return self.emu.get_stack_ptr()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_stack_ptr()
 
     def set_stack_ptr(self, addr: int) -> None:
         """
@@ -877,7 +886,7 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.set_stack_ptr(addr)  # type: ignore[union-attr]
+        self.emu.set_stack_ptr(addr)
 
     def get_pc(self) -> int:
         """
@@ -886,7 +895,7 @@ class Speakeasy:
         return:
             value of the program counter
         """
-        return self.emu.get_pc()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_pc()
 
     def set_pc(self, addr: int) -> None:
         """
@@ -897,9 +906,9 @@ class Speakeasy:
         return:
             None
         """
-        self.emu.set_pc(addr)  # type: ignore[union-attr]
+        self.emu.set_pc(addr)
 
-    def reset_stack(self, base: int) -> tuple:
+    def reset_stack(self, base: int) -> tuple[int, int]:
         """
         Reset stack to the supplied base address
 
@@ -908,7 +917,7 @@ class Speakeasy:
         return:
             base, ptr
         """
-        return self.emu.reset_stack(base)  # type: ignore[no-any-return, union-attr]
+        return self.emu.reset_stack(base)
 
     def get_stack_base(self) -> int:
         """
@@ -917,7 +926,7 @@ class Speakeasy:
         return:
             base address of stack
         """
-        return self.emu.stack_base  # type: ignore[no-any-return, union-attr]
+        return self.emu.stack_base
 
     def get_arch(self) -> int:
         """
@@ -926,7 +935,7 @@ class Speakeasy:
         return:
             emulator architecture constant value
         """
-        return self.emu.get_arch()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_arch()
 
     def get_ptr_size(self):
         """
@@ -935,18 +944,18 @@ class Speakeasy:
         return:
             pointer size
         """
-        return self.emu.ptr_size  # type: ignore[union-attr]
+        return self.emu.ptr_size
 
-    def get_all_registers(self) -> dict:
+    def get_all_registers(self) -> dict[str, str]:
         """
         Get the state of all registers
 
         return:
             Dict containing emulation register states
         """
-        return self.emu.get_register_state()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_register_state()
 
-    def get_symbol_from_address(self, address: int) -> str:
+    def get_symbol_from_address(self, address: int) -> str | None:
         """
         If the supplied address is related to a known symbol, look it up here
 
@@ -956,7 +965,7 @@ class Speakeasy:
         return:
             symbol name
         """
-        return self.emu.get_symbol_from_address(address)  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_symbol_from_address(address)
 
     def get_api_symbols(self) -> dict[int, str]:
         """Return public addresses mapped to "dll.name" labels, including auxiliary symbols.
@@ -964,7 +973,7 @@ class Speakeasy:
         Snapshot again after new modules or functions are resolved. Private
         dispatch tokens and export-directory forwarder strings are excluded.
         """
-        return self.emu.get_api_symbols()  # type: ignore[no-any-return, union-attr]
+        return self.emu.get_api_symbols()
 
     def is_address_valid(self, address: int) -> bool:
         """
@@ -976,7 +985,7 @@ class Speakeasy:
         return:
             True if address is valid, false otherwise
         """
-        return self.emu.is_address_valid(address)  # type: ignore[no-any-return, union-attr]
+        return self.emu.is_address_valid(address)
 
     def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
         """
@@ -989,7 +998,7 @@ class Speakeasy:
         return:
             Hook object for newly registered hooks
         """
-        if not self.emu:
+        if self._emu is None:
             self.mem_map_hooks.append((cb, begin, end))
             return
         return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)
