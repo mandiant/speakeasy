@@ -7649,6 +7649,46 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         return
 
+    @apihook("WaitOnAddress", argc=4)
+    def WaitOnAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL WaitOnAddress(
+          volatile VOID *Address,
+          PVOID         CompareAddress,
+          SIZE_T        AddressSize,
+          DWORD         dwMilliseconds
+        );
+
+        Threads run one after another, so no other thread can change the value or wake
+        this thread during the wait. A finite wait times out at once. An INFINITE wait
+        ends the run of the thread, so that the queued runs can execute.
+        """
+        Address, CompareAddress, AddressSize, dwMilliseconds = argv
+        if AddressSize not in (1, 2, 4, 8):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
+
+        if self.mem_read(Address, AddressSize) != self.mem_read(CompareAddress, AddressSize):
+            return True
+
+        if dwMilliseconds == 0xFFFFFFFF:
+            emu.exit_process()
+            return True
+
+        self.advance_clock(dwMilliseconds)
+        emu.set_last_error(windefs.ERROR_TIMEOUT)
+        return False
+
+    @apihook("WakeByAddressSingle", argc=1)
+    def WakeByAddressSingle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void WakeByAddressSingle(PVOID Address);"""
+        return
+
+    @apihook("WakeByAddressAll", argc=1)
+    def WakeByAddressAll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void WakeByAddressAll(PVOID Address);"""
+        return
+
     @apihook("Wow64DisableWow64FsRedirection", argc=1)
     def Wow64DisableWow64FsRedirection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
