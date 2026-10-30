@@ -18,7 +18,6 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     parent = load_test_bin(PARENT)
     with Speakeasy(config=config) as se:
         module = se.load_module(data=parent)
-        assert se.emu is not None
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.run_module(module, emulate_children=True)
         child = se.emu.get_mod_from_addr(module.base)
@@ -39,7 +38,6 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
 def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
-        assert se.emu is not None
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.emu.mem_map(0x1000, base=CHILD_BASE, tag="test.block")
         with caplog.at_level(logging.WARNING):
@@ -54,7 +52,6 @@ def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_
 def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
-        assert se.emu is not None
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.run_module(module, emulate_children=True)
         child = se.emu.get_current_process()
@@ -73,7 +70,6 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bi
 def test_finished_parent_gives_up_its_image_peb_and_heap(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
-        assert se.emu is not None
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.run_module(module, emulate_children=True)
         parent = se.emu.processes[0]

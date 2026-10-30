@@ -19,7 +19,6 @@ from tests.pma_harness import PMA_DIR
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 28), ("dll64_emu", 48)])
 def test_get_message_writes_one_msg(request: pytest.FixtureRequest, fixture: str, size: int) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     start_process(se)
     call(se, "user32", "SetTimer", [0, 1, 10, 0])
     buf = alloc(se, b"\xcc" * 0x40)
@@ -34,7 +33,6 @@ def test_get_message_writes_one_msg(request: pytest.FixtureRequest, fixture: str
 
 
 def get_timer_message(se: Speakeasy) -> tuple[int, int, int, int]:
-    assert se.emu is not None
     ps = se.emu.get_ptr_size()
     buf = alloc(se, b"\x00" * 0x30)
     rv, _ = call(se, "user32", "GetMessageA", [buf, 0, 0, 0])
@@ -125,7 +123,6 @@ def test_find_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
 
 def create_window_of_class(se: Speakeasy, cls: int, wndproc: int) -> int:
     """Create a window of a class with a window procedure and return the HWND that its WM_NCCREATE gets."""
-    assert se.emu is not None
     rv, _ = call(se, "user32", "CreateWindowExA", [0, cls, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert rv is None
     assert se.emu.get_current_run().guest_callbacks[-1].function == wndproc
@@ -146,7 +143,6 @@ def test_wvsprintf_is_stdcall_and_writes_its_width(
     request: pytest.FixtureRequest, fixture: str, name: str, cw: int
 ) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None and se.emu.api is not None
     _, (_, _, argc, conv, _) = se.emu.get_api_handler("user32", name)
     assert (argc, conv) == (3, e_arch.CALL_CONV_STDCALL)
 
@@ -199,7 +195,6 @@ def test_wsprintf_writes_one_percent_for_escape_without_arguments(dll_emu: Speak
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_create_dialog_indirect_param_passes_init_param_in_lparam(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     parent = 0x1234
     rv, _ = call(se, "user32", "CreateDialogIndirectParamA", [0, alloc(se, b"\x00" * 32), parent, 0x401000, 0xBEEF])
     assert se.emu.get_pc() == 0x401000
@@ -217,7 +212,6 @@ def test_oem_to_char_copies_the_string_and_its_nul(dll_emu: Speakeasy) -> None:
 
 
 def test_oem_to_char_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     src = alloc(dll_emu, b"hi\x00")
     dst = 0x5FFF0010
     assert not dll_emu.emu.is_address_valid(dst)
@@ -226,7 +220,6 @@ def test_oem_to_char_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> N
 
 
 def test_get_object_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     pv = 0x5FFF0010
     rv, _ = call(dll_emu, "gdi32", "GetObjectA", [0x1234, 24, pv])
     assert rv == 24
@@ -261,7 +254,6 @@ def test_get_window_text_with_no_room(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_get_keyboard_layout_list_writes_one_hkl(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     ps = se.emu.get_ptr_size()
     n, _ = call(se, "user32", "GetKeyboardLayoutList", [0, 0])
     assert n == 1
@@ -410,7 +402,6 @@ def test_window_from_point_returns_the_desktop_window(request: pytest.FixtureReq
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_register_class_without_ex_registers_the_window_procedure(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     name = "Edp Notify".encode("utf-16le") + b"\x00\x00"
     wc = u32defs.WNDCLASS(se.get_ptr_size())
     wc.lpfnWndProc = 0x401000
@@ -447,7 +438,6 @@ def test_set_window_long_returns_the_previous_value(request: pytest.FixtureReque
 
 
 def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     hwnd = create_window_of_class(dll_emu, register_class(dll_emu, b"mycls", 0x401000), 0x401000)
     assert call(dll_emu, "user32", "GetWindowLongA", [hwnd, 0xFFFFFFFC])[0] == 0x401000
@@ -461,7 +451,6 @@ def test_set_window_long_wndproc_replaces_the_class_procedure(dll_emu: Speakeasy
 
 
 def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     desktop, _ = call(dll_emu, "user32", "GetDesktopWindow", [])
     top = create_window(dll_emu)
@@ -493,7 +482,6 @@ def test_window_properties_by_name(dll_emu: Speakeasy) -> None:
 
 
 def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     hwnd = create_window(dll_emu)
     pid = alloc(dll_emu, b"\xcc" * 4)
@@ -504,7 +492,6 @@ def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
 
 
 def test_get_foreground_window_is_a_stable_explorer_window(dll_emu: Speakeasy) -> None:
-    assert dll_emu.emu is not None
     start_process(dll_emu)
     hwnd, _ = call(dll_emu, "user32", "GetForegroundWindow", [])
     assert hwnd and call(dll_emu, "user32", "GetForegroundWindow", [])[0] == hwnd
@@ -555,7 +542,6 @@ def load_string_table_sample() -> bytes:
 )
 def test_load_string_reads_the_string_table(config: dict, api: str, uid: int, rv: int, out: bytes) -> None:
     for se in load_emu(config, load_string_table_sample()):
-        assert se.emu is not None
         buf = alloc(se, b"\xcc" * 64)
         result, _ = call(se, "user32", api, [se.emu.modules[0].base, uid, buf, 32])
         assert (result, se.mem_read(buf, len(out))) == (rv, out)
@@ -567,7 +553,6 @@ def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
     strings = next(e for e in pe.DIRECTORY_ENTRY_RESOURCE.entries if e.id == pefile.RESOURCE_TYPE["RT_STRING"])
     block = strings.directory.entries[0].directory.entries[0].data.struct
     for se in load_emu(config, data):
-        assert se.emu is not None
         base = se.emu.modules[0].base
         se.mem_write(
             base + block.OffsetToData, b"\0\0" + struct.pack("<H", 3) + "abc".encode("utf-16le") + b"\0\0" * 14
@@ -679,7 +664,6 @@ def lvcolumn(se: Speakeasy, mask: int, fmt: int = 0, cx: int = 0, text: int = 0,
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
 def test_list_view_columns_keep_their_widths(request: pytest.FixtureRequest, fixture: str) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     hwnd, _ = call(se, "user32", "CreateWindowExA", [0, alloc(se, b"SysListView32\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     name = alloc(se, b"Name\x00")
     rv, _ = call(se, "user32", "SendMessageA", [hwnd, LVM_INSERTCOLUMNA, 0, lvcolumn(se, 7, 0, 150, name)])

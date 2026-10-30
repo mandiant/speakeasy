@@ -25,7 +25,7 @@ def assert_rings(proc, bases, init_bases=None):
             return int.from_bytes(raw[:ptr_size], "little"), int.from_bytes(raw[ptr_size:], "little")
 
         for direction in (0, 1):
-            seen = []
+            seen: list[int] = []
             node = links(head)[direction]
             while node != head:
                 assert node not in seen, "Ring cycled without returning to its PEB head"
@@ -125,7 +125,8 @@ def make_list_walker(ptr_size):
 
 
 def read_walk(se, address):
-    lists, current = [], []
+    lists: list[list[int]] = []
+    current: list[int] = []
     while len(lists) < 3:
         value = read_pointer(se, address)
         address += se.get_ptr_size()

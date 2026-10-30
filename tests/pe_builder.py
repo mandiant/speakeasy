@@ -11,14 +11,14 @@ def build_pe(
     imports=None,
     nxcompat=False,
     extra_dirs=None,
-):
+) -> tuple[bytes, dict[tuple[str, str], int]]:
     """Return file bytes and {(DLL, function): IAT RVA}, with no relocations."""
     assert arch in (32, 64)
     is64 = arch == 64
     width = arch // 8
     base = 0x140000000 if is64 else 0x400000
     import_rva = 0x3000
-    iat_map = {}
+    iat_map: dict[tuple[str, str], int] = {}
     idata = bytearray()
     import_size = 0
     if imports:

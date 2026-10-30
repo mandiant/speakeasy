@@ -7,7 +7,7 @@ import pytest
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
-from tests.handler_harness import alloc, call, load_emu
+from tests.handler_harness import alloc, call, get_kernel_emu, load_emu
 
 
 @pytest.fixture(params=["wdm_test_x86.sys.xz", "wdm_test_x64.sys.xz"], ids=["x86", "x64"])
@@ -24,8 +24,7 @@ def test_ke_initialize_spin_lock_zeroes_the_lock(any_driver_emu: Speakeasy) -> N
 
 @pytest.mark.parametrize("irql", [ddk.PASSIVE_LEVEL, ddk.DISPATCH_LEVEL])
 def test_ke_acquire_spin_lock_saves_old_irql_and_raises_to_dispatch(driver_emu: Speakeasy, irql: int) -> None:
-    emu = driver_emu.emu
-    assert emu is not None
+    emu = get_kernel_emu(driver_emu)
     old_irql = alloc(driver_emu, b"\xcc")
     emu.set_current_irql(irql)
     call(driver_emu, "ntoskrnl", "KeAcquireSpinLock", [alloc(driver_emu, b"\x00" * 4), old_irql])
@@ -34,8 +33,7 @@ def test_ke_acquire_spin_lock_saves_old_irql_and_raises_to_dispatch(driver_emu: 
 
 
 def test_ke_release_spin_lock_restores_new_irql(driver_emu: Speakeasy) -> None:
-    emu = driver_emu.emu
-    assert emu is not None
+    emu = get_kernel_emu(driver_emu)
     lock = alloc(driver_emu, b"\x00" * 4)
     emu.set_current_irql(ddk.DISPATCH_LEVEL)
     call(driver_emu, "ntoskrnl", "KeReleaseSpinLock", [lock, ddk.DISPATCH_LEVEL])
@@ -45,16 +43,14 @@ def test_ke_release_spin_lock_restores_new_irql(driver_emu: Speakeasy) -> None:
 
 
 def test_ex_allocate_pool2_zero_size_allocates_nothing(driver_emu: Speakeasy) -> None:
-    emu = driver_emu.emu
-    assert emu is not None
+    emu = get_kernel_emu(driver_emu)
     before = list(emu.pool_allocs)
     assert call(driver_emu, "ntoskrnl", "ExAllocatePool2", [0x100, 0, 0, 0])[0] == 0
     assert emu.pool_allocs == before
 
 
 def test_ps_get_current_process_id_returns_active_pid(driver_emu: Speakeasy) -> None:
-    emu = driver_emu.emu
-    assert emu is not None
+    emu = get_kernel_emu(driver_emu)
     assert call(driver_emu, "ntoskrnl", "PsGetCurrentProcessId", [])[0] == 4
     proc = next(p for p in emu.processes if p.pid != 4)
     emu.set_current_process(proc)

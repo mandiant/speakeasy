@@ -47,12 +47,11 @@ def strict_fs_emu64(config: dict[str, Any], load_test_bin: Callable[[str], bytes
 
 
 def last_error(se: Speakeasy) -> int:
-    assert se.emu is not None
-    return se.emu.get_last_error()
+    error: int = se.emu.get_last_error()
+    return error
 
 
 def set_last_error(se: Speakeasy, code: int) -> None:
-    assert se.emu is not None
     se.emu.set_last_error(code)
 
 
@@ -209,7 +208,7 @@ def test_get_date_and_time_format_use_the_emulated_clock_for_null_time(emu: Spea
 
 
 def test_open_thread(emu: Speakeasy) -> None:
-    assert emu.emu is not None
+    assert emu.emu.curr_thread is not None
     tid = emu.emu.curr_thread.tid
     assert call(emu, "kernel32", "OpenThread", [0x1F03FF, 0, tid])[0] != 0
 
@@ -218,7 +217,6 @@ def test_open_thread(emu: Speakeasy) -> None:
 
 
 def test_get_module_file_name_ex(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     module = emu.emu.modules[0]
     path = module.emu_path
     buf = alloc(emu, b"\xcc" * 260)
@@ -373,7 +371,6 @@ def test_move_file_ex_moves_the_file(strict_fs_emu: Speakeasy) -> None:
 def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, int]:
     """Call a handler, return to the caller, and give the result and the bytes popped from the stack."""
     emu = se.emu
-    assert emu is not None and emu.api is not None
     _, func_attrs = emu.get_api_handler(dll, name)
     _, _, argc, conv, _ = func_attrs
     esp = emu.reg_read(e_arch.X86_REG_ESP)
@@ -393,7 +390,6 @@ def test_version_helpers_clean_the_stack(emu: Speakeasy) -> None:
 
 
 def test_enum_processes_reports_bytes(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     count = len(emu.emu.get_processes())
     assert count > 1
     pids = alloc(emu, b"\x00" * 4 * 64)
@@ -447,7 +443,6 @@ def test_get_file_attributes_of_an_empty_path_fails(emu: Speakeasy, api: str) ->
 
 
 def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     handle, _ = call(emu, "kernel32", "AddVectoredExceptionHandler", [1, 0x401000])
     assert 0x401000 in emu.emu.veh_handlers
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] != 0
@@ -473,7 +468,6 @@ def test_get_temp_path_sizes(emu: Speakeasy, name: str, width: int) -> None:
 @pytest.mark.parametrize("fixture, size", [("dll_emu", 0x2CC), ("dll64_emu", 0x4D0)])
 def test_rtl_capture_context_fills_one_context(request: pytest.FixtureRequest, fixture: str, size: int) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)
-    assert se.emu is not None
     other = alloc(se, b"\xcc" * 0x600)
     se.emu.reg_write(e_arch.X86_REG_ECX if size == 0x2CC else e_arch.AMD64_REG_RCX, other)
     record = alloc(se, b"\xcc" * (size + 0x40))
@@ -652,7 +646,6 @@ def test_init_once_complete_with_init_failed_resets_the_state(emu: Speakeasy) ->
 
 
 def test_queue_user_apc_returns_success(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     thread = emu.emu.get_object_handle(emu.emu.curr_thread)
     assert call(emu, "kernel32", "QueueUserAPC", [0x401000, thread, 0])[0]
 
@@ -691,7 +684,7 @@ def test_processor_counts_agree_with_get_system_info(request: pytest.FixtureRequ
         assert call(se, "kernel32", name, [0xFFFF])[0] == cpus
         assert call(se, "kernel32", name, [0])[0] == cpus
         assert call(se, "kernel32", name, [1])[0] == 0
-        assert se.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER  # type: ignore[union-attr]
+        assert se.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
     masks = alloc(se, b"\xcc" * struct.calcsize(f"<{ptr}{ptr}"))
     rv, _ = call(se, "kernel32", "GetProcessAffinityMask", [0xFFFFFFFF, masks, masks + struct.calcsize(ptr)])
@@ -791,7 +784,6 @@ def test_compare_string_ordinal_rejects_a_negative_count(dll_emu: Speakeasy) -> 
     start_process(dll_emu)
     p = alloc(dll_emu, "a\0".encode("utf-16le"))
     assert call(dll_emu, "kernel32", "CompareStringOrdinal", [p, 0xFFFFFFFE, p, 1, 0])[0] == 0
-    assert dll_emu.emu is not None
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
 
 
@@ -877,10 +869,10 @@ def test_init_once_execute_once_runs_the_init_function_once(base_config: dict[st
 
 
 def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speakeasy) -> None:
-    assert emu.emu is not None
 
     def permissions(address: int) -> int:
-        return next(p for start, end, p in emu.emu.get_mem_regions() if start <= address <= end)
+        perms: int = next(p for start, end, p in emu.emu.get_mem_regions() if start <= address <= end)
+        return perms
 
     base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x100000, windefs.MEM_RESERVE, windefs.PAGE_NOACCESS])
     assert base
@@ -903,7 +895,6 @@ def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speak
     ids=["PAGE_WRITECOPY", "PAGE_EXECUTE_WRITECOPY"],
 )
 def test_virtual_protect_write_copy_is_readable_and_writable(emu: Speakeasy, protect: int, expected: int) -> None:
-    assert emu.emu is not None
     base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x1000, windefs.MEM_COMMIT, windefs.PAGE_READONLY])
     old = alloc(emu, b"\x00" * 4)
     assert call(emu, "kernel32", "VirtualProtect", [base, 0x1000, protect, old])[0]
@@ -1034,14 +1025,15 @@ def create_process(se: Speakeasy, path: str) -> k32defs.PROCESS_INFORMATION:
     pi = k32defs.PROCESS_INFORMATION(ptr_size)
     addr = alloc(se, b"\x00" * pi.sizeof())
     assert call(se, "kernel32", "CreateProcessA", [0, cmd, 0, 0, 0, 0, 0, 0, si, addr])[0]
-    return se.mem_cast(pi, addr)
+    info: k32defs.PROCESS_INFORMATION = se.mem_cast(pi, addr)
+    return info
 
 
 def test_thread_ids_agree(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     tid = alloc(emu, b"\x00" * 4)
     hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, 0, tid])
     run = emu.emu.run_queue[-1]
+    assert run.thread is not None
     assert run.thread.tid == int.from_bytes(emu.mem_read(tid, 4), "little")
     assert call(emu, "kernel32", "GetThreadId", [hnd])[0] == run.thread.tid
 
@@ -1133,7 +1125,6 @@ def test_sleep_advances_the_time_stamp_counter(
 def test_current_thread_pseudo_handle(request: pytest.FixtureRequest, fixture: str) -> None:
     se = request.getfixturevalue(fixture)
     start_process(se)
-    assert se.emu is not None
     pseudo = (1 << (8 * se.emu.get_ptr_size())) - 2
     assert call(se, "kernel32", "GetCurrentThread", [])[0] == pseudo
 
@@ -1156,7 +1147,6 @@ def test_current_thread_pseudo_handle(request: pytest.FixtureRequest, fixture: s
 
 
 def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     runs = len(emu.emu.run_queue)
     hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
     assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 1
@@ -1169,7 +1159,6 @@ def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
 
 
 def test_suspend_thread_holds_a_queued_thread_until_resume(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     start_process(emu)
     runs = len(emu.emu.run_queue)
     hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
@@ -1181,7 +1170,6 @@ def test_suspend_thread_holds_a_queued_thread_until_resume(emu: Speakeasy) -> No
 
 
 def test_resume_thread_of_a_running_thread_queues_no_run(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     start_process(emu)
     runs = len(emu.emu.run_queue)
     hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, 0, 0])
@@ -1249,7 +1237,6 @@ PROGRAM_FILES_APP = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msed
 def test_create_process_uses_the_application_name_as_the_path(
     emu: Speakeasy, dll: str, api: str, app: str | None, cmdline: str | None, path: str
 ) -> None:
-    assert emu.emu is not None
     si = alloc(emu, b"\x00" * 0x44)
     pi = alloc(emu, b"\x00" * 0x10)
     argv = [
@@ -1269,7 +1256,6 @@ def test_create_process_uses_the_application_name_as_the_path(
 
 
 def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     fn = alloc(emu, PROGRAM_FILES_APP.encode() + b"\x00")
     params = alloc(emu, b"--app=http://127.0.0.1:27870/\x00")
     assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, params, 0, 1])[0] == 33
@@ -1278,7 +1264,6 @@ def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
 
 
 def test_win_exec_parses_the_command_line(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     cmd = alloc(emu, f'"{PROGRAM_FILES_APP}" --x\x00'.encode())
     assert call(emu, "kernel32", "WinExec", [cmd, 1])[0] == 32
     assert emu.emu.processes[-1].path == PROGRAM_FILES_APP
@@ -1317,7 +1302,6 @@ def wide(se: Speakeasy, text: str) -> int:
 
 
 def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     sample = wide(emu, emu.emu.modules[0].emu_path)
     dst = wide(emu, "C:\\tmp\\x\\a.exe")
 
@@ -1338,7 +1322,6 @@ def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> Non
 
 
 def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeasy) -> None:
-    assert emu.emu is not None
     sample = wide(emu, emu.emu.modules[0].emu_path)
 
     assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\tmp\\y\\b.exe"), 1])[0] == 1

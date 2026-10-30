@@ -40,7 +40,6 @@ def test_execute_onexit_table_calls_the_registered_functions_in_reverse_order(co
     with Speakeasy(config=config) as se:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="x86"))
         emu = se.emu
-        assert emu is not None
         code, data = se.mem_alloc(0x1000), se.mem_alloc(0x1000)
         table, count, log, result = data, data + 0x10, data + 0x20, data + 0x30
         se.mem_write(result, dword(0xCCCCCCCC))
@@ -84,7 +83,6 @@ def test_register_onexit_function_appends_to_the_table(dll64_emu: Speakeasy) -> 
 def test_qsort_sorts_with_the_guest_comparator(shellcode_emu: Speakeasy, width: int) -> None:
     se = shellcode_emu
     emu = se.emu
-    assert emu is not None
     keys = [5, 1, 4, 2, 3, 0xFFFFFFFF]
     records = [dword(k) + dword(k * 10)[: width - 4] for k in keys]
     code, data = se.mem_alloc(0x1000), se.mem_alloc(0x1000)
@@ -110,7 +108,6 @@ def test_qsort_sorts_with_the_guest_comparator(shellcode_emu: Speakeasy, width: 
 
 def test_crtdll_raise_with_the_default_action_ends_the_process(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     emu.is_run_complete = False
     call(dll_emu, "crtdll", "raise", [SIGABRT])
     assert emu.is_run_complete
@@ -118,7 +115,6 @@ def test_crtdll_raise_with_the_default_action_ends_the_process(dll_emu: Speakeas
 
 def test_raise_of_an_ignored_signal_returns_zero(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     emu.is_run_complete = False
     call(dll_emu, "crtdll", "signal", [SIGABRT, SIG_IGN])
     assert call(dll_emu, "crtdll", "raise", [SIGABRT])[0] == 0
@@ -128,7 +124,6 @@ def test_raise_of_an_ignored_signal_returns_zero(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("sig, args", [(SIGSEGV, (SIGSEGV,)), (SIGFPE, (SIGFPE, 0x8C))])
 def test_raise_calls_the_signal_handler_once(dll_emu: Speakeasy, sig: int, args: tuple[int, ...]) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     call(dll_emu, "msvcrt", "signal", [sig, 0x401000])
     assert call(dll_emu, "msvcrt", "raise", [sig])[0] is None
     assert [cb.function for cb in emu.get_current_run().guest_callbacks] == [0x401000]
@@ -149,7 +144,6 @@ def test_raise_calls_the_signal_handler_once(dll_emu: Speakeasy, sig: int, args:
 )
 def test_fatal_error_functions_end_the_process(dll_emu: Speakeasy, dll: str, api: str, argv: list[int]) -> None:
     emu = dll_emu.emu
-    assert emu is not None
     emu.is_run_complete = False
     call(dll_emu, dll, api, argv)
     assert emu.is_run_complete
@@ -167,7 +161,6 @@ def test_assert_shows_the_message_and_the_file(dll_emu: Speakeasy) -> None:
 def test_invalid_parameter_noinfo_returns_without_a_handler(dll_emu: Speakeasy, api: str) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     emu.is_run_complete = False
     assert call(dll_emu, "api-ms-win-crt-private-l1-1-0", api, [])[0] is None
     assert not emu.is_run_complete
@@ -177,7 +170,6 @@ def test_invalid_parameter_noinfo_returns_without_a_handler(dll_emu: Speakeasy, 
 def test_invalid_parameter_noinfo_calls_the_handler(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    assert emu is not None
     call(dll_emu, "ucrtbase", "_set_invalid_parameter_handler", [0x401000])
     call(dll_emu, "ucrtbase", "_invalid_parameter_noinfo", [])
     assert [cb.function for cb in emu.get_current_run().guest_callbacks] == [0x401000]
@@ -188,7 +180,6 @@ def test_invalid_parameter_noinfo_calls_the_handler(dll_emu: Speakeasy) -> None:
 def test_iob_holds_the_standard_streams(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
     emu = se.emu
-    assert emu is not None
     size = 0x30 if emu.get_ptr_size() == 8 else 0x20
     iob = emu.get_proc("msvcrt", "_iob")
     assert call(se, "msvcrt", "__iob_func", [])[0] == iob
@@ -231,7 +222,6 @@ def open_stream(se: Speakeasy, data: bytes) -> int:
 
 
 def seek_args(se: Speakeasy, stream: int, offset: int, origin: int) -> list[int]:
-    assert se.emu is not None
     if se.emu.get_ptr_size() == 4:
         return [stream, offset & 0xFFFFFFFF, (offset >> 32) & 0xFFFFFFFF, origin]
     return [stream, offset & 0xFFFFFFFFFFFFFFFF, origin, 0]

@@ -29,7 +29,6 @@ def any_driver_emu(request: pytest.FixtureRequest) -> Speakeasy:
 
 
 def _ptr_size(se: Speakeasy) -> int:
-    assert se.emu is not None
     size: int = se.emu.get_ptr_size()
     return size
 
@@ -65,7 +64,6 @@ def _object_attributes(se: Speakeasy, name: str, root: int = 0) -> int:
 
 
 def _current_run(se: Speakeasy) -> Run:
-    assert se.emu is not None
     run = se.emu.curr_run
     assert run is not None
     return run
@@ -102,7 +100,6 @@ def test_zw_create_key_creates_a_key_once(any_driver_emu: Speakeasy) -> None:
     assert again
     assert disposition == regdefs.REG_OPENED_EXISTING_KEY
 
-    assert any_driver_emu.emu is not None
     key = any_driver_emu.emu.reg_get_key(hnd)
     assert key.get_path() == "HKEY_LOCAL_MACHINE\\Software\\Contoso"
     assert any_driver_emu.emu.reg_get_key(again) is key
@@ -113,7 +110,6 @@ def test_zw_create_key_opens_a_subkey_of_the_root_directory(driver_emu: Speakeas
     rv, child, disposition = _create_key(driver_emu, "Parameters", root=parent)
     assert rv == ddk.STATUS_SUCCESS
     assert disposition == regdefs.REG_CREATED_NEW_KEY
-    assert driver_emu.emu is not None
     assert driver_emu.emu.reg_get_key(child).get_path() == "HKEY_LOCAL_MACHINE\\Software\\Contoso\\Parameters"
 
     phnd = alloc(driver_emu, b"\x00" * 4)
@@ -166,7 +162,6 @@ def test_zw_set_value_key_replaces_a_value(driver_emu: Speakeasy) -> None:
         name = _unicode_string(driver_emu, "Start")
         call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, regdefs.REG_DWORD, data, 4])
     assert _query_value(driver_emu, hnd, "Start") == (regdefs.REG_DWORD, struct.pack("<I", 4))
-    assert driver_emu.emu is not None
     assert len(driver_emu.emu.reg_get_key(hnd).get_values()) == 1
 
 
@@ -188,7 +183,6 @@ def test_zw_set_value_key_rejects_an_unknown_handle(driver_emu: Speakeasy) -> No
 
 def test_ke_bug_check_ex_ends_the_run_with_the_bug_check_code(driver64_emu: Speakeasy) -> None:
     emu = driver64_emu.emu
-    assert emu is not None
     run = _current_run(driver64_emu)
     call(driver64_emu, "ntoskrnl", "KeBugCheckEx", [0xE2, 1, 2, 3, 4])
     assert emu.is_run_complete
@@ -277,7 +271,6 @@ def test_x86_mm_map_io_space_reads_the_64_bit_physical_address(driver_emu: Speak
 
 def test_x64_mm_map_io_space_maps_writable_memory_until_unmapped(driver64_emu: Speakeasy) -> None:
     se = driver64_emu
-    assert se.emu is not None
     va, _ = call(se, "ntoskrnl", "MmMapIoSpace", [0x1_0000_2000, 0x1800, 0, 0])
     assert va & 0xFFF == 0
     se.mem_write(va + 0x17FF, b"\x41")

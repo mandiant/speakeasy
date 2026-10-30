@@ -10,6 +10,7 @@ from speakeasy.profiler_events import (
     THREAD_CREATE,
     THREAD_INJECT,
     ApiArg,
+    ApiEvent,
     FileWriteEvent,
     MemAllocEvent,
     RegWriteValueEvent,
@@ -93,7 +94,7 @@ def test_file_write_merge_preserves_raw_bytes():
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, FileWriteEvent))
     assert event.size == 4
-    assert event.data_ref in report.data
+    assert event.data_ref is not None and event.data_ref in report.data
     artifact = profiler.artifact_store.get_bytes(event.data_ref)
     assert artifact == b"\x00\xff\x01\x02"
 
@@ -116,7 +117,7 @@ def test_registry_write_event_is_reported_with_data_ref():
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, RegWriteValueEvent))
     assert event.value_name == "ValueName"
-    assert event.data_ref in report.data
+    assert event.data_ref is not None and event.data_ref in report.data
     assert profiler.artifact_store.get_bytes(event.data_ref) == b"abc"
 
 
@@ -189,4 +190,5 @@ def test_repeated_api_call_with_same_rendering_is_recorded_once():
     unnamed = [ApiArg(type="int", value=1, display="0x1")]
     profiler.record_api_event(run, pos, "kernel32.LoadLibraryA", 0x71000000, unnamed)
 
-    assert [e.args for e in run.events] == [lib_name(0x2000), unnamed]
+    assert all(isinstance(e, ApiEvent) for e in run.events)
+    assert [e.args for e in run.events if isinstance(e, ApiEvent)] == [lib_name(0x2000), unnamed]

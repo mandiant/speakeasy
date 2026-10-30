@@ -7,7 +7,7 @@ import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
-from tests.handler_harness import alloc, call, object_attributes, unicode_string
+from tests.handler_harness import alloc, call, get_kernel_emu, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -22,7 +22,6 @@ def call_x86(se: Speakeasy, name: str, args: list[int], conv: int) -> tuple[int,
     left on the stack.
     """
     emu = se.emu
-    assert emu is not None
     top = emu.stack_base - 0x100
     emu.set_func_args(top, RET_ADDR, *args, conv=conv)
     emu.reg_write(_arch.X86_REG_EIP, 0x1000)
@@ -62,14 +61,14 @@ def test_x86_ex_allocate_pool2_reads_the_64_bit_flags(driver_emu: Speakeasy) -> 
     pool_flag_paged = 0x100
     addr, _ = call_x86(driver_emu, "ExAllocatePool2", [pool_flag_paged, 0, 0x10, 0x6B736154], STDCALL)
     assert addr
-    assert driver_emu.emu.pool_allocs[-1] == (addr, ddk.POOL_TYPE.PagedPool, 0x10, "Task")
+    assert get_kernel_emu(driver_emu).pool_allocs[-1] == (addr, ddk.POOL_TYPE.PagedPool, 0x10, "Task")
 
 
 def test_x64_ex_allocate_pool2_reads_the_flags_slot(driver64_emu: Speakeasy) -> None:
     pool_flag_non_paged = 0x40
     addr, displays = call(driver64_emu, "ntoskrnl", "ExAllocatePool2", [pool_flag_non_paged, 0x10, 0x6B736154, 0])
     assert addr
-    assert driver64_emu.emu.pool_allocs[-1] == (addr, ddk.POOL_TYPE.NonPagedPool, 0x10, "Task")
+    assert get_kernel_emu(driver64_emu).pool_allocs[-1] == (addr, ddk.POOL_TYPE.NonPagedPool, 0x10, "Task")
     assert displays[2] == "Task"
 
 
@@ -368,12 +367,13 @@ def test_rtl_init_ansi_string_accepts_a_null_source(driver_emu: Speakeasy) -> No
 )
 def test_unknown_objects_fail_with_a_status(driver_emu: Speakeasy, name: str, argv: list, status: int) -> None:
     slots = {"out": alloc(driver_emu, b"\x00" * 8), "size": alloc(driver_emu, (0x1000).to_bytes(4, "little"))}
-    rv, _ = call(driver_emu, "ntoskrnl", name, [slots.get(a, a) if isinstance(a, str) else a for a in argv])
+    rv, _ = call(driver_emu, "ntoskrnl", name, [slots[a] if isinstance(a, str) else a for a in argv])
     assert rv == status
 
 
 def set_current_system_thread(se: Speakeasy) -> None:
-    emu = se.emu
+    emu = get_kernel_emu(se)
+    assert emu.om is not None
     emu.get_current_process()
     proc = emu.get_system_process()
     emu.set_current_process(proc)
@@ -439,8 +439,9 @@ def test_strnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected:
 
 @pytest.mark.parametrize(("length", "status"), [(8, ddk.STATUS_SUCCESS), (4, ddk.STATUS_INFO_LENGTH_MISMATCH)])
 def test_x64_zw_query_information_process_wow64(driver64_emu: Speakeasy, length: int, status: int) -> None:
-    driver64_emu.emu.get_current_process()
-    driver64_emu.emu.set_current_process(driver64_emu.emu.get_system_process())
+    emu = get_kernel_emu(driver64_emu)
+    emu.get_current_process()
+    emu.set_current_process(emu.get_system_process())
     info = alloc(driver64_emu, b"\xcc" * 8)
     retlen = alloc(driver64_emu, b"\xcc" * 8)
     wow64_information = ddk.PROCESSINFOCLASS.ProcessWow64Information
@@ -534,7 +535,6 @@ def test_sprintf_writes_one_percent_for_escape_without_arguments(
 
 def test_ob_reference_object_by_name_finds_a_configured_driver(driver_emu: Speakeasy) -> None:
     emu = driver_emu.emu
-    assert emu is not None
     out = alloc(driver_emu, b"\xcc" * 4)
     argv = [unicode_string(driver_emu, "\\Driver\\Disk"), 0, 0, 0, 0, 0, 0, out]
     assert call(driver_emu, "ntoskrnl", "ObReferenceObjectByName", argv)[0] == ddk.STATUS_SUCCESS
@@ -595,7 +595,6 @@ def test_nt_open_section_opens_a_named_section(dll_emu: Speakeasy) -> None:
 def test_x86_ke_query_performance_counter_returns_in_edx_eax(driver_emu: Speakeasy) -> None:
     freq = alloc(driver_emu, b"\x00" * 8)
     rv, _ = call(driver_emu, "hal", "KeQueryPerformanceCounter", [freq])
-    assert driver_emu.emu is not None
     counter = driver_emu.emu.reg_read(_arch.X86_REG_EDX) << 32 | rv
     assert counter > 0xFFFFFFFF
     assert struct.unpack("<Q", driver_emu.mem_read(freq, 8))[0] == 10_000_000
@@ -608,13 +607,11 @@ def test_x64_ke_query_performance_counter_accepts_a_null_frequency(driver64_emu:
 
 
 def test_x64_ke_get_current_irql_reports_the_emulator_irql(driver64_emu: Speakeasy) -> None:
-    assert driver64_emu.emu is not None
-    driver64_emu.emu.set_current_irql(ddk.DISPATCH_LEVEL)
+    get_kernel_emu(driver64_emu).set_current_irql(ddk.DISPATCH_LEVEL)
     assert call(driver64_emu, "ntoskrnl", "KeGetCurrentIrql", [])[0] == ddk.DISPATCH_LEVEL
 
 
 def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_emu: Speakeasy) -> None:
-    assert driver_emu.emu is not None
     device = 0x7000
     item = call(driver_emu, "ntoskrnl", "IoAllocateWorkItem", [device])[0]
     assert item
@@ -626,10 +623,9 @@ def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_
 
 
 def test_ke_query_system_time_precise_writes_the_system_time(driver_emu: Speakeasy) -> None:
-    assert driver_emu.emu is not None
     out = alloc(driver_emu, b"\x00" * 8)
     call(driver_emu, "ntoskrnl", "KeQuerySystemTimePrecise", [out])
-    assert struct.unpack("<Q", driver_emu.mem_read(out, 8))[0] == driver_emu.emu.get_system_time()
+    assert struct.unpack("<Q", driver_emu.mem_read(out, 8))[0] == get_kernel_emu(driver_emu).get_system_time()
 
 
 TRUNCATE = 0xFFFFFFFF

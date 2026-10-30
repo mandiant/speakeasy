@@ -43,7 +43,12 @@ def test_synthetic_api_nx_fault_never_dispatches_handler(api_emu):
     emu = api_emu.emu
     address = emu.get_proc("kernel32", "GetTickCount")
     hits = []
-    api_emu.add_api_hook(lambda e, api, original, args: hits.append(api) or 77, "kernel32", "GetTickCount", argc=0)
+
+    def hook(e, api, original, args):
+        hits.append(api)
+        return 77
+
+    api_emu.add_api_hook(hook, "kernel32", "GetTickCount", argc=0)
     emu.mem_protect(address & ~0xFFF, 0x1000, common.PERM_MEM_READ)
     failed = queue_run(emu, address, "fault_regression.api_nx")
     following = queue_run(emu, return_code(emu, 43), "fault_regression.following")

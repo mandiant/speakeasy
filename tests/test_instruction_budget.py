@@ -63,7 +63,12 @@ def test_cap_is_shared_across_api_calls(capped_session):
     # MOV EAX,target; CALL EAX; JMP back to MOV
     code = b"\xb8\0\0\0\0\xff\xd0\xeb\xf7"
     base = se.load_shellcode(data=code, arch="x86")
-    se.add_api_hook(lambda e, api, original, args: hits.append(api) or 1, "budget_test", "Tick", argc=0)
+
+    def hook(e, api, original, args):
+        hits.append(api)
+        return 1
+
+    se.add_api_hook(hook, "budget_test", "Tick", argc=0)
     se.mem_write(base + 1, se.emu.get_proc("budget_test", "Tick").to_bytes(4, "little"))
     se.run_shellcode(base)
     run = se.get_report().entry_points[0]

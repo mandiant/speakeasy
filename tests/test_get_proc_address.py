@@ -30,7 +30,8 @@ def get_api_calls(ep, api_name):
 def get_export_directory_size(se: Speakeasy, base: int) -> int:
     e_lfanew = struct.unpack("<I", se.mem_read(base + 0x3C, 4))[0]
     # PE32: optional header at +0x18, DataDirectory[0].Size at +0x60 + 4 within it
-    return struct.unpack("<I", se.mem_read(base + e_lfanew + 0x7C, 4))[0]
+    size: int = struct.unpack("<I", se.mem_read(base + e_lfanew + 0x7C, 4))[0]
+    return size
 
 
 def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tuple[str, int, int]], int, int]:

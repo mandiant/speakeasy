@@ -141,7 +141,9 @@ def call_get_proc_address(config, architecture, module, name):
 @pytest.mark.parametrize("architecture", ["x86", "amd64"])
 def test_get_proc_address_resolves_declared_names_missing_from_the_manifest(config, architecture):
     name = "GetSystemLeapSecondInformation"
-    assert name not in {e.name for e in get_export_manifest("kernel32", architecture.replace("amd64", "x64")).exports}
+    manifest = get_export_manifest("kernel32", architecture.replace("amd64", "x64"))
+    assert manifest is not None
+    assert name not in {e.name for e in manifest.exports}
     result, _, expected = call_get_proc_address(config, architecture, "kernel32", name)
     assert result and result == expected
 

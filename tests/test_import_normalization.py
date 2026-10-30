@@ -9,7 +9,6 @@ from tests.handler_harness import alloc, call
 
 def has_handler(se: Speakeasy, dll: str, name: str) -> bool:
     emu = se.emu
-    assert emu is not None
     entry = emu.api_registry.entries[emu.get_proc(dll, name)]
     return isinstance(emu.resolve_api_implementation(entry.dll, entry.name), HandlerImplementation)
 

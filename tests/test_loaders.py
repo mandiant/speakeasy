@@ -205,7 +205,9 @@ def test_image_whose_preferred_base_is_in_use_loads_at_the_next_free_range(confi
         start, end = text.virtual_address, text.virtual_address + text.virtual_size
         assert se.mem_read(module.base + start, end - start) == expected.regions[0].data[start:end]
         assert se.mem_read(module.base + start, end - start) != image.regions[0].data[start:end]
-        assert module.get_export_by_name("emu_test_one").address == expected.exports[0].address
+        export = module.get_export_by_name("emu_test_one")
+        assert export is not None
+        assert export.address == expected.exports[0].address
     finally:
         se.shutdown()
 

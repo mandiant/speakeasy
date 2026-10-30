@@ -115,7 +115,6 @@ def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> 
     try:
         sc_addr = se.load_shellcode(data=code, arch="x86")
         emu = se.emu
-        assert emu is not None
         for name, (offset, width) in patches.items():
             stub = emu.get_proc("kernel32", name)
             emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
@@ -142,7 +141,6 @@ def _run_x64(config: dict[str, Any]) -> Report:
     try:
         sc_addr = se.load_shellcode(data=code, arch="amd64")
         emu = se.emu
-        assert emu is not None
         # Resolve import stubs the same way GetProcAddress would and patch the
         # absolute addresses into the blob.
         for name, (offset, width) in patches.items():
@@ -342,7 +340,6 @@ def test_handler_signature_requires_matching_argc(config: dict[str, Any]) -> Non
     try:
         se.load_shellcode(data=b"\xc3", arch="x86")
         emu = se.emu
-        assert emu is not None
         sig = emu.get_handler_signature("kernel32", "CreateFileW", 7)
         assert sig is not None and sig.name == "CreateFileW"
         assert emu.get_handler_signature("kernel32", "CreateFileW", 6) is None
@@ -362,7 +359,6 @@ def test_functions_always_exist_still_applies_to_unknown_names(config: dict[str,
         code = b"\xb8\x00\x00\x00\x00\xff\xd0"  # mov eax, imm32 ; call eax
         sc_addr = se.load_shellcode(data=code, arch="x86")
         emu = se.emu
-        assert emu is not None
         stub = emu.get_proc("kernel32", "ThisApiDoesNotExistAnywhere")
         emu.mem_write(sc_addr + 1, stub.to_bytes(4, "little"))
         se.run_shellcode(sc_addr)
@@ -382,7 +378,6 @@ def test_get_proc_address_resolves_signature_only_exports(config: dict[str, Any]
         sc_addr = se.load_shellcode(data=b"\x90\xc3", arch="x86")
         se.run_shellcode(sc_addr)
         emu = se.emu
-        assert emu is not None
         assert emu.has_api_signature("kernel32", "CreateSymbolicLinkW")
         assert not emu.has_api_signature("kernel32", "ThisApiDoesNotExistAnywhere")
     finally:
@@ -398,7 +393,6 @@ def test_api_set_declarations_belong_to_the_host_module(config: dict[str, Any]) 
         sc_addr = se.load_shellcode(data=b"\x90\xc3", arch="x86")
         se.run_shellcode(sc_addr)
         emu = se.emu
-        assert emu is not None
         assert emu.has_api_signature("combase", "RoInitialize")
         assert emu.has_api_signature("combase", "WindowsCreateString")
         assert emu.has_api_signature("kernel32", "PathCchCombine")
