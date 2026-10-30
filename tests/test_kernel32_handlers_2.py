@@ -1465,3 +1465,34 @@ def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
     assert entries[0].ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"
     failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].ret_val & bit]
     assert not failed
+
+
+def test_find_volume_skips_a_drive_without_a_volume_guid_path(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["drives"] = [
+        {"root_path": "C:\\", "drive_type": "DRIVE_FIXED", "volume_guid_path": "\\\\?\\Volume{1}\\"},
+        {"root_path": "D:\\", "drive_type": "DRIVE_CDROM"},
+        {"root_path": "E:\\", "drive_type": "DRIVE_FIXED", "volume_guid_path": "\\\\?\\Volume{3}\\"},
+    ]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        buf = alloc(se, b"\x00" * 64)
+        hnd, _ = call(se, "kernel32", "FindFirstVolumeA", [buf, 64])
+        assert se.mem_read(buf, 15) == b"\\\\?\\Volume{1}\\\x00"
+        rv, _ = call(se, "kernel32", "FindNextVolumeA", [hnd, buf, 64])
+        assert rv == 1
+        assert se.mem_read(buf, 15) == b"\\\\?\\Volume{3}\\\x00"
+        rv, _ = call(se, "kernel32", "FindNextVolumeA", [hnd, buf, 64])
+        assert rv == 0
+
+
+def test_find_first_volume_fails_without_a_volume_guid_path(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["drives"] = [{"root_path": "D:\\", "drive_type": "DRIVE_CDROM"}]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        buf = alloc(se, b"\x00" * 64)
+        hnd, _ = call(se, "kernel32", "FindFirstVolumeA", [buf, 64])
+        assert hnd == 0xFFFFFFFF
+        assert last_error(se) == windefs.ERROR_NO_MORE_FILES
