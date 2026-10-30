@@ -6168,6 +6168,31 @@ class Msvcrt(api.ApiHandler):
         """
         return self.fgetc(emu, argv, ctx)
 
+    @apihook("ungetc", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def ungetc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int ungetc(
+            int c,
+            FILE *stream
+            );
+
+        Only the character that was read last can go back, because the stream
+        has no pushback buffer.
+        """
+        c, stream = argv
+        c &= 0xFFFFFFFF
+        fobj = self.get_stream_file(stream)
+        if c == 0xFFFFFFFF or not fobj:
+            return -1
+        pos = fobj.tell() or 0
+        if not pos:
+            return -1
+        fobj.seek(pos - 1, io.SEEK_SET)
+        if fobj.get_data(size=1) != bytes([c & 0xFF]):
+            return -1
+        fobj.seek(pos - 1, io.SEEK_SET)
+        return c & 0xFF
+
     @apihook("fwrite", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def fwrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
