@@ -183,3 +183,85 @@ def test_zw_set_value_key_rejects_an_unknown_handle(driver_emu: Speakeasy) -> No
     name = _unicode_string(driver_emu, "Start")
     rv, _ = call(driver_emu, "ntoskrnl", "ZwSetValueKey", [0x1234, name, 0, regdefs.REG_DWORD, 0, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE
+
+
+def test_ke_bug_check_ex_ends_the_run_with_the_bug_check_code(driver64_emu: Speakeasy) -> None:
+    emu = driver64_emu.emu
+    assert emu is not None
+    run = _current_run(driver64_emu)
+    call(driver64_emu, "ntoskrnl", "KeBugCheckEx", [0xE2, 1, 2, 3, 4])
+    assert emu.is_run_complete
+    assert run.error is not None
+    assert run.error.type == "bug_check"
+    assert run.error.api_name == "ntoskrnl.KeBugCheckEx"
+    assert run.error.context_summary is not None
+    assert "bug check 0xe2 (0x1, 0x2, 0x3, 0x4)" in run.error.context_summary
+
+
+def _next_stack_location(se: Speakeasy, irp_addr: int) -> Any:
+    irp = _read_irp(se, irp_addr)
+    ios: Any = ntdefs.IO_STACK_LOCATION(_ptr_size(se))
+    ios.cast(se.mem_read(irp.Tail.Overlay.CurrentStackLocation - ios.sizeof(), ios.sizeof()))
+    return ios
+
+
+def _read_irp(se: Speakeasy, irp_addr: int) -> Any:
+    irp: Any = ntdefs.IRP(_ptr_size(se))
+    irp.cast(se.mem_read(irp_addr, irp.sizeof()))
+    return irp
+
+
+@pytest.mark.parametrize(
+    ("internal", "major"), [(0, ddk.IRP_MJ_DEVICE_CONTROL), (1, ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL)]
+)
+def test_io_build_device_io_control_request_fills_the_next_stack_location(
+    any_driver_emu: Speakeasy, internal: int, major: int
+) -> None:
+    se = any_driver_emu
+    in_buf = alloc(se, b"input!")
+    out_buf = alloc(se, b"\x00" * 0x20)
+    event = alloc(se, b"\x00" * 0x20)
+    iosb = alloc(se, b"\xcc" * 2 * _ptr_size(se))
+    device = 0x7000
+    irp_addr, _ = call(
+        se,
+        "ntoskrnl",
+        "IoBuildDeviceIoControlRequest",
+        [IOCTL_BUFFERED, device, in_buf, 6, out_buf, 0x20, internal, event, iosb],
+    )
+    assert irp_addr
+
+    ios = _next_stack_location(se, irp_addr)
+    assert ios.MajorFunction == major
+    params = ios.Parameters.DeviceIoControl
+    assert (params.IoControlCode, params.InputBufferLength, params.OutputBufferLength) == (IOCTL_BUFFERED, 6, 0x20)
+
+    irp = _read_irp(se, irp_addr)
+    assert irp.UserIosb == iosb
+    assert irp.UserEvent == event
+    assert irp.UserBuffer == out_buf
+    assert irp.AssociatedIrp not in (0, in_buf)
+    assert se.mem_read(irp.AssociatedIrp, 0x20) == b"input!" + b"\x00" * 0x1A
+
+
+def test_io_build_device_io_control_request_passes_neither_buffers_through(driver64_emu: Speakeasy) -> None:
+    se = driver64_emu
+    in_buf = alloc(se, b"input!")
+    out_buf = alloc(se, b"\x00" * 0x20)
+    irp_addr, _ = call(
+        se, "ntoskrnl", "IoBuildDeviceIoControlRequest", [IOCTL_NEITHER, 0x7000, in_buf, 6, out_buf, 0x20, 0, 0, 0]
+    )
+    assert _next_stack_location(se, irp_addr).Parameters.DeviceIoControl.Type3InputBuffer == in_buf
+    irp = _read_irp(se, irp_addr)
+    assert irp.UserBuffer == out_buf
+    assert irp.AssociatedIrp == 0
+
+
+def test_iof_call_driver_completes_the_caller_io_status_block(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    iosb = alloc(se, b"\xcc" * 2 * _ptr_size(se))
+    irp_addr, _ = call(
+        se, "ntoskrnl", "IoBuildDeviceIoControlRequest", [IOCTL_BUFFERED, 0x7000, 0, 0, 0, 0, 0, 0, iosb]
+    )
+    assert call(se, "ntoskrnl", "IofCallDriver", [0x7000, irp_addr])[0] == ddk.STATUS_SUCCESS
+    assert se.mem_read(iosb, 2 * _ptr_size(se)) == b"\x00" * 2 * _ptr_size(se)
