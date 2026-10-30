@@ -28,6 +28,7 @@ def has_handler(se: Speakeasy, dll: str, name: str) -> bool:
         ("api-ms-win-core-com-l1-1-0", "CoInitializeEx"),
         ("api-ms-win-core-crt-l2-1-0", "_initterm_e"),
         ("api-ms-win-crt-heap-l1-1-0", "malloc"),
+        ("api-ms-win-crt-string-l1-1-0", "wcsnlen"),
         ("vcruntime140", "memset"),
         ("ucrtbase", "malloc"),
         ("api-ms-win-security-base-l1-1-0", "GetTokenInformation"),

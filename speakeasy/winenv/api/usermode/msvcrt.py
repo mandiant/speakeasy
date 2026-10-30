@@ -2956,6 +2956,22 @@ class Msvcrt(api.ApiHandler):
 
         return len(string)
 
+    @apihook("strnlen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def strnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t strnlen(
+           const char *str,
+           size_t numberOfElements
+        );
+        """
+        s, num_elements = argv
+        ctx.args[0].display = self.read_mem_string(s, 1, max_chars=num_elements)
+
+        rv = 0
+        while rv < num_elements and self.mem_read(s + rv, 1) != b"\x00":
+            rv += 1
+        return rv
+
     @apihook("strcat", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def strcat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -3085,6 +3101,22 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = string
         rv = len(string)
 
+        return rv
+
+    @apihook("wcsnlen", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        size_t wcsnlen(
+           const wchar_t *str,
+           size_t numberOfElements
+        );
+        """
+        s, num_elements = argv
+        ctx.args[0].display = self.read_wide_string(s, max_chars=num_elements)
+
+        rv = 0
+        while rv < num_elements and self.mem_read(s + rv * 2, 2) != b"\x00\x00":
+            rv += 1
         return rv
 
     @apihook("_lock", argc=1, conv=e_arch.CALL_CONV_CDECL)
