@@ -49,7 +49,7 @@ def test_container_image_moves_when_dll_occupies_its_base(emulator, dll_at_conta
     assert emu.mem_read(container.base, 2) == b"MZ"
     e_lfanew = int.from_bytes(emu.mem_read(container.base + 0x3C, 4), "little")
     assert emu.mem_read(container.base + e_lfanew, 4) == b"PE\0\0"
-    assert emu.init_container_process().base == container.base
+    assert emu.get_current_process().base == container.base
 
     spans = sorted((mod.base, mod.base + mod.image_size, mod.name) for mod in emu.modules)
     for (_, prev_end, prev_name), (base, _, name) in zip(spans, spans[1:]):
