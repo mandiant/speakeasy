@@ -8,7 +8,7 @@ from bisect import bisect_right
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import SimpleNamespace
-from typing import Any, Protocol
+from typing import Any
 
 import pefile
 
@@ -145,7 +145,6 @@ class LoadedImage:
     tls_callbacks: list[int] = field(default_factory=list)
     tls_directory: int | None = None
     resource_directory: tuple[int, int] | None = None
-    loader: Loader | None = None
     sections: list[SectionEntry] = field(default_factory=list)
     pe_metadata: PeMetadata | None = None
     source: str = "guest_pe"
@@ -219,10 +218,6 @@ def relocate_image(image: LoadedImage, base: int) -> LoadedImage:
     )
 
 
-class Loader(Protocol):
-    def make_image(self) -> LoadedImage: ...
-
-
 class LoadState(Enum):
     """The initialization state of a module in one process. The names follow LDR_DDAG_STATE in Windows."""
 
@@ -244,13 +239,11 @@ class RuntimeModule:
         self.module_type = image.module_type
         self.stack_commit = image.stack_size
         self.visible_in_peb = image.visible_in_peb
-        self.loader = image.loader
         self.name = image.name
         self.sections = image.sections
 
     def __repr__(self) -> str:
-        loader_type = type(self.loader).__name__ if self.loader is not None else "None"
-        return f"RuntimeModule({self._image.name!r} at {self.base:#x}, via {loader_type})"
+        return f"RuntimeModule({self._image.name!r} at {self.base:#x}, {self._image.source})"
 
     def is_exe(self) -> bool:
         return self._image.module_type == "exe"
@@ -779,7 +772,6 @@ class PeLoader:
             tls_callbacks=tls_callbacks,
             tls_directory=tls_directory,
             resource_directory=resource_directory,
-            loader=self,
             sections=sections,
             pe_metadata=pe_metadata,
             relocations=relocations,
@@ -812,7 +804,6 @@ class ShellcodeLoader:
             exports=[],
             entry_points=[],
             visible_in_peb=False,
-            loader=self,
             relocations=[],
             sections=[
                 SectionEntry(
