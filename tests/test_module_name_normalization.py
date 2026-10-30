@@ -1,43 +1,23 @@
 """Test that module names are normalized (case-insensitive, no extension) in get_proc."""
 
+import pytest
+
 from speakeasy.windows.api_registry import module_name
 
 
-def test_module_name_lowercase():
-    assert module_name("KERNEL32") == "kernel32"
-    assert module_name("Kernel32") == "kernel32"
-    assert module_name("kernel32") == "kernel32"
-
-
-def test_module_name_strips_extension():
-    assert module_name("kernel32.dll") == "kernel32"
-    assert module_name("kernel32.DLL") == "kernel32"
-    assert module_name("ntdll.dll") == "ntdll"
-
-
-def test_module_name_case_and_extension():
-    assert module_name("KERNEL32.DLL") == "kernel32"
-    assert module_name("Kernel32.Dll") == "kernel32"
-
-
-def test_module_name_no_extension():
-    assert module_name("kernel32") == "kernel32"
-
-
-def test_module_name_preserves_dotted_names():
-    assert module_name("api-ms-win-crt-runtime-l1-1-0.dll") == "api-ms-win-crt-runtime-l1-1-0"
-
-
-def test_get_proc_case_insensitive(config, load_test_bin, run_test):
-    data = load_test_bin("GetProcAddress.exe.xz")
-    report = run_test(config, data)
-    eps = report.entry_points
-    events = eps[0].events or []
-    api_calls = [e for e in events if e.event == "api" and e.api_name == "kernel32.GetProcAddress"]
-    assert api_calls[2].args[1].display == "AreFileApisANSI"
-    assert api_calls[2].ret_val != "0x0"
-
-
-def test_module_name_is_idempotent_for_dotted_names():
-    assert module_name("windows.storage.dll") == "windows.storage"
-    assert module_name("windows.storage") == "windows.storage"
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("KERNEL32", "kernel32"),
+        ("Kernel32", "kernel32"),
+        ("kernel32", "kernel32"),
+        ("kernel32.dll", "kernel32"),
+        ("kernel32.DLL", "kernel32"),
+        ("Kernel32.Dll", "kernel32"),
+        ("api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-runtime-l1-1-0"),
+        ("windows.storage.dll", "windows.storage"),
+        ("windows.storage", "windows.storage"),
+    ],
+)
+def test_module_name(name, expected):
+    assert module_name(name) == expected

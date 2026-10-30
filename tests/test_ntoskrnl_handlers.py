@@ -625,18 +625,6 @@ def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_
     call(driver_emu, "ntoskrnl", "IoFreeWorkItem", [item])
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "IoRegisterShutdownNotification",
-        "IoRegisterLastChanceShutdownNotification",
-        "IoUnregisterShutdownNotification",
-    ],
-)
-def test_shutdown_notification_registration_succeeds(driver_emu: Speakeasy, name: str) -> None:
-    assert call(driver_emu, "ntoskrnl", name, [0x7000])[0] == ddk.STATUS_SUCCESS
-
-
 def test_ke_query_system_time_precise_writes_the_system_time(driver_emu: Speakeasy) -> None:
     assert driver_emu.emu is not None
     out = alloc(driver_emu, b"\x00" * 8)

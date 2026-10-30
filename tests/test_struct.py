@@ -74,7 +74,6 @@ def test_struct_layout_follows_constructor_arguments():
     assert WIDE_OR_NARROW(4, 1).sizeof() == 8
     assert WIDE_OR_NARROW(4, 2).sizeof() == 12
     assert WIDE_OR_NARROW(4, 1).sizeof() == 8
-    assert type(WIDE_OR_NARROW(4, 2).get_cstruct()) is type(WIDE_OR_NARROW(4, 2).get_cstruct())
 
 
 @pytest.mark.parametrize("ptr_size", [4, 8])

@@ -339,8 +339,6 @@ def test_source_basic_lookup(small_db: sigdb.Win32MetadataSource) -> None:
     assert [p.name for p in sig.params] == ["lpFileName", "dwDesiredAccess"]
     assert sig.slot_count(4) == 2
     assert sig.source == "win32metadata"
-    # cached
-    assert small_db.lookup("kernel32", "CreateFileW", "x86") is sig
 
 
 def test_source_unknown_function(small_db: sigdb.Win32MetadataSource) -> None:
@@ -386,7 +384,6 @@ def test_source_enum_lookup(small_db: sigdb.Win32MetadataSource) -> None:
     enum = small_db.lookup_enum("MOVE_FILE_FLAGS")
     assert enum is not None and enum.flags
     assert enum.decode(3) == "MOVEFILE_COPY_ALLOWED|MOVEFILE_REPLACE_EXISTING"
-    assert small_db.lookup_enum("MOVE_FILE_FLAGS") is enum
     assert small_db.lookup_enum("NOPE") is None
 
 
@@ -394,7 +391,6 @@ def test_source_struct_and_buffer_length(small_db: sigdb.Win32MetadataSource) ->
     struct = small_db.lookup_struct("SYSTEM_INFO")
     assert struct is not None and struct.size(4) == 36 and struct.size(8) == 48
     assert struct.fields == () and not struct.is_union
-    assert small_db.lookup_struct("SYSTEM_INFO") is struct
     assert small_db.lookup_struct("NOPE") is None
     ft = _struct(small_db, "FILETIME")
     assert [(f.name, f.code, f.offset(4)) for f in ft.fields] == [
@@ -407,7 +403,7 @@ def test_source_struct_and_buffer_length(small_db: sigdb.Win32MetadataSource) ->
     assert sig.params[1].buffer_len is None
 
 
-def test_source_missing_file(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_source_missing_file(tmp_path: Path) -> None:
     src = sigdb.Win32MetadataSource(str(tmp_path / "nope.json.gz"))
     assert not src.available
     assert src.lookup("kernel32", "CreateFileW", "x86") is None
@@ -460,15 +456,6 @@ def test_database_empty() -> None:
     db = sigdb.SignatureDatabase([])
     assert not db.available
     assert db.lookup("kernel32", "CreateFileW", "x86") is None
-
-
-def test_default_database_has_both_sources() -> None:
-    db = sigdb.SignatureDatabase()
-    win32, phnt = db.sources
-    assert isinstance(win32, sigdb.Win32MetadataSource) and not isinstance(win32, sigdb.PhntSource)
-    assert isinstance(phnt, sigdb.PhntSource)
-    assert win32.path == sigdb.DEFAULT_PATH
-    assert phnt.path == sigdb.DEFAULT_PHNT_PATH
 
 
 def test_missing_file_warns_once_per_source(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:

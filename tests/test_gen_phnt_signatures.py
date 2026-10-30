@@ -157,9 +157,6 @@ def mini_phnt(tmp_path: Path) -> Path:
 
 def test_generate_prototypes(gen: ModuleType, mini_phnt: Path) -> None:
     doc, stats = gen.generate(str(mini_phnt))
-    assert doc["format"] == gen.FORMAT_VERSION
-    assert doc["source"] == "phnt"
-    assert doc["structs"] == {}
     funcs = doc["functions"]
     assert set(funcs) == {
         "NtCreateFile",

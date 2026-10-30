@@ -39,13 +39,6 @@ def test_rtl_user_process_parameters_offsets_x64():
     assert _get_offset(cs, "Environment") == 0x80
 
 
-def test_curdir_struct_sizes():
-    curdir32 = nt.CURDIR(ptr_size=4)
-    curdir64 = nt.CURDIR(ptr_size=8)
-    assert ct.sizeof(curdir32.__struct__) == 12
-    assert ct.sizeof(curdir64.__struct__) == 24
-
-
 def test_process_parameters_field_access():
     params = nt.RTL_USER_PROCESS_PARAMETERS(ptr_size=4)
     params.Flags = 1

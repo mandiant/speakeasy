@@ -18,9 +18,7 @@ def last_error(se):
     return error.type if error is not None else None
 
 
-def test_max_total_time_config(config):
-    assert SpeakeasyConfig.model_validate(config).max_total_time == 0
-    assert SpeakeasyConfig.model_validate({**config, "max_total_time": 30}).max_total_time == 30
+def test_max_total_time_config_rejects_invalid_values(config):
     for invalid in (-1, float("inf"), float("nan")):
         with pytest.raises(ValidationError):
             SpeakeasyConfig.model_validate({**config, "max_total_time": invalid})

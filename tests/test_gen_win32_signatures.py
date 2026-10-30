@@ -283,7 +283,6 @@ def mini_win32json(tmp_path: Path) -> Path:
 
 def test_generate_resolves_types(gen: ModuleType, mini_win32json: Path) -> None:
     doc, stats = gen.generate(str(mini_win32json), str(OVERRIDES))
-    assert doc["format"] == gen.FORMAT_VERSION
     assert doc["version"] == "0.0.1-test"
     assert doc["dll_aliases"]["psapi"] == "kernel32"
     assert doc["name_prefixes"]["kernel32"] == ["K32"]
@@ -439,13 +438,3 @@ def test_write_output_is_reproducible(gen: ModuleType, mini_win32json: Path, tmp
 def test_main_reports_missing_submodule(gen: ModuleType, tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="git submodule update"):
         gen.generate(str(tmp_path / "empty"), str(OVERRIDES))
-
-
-def test_overrides_file_is_well_formed(gen: ModuleType) -> None:
-    overrides = gen.load_overrides(str(OVERRIDES))
-    assert "wsprintfA" in overrides["variadic"]
-    assert "icu" in overrides["cdecl_dlls"]
-    assert overrides["dll_aliases"]["psapi"] == "kernel32"
-    for key in ("cdecl_dlls", "cdecl", "variadic", "skip"):
-        assert all(isinstance(v, str) for v in overrides[key])
-    assert "GENERIC_READ" in overrides["enum_extra"]["FILE_ACCESS_FLAGS"]

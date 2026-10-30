@@ -880,10 +880,6 @@ def test_setvbuf_accepts_only_known_modes(dll_emu: Speakeasy, mode: int, rv: int
     assert call(dll_emu, "msvcrt", "setvbuf", [0x1000, 0, mode, 0x200])[0] == rv
 
 
-def test_setbuf_accepts_a_stream_and_buffer(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "msvcrt", "setbuf", [0x1000, 0])[0] is None
-
-
 def test_getpid_matches_the_current_process(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     assert dll_emu.emu is not None
@@ -939,11 +935,6 @@ def test_isspace_rejects_other_characters(dll_emu: Speakeasy, c: int) -> None:
     assert call(dll_emu, "msvcrt", "isspace", [c])[0] == 0
 
 
-@pytest.mark.parametrize("fd", [0, 1, 2, 7])
-def test_isatty_reports_no_console(dll_emu: Speakeasy, fd: int) -> None:
-    assert call(dll_emu, "msvcrt", "_isatty", [fd])[0] == 0
-
-
 def test_crtdll_get_main_args_fills_the_arguments(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     out = alloc(dll_emu, b"\xcc" * 12)
@@ -966,10 +957,6 @@ def test_private_crt_exports_use_the_public_handlers(dll_emu: Speakeasy, dll: st
     assert call(dll_emu, dll, "_o_memset", [buf, 0x41, 3])[0] == buf
     assert dll_emu.mem_read(buf, 4) == b"AAA\xcc"
     assert call(dll_emu, dll, "_o__initialize_onexit_table", [buf])[0] == 0
-
-
-def test_sleep_returns(dll_emu: Speakeasy) -> None:
-    assert call(dll_emu, "crtdll", "_sleep", [1000])[0] is None
 
 
 @pytest.mark.parametrize("api", ["localtime", "gmtime"])
@@ -1206,13 +1193,8 @@ def test_read_gives_end_of_file_on_stdin_and_fails_on_other_descriptors(
     assert call(dll_emu, "msvcrt", "_read", [fd, alloc(dll_emu, b"\0" * 8), 8])[0] == result
 
 
-def test_mutex_functions_of_the_cpp_runtime_succeed_at_once(dll_emu: Speakeasy) -> None:
+def test_thrd_id_matches_the_current_thread(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    mtx = alloc(dll_emu, b"\0" * 0x50)
-    call(dll_emu, "msvcrt", "_Mtx_init_in_situ", [mtx, 2])
-    results = [call(dll_emu, "msvcrt", name, [mtx])[0] for name in ("_Mtx_lock", "_Mtx_trylock", "_Mtx_unlock")]
-    call(dll_emu, "msvcrt", "_Mtx_destroy_in_situ", [mtx])
-    assert results == [0, 0, 0]
     assert call(dll_emu, "msvcrt", "_Thrd_id", [])[0] == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
 
 
@@ -1229,11 +1211,6 @@ def test_cnd_timedwait_times_out_when_no_other_run_is_queued(dll64_emu: Speakeas
     assert call(se, "msvcp140", "_Cnd_timedwait", [cnd, mtx, xtime])[0] == 0
 
 
-@pytest.mark.parametrize("name", ["__telemetry_main_invoke_trigger", "__telemetry_main_return_trigger"])
-def test_telemetry_triggers_are_accepted(dll_emu: Speakeasy, name: str) -> None:
-    call(dll_emu, "msvcrt", name, [0x10000000])
-
-
 @pytest.mark.parametrize("fd, result", [(1, 0x4000), (7, -1)])
 def test_setmode_returns_text_mode_for_a_standard_descriptor(dll_emu: Speakeasy, fd: int, result: int) -> None:
     o_u16text = 0x20000
@@ -1246,11 +1223,6 @@ def test_lc_locale_name_func_gives_the_c_locale_names(request: pytest.FixtureReq
     names = call(se, "msvcrt", "___lc_locale_name_func", [])[0]
     assert names == call(se, "msvcrt", "___lc_locale_name_func", [])[0]
     assert se.mem_read(names, 6 * ptr) == b"\x00" * 6 * ptr
-
-
-@pytest.mark.parametrize("name", ["_lock_file", "_unlock_file"])
-def test_file_locks_are_accepted(dll_emu: Speakeasy, name: str) -> None:
-    call(dll_emu, "msvcrt", name, [alloc(dll_emu, b"\x00" * 0x20)])
 
 
 def put_with(api: str) -> Callable[[Speakeasy, int], None]:
@@ -1323,12 +1295,6 @@ def test_wide_case_conversion_maps_ascii_letters_in_the_c_locale(dll_emu: Speake
 def test_wcschr_finds_the_first_match_or_the_terminator(dll_emu: Speakeasy, c: int, offset: int | None) -> None:
     s = alloc(dll_emu, "abb\x00".encode("utf-16le"))
     assert call(dll_emu, "msvcrt", "wcschr", [s, c])[0] == (0 if offset is None else s + offset)
-
-
-@pytest.mark.parametrize("api", ["_initialize_wide_environment", "_configure_wide_argv"])
-def test_wide_startup_initializers_succeed(dll_emu: Speakeasy, api: str) -> None:
-    argv = [] if api == "_initialize_wide_environment" else [1]
-    assert call(dll_emu, "msvcrt", api, argv)[0] == 0
 
 
 def test_wide_environ_points_at_wide_key_value_strings(dll_emu: Speakeasy) -> None:

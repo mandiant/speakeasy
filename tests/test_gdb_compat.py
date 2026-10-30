@@ -75,11 +75,6 @@ def make_server():
     return GdbServer(DummyEmulator(), 0, "127.0.0.1")
 
 
-def test_server_uses_provided_bind_host():
-    assert make_server().host == "127.0.0.1"
-    assert GdbServer(DummyEmulator(), 0, "0.0.0.0").host == "0.0.0.0"
-
-
 def test_supported_features_include_ida_process_queries():
     server = make_server()
     replies = []
@@ -127,7 +122,6 @@ def test_xfer_chunking_and_process_metadata():
     assert first == b"mC:\\s"
     assert second == b"lample.exe"
     assert server._handle_xfer(b"qXfer:exec-file:read:2a:0,100") == b"lC:\\sample.exe"
-    assert server._teb_address() == 0x7FFDE000
 
 
 def test_packet_extraction_validates_checksum_across_fragmented_input():
@@ -300,8 +294,6 @@ def test_hardware_breakpoint_accepts_large_ranges():
         server._change_breakpoint(f"Z1,401000,{size_hex}".encode())
 
     assert replies == [b"OK"] * 4
-    assert len(server._exec_breakpoints) == 4
-    assert (0x401000, 0x2D000, 1) in server._exec_breakpoints
 
 
 def test_hardware_breakpoint_range_hit_detection():

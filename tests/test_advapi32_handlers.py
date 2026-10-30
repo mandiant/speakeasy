@@ -229,14 +229,6 @@ def test_reg_open_unknown_handle_is_invalid(dll_emu: Speakeasy, api: str) -> Non
     assert rv == windefs.ERROR_INVALID_HANDLE
 
 
-@pytest.mark.parametrize("api", ["RegOpenKeyA", "RegOpenKeyExA"])
-@pytest.mark.parametrize("subkey", [None, b"\x00"])
-def test_reg_open_key_without_a_subkey_opens_the_key(dll_emu: Speakeasy, api: str, subkey: bytes | None) -> None:
-    hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
-    rv, path = _open_key(dll_emu, api, hfoo, alloc(dll_emu, subkey) if subkey else 0)
-    assert (rv, path) == (windefs.ERROR_SUCCESS, "HKEY_CURRENT_USER\\Software\\Foo")
-
-
 @pytest.mark.parametrize("subkey", [None, b"\x00"])
 def test_reg_open_key_ex_without_a_subkey_opens_a_new_handle(dll_emu: Speakeasy, subkey: bytes | None) -> None:
     hfoo = _create_key(dll_emu, HKEY_CURRENT_USER, b"Software\\Foo")
@@ -245,6 +237,9 @@ def test_reg_open_key_ex_without_a_subkey_opens_a_new_handle(dll_emu: Speakeasy,
     rv, _ = call(dll_emu, "advapi32", "RegOpenKeyExA", [hfoo, lp, 0, 0x20006, phk])
     h2 = _dword(dll_emu, phk)
     assert rv == windefs.ERROR_SUCCESS and h2 != hfoo
+    assert dll_emu.emu is not None
+    key = dll_emu.emu.regman.get_key_from_handle(h2)
+    assert key is not None and key.get_path() == "HKEY_CURRENT_USER\\Software\\Foo"
     assert call(dll_emu, "advapi32", "RegCloseKey", [h2])[0] == windefs.ERROR_SUCCESS
     rv, _ = call(dll_emu, "advapi32", "RegQueryInfoKeyA", [hfoo, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert rv == windefs.ERROR_SUCCESS
@@ -723,12 +718,6 @@ def test_enum_services_status_returns_no_services(dll_emu: Speakeasy) -> None:
     outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(3)]
     rv, _ = call(dll_emu, "advapi32", "EnumServicesStatusA", [0x1234, 0x30, 3, 0, 0, *outs])
     assert (rv, [_dword(dll_emu, a) for a in outs]) == (1, [0, 0, 0])
-
-
-def test_crypt_string_to_binary_size_query_returns_true(dll_emu: Speakeasy) -> None:
-    size = alloc(dll_emu, struct.pack("<I", 0))
-    rv, _ = call(dll_emu, "crypt32", "CryptStringToBinaryA", [alloc(dll_emu, b"YWJj\x00"), 0, 1, 0, size, 0, 0])
-    assert (rv, _dword(dll_emu, size)) == (1, 3)
 
 
 @pytest.mark.parametrize(

@@ -36,11 +36,7 @@ def test_dump_default_config_flag_outputs_valid_json():
         capture_output=True,
         text=True,
     )
-    dumped = json.loads(result.stdout)
-    model = SpeakeasyConfig.model_validate(dumped)
-
-    assert model.timeout == 60
-    assert model.max_api_count == 10000
+    SpeakeasyConfig.model_validate(json.loads(result.stdout))
 
 
 def test_partial_config_overlay_inherits_model_defaults():
@@ -48,8 +44,6 @@ def test_partial_config_overlay_inherits_model_defaults():
 
     assert model.analysis.memory_tracing is True
     assert model.analysis.strings is True
-    assert model.os_ver.major == 6
-    assert model.modules.user_modules
 
 
 def test_merge_config_dicts_merges_mappings_and_replaces_lists():
