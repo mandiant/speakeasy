@@ -402,15 +402,12 @@ class WindowsEmulator(BinaryEmulator):
         self.cd = self.config.current_dir
         self.command_line = self.config.command_line
 
-    def init_machine(self, arch, container=False):
+    def init_machine(self, arch):
         """
         Create the CPU, the disassembler and the API layer for arch. Then create the
         Windows structures and the modules of the machine. Load images after this.
-
-        Args:
-            container: if True, load the main process image of the config. This image
-                holds an input that is not an EXE, such as a DLL or shellcode.
-                Kernel mode ignores this.
+        The container image of a DLL or shellcode input is not part of the machine:
+        Win32Emulator.load_container loads it.
 
         Raises:
             WindowsEmuError: the machine is already initialized, or arch is not x86 or amd64.
@@ -436,14 +433,14 @@ class WindowsEmulator(BinaryEmulator):
         self.api = WindowsApi(self)
 
         with self.allocations_from(winemu.MACHINE_BASE):
-            self.init_machine_structures(container)
+            self.init_machine_structures()
             self.is_machine_ready = True
             for entry in tuple(self.api_registry.entries.values()):
                 if entry.export.kind == "data":
                     self._initialize_api_data(entry)
 
     @abstractmethod
-    def init_machine_structures(self, container: bool) -> None:
+    def init_machine_structures(self) -> None:
         """
         Create the object manager, segments, shared data and modules of the machine
         """
@@ -1820,7 +1817,9 @@ class WindowsEmulator(BinaryEmulator):
             raw = image.regions[0].data
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
-        if not self.is_kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
+        process = self.get_current_process()
+        is_before_peb = process is None or not process.is_peb_active
+        if not self.is_kernel_mode and is_before_peb and mod.visible_in_peb and mod.is_dll():
             self.module_loader.shared_peb_modules.add(mod.base)
         self._add_module_to_current_peb(mod)
         return mod

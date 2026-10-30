@@ -147,7 +147,9 @@ class Speakeasy:
                     gdb_port=self.gdb_port,
                     gdb_host=self.gdb_host,
                 )
-            self.emu.init_machine(pe.arch, container=not pe.is_exe())
+            self.emu.init_machine(pe.arch)
+            if isinstance(self.emu, Win32Emulator) and not pe.is_exe():
+                self.emu.load_container()
         else:
             self.emu = Win32Emulator(
                 config=self.config,
@@ -316,7 +318,9 @@ class Speakeasy:
         if is_input:
             self._init_emulator(is_raw_code=True)
             arch = image.arch if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) else _arch.ARCH_X86
-            self.emu.init_machine(arch, container=image.module_type != "exe")  # type: ignore[union-attr]
+            self.emu.init_machine(arch)  # type: ignore[union-attr]
+            if image.module_type != "exe":
+                self.emu.load_container()  # type: ignore[union-attr]
         self._init_hooks()
         return self.emu.load_image(image, is_input=is_input)  # type: ignore[union-attr]
 
@@ -364,7 +368,8 @@ class Speakeasy:
             Address of the loaded shellcode in the emulation space
         """
         self._init_emulator(is_raw_code=True)
-        self.emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86), container=True)  # type: ignore[union-attr]
+        self.emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86))  # type: ignore[union-attr]
+        self.emu.load_container()  # type: ignore[union-attr]
         self.loaded_bins.append(fpath)
 
         return self.emu.load_shellcode(fpath, arch, data=data, filename=filename)  # type: ignore[no-any-return, union-attr]

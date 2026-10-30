@@ -265,10 +265,6 @@ class Win32Emulator(WindowsEmulator):
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
             run.type = "dll_entry.DLL_PROCESS_ATTACH"
-            container = self.init_container_process()
-            if container:
-                self.processes.append(container)
-                self.curr_process = container
         else:
             run.type = "module_entry"
             run.args = [self.mem_map(8, tag=f"emu.module_arg_{i}") for i in range(4)]
@@ -502,13 +498,8 @@ class Win32Emulator(WindowsEmulator):
 
         self.add_run(run)
 
-        # Create an empty process object for the shellcode if none is
-        # supplied
-        container = self.init_container_process()
-        if container:
-            self.processes.append(container)
-            self.curr_process = container
-        else:
+        # Create an empty process object for the shellcode if there is no container process
+        if self.curr_process is None:
             p = objman.Process(self)
             self.processes.append(p)
             self.curr_process = p
@@ -606,7 +597,7 @@ class Win32Emulator(WindowsEmulator):
         """
         self.unhandled_exception_filter = handler_addr
 
-    def init_machine_structures(self, container):
+    def init_machine_structures(self):
         self.om = objman.ObjectManager(emu=self)
 
         arch = self.get_arch()
@@ -622,7 +613,7 @@ class Win32Emulator(WindowsEmulator):
             self.om.add_symlink(sl.name, sl.target)
 
         self.init_sys_modules(self.config.modules.system_modules)
-        self._init_user_modules_from_config(container)
+        self.init_user_modules(self.config.modules.user_modules)
 
     def init_sys_modules(self, modules_config):
         """
@@ -642,40 +633,41 @@ class Win32Emulator(WindowsEmulator):
 
         return rtmods
 
-    def init_container_process(self):
+    def load_container(self):
         """
-        Create a process to be used to host shellcode or DLLs
+        Load the container image and make its process the current process. A DLL or
+        shellcode input runs in this process. Call this after init_machine and before
+        the input image loads.
+
+        The container image is the image of the entry in processes of the config that
+        has is_main_exe set. If the config has no such entry, do nothing.
+
+        Raises:
+            WindowsEmuError: the machine is not initialized, or the container is already loaded.
+            OutOfMemoryError: on x86, the container image does not fit below the TEB.
         """
-        for p in self.config.processes:
-            if p.is_main_exe:
-                name = p.name or ""
-                emu_path = p.path or ""
-                base = p.base_addr or 0
-                if isinstance(base, str):
-                    base = int(base, 0)
-                if self.container_image:
-                    base = self.container_image.base
-                cmd_line = p.command_line or ""
+        if not self.is_machine_ready:
+            raise WindowsEmuError("the machine is not initialized: call init_machine before load_container")
+        if self.container_image is not None:
+            raise WindowsEmuError("the container is already loaded")
+        entry = next((p for p in self.config.processes if p.is_main_exe), None)
+        if entry is None:
+            return None
 
-                proc = objman.Process(self, name=name, path=emu_path, base=base, cmdline=cmd_line)
-                return proc
-        return None
-
-    def _init_user_modules_from_config(self, container):
-        proc_mod = None
-        if container:
-            proc_mod = next((p for p in self.config.processes if p.is_main_exe), None)
-
-        if proc_mod:
-            # Load the container image in the machine range, so that the input image can use its preferred base.
-            proc_mod = proc_mod.model_copy(update={"base_addr": hex(winemu.MACHINE_BASE)})
-            all_user_mods = [proc_mod] + list(self.config.modules.user_modules)
-        else:
-            all_user_mods = list(self.config.modules.user_modules)
-
-        rtmods = self.init_user_modules(all_user_mods)
-        if proc_mod:
-            self.container_image = rtmods[0]
+        # Load the container image in the machine range, so that the input image can use its preferred base.
+        with self.allocations_from(winemu.MACHINE_BASE):
+            entry_at_machine_base = entry.model_copy(update={"base_addr": hex(winemu.MACHINE_BASE)})
+            self.container_image = self.init_user_modules([entry_at_machine_base])[0]
+        process = objman.Process(
+            self,
+            name=entry.name or "",
+            path=entry.path or "",
+            base=self.container_image.base,
+            cmdline=entry.command_line or "",
+        )
+        self.processes.append(process)
+        self.curr_process = process
+        return process
 
     def exit_process(self):
         """

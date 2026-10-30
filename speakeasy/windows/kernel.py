@@ -77,7 +77,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.drivers.append(drv)
         return drv
 
-    def init_machine_structures(self, container):
+    def init_machine_structures(self):
         self.om = objman.ObjectManager(emu=self)
         self.init_processes(self.config.processes)
         self._setup_gdt(self.get_arch())
