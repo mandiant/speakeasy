@@ -225,24 +225,24 @@ class EmuStruct(metaclass=CMeta):
         return ct.sizeof(self.__struct__)
 
     def _deep_cast(self, obj, bytez, offset):
-        obj.__struct__ = type(obj.__struct__).from_buffer(bytearray(bytez[offset[0] :]))
-        for fn, c in obj.__fields__:
+        cstruct = type(obj.__struct__)
+        obj.__struct__ = cstruct.from_buffer(bytearray(bytez[offset:]))
+        for fn, _ in obj.__fields__:
             subobj = obj.__filtermap__.get(fn)
-            if subobj:
-                if isinstance(subobj, list):
-                    for sso in subobj:
-                        self._deep_cast(sso, bytez, offset)
-                else:
-                    self._deep_cast(subobj, bytez, offset)
+            if not subobj:
+                continue
+            field_offset = offset + getattr(cstruct, fn).offset
+            if isinstance(subobj, list):
+                for i, sso in enumerate(subobj):
+                    self._deep_cast(sso, bytez, field_offset + i * sso.sizeof())
             else:
-                offset[0] += ct.sizeof(c)
+                self._deep_cast(subobj, bytez, field_offset)
 
     def cast(self, bytez):
         """
         Convert a bytes object to the C structure by "casting" them
         """
-        offset = [0]
-        self._deep_cast(self, bytez, offset=offset)
+        self._deep_cast(self, bytez, 0)
         return self
 
     def get_cstruct(self):
