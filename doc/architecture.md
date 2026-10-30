@@ -20,8 +20,7 @@ A `Run` is one call into guest code: the entry point, a DLL export, a thread, a 
 
 - `api_entry`: the guest called an API.
 - `control`: the run returned, a guest callback returned, or a fault ended the run.
-- `cpu_exception`: a CPU exception for guest SEH.
-- `trap_fault`: a read, write or fetch in the reserved range that is not an API call.
+- `cpu_exception`: a CPU exception or a memory fault for guest SEH.
 
 `RunLimits` has the time and instruction limits of a run.
 
@@ -75,6 +74,8 @@ If the emulator cancels the runs in the queue, for example when the total time l
 
 If a hook gets an exception, it calls `_end_run_on_hook_error`. This saves the error on the run and stops emulation.
 
-For an unmapped read, write or fetch, the hook calls `dispatch_seh` at once and maps a temporary page, so that Unicorn can complete the access. The deferred work hook unmaps the page. Other faults use `raise_cpu_exception`, and `_execute_current_run` sends them to the guest after Unicorn stops. See [Exception dispatch](exceptions.md).
+A hook does not send a fault to the guest while Unicorn runs. It calls `raise_cpu_exception`, which saves the exception in `PendingState` and stops Unicorn. Unmapped reads, writes and fetches use this path, and so do invalid instructions, interrupts and most protection faults. An access to the reserved range of the API tokens that is not an API call also uses it. The emulator does not map a page at the fault address.
+
+After Unicorn stops, `_execute_current_run` calls `_dispatch_cpu_exception`, which sends the exception to the guest handlers with `dispatch_seh`. If no handler takes the exception, `guest_callbacks.fail` ends the run with the fault error. This function keeps the guest callback frames of the run. Thus, if a DllMain faults in `LoadLibrary`, `_finish_run_initializers` can undo the load before the next run. See [Exception dispatch](exceptions.md).
 
 `speakeasy/windows/thread_context.py` has the tables that `get_thread_context` and `load_thread_context` use to copy registers to and from a `CONTEXT`. Unicorn does not have debug registers, so the emulator keeps them on the thread.
