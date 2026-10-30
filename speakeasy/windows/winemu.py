@@ -857,6 +857,12 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_map(self.page_size, base=base, tag=kuser_tag)
             self.mem_write(base, data)
 
+    def get_native_machine(self) -> int:
+        """Get the IMAGE_FILE_MACHINE value of the emulated host, which matches the guest architecture."""
+        if self.get_arch() == _arch.ARCH_AMD64:
+            return windef.IMAGE_FILE_MACHINE_AMD64
+        return windef.IMAGE_FILE_MACHINE_I386
+
     def _build_user_shared_data(self):
         now_100ns = self.start_time
         tick_ms = winemu.START_TICK_COUNT
@@ -870,6 +876,9 @@ class WindowsEmulator(BinaryEmulator):
         )
         # SystemTime (offset 0x014): KSYSTEM_TIME
         struct.pack_into("<IiI", data, 0x014, now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
+        # ImageNumberLow, ImageNumberHigh (offset 0x02C)
+        machine = self.get_native_machine()
+        struct.pack_into("<HH", data, 0x02C, machine, machine)
         # NtMajorVersion (offset 0x260)
         struct.pack_into("<I", data, 0x260, self.config.os_ver.major or 0)
         # NtMinorVersion (offset 0x264)
