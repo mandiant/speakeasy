@@ -5,6 +5,7 @@ import math
 import ntpath
 import re
 import struct
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -67,6 +68,7 @@ IOS_FOPEN_MODES = {
 TIME_BASE = 1576292568
 FILETIME_UNIX_EPOCH = 116444736000000000
 S_IFREG_RW = 0x81B6
+A_SUBDIR = 0x10
 DRIVE_C = 2
 RAND_BASE = 0
 TICK_BASE = 86400000  # 1 day in millisecs
@@ -397,6 +399,19 @@ def render_stat(size: int, size64: bool, time64: bool) -> bytes:
     return data
 
 
+def render_finddata(name: str, is_dir: bool, time64: bool) -> bytes:
+    """
+    Encode a struct _finddata_t for a directory entry. The three time fields
+    follow 4 bytes of padding when they are 64-bit.
+    """
+    data = struct.pack("<I", A_SUBDIR if is_dir else 0)
+    data += struct.pack("<4x3q" if time64 else "<3i", TIME_BASE, TIME_BASE, TIME_BASE)
+    data += struct.pack("<I", 0) + name.encode("utf-8")[:259].ljust(260, b"\x00")
+    if time64:
+        data += b"\x00" * (-len(data) % 8)
+    return data
+
+
 STRFTIME_C_LOCALE = {"c": "%m/%d/%y %H:%M:%S", "x": "%m/%d/%y", "X": "%H:%M:%S", "z": "+0000", "Z": "UTC"}
 
 
@@ -474,6 +489,7 @@ class Msvcrt(api.ApiHandler):
         self.invalid_parameter_handler: int = 0
         self.thread_invalid_parameter_handlers: dict[int, int] = {}
         self.istream_vbtable: int | None = None
+        self.find_searches: dict[int, Iterator[tuple[str, bool]]] = {}
 
         super().__get_hook_attrs__(self)
 
@@ -5853,6 +5869,66 @@ class Msvcrt(api.ApiHandler):
         );
         """
         return self.stat_fd(argv, True, True)
+
+    def write_next_find_entry(self, search, fileinfo):
+        try:
+            name, is_dir = next(search)
+        except StopIteration:
+            return False
+        self.mem_write(fileinfo, render_finddata(name, is_dir, self.get_ptr_size() == 8))
+        return True
+
+    @apihook("_findfirst", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _findfirst(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        intptr_t _findfirst(
+           const char *filespec,
+           struct _finddata_t *fileinfo
+        );
+        """
+        filespec, fileinfo = argv
+        if not filespec or not fileinfo:
+            self.set_errno(EINVAL)
+            return -1
+        spec = self.read_string(filespec)
+        ctx.args[0].display = spec
+        search = emu.get_file_manager().find_matching_entries(spec)
+        if not self.write_next_find_entry(search, fileinfo):
+            self.set_errno(ENOENT)
+            return -1
+        hnd = emu.handle_allocator.allocate_kernel_object_handle()
+        self.find_searches[hnd] = search
+        return hnd
+
+    @apihook("_findnext", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _findnext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _findnext(
+           intptr_t handle,
+           struct _finddata_t *fileinfo
+        );
+        """
+        handle, fileinfo = argv
+        search = self.find_searches.get(handle)
+        if search is None or not fileinfo:
+            self.set_errno(EINVAL)
+            return -1
+        if not self.write_next_find_entry(search, fileinfo):
+            self.set_errno(ENOENT)
+            return -1
+        return 0
+
+    @apihook("_findclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _findclose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _findclose(
+           intptr_t handle
+        );
+        """
+        if self.find_searches.pop(argv[0], None) is None:
+            self.set_errno(ENOENT)
+            return -1
+        return 0
 
     @apihook("_stat", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _stat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
