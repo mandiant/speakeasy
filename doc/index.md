@@ -31,6 +31,7 @@ This page maps common tasks to the right Speakeasy documentation.
 
 ## Extending and embedding
 
+- [Architecture of the Windows emulator](architecture.md)
 - [Python library usage](library.md)
 - [Mounting host files with --volume](volumes.md)
 - [Adding API handlers](api-handlers.md)
