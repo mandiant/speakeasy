@@ -12,7 +12,7 @@ class Msvfw32(api.ApiHandler):
         super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        self.next_handle = 0x7000
+        self.next_handle: int = 0x7000
         super().__get_hook_attrs__(self)
 
     def get_handle(self):

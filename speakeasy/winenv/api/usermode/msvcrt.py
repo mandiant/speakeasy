@@ -6,7 +6,6 @@ import ntpath
 import re
 import struct
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import speakeasy.windows.seh32 as seh32
 import speakeasy.winenv.arch as e_arch
@@ -442,21 +441,21 @@ class Msvcrt(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.stdin = 0
-        self.stdout = 1
-        self.stderr = 2
+        self.stdin: int = 0
+        self.stdout: int = 1
+        self.stderr: int = 2
 
-        self.rand_int = RAND_BASE
-        self.rand_seed = 1
+        self.rand_int: int = RAND_BASE
+        self.rand_seed: int = 1
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
+        self.funcs = {}
+        self.data = {}
         self.wintypes = windef
 
         self.tick_counter: int = TICK_BASE
         self.perf_counter: int = PERF_COUNTER_BASE
         self.errno_t: int | None = None
-        self.file_streams: dict[int, Any] = {}
+        self.file_streams: dict[int, int] = {}
         self.crt_streams: set[int] = set()
         self.fds: dict[int, int] = {}
         self.signal_handlers: dict[int, int] = {}
@@ -1503,11 +1502,12 @@ class Msvcrt(api.ApiHandler):
         """
         Return the kernel32 system time in 100 ns units since 1970.
         """
-        return self.emu.api.load_api_handler("kernel32").get_system_time() - FILETIME_UNIX_EPOCH
+        system_time: int = self.emu.api.load_api_handler("kernel32").get_system_time()
+        return system_time - FILETIME_UNIX_EPOCH
 
     def get_time_size(self, emu) -> int:
         # x86 msvcrt.dll uses a 32-bit time_t
-        return emu.get_ptr_size()
+        return self.get_ptr_size()
 
     def read_time(self, timer: int, size: int) -> datetime | None:
         value = int.from_bytes(self.mem_read(timer, size), "little", signed=True)
@@ -5436,12 +5436,14 @@ class Msvcrt(api.ApiHandler):
     @apihook("_vscprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _vscprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """int _vscprintf(const char *format, va_list argptr);"""
-        return len(self.format_va_list(*argv, 1))
+        _format, argptr = argv
+        return len(self.format_va_list(_format, argptr, 1))
 
     @apihook("_vscwprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _vscwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """int _vscwprintf(const wchar_t *format, va_list argptr);"""
-        return len(self.format_va_list(*argv, 2))
+        _format, argptr = argv
+        return len(self.format_va_list(_format, argptr, 2))
 
     @apihook("_errno", argc=0)
     def _errno(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

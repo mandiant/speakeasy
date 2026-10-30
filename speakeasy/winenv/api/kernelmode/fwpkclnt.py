@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+from typing import Any
 
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.wfp.fwpmtypes as fwp
@@ -29,12 +30,12 @@ class Fwpkclnt(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle = 4
-        self.sessions = {}
-        self.injections = {}
-        self.sublayers = {}
-        self.callouts = {}
-        self.filters = {}
+        self.handle: int = 4
+        self.sessions: dict[int, str] = {}
+        self.injections: dict[int, str] = {}
+        self.sublayers: dict[str, dict[str, Any]] = {}
+        self.callouts: dict[int, dict[str, Any]] = {}
+        self.filters: dict[int, dict[str, Any]] = {}
 
         self.emu = emu
 

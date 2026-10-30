@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_aton
-from typing import Any
 from urllib.parse import urlparse
 
 import speakeasy.windows.netman as netman
@@ -34,10 +33,9 @@ class Wininet(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
-        self.win: Any | None = None
-        self.netman = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
+        self.funcs = {}
+        self.data = {}
+        self.netman: netman.NetworkManager = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
         super().__get_hook_attrs__(self)
 
     @apihook("InternetOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)

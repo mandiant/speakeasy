@@ -16,17 +16,17 @@ WDF_FUNCTION_TABLE_NUM_ENTRIES_V1_13 = 438
 
 
 class WdfDriver:
+    driver_object_addr: int
+    driver_object: ntos.DRIVER_OBJECT
+
     def __init__(self):
-        self.reg_path: int | None = None
+        self.reg_path: str | None = None
         self.queues: dict[int, int] = {}
-        self.driver_object_addr: int | None = None
-        self.driver_object: Any | None = None
 
 
 class WdfDevice:
-    def __init__(self):
-        self.device_object_addr: int | None = None
-        self.device_object: Any | None = None
+    device_object_addr: int
+    device_object: ntos.DEVICE_OBJECT
 
 
 class WdfUsbDevice:
@@ -38,8 +38,8 @@ class WdfUsbDevice:
 class WdfUsbInterface:
     def __init__(self):
         self.config_desc: bytes | None = None
-        self.iface_index = 0
-        self.setting_index = 0
+        self.iface_index: int = 0
+        self.setting_index: int = 0
 
 
 class WdfUsbPipe:
@@ -60,10 +60,10 @@ class Wdfldr(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
+        self.funcs = {}
         self.curr_handle: int = 4
-        self.pnp_device: Any | None = None
-        self.data: dict[str, Any] = {}
+        self.pnp_device: int | None = None
+        self.data = {}
         self.emu = emu
         self.wdf_drivers: dict[int, WdfDriver] = {}
         self.wdf_devices: dict[int, WdfDevice] = {}
@@ -73,7 +73,7 @@ class Wdfldr(api.ApiHandler):
         self.handles: dict[int, Any] = {}
         self.typed_contexts: dict[tuple[int, int], int] = {}
         self.types = wdf
-        self.func_table = self.types.WDFFUNCTIONS(emu.get_ptr_size())
+        self.func_table: wdf.WDFFUNCTIONS = self.types.WDFFUNCTIONS(emu.get_ptr_size())
         self.func_table_ptr: int | None = None
         self.component_globals: int | None = None
         super().__get_hook_attrs__(self)
@@ -272,7 +272,7 @@ class Wdfldr(api.ApiHandler):
 
             driver = self.wdf_drivers.get(DriverGlobals)
             if driver:
-                dev.device_object.DriverObject = driver.driver_object_addr
+                dev.device_object.DriverObject = driver.driver_object_addr  # type: ignore[assignment]
                 self.mem_write(dev.device_object_addr, dev.device_object.get_bytes())
 
         return rv

@@ -2,7 +2,7 @@
 import re
 import struct
 from socket import htonl, htons, inet_aton, inet_ntoa, inet_ntop, inet_pton, ntohl, ntohs
-from typing import Any
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -10,6 +10,9 @@ import speakeasy.winenv.defs.winsock.winsock as winsock
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.netman import NetworkManager
 
 INADDR_NONE = 0xFFFFFFFF
 HOST_NOT_FOUND = 11001
@@ -28,11 +31,10 @@ class Ws2_32(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
+        self.funcs = {}
+        self.data = {}
         self.addr_bufs: dict[str, int] = {}
-        self.win: Any | None = None
-        self.netman = emu.get_network_manager()
+        self.netman: NetworkManager = emu.get_network_manager()
         self.wstypes = wstypes
 
         super().__get_hook_attrs__(self)

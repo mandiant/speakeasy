@@ -7,6 +7,8 @@ import os
 import string
 import struct
 import zlib
+from collections.abc import Iterator
+from typing import Any
 
 import speakeasy.common as common
 import speakeasy.windows.common as winemu
@@ -147,22 +149,22 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.funcs = {}
         self.data = {}
 
-        self.heaps = []
-        self.curr_local_atom = 0xC000
-        self.local_atom_table = {}
-        self.curr_handle = 0x1800
-        self.find_files = {}
-        self.find_volumes = {}
-        self.snapshots = {}
-        self.tls_count = 0
-        self.fls_count = 0
-        self.tick_counter = winemu.START_TICK_COUNT
-        self.perf_base = 0x5FD27D571F - self.tick_counter * 10000
-        self.start_time = emu.start_time
-        self.boot_time = self.start_time - self.tick_counter * 10000
+        self.heaps: list[int] = []
+        self.curr_local_atom: int = 0xC000
+        self.local_atom_table: dict[int, tuple[str, int]] = {}
+        self.curr_handle: int = 0x1800
+        self.find_files: dict[int, dict[str, Iterator[tuple[str, bool]]]] = {}
+        self.find_volumes: dict[int, dict[str, Iterator[str]]] = {}
+        self.snapshots: dict[int, dict[int, list[Any]]] = {}
+        self.tls_count: int = 0
+        self.fls_count: int = 0
+        self.tick_counter: int = winemu.START_TICK_COUNT
+        self.perf_base: int = 0x5FD27D571F - self.tick_counter * 10000
+        self.start_time: int = emu.start_time
+        self.boot_time: int = self.start_time - self.tick_counter * 10000
 
-        self.command_lines = [None] * 3
-        self.startup_info = {}
+        self.command_lines: list[int | None] = [None] * 3
+        self.startup_info: dict[tuple[objman.Process, int], list[int]] = {}
 
         self.k32types = k32types
 
@@ -486,8 +488,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
 
         ver = self.emu.config.os_ver
-        major = ver.major
-        minor = ver.minor
+        major = ver.major or 0
+        minor = ver.minor or 0
 
         rv = 0xFFFFFFFF & (major << 16 | minor)
 
@@ -1814,9 +1816,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();"""
 
         ver = self.emu.config.os_ver
-        build = ver.build
-        major = ver.major
-        minor = ver.minor
+        build = ver.build or 0
+        major = ver.major or 0
+        minor = ver.minor or 0
 
         rv = 0xFFFFFFFF & ((build << 16) | minor << 8 | major)
 
@@ -5953,7 +5955,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        walker = fsearch.get("walker")
+        walker = fsearch["walker"]
         try:
             name, is_dir = next(walker)
         except StopIteration:
@@ -7221,7 +7223,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return 0
 
         # Get next drive; each drive contains one volume
-        walker = dsearch.get("walker")
+        walker = dsearch["walker"]
         try:
             volume_guid_path = next(walker)
         except StopIteration:

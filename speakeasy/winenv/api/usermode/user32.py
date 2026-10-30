@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes
-from typing import Any
 
 import speakeasy.windows.guest_callbacks as guest_callbacks
 import speakeasy.windows.sessman as sessman
@@ -181,11 +180,10 @@ class User32(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
-        self.window_hooks: dict[int, tuple] = {}
+        self.funcs = {}
+        self.data = {}
+        self.window_hooks: dict[int, tuple[int, int, int]] = {}
         self.handle: int = 0
-        self.win: Any | None = None
         self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
         self.window_longs: dict[int, dict[int, int]] = {}
@@ -193,12 +191,12 @@ class User32(api.ApiHandler):
         self.dialog_results: dict[int, int] = {}
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
-        self.sessman = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
+        self.sessman: sessman.SessionManager = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
         self.foreground_window: int = 0
-        self.synthetic_async_keys = [0x41, 0x42, 0x43]
-        self.synthetic_async_key_index = 0
-        self.synthetic_hook_keys = [0x41, 0x42, 0x43]
-        self.synthetic_hook_key_index = 0
+        self.synthetic_async_keys: list[int] = [0x41, 0x42, 0x43]
+        self.synthetic_async_key_index: int = 0
+        self.synthetic_hook_keys: list[int] = [0x41, 0x42, 0x43]
+        self.synthetic_hook_key_index: int = 0
 
         super().__get_hook_attrs__(self)
 
@@ -1234,7 +1232,7 @@ class User32(api.ApiHandler):
             return window.parent
         return 0
 
-    def get_prop_key(self, lpString, ctx: api.ApiContext) -> int | str:
+    def get_prop_key(self, lpString: int, ctx: api.ApiContext) -> int | str:
         if lpString <= 0xFFFF:
             return lpString
         name = self.read_mem_string(lpString, self.get_char_width(ctx))

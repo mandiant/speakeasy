@@ -5,6 +5,10 @@ ExceptionApis is a mixin of the kernel32 and ntdll API handlers. Most of these
 APIs exist only on x64, where exceptions are dispatched from unwind data.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import speakeasy.windows.seh as seh
 import speakeasy.windows.seh32 as seh32
 import speakeasy.windows.seh64 as seh64
@@ -12,10 +16,17 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.winenv.api import api
 
+if TYPE_CHECKING:
+    from speakeasy.windows.winemu import WindowsEmulator
+
+    _ApiHandlerBase = api.ApiHandler
+else:
+    _ApiHandlerBase = object
+
 apihook = api.ApiHandler.apihook
 
 
-def is_amd64(emu) -> bool:
+def is_amd64(emu: WindowsEmulator) -> bool:
     return emu.get_arch() == e_arch.ARCH_AMD64
 
 
@@ -26,7 +37,7 @@ def c_specific_handler(emu, argv):
     return seh64.c_specific_handler(emu, *argv)
 
 
-class ExceptionApis:
+class ExceptionApis(_ApiHandlerBase):
     @apihook("RtlUnwind", argc=4)
     def RtlUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

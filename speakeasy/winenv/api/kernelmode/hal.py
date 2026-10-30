@@ -22,7 +22,7 @@ class Hal(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.emu = emu
-        self.perf_counter = 0x5FD27D571F
+        self.perf_counter: int = 0x5FD27D571F
 
         super().__get_hook_attrs__(self)
 

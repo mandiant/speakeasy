@@ -2,6 +2,7 @@
 
 import base64
 import struct
+from typing import TYPE_CHECKING
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -9,6 +10,10 @@ from Crypto.Util.Padding import pad, unpad
 import speakeasy.winenv.defs.nt.ddk as ntdefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from Crypto.Cipher._mode_cbc import CbcMode
+    from Crypto.Cipher._mode_ecb import EcbMode
 
 BCRYPT_USE_SYSTEM_PREFERRED_RNG = 0x2
 BCRYPT_BLOCK_PADDING = 0x1
@@ -317,14 +322,14 @@ class Bcrypt(api.ApiHandler):
                 return ntdefs.STATUS_SUCCESS
             if cbOutput < len(data):
                 return ntdefs.STATUS_BUFFER_TOO_SMALL
-            cipher = AES.new(key.blob, AES.MODE_GCM, nonce=nonce, mac_len=tag_len)
-            cipher.update(aad)
+            gcm = AES.new(key.blob, AES.MODE_GCM, nonce=nonce, mac_len=tag_len)
+            gcm.update(aad)
             if encrypt:
-                out, digest = cipher.encrypt_and_digest(data)
+                out, digest = gcm.encrypt_and_digest(data)
                 self.mem_write(tag, digest)
             else:
                 try:
-                    out = cipher.decrypt_and_verify(data, self.mem_read(tag, tag_len))
+                    out = gcm.decrypt_and_verify(data, self.mem_read(tag, tag_len))
                 except ValueError:
                     return STATUS_AUTH_TAG_MISMATCH
         else:
@@ -342,6 +347,7 @@ class Bcrypt(api.ApiHandler):
                 if cbIV != AES_BLOCK_LENGTH:
                     return ntdefs.STATUS_INVALID_PARAMETER
                 iv = self.mem_read(pbIV, cbIV)
+            cipher: CbcMode | EcbMode
             if key.chaining_mode == "ChainingModeCBC":
                 cipher = AES.new(key.blob, AES.MODE_CBC, iv=iv)
             else:

@@ -2,11 +2,15 @@
 
 import ctypes as ct
 from socket import inet_aton
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.struct import EmuStruct, Ptr
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.netman import NetworkManager
 
 DNS_TYPE_A = 0x0001
 DNS_TYPE_TEXT = 0x0010
@@ -41,8 +45,7 @@ class DnsApi(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         super().__get_hook_attrs__(self)
-        self.netman = emu.get_network_manager()
-        self.names = {}
+        self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("DnsQuery_", argc=6)
     def DnsQuery_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

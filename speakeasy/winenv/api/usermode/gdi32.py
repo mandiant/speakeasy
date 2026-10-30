@@ -45,8 +45,8 @@ class GDI32(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle = 0
-        self.count = 0
+        self.handle: int = 0
+        self.count: int = 0
         self.stock_objects: dict[int, int] = {}
         self.selected: dict[int, int] = {}
         super().__get_hook_attrs__(self)

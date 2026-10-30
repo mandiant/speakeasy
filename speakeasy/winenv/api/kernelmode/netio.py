@@ -1,7 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_ntoa, ntohs
-from typing import Any
 
 import speakeasy.windows.netman as netman
 import speakeasy.windows.objman as objman
@@ -27,7 +26,7 @@ class WskSocket(objman.KernelObject):
         self.sock_type: int = stype
         self.protocol: int = protocol
         self.flags: int = flags
-        self.dispatch: Any | None = None
+        self.dispatch: wsk.WSK_PROVIDER_DATAGRAM_DISPATCH | None = None
         self.dispatch_addr: int = 0
         self.dispatch_ptr: int = 0
         self.types = api.win
@@ -80,22 +79,20 @@ class Netio(api.ApiHandler):
     def __init__(self, emu):
         super().__init__(emu)
 
-        self.funcs: dict[str, Any] = {}
-        self.data: dict[str, Any] = {}
-        self.win: Any | None = None
-        self.nt: Any | None = None
-        self.wsk_registrations: dict[int, Any] = {}
+        self.funcs = {}
+        self.data = {}
+        self.wsk_registrations: dict[int, int] = {}
         self.wsk_sockets: dict[int, WskSocket] = {}
-        self.provider_npi: Any | None = None
+        self.provider_npi: wsk.WSK_PROVIDER_NPI | None = None
 
         self.win = wsk
         self.nt = nt
 
-        self.netman = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
+        self.netman: netman.NetworkManager = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
 
         super().__get_hook_attrs__(self)
 
-        self.prov_disp = self.win.WSK_PROVIDER_DISPATCH(emu.get_ptr_size())
+        self.prov_disp: wsk.WSK_PROVIDER_DISPATCH = self.win.WSK_PROVIDER_DISPATCH(emu.get_ptr_size())
         self.prov_disp.Version = 0x100
 
         addr = emu.add_callback(Netio.name, self.WskSocket.__apihook__[0])  # noqa
