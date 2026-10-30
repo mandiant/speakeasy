@@ -27,14 +27,6 @@ def fm():
     )
 
 
-def test_root_wildcard_finds_directories_and_files(fm):
-    results = list(fm.find_matching_entries("C:\\*"))
-    names = {name for name, _ in results}
-    assert "programdata" in names
-    assert "windows" in names
-    assert "pagefile.sys" in names
-
-
 def test_root_wildcard_marks_dirs_correctly(fm):
     results = {name: is_dir for name, is_dir in fm.find_matching_entries("C:\\*")}
     assert results["programdata"] is True

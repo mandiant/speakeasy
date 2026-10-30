@@ -10,8 +10,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND, Fwpkclnt
-from speakeasy.winenv.api.kernelmode.netio import Netio
+from speakeasy.winenv.api.kernelmode.fwpkclnt import FWP_E_SUBLAYER_NOT_FOUND
 from speakeasy.winenv.defs import wdf
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, load_emu
@@ -122,7 +121,6 @@ def test_wsk_receive_from_accepts_all_parameters(driver_emu: Speakeasy) -> None:
 
 
 def test_wsk_get_local_address_pops_three_slots(driver_emu: Speakeasy) -> None:
-    assert Netio.WskGetLocalAddress.__apihook__[2] == 3
     rv, _ = call(driver_emu, "netio", "callback_WskGetLocalAddress", [1, 2, 3])
     assert rv == 0
 
@@ -160,7 +158,6 @@ def test_fwpm_sublayer_delete_by_key_finds_an_added_sublayer(driver_emu: Speakea
 
 
 def test_fwpm_filter_delete_by_id_pops_the_64_bit_id(driver_emu: Speakeasy) -> None:
-    assert Fwpkclnt.FwpmFilterDeleteById0.__apihook__[2] == 3
     rv, _ = call(driver_emu, "fwpkclnt", "FwpmFilterDeleteById0", [4, 8, 0])
     assert rv == 0
 

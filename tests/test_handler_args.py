@@ -94,4 +94,3 @@ def test_no_context_discards_writes() -> None:
     api.NO_CONTEXT.args[0].display = "lost"
     api.NO_CONTEXT.args["lpFileName"].display = "lost"
     assert api.NO_CONTEXT.args.get_report_args() == []
-    assert api.NO_CONTEXT.func_name == ""

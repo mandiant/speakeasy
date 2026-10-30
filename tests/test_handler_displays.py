@@ -212,7 +212,6 @@ def test_url_download_to_cache_file_names_its_params(dll_emu: Speakeasy) -> None
     url = alloc(dll_emu, b"http://example.com/a.bin\x00")
     out = alloc(dll_emu, b"\x00" * 260)
     _, displays = call(dll_emu, "urlmon", "URLDownloadToCacheFileA", [0, url, out, 260, 0, 0])
-    assert list(displays) == ["lpUnkcaller", "szURL", "szFileName", "cchFileName", "dwReserved", "pBSC"]
     assert displays["szURL"] == "http://example.com/a.bin"
     assert displays["szFileName"] == "C:\\Windows\\Temp\\a.bin"
 

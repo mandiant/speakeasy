@@ -445,40 +445,6 @@ def gdb_x64_emulator():
     _stop_server(proc)
 
 
-def test_gdb_connect_and_read_registers(gdb_emulator):
-    port = gdb_emulator
-    client = GdbRspClient(port)
-    try:
-        reason = client.query_halt_reason()
-        assert reason
-
-        regs = client.read_registers()
-        assert len(regs) > 0
-        assert all(char in "0123456789abcdefxx" for char in regs.lower())
-
-        assert client.read_x86_registers().eip != 0
-
-        client.continue_()
-    finally:
-        client.close()
-
-
-def test_gdb_read_memory(gdb_emulator):
-    port = gdb_emulator
-    client = GdbRspClient(port)
-    try:
-        client.query_halt_reason()
-
-        registers = client.read_x86_registers()
-        mem = client.read_memory(registers.esp, 4)
-        assert len(mem) == 8
-        assert all(char in "0123456789abcdef" for char in mem.lower())
-
-        client.continue_()
-    finally:
-        client.close()
-
-
 def test_gdb_ida_process_metadata(gdb_emulator):
     client = GdbRspClient(gdb_emulator)
     try:

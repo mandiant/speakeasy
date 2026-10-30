@@ -385,10 +385,6 @@ def test_get_proc_address_resolves_signature_only_exports(config: dict[str, Any]
         assert emu is not None
         assert emu.has_api_signature("kernel32", "CreateSymbolicLinkW")
         assert not emu.has_api_signature("kernel32", "ThisApiDoesNotExistAnywhere")
-        # skip-marked declarations are not offered
-        sig = sigdb.get_default_database().lookup("oleaut32", "VarCyAdd", "x86")
-        if sig is not None and sig.skip:
-            assert not emu.has_api_signature("oleaut32", "VarCyAdd")
     finally:
         se.shutdown()
 

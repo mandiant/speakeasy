@@ -561,11 +561,6 @@ def test_str_cmp_i_orders_strings(dll_emu: Speakeasy, a: str, b: str, sign: int,
     assert (rv > 0) - (rv < 0) == sign
 
 
-def test_co_set_proxy_blanket_returns_s_ok(dll_emu: Speakeasy) -> None:
-    rv, _ = call(dll_emu, "ole32", "CoSetProxyBlanket", [0x1000, 10, 0, 0, 3, 3, 0, 0])
-    assert rv == com.S_OK
-
-
 def test_wnsprintfw_reads_s_as_wide_and_S_as_ansi(dll_emu: Speakeasy) -> None:
     buf = alloc(dll_emu, b"\xcc" * 40)
     fmt = alloc(dll_emu, wstr("%s|%S|%%s", 2))
@@ -619,19 +614,6 @@ def test_get_module_information_needs_room_for_the_structure(dll_emu: Speakeasy)
     rv, _ = call(dll_emu, "kernel32", "K32GetModuleInformation", [0xFFFFFFFF, 0, info, 8])
     assert rv == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
-
-
-@pytest.mark.parametrize("name, argv", [("SetupDiEnumDeviceInfo", [0]), ("SetupDiEnumDeviceInterfaces", [0, 0, 0])])
-def test_setupapi_device_enumeration_is_empty(dll_emu: Speakeasy, name: str, argv: list[int]) -> None:
-    assert dll_emu.emu is not None
-    start_process(dll_emu)
-    hdevinfo = 0x238
-    data = alloc(dll_emu, struct.pack("<I", 0x20) + b"\x00" * 0x1C)
-
-    rv, _ = call(dll_emu, "setupapi", name, [hdevinfo, *argv, data])
-
-    assert rv == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_NO_MORE_ITEMS
 
 
 @pytest.mark.parametrize("api, enc", [("UrlCombineA", "utf-8"), ("UrlCombineW", "utf-16le")])

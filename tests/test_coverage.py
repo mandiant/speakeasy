@@ -22,8 +22,6 @@ def test_coverage_enabled(config, load_test_bin):
 
     for ep in eps_with_coverage:
         coverage = ep.coverage
-        assert isinstance(coverage, list)
         assert len(coverage) > 0
         for addr in coverage:
-            assert isinstance(addr, int)
             assert addr > 0

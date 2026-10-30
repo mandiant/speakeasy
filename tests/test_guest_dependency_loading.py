@@ -424,24 +424,7 @@ def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tm
         assert int.from_bytes(se.mem_read(result, 4), "little") == 0x1234
 
 
-def test_all_entrypoints_skips_data_exports(config, tmp_path):
-    se = Speakeasy(config=config)
-    try:
-        se.load_shellcode(data=b"\xc3", arch="x86")
-        make_native_dll(se.emu, tmp_path / "guest_dependency.dll")
-    finally:
-        se.shutdown()
-
-    with Speakeasy(config=config) as se:
-        module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
-        se.run_module(module, all_entrypoints=True)
-        runs = [ep.ep_type for ep in se.get_report().entry_points]
-
-    assert "export.GetTickCount" in runs
-    assert "export.Flag" not in runs
-
-
-def test_all_entrypoints_skips_forwarded_exports(config, tmp_path):
+def test_all_entrypoints_skips_data_and_forwarded_exports(config, tmp_path):
     se = Speakeasy(config=config)
     try:
         se.load_shellcode(data=b"\xc3", arch="x86")
@@ -455,6 +438,7 @@ def test_all_entrypoints_skips_forwarded_exports(config, tmp_path):
         runs = [ep.ep_type for ep in se.get_report().entry_points]
 
     assert "export.GetTickCount" in runs
+    assert "export.Flag" not in runs
     assert "export.Forwarded" not in runs
 
 

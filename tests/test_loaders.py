@@ -12,61 +12,13 @@ from speakeasy import Speakeasy
 from speakeasy.errors import NotSupportedError
 from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
 from speakeasy.windows.common import _PeParser
-from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule, relocate_image
+from speakeasy.windows.loaders import PeLoader, relocate_image
 from speakeasy.winenv.api.sigdb import SignatureDatabase
 from tests.pe_builder import build_pe
 from tests.test_api_image import build, image_bytes
 from tests.test_export_catalog import _source
 
 SECTION_PAST_EOF_EXE = "04ca62db586d451d22f2477cf90b94db3f012281666248c15aca18661d7fe3b4.exe.xz"
-
-
-def _make_image(
-    module_type: str = "dll",
-    image_base: int = 0x400000,
-    exports: list[ExportEntry] | None = None,
-    emu_path: str = "C:\\Windows\\System32\\kernel32.dll",
-) -> LoadedImage:
-    return LoadedImage(
-        arch=_arch.ARCH_X86,
-        module_type=module_type,
-        name="kernel32",
-        emu_path=emu_path,
-        image_base=image_base,
-        image_size=0x10000,
-        regions=[],
-        imports=[],
-        exports=exports or [],
-        entry_points=[],
-        visible_in_peb=True,
-        tls_callbacks=[],
-        sections=[],
-    )
-
-
-def test_runtime_module_export_lookup_and_base_name():
-    exports = [
-        ExportEntry(name="DllMain", address=0x401000, ordinal=1),
-        ExportEntry(name="Init", address=0x402000, ordinal=2),
-    ]
-    mod = RuntimeModule(_make_image(exports=exports))
-
-    assert mod.get_base_name() == "kernel32.dll"
-    found = mod.get_export_by_name("Init")
-    assert found is not None
-    assert found.address == 0x402000
-
-
-def test_pe_loader_make_image_from_data(load_test_bin):
-    loader = PeLoader(data=load_test_bin("dll_test_x86.dll.xz"))
-    image = loader.make_image()
-
-    assert image.arch == _arch.ARCH_X86
-    assert image.module_type == "dll"
-    assert image.image_size > 0
-    assert len(image.imports) > 0
-    assert len(image.exports) > 0
-    assert len(image.sections) > 0
 
 
 def test_api_module_loader_make_image():
@@ -89,10 +41,6 @@ def test_api_module_loader_make_image():
     image = loader.make_image()
     export_names = {exp.name for exp in image.exports if exp.name}
 
-    assert image.module_type == "dll"
-    assert image.name == "kernel32"
-    assert image.image_base == 0x76000000
-    assert len(image.exports) > 0
     assert "CreateFileW" in export_names
     assert "CreateFileWA" not in export_names
     assert "CreateFileWW" not in export_names

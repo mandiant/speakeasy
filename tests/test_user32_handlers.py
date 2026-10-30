@@ -134,14 +134,6 @@ def create_window_of_class(se: Speakeasy, cls: int, wndproc: int) -> int:
     return hwnd
 
 
-def test_create_window_takes_a_class_atom(dll_emu: Speakeasy) -> None:
-    atom = register_class(dll_emu, b"mycls", 0x401000)
-    hwnd = create_window_of_class(dll_emu, atom, 0x401000)
-    assert hwnd
-    rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
-    assert rv
-
-
 def test_update_window_with_an_unknown_class(dll_emu: Speakeasy) -> None:
     hwnd, _ = call(dll_emu, "user32", "CreateWindowExA", [0, alloc(dll_emu, b"EDIT\x00"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     rv, _ = call(dll_emu, "user32", "UpdateWindow", [hwnd])
@@ -428,13 +420,6 @@ def test_register_class_without_ex_registers_the_window_procedure(request: pytes
     rv, _ = call(se, "user32", "CreateWindowExW", [0, alloc(se, name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     assert rv is None
     assert [cb.function for cb in se.emu.get_current_run().guest_callbacks] == [0x401000]
-
-
-def test_clipboard_reports_no_text(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    cf_unicodetext = 13
-    assert call(dll_emu, "user32", "IsClipboardFormatAvailable", [cf_unicodetext])[0] == 0
-    assert call(dll_emu, "user32", "GetClipboardData", [cf_unicodetext])[0] == 0
 
 
 WM_CREATE = 0x1

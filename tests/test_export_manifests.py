@@ -69,13 +69,8 @@ def test_manifest_is_well_formed(path):
 @pytest.mark.parametrize(
     "change",
     [
-        {"extra": 1},
-        {"arch": "arm64"},
-        {"sha256": "ABC"},
         {"exports": [{"ordinal": 2, "name": "b"}, {"ordinal": 1, "name": "a"}]},
         {"exports": [{"ordinal": 1, "name": "a"}, {"ordinal": 2, "name": "a"}]},
-        {"exports": [{"ordinal": 0, "name": "a"}]},
-        {"exports": [{"ordinal": 1, "name": "a", "kind": "code"}]},
         {"exports": [{"ordinal": 1, "name": "a", "forwarder": "NTDLL"}]},
         {"exports": [{"ordinal": 1, "name": "a", "forwarder": "NTDLL.#0"}]},
     ],

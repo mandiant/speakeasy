@@ -612,13 +612,6 @@ def test_invalid_handle_value_is_pointer_sized(request: pytest.FixtureRequest, f
     assert se.mem_read(view + 0xFF0, 3) == b"end"
 
 
-def test_init_once_begin_initialize_sets_pending(emu: Speakeasy) -> None:
-    init_once = alloc(emu, b"\x00" * 4)
-    pending = alloc(emu, b"\xcc" * 4)
-    assert call(emu, "kernel32", "InitOnceBeginInitialize", [init_once, 0, pending, 0])[0]
-    assert emu.mem_read(pending, 4) == (1).to_bytes(4, "little")
-
-
 def test_init_once_begin_initialize_check_only_does_not_start(emu: Speakeasy) -> None:
     init_once = alloc(emu, b"\x00" * 4)
     pending = alloc(emu, b"\xcc" * 4)
@@ -1469,13 +1462,6 @@ def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
 ) -> None:
     entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
     assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
+    assert entries[0].ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"
     failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].ret_val & bit]
     assert not failed
-
-
-def test_polling_get_exit_code_thread_ends_for_a_queued_thread(
-    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
-) -> None:
-    main = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points[0]
-    assert main.error is None
-    assert main.ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"
