@@ -1,9 +1,13 @@
+import contextlib
 import struct
 
 import pytest
 
 import speakeasy.windows.common as winemu
 from speakeasy import Speakeasy
+from speakeasy.config import SpeakeasyConfig
+from speakeasy.windows.win32 import Win32Emulator
+from speakeasy.winenv import arch as _arch
 from tests.pe_builder import build_pe
 
 
@@ -14,6 +18,21 @@ def emulator(config):
         yield se
     finally:
         se.shutdown()
+
+
+@contextlib.contextmanager
+def make_machine(config):
+    emu = Win32Emulator(SpeakeasyConfig(**config))
+    try:
+        yield emu
+    finally:
+        emu.emu_eng.close()
+
+
+@pytest.fixture
+def machine(config):
+    with make_machine(config) as emu:
+        yield emu
 
 
 def read_segment_pointers(arch, out):
@@ -69,3 +88,25 @@ def test_large_native_container_fits_below_the_teb(config, tmp_path):
         assert se.get_report().entry_points[0].error is None
     finally:
         se.shutdown()
+
+
+@pytest.mark.parametrize("arch", [_arch.ARCH_X86, _arch.ARCH_AMD64])
+def test_load_container_loads_the_container_in_the_machine_range(machine, arch):
+    machine.init_machine(arch)
+    first_free, _ = machine.get_valid_ranges(0x1000, addr=winemu.MACHINE_BASE)
+    process = machine.load_container()
+
+    container = machine.container_image
+    assert container.base == first_free
+    assert container.base + container.image_size <= winemu.TEB_ADDRESS
+    assert machine.processes == [process]
+    assert machine.get_current_process() is process
+    assert process.base == container.base
+
+
+def test_native_container_does_not_allocate_the_stack(config, tmp_path):
+    with make_machine(native_container_config(config, tmp_path, 0x4000)) as emu:
+        emu.init_machine(_arch.ARCH_X86)
+        emu.load_container()
+        assert emu.mem_read(emu.container_image.base, 2) == b"MZ"
+        assert emu.stack_base == 0
