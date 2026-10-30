@@ -315,6 +315,7 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
   // Process inventory visible to process enumeration APIs.
   // Include one is_main_exe=true process for shellcode/DLL container use.
+  // The container image loads at the first free base above 0x7D000000, not at its base_addr.
   "processes": [
     {
       "name": "System",

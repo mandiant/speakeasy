@@ -47,11 +47,21 @@ Each result has its own method: `_handle_api_with_handler`, `_handle_api_hook`, 
 
 A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls.
 
+## Machine setup
+
+`init_machine(arch, container)` creates the machine before an image loads. The `Speakeasy` class calls it with the architecture of the input. It creates the Unicorn engine, the disassembler and the API layer. Then `init_machine_structures` creates the object manager, the GDT and the segments, `KUSER_SHARED_DATA`, the system modules and the user modules of the config. In user mode, when the input is a DLL or shellcode, it also loads the container image. The container image is a placeholder module for the EXE that loaded the DLL or that runs the shellcode. It is the main image of the process in which the input runs. It comes from the entry in `processes` of the config that has `is_main_exe` set. By default, its name is `main` and its path is `C:\Windows\system32\svchost.exe`. It is a synthetic module, unless the module directory has a file with its name, such as `main.exe`. The `ImageBaseAddress` of the PEB and `GetModuleHandle(NULL)` give its base. When the input is an EXE, there is no container image, and the input is the main image of the process.
+
+The machine uses fixed addresses, so that the input image can use its preferred base. `init_machine` creates the machine in an `allocations_from(MACHINE_BASE)` block. In this block, each allocation that does not give an address starts its search for free memory at `MACHINE_BASE` (0x7D000000). The container image loads at the first free base above `MACHINE_BASE`. On x86, the container image must fit below the TEB, or `init_machine` raises `OutOfMemoryError`. The user modules of the config load at their configured bases. In user mode, the TEB of the first thread is at 0x7FFDE000 and the first PEB is at 0x7FFDF000, as in 32-bit Windows. On x64, the TEB also stays below 4 GB, because the GS base comes from a 32-bit GDT descriptor. `KUSER_SHARED_DATA` is at 0x7FFE0000. In kernel mode, the TEB and the PEB do not have fixed addresses.
+
 ## Loader
 
 `load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. `ModuleLoader` (`speakeasy/windows/module_loader.py`, the `module_loader` attribute of the emulator) keeps the data that it must restore: the import bindings, the DLLs whose DllMain and TLS callbacks must run, and the DLLs that each new process gets in its PEB. Do not confuse it with `RuntimeModule.loader`, which reads the image file of one module.
 
-The first call of `_load_image` also creates the Unicorn engine, and `setup()` loads the system modules. For each image, `_load_image` maps it, binds its imports and adds it to the PEB.
+For each image, `_load_image` maps it, binds its imports and adds it to the PEB. The input image is the first image that loads after `init_machine`, and it is the first module in `modules`. If a machine module uses the preferred base of the input image, the input image loads at the next free base.
+
+A loader (`PeLoader`, `ShellcodeLoader` or `ApiModuleLoader`) returns a `LoadedImage` with RVAs: the regions, the import slots, the exports, the entry points, the TLS callbacks and the TLS and resource directories. Its `image_base` is the preferred base. `PeLoader` also returns the base relocations of the PE, or None if the PE has no relocation data. Synthetic API modules and shellcode have no absolute addresses, so they can load at any base. `relocate_image(image, base)` returns a copy of the image at a base. It applies the relocations, writes the base in the ImageBase field of the header and adds the base to each RVA. It applies the HIGHLOW and DIR64 relocation types, skips ABSOLUTE and raises `ValueError` for the other types. It also raises `ValueError` if the base is not the preferred base and the image has no relocation data.
+
+`_load_image` selects the base as the Windows loader does. It uses the base that the caller gives, for example the `base_addr` of a module in the config, else the preferred base. If that range is not free, it uses the next free range after it. An image with preferred base 0, such as shellcode, loads at any free address.
 
 `ensure_pe_import_hooks` binds the imports of a PE that the guest maps itself, for example by process hollowing. `speakeasy/windows/mapped_imports.py` reads the import table from guest memory.
 
