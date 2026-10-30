@@ -975,6 +975,12 @@ def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) 
     assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
 
 
+def test_rtl_set_last_win32_error_sets_the_last_error(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    call(dll_emu, "ntdll", "RtlSetLastWin32Error", [windefs.ERROR_ACCESS_DENIED])
+    assert call(dll_emu, "kernel32", "GetLastError", [])[0] == windefs.ERROR_ACCESS_DENIED
+
+
 def test_a_file_created_by_a_relative_path_is_found_again(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     name = alloc(se, b"out.txt\x00")
