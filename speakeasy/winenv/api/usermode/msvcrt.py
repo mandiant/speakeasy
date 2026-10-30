@@ -5303,6 +5303,12 @@ class Msvcrt(api.ApiHandler):
 
         return self.errno_t
 
+    @impdata("_sys_nerr")
+    def _sys_nerr(self, ptr):
+        """Number of messages in _sys_errlist."""
+        self.mem_write(ptr, len(SYS_ERRLIST).to_bytes(4, "little"))
+        return ptr
+
     @apihook("strerror", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def strerror(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
