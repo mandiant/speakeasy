@@ -43,6 +43,21 @@ def test_get_mod_from_addr_finds_primary_module(config, load_test_bin):
     assert isinstance(found, RuntimeModule)
 
 
+def test_get_mod_from_addr_excludes_the_end_of_the_current_module(config, load_test_bin):
+    se = Speakeasy(config=config)
+    try:
+        module = se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
+        se.emu.curr_mod = module
+        end = module.base + module.image_size
+        last = se.emu.get_mod_from_addr(end - 1)
+        past_end = se.emu.get_mod_from_addr(end)
+    finally:
+        se.shutdown()
+
+    assert last is module
+    assert past_end is not module
+
+
 def test_peb_modules_populated(config, load_test_bin):
     se = Speakeasy(config=config)
     try:
