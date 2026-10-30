@@ -2019,6 +2019,62 @@ def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speak
     assert call(se, "msvcrt", "ftell", [stream])[0] == 4
 
 
+@pytest.mark.parametrize(
+    "emu_name, ptr, layout",
+    [("dll_emu", "PA", "<IIIIIB3xIB"), ("dll64_emu", "PEA", "<QI4xQQIB3xQB")],
+)
+def test_locale_init_returns_the_global_c_locale(
+    request: pytest.FixtureRequest, emu_name: str, ptr: str, layout: str
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    locimp = call(se, "msvcp140", f"?_Init@locale@std@@CA{ptr}V_Locimp@12@_N@Z", [1])[0]
+    assert call(se, "msvcp140", f"?_Init@locale@std@@CA{ptr}V_Locimp@12@_N@Z", [0])[0] == locimp
+    assert call(se, "msvcp140", f"?_Getgloballocale@locale@std@@CA{ptr}V_Locimp@12@XZ", [])[0] == locimp
+
+    vtable, refs, facetvec, facetcount, catmask, xparent, name, _ = struct.unpack(
+        layout, se.mem_read(locimp, struct.calcsize(layout))
+    )
+    assert (refs, facetvec, facetcount, catmask, xparent) == (3, 0, 0, 0x7E, 0)
+    assert se.mem_read(name, 2) == b"C\x00"
+    ptr_size = se.emu.get_ptr_size()
+    decref = se.emu.read_ptr(vtable + 2 * ptr_size)
+    assert se.emu.api_registry.symbol(decref).startswith("msvcrt.?_Decref@facet@locale@std@@")
+
+
+@pytest.mark.parametrize(
+    "emu_name, incref, decref",
+    [
+        ("dll_emu", "?_Incref@facet@locale@std@@UAEXXZ", "?_Decref@facet@locale@std@@UAEPAV_Facet_base@3@XZ"),
+        (
+            "dll64_emu",
+            "?_Incref@facet@locale@std@@UEAAXXZ",
+            "?_Decref@facet@locale@std@@UEAAPEAV_Facet_base@3@XZ",
+        ),
+    ],
+)
+def test_facet_decref_returns_the_facet_at_its_last_reference(
+    request: pytest.FixtureRequest, emu_name: str, incref: str, decref: str
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    facet = alloc(se, b"\x00" * ptr_size * 2)
+
+    def call_method(name: str) -> int:
+        if ptr_size == 4:
+            se.emu.reg_write(e_arch.X86_REG_ECX, facet)
+            return call(se, "msvcp140", name, [])[0]
+        return call(se, "msvcp140", name, [facet])[0]
+
+    call_method(incref)
+    call_method(incref)
+    assert se.mem_read(facet + ptr_size, 4) == (2).to_bytes(4, "little")
+    assert call_method(decref) == 0
+    assert call_method(decref) == facet
+    assert se.mem_read(facet + ptr_size, 4) == b"\x00" * 4
+
+
 EUPDATE_HELPER = "024e5e537c02b2a5b9a41be151cc36807498f5e338b8c7ee592305af0398283e.exe.xz"
 
 
