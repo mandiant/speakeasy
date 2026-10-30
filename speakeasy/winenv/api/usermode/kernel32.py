@@ -997,6 +997,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             ctx.args["lpCmdLine"].display = cmd
             try:
                 proc = emu.create_process(cmdline=cmd)
+            except IsADirectoryError:
+                return windefs.ERROR_ACCESS_DENIED
             except FileSystemEmuError:
                 return windefs.ERROR_FILE_NOT_FOUND
             self.record_process_event(proc, PROC_CREATE)
@@ -1111,6 +1113,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         try:
             proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
+        except IsADirectoryError:
+            emu.set_last_error(windefs.ERROR_ACCESS_DENIED)
+            return 0
         except FileSystemEmuError:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0

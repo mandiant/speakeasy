@@ -1901,7 +1901,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def create_process(self, path=None, cmdline=None, image=None, child=False):
         """
-        Create a process object that will exist in the emulator
+        Create a process object that will exist in the emulator.
+        Raise IsADirectoryError when the program path is a known directory,
+        and FileSystemEmuError when it names no file.
         """
         self.validate_object_services("process creation")
 
@@ -1915,6 +1917,10 @@ class WindowsEmulator(BinaryEmulator):
             file_path = tokens[0].strip('"') if tokens else ""
         if not file_path:
             raise FileSystemEmuError("process creation needs a program name")
+        if self.fileman.is_directory(file_path):
+            raise IsADirectoryError(file_path)
+        if file_path.endswith(("\\", "/")):
+            raise FileSystemEmuError(f"process creation needs a file name: {file_path}")
 
         p = self.om.new_object(objman.Process)  # type: ignore[union-attr]
 

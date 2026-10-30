@@ -189,7 +189,7 @@ class Shell32(api.ApiHandler):
     def shell_execute(self, emu, lpOperation, lpFile, lpParameters, lpDirectory, ctx):
         """
         Start the program of ``lpFile`` and return the HINSTANCE result
-        and the new process, or None on failure.
+        and the new process, or None when no process starts.
         """
         cw = self.get_char_width(ctx)
 
@@ -214,6 +214,9 @@ class Shell32(api.ApiHandler):
 
         try:
             proc = emu.create_process(path=fn, cmdline=param)
+        except IsADirectoryError:
+            # The shell opens a folder in a window of the running explorer.
+            return 33, None
         except FileSystemEmuError:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return shell32_defs.SE_ERR_FNF, None
@@ -241,7 +244,7 @@ class Shell32(api.ApiHandler):
             sei_struct.handle = self.get_object_handle(proc)
         self.mem_write(lpShellExecuteInfo, self.get_bytes(sei_struct))
 
-        return proc is not None
+        return rv > 32
 
     @apihook("SHChangeNotify", argc=4)
     def SHChangeNotify(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

@@ -328,6 +328,30 @@ def test_create_process_without_program_name_fails(dll_emu: Speakeasy, cmdline: 
     assert dll_emu.emu.child_processes == []
 
 
+@pytest.mark.parametrize(
+    "app, cmdline, error",
+    [
+        (b"c:\\Windows\\system32", None, windefs.ERROR_ACCESS_DENIED),
+        (b"c:\\programdata\\mydir\\", None, windefs.ERROR_ACCESS_DENIED),
+        (None, b'"c:\\programdata\\mydir\\sub dir\\" -x', windefs.ERROR_FILE_NOT_FOUND),
+    ],
+)
+def test_create_process_of_a_directory_fails(
+    dll_emu: Speakeasy, app: bytes | None, cmdline: bytes | None, error: int
+) -> None:
+    assert dll_emu.emu is not None
+    start_process(dll_emu)
+    app_addr = alloc(dll_emu, app + b"\x00") if app else 0
+    cmd_addr = alloc(dll_emu, cmdline + b"\x00") if cmdline else 0
+    si = alloc(dll_emu, b"\x00" * 0x44)
+    pi = alloc(dll_emu, b"\xcc" * 0x10)
+    ok, _ = call(dll_emu, "kernel32", "CreateProcessA", [app_addr, cmd_addr, 0, 0, 0, 0, 0, 0, si, pi])
+    assert ok == 0
+    assert dll_emu.emu.get_last_error() == error
+    assert dll_emu.mem_read(pi, 0x10) == b"\xcc" * 0x10
+    assert dll_emu.emu.child_processes == []
+
+
 def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     cmd = alloc(dll_emu, b'"" arg\x00')

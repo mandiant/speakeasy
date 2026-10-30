@@ -1643,6 +1643,9 @@ class AdvApi32(api.ApiHandler):
 
         try:
             proc = emu.create_process(path=appstr, cmdline=cmdstr)
+        except IsADirectoryError:
+            emu.set_last_error(windefs.ERROR_ACCESS_DENIED)
+            return 0
         except FileSystemEmuError:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
