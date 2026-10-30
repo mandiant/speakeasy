@@ -33,6 +33,11 @@ DEFAULT_LOAD_ADDR = 0x40000
 
 PAGE_SIZE = 0x1000
 
+# The user mode addresses of the first TEB and the first PEB in 32-bit Windows.
+# x64 uses them too, because the GS base comes from a 32-bit GDT descriptor.
+TEB_ADDRESS = 0x7FFDE000
+PEB_ADDRESS = 0x7FFDF000
+
 EMU_RESERVED = 0xFEEDF000
 EMU_RESERVE_SIZE = 0x4000
 

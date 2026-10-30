@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any
 
+import speakeasy.windows.common as winemu
 import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -724,7 +725,8 @@ class PEB(KernelObject):
 
         self.object = self.nt_types.PEB(emu.get_ptr_size())
         if not address:
-            self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
+            base = None if emu.is_kernel_mode or emu.get_address_map(winemu.PEB_ADDRESS) else winemu.PEB_ADDRESS
+            self.address = emu.mem_map(self.sizeof(), base=base, tag=self.get_mem_tag())
         else:
             self.address = address
 
