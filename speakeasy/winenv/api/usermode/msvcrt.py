@@ -4631,6 +4631,16 @@ class Msvcrt(api.ApiHandler):
     def terminate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         self.exit_process()
 
+    @apihook("__std_terminate", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def __std_terminate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void __std_terminate(void);"""
+        self.exit_process()
+
+    @apihook("_purecall", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _purecall(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int _purecall(void);"""
+        self.exit_process()
+
     @apihook("_initialize_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         return 0
