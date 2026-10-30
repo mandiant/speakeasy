@@ -207,7 +207,8 @@ class Speakeasy:
             self.add_interrupt_hook(cb)
         while self.mem_map_hooks:
             h = self.mem_map_hooks.pop(0)
-            self.add_mem_map_hook(h)
+            cb, begin, end = h
+            self.add_mem_map_hook(cb, begin, end)
 
     def disasm(self, addr: int, size: int, fast=True):
         """
