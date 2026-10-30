@@ -253,7 +253,10 @@ class User32(api.ApiHandler):
         return wparam, vkey
 
     def find_string_resource_by_id(self, pe, uID):
-        """Read string uID from its RT_STRING block in the mapped image, which a packer may have written."""
+        """
+        Find string uID in its RT_STRING block in the mapped image, which a packer may have written.
+        Return the address of its characters and the string, or None.
+        """
         pe_metadata = pe.get_pe_metadata()
         if not pe_metadata:
             return None
@@ -261,7 +264,8 @@ class User32(api.ApiHandler):
         entry = next((r for r in pe_metadata.resources if r.type_id == RT_STRING and r.id == block), None)
         if not entry:
             return None
-        data = self.mem_read(pe.base + entry.data_rva, entry.size)
+        address = pe.base + entry.data_rva
+        data = self.mem_read(address, entry.size)
         offset = 0
         for _ in range(uID % 16):
             if offset + 2 > len(data):
@@ -270,7 +274,8 @@ class User32(api.ApiHandler):
         if offset + 2 > len(data):
             return None
         length = int.from_bytes(data[offset : offset + 2], "little")
-        return data[offset + 2 : offset + 2 + length * 2].decode("utf-16le", errors="replace")
+        string = data[offset + 2 : offset + 2 + length * 2].decode("utf-16le", errors="replace")
+        return address + offset + 2, string
 
     @apihook("GetDesktopWindow", argc=0)
     def GetDesktopWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -623,6 +628,9 @@ class User32(api.ApiHandler):
           LPWSTR    lpBuffer,
           int       cchBufferMax
         );
+
+        When cchBufferMax is 0, LoadStringW writes a pointer to the string resource,
+        which has no terminator, into lpBuffer.
         """
         hInstance, uID, lpBuffer, ccBufferMax = argv
         cw = self.get_char_width(ctx)
@@ -637,18 +645,17 @@ class User32(api.ApiHandler):
         if not pe:
             return 0
 
-        s = self.find_string_resource_by_id(pe, uID)
-        if s is None:
-            # self.logger.info("unable to find resource string id %04X" % uID)
+        found = self.find_string_resource_by_id(pe, uID)
+        if not found or not found[1]:
             return 0
-
-        if not s:
-            # self.logger.debug("resource id %04X not found" % uID)
-            return 0
+        address, s = found
 
         if ccBufferMax == 0:
-            # Returning a pointer to the resource string is not supported without raw access
-            return 0
+            if cw != 2:
+                return 0
+            self.mem_write(lpBuffer, address.to_bytes(emu.get_ptr_size(), "little"))
+            ctx.args["lpBuffer"].display = s
+            return len(s)
 
         s = s[: ccBufferMax - 1]
         self.write_mem_string(s, lpBuffer, cw)
