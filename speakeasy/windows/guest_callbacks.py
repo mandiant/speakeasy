@@ -59,13 +59,13 @@ GeneratorHandler = Generator[GuestCall, int, "int | Resume | None"]
 class CallbackError(Exception):
     """A generator handler failure: the run ends with an error of type kind at address."""
 
-    def __init__(self, kind: str, address: int, access_type: str | None = None, pc: int | None = None, **details):
+    def __init__(self, kind: str, address: int, access_type: str | None = None, pc: int | None = None, **details: Any):
         super().__init__(f"{kind} at 0x{address:x}")
-        self.kind = kind
-        self.address = address
-        self.access_type = access_type
-        self.pc = pc  # where the error happened, when that is not the current pc
-        self.details = details  # more fields of the run's error, such as interrupt_num
+        self.kind: str = kind
+        self.address: int = address
+        self.access_type: str | None = access_type
+        self.pc: int | None = pc  # where the error happened, when that is not the current pc
+        self.details: dict[str, Any] = details  # more fields of the run's error, such as interrupt_num
 
 
 HANDLER_FAULT_ACCESS = {
@@ -194,13 +194,14 @@ def drop_abandoned(emu, sp: int) -> None:
 
 def current(emu) -> HandlerState:
     """The state of the running generator handler."""
-    return emu.get_current_run().guest_callbacks[-1].handler
+    state: HandlerState = emu.get_current_run().guest_callbacks[-1].handler
+    return state
 
 
 def alloca(emu, data: bytes) -> int:
     """Copy data to the guest stack below the running handler's frame, 16-byte aligned."""
     frame = emu.get_current_run().guest_callbacks[-1]
-    address = (frame.stack_pointer - frame.handler.scratch - len(data)) & ~0xF
+    address: int = (frame.stack_pointer - frame.handler.scratch - len(data)) & ~0xF
     frame.handler.scratch = frame.stack_pointer - address
     emu.mem_write(address, data)
     return address

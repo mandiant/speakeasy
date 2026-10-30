@@ -95,11 +95,13 @@ def has(flags: int, section: int) -> bool:
 
 
 def instruction_pointer(ctx) -> int:
-    return ctx.Rip if is_amd64(ctx) else ctx.Eip
+    ip: int = ctx.Rip if is_amd64(ctx) else ctx.Eip
+    return ip
 
 
 def stack_pointer(ctx) -> int:
-    return ctx.Rsp if is_amd64(ctx) else ctx.Esp
+    sp: int = ctx.Rsp if is_amd64(ctx) else ctx.Esp
+    return sp
 
 
 def set_control(ctx, ip: int, sp: int) -> None:

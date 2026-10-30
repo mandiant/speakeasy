@@ -10,8 +10,17 @@ resume flag set runs the instruction once without breaking again.
 Data breakpoints (a Dr7 R/W field other than execute) are not implemented.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.windows.cpu_exceptions import CpuException
+
+if TYPE_CHECKING:
+    from speakeasy.common import CodeHook
+    from speakeasy.windows.objman import Thread
+    from speakeasy.windows.winemu import WindowsEmulator
 
 RESUME_FLAG = 0x10000
 
@@ -29,10 +38,10 @@ def execute_breakpoints(debug_registers: dict[str, int]) -> dict[int, int]:
 
 
 class HardwareBreakpoints:
-    def __init__(self, emu):
-        self.emu = emu
-        self.hooks: dict[int, object] = {}
-        self.resume: tuple[object, int] | None = None  # a thread and the breakpoint the resume flag skips
+    def __init__(self, emu: WindowsEmulator):
+        self.emu: WindowsEmulator = emu
+        self.hooks: dict[int, CodeHook] = {}
+        self.resume: tuple[Thread | None, int] | None = None  # a thread and the breakpoint the resume flag skips
 
     def update(self) -> None:
         """Hook the current thread's enabled execute breakpoints, and unhook the rest."""

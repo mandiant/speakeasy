@@ -15,8 +15,11 @@ with the frame's ebp; an __except block is entered with the frame's ebp and esp.
 See http://www.openrce.org/articles/full_view/21
 """
 
+from __future__ import annotations
+
 import struct
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
+from typing import TYPE_CHECKING
 
 import unicorn as uc
 
@@ -27,6 +30,9 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import STATUS_UNWIND, UNWINDING, as_long, read_context, resume_at
+
+if TYPE_CHECKING:
+    from speakeasy.windows.winemu import WindowsEmulator
 
 END_OF_CHAIN = 0xFFFFFFFF
 
@@ -46,7 +52,8 @@ SEH4_SCOPE_TABLE_HEADER = 0x10
 
 
 def _u32(emu, address: int) -> int:
-    return struct.unpack("<I", emu.mem_read(address, 4))[0]
+    value: int = struct.unpack("<I", emu.mem_read(address, 4))[0]
+    return value
 
 
 def _write_u32(emu, address: int, value: int) -> None:
@@ -122,7 +129,7 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
     return (yield from exception.unhandled())
 
 
-def unwind_registrations(emu, target_frame: int, record: int = 0) -> GeneratorHandler:
+def unwind_registrations(emu, target_frame: int, record: int = 0) -> Generator[GuestCall, int, None]:
     """
     Call the handlers of the registrations above target_frame to unwind, and unlink them.
     A target_frame of 0 unwinds them all.
@@ -158,12 +165,12 @@ def rtl_unwind(emu, target_frame: int, target_ip: int, record: int, return_value
 class MsvcFrame:
     """The scopes of an MSVC frame, from its registration record."""
 
-    def __init__(self, emu, registration: int, scope_table: int, header: int, none: int):
-        self.emu = emu
-        self.registration = registration
-        self.ebp = registration + FRAME_POINTER
-        self.scope_table = scope_table + header
-        self.none = none
+    def __init__(self, emu: WindowsEmulator, registration: int, scope_table: int, header: int, none: int):
+        self.emu: WindowsEmulator = emu
+        self.registration: int = registration
+        self.ebp: int = registration + FRAME_POINTER
+        self.scope_table: int = scope_table + header
+        self.none: int = none
 
     @property
     def try_level(self) -> int:
@@ -181,7 +188,7 @@ class MsvcFrame:
         """A call of a filter or __finally block, which runs with the frame's ebp."""
         return GuestCall(function, registers=((_arch.X86_REG_EBP, self.ebp),))
 
-    def local_unwind(self, stop: int) -> GeneratorHandler:
+    def local_unwind(self, stop: int) -> Generator[GuestCall, int, None]:
         """Leave the scopes inside the stop level, running their __finally blocks."""
         for _ in range(seh.MAX_FRAMES):  # a scope table may be corrupt
             if self.try_level in (self.none, stop):

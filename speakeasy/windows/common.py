@@ -5,6 +5,7 @@ import hashlib
 import os
 from collections import namedtuple
 from enum import IntFlag
+from typing import Any
 
 import pefile
 
@@ -171,23 +172,23 @@ class _PeParser(pefile.PE):
             self.relocate_image(DEFAULT_LOAD_ADDR)
             super().__init__(name=None, data=self.write())
 
-        self.file_size = 0
-        self.base = self.OPTIONAL_HEADER.ImageBase
-        self.hash = self._hash_pe(path=path, data=data)
-        self.imports = self._get_pe_imports()
-        self.exports = self._get_pe_exports()
-        self.mapped_image = self.get_mapped_image()
-        self.image_size = self.OPTIONAL_HEADER.SizeOfImage
-        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
-        self.stack_commit = self.OPTIONAL_HEADER.SizeOfStackCommit
-        self.path = ""
-        self.name = ""
+        self.file_size: int = 0
+        self.base: int = self.OPTIONAL_HEADER.ImageBase
+        self.hash: str = self._hash_pe(path=path, data=data)
+        self.imports: dict[int, tuple[str, str]] = self._get_pe_imports()
+        self.exports: list[Any] = self._get_pe_exports()
+        self.mapped_image: bytes = self.get_mapped_image()
+        self.image_size: int = self.OPTIONAL_HEADER.SizeOfImage
+        self.ep: int = self.OPTIONAL_HEADER.AddressOfEntryPoint
+        self.stack_commit: int = self.OPTIONAL_HEADER.SizeOfStackCommit
+        self.path: str = ""
+        self.name: str = ""
         if path:
             self.path = os.path.abspath(path)
-        self.emu_path = emu_path
-        self.arch = self._get_architecture()
+        self.emu_path: str = emu_path
+        self.arch: int = self._get_architecture()
         if self.arch == _arch.ARCH_X86:
-            self.ptr_size = 4
+            self.ptr_size: int = 4
         else:
             self.ptr_size = 8
 

@@ -3,7 +3,7 @@
 
 class KernelModule:
     def __init__(self):
-        self.name = ""
+        self.name: str = ""
 
     def get_mod_name(self):
         return self.name.lower()

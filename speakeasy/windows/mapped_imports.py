@@ -19,9 +19,9 @@ _PARSE_ERRORS = (ValueError, struct.error)
 
 class _MappedImage:
     def __init__(self, read: Reader, base: int, image_size: int):
-        self.read = read
-        self.base = base
-        self.image_size = image_size
+        self.read: Reader = read
+        self.base: int = base
+        self.image_size: int = image_size
 
     def read_rva(self, rva: int, size: int) -> bytes:
         if rva < 0 or size < 0 or rva + size > self.image_size:

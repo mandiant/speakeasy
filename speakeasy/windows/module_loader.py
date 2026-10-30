@@ -10,6 +10,7 @@ from speakeasy.windows.loaders import InitRoutine, LoadState, RuntimeModule
 
 if TYPE_CHECKING:
     from speakeasy.profiler import GuestCallbackFrame
+    from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,12 @@ class ModuleLoader:
     load added.
     """
 
-    def __init__(self, emu: Any) -> None:
-        self.emu = emu
+    def __init__(self, emu: WindowsEmulator) -> None:
+        self.emu: WindowsEmulator = emu
         self.guest_dependencies: list[RuntimeModule] = []
         self.shared_peb_modules: set[int] = set()
         self.import_bindings: dict[int, int] = {}
-        self._load_depth = 0
+        self._load_depth: int = 0
 
     def _get_processes(self) -> list[Any]:
         # Do not call emu.get_processes(), because it can create the configured processes

@@ -239,12 +239,12 @@ class ApiModuleLoader:
         signature_db: SignatureDatabase,
         api: Any = None,
     ) -> None:
-        self._name = name
-        self._api = api
-        self._arch = arch
-        self._base = base
-        self._emu_path = emu_path
-        self._signature_db = signature_db
+        self._name: str = name
+        self._api: Any = api
+        self._arch: int = arch
+        self._base: int = base
+        self._emu_path: str = emu_path
+        self._signature_db: SignatureDatabase = signature_db
 
     def make_image(self) -> LoadedImage:
         arch_name = "x86" if self._arch == _arch.ARCH_X86 else "x64"

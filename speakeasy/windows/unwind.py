@@ -54,15 +54,18 @@ class FrameInfo:
 
 
 def _u16(read: Reader, addr: int) -> int:
-    return struct.unpack("<H", read(addr, 2))[0]
+    value: int = struct.unpack("<H", read(addr, 2))[0]
+    return value
 
 
 def _u32(read: Reader, addr: int) -> int:
-    return struct.unpack("<I", read(addr, 4))[0]
+    value: int = struct.unpack("<I", read(addr, 4))[0]
+    return value
 
 
 def _u64(read: Reader, addr: int) -> int:
-    return struct.unpack("<Q", read(addr, 8))[0]
+    value: int = struct.unpack("<Q", read(addr, 8))[0]
+    return value
 
 
 def read_runtime_function(read: Reader, image_base: int, address: int) -> RuntimeFunction:
@@ -185,8 +188,10 @@ def _establisher_frame(info: UnwindInfo, offset: int, ctx) -> int:
         or any(c.op == UWOP_SET_FPREG and c.prolog_offset <= offset for c in info.codes)
     )
     if info.frame_reg and frame_set:
-        return getattr(ctx, GPRS[info.frame_reg]) - 16 * info.frame_offset
-    return ctx.Rsp
+        frame: int = getattr(ctx, GPRS[info.frame_reg]) - 16 * info.frame_offset
+        return frame
+    rsp: int = ctx.Rsp
+    return rsp
 
 
 def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type: int = 0) -> FrameInfo:

@@ -65,7 +65,7 @@ class ApiRegistry:
     TRAP_STRIDE = 16
 
     def __init__(self, emu: WindowsEmulator):
-        self.emu = emu
+        self.emu: WindowsEmulator = emu
         self.entries: dict[int, ApiEntry] = {}
         self.traps: dict[int, ApiEntry] = {}
         self.names: dict[int, dict[str, ApiEntry]] = {}
@@ -73,7 +73,7 @@ class ApiRegistry:
         self.dynamic_offsets: dict[int, int] = {}
         self.trap_base: int | None = None
         self._addresses: list[int] = []
-        self._trap_count = 0
+        self._trap_count: int = 0
 
     def _allocate_trap(self) -> int:
         if self.trap_base is None:
