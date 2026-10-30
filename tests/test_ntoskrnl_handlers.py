@@ -693,3 +693,10 @@ def test_nt_write_and_read_file_fill_the_io_status_block(dll64_emu: Speakeasy) -
     assert io_status(se, ios) == (0, 2)
     assert call(se, "ntdll", "NtReadFile", [handle, 0, 0, 0, ios, out, 16, 0, 0])[0] == ddk.STATUS_END_OF_FILE
     assert io_status(se, ios) == (ddk.STATUS_END_OF_FILE, 0)
+
+
+def test_rtl_allocate_heap_blocks_can_be_freed(driver64_emu: Speakeasy) -> None:
+    addr, _ = call(driver64_emu, "ntoskrnl", "RtlAllocateHeap", [0, 0, 0x20])
+    assert addr
+    freed, _ = call(driver64_emu, "ntoskrnl", "RtlFreeHeap", [0, 0, addr])
+    assert freed == 1
