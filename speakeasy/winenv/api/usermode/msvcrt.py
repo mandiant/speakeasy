@@ -5982,31 +5982,85 @@ class Msvcrt(api.ApiHandler):
             );
         """
         stream, offset, origin = argv
-        hfile = self.file_streams.get(stream)
-        ctx.args[0].display = hex(hfile or 0)
-        if hfile is None:
-            return -1
-
-        fobj = self.file_get(hfile)
-        if not fobj:
-            return -1
-
+        ctx.args[0].display = hex(self.file_streams.get(stream) or 0)
         offset &= 0xFFFFFFFF
         offset -= (offset & 0x80000000) << 1
-        size = fobj.get_size()
+        return self.seek_stream(stream, offset, origin)
+
+    @apihook("_fseeki64", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _fseeki64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _fseeki64(
+            FILE *stream,
+            __int64 offset,
+            int origin
+            );
+
+        The offset takes two stack slots on x86 and one register on x64.
+        """
+        if self.get_ptr_size() == 4:
+            stream, lo, hi, origin = argv
+            offset = (hi << 32) | lo
+        else:
+            stream, offset, origin = argv[:3]
+        ctx.args[0].display = hex(self.file_streams.get(stream) or 0)
+        offset &= 0xFFFFFFFFFFFFFFFF
+        offset -= (offset & (1 << 63)) << 1
+        return self.seek_stream(stream, offset, origin)
+
+    def seek_stream(self, stream, offset, origin):
+        """Move the file pointer of a stream from fopen. Return 0, or -1 on failure."""
+        fobj = self.get_stream_file(stream)
+        if not fobj:
+            return -1
         if origin == io.SEEK_SET:
             pos = offset
         elif origin == io.SEEK_CUR:
             pos = (fobj.tell() or 0) + offset
         elif origin == io.SEEK_END:
-            pos = size + offset
+            pos = fobj.get_size() + offset
         else:
             return -1
         if pos < 0:
             return -1
-
         fobj.seek(pos, io.SEEK_SET)
         return 0
+
+    def get_stream_file(self, stream):
+        """Return the file object of a stream from fopen, or None."""
+        hfile = self.file_streams.get(stream)
+        return self.file_get(hfile) if hfile is not None else None
+
+    @apihook("fgetpos", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fgetpos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fgetpos(
+            FILE *stream,
+            fpos_t *pos
+            );
+        """
+        stream, pos = argv
+        fobj = self.get_stream_file(stream)
+        if not fobj or not pos:
+            self.set_errno(EINVAL)
+            return -1
+        self.mem_write(pos, (fobj.tell() or 0).to_bytes(8, "little"))
+        return 0
+
+    @apihook("fsetpos", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def fsetpos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int fsetpos(
+            FILE *stream,
+            const fpos_t *pos
+            );
+        """
+        stream, pos = argv
+        if not pos:
+            self.set_errno(EINVAL)
+            return -1
+        offset = int.from_bytes(self.mem_read(pos, 8), "little", signed=True)
+        return self.seek_stream(stream, offset, io.SEEK_SET)
 
     @apihook("ftell", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def ftell(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
