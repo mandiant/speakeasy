@@ -3378,6 +3378,24 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return hnd
 
+    @apihook("SetStdHandle", argc=2)
+    def SetStdHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL WINAPI SetStdHandle(
+          _In_ DWORD  nStdHandle,
+          _In_ HANDLE hHandle
+        );
+        """
+
+        nStdHandle, hHandle = argv
+
+        proc = emu.get_current_process()
+        if not proc.set_std_handle(nStdHandle, hHandle):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        return 1
+
     @apihook("GetFileType", argc=1)
     def GetFileType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

@@ -12,6 +12,9 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
 
+# STD_INPUT_HANDLE, STD_OUTPUT_HANDLE and STD_ERROR_HANDLE
+STD_HANDLE_ATTRS = {0xFFFFFFF6: "stdin", 0xFFFFFFF5: "stdout", 0xFFFFFFF4: "stderr"}
+
 
 class HandleAllocator:
     def __init__(self):
@@ -536,20 +539,15 @@ class Process(KernelObject):
         return name
 
     def get_std_handle(self, dev):
-        STD_INPUT_HANDLE = 0xFFFFFFF6
-        STD_OUTPUT_HANDLE = 0xFFFFFFF5
-        STD_ERROR_HANDLE = 0xFFFFFFF4
+        attr = STD_HANDLE_ATTRS.get(dev & 0xFFFFFFFF)
+        return getattr(self, attr) if attr else 0
 
-        dev = dev & 0xFFFFFFFF
-
-        for k, v in (
-            (STD_INPUT_HANDLE, self.stdin),
-            (STD_OUTPUT_HANDLE, self.stdout),
-            (STD_ERROR_HANDLE, self.stderr),
-        ):
-            if k == dev:
-                return v
-        return 0
+    def set_std_handle(self, dev, handle) -> bool:
+        attr = STD_HANDLE_ATTRS.get(dev & 0xFFFFFFFF)
+        if attr is None:
+            return False
+        setattr(self, attr, handle)
+        return True
 
     def get_ep(self):
         if self.pe:
