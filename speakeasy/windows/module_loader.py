@@ -48,7 +48,7 @@ class ModuleLoader:
             if process.is_peb_active and self.emu.get_address_map(process.peb_ldr_data.address):
                 process.remove_module_from_peb(module)
 
-    def load_image(self, image: Any, base: int | None = None) -> RuntimeModule:
+    def load_image(self, image: Any, base: int | None = None, *, is_input: bool = False) -> RuntimeModule:
         """Load an image and its dependencies. If the load fails, remove what it added."""
         emu = self.emu
         outer = not self._load_depth
@@ -60,7 +60,7 @@ class ModuleLoader:
             original_peb_modules = self.snapshot_peb_modules()
         self._load_depth += 1
         try:
-            module: RuntimeModule = emu._load_image(image, base)
+            module: RuntimeModule = emu._load_image(image, base, is_input=is_input)
         except Exception:
             if outer:
                 removed = [module for module in emu.modules if module not in original_modules]

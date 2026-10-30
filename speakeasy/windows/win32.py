@@ -195,7 +195,7 @@ class Win32Emulator(WindowsEmulator):
         image.name = self.mod_name
         image.emu_path = emu_path
 
-        rtmod = self.load_image(image)
+        rtmod = self.load_image(image, is_input=True)
         self.set_func_args(self.get_stack_ptr(), self.return_hook, conv=_arch.CALL_CONV_STDCALL)
 
         if self.input is not None:
@@ -448,7 +448,7 @@ class Win32Emulator(WindowsEmulator):
         loader = ShellcodeLoader(data=data, arch=arch)
         image = loader.make_image()
         image.name = self.mod_name if filename else str(sc_hash)
-        rtmod = self.load_image(image)
+        rtmod = self.load_image(image, is_input=True)
         sc_addr = rtmod.base
 
         sc_arch = "unknown"

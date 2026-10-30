@@ -309,14 +309,16 @@ class Speakeasy:
 
     def load_image(self, image):
         """
-        Load a LoadedImage into the emulator.
+        Load a LoadedImage into the emulator. If there is no emulator yet, create it,
+        and the image is the input image.
         """
-        if not self.emu:
+        is_input = not self.emu
+        if is_input:
             self._init_emulator(is_raw_code=True)
             arch = image.arch if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) else _arch.ARCH_X86
             self.emu.init_machine(arch, container=image.module_type != "exe")  # type: ignore[union-attr]
         self._init_hooks()
-        return self.emu.load_image(image)  # type: ignore[union-attr]
+        return self.emu.load_image(image, is_input=is_input)  # type: ignore[union-attr]
 
     @check_init
     @execution_scope
