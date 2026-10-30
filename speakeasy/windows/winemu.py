@@ -1527,9 +1527,10 @@ class WindowsEmulator(BinaryEmulator):
         selector = _create_selector(18, winemu.GDT_FLAGS.Ring0)
         self.reg_write(_arch.X86_REG_SS, selector)
 
+        teb_addr = None if self.is_kernel_mode else winemu.TEB_ADDRESS
         if _arch.ARCH_X86 == arch:
             # FS segment needed for PEB access at fs:[0x30]
-            fs_addr, fs_size = self.get_valid_ranges(SEG_SIZE)
+            fs_addr, fs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(fs_size, base=fs_addr, tag="emu.segment.fs")
 
             access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
@@ -1540,7 +1541,7 @@ class WindowsEmulator(BinaryEmulator):
 
         elif _arch.ARCH_AMD64 == arch:
             # GS Segment needed for PEB access at gs:[0x60]
-            gs_addr, gs_size = self.get_valid_ranges(SEG_SIZE)
+            gs_addr, gs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(gs_size, base=gs_addr, tag="emu.segment.gs")
 
             access = winemu.GDT_ACCESS_BITS.Data | winemu.GDT_ACCESS_BITS.DataWritable | winemu.GDT_ACCESS_BITS.Ring3
