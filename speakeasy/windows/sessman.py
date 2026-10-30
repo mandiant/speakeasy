@@ -15,8 +15,8 @@ class GuiObject:
     """
 
     def __init__(self, allocator: HandleAllocator):
-        self.allocator = allocator
-        self.handle = self._alloc_handle()
+        self.allocator: HandleAllocator = allocator
+        self.handle: int = self._alloc_handle()
 
     def _alloc_handle(self):
         return self.allocator.allocate_gui_object_handle()
@@ -127,7 +127,7 @@ class SessionManager:
         self.curr_station: Station | None = None
         self.curr_desktop: Desktop | None = None
         self.config: Any = config
-        self.allocator = allocator
+        self.allocator: HandleAllocator = allocator
         self.dev_ctx: int = allocator.allocate_gui_object_handle()
 
         # create a session 0

@@ -2,6 +2,8 @@
 
 # Unicorn specific wrappers and abstraction implemented here
 
+from __future__ import annotations
+
 import ctypes as ct
 import functools
 
@@ -86,8 +88,8 @@ class ToggleableHook:
     """
 
     def __init__(self, cb):
-        self.cb = cb
-        self.enabled = False
+        self.cb: ct._CFunctionType = cb
+        self.enabled: bool = False
 
     def enable(self):
         if self.enabled:
@@ -102,11 +104,11 @@ class EmuEngine:
     """Wrapper class for underlying cpu emulation engines"""
 
     def __init__(self):
-        self.name = "unicorn"
+        self.name: str = "unicorn"
         self.emu: uc.Uc | None = None
         self.mode: int | None = None
         self._callbacks: dict[int, ToggleableHook] = {}
-        self.timer = StartTimer(self.stop)
+        self.timer: StartTimer = StartTimer(self.stop)
 
         self.regs: dict[int, int] = {
             arch.X86_REG_EAX: u.UC_X86_REG_EAX,

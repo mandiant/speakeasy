@@ -1,6 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from speakeasy.engines.unicorn_eng import EmuEngine
+    from speakeasy.speakeasy import Speakeasy
+    from speakeasy.windows.winemu import WindowsEmulator
 
 # Emulation hook types
 HOOK_CODE = 1000
@@ -66,13 +75,13 @@ class Hook:
                          Otherwise, this hook will be dispatched via a wrapper hook
                          (e.g. see _wrap_code_cb below)
         """
-        self.cb = cb
-        self.handle = 0
-        self.enabled = False
-        self.added = False
-        self.native_hook = native_hook
-        self.emu_eng = emu_eng
-        self.se_obj = se_obj
+        self.cb: Callable[..., Any] = cb
+        self.handle: int = 0
+        self.enabled: bool = False
+        self.added: bool = False
+        self.native_hook: bool = native_hook
+        self.emu_eng: EmuEngine = emu_eng
+        self.se_obj: WindowsEmulator | Speakeasy = se_obj
 
     def enable(self):
         self.enabled = True
@@ -129,10 +138,10 @@ class ApiHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, module="", api_name="", argc=0, call_conv=None):
         super().__init__(se_obj, emu_eng, cb)
-        self.module = module
-        self.api_name = api_name
-        self.argc = argc
-        self.call_conv = call_conv
+        self.module: str = module
+        self.api_name: str = api_name
+        self.argc: int = argc
+        self.call_conv: int | None = call_conv
 
 
 class DynCodeHook(Hook):
@@ -152,8 +161,8 @@ class CodeHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
-        self.begin = begin
-        self.end = end
+        self.begin: int = begin
+        self.end: int = end
 
     def add(self):
         if not self.added and self.native_hook:
@@ -169,8 +178,8 @@ class ReadMemHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
-        self.begin = begin
-        self.end = end
+        self.begin: int = begin
+        self.end: int = end
 
     def add(self):
         if not self.added and self.native_hook:
@@ -188,8 +197,8 @@ class WriteMemHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
-        self.begin = begin
-        self.end = end
+        self.begin: int = begin
+        self.end: int = end
 
     def add(self):
         if not self.added and self.native_hook:
@@ -207,8 +216,8 @@ class MapMemHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0):
         super().__init__(se_obj, emu_eng, cb)
-        self.begin = begin
-        self.end = end
+        self.begin: int = begin
+        self.end: int = end
 
     def add(self):
         self.added = True
@@ -253,7 +262,7 @@ class InstructionHook(Hook):
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=True, insn=None):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
-        self.insn = insn
+        self.insn: int | None = insn
 
     def add(self):
         if not self.added and self.native_hook:
