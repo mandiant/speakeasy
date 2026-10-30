@@ -36,7 +36,7 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     assert [ep.pid for ep in entries] == pids
 
 
-def test_child_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
+def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         assert se.emu is not None
@@ -48,7 +48,7 @@ def test_child_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
 
     assert [(ep.ep_type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
     assert f"skipping child process {CHILD_PATH}" in caplog.text
-    assert "address range is in use" in caplog.text
+    assert "Cannot rebase a guest PE without valid relocation data" in caplog.text
 
 
 def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bin):

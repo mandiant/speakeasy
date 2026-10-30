@@ -9,7 +9,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.windows.api_image import ApiModuleLoader
-from speakeasy.windows.loaders import PeLoader, RuntimeModule
+from speakeasy.windows.loaders import PeLoader, RuntimeModule, relocate_image
 from speakeasy.winenv.api.sigdb import get_default_database
 from tests.pe_builder import build_pe
 
@@ -40,15 +40,14 @@ def test_real_forwarder_is_preserved_but_synthetic_surface_is_local(physical_ker
         pytest.skip("bundled signature database not generated")
     native = real.get_export_by_name("AcquireSRWLockExclusive")
     assert native.forwarder == "NTDLL.RtlAcquireSRWLockExclusive"
-    generated = RuntimeModule(
-        ApiModuleLoader(
-            name="kernel32",
-            arch=architecture,
-            base=0x70000000,
-            emu_path=r"C:\Windows\system32\kernel32.dll",
-            signature_db=db,
-        ).make_image()
-    )
+    image = ApiModuleLoader(
+        name="kernel32",
+        arch=architecture,
+        base=0x70000000,
+        emu_path=r"C:\Windows\system32\kernel32.dll",
+        signature_db=db,
+    ).make_image()
+    generated = RuntimeModule(relocate_image(image, image.image_base))
     facade = generated.get_export_by_name("AcquireSRWLockExclusive")
     assert facade is not None and facade.forwarder is None
     assert generated.base <= facade.address < generated.base + generated.image_size

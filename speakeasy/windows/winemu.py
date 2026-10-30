@@ -51,7 +51,7 @@ from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.ioman import IoManager
-from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string
+from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string, relocate_image
 from speakeasy.windows.module_loader import ModuleLoader
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
@@ -1598,8 +1598,8 @@ class WindowsEmulator(BinaryEmulator):
         if module:
             if isinstance(module, RuntimeModule):
                 modname = ntpath.basename(module.emu_path)
-                if module._image and module._image.tls_directory_va:
-                    data = self.read_tls_template(module._image.tls_directory_va)
+                if module._image and module._image.tls_directory:
+                    data = self.read_tls_template(module._image.tls_directory)
                     thread.init_tls(data, os.path.splitext(modname)[0])
             else:
                 modname = module.emu_path
@@ -1721,33 +1721,43 @@ class WindowsEmulator(BinaryEmulator):
     def get_peb_modules(self):
         return [mod for mod in self.modules if mod.visible_in_peb]
 
-    def load_image(self, image):
-        return self.module_loader.load_image(image)
+    def load_image(self, image, base=None):
+        return self.module_loader.load_image(image, base)
 
-    def _load_image(self, image):
+    def _load_image(self, image, base=None):
+        """
+        Map an image at base, or at its preferred base, or at the next free range after it.
+        An image with preferred base 0 loads at any free address.
+
+        Raises:
+            ValueError: the image must move, but it has no relocation data.
+        """
         if not self.arch:
             raise WindowsEmuError("the machine is not initialized: call init_machine before loading images")
         if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) and self.arch != image.arch:
             raise WindowsEmuError("module architecture does not match the emulated process")
         if image.source == "synthetic" and not image.image_base:
             raise WindowsEmuError("synthetic image addresses must be finalized before mapping")
-        requested_base = image.image_base
 
         for region in image.regions:
-            offset = region.base - requested_base
-            if offset < 0 or offset + len(region.data) > image.image_size:
+            if region.base < 0 or region.base + len(region.data) > image.image_size:
                 raise WindowsEmuError("module region is outside its image span")
+        requested_base = base or image.image_base
+        if requested_base:
+            base, _ = self.get_valid_ranges(image.image_size, addr=requested_base)
+            if base != requested_base:
+                logger.debug("module %s: base %#x is in use, loading at %#x", image.name, requested_base, base)
+            image = relocate_image(image, base)
         base = self.mem_map(
             image.image_size,
-            base=requested_base or None,
+            base=base or None,
             tag=f"emu.module.{image.name}",
             process=self.get_current_process() if self.is_kernel_mode else None,
         )
-        if requested_base and base != requested_base:
-            raise WindowsEmuError(f"cannot map module {image.name} at {requested_base:#x}: address range is in use")
-        image.image_base = base
+        if not requested_base:
+            image = relocate_image(image, base)
         for region in image.regions:
-            self.mem_write(base + region.base - requested_base, region.data)
+            self.mem_write(region.base, region.data)
 
         mod = RuntimeModule(image)
         if self.is_machine_ready and len(self.modules) == self.machine_module_count:
@@ -3346,20 +3356,6 @@ class WindowsEmulator(BinaryEmulator):
                 frame.initializers[routine.address] = routine
         return module.base
 
-    def _make_image_at_free_base(self, make_loader: Callable[[int | None], Any], base: int | None):
-        """
-        Build a module image at the requested base, or at the next free range when
-        another mapping already occupies part of it.
-        """
-        image = make_loader(base).make_image()
-        if not image.image_base:
-            return image
-        free_base, _ = self.get_valid_ranges(image.image_size, addr=image.image_base)
-        if free_base != image.image_base:
-            logger.debug("module %s: base %#x is in use, loading at %#x", image.name, image.image_base, free_base)
-            image = make_loader(free_base).make_image()
-        return image
-
     def load_module_by_name(self, name, emu_path=None, base=None, native_path=None, data=None):
         """Load one coherent native or catalog-generated module instance."""
         name = module_name(name)
@@ -3378,24 +3374,22 @@ class WindowsEmulator(BinaryEmulator):
             if nt_handler:
                 handler._nt_handler = nt_handler
 
-        def make_loader(address):
-            if data is not None:
-                return PeLoader(data=data, base_override=address, emu_path=emu_path)
-            if native_path:
-                return PeLoader(path=native_path, base_override=address, emu_path=emu_path)
-            return ApiModuleLoader(
+        if data is not None:
+            image = PeLoader(data=data, emu_path=emu_path).make_image()
+        elif native_path:
+            image = PeLoader(path=native_path, emu_path=emu_path).make_image()
+        else:
+            image = ApiModuleLoader(
                 name=name,
                 api=handler,
                 arch=self.get_arch(),
-                base=address or 0,
+                base=base,
                 emu_path=emu_path,
                 signature_db=self.get_signature_db(),
-            )
-
-        image = self._make_image_at_free_base(make_loader, base)
+            ).make_image()
         image.name = name
         image.module_type = _module_type_from_path(emu_path)
-        module = self.load_image(image)
+        module = self.load_image(image, base)
         if image.source == "guest_pe" and module.is_dll() and not self.is_kernel_mode:
             self.module_loader.guest_dependencies.append(module)
         return module

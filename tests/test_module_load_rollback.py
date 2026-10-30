@@ -28,11 +28,11 @@ def guest_image(emu, name, base):
         image_base=base,
         image_size=0x5000,
         regions=[
-            MemoryRegion(base, b"MZ" + b"\0" * 0xFE, ".headers", 3),
-            MemoryRegion(base + 0x1000, b"\xc3", ".text", 5),
+            MemoryRegion(0, b"MZ" + b"\0" * 0xFE, ".headers", 3),
+            MemoryRegion(0x1000, b"\xc3", ".text", 5),
         ],
         imports=[],
-        exports=[ExportEntry("GuestStep", base + 0x1000, 1)],
+        exports=[ExportEntry("GuestStep", 0x1000, 1)],
         entry_points=[],
     )
 
@@ -49,7 +49,7 @@ def test_image_region_outside_span_is_rejected_without_mapping(warm_emu):
     modules = list(emu.modules)
     base, _ = emu.get_valid_ranges(0x5000, addr=0x67000000)
     image = guest_image(emu, "rollback_malformed", base)
-    image.regions.append(MemoryRegion(base + image.image_size - 1, b"xx", ".bad", 3))
+    image.regions.append(MemoryRegion(image.image_size - 1, b"xx", ".bad", 3))
 
     with pytest.raises(WindowsEmuError, match="outside its image span"):
         emu.load_image(image)

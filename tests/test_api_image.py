@@ -13,8 +13,7 @@ from speakeasy.windows.api_image import ApiExportSpec, build_api_image
 def image_bytes(image):
     data = bytearray(image.image_size)
     for region in image.regions:
-        offset = region.base - image.image_base
-        data[offset : offset + len(region.data)] = region.data
+        data[region.base : region.base + len(region.data)] = region.data
     return bytes(data)
 
 
@@ -43,7 +42,7 @@ def test_image_is_a_mapped_pe_with_documented_section_permissions(architecture, 
     exports = {e.name: e for e in image.exports}
     for symbol in pe.DIRECTORY_ENTRY_EXPORT.symbols:
         entry = exports[symbol.name.decode()]
-        assert (symbol.address + image.image_base, symbol.ordinal) == (entry.address, entry.ordinal)
+        assert (symbol.address, symbol.ordinal) == (entry.address, entry.ordinal)
     regions = {region.name: region for region in image.regions[1:]}
     assert image.regions[0].perms == common.PERM_MEM_READ
     assert {name: region.perms for name, region in regions.items()} == {
