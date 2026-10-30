@@ -26,6 +26,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     get_winmain_command_line,
     scan_c_format,
 )
+from tests.guest_harness import guest_call
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 FILETIME_UNIX_EPOCH = 116444736000000000
@@ -1942,6 +1943,91 @@ def test_fiopen_opens_with_the_fopen_mode_of_the_openmode(strict_fs64_emu: Speak
         [alloc(se, b"c:\\users\\public\\config.json\0"), 0x25, 64],
     )[0]
     assert call(se, "msvcrt", "ftell", [stream])[0] == 4
+
+
+COUT = "?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A"
+BASIC_FILEBUF = "?$basic_filebuf@DU?$char_traits@D@std@@@std@@"
+
+
+@pytest.fixture
+def shellcode64_emu(config: dict[str, Any]) -> Iterator[Speakeasy]:
+    config["timeout"] = 5
+    config["max_api_count"] = 200
+    with Speakeasy(config=config) as se:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="amd64"))
+        yield se
+
+
+def run_code(se: Speakeasy, code: bytes) -> list[Any]:
+    address = se.mem_alloc(0x1000)
+    se.mem_write(address, code)
+    se.call(address)
+    run = se.get_report().entry_points[-1]
+    assert run.error is None
+    return [e for e in run.events or [] if e.event == "api"]
+
+
+def test_cout_insert_of_a_string_writes_to_stdout(shellcode64_emu: Speakeasy) -> None:
+    """
+    The inline operator<<(ostream &, const char *) of MSVC finds the basic_ios of
+    std::cout through the vbtable, locks its streambuf with a virtual call, and
+    writes with sputn.
+    """
+    se = shellcode64_emu
+    assert se.emu is not None
+    text = b"[-] not found\n"
+    cout = se.emu.get_proc("msvcp140", COUT)
+    sputn = se.emu.get_proc("msvcp140", f"?sputn@{BASIC_STREAMBUF}QEAA_JPEBD_J@Z")
+    code = b"\x53\x56\x57\x48\x83\xec\x20"  # push rbx, rsi, rdi; sub rsp, 0x20
+    code += b"\x48\xbf" + struct.pack("<Q", cout)  # mov rdi, cout
+    code += b"\x48\x8b\x07\x48\x63\x48\x04"  # mov rax, [rdi]; movsxd rcx, [rax + 4]
+    code += b"\x48\x8b\x5c\x39\x48"  # mov rbx, [rcx + rdi + 0x48]
+    code += b"\x48\x8b\x03\x48\x89\xd9\xff\x50\x08"  # mov rax, [rbx]; mov rcx, rbx; call [rax + 8]
+    code += b"\x48\x89\xd9\x48\xba" + struct.pack("<Q", alloc(se, text))  # mov rcx, rbx; mov rdx, text
+    code += b"\x49\xb8" + struct.pack("<Q", len(text))  # mov r8, len
+    code += b"\x48\xb8" + struct.pack("<Q", sputn) + b"\xff\xd0\x48\x89\xc6"  # call sputn; mov rsi, rax
+    code += b"\x48\x8b\x03\x48\x89\xd9\xff\x50\x10"  # mov rax, [rbx]; mov rcx, rbx; call [rax + 0x10]
+    code += b"\x48\x89\xf0\x48\x83\xc4\x20\x5f\x5e\x5b\xc3"  # mov rax, rsi; add rsp, 0x20; pop; ret
+
+    apis = run_code(se, code)
+
+    assert [e.api_name for e in apis] == [
+        f"msvcrt.?_Lock@{BASIC_FILEBUF}UEAAXXZ",
+        f"msvcrt.?sputn@{BASIC_STREAMBUF}QEAA_JPEBD_J@Z",
+        f"msvcrt.?xsputn@{BASIC_FILEBUF}MEAA_JPEBD_J@Z",
+        f"msvcrt.?_Unlock@{BASIC_FILEBUF}UEAAXXZ",
+    ]
+    assert apis[2].args[1].display == text.decode()
+    assert se.reg_read("rax") == len(text)
+
+
+@pytest.mark.parametrize(
+    "flags, width, fill, text",
+    [
+        (0x201, 0, " ", "1234"),
+        (0x80C, 0, " ", "0X4D2"),
+        (0x840, 6, "*", "4d2***"),
+        (0x201, 6, " ", "  1234"),
+    ],
+)
+def test_cout_insert_of_an_unsigned_long_formats_like_num_put(
+    shellcode64_emu: Speakeasy, flags: int, width: int, fill: str, text: str
+) -> None:
+    se = shellcode64_emu
+    assert se.emu is not None
+    cout = se.emu.get_proc("msvcp140", COUT)
+    ios = cout + struct.unpack("<i", se.mem_read(int.from_bytes(se.mem_read(cout, 8), "little") + 4, 4))[0]
+    se.mem_write(ios + 0x18, struct.pack("<I", flags))
+    se.mem_write(ios + 0x28, struct.pack("<Q", width))
+    se.mem_write(ios + 0x58, fill.encode())
+    insert = se.emu.get_proc("msvcp140", "??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@K@Z")
+
+    apis = run_code(se, guest_call(8, insert, cout, 1234) + b"\xc3")
+
+    assert [e.api_name.split("@")[0] for e in apis] == ["msvcrt.??6?$basic_ostream", "msvcrt.?xsputn"]
+    assert apis[1].args[1].display == text
+    assert se.reg_read("rax") == cout
+    assert se.mem_read(ios + 0x28, 8) == b"\x00" * 8
 
 
 EUPDATE_HELPER = "024e5e537c02b2a5b9a41be151cc36807498f5e338b8c7ee592305af0398283e.exe.xz"

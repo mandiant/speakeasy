@@ -38,10 +38,19 @@ _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION = 1
 _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR = 2
 _CRT_INTERNAL_SCANF_SECURECRT = 1
 
-# ios_base::iostate and ios_base::openmode bits of the MSVC C++ library
+# ios_base::iostate, fmtflags and openmode bits of the MSVC C++ library
 IOS_GOODBIT = 0x0
 IOS_BADBIT = 0x4
 IOS_STATMASK = 0x17
+IOS_UNITBUF = 0x2
+IOS_UPPERCASE = 0x4
+IOS_SHOWBASE = 0x8
+IOS_LEFT = 0x40
+IOS_INTERNAL = 0x100
+IOS_ADJUSTFIELD = 0x1C0
+IOS_OCT = 0x400
+IOS_HEX = 0x800
+IOS_BASEFIELD = 0xE00
 IOS_IN = 0x1
 IOS_OUT = 0x2
 IOS_ATE = 0x4
@@ -474,6 +483,7 @@ class Msvcrt(api.ApiHandler):
         self.invalid_parameter_handler: int = 0
         self.thread_invalid_parameter_handlers: dict[int, int] = {}
         self.istream_vbtable: int | None = None
+        self.ostream_buffer: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -4720,6 +4730,190 @@ class Msvcrt(api.ApiHandler):
     def _wFiopen_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """FILE *_Fiopen(const wchar_t *filename, ios_base::openmode mode, int prot);"""
         return self.fiopen(argv, 2, ctx)
+
+    @impdata("?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A")
+    def cout(self, ptr):
+        """
+        ostream cout: on x64, a basic_ostream<char> with its vbtable after it,
+        and an unbuffered filebuf whose virtual functions write to stdout.
+        """
+        if self.get_ptr_size() != 8:
+            return ptr
+        virtuals = {
+            1: self.basic_filebuf_Lock_x64,
+            2: self.basic_filebuf_Unlock_x64,
+            3: self.basic_filebuf_overflow_x64,
+            9: self.basic_filebuf_xsputn_x64,
+            13: self.basic_filebuf_sync_x64,
+        }
+        filebuf = self.mem_alloc(0x68 + 15 * 8, tag="api.msvcrt.cout_filebuf")
+        vtable = filebuf + 0x68
+        self.init_basic_streambuf(filebuf)
+        self.emu.write_ptr(filebuf, vtable)
+        for slot, handler in virtuals.items():
+            self.emu.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))
+        self.mem_write(ptr + 0x68, struct.pack("<ii", 0, 8))
+        self.emu.write_ptr(ptr, ptr + 0x68)
+        self.init_basic_ios(ptr + 8, filebuf)
+        return ptr
+
+    @apihook("?_Lock@?$basic_filebuf@DU?$char_traits@D@std@@@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_filebuf_Lock_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _Lock();"""
+        return
+
+    @apihook("?_Unlock@?$basic_filebuf@DU?$char_traits@D@std@@@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_filebuf_Unlock_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _Unlock();"""
+        return
+
+    @apihook("?overflow@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAAHH@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def basic_filebuf_overflow_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int overflow(int c);
+
+        Only the filebuf of std::cout uses this handler, so the character goes to stdout.
+        """
+        c = argv[1] & 0xFFFFFFFF
+        if c == 0xFFFFFFFF:
+            return 0
+        c &= 0xFF
+        ctx.args[1].display = chr(c) if c < 0x80 else f"\\x{c:02x}"
+        return c
+
+    @apihook("?xsputn@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAA_JPEBD_J@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def basic_filebuf_xsputn_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        streamsize xsputn(const char *s, streamsize count);
+
+        Only the filebuf of std::cout uses this handler, so the characters go to stdout.
+        """
+        _, s, count = argv
+        if count <= 0 or count >= 1 << 63:
+            return 0
+        ctx.args[1].display = self.mem_read(s, count).decode("utf-8", errors="replace")
+        return count
+
+    @apihook("?sync@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAAHXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_filebuf_sync_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int sync();"""
+        return 0
+
+    @apihook("?sputc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHD@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def basic_streambuf_sputc_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int sputc(char c);
+
+        Store the character in the put area, or call the virtual overflow when the area is full.
+        """
+        sb, c = argv
+        c &= 0xFF
+        pnext_ptr, pcount_ptr = emu.read_ptr(sb + 0x40), emu.read_ptr(sb + 0x58)
+        pnext = emu.read_ptr(pnext_ptr)
+        pcount = int.from_bytes(self.mem_read(pcount_ptr, 4), "little", signed=True) if pnext else 0
+        if pcount > 0:
+            self.mem_write(pcount_ptr, (pcount - 1).to_bytes(4, "little", signed=True))
+            emu.write_ptr(pnext_ptr, pnext + 1)
+            self.mem_write(pnext, bytes([c]))
+            return c
+        return (yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 3 * 8), (sb, c))) & 0xFFFFFFFF
+
+    @apihook(
+        "?sputn@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAA_JPEBD_J@Z", argc=3, conv=e_arch.CALL_CONV_CDECL
+    )
+    def basic_streambuf_sputn_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """streamsize sputn(const char *s, streamsize count);"""
+        sb, s, count = argv
+        return (yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 9 * 8), (sb, s, count)))
+
+    @apihook("?good@ios_base@std@@QEBA_NXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def ios_base_good_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """bool good() const;"""
+        return int(self.mem_read(argv[0] + 0x10, 4) == b"\x00" * 4)
+
+    def sync_ostream(self, emu, ostream):
+        """Call the virtual sync of the buffer of a good stream, and set badbit when it fails."""
+        ios = self.get_ios_base(emu, ostream)
+        sb = emu.read_ptr(ios + 0x48)
+        if not sb or not self.ios_base_good_x64(emu, [ios]):
+            return
+        if ((yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 13 * 8), (sb,))) & 0xFFFFFFFF) == 0xFFFFFFFF:
+            self.basic_ios_setstate_x64(emu, [ios, IOS_BADBIT, 0])
+
+    @apihook("?flush@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ostream_flush_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """basic_ostream& flush();"""
+        yield from self.sync_ostream(emu, argv[0])
+        return argv[0]
+
+    @apihook("?_Osfx@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ostream_Osfx_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void _Osfx();"""
+        ios = self.get_ios_base(emu, argv[0])
+        if int.from_bytes(self.mem_read(ios + 0x18, 4), "little") & IOS_UNITBUF:
+            yield from self.sync_ostream(emu, argv[0])
+
+    @apihook("??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@K@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def basic_ostream_insert_ulong_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        basic_ostream& operator<<(unsigned long value);
+
+        Format the value as num_put does, with the base, case, prefix, width and
+        fill of the stream, and write it with the virtual xsputn of the buffer.
+        """
+        ostream, value = argv
+        value &= 0xFFFFFFFF
+        ios = self.get_ios_base(emu, ostream)
+        tie = emu.read_ptr(ios + 0x50)
+        if self.ios_base_good_x64(emu, [ios]) and tie and tie != ostream:
+            yield from self.sync_ostream(emu, tie)
+        sb = emu.read_ptr(ios + 0x48)
+        if not sb or not self.ios_base_good_x64(emu, [ios]):
+            self.basic_ios_setstate_x64(emu, [ios, IOS_GOODBIT, 0])
+            return ostream
+
+        flags = int.from_bytes(self.mem_read(ios + 0x18, 4), "little")
+        prefix = ""
+        if flags & IOS_BASEFIELD == IOS_HEX:
+            digits = f"{value:X}" if flags & IOS_UPPERCASE else f"{value:x}"
+            if flags & IOS_SHOWBASE and value:
+                prefix = "0X" if flags & IOS_UPPERCASE else "0x"
+        elif flags & IOS_BASEFIELD == IOS_OCT:
+            digits = f"{value:o}"
+            if flags & IOS_SHOWBASE and value:
+                prefix = "0"
+        else:
+            digits = str(value)
+        width = int.from_bytes(self.mem_read(ios + 0x28, 8), "little", signed=True)
+        pad = self.mem_read(ios + 0x58, 1) * max(0, width - len(prefix) - len(digits))
+        if flags & IOS_ADJUSTFIELD == IOS_LEFT:
+            text = prefix.encode() + digits.encode() + pad
+        elif flags & IOS_ADJUSTFIELD == IOS_INTERNAL:
+            text = prefix.encode() + pad + digits.encode()
+        else:
+            text = pad + prefix.encode() + digits.encode()
+        self.mem_write(ios + 0x28, b"\x00" * 8)
+
+        if self.ostream_buffer is None:
+            self.ostream_buffer = self.mem_alloc(0x100, tag="api.msvcrt.ostream_buffer")
+        xsputn = emu.read_ptr(emu.read_ptr(sb) + 9 * 8)
+        for i in range(0, len(text), 0x100):
+            chunk = text[i : i + 0x100]
+            self.mem_write(self.ostream_buffer, chunk)
+            if (yield GuestCall(xsputn, (sb, self.ostream_buffer, len(chunk)))) != len(chunk):
+                self.basic_ios_setstate_x64(emu, [ios, IOS_BADBIT, 0])
+                break
+        return ostream
+
+    @apihook("?uncaught_exceptions@std@@YAHXZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def uncaught_exceptions(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """int uncaught_exceptions() noexcept;"""
+        return 0
+
+    @apihook("?uncaught_exception@std@@YA_NXZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def uncaught_exception(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """bool uncaught_exception() noexcept;"""
+        return 0
 
     def get_exception_slot(self, name):
         slot = self.exception_slots.get(name)
