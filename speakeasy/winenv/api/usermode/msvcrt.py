@@ -81,6 +81,9 @@ SIGSEGV = 11  # segment violation
 SIGTERM = 15  # Software termination signal from kill
 SIGBREAK = 21  # Ctrl-Break sequence
 SIGABRT = 22  # abnormal termination triggered by abort call
+SIGNALS = (SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT)
+# The _FPE_* code that raise passes to a SIGFPE handler
+FPE_EXPLICITGEN = 0x8C
 
 # Signal action codes
 SIG_DFL = 0  # default signal action
@@ -2197,9 +2200,9 @@ class Msvcrt(api.ApiHandler):
         self.signal_handlers[sig] = SIG_DFL
         return self.call_signal_handler(action, (sig, fpe_code) if sig == SIGFPE else (sig,))
 
-    def call_signal_handler(self, handler, args):
+    def call_signal_handler(self, handler, args, rv=windef.EXCEPTION_CONTINUE_EXECUTION):
         yield GuestCall(handler, args)
-        return windef.EXCEPTION_CONTINUE_EXECUTION
+        return rv
 
     @apihook("__C_specific_handler", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6201,8 +6204,30 @@ class Msvcrt(api.ApiHandler):
         """
         sig, func = argv
 
-        if sig not in [SIGINT, SIGILL, SIGFPE, SIGSEGV, SIGTERM, SIGBREAK, SIGABRT]:
+        if sig not in SIGNALS:
             return SIG_ERR
         previous = self.signal_handlers.get(sig, SIG_DFL)
         self.signal_handlers[sig] = func
         return previous
+
+    @apihook("raise", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def raise_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int raise(
+            int sig
+        );
+
+        A signal without a handler ends the process, as the default action does.
+        """
+        (sig,) = argv
+        if sig not in SIGNALS:
+            self.set_errno(EINVAL)
+            return -1
+        action = self.signal_handlers.get(sig, SIG_DFL)
+        if action == SIG_IGN:
+            return 0
+        if action == SIG_DFL:
+            self.exit_process()
+            return 0
+        self.signal_handlers[sig] = SIG_DFL
+        return self.call_signal_handler(action, (sig, FPE_EXPLICITGEN) if sig == SIGFPE else (sig,), 0)
