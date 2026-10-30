@@ -992,14 +992,3 @@ class Speakeasy:
             self.mem_map_hooks.append((cb, begin, end))
             return
         return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)
-
-
-def validate_config(config: dict) -> SpeakeasyConfig:
-    """
-    Validates the given configuration dict against the Pydantic schema.
-
-    Raises pydantic.ValidationError on invalid configuration.
-
-    Returns the validated SpeakeasyConfig model on success.
-    """
-    return SpeakeasyConfig.model_validate(config)
