@@ -22,7 +22,7 @@ def map_injected_pe(emu, names, zero_oft=False, bad_index=None):
     image = build_api_image(name="injected", arch=emu.arch, base=base, emu_path="injected.dll", exports=[])
     data = bytearray(image.image_size)
     for region in image.regions:
-        data[region.base - base : region.base - base + len(region.data)] = region.data
+        data[region.base : region.base + len(region.data)] = region.data
     ptr = emu.ptr_size
     descriptor = next(section.virtual_address for section in image.sections if section.name == ".data")
     ilt, iat, dll, strings = (descriptor + offset for offset in (0x80, 0xC0, 0x100, 0x120))

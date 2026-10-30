@@ -4,7 +4,8 @@ import logging
 import ntpath
 import os
 import struct
-from dataclasses import dataclass, field
+from bisect import bisect_right
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import SimpleNamespace
 from typing import Any, Protocol
@@ -105,8 +106,30 @@ class ExportEntry:
     forwarder: str | None = None
 
 
+IMAGE_REL_BASED_ABSOLUTE = 0
+IMAGE_REL_BASED_HIGHLOW = 3
+IMAGE_REL_BASED_DIR64 = 10
+
+
+@dataclass(frozen=True)
+class BaseRelocation:
+    """An entry of the base relocation table of a PE. The loader adds the base delta to the value at rva."""
+
+    rva: int
+    type: int
+
+
 @dataclass
 class LoadedImage:
+    """
+    An image and its addresses.
+
+    A loader returns the image at its preferred base, image_base. The addresses are RVAs:
+    the bases of the regions, the IAT slots, the exports, the entry points, the TLS callbacks
+    and the TLS and resource directories. relocate_image returns a copy at a base, with
+    absolute addresses. relocations is None if the image can load only at its preferred base.
+    """
+
     arch: int
     module_type: str
     name: str
@@ -120,12 +143,80 @@ class LoadedImage:
     visible_in_peb: bool = True
     stack_size: int = 0x12000
     tls_callbacks: list[int] = field(default_factory=list)
-    tls_directory_va: int | None = None
+    tls_directory: int | None = None
     resource_directory: tuple[int, int] | None = None
     loader: Loader | None = None
     sections: list[SectionEntry] = field(default_factory=list)
     pe_metadata: PeMetadata | None = None
     source: str = "guest_pe"
+    relocations: list[BaseRelocation] | None = None
+
+
+def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
+    """Write base in the ImageBase field of the PE header, in the data of the region at RVA 0."""
+    if image.pe_metadata is None or len(data) < 0x40:
+        return
+    size = 8 if image.pe_metadata.magic == 0x20B else 4
+    # The ImageBase field follows the signature, the file header and 24 or 28 bytes of the optional header.
+    offset = int.from_bytes(data[0x3C:0x40], "little") + 4 + 20 + (24 if size == 8 else 28)
+    if offset + size <= len(data):
+        data[offset : offset + size] = base.to_bytes(size, "little")
+
+
+def relocate_image(image: LoadedImage, base: int) -> LoadedImage:
+    """
+    Return a copy of the image at base, with absolute addresses.
+
+    If base is not the preferred base, add the difference to the value at each base relocation
+    and write base in the ImageBase field of the PE header, as the Windows loader does.
+
+    Raises:
+        ValueError: the image does not fit at base, the image has no relocation data and base
+            is not its preferred base, or a base relocation is not valid.
+    """
+    if type(base) is not int or base < 0 or base + image.image_size > 1 << image.arch:
+        raise ValueError(f"Image does not fit in the address space at {base:#x}")
+    delta = base - image.image_base
+    if delta and image.relocations is None:
+        raise ValueError("Cannot rebase a guest PE without valid relocation data")
+    data = [bytearray(region.data) for region in image.regions]
+    if delta:
+        regions = sorted(range(len(image.regions)), key=lambda i: image.regions[i].base)
+        starts = [image.regions[i].base for i in regions]
+        for relocation in image.relocations or ():
+            if relocation.type == IMAGE_REL_BASED_ABSOLUTE:
+                continue
+            if relocation.type not in (IMAGE_REL_BASED_HIGHLOW, IMAGE_REL_BASED_DIR64):
+                raise ValueError(f"Unsupported base relocation type {relocation.type}")
+            size = 4 if relocation.type == IMAGE_REL_BASED_HIGHLOW else 8
+            position = bisect_right(starts, relocation.rva) - 1
+            if position < 0 or relocation.rva + size > image.image_size:
+                raise ValueError("Base relocation lies outside the image")
+            buffer = data[regions[position]]
+            offset = relocation.rva - starts[position]
+            # The part of the image after the data of the file is zeros.
+            buffer.extend(bytes(max(0, offset + size - len(buffer))))
+            value = int.from_bytes(buffer[offset : offset + size], "little") + delta
+            buffer[offset : offset + size] = (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little")
+        if starts and starts[0] == 0:
+            _write_image_base(image, data[regions[0]], base)
+    resource_directory = image.resource_directory
+    if resource_directory is not None:
+        resource_directory = (base + resource_directory[0], resource_directory[1])
+    return replace(
+        image,
+        image_base=base,
+        regions=[
+            MemoryRegion(base + region.base, bytes(buffer), region.name, region.perms)
+            for region, buffer in zip(image.regions, data)
+        ],
+        imports=[replace(entry, iat_address=base + entry.iat_address) for entry in image.imports],
+        exports=[replace(entry, address=base + entry.address) for entry in image.exports],
+        entry_points=[base + rva for rva in image.entry_points],
+        tls_callbacks=[base + rva for rva in image.tls_callbacks],
+        tls_directory=None if image.tls_directory is None else base + image.tls_directory,
+        resource_directory=resource_directory,
+    )
 
 
 class Loader(Protocol):
@@ -280,12 +371,10 @@ class PeLoader:
         *,
         path: str | None = None,
         data: bytes | None = None,
-        base_override: int | None = None,
         emu_path: str = "",
     ) -> None:
         self._path = path
         self._data = data
-        self._base_override = base_override
         self._emu_path = emu_path
 
     def _optional_error(self, context: str, error: Exception) -> None:
@@ -415,15 +504,14 @@ class PeLoader:
             if section.Misc_VirtualSize and section.VirtualAddress + section.Misc_VirtualSize > pe.image_size:
                 raise ValueError("PE section extends beyond the image")
 
-        if self._base_override is not None:
-            if type(self._base_override) is not int or not 0 <= self._base_override < (1 << pe.arch):
-                raise ValueError("Invalid PE base override")
-            if self._base_override + pe.image_size > 1 << pe.arch:
-                raise ValueError("Rebased PE exceeds architecture address space")
-        if self._base_override is not None and self._base_override != pe.base:
-            if not getattr(pe, "DIRECTORY_ENTRY_BASERELOC", None):
-                raise ValueError("Cannot rebase a guest PE without valid relocation data")
-            pe.rebase(self._base_override)
+        relocations = None
+        if getattr(pe, "DIRECTORY_ENTRY_BASERELOC", None):
+            relocations = [
+                BaseRelocation(entry.rva, entry.type)
+                for block in pe.DIRECTORY_ENTRY_BASERELOC
+                for entry in block.entries
+                if entry.type != IMAGE_REL_BASED_ABSOLUTE
+            ]
 
         module_type = "exe"
         if pe.is_driver():
@@ -461,8 +549,7 @@ class PeLoader:
         imports: list[ImportEntry] = []
         ptr_size = pe.arch // 8
         # Eager delay binding uses exactly the same inventory as ordinary imports.
-        # pefile normalizes legacy x86 VA-based delay descriptors to RVAs, but
-        # does not relocate delay symbol.address when the image is rebased.
+        # pefile normalizes legacy x86 VA-based delay descriptors to RVAs.
         parsed_static = {
             entry.struct.get_file_offset(): entry.imports for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", ())
         }
@@ -510,7 +597,7 @@ class PeLoader:
                             func_name = imp.name.decode("ascii")
                             if not pefile.is_valid_function_name(imp.name):
                                 raise ValueError("Invalid imported function name")
-                        imports.append(ImportEntry(base + slot_rva, dll, func_name, source))
+                        imports.append(ImportEntry(slot_rva, dll, func_name, source))
                     except ValueError as error:
                         self._optional_error(f"{source} import entry", error)
 
@@ -554,7 +641,7 @@ class PeLoader:
                     exports.append(
                         ExportEntry(
                             name=name,
-                            address=exp.address + base,
+                            address=exp.address,
                             ordinal=exp.ordinal,
                             kind=kind,
                             forwarder=forwarder,
@@ -567,10 +654,10 @@ class PeLoader:
         resource_directory = None
         resources = pe.OPTIONAL_HEADER.DATA_DIRECTORY[2]
         if resources.VirtualAddress and resources.Size:
-            resource_directory = (resources.VirtualAddress + base, resources.Size)
+            resource_directory = (resources.VirtualAddress, resources.Size)
 
         tls_callbacks: list[int] = []
-        tls_directory_va: int | None = None
+        tls_directory: int | None = None
         ptr_size = 4 if pe.arch == _arch.ARCH_X86 else 8
         tls_rva = 0
         if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > 9:
@@ -582,7 +669,8 @@ class PeLoader:
         # Windows reads the directory from the mapped image, so it may extend
         # into the zero-filled tail of a section that pefile does not parse.
         if tls_rva and tls_rva + 4 * ptr_size + 8 <= pe.image_size:
-            tls_directory_va = tls_rva + base
+            tls_directory = tls_rva
+            # The TLS directory and the callback array have VAs at the preferred base.
             callbacks = int.from_bytes(read_mapped(tls_rva + 3 * ptr_size, ptr_size), "little")
             rva = callbacks - base
             for i in range(100 if callbacks else 0):
@@ -596,7 +684,7 @@ class PeLoader:
                     break
                 if ptr == 0:
                     break
-                tls_callbacks.append(ptr)
+                tls_callbacks.append(ptr - base)
 
         sections = []
         for sect in pe.sections:
@@ -615,7 +703,7 @@ class PeLoader:
             )
 
         region = MemoryRegion(
-            base=base,
+            base=0,
             data=bytes(mapped_image),
             name="pe_image",
             perms=common.PERM_MEM_RWX,
@@ -624,7 +712,7 @@ class PeLoader:
         entry_points = []
         ep_rva = pe.OPTIONAL_HEADER.AddressOfEntryPoint
         if ep_rva:
-            entry_points.append(base + ep_rva)
+            entry_points.append(ep_rva)
 
         name = ""
         if self._path:
@@ -689,11 +777,12 @@ class PeLoader:
             visible_in_peb=True,
             stack_size=max(pe.OPTIONAL_HEADER.SizeOfStackReserve or 0, 0x12000),
             tls_callbacks=tls_callbacks,
-            tls_directory_va=tls_directory_va,
+            tls_directory=tls_directory,
             resource_directory=resource_directory,
             loader=self,
             sections=sections,
             pe_metadata=pe_metadata,
+            relocations=relocations,
         )
 
 
@@ -724,6 +813,7 @@ class ShellcodeLoader:
             entry_points=[],
             visible_in_peb=False,
             loader=self,
+            relocations=[],
             sections=[
                 SectionEntry(
                     name="shellcode",

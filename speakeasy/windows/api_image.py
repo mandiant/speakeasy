@@ -61,6 +61,7 @@ def build_api_image(
 ) -> LoadedImage:
     """Build a valid PE with sparse EAT ordinals and independently sorted names.
 
+    base is the preferred base. The image has no absolute addresses, so it can load at any base.
     Explicit ordinal aliases share a target. Unknown ordinals use the lowest
     available positive value in byte-sorted name order. Export spans are bounded
     by the WORD indices in the export name ordinal table.
@@ -189,7 +190,7 @@ def build_api_image(
         (".dyn", dyn_rva, b"\xcc" * API_DYNAMIC_SIZE, rx, 0x60000020),
     ]
     sections = []
-    regions = [MemoryRegion(base, bytes(headers), "headers", common.PERM_MEM_READ)]
+    regions = [MemoryRegion(0, bytes(headers), "headers", common.PERM_MEM_READ)]
     for i, (section_name, rva, content, perms, chars) in enumerate(contents):
         struct.pack_into(
             "<8sIIIIIIHHI",
@@ -207,7 +208,7 @@ def build_api_image(
             chars,
         )
         sections.append(SectionEntry(section_name, rva, len(content), perms))
-        regions.append(MemoryRegion(base + rva, bytes(content), section_name, perms))
+        regions.append(MemoryRegion(rva, bytes(content), section_name, perms))
     regions[0].data = bytes(headers)
     return LoadedImage(
         arch=arch,
@@ -218,12 +219,13 @@ def build_api_image(
         image_size=image_size,
         regions=regions,
         imports=[],
-        exports=[ExportEntry(s.name, base + rvas[o], o, kind=s.kind, forwarder=s.forwarder) for s, o in assigned],
+        exports=[ExportEntry(s.name, rvas[o], o, kind=s.kind, forwarder=s.forwarder) for s, o in assigned],
         entry_points=[],
         loader=None,
         sections=sections,
         pe_metadata=PeMetadata(2, 0, machine, magic),
         source="synthetic",
+        relocations=[],
     )
 
 

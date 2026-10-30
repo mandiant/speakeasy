@@ -108,7 +108,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         emu_path = f"{self.get_system_root()}drivers\\{file_name}"
 
-        image = self._make_image_at_free_base(lambda base: PeLoader(path=path, data=data, base_override=base), None)
+        image = PeLoader(path=path, data=data).make_image()
         image.name = mod_name
         image.emu_path = emu_path
 

@@ -12,7 +12,7 @@ from speakeasy import Speakeasy
 from speakeasy.errors import NotSupportedError
 from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
 from speakeasy.windows.common import _PeParser
-from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule
+from speakeasy.windows.loaders import ExportEntry, LoadedImage, PeLoader, RuntimeModule, relocate_image
 from speakeasy.winenv.api.sigdb import SignatureDatabase
 from tests.pe_builder import build_pe
 from tests.test_api_image import build, image_bytes
@@ -169,7 +169,7 @@ def test_native_exports_preserve_pe_surface():
     )
     image = PeLoader(data=raw, emu_path="C:\\Windows\\System32\\kernel32.dll").make_image()
     independent = pefile.PE(data=raw)
-    assert {(e.name, e.ordinal, e.address - image.image_base, e.forwarder) for e in image.exports} == {
+    assert {(e.name, e.ordinal, e.address, e.forwarder) for e in image.exports} == {
         (s.name.decode() if s.name else None, s.ordinal, s.address, s.forwarder.decode() if s.forwarder else None)
         for s in independent.DIRECTORY_ENTRY_EXPORT.symbols
     }
@@ -182,27 +182,25 @@ def test_native_exports_preserve_pe_surface():
 @pytest.mark.parametrize("mutate", ["machine", "section_extent", "rebase_without_relocations"])
 def test_loader_safety_checks_apply_in_lenient_mode(mutate):
     pe = pefile.PE(data=image_bytes(build([])))
-    base_override = None
+    base = pe.OPTIONAL_HEADER.ImageBase
     if mutate == "machine":
         pe.FILE_HEADER.Machine = 0x8664
     elif mutate == "section_extent":
         pe.sections[-1].Misc_VirtualSize = pe.OPTIONAL_HEADER.SizeOfImage
     else:
-        base_override = 0x60000000
+        base = 0x60000000
     with pytest.raises(ValueError):
-        PeLoader(data=pe.write(), base_override=base_override).make_image()
+        relocate_image(PeLoader(data=pe.write()).make_image(), base)
 
 
 @pytest.mark.parametrize("filename", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
-def test_native_rebase_header_imports_and_exports_are_consistent(filename, load_test_bin):
+def test_native_rebase_moves_imports_and_exports(filename, load_test_bin):
     raw = load_test_bin(filename)
     original = pefile.PE(data=raw)
     base = 0x60000000
-    image = PeLoader(data=raw, base_override=base).make_image()
+    image = relocate_image(PeLoader(data=raw).make_image(), base)
     assert image.image_base == base
-    expected = pefile.PE(data=raw)
-    expected.relocate_image(base)
-    assert image.regions[0].data == expected.get_memory_mapped_image()
+    assert image.regions[0].base == base
     assert [e.iat_address for e in image.imports] == [
         base + d.struct.FirstThunk + i * (image.arch // 8)
         for d in original.DIRECTORY_ENTRY_IMPORT
@@ -308,7 +306,7 @@ def test_eager_delay_imports_join_static_inventory_without_mutating_iat(architec
         ("DelayTarget", "ordinal_17", "delay"),
     ]
     width = architecture // 8
-    assert [e.iat_address - image.image_base for e in image.imports] == [
+    assert [e.iat_address for e in image.imports] == [
         data + 0x340,
         data + 0x240,
         data + 0x240 + width,
@@ -321,7 +319,7 @@ def test_eager_delay_imports_join_static_inventory_without_mutating_iat(architec
 
 def test_delay_import_rvas_rebase_without_using_stale_pefile_symbol_addresses():
     raw, data = _make_delay_import_pe(_arch.ARCH_AMD64, with_relocations=True)
-    image = PeLoader(data=raw, base_override=0x60000000).make_image()
+    image = relocate_image(PeLoader(data=raw).make_image(), 0x60000000)
     delayed = [e for e in image.imports if e.source == "delay"]
     assert [e.iat_address for e in delayed] == [0x60000000 + data + 0x240, 0x60000000 + data + 0x248]
 

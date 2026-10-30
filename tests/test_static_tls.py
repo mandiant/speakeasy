@@ -80,7 +80,7 @@ def test_unreadable_tls_callback_array_does_not_stop_the_load(load_test_bin):
     image = PeLoader(data=load_test_bin(DUMPED_DLL)).make_image()
 
     assert image.tls_callbacks == []
-    assert image.entry_points == [0x180085618]
+    assert image.entry_points == [0x85618]
 
 
 def test_tls_directory_past_the_raw_end_of_its_section_is_read_from_the_mapped_image(load_test_bin):
@@ -90,5 +90,5 @@ def test_tls_directory_past_the_raw_end_of_its_section_is_read_from_the_mapped_i
     """
     image = PeLoader(data=load_test_bin(UPX_EXE)).make_image()
 
-    assert image.tls_directory_va == 0x400000 + 0x1DFF4
+    assert image.tls_directory == 0x1DFF4
     assert image.tls_callbacks == []

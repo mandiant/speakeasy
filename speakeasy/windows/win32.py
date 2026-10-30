@@ -191,7 +191,7 @@ class Win32Emulator(WindowsEmulator):
 
         self._set_input_metadata(path, data)
 
-        image = self._make_image_at_free_base(lambda base: PeLoader(path=path, data=data, base_override=base), None)
+        image = PeLoader(path=path, data=data).make_image()
         image.name = self.mod_name
         image.emu_path = emu_path
 
@@ -385,7 +385,7 @@ class Win32Emulator(WindowsEmulator):
             image.emu_path = child.path
             try:
                 child.pe = self.load_image(image)
-            except WindowsEmuError as error:
+            except (WindowsEmuError, ValueError) as error:
                 logger.warning("skipping child process %s: %s", child.path, error)
                 continue
 

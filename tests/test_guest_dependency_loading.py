@@ -28,12 +28,11 @@ def make_native_dll(emu, path, result=1, entry_point=True, forwarder=False, faul
             *([ApiExportSpec("Forwarded", forwarder="kernel32.GetTickCount")] if forwarder else []),
         ],
     )
-    exports = {entry.name: entry.address for entry in image.exports}
+    exports = {entry.name: base + entry.address for entry in image.exports}
     flag = exports["Flag"]
     data = bytearray(image.image_size)
     for region in image.regions:
-        offset = region.base - base
-        data[offset : offset + len(region.data)] = region.data
+        data[region.base : region.base + len(region.data)] = region.data
     ret = b"\xc2\x0c\x00" if emu.ptr_size == 4 else b"\xc3"
     for name, value in [("TlsCallback", 1), ("Initializer", result)]:
         address = exports[name]
@@ -332,11 +331,11 @@ def test_guest_image_imports_cannot_invent_native_exports(config, tmp_path):
             emu_path="import_policy.dll",
             image_base=base,
             image_size=0x1000,
-            regions=[MemoryRegion(base, b"\x41" * 0x1000, ".data", common.PERM_MEM_RWX)],
+            regions=[MemoryRegion(0, b"\x41" * 0x1000, ".data", common.PERM_MEM_RWX)],
             imports=[
-                ImportEntry(base, "guest_dependency", "GetTickCount"),
-                ImportEntry(base + 4, "guest_dependency", "MissingExport"),
-                ImportEntry(base + 8, "guest_dependency", "Flag"),
+                ImportEntry(0, "guest_dependency", "GetTickCount"),
+                ImportEntry(4, "guest_dependency", "MissingExport"),
+                ImportEntry(8, "guest_dependency", "Flag"),
             ],
             exports=[],
             entry_points=[],
