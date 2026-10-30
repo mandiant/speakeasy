@@ -2459,6 +2459,21 @@ class Msvcrt(api.ApiHandler):
         self.mem_write(dst, data)
         return dst
 
+    @apihook("_wcsdup", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wcsdup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *_wcsdup(
+            const wchar_t *strSource
+        );
+        """
+        (src,) = argv
+        if not src:
+            return 0
+        data = self.read_cstr(src, width=2) + b"\x00\x00"
+        dst = self.heap_alloc(len(data), heap="HeapAlloc")
+        self.mem_write(dst, data)
+        return dst
+
     @apihook("_mbsdup", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _mbsdup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2851,6 +2866,21 @@ class Msvcrt(api.ApiHandler):
         val, used = parse_c_integer(self.read_cstr(src), base)
         if endptr:
             emu.write_ptr(endptr, src + used)
+        return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
+
+    @apihook("wcstoul", argc=3, conv=e_arch.CALL_CONV_CDECL)
+    def wcstoul(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        unsigned long wcstoul(
+            const wchar_t *strSource,
+            wchar_t **endptr,
+            int base
+        );
+        """
+        src, endptr, base = argv
+        val, used = parse_c_integer(self.read_number_text(src, 2), base)
+        if endptr:
+            emu.write_ptr(endptr, src + used * 2)
         return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
 
     def read_number_text(self, addr, width):
