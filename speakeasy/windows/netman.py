@@ -1,12 +1,18 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import io
 import os
 from io import BytesIO
-from typing import Any
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING
+from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
+
+if TYPE_CHECKING:
+    from speakeasy.config import DnsConfig, NetworkConfig
+    from speakeasy.windows.objman import HandleAllocator
 
 
 def normalize_response_path(path):
@@ -68,12 +74,12 @@ class WininetComponent:
     Base class used for WinInet connections
     """
 
-    config: Any | None = None
+    config: NetworkConfig | None = None
 
     def __init__(self, allocator):
         super().__init__()
-        self.allocator = allocator
-        self.handle = self.allocator.allocate_wininet_handle()
+        self.allocator: HandleAllocator = allocator
+        self.handle: int = self.allocator.allocate_wininet_handle()
 
     def get_handle(self):
         return self.handle
@@ -88,25 +94,23 @@ class WininetRequest(WininetComponent):
         super().__init__(allocator)
 
         # The WiniNet APIs default to a HTTP "GET" if no verb is specified
+        self.verb: str
         if not verb:
             self.verb = "get"
         else:
             self.verb = verb.lower()
 
-        self.objname = objname
-        if not self.objname:
-            self.objname = ""
-        self.objname = urlparse(self.objname)
+        self.objname: ParseResult = urlparse(objname or "")
 
-        self.session = session
+        self.session: WininetSession = session
 
         if not ver:
             ver = "HTTP/1.1"
         self.ver: str = ver
-        self.referrer = ref
-        self.accept_types = accepts
-        self.flags = flags
-        self.ctx = ctx
+        self.referrer: str | int | None = ref
+        self.accept_types: int | None = accepts
+        self.flags: list[str] = flags
+        self.ctx: int = ctx
         self.response: BytesIO | None = None
 
     def get_server(self):
@@ -218,16 +222,16 @@ class WininetRequest(WininetComponent):
 class WininetSession(WininetComponent):
     def __init__(self, allocator, instance, server, port, user, password, service, flags, ctx):
         super().__init__(allocator)
-        self.server = server
-        self.port = port
-        self.user = user
-        self.password = password
-        self.service = service
-        self.flags = flags
-        self.ctx = ctx
+        self.server: str | int = server
+        self.port: int = port
+        self.user: str | int = user
+        self.password: str | int = password
+        self.service: int | str = service
+        self.flags: int | list[str] = flags
+        self.ctx: int = ctx
         self.requests: dict[int, WininetRequest] = {}
 
-        self.instance = instance
+        self.instance: WininetInstance = instance
 
     def new_request(self, verb, objname, ver, ref, accepts, flags, ctx):
         req = WininetRequest(self.allocator, self, verb, objname, ver, ref, accepts, flags, ctx)
@@ -239,11 +243,11 @@ class WininetSession(WininetComponent):
 class WininetInstance(WininetComponent):
     def __init__(self, allocator, user_agent, access, proxy, bypass, flags):
         super().__init__(allocator)
-        self.user_agent = user_agent
-        self.access = access
-        self.proxy = proxy
-        self.bypass = bypass
-        self.flags = flags
+        self.user_agent: str | int = user_agent
+        self.access: int = access
+        self.proxy: str | int = proxy
+        self.bypass: str | int = bypass
+        self.flags: int = flags
         self.sessions: dict[int, WininetSession] = {}
 
     def new_session(self, server, port, user, password, service, flags, ctx):
@@ -264,9 +268,9 @@ class NetworkManager:
         self.wininets: dict[int, WininetInstance] = {}
         self.curr_fd: int = 4
         self.curr_handle: int = 0x20
-        self.allocator = allocator
-        self.config: Any = config
-        self.dns: Any | None = None
+        self.allocator: HandleAllocator = allocator
+        self.config: NetworkConfig = config
+        self.dns: DnsConfig | None = None
 
         WininetComponent.config = config
         if config:

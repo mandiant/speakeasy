@@ -7,9 +7,10 @@ import hashlib
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
+from speakeasy.errors import SpeakeasyError
 from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_OPEN,
@@ -71,6 +72,10 @@ from speakeasy.report import (
 )
 from speakeasy.windows.loaders import InitRoutine
 
+if TYPE_CHECKING:
+    from speakeasy.memmgr import MemMap
+    from speakeasy.windows.objman import Process, Thread
+
 
 class MemAccess:
     """
@@ -78,12 +83,12 @@ class MemAccess:
     """
 
     def __init__(self, base=None, sym=None, size=0):
-        self.base = base
-        self.size = size
-        self.sym = sym
-        self.reads = 0
-        self.writes = 0
-        self.execs = 0
+        self.base: int | None = base
+        self.size: int = size
+        self.sym: str | None = sym
+        self.reads: int = 0
+        self.writes: int = 0
+        self.execs: int = 0
 
 
 @dataclass
@@ -109,6 +114,17 @@ class GuestCallbackFrame:
     saved_registers: tuple[tuple[int, int], ...] | None = None
 
 
+class DynCodeMapping(TypedDict):
+    tag: str
+    base: int
+    size: int
+
+
+class DynCode(TypedDict):
+    mmap: list[DynCodeMapping]
+    base_addrs: set[int]
+
+
 class Run:
     """
     This class represents the basic execution primative for the emulation engine
@@ -125,13 +141,13 @@ class Run:
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
         self.dropped_files: list[dict[str, Any]] = []
-        self.mem_access: dict[Any, MemAccess] = {}
+        self.mem_access: dict[MemMap, MemAccess] = {}
         self.section_access: dict[tuple[int, int], MemAccess] = {}
-        self.dyn_code: dict[str, list[dict[str, int | str]] | set[int]] = {"mmap": [], "base_addrs": set()}
-        self.process_context: Any | None = None
-        self.thread: Any | None = None
+        self.dyn_code: DynCode = {"mmap": [], "base_addrs": set()}
+        self.process_context: Process | None = None
+        self.thread: Thread | None = None
         self.unique_apis: list[str] = []
-        self.api_hash = hashlib.sha256()
+        self.api_hash: hashlib._Hash = hashlib.sha256()
         self.stack: MemAccess | None = None
         self.guest_callbacks: list[GuestCallbackFrame] = []
         self.exec_cache: deque[MemAccess] = deque(maxlen=4)
@@ -173,7 +189,7 @@ class Profiler:
         self.runtime: float = 0
         self.meta: dict[str, Any] = {}
         self.runs: list[Run] = []
-        self.artifact_store = ArtifactStore()
+        self.artifact_store: ArtifactStore = ArtifactStore()
 
     def add_input_metadata(self, meta):
         """
@@ -607,7 +623,7 @@ class Profiler:
         Log code that is generated at runtime and then executed
         """
         if base not in run.dyn_code["base_addrs"]:
-            entry = {"tag": tag, "base": hex(base), "size": hex(size)}
+            entry: DynCodeMapping = {"tag": tag, "base": base, "size": size}
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 
@@ -686,6 +702,8 @@ class Profiler:
             if r.sym_access:
                 sym_accesses = []
                 for address, maccess in r.sym_access.items():
+                    if maccess.sym is None:
+                        continue
                     sym_accesses.append(
                         SymAccessReport(
                             symbol=maccess.sym,
@@ -761,6 +779,8 @@ class Profiler:
             elif r.thread and r.thread.process:
                 ep_pid = r.thread.process.id
 
+            if r.start_addr is None:
+                raise SpeakeasyError("run has no start address")
             ep = EntryPoint(
                 ep_type=str(r.type) if r.type is not None else "",
                 start_addr=r.start_addr,

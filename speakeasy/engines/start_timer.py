@@ -9,8 +9,11 @@ returns. The timer measures time with time.monotonic(), as the run loop does, so
 that it stops has reached the deadline of the run loop.
 """
 
+from __future__ import annotations
+
 import threading
 import time
+from collections.abc import Callable
 
 STOP_REPEAT = 0.001
 IDLE_EXIT = 5.0
@@ -24,10 +27,10 @@ class StartTimer:
     """
 
     def __init__(self, stop):
-        self.stop = stop
+        self.stop: Callable[[], object] = stop
         self._deadline: float | None = None
         self._thread: threading.Thread | None = None
-        self._cond = threading.Condition()
+        self._cond: threading.Condition = threading.Condition()
 
     def arm(self, timeout):
         with self._cond:

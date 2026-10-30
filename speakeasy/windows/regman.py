@@ -1,10 +1,17 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import base64
 import fnmatch
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
+
+if TYPE_CHECKING:
+    from speakeasy.config import RegistryConfig
+    from speakeasy.windows.objman import HandleAllocator
 
 HKEY_CLASSES_ROOT = 0x80000000
 HKEY_CURRENT_USER = 0x80000001
@@ -74,9 +81,9 @@ class RegValue:
     """
 
     def __init__(self, name, val_type, data):
-        self.name = name
-        self.type = val_type
-        self.data = self.normalize_value(val_type, data)
+        self.name: str = name
+        self.type: int = val_type
+        self.data: str | int | bytes | None = self.normalize_value(val_type, data)
 
     def normalize_value(self, val_type, data):
         """
@@ -115,15 +122,15 @@ class RegValue:
         characters of ``width`` bytes.
         """
         enc = "utf-16le" if width == 2 else "utf-8"
-        if self.type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ):
+        if self.type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ) and isinstance(self.data, str):
             return (self.data + "\x00").encode(enc)
-        if self.type == regdefs.REG_MULTI_SZ:
+        if self.type == regdefs.REG_MULTI_SZ and isinstance(self.data, str):
             return (self.data + "\x00\x00").encode(enc)
         if self.type == regdefs.REG_DWORD and isinstance(self.data, int):
             return (self.data & 0xFFFFFFFF).to_bytes(4, "little")
         if self.type == regdefs.REG_QWORD and isinstance(self.data, int):
             return (self.data & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little")
-        if self.type == regdefs.REG_BINARY:
+        if self.type == regdefs.REG_BINARY and isinstance(self.data, bytes):
             return base64.b64decode(self.data)
         return self.data if isinstance(self.data, bytes) else b""
 
@@ -134,9 +141,9 @@ class RegKey:
     """
 
     def __init__(self, allocator, path):
-        self.allocator = allocator
-        self.path = path
-        self.values = []
+        self.allocator: HandleAllocator = allocator
+        self.path: str = path
+        self.values: list[RegValue] = []
 
     def get_handle(self):
         return self.allocator.allocate_reg_key_handle()
@@ -166,10 +173,10 @@ class RegistryManager:
 
     def __init__(self, allocator, config=None, os_ver=None):
         super().__init__()
-        self.reg_handles = {}
-        self.keys = []
-        self.config = config
-        self.allocator = allocator
+        self.reg_handles: dict[int, RegKey] = {}
+        self.keys: list[RegKey] = []
+        self.config: RegistryConfig | None = config
+        self.allocator: HandleAllocator = allocator
 
         for hk in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):
             path = regdefs.get_hkey_type(hk)

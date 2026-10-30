@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import fnmatch
 import hashlib
 import io
@@ -7,11 +9,14 @@ import logging
 import ntpath
 import os
 import shlex
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.config import FileEntryFullPath
+from speakeasy.config import FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
 from speakeasy.errors import FileSystemEmuError
+
+if TYPE_CHECKING:
+    from speakeasy.windows.objman import HandleAllocator, Process
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +69,11 @@ class MapView:
     """
 
     def __init__(self, base, offset, size, protect, process=None):
-        self.base = base
-        self.offset = offset
-        self.size = size
-        self.protect = protect
-        self.process = process
+        self.base: int = base
+        self.offset: int = offset
+        self.size: int = size
+        self.protect: int = protect
+        self.process: Process | None = process
 
 
 def get_object_name_key(name):
@@ -87,12 +92,12 @@ class FileMap:
     """
 
     def __init__(self, allocator, name, size, prot, backed_file=None):
-        self.allocator = allocator
-        self.name = name
-        self.backed_file = backed_file
-        self.views = {}
-        self.size = size
-        self.prot = prot
+        self.allocator: HandleAllocator = allocator
+        self.name: str | None = name
+        self.backed_file: File | None = backed_file
+        self.views: dict[int, MapView] = {}
+        self.size: int = size
+        self.prot: int = prot
 
     def get_handle(self):
         return self.allocator.allocate_file_map_handle()
@@ -108,7 +113,7 @@ class File:
     """
 
     def __init__(self, allocator, path, config=None, data=b""):
-        self.allocator = allocator
+        self.allocator: HandleAllocator = allocator
         self.path: str = path
         self.data: io.BytesIO | None = None
         self.pos: int = 0
@@ -118,7 +123,7 @@ class File:
             self.data = io.BytesIO(data)
         self.is_dir: bool = False
         self.append: bool = False
-        self.config: Any = config if config is not None else {}
+        self.config: FileEntry | dict[str, Any] = config if config is not None else {}
 
     def get_buffer(self) -> io.BytesIO:
         if self.data is None:
@@ -251,11 +256,11 @@ class Pipe(File):
 
     def __init__(self, allocator, name, mode, num_instances, out_size, in_size, config=None):
         super().__init__(allocator, path=name, config=config)
-        self.name = name
-        self.mode = mode
-        self.num_instances = num_instances
-        self.out_size = out_size
-        self.in_size = in_size
+        self.name: str = name
+        self.mode: int = mode
+        self.num_instances: int = num_instances
+        self.out_size: int = out_size
+        self.in_size: int = in_size
 
     def get_handle(self):
         return self.allocator.allocate_pipe_handle()
@@ -273,15 +278,15 @@ class FileManager:
         self.file_maps: dict[int, FileMap] = {}
 
         # top level config
-        self.config: Any = config
+        self.config: SpeakeasyConfig = config
 
         # "files" key of config
-        self.file_config: Any = self.config.filesystem
+        self.file_config: FilesystemConfig = self.config.filesystem
         self.emu: Any = emu
 
         cmdline = self.config.command_line or ""
 
-        self.emulated_binname = shlex.split(cmdline)[0] if cmdline else ""
+        self.emulated_binname: str = shlex.split(cmdline)[0] if cmdline else ""
 
         # First file in this list seems to always be the module itself
         self.files: list[File] = []
@@ -341,7 +346,7 @@ class FileManager:
                 seen.add(child)
                 yield (child, is_dir)
 
-    def get_dropped_files(self):
+    def get_dropped_files(self) -> list[File]:
         return [f for f in self.files if f.bytes_written >= f.get_size()]
 
     def open_mapping(self, name):
@@ -441,7 +446,7 @@ class FileManager:
 
         # Configured modules exist on disk, without content.
         modules = self.config.modules
-        if any(f.path == path for f in (*modules.user_modules, *modules.system_modules)):
+        if any(m.path == path for m in modules.user_modules) or any(m.path == path for m in modules.system_modules):
             return FileEntryFullPath(mode="full_path", emu_path=path)
 
         # If no full path handler exists, do we have an extension handler?
@@ -479,7 +484,8 @@ class FileManager:
             dirs.extend(env.get(name, "").split(";"))
         modules = self.config.modules
         files = [*self.walk_files(), *(f.path for f in self.files)]
-        files += [m.path for m in (*modules.user_modules, *modules.system_modules) if m.path]
+        files += [m.path for m in modules.user_modules if m.path]
+        files += [m.path for m in modules.system_modules if m.path]
         dirs.extend(ntpath.dirname(f) for f in files)
 
         keys = set()
@@ -517,7 +523,7 @@ class FileManager:
         return fconf is not None and fconf.mode == "full_path"
 
     def get_object_from_handle(self, handle):
-        obj = self.file_maps.get(handle)
+        obj: FileMap | File | None = self.file_maps.get(handle)
         if obj:
             return obj
         obj = self.pipe_handles.get(handle)
@@ -528,6 +534,7 @@ class FileManager:
             return obj
 
     def file_open(self, path, create=False, truncate=False, is_dir=False):
+        f: File | None
         if is_null_device(path):
             f = NullDevice(self.emu.handle_allocator, path)
             hnd = f.get_handle()

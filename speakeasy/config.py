@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-DEFAULT_CONFIG_DATA = {
+DEFAULT_CONFIG_DATA: dict[str, Any] = {
     "config_version": 0.2,
     "description": "Default emulation profile to use when not overridden by user",
     "emu_engine": "unicorn",

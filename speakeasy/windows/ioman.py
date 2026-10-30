@@ -2,6 +2,7 @@
 
 import speakeasy.windows.kernel_mods as km
 import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.windows.kernel_mods.kernel_mod import KernelModule
 
 
 class IoManager:
@@ -12,7 +13,7 @@ class IoManager:
 
     def __init__(self):
         super().__init__()
-        self.emu_kmods = [m.DriverModule() for m in km._get_kmods()]
+        self.emu_kmods: list[KernelModule] = [m.DriverModule() for m in km._get_kmods()]
 
     def dev_ioctl(self, arch, dev, ioctl, inbuf):
         rv = ddk.STATUS_INVALID_DEVICE_REQUEST
@@ -23,10 +24,10 @@ class IoManager:
         bn = drv.get_basename()
 
         # Find the emulated kernel module (if any)
-        mod = [m for m in self.emu_kmods if bn == m.get_mod_name()]
-        if not mod:
+        mods = [m for m in self.emu_kmods if bn == m.get_mod_name()]
+        if not mods:
             rv = ddk.STATUS_INVALID_DEVICE_REQUEST
             return (rv, outbuf)
-        mod = mod[0]
+        mod = mods[0]
 
         return mod.ioctl(arch, ioctl, inbuf)

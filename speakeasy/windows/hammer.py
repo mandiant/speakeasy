@@ -1,10 +1,16 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
 
 import collections
 import logging
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as e_arch
+
+if TYPE_CHECKING:
+    from speakeasy.config import ApiHammeringConfig
+    from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +40,15 @@ class ApiHammer:
 
     def __init__(self, emu):
         super().__init__()
-        self.emu = emu
-        self.api_stats = collections.defaultdict(int)
-        self.hammer_memregion = None
-        self.hammer_offset = 0
+        self.emu: WindowsEmulator = emu
+        self.api_stats: collections.defaultdict[str, int] = collections.defaultdict(int)
+        self.hammer_memregion: int | None = None
+        self.hammer_offset: int = 0
 
-        self.config = self.emu.config.api_hammering
+        self.config: ApiHammeringConfig | None = self.emu.config.api_hammering
+        self.api_threshold: int
+        self.enabled: bool
+        self.allow_list: set[str]
         if self.config:
             self.api_threshold = self.config.threshold
             self.enabled = self.config.enabled

@@ -18,6 +18,7 @@ from typing import Any
 
 import unicorn.x86_const as ux
 
+from speakeasy.common import CodeHook, Hook, ReadMemHook, WriteMemHook
 from speakeasy.winenv import arch
 
 logger = logging.getLogger(__name__)
@@ -78,22 +79,22 @@ class GdbServer:
     """An all-stop RSP server backed directly by a WindowsEmulator."""
 
     def __init__(self, emu: Any, port: int, host: str):
-        self.emu = emu
-        self.host = host
-        self.port = port
+        self.emu: Any = emu
+        self.host: str = host
+        self.port: int = port
         self._listener: socket.socket | None = None
         self._client: socket.socket | None = None
         self._reader: threading.Thread | None = None
         self._commands: queue.Queue[bytes | None] = queue.Queue()
-        self._send_lock = threading.Lock()
-        self._state_lock = threading.Lock()
-        self._closed = threading.Event()
-        self._no_ack = False
+        self._send_lock: threading.Lock = threading.Lock()
+        self._state_lock: threading.Lock = threading.Lock()
+        self._closed: threading.Event = threading.Event()
+        self._no_ack: bool = False
         self._last_packet: bytes | None = None
-        self._running = False
-        self._stop_reason = StopReason()
-        self._stop_pending = False
-        self._library_list_changed = False
+        self._running: bool = False
+        self._stop_reason: StopReason = StopReason()
+        self._stop_pending: bool = False
+        self._library_list_changed: bool = False
         # The pc where the client resumed. The first instruction there does not hit its
         # breakpoint, so a resume from a breakpoint stop does not stop again at once.
         self._resume_pc: int | None = None
@@ -104,13 +105,13 @@ class GdbServer:
         self._read_watchpoints: dict[tuple[int, int], int] = {}
         self._write_watchpoints: dict[tuple[int, int], int] = {}
         self._access_watchpoints: dict[tuple[int, int], int] = {}
-        self._registers = self._make_registers()
-        self._hooks: list[Any] = []
-        self._code_hook: Any | None = None
+        self._registers: list[RegisterInfo] = self._make_registers()
+        self._hooks: list[Hook] = []
+        self._code_hook: CodeHook | None = None
         # Code hooks limited to the breakpoints, keyed by their inclusive address range.
-        self._breakpoint_hooks: dict[tuple[int, int], Any] = {}
-        self._read_hook: Any | None = None
-        self._write_hook: Any | None = None
+        self._breakpoint_hooks: dict[tuple[int, int], CodeHook] = {}
+        self._read_hook: ReadMemHook | None = None
+        self._write_hook: WriteMemHook | None = None
 
     def __enter__(self) -> GdbServer:
         try:
@@ -602,6 +603,7 @@ class GdbServer:
     # Registers and memory
 
     def _make_registers(self) -> list[RegisterInfo]:
+        definitions: list[tuple[str, int | None, int] | tuple[str, int | None, int, str]]
         if self.emu.get_arch() == arch.ARCH_AMD64:
             definitions = [
                 ("rax", ux.UC_X86_REG_RAX, 8),
