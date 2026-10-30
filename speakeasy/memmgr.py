@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.common as common
@@ -84,6 +86,24 @@ class MemoryManager:
         self.block_size = 0
         self.block_offset = 0
         self.page_size = 0x1000
+        self.alloc_base = ALLOCATION_GRANULARITY
+
+    @contextmanager
+    def allocations_from(self, base: int) -> Iterator[None]:
+        """
+        Start the search for free memory at base, for the allocations in this block
+        that do not give an address
+        """
+        previous = self.alloc_base
+        self.alloc_base = base
+        # Start a new shared block for small allocations, here and after the block,
+        # so that small allocations also come from the current search base
+        self.block_base = self.block_offset = 0
+        try:
+            yield
+        finally:
+            self.alloc_base = previous
+            self.block_base = self.block_offset = 0
 
     def _hook_mem_map_dispatch(self, mm):
         hl = self.hooks.get(common.HOOK_MEM_MAP, [])
@@ -273,7 +293,7 @@ class MemoryManager:
 
         # alloced address needs to also be on a page boundary
         if addr is None:
-            addr = ALLOCATION_GRANULARITY
+            addr = self.alloc_base
         base = addr - (addr % page_size)
 
         if total < page_size:
