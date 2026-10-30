@@ -66,6 +66,49 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         return emu.get_last_error()
 
+    @apihook("RtlSetLastWin32Error", argc=1)
+    def RtlSetLastWin32Error(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void RtlSetLastWin32Error(DWORD Win32Error);"""
+        (err,) = argv
+        emu.set_last_error(err)
+
+    @apihook("RtlEnterCriticalSection", argc=1)
+    def RtlEnterCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """NTSTATUS RtlEnterCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);"""
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlLeaveCriticalSection", argc=1)
+    def RtlLeaveCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """NTSTATUS RtlLeaveCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);"""
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlDeleteCriticalSection", argc=1)
+    def RtlDeleteCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """NTSTATUS RtlDeleteCriticalSection(PRTL_CRITICAL_SECTION CriticalSection);"""
+        return ddk.STATUS_SUCCESS
+
+    @apihook("RtlSizeHeap", argc=3)
+    def RtlSizeHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """SIZE_T RtlSizeHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress);"""
+        heap, flags, addr = argv
+        size = self.heap_size(addr)
+        if size is None:
+            return self.get_max_int()
+        return size
+
+    @apihook("RtlReAllocateHeap", argc=4)
+    def RtlReAllocateHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """PVOID RtlReAllocateHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress, SIZE_T Size);"""
+        heap, flags, addr, size = argv
+        old_size = self.heap_size(addr)
+        if old_size is None or flags & windefs.HEAP_REALLOC_IN_PLACE_ONLY:
+            return 0
+        new = self.heap_alloc(size, heap="RtlReAllocateHeap")
+        if new:
+            self.mem_write(new, self.mem_read(addr, min(old_size, size)))
+            self.heap_free(addr)
+        return new
+
     def ipv4_address_to_string(self, addr, out, cw, ctx):
         text = ".".join(str(b) for b in self.mem_read(addr, 4))
         ctx.args[0].display = text

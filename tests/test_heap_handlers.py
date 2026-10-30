@@ -84,3 +84,13 @@ def test_heap_size_of_a_reallocated_block(emu: Speakeasy) -> None:
     block = call(emu, "kernel32", "HeapAlloc", [heap, 0, 0x20])[0]
     block = call(emu, "kernel32", "HeapReAlloc", [heap, 0, block, 0x45])[0]
     assert call(emu, "kernel32", "HeapSize", [heap, 0, block])[0] == 0x45
+
+
+def test_rtl_reallocate_heap_keeps_the_data(emu: Speakeasy) -> None:
+    heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
+    block = call(emu, "ntdll", "RtlAllocateHeap", [heap, 0, 0x20])[0]
+    emu.mem_write(block, b"\x41" * 0x20)
+    new = call(emu, "ntdll", "RtlReAllocateHeap", [heap, 0, block, 0x45])[0]
+    assert emu.mem_read(new, 0x20) == b"\x41" * 0x20
+    assert call(emu, "ntdll", "RtlSizeHeap", [heap, 0, new])[0] == 0x45
+    assert call(emu, "ntdll", "RtlSizeHeap", [heap, 0, block])[0] == 0xFFFFFFFF
