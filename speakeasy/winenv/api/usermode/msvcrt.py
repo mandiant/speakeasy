@@ -140,6 +140,9 @@ IOS_FOPEN_MODES = {
     IOS_IN | IOS_APP: "a+",
 }
 
+# std::locale::all of the MSVC C++ library
+LOCALE_ALL = 0x7E
+
 TIME_BASE = 1576292568
 FILETIME_UNIX_EPOCH = 116444736000000000
 S_IFREG_RW = 0x81B6
@@ -566,6 +569,7 @@ class Msvcrt(api.ApiHandler):
         self.istream_vbtable: int | None = None
         self.ostream_buffer: int | None = None
         self.find_searches: dict[int, Iterator[tuple[str, bool]]] = {}
+        self.global_locimp: int | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -5039,6 +5043,104 @@ class Msvcrt(api.ApiHandler):
     def uncaught_exception(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """bool uncaught_exception() noexcept;"""
         return 0
+
+    def get_global_locimp(self, emu):
+        """
+        Return the _Locimp of the global locale, and create it on the first
+        call. The _Locimp is the "C" locale with all categories and no facets.
+        Set its reference count to 2: one reference for the global locale and
+        one for the classic locale.
+        """
+        if self.global_locimp is not None:
+            return self.global_locimp
+        if emu.get_ptr_size() == 8:
+            methods = (
+                "??_G_Locimp@locale@std@@MEAAPEAXI@Z",
+                "?_Incref@facet@locale@std@@UEAAXXZ",
+                "?_Decref@facet@locale@std@@UEAAPEAV_Facet_base@3@XZ",
+            )
+            layout, size = "<QI4xQQIB3xQB", 0x38
+        else:
+            methods = (
+                "??_G_Locimp@locale@std@@MAEPAXI@Z",
+                "?_Incref@facet@locale@std@@UAEXXZ",
+                "?_Decref@facet@locale@std@@UAEPAV_Facet_base@3@XZ",
+            )
+            layout, size = "<IIIIIB3xIB", 0x20
+        ptr_size = emu.get_ptr_size()
+        vtable = self.mem_alloc(len(methods) * ptr_size, tag="api.msvcrt.locimp_vtable")
+        for i, method in enumerate(methods):
+            emu.write_ptr(vtable + i * ptr_size, emu.add_callback(self.name, method))
+        name = self.mem_alloc(2, tag="api.msvcrt.locimp_name")
+        self.mem_write(name, b"C\x00")
+        locimp = self.mem_alloc(size, tag="api.msvcrt.locimp")
+        self.mem_write(locimp, struct.pack(layout, vtable, 2, 0, 0, LOCALE_ALL, 0, name, 0))
+        self.global_locimp = locimp
+        return locimp
+
+    def add_facet_refs(self, facet, delta):
+        """Add ``delta`` to the reference count of a std::locale::facet and return the new count."""
+        refs_offset = self.get_ptr_size()
+        refs = (int.from_bytes(self.mem_read(facet + refs_offset, 4), "little") + delta) & 0xFFFFFFFF
+        self.mem_write(facet + refs_offset, refs.to_bytes(4, "little"))
+        return refs
+
+    def locale_init(self, emu, do_incref):
+        locimp = self.get_global_locimp(emu)
+        if do_incref & 0xFF:
+            self.add_facet_refs(locimp, 1)
+        return locimp
+
+    @apihook("?_Init@locale@std@@CAPAV_Locimp@12@_N@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def locale_Init_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """static locale::_Locimp *locale::_Init(bool do_incref);"""
+        return self.locale_init(emu, argv[0])
+
+    @apihook("?_Init@locale@std@@CAPEAV_Locimp@12@_N@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def locale_Init_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """static locale::_Locimp *locale::_Init(bool do_incref);"""
+        return self.locale_init(emu, argv[0])
+
+    @apihook("?_Getgloballocale@locale@std@@CAPAV_Locimp@12@XZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def locale_Getgloballocale_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """static locale::_Locimp *locale::_Getgloballocale();"""
+        return self.get_global_locimp(emu)
+
+    @apihook("?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def locale_Getgloballocale_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """static locale::_Locimp *locale::_Getgloballocale();"""
+        return self.get_global_locimp(emu)
+
+    @apihook("?_Incref@facet@locale@std@@UAEXXZ", argc=0)
+    def facet_Incref_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void locale::facet::_Incref();"""
+        self.add_facet_refs(self.iostream_init_this(emu), 1)
+
+    @apihook("?_Incref@facet@locale@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def facet_Incref_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """void locale::facet::_Incref();"""
+        self.add_facet_refs(argv[0], 1)
+
+    @apihook("?_Decref@facet@locale@std@@UAEPAV_Facet_base@3@XZ", argc=0)
+    def facet_Decref_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Facet_base *locale::facet::_Decref();
+
+        Return the facet when its count drops to 0, so that the caller deletes it.
+        Otherwise return NULL.
+        """
+        this = self.iostream_init_this(emu)
+        return this if self.add_facet_refs(this, -1) == 0 else 0
+
+    @apihook("?_Decref@facet@locale@std@@UEAAPEAV_Facet_base@3@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def facet_Decref_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Facet_base *locale::facet::_Decref();
+
+        Return the facet when its count drops to 0, so that the caller deletes it.
+        Otherwise return NULL.
+        """
+        return argv[0] if self.add_facet_refs(argv[0], -1) == 0 else 0
 
     def get_exception_slot(self, name):
         slot = self.exception_slots.get(name)
