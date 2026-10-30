@@ -160,6 +160,24 @@ class PendingState:
         )
 
 
+@dataclass
+class _ApiCallState:
+    """State of the guest when it calls an API, before the API runs."""
+
+    dll: str
+    name: str
+    frame: GuestCallbackFrame
+    run: Run | None
+    pc: int
+    sp: int
+    return_address: int
+    call_pc: int
+
+    @property
+    def api_name(self) -> str:
+        return f"{self.dll}.{self.name}"
+
+
 def execution_scope(func):
     """Share one active-time cap across every start in a public invocation."""
 
@@ -1049,22 +1067,17 @@ class WindowsEmulator(BinaryEmulator):
         total execution time ran out.
         """
         # A missing ABI remains a suspended call under the debugger.
-        if debugger is not None:
-            mod, attrs = self.get_api_handler(entry.dll, entry.name)
-            if (
-                not attrs
-                and not self.get_api_hooks(entry.dll, entry.name)
-                and not self.lookup_api_signature(entry.dll, entry.name)
-                and not self._can_stub_unknown_api(entry.dll, entry.name)
-            ):
-                self.set_pc(entry.address)
-                debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
-                return False
+        if debugger is not None and isinstance(
+            self.resolve_api_implementation(entry.dll, entry.name), api_resolution.UnsupportedImplementation
+        ):
+            self.set_pc(entry.address)
+            debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
+            return False
         self._pending.api_entry = None
         self._pending.api_snapshot = None
         site, self._api_call_site = self._api_call_site, None
         self.prev_pc = site[1] if site is not None and site[0] == entry.address else 0
-        self.handle_import_func(entry.dll, entry.name)
+        self.dispatch_api_call(entry.dll, entry.name)
         if self._pending_fault_stop is not None:
             return False
         if self.is_run_complete and not self.is_emu_complete and self.curr_run is origin_run:
@@ -2804,7 +2817,7 @@ class WindowsEmulator(BinaryEmulator):
         # read as "nothing happened" at zero.
         return 0
 
-    def emulate_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
+    def _handle_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
         """
         Emulate an import that has no handler using only its declared signature:
         consume the right number of argument slots, log the call with decoded
@@ -2855,14 +2868,39 @@ class WindowsEmulator(BinaryEmulator):
         """
         return self.api_ctx.args.get_report_args()
 
-    def handle_import_func(self, dll, name):
+    def resolve_api_implementation(self, dll: str, name: str) -> api_resolution.ApiImplementation:
+        """
+        Find the code to run for dll!name. Look in this order: a handler, user
+        hooks, the signature database, a stub.
+        """
+        mod, func_attrs = self.get_api_handler(dll, name)
+        if func_attrs:
+            handler_name, func, argc, conv, _ = func_attrs
+            if name.startswith("ordinal_"):
+                name = handler_name
+            return api_resolution.HandlerImplementation(mod, name, func, argc, conv)
+        hooks = self.get_api_hooks(dll, name)
+        if hooks:
+            return api_resolution.UserHookImplementation(hooks)
+        sig = self.lookup_api_signature(dll, name)
+        if sig is not None:
+            return api_resolution.SignatureImplementation(sig)
+        if self._can_stub_unknown_api(dll, name):
+            return api_resolution.StubImplementation()
+        return api_resolution.UnsupportedImplementation()
+
+    def dispatch_api_call(self, dll: str, name: str) -> None:
+        """
+        Run the code for the API that the guest called. End the run if the code
+        changed the stack pointer but did not return.
+        """
         frame = GuestCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
         previous = self._active_api_frame
         self._active_api_frame = frame
         origin_run = self.curr_run
         entry_pc = self.get_pc()
         try:
-            self._dispatch_import_func(dll, name, frame)
+            self._call_api_implementation(dll, name, frame)
             if (
                 self.curr_run is origin_run
                 and not self.is_run_complete
@@ -2879,165 +2917,179 @@ class WindowsEmulator(BinaryEmulator):
         finally:
             self._active_api_frame = previous
 
-    def _dispatch_import_func(self, dll, name, frame):
-        """
-        Forward imported functions to the corresponding handler (if any).
-        """
-        imp_api = f"{dll}.{name}"
-        oret = self.get_ret_address()
-        opc = self.get_pc()
-        osp = self.get_stack_ptr()
-        origin_run = self.curr_run
-        call_pc = self.prev_pc if self.prev_pc != 0 else oret
-        mod, func_attrs = self.get_api_handler(dll, name)
-
-        if func_attrs:
-            handler_name, func, argc, conv, ordinal = func_attrs
-            frame.argc = argc
-            frame.convention = conv
-
-            if name.startswith("ordinal_"):
-                name = handler_name
-
-            argv = self.get_func_argv(conv, argc)
-            imp_api = f"{dll}.{name}"
-
-            # Render the arguments before the handler runs, while the memory
-            # they point to still holds what the caller passed.
-            sig = self.get_handler_signature(dll, name, argc)
-            if sig is not None:
-                rendered = self._render_signature_args(sig, argv)
-                args = HandlerArgs.from_signature(sig, self.get_ptr_size(), rendered, argv)
-            else:
-                args = HandlerArgs.from_slots(argv)
-            ctx = ApiContext(func_name=imp_api, args=args)
-
-            self.hammer.handle_import_func(imp_api, conv, argc)
-            hooks = self.get_api_hooks(dll, name)
-            if hooks:
-                hooked_func = MethodType(func, mod)
-                orig = lambda args: hooked_func(self, args, ctx)  # noqa
-                # Hooks execute in FIFO order (first registered, first called).
-                # All hooks run; the last hook's return value is used.
-                prev_ctx, self.api_ctx = self.api_ctx, ctx
-                try:
-                    for hook in hooks:
-                        rv = hook.cb(self, imp_api, orig, argv)
-                finally:
-                    self.api_ctx = prev_ctx
-            else:
-                try:
-                    rv = self.api.call_api_func(mod, func, argv, ctx=ctx)  # type: ignore[union-attr]
-                except Exception as e:
-                    if self._should_stop_on_faults:
-                        # Let the outer GDB fault path expose the failed frame
-                        # before run cleanup and report signal termination.
-                        raise
-                    desc, address, access_type = guest_callbacks.get_handler_fault(self, e, self.get_pc())
-                    if access_type and self._can_raise_api_fault():
-                        self.log_api(call_pc, imp_api, None, ctx.args.get_report_args(), run=origin_run)
-                        if self._raise_api_fault(frame, access_type, address):
-                            return
-                    logger.exception("0x%x: Error while calling API handler for %s:", oret, imp_api)
-                    error = self.get_error_info(
-                        desc, address, traceback=traceback.format_exc(), access_type=access_type
-                    )
-                    self.curr_run.error = error  # type: ignore[union-attr]
-                    self.on_run_complete()
+    def _call_api_implementation(self, dll: str, name: str, frame: GuestCallbackFrame) -> None:
+        """Find the code for the API and run it. Then check the API count limit."""
+        ret = self.get_ret_address()
+        call = _ApiCallState(
+            dll=dll,
+            name=name,
+            frame=frame,
+            run=self.curr_run,
+            pc=self.get_pc(),
+            sp=self.get_stack_ptr(),
+            return_address=ret,
+            call_pc=self.prev_pc if self.prev_pc != 0 else ret,
+        )
+        impl = self.resolve_api_implementation(dll, name)
+        api_name = call.api_name
+        match impl:
+            case api_resolution.HandlerImplementation():
+                api_name = f"{dll}.{impl.name}"
+                if not self._handle_api_with_handler(call, impl):
                     return
+            case api_resolution.UserHookImplementation():
+                self._handle_api_hook(call, impl.hooks)
+            case api_resolution.SignatureImplementation():
+                self._handle_api_from_signature(dll, name, impl.sig, call.call_pc)
+            case api_resolution.StubImplementation():
+                self._handle_api_stub(call)
+            case api_resolution.UnsupportedImplementation():
+                self._handle_unsupported_api(call)
+        self._check_api_limit(call.run, api_name)
 
-            if isinstance(rv, Generator):
-                rv = guest_callbacks.start_api_handler(self, frame, rv)
-            elif isinstance(rv, guest_callbacks.Resume):
-                guest_callbacks.transfer(self, rv.context)
-                rv = None
+    def _handle_api_with_handler(self, call: _ApiCallState, impl: api_resolution.HandlerImplementation) -> bool:
+        """
+        Run the handler of the API, or the user hooks for the API. Return False if
+        the handler failed, and the run ended or a guest exception started.
+        """
+        dll, name = call.dll, impl.name
+        imp_api = f"{dll}.{name}"
+        frame = call.frame
+        frame.argc = impl.argc
+        frame.convention = impl.conv
+        argv = self.get_func_argv(impl.conv, impl.argc)
 
-            ret = self.get_ret_address()
-            pc = self.get_pc()
-            frame.result = rv
-            mm = self.get_address_map(ret)
-
-            # Is this function being called from a dynamcially allocated memory segment?
-            if mm and mm.tag and "virtualalloc" in mm.tag.lower():
-                self._fire_dyn_code_hooks(ret)
-
-            # Log the API args and return value
-            self.log_api(call_pc, imp_api, rv, ctx.args.get_report_args(), run=origin_run)
-
-            if (
-                self.curr_run is origin_run
-                and not self.is_run_complete
-                and ret == oret
-                and pc == opc
-                and self.get_stack_ptr() == osp
-            ):
-                self.do_call_return(argc, ret, rv, conv=conv)
-
-            # Deferred lifecycle/SEH work is processed before guest execution resumes.
-            if not self.is_run_complete:
-                self.enable_deferred_work_hook()
-
+        # Render the arguments before the handler runs, while the memory
+        # they point to still holds what the caller passed.
+        sig = self.get_handler_signature(dll, name, impl.argc)
+        if sig is not None:
+            rendered = self._render_signature_args(sig, argv)
+            args = HandlerArgs.from_signature(sig, self.get_ptr_size(), rendered, argv)
         else:
-            # Unsupported API: no speakeasy handler exists, so argc/call_conv
-            # must come from the hook itself. Only the last registered hook
-            # (FIFO-consistent: last = highest priority return value) is called
-            # because hooks may disagree on argc/call_conv.
-            hooks = self.get_api_hooks(dll, name)
-            if hooks:
-                if len(hooks) > 1:
-                    logger.warning(
-                        "%d hooks registered for unsupported API %s.%s; only the last registered hook will be called",
-                        len(hooks),
-                        dll,
-                        name,
-                    )
-                hook = hooks[-1]
-                imp_api = f"{dll}.{name}"
+            args = HandlerArgs.from_slots(argv)
+        ctx = ApiContext(func_name=imp_api, args=args)
 
-                if hook.call_conv is None:
-                    hook.call_conv = _arch.CALL_CONV_STDCALL
-
-                argv = self.get_func_argv(hook.call_conv, hook.argc)
-                frame.argc = hook.argc
-                frame.convention = hook.call_conv
-                self.hammer.handle_import_func(imp_api, hook.call_conv, hook.argc)
-                rv = hook.cb(self, imp_api, None, argv)
-                frame.result = rv
-                ret = self.get_ret_address()
-                self.log_api(call_pc, imp_api, rv, sigfmt.get_slot_args(argv), run=origin_run)
-                if self.curr_run is origin_run and self.get_pc() == opc and ret == oret and self.get_stack_ptr() == osp:
-                    self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
-                if not self.is_run_complete:
-                    self.enable_deferred_work_hook()
-                self._check_api_limit(origin_run, imp_api)
-                return
-
-            # No handler and no user hook: fall back to the declared signature
-            # so the call is at least traced and cleaned up correctly.
-            sig = self.lookup_api_signature(dll, name)
-            if sig is not None:
-                self.emulate_api_from_signature(dll, name, sig, call_pc)
-            elif self._can_stub_unknown_api(dll, name):
-                # Guess a four-argument stdcall function that succeeds so that
-                # execution can continue.
-                logger.warning("Stubbed unknown API %s with return 1", imp_api)
-                conv = _arch.CALL_CONV_STDCALL
-                argc = 4
-                argv = self.get_func_argv(conv, argc)
-                frame.argc = argc
-                frame.convention = conv
-                frame.result = 1
-                self.log_api(call_pc, imp_api, 1, sigfmt.get_slot_args(argv), run=origin_run)
-                self.do_call_return(argc, oret, 1, conv=conv)
-            else:
-                error = self.get_error_info("unsupported_api", oret, api_name=imp_api)
-                logger.error("Unsupported API: %s (ret: 0x%x)", imp_api, oret)
-                self.log_api(call_pc, imp_api, None, [], run=origin_run)
-                error.api_name = imp_api
+        self.hammer.handle_import_func(imp_api, impl.conv, impl.argc)
+        hooks = self.get_api_hooks(dll, name)
+        if hooks:
+            hooked_func = MethodType(impl.func, impl.module)
+            orig = lambda args: hooked_func(self, args, ctx)  # noqa
+            # Hooks execute in FIFO order (first registered, first called).
+            # All hooks run; the last hook's return value is used.
+            prev_ctx, self.api_ctx = self.api_ctx, ctx
+            try:
+                for hook in hooks:
+                    rv = hook.cb(self, imp_api, orig, argv)
+            finally:
+                self.api_ctx = prev_ctx
+        else:
+            try:
+                rv = self.api.call_api_func(impl.module, impl.func, argv, ctx=ctx)  # type: ignore[union-attr]
+            except Exception as e:
+                if self._should_stop_on_faults:
+                    # Let the outer GDB fault path expose the failed frame
+                    # before run cleanup and report signal termination.
+                    raise
+                desc, address, access_type = guest_callbacks.get_handler_fault(self, e, self.get_pc())
+                if access_type and self._can_raise_api_fault():
+                    self.log_api(call.call_pc, imp_api, None, ctx.args.get_report_args(), run=call.run)
+                    if self._raise_api_fault(frame, access_type, address):
+                        return False
+                logger.exception("0x%x: Error while calling API handler for %s:", call.return_address, imp_api)
+                error = self.get_error_info(desc, address, traceback=traceback.format_exc(), access_type=access_type)
                 self.curr_run.error = error  # type: ignore[union-attr]
                 self.on_run_complete()
+                return False
 
-        self._check_api_limit(origin_run, imp_api)
+        if isinstance(rv, Generator):
+            rv = guest_callbacks.start_api_handler(self, frame, rv)
+        elif isinstance(rv, guest_callbacks.Resume):
+            guest_callbacks.transfer(self, rv.context)
+            rv = None
+
+        ret = self.get_ret_address()
+        pc = self.get_pc()
+        frame.result = rv
+        mm = self.get_address_map(ret)
+
+        # Is this function being called from a dynamcially allocated memory segment?
+        if mm and mm.tag and "virtualalloc" in mm.tag.lower():
+            self._fire_dyn_code_hooks(ret)
+
+        self.log_api(call.call_pc, imp_api, rv, ctx.args.get_report_args(), run=call.run)
+
+        if (
+            self.curr_run is call.run
+            and not self.is_run_complete
+            and ret == call.return_address
+            and pc == call.pc
+            and self.get_stack_ptr() == call.sp
+        ):
+            self.do_call_return(impl.argc, ret, rv, conv=impl.conv)
+
+        # Deferred lifecycle/SEH work is processed before guest execution resumes.
+        if not self.is_run_complete:
+            self.enable_deferred_work_hook()
+        return True
+
+    def _handle_api_hook(self, call: _ApiCallState, hooks: list[common.ApiHook]) -> None:
+        """
+        Run the user hook of an API that has no handler. The hook gives the
+        argument count and the calling convention. Only the last hook that was
+        added runs, because the hooks can give different values.
+        """
+        if len(hooks) > 1:
+            logger.warning(
+                "%d hooks registered for unsupported API %s; only the last registered hook will be called",
+                len(hooks),
+                call.api_name,
+            )
+        hook = hooks[-1]
+        if hook.call_conv is None:
+            hook.call_conv = _arch.CALL_CONV_STDCALL
+
+        argv = self.get_func_argv(hook.call_conv, hook.argc)
+        call.frame.argc = hook.argc
+        call.frame.convention = hook.call_conv
+        self.hammer.handle_import_func(call.api_name, hook.call_conv, hook.argc)
+        rv = hook.cb(self, call.api_name, None, argv)
+        call.frame.result = rv
+        ret = self.get_ret_address()
+        self.log_api(call.call_pc, call.api_name, rv, sigfmt.get_slot_args(argv), run=call.run)
+        if (
+            self.curr_run is call.run
+            and self.get_pc() == call.pc
+            and ret == call.return_address
+            and self.get_stack_ptr() == call.sp
+        ):
+            self.do_call_return(hook.argc, ret, rv, conv=hook.call_conv)
+        if not self.is_run_complete:
+            self.enable_deferred_work_hook()
+
+    def _handle_api_stub(self, call: _ApiCallState) -> None:
+        """
+        Return 1 from an unknown API so that execution can continue. The argument
+        count and the calling convention are not known, so guess stdcall with four
+        arguments.
+        """
+        logger.warning("Stubbed unknown API %s with return 1", call.api_name)
+        conv = _arch.CALL_CONV_STDCALL
+        argc = 4
+        argv = self.get_func_argv(conv, argc)
+        call.frame.argc = argc
+        call.frame.convention = conv
+        call.frame.result = 1
+        self.log_api(call.call_pc, call.api_name, 1, sigfmt.get_slot_args(argv), run=call.run)
+        self.do_call_return(argc, call.return_address, 1, conv=conv)
+
+    def _handle_unsupported_api(self, call: _ApiCallState) -> None:
+        """End the run with an unsupported_api error."""
+        error = self.get_error_info("unsupported_api", call.return_address, api_name=call.api_name)
+        logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
+        self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
+        error.api_name = call.api_name
+        self.curr_run.error = error  # type: ignore[union-attr]
+        self.on_run_complete()
 
     def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()

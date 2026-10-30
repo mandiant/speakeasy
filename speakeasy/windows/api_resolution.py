@@ -1,10 +1,78 @@
 """
-Find the related names of an API whose handler can run for it.
+The results of the search for the code to run for an API call: a handler, a user
+hook, a function from the signature database, a stub, or nothing. Also the related
+names of an API whose handler can run for it.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
+from typing import Any
 
+import speakeasy.common as common
 from speakeasy.windows.common import normalize_dll_name
+from speakeasy.winenv.api import sigdb
+from speakeasy.winenv.api.api import ApiHandler
+
+
+@dataclass(frozen=True)
+class HandlerImplementation:
+    """
+    The API has a handler. For an import by ordinal, name is the handler name.
+    Otherwise it is the name that the guest called.
+    """
+
+    module: ApiHandler
+    name: str
+    func: Callable[..., Any]
+    argc: int
+    conv: int
+
+
+@dataclass(frozen=True)
+class UserHookImplementation:
+    """
+    Speakeasy has no handler for the API, but the user added hooks for it with
+    add_api_hook. The module and API names of a hook can have wildcards, so one
+    hook can match many APIs. The hook takes the place of the handler: it gives
+    the argument count and the calling convention, and its return value goes to
+    the guest. Only the last hook that was added runs, because there is no
+    handler for the hooks to call, and the hooks can give different argument
+    counts.
+
+    If the API has a handler, the result is HandlerImplementation, and each
+    hook for the API can call the handler.
+    """
+
+    hooks: list[common.ApiHook]
+
+
+@dataclass(frozen=True)
+class SignatureImplementation:
+    """
+    The API has no handler, but it is in the signature database. The declaration
+    gives the arguments to log and the stack to clean up.
+    """
+
+    sig: sigdb.FuncSig
+
+
+@dataclass(frozen=True)
+class StubImplementation:
+    """The API is not known, and functions_always_exist is set."""
+
+
+@dataclass(frozen=True)
+class UnsupportedImplementation:
+    """The API is not known."""
+
+
+ApiImplementation = (
+    HandlerImplementation
+    | UserHookImplementation
+    | SignatureImplementation
+    | StubImplementation
+    | UnsupportedImplementation
+)
 
 
 def _get_nt_zw_alias(name: str) -> str:
