@@ -18,7 +18,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.errors import ApiEmuError, FileSystemEmuError, OutOfMemoryError
+from speakeasy.errors import ApiEmuError, FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_READ,
@@ -31,6 +31,7 @@ from speakeasy.profiler_events import (
     THREAD_CREATE,
     THREAD_INJECT,
 )
+from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api
@@ -2563,6 +2564,80 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not rv:
             emu.set_last_error(windefs.ERROR_PROC_NOT_FOUND)
         return rv
+
+    @apihook("ResolveDelayLoadedAPI", argc=6)
+    def ResolveDelayLoadedAPI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PVOID ResolveDelayLoadedAPI(
+          PVOID                             ParentModuleBase,
+          PCIMAGE_DELAYLOAD_DESCRIPTOR      DelayloadDescriptor,
+          PDELAYLOAD_FAILURE_DLL_CALLBACK   FailureDllHook,
+          PDELAYLOAD_FAILURE_SYSTEM_ROUTINE FailureSystemHook,
+          PIMAGE_THUNK_DATA                 ThunkAddress,
+          ULONG                             Flags
+        );
+        """
+        base, descriptor, _, _, thunk_address, _ = argv
+        ptr_size = emu.get_ptr_size()
+
+        attributes, name_rva, hmod_rva, iat_rva, int_rva = struct.unpack("<5I", self.mem_read(descriptor, 20))
+        if not attributes & 1:
+            base = 0
+        dll = self.read_mem_string(base + name_rva, 1)
+        index = (thunk_address - (base + iat_rva)) // ptr_size
+        thunk = int.from_bytes(self.mem_read(base + int_rva + index * ptr_size, ptr_size), "little")
+        if thunk >> (ptr_size * 8 - 1):
+            proc = f"ordinal_{thunk & 0xFFFF}"
+        else:
+            proc = self.read_mem_string(base + thunk + 2, 1)
+        ctx.args[1].display = f"{dll}!{proc}"
+
+        try:
+            address = emu.get_proc(dll, proc)
+        except WindowsEmuError:
+            address = 0
+        if not address:
+            emu.set_last_error(windefs.ERROR_PROC_NOT_FOUND)
+            return 0
+
+        self.mem_write(thunk_address, address.to_bytes(ptr_size, "little"))
+        module = emu.get_mod_by_name(winemu.normalize_dll_name(module_name(dll))) or emu.get_mod_from_addr(address)
+        if hmod_rva and module:
+            self.mem_write(base + hmod_rva, module.base.to_bytes(ptr_size, "little"))
+        return address
+
+    @apihook("DelayLoadFailureHook", argc=2)
+    def DelayLoadFailureHook(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        FARPROC DelayLoadFailureHook(
+          LPCSTR pszDllName,
+          LPCSTR pszProcName
+        );
+        """
+        pszDllName, pszProcName = argv
+        ctx.args[0].display = self.read_mem_string(pszDllName, 1)
+        if pszProcName >> 16:
+            ctx.args[1].display = self.read_mem_string(pszProcName, 1)
+        else:
+            ctx.args[1].display = hex(pszProcName)
+        emu.set_last_error(windefs.ERROR_PROC_NOT_FOUND)
+        return 0
+
+    @apihook("ApiSetQueryApiSetPresence", argc=2)
+    def ApiSetQueryApiSetPresence(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ApiSetQueryApiSetPresence(
+          PCUNICODE_STRING Namespace,
+          PBOOLEAN         Present
+        );
+        """
+        Namespace, Present = argv
+        name = self.read_unicode_string(Namespace)
+        ctx.args["Namespace"].display = name
+        host = module_name(name)
+        present = host.startswith(("api-", "ext-")) and winemu.normalize_dll_name(host) != host
+        self.mem_write(Present, bytes([present]))
+        return ddk.STATUS_SUCCESS
 
     @apihook("AllocConsole", argc=0)
     def AllocConsole(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
