@@ -12,7 +12,6 @@ from abc import abstractmethod
 from collections import deque
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
-from enum import IntEnum
 from functools import wraps
 from types import MethodType
 from typing import Any, cast
@@ -214,13 +213,6 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
     return runs
 
 
-class BootstrapPhase(IntEnum):
-    INITIALIZED = 0
-    ENGINE_API_READY = 1
-    OBJECT_MANAGER_READY = 2
-    FULL_SETUP_READY = 3
-
-
 @dataclass
 class RunLimits:
     """The time and instruction limits of one call of the run loop, and the instructions it counts."""
@@ -321,8 +313,8 @@ class WindowsEmulator(BinaryEmulator):
         self.arch: int = 0
         self.modules: list[Any] = []
         self.module_change_listeners: list[Callable[[], None]] = []
-        self._setup_done: bool = False
-        self.bootstrap_phase: BootstrapPhase = BootstrapPhase.INITIALIZED
+        self.is_machine_ready: bool = False
+        self.machine_module_count: int = 0
         self.curr_run: Run | None = None
         self.api_ctx: ApiContext = NO_CONTEXT
         self._should_stop_on_faults: bool = False
@@ -411,33 +403,52 @@ class WindowsEmulator(BinaryEmulator):
         self.cd = self.config.current_dir
         self.command_line = self.config.command_line
 
-    def advance_bootstrap_phase(self, phase):
-        if phase <= self.bootstrap_phase:
-            return
+    def init_machine(self, arch, container=False):
+        """
+        Create the CPU, the disassembler and the API layer for arch. Then create the
+        Windows structures and the modules of the machine. Load images after this.
 
-        # Keep bootstrap ordering explicit so object-dependent APIs fail fast
-        # if loader/setup sequencing regresses.
-        transitions = {
-            BootstrapPhase.INITIALIZED: {BootstrapPhase.ENGINE_API_READY},
-            BootstrapPhase.ENGINE_API_READY: {BootstrapPhase.OBJECT_MANAGER_READY, BootstrapPhase.FULL_SETUP_READY},
-            BootstrapPhase.OBJECT_MANAGER_READY: {BootstrapPhase.FULL_SETUP_READY},
-            BootstrapPhase.FULL_SETUP_READY: set(),
-        }
+        Args:
+            container: if True, load the main process image of the config. This image
+                holds an input that is not an EXE, such as a DLL or shellcode.
+                Kernel mode ignores this.
 
-        allowed = transitions[self.bootstrap_phase]
-        if phase not in allowed:
-            raise WindowsEmuError(f"invalid bootstrap transition {self.bootstrap_phase.name} -> {phase.name}")
+        Raises:
+            WindowsEmuError: the machine is already initialized, or arch is not x86 or amd64.
+        """
+        if self.arch:
+            raise WindowsEmuError("the machine is already initialized")
+        if arch not in (_arch.ARCH_X86, _arch.ARCH_AMD64):
+            raise WindowsEmuError(f"unsupported architecture: {arch}")
+        self.arch = arch
+        self.set_ptr_size(arch)
+        self.env.setdefault("processor_architecture", "AMD64" if arch == _arch.ARCH_AMD64 else "x86")
+        if arch == _arch.ARCH_AMD64:
+            program_files = self.env.get("programfiles", "C:\\Program Files")
+            self.env.setdefault("programfiles(x86)", f"{program_files} (x86)")
+            self.env.setdefault("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files")
+            self.env.setdefault("programw6432", program_files)
+        self.regman.add_default_values(
+            WINDOWS_CURRENT_VERSION_KEY, get_program_files_values(self.env, arch == _arch.ARCH_AMD64)
+        )
+        if self.emu_eng and not self.emu_eng.emu:
+            self.emu_eng.init_engine(_arch.ARCH_X86, arch)
+        self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_64 if arch == _arch.ARCH_AMD64 else cs.CS_MODE_32)
+        self.api = WindowsApi(self)
 
-        self.bootstrap_phase = phase
+        with self.allocations_from(winemu.MACHINE_BASE):
+            self.init_machine_structures(container)
+            self.is_machine_ready = True
+            self.machine_module_count = len(self.modules)
+            for entry in tuple(self.api_registry.entries.values()):
+                if entry.export.kind == "data":
+                    self._initialize_api_data(entry)
 
-    def validate_bootstrap_phase(self, phase, reason):
-        if self.bootstrap_phase < phase:
-            raise WindowsEmuError(
-                f"{reason} requires bootstrap phase {phase.name}, current phase is {self.bootstrap_phase.name}"
-            )
-
-    def bootstrap_object_services(self):
-        return None
+    @abstractmethod
+    def init_machine_structures(self, container: bool) -> None:
+        """
+        Create the object manager, segments, shared data and modules of the machine
+        """
 
     def validate_object_services(self, reason):
         if self.om is None:
@@ -1714,53 +1725,13 @@ class WindowsEmulator(BinaryEmulator):
         return self.module_loader.load_image(image)
 
     def _load_image(self, image):
-        valid_arch = image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64)
-        if self.arch and valid_arch and self.arch != image.arch:
-            raise WindowsEmuError("module architecture does not match the emulated process")
         if not self.arch:
-            if valid_arch:
-                self.arch = image.arch
-            else:
-                self.arch = _arch.ARCH_X86
-            self.set_ptr_size(self.arch)
-            self.env.setdefault("processor_architecture", "AMD64" if self.arch == _arch.ARCH_AMD64 else "x86")
-            if self.arch == _arch.ARCH_AMD64:
-                program_files = self.env.get("programfiles", "C:\\Program Files")
-                self.env.setdefault("programfiles(x86)", f"{program_files} (x86)")
-                self.env.setdefault("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files")
-                self.env.setdefault("programw6432", program_files)
-            self.regman.add_default_values(
-                WINDOWS_CURRENT_VERSION_KEY, get_program_files_values(self.env, self.arch == _arch.ARCH_AMD64)
-            )
-
-        if self.emu_eng and not self.emu_eng.emu:
-            engine_arch = image.arch if valid_arch else _arch.ARCH_X86
-            self.emu_eng.init_engine(_arch.ARCH_X86, engine_arch)
-
-        if not self.ptr_size:
-            self.ptr_size = 4
-
-        if not self.disasm_eng:
-            if self.arch == _arch.ARCH_AMD64:
-                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_64)
-            else:
-                self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
-
-        if not self.api:
-            self.api = WindowsApi(self)
-
-        self.advance_bootstrap_phase(BootstrapPhase.ENGINE_API_READY)
+            raise WindowsEmuError("the machine is not initialized: call init_machine before loading images")
+        if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) and self.arch != image.arch:
+            raise WindowsEmuError("module architecture does not match the emulated process")
         if image.source == "synthetic" and not image.image_base:
             raise WindowsEmuError("synthetic image addresses must be finalized before mapping")
         requested_base = image.image_base
-        # Keep the bootstrap structures out of the span that the image asks for
-        if requested_base:
-            self.mem_reserve(image.image_size, base=requested_base)
-        try:
-            self.bootstrap_object_services()
-        finally:
-            if requested_base:
-                self.mem_unreserve(requested_base)
 
         for region in image.regions:
             offset = region.base - requested_base
@@ -1779,15 +1750,15 @@ class WindowsEmulator(BinaryEmulator):
             self.mem_write(base + region.base - requested_base, region.data)
 
         mod = RuntimeModule(image)
-        self.modules.append(mod)
+        if self.is_machine_ready and len(self.modules) == self.machine_module_count:
+            # The first image after the machine modules is the input image. Put it first in the list.
+            self.modules.insert(0, mod)
+        else:
+            self.modules.append(mod)
         self.api_registry.register_module(mod)
-        is_guest = image.source == "guest_pe"
-        if is_guest and not self.stack_base and image.stack_size:
+        # The modules of the machine do not allocate the stack
+        if self.is_machine_ready and image.source == "guest_pe" and not self.stack_base and image.stack_size:
             self.stack_base, _stack_addr = self.alloc_stack(self.config.stack_size or image.stack_size)
-        if not self._setup_done:
-            self._setup_done = True
-            self.setup()
-            self.advance_bootstrap_phase(BootstrapPhase.FULL_SETUP_READY)
 
         ptr_size = self.get_ptr_size()
         for imp in image.imports:
@@ -1831,7 +1802,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.mem_protect(start, length, perms)
 
         if (
-            (is_guest or image.source == "guest_shellcode")
+            image.source in ("guest_pe", "guest_shellcode")
             and self.profiler
             and self.config.analysis.strings
             and image.regions
@@ -1843,9 +1814,6 @@ class WindowsEmulator(BinaryEmulator):
             self.module_loader.shared_peb_modules.add(mod.base)
         self._add_module_to_current_peb(mod)
         return mod
-
-    def setup(self):
-        pass
 
     def get_system_root(self):
         """
@@ -2048,7 +2016,7 @@ class WindowsEmulator(BinaryEmulator):
         return entry.address
 
     def _initialize_api_data(self, entry):
-        if self.bootstrap_phase < BootstrapPhase.FULL_SETUP_READY:
+        if not self.is_machine_ready:
             return
         if entry.dll == "ntoskrnl" and not self.is_kernel_mode:
             return
