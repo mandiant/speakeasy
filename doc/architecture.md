@@ -1,0 +1,66 @@
+# Architecture of the Windows emulator
+
+This page tells you where the main parts of the Windows emulator are, and how a call to a Windows API gets to a Python handler.
+
+## Classes
+
+`BinaryEmulator` (`speakeasy/binemu.py`) wraps Unicorn and capstone. It has the memory manager and the hook lists. It does not know about Windows.
+
+`WindowsEmulator` (`speakeasy/windows/winemu.py`) adds processes, threads, modules, runs, API calls and SEH. It also gives access to the object, file, registry and network managers.
+
+`Win32Emulator` (`speakeasy/windows/win32.py`) runs user mode executables, DLLs and shellcode. `WinKernelEmulator` (`speakeasy/windows/kernel.py`) runs drivers. The `Speakeasy` class (`speakeasy/speakeasy.py`) is the public interface. It creates the emulator for the input.
+
+API handlers are in `speakeasy/winenv/api/`, one class for each DLL. Each handler has an `@apihook` decorator with the export name, the number of arguments and the calling convention. See [Adding API handlers](api-handlers.md).
+
+## Runs
+
+A `Run` is one call into guest code: the entry point, a DLL export, a thread, a TLS callback or a DllMain. The emulator keeps a queue of runs. `start()` adds the DllMain and TLS callbacks of the imported DLLs to the front of the queue, and `_execute_runs` runs the queue in order. `_prepare_next_run` sets up the stack and registers for the next run.
+
+`_execute_current_run` runs one run. Unicorn runs guest code until a hook stops it. A hook does not call API handlers while Unicorn is running. It saves what it found in `PendingState` and stops Unicorn. Then `_execute_current_run` reads `PendingState`, does the work, and starts Unicorn again. `PendingState` can hold:
+
+- `api_entry`: the guest called an API.
+- `control`: the run returned, a guest callback returned, or a fault ended the run.
+- `cpu_exception`: a CPU exception for guest SEH.
+- `trap_fault`: a read, write or fetch in the reserved range that is not an API call.
+
+`RunLimits` has the time and instruction limits of a run.
+
+## API calls
+
+Each export of an emulated DLL has 32 bytes of code in the DLL image. The code jumps to a token in a reserved range that is never mapped. When the guest calls the API, Unicorn fails to fetch the token, and `_intercept_api_trap` finds the API for the token. The export table, the IAT and `GetProcAddress` give the address of the export code. The guest can read, patch and hook this code. See [Unified Windows API addresses](unified-api-addresses.md).
+
+`handle_import_func(dll, name)` looks for the code to run, in this order:
+
+1. The handler for the name. User hooks for the API run first, and they can call the handler.
+2. The handler for a related name, from `normalize_import_miss`. For example, the name without the `A` or `W` suffix, or the `Zw` name for an `Nt` name.
+3. A user hook without a handler.
+4. A function from the signature database. It logs the arguments and returns a success value.
+5. With `functions_always_exist`, a stub that returns 1.
+
+If none of these is found, the run ends with an `unsupported_api` error.
+
+A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls.
+
+## Loader
+
+`load_image` loads a PE file, such as an .exe or a .dll. If a dependency fails to load, it removes everything that it added. The first call of `_load_image` also creates the Unicorn engine, and `setup()` loads the system modules. For each image, `_load_image` maps it, binds its imports and adds it to the PEB.
+
+`ensure_pe_import_hooks` binds the imports of a PE that the guest maps itself, for example by process hollowing. `speakeasy/windows/mapped_imports.py` reads the import table from guest memory.
+
+DllMain and TLS callbacks run in two ways. For the DLLs that the input imports, `start()` adds them to the run queue. If one fails, the process continues. For `LoadLibrary`, `load_library` calls them as guest callbacks. If one fails, `LoadLibrary` returns NULL with error 1114 (`ERROR_DLL_INIT_FAILED`) and unloads the DLL.
+
+## Hooks and faults
+
+`WindowsEmulator` adds these Unicorn hooks:
+
+- `_hook_mem_unmapped` for unmapped and protected memory. This hook also finds API calls and returns to the reserved range.
+- Hooks for interrupts, invalid instructions, `in` and `out`.
+- `_hook_code_tracing`, `_hook_mem_read` and `_hook_mem_write` when `analysis.memory_tracing` is set. They count reads, writes and executes for each symbol, section and memory map.
+- `_hook_code_coverage` when `analysis.coverage` is set.
+- `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run, and then disables itself.
+
+If a hook gets an exception, it calls `_end_run_on_hook_error`. This saves the error on the run and stops emulation.
+
+For an unmapped read, write or fetch, the hook calls `dispatch_seh` at once and maps a temporary page, so that Unicorn can complete the access. The deferred work hook unmaps the page. Other faults use `raise_cpu_exception`, and `_execute_current_run` sends them to the guest after Unicorn stops. See [Exception dispatch](exceptions.md).
+
+`speakeasy/windows/thread_context.py` has the tables that `get_thread_context` and `load_thread_context` use to copy registers to and from a `CONTEXT`. Unicorn does not have debug registers, so the emulator keeps them on the thread.
