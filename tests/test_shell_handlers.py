@@ -772,11 +772,11 @@ def test_nt_terminate_process_ends_the_current_process(dll_emu: Speakeasy) -> No
     assert dll_emu.emu is not None
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0, 0])
     assert rv == ddk.STATUS_SUCCESS
-    assert not dll_emu.emu.run_complete
+    assert not dll_emu.emu.is_run_complete
 
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0xFFFFFFFF, 0])
     assert rv == ddk.STATUS_SUCCESS
-    assert dll_emu.emu.run_complete
+    assert dll_emu.emu.is_run_complete
 
 
 def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_emu: Speakeasy) -> None:
@@ -790,7 +790,7 @@ def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_
 
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [hproc, 0])
     assert rv == ddk.STATUS_SUCCESS
-    assert not dll_emu.emu.run_complete
+    assert not dll_emu.emu.is_run_complete
 
     rv, _ = call(dll_emu, "ntdll", "NtTerminateProcess", [0x1234, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE

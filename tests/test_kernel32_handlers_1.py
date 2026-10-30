@@ -1142,12 +1142,12 @@ def test_terminate_process_on_the_current_process_ends_the_run(dll_emu: Speakeas
         pid = call(dll_emu, "kernel32", "GetCurrentProcessId", [])[0]
         handle = call(dll_emu, "kernel32", "OpenProcess", [0x1F0FFF, 0, pid])[0]
         assert handle
-    emu.run_complete = False
+    emu.is_run_complete = False
 
     rv, _ = call(dll_emu, "kernel32", "TerminateProcess", [handle, 3])
 
     assert rv
-    assert emu.run_complete
+    assert emu.is_run_complete
 
 
 @pytest.mark.parametrize("cw", ["A", "W"])

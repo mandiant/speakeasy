@@ -419,7 +419,7 @@ class Speakeasy:
             None
         """
         output_active_config(self.config, logger)
-        self.emu.run_complete = False  # type: ignore[union-attr]
+        self.emu.is_run_complete = False  # type: ignore[union-attr]
         self.emu.resume(addr, count=count)  # type: ignore[union-attr]
 
     def stop(self) -> None:

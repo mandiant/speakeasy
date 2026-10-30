@@ -694,7 +694,7 @@ class Win32Emulator(WindowsEmulator):
         Signal that the run has finished.
         """
         self.enable_deferred_work_hook()
-        self.run_complete = True
+        self.is_run_complete = True
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
         _access = self.emu_eng.mem_access.get(access)  # type: ignore[union-attr]
@@ -713,7 +713,7 @@ class Win32Emulator(WindowsEmulator):
 
         super().set_hooks()
 
-        if not self.builtin_hooks_set:
+        if not self.has_builtin_hooks:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
             self.add_interrupt_hook(cb=self._hook_interrupt)
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
@@ -721,14 +721,14 @@ class Win32Emulator(WindowsEmulator):
                 # User mode cannot execute these; Windows raises an exception instead
                 self.emu_eng.hook_add(htype=common.HOOK_INSN, cb=self._hook_in_instruction, arg1=UC_X86_INS_IN)
                 self.emu_eng.hook_add(htype=common.HOOK_INSN, cb=self._hook_out_instruction, arg1=UC_X86_INS_OUT)
-            self.builtin_hooks_set = True
+            self.has_builtin_hooks = True
 
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()
         self.set_debug_hooks()
 
     def stop(self):
-        self.run_complete = True
+        self.is_run_complete = True
         # self._map_reserved_range()
         # self.unset_hooks()
         super().stop()
@@ -737,8 +737,8 @@ class Win32Emulator(WindowsEmulator):
         """
         Called when all runs have completed emulation
         """
-        if not self.emu_complete:
-            self.emu_complete = True
+        if not self.is_emu_complete:
+            self.is_emu_complete = True
             if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
                 dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]]
@@ -752,7 +752,7 @@ class Win32Emulator(WindowsEmulator):
         Clean up after a run completes. This function will pop the
         next run from the run queue and emulate it.
         """
-        self.run_complete = True
+        self.is_run_complete = True
         self.curr_run.ret_val = self.get_return_val()  # type: ignore[union-attr]
         thread = self.curr_run.thread  # type: ignore[union-attr]
         if thread and thread.exit_code is None:

@@ -100,7 +100,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.stack_base: int = 0
         self.page_size: int | None = None
         self.disasm_eng: Any = None
-        self.builtin_hooks_set: bool = False
+        self.has_builtin_hooks: bool = False
         self.emu_eng: unicorn_eng.EmuEngine | None = None
         self.maps: list[Any] = []
         self.config = config

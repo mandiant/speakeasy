@@ -36,7 +36,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.drivers: list[objman.Driver] = []
         self.pool_allocs: list[tuple[int, int, int, str]] = []
         self.all_entrypoints: bool = False
-        self.kernel_mode: bool = True
+        self.is_kernel_mode: bool = True
         self.irql: int = ddk.PASSIVE_LEVEL
         self.delayed_runs: list[Run] = []
         self.system_time: int = self.start_time
@@ -507,8 +507,8 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         return self._prepare_next_run()
 
     def on_emu_complete(self):
-        if not self.emu_complete:
-            self.emu_complete = True
+        if not self.is_emu_complete:
+            self.is_emu_complete = True
 
             if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
@@ -523,11 +523,11 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
         super().set_hooks()
 
-        if not self.builtin_hooks_set:
+        if not self.has_builtin_hooks:
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
             self.add_interrupt_hook(cb=self._hook_interrupt)
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
-            self.builtin_hooks_set = True
+            self.has_builtin_hooks = True
 
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()

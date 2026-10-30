@@ -360,7 +360,7 @@ def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_pat
             module = se.load_module(data=malformed)
         assert module.base == pe.OPTIONAL_HEADER.ImageBase
         if mode == "kernel":
-            assert se.emu.kernel_mode
+            assert se.emu.is_kernel_mode
     finally:
         se.shutdown()
 
