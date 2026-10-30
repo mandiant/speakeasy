@@ -975,6 +975,17 @@ def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) 
     assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
 
 
+def test_set_std_handle_changes_what_get_std_handle_returns(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    path = alloc(dll_emu, b"C:\\Windows\\Temp\\out.txt\0")
+    handle = call(dll_emu, "kernel32", "CreateFileA", [path, 0x40000000, 0, 0, 2, 0x80, 0])[0]
+    assert call(dll_emu, "kernel32", "SetStdHandle", [0xFFFFFFF5, handle])[0] == 1
+    assert call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF5])[0] == handle
+
+    assert call(dll_emu, "kernel32", "SetStdHandle", [7, handle])[0] == 0
+    assert call(dll_emu, "kernel32", "GetLastError", [])[0] == windefs.ERROR_INVALID_HANDLE
+
+
 def test_rtl_set_last_win32_error_sets_the_last_error(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     call(dll_emu, "ntdll", "RtlSetLastWin32Error", [windefs.ERROR_ACCESS_DENIED])
