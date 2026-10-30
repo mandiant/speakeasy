@@ -12,7 +12,7 @@ from abc import abstractmethod
 from collections import deque
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
-from enum import Enum, IntEnum
+from enum import IntEnum
 from functools import wraps
 from types import MethodType
 from typing import Any, cast
@@ -96,8 +96,49 @@ class _ExecutionBudget:
 
 
 @dataclass(frozen=True)
-class PendingCpuException:
-    """A CPU exception raised in a Unicorn hook, dispatched after native execution unwinds."""
+class SuspendedApiCall:
+    """
+    The guest reached the trap of an API. The handler of the API runs next.
+
+    The stack pointer, the return address and the code of the API are the values at the trap.
+    If a debugger changes one of them, the guest runs the code of the API again, and the handler does not run.
+    """
+
+    entry: ApiEntry
+    stack_pointer: int
+    return_address: bytes | None
+    code: bytes | None
+
+
+@dataclass(frozen=True)
+class RunReturn:
+    """The guest returned to the return hook or the exit hook. The run is complete."""
+
+
+@dataclass(frozen=True)
+class CallbackReturn:
+    """A guest callback returned to GUEST_CALLBACK_RETURN_ADDR. The API handler that called it continues."""
+
+
+@dataclass(frozen=True)
+class FaultReturn:
+    """A fault ended the run. The run completes after Unicorn stops, also if Unicorn then raises an error."""
+
+
+@dataclass(frozen=True)
+class ExecRecovery:
+    """
+    The guest fetched code from a guest PE page without execute permission.
+    The run loop sets perms on the page and runs the code again.
+    """
+
+    page: int
+    perms: int
+
+
+@dataclass(frozen=True)
+class RaisedCpuException:
+    """A CPU exception that goes to the exception handlers of the guest."""
 
     exception: cpu_exceptions.CpuException
     error_type: str  # the run's error if no handler takes it
@@ -108,53 +149,9 @@ class PendingCpuException:
     guard_page: tuple[int, int] | None = None
 
 
-class PendingControl(str, Enum):
-    """A step of the run loop that is not native execution."""
-
-    # The guest returned to the return hook or the exit hook, so the run is complete.
-    RUN_RETURN = "run_return"
-    # A guest callback returned to GUEST_CALLBACK_RETURN_ADDR, so the API handler that called it continues.
-    CALLBACK_RETURN = "callback_return"
-    # A fault ended the run. The run completes after Unicorn unwinds, also if Unicorn then raises an error.
-    FAULT_RETURN = "fault_return"
-    # The guest fetched code from a guest PE page without execute permission. The run loop
-    # adds the permission and runs the code again.
-    EXEC_RECOVERY = "exec_recovery"
-
-
-@dataclass
-class PendingState:
-    """Work that a Unicorn hook records and the run loop does after native execution unwinds."""
-
-    # The API whose private trap the guest reached. Its handler runs next.
-    api_entry: ApiEntry | None = None
-    # The stack pointer, return address and public code of api_entry when the guest reached
-    # its trap. If the debugger changes one of them, the guest runs the public code again
-    # instead of the handler.
-    api_snapshot: tuple[int, bytes | None, bytes | None] | None = None
-    # The next step of the run loop, if it is not native execution.
-    control: PendingControl | None = None
-    # (page, perms) that EXEC_RECOVERY sets on the page that the guest fetched.
-    exec_recovery: tuple[int, int] | None = None
-    # A CPU exception that goes to the guest's exception handlers.
-    cpu_exception: PendingCpuException | None = None
-
-    def clear(self) -> None:
-        """Discard all pending work, as when the run ends."""
-        self.api_entry = None
-        self.api_snapshot = None
-        self.control = None
-        self.exec_recovery = None
-        self.cpu_exception = None
-
-    def is_empty(self) -> bool:
-        """Get whether no work is pending, so that the next step is native execution."""
-        return (
-            self.api_entry is None
-            and self.control is None
-            and self.exec_recovery is None
-            and self.cpu_exception is None
-        )
+# The reason why Unicorn stopped. A hook records it and stops Unicorn, and then the run loop handles it.
+# If a second hook records an exit before Unicorn stops, the first exit stays.
+NativeExit = SuspendedApiCall | RunReturn | CallbackReturn | FaultReturn | ExecRecovery | RaisedCpuException
 
 
 @dataclass
@@ -350,7 +347,7 @@ class WindowsEmulator(BinaryEmulator):
         self._sigdb: sigdb.SignatureDatabase | None = None
         self._sigfmt: sigfmt.ArgFormatter | None = None
         self.api_registry = ApiRegistry(self)
-        self._pending = PendingState()
+        self._native_exit: NativeExit | None = None
         self._api_call_site: tuple[int, int] | None = None
         # Guard pages, mapped without access, with the protection their first access restores
         self.guard_pages: dict[int, int] = {}
@@ -465,11 +462,9 @@ class WindowsEmulator(BinaryEmulator):
         pc = self.get_pc()
         in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
         if not self._should_stop_on_faults or in_reserved:
-            # A fault callback still belongs to the native invocation of this
-            # run. Advance only after Unicorn unwinds, even if it raises after
-            # emu_stop; otherwise the old fault can overwrite the next run.
-            self._pending.control = PendingControl.FAULT_RETURN
-            self.emu_eng.stop()
+            # The fault belongs to this run. Go to the next run only after Unicorn stops,
+            # also if Unicorn raises an error after emu_stop. Otherwise the fault can change the next run.
+            self._record_exit(FaultReturn())
             return
         self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()  # type: ignore[union-attr]
@@ -667,7 +662,7 @@ class WindowsEmulator(BinaryEmulator):
         Execute the next run from the emulation queue
         """
         self._finish_run_initializers(self.curr_run)
-        self._pending.clear()
+        self._native_exit = None
         try:
             run = self.run_queue.pop(0)
         except IndexError:
@@ -883,8 +878,13 @@ class WindowsEmulator(BinaryEmulator):
         return bytes(data)
 
     def _execute_current_run(self, address, timeout=0, count=-1, debugger=None):
-        """Keep one logical execution action across private API trap yields."""
-        address = self._drop_stale_pending(address)
+        """
+        Run the current run from address until it ends, it reaches a limit, or the debugger stops.
+
+        Unicorn runs guest code until a hook records a native exit and stops Unicorn.
+        Then the loop handles the exit, for example it calls the handler of an API, and starts Unicorn again.
+        """
+        address = self._drop_stale_exit(address)
         origin_run = self.curr_run
         assert origin_run is not None
         budget = self.config.max_instructions if debugger is not None else count
@@ -892,57 +892,35 @@ class WindowsEmulator(BinaryEmulator):
         hook = self._add_accounting_hook(limits, origin_run, debugger) if limits.budget > 0 else None
         stepping = debugger is not None and count == 1
 
-        def debugger_stops():
-            return debugger is not None and (debugger.has_pending_stop() or stepping)
-
         try:
             while not self.is_emu_complete:
                 if self.exit_event and self.exit_event.is_set():
                     self.emu_eng.stop()
                     return
-                if self._pending.control:
-                    if not self._run_pending_control(limits, origin_run, debugger):
+                if self._native_exit is None:
+                    reached = limits.get_reached_limit()
+                    if reached is not None:
+                        self._stop_at_limit(reached, limits, origin_run, debugger)
                         return
-                    address = self.get_pc()
-                    if self._pending_fault_stop is not None or debugger_stops():
-                        return
-                reached = limits.get_reached_limit()
-                if reached is not None:
-                    self._stop_at_limit(reached, limits, origin_run, debugger)
-                    return
-                if self._pending.api_entry is None and not self._pending.control:
                     if not self._start_unicorn(address, limits, origin_run, debugger, stepping):
                         return
-                    if self._pending.cpu_exception is not None:
-                        self._dispatch_cpu_exception()
-                        address = self.get_pc()
-                        if self._pending_fault_stop is not None or debugger_stops():
-                            return
+                    if self._native_exit is None:
+                        self._native_exit = self._get_exit_at_pc()
+                    if not isinstance(self._native_exit, RaisedCpuException):
                         if self.curr_run is not origin_run or self.is_emu_complete:
                             return
+                        if debugger is not None and debugger.has_pending_stop():
+                            return
+                        if self._native_exit is None:
+                            self._stop_without_exit(limits, origin_run, debugger)
+                            return
                         continue
-                    self._set_pending_at_pc()
-                if self.curr_run is not origin_run or self.is_emu_complete:
-                    return
-                entry = self._pending.api_entry
-                if debugger is not None and debugger.has_pending_stop():
-                    return
-                if self._pending.control:
-                    continue
-                reached = limits.get_reached_limit()
-                if reached is not None:
-                    self._stop_at_limit(reached, limits, origin_run, debugger)
-                    return
-                if entry is None:
-                    if debugger is None and not self.is_run_complete:
-                        logger.error("0x%x: Emulation engine stopped", self.get_pc())
-                        origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
-                        self.on_run_complete()
-                    return
-                if not self._dispatch_api_entry(entry, limits, origin_run, debugger):
+                if not self._handle_exit(limits, origin_run, debugger):
                     return
                 address = self.get_pc()
-                if self.curr_run is not origin_run or debugger_stops():
+                if self._pending_fault_stop is not None or self.curr_run is not origin_run:
+                    return
+                if debugger is not None and (debugger.has_pending_stop() or stepping):
                     return
         finally:
             self._finish_current_run_execution(limits, origin_run, debugger)
@@ -957,7 +935,7 @@ class WindowsEmulator(BinaryEmulator):
         of a `hlt` that ran. Get False if a fault stops the debugger.
 
         Raises:
-            uc.UcError: Unicorn failed, and no pending work explains the failure.
+            uc.UcError: Unicorn failed, and no native exit explains the failure.
         """
         try:
             native_timeout = limits.get_native_timeout()
@@ -981,37 +959,45 @@ class WindowsEmulator(BinaryEmulator):
         except uc.UcError as exc:
             if self._pending_fault_stop is not None:
                 return False
-            if self._pending.cpu_exception is not None:
-                pass
-            elif self._pending.control == PendingControl.EXEC_RECOVERY and exc.errno == uc.UC_ERR_FETCH_PROT:
-                pass
-            elif self._pending.control == PendingControl.FAULT_RETURN:
-                pass
-            elif exc.errno != uc.UC_ERR_FETCH_UNMAPPED or (
-                self._pending.api_entry is None and not self._pending.control
-            ):
+            if not self._exit_explains_error(exc):
                 raise
-        if (
-            self._pending.cpu_exception is None
-            and self.curr_run is origin_run
-            and self._stopped_at_hlt(limits.deadline, limits.last_executed, native_count, debugger)
+        if self.curr_run is origin_run and self._stopped_at_hlt(
+            limits.deadline, limits.last_executed, native_count, debugger
         ):
             self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction")
         return True
 
-    def _set_pending_at_pc(self) -> None:
+    def _exit_explains_error(self, exc: uc.UcError) -> bool:
+        """Get whether the native exit is the cause of the Unicorn error. Then the run loop handles the exit."""
+        match self._native_exit:
+            case None:
+                return False
+            case RaisedCpuException() | FaultReturn():
+                return True
+            case ExecRecovery() if exc.errno == uc.UC_ERR_FETCH_PROT:
+                return True
+        return bool(exc.errno == uc.UC_ERR_FETCH_UNMAPPED)
+
+    def _record_exit(self, native_exit: NativeExit) -> None:
+        """Record native_exit and stop Unicorn. If an exit is already recorded, it stays."""
+        if self._native_exit is None:
+            self._native_exit = native_exit
+        self.emu_eng.stop()
+
+    def _get_exit_at_pc(self) -> NativeExit | None:
         """
-        Record the pending work at the address where native execution stopped: the API
-        call of a trap, the return of a guest callback, or the return of the run.
+        Get the exit at the address where Unicorn stopped, if no hook recorded one:
+        the call of an API, the return of a guest callback, or the return of the run.
         """
-        if self._pending.api_entry is None:
-            candidate = self.api_registry.traps.get(self.get_pc())
-            if candidate is not None:
-                self._suspend_api_call(candidate)
-        if self.get_pc() == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run.guest_callbacks:
-            self._pending.control = PendingControl.CALLBACK_RETURN
-        elif self.get_pc() in (self.return_hook, self.exit_hook):
-            self._pending.control = PendingControl.RUN_RETURN
+        pc = self.get_pc()
+        entry = self.api_registry.traps.get(pc)
+        if entry is not None:
+            return self._get_suspended_api_call(entry)
+        if pc == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run.guest_callbacks:
+            return CallbackReturn()
+        if pc in (self.return_hook, self.exit_hook):
+            return RunReturn()
+        return None
 
     def _add_accounting_hook(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None):
         """Add a code hook that counts each instruction against the instruction limit and stops the engine at it."""
@@ -1067,6 +1053,41 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is not None:
                     debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
 
+    def _handle_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
+        """
+        Handle the native exit.
+        Get False if the run loop must return, because the debugger stops, a limit is reached, or the run ended.
+        """
+        native_exit = self._native_exit
+        match native_exit:
+            case RaisedCpuException():
+                self._native_exit = None
+                self._dispatch_cpu_exception(native_exit)
+                return True
+            case SuspendedApiCall():
+                reached = limits.get_reached_limit()
+                if reached is not None:
+                    self._stop_at_limit(reached, limits, origin_run, debugger)
+                    return False
+                if debugger is not None and debugger.has_pending_stop():
+                    return False
+                return self._dispatch_api_entry(native_exit.entry, limits, origin_run, debugger)
+        if debugger is not None and debugger.has_pending_stop():
+            return False
+        if limits.is_total_time_reached():
+            self._stop_at_limit("max_total_time", limits, origin_run, debugger)
+            return False
+        self._native_exit = None
+        match native_exit:
+            case RunReturn() | FaultReturn():
+                self.on_run_complete()
+                return False
+            case ExecRecovery(page=page, perms=perms):
+                self.mem_protect(page, self.page_size, perms)
+            case CallbackReturn():
+                self._continue_guest_callback()
+        return True
+
     def _dispatch_api_entry(
         self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
     ) -> bool:
@@ -1083,8 +1104,7 @@ class WindowsEmulator(BinaryEmulator):
             self.set_pc(entry.address)
             debugger._request_stop(StopReason(kind="unsupported_api", address=entry.address))
             return False
-        self._pending.api_entry = None
-        self._pending.api_snapshot = None
+        self._native_exit = None
         site, self._api_call_site = self._api_call_site, None
         self.prev_pc = site[1] if site is not None and site[0] == entry.address else 0
         self.dispatch_api_call(entry.dll, entry.name)
@@ -1097,40 +1117,27 @@ class WindowsEmulator(BinaryEmulator):
             self.on_run_complete()
         return True
 
-    def _run_pending_control(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
+    def _stop_without_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
-        Run the pending control step. Get False if the call of the run loop must return,
-        because the debugger has a stop, the total execution time ran out, or the run ended.
+        Stop origin_run after Unicorn stopped with no native exit.
+        If a limit is reached, stop at the limit.
+        Otherwise, end the run with an engine_stopped error, if the run is not complete and no debugger is attached.
         """
-        if debugger is not None and debugger.has_pending_stop():
-            return False
-        if limits.is_total_time_reached():
-            self._stop_at_limit("max_total_time", limits, origin_run, debugger)
-            return False
-        control, self._pending.control = self._pending.control, None
-        if control in (PendingControl.RUN_RETURN, PendingControl.FAULT_RETURN):
+        reached = limits.get_reached_limit()
+        if reached is not None:
+            self._stop_at_limit(reached, limits, origin_run, debugger)
+        elif debugger is None and not self.is_run_complete:
+            logger.error("0x%x: Emulation engine stopped", self.get_pc())
+            origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
             self.on_run_complete()
-            return False
-        if control == PendingControl.EXEC_RECOVERY:
-            self._recover_execution()
-        else:
-            self._continue_guest_callback()
-        return True
-
-    def _recover_execution(self) -> None:
-        """Give the guest PE page that EXEC_RECOVERY records the permissions it needs to run its code."""
-        assert self._pending.exec_recovery is not None
-        page, perms = self._pending.exec_recovery
-        self._pending.exec_recovery = None
-        self.mem_protect(page, self.page_size, perms)
 
     def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
         Stop origin_run at the limit of the given kind. Without a debugger, the limit
         becomes the error of the run and the run ends. With a debugger, the debugger stops.
         """
-        if self._pending.api_entry is not None:
-            self.set_pc(self._pending.api_entry.address)
+        if isinstance(self._native_exit, SuspendedApiCall):
+            self.set_pc(self._native_exit.entry.address)
         if kind == "timeout":
             # Each debugger resume of a timed out run stops at once; log only the first stop.
             if limits.spent < limits.timeout:
@@ -1155,32 +1162,29 @@ class WindowsEmulator(BinaryEmulator):
                 )
             self.on_run_complete()
 
-    def _drop_stale_pending(self, address: int) -> int:
+    def _drop_stale_exit(self, address: int) -> int:
         """
-        Drop the pending work that a debugger made stale while the target was stopped,
+        Drop the native exit that a debugger made stale while the target was stopped,
         and get the address where execution continues.
         """
-        pending = self._pending.api_entry
-        if pending is not None and address not in (pending.address, pending.trap):
-            # A debugger register edit abandons the suspended dispatch.
-            self._pending.api_entry = None
-        elif pending is not None and self._api_call_snapshot(pending) != self._pending.api_snapshot:
-            # Patches and frame edits while stopped must execute the revised
-            # public bytes instead of bypassing them through a retained trap.
-            self._pending.api_entry = None
-            address = pending.address
-            self.set_pc(address)
-        if (
-            self._pending.control
-            and self._pending.control != PendingControl.EXEC_RECOVERY
-            and address
-            not in (
-                winemu.GUEST_CALLBACK_RETURN_ADDR,
-                self.return_hook,
-                self.exit_hook,
-            )
+        native_exit = self._native_exit
+        if isinstance(native_exit, SuspendedApiCall):
+            entry = native_exit.entry
+            if address not in (entry.address, entry.trap):
+                # A debugger register edit abandons the suspended dispatch.
+                self._native_exit = None
+            elif self._get_suspended_api_call(entry) != native_exit:
+                # Patches and frame edits while stopped must execute the revised
+                # public bytes instead of bypassing them through a retained trap.
+                self._native_exit = None
+                address = entry.address
+                self.set_pc(address)
+        elif isinstance(native_exit, (RunReturn, CallbackReturn, FaultReturn)) and address not in (
+            winemu.GUEST_CALLBACK_RETURN_ADDR,
+            self.return_hook,
+            self.exit_hook,
         ):
-            self._pending.control = None
+            self._native_exit = None
         return address
 
     def _cancel_execution_runs(self, prepared=None):
@@ -2140,17 +2144,14 @@ class WindowsEmulator(BinaryEmulator):
     def _intercept_api_trap(self, access, address, size):
         if self.emu_eng.mem_access.get(access) == common.INVALID_MEM_EXEC:
             if address in (self.return_hook, self.exit_hook) and self.curr_run:
-                self._pending.control = PendingControl.RUN_RETURN
-                self.emu_eng.stop()
+                self._record_exit(RunReturn())
                 return True
             if address == winemu.GUEST_CALLBACK_RETURN_ADDR and self.curr_run and self.curr_run.guest_callbacks:
-                self._pending.control = PendingControl.CALLBACK_RETURN
-                self.emu_eng.stop()
+                self._record_exit(CallbackReturn())
                 return True
             entry = self.api_registry.traps.get(address)
             if entry is not None:
-                self._suspend_api_call(entry)
-                self.emu_eng.stop()
+                self._record_exit(self._get_suspended_api_call(entry))
                 return True
         if self.api_registry.overlaps_traps(address, size):
             kind = {
@@ -2170,29 +2171,27 @@ class WindowsEmulator(BinaryEmulator):
         return False
 
     def raise_cpu_exception(self, exception, error_type, **details):
-        """From a Unicorn hook: stop and dispatch exception once native execution unwinds."""
-        self._pending.cpu_exception = PendingCpuException(exception, error_type, **details)
-        self.emu_eng.stop()
+        """From a Unicorn hook: stop Unicorn. The run loop then sends the exception to the guest."""
+        self._record_exit(RaisedCpuException(exception, error_type, **details))
 
-    def _dispatch_cpu_exception(self):
-        pending, self._pending.cpu_exception = self._pending.cpu_exception, None
-        exception = pending.exception
-        if pending.rax is not None:
+    def _dispatch_cpu_exception(self, raised: RaisedCpuException) -> None:
+        exception = raised.exception
+        if raised.rax is not None:
             self.reg_write(
-                _arch.AMD64_REG_RAX if self.get_arch() == _arch.ARCH_AMD64 else _arch.X86_REG_EAX, pending.rax
+                _arch.AMD64_REG_RAX if self.get_arch() == _arch.ARCH_AMD64 else _arch.X86_REG_EAX, raised.rax
             )
-        if pending.guard_page is not None:
-            page, perms = pending.guard_page
+        if raised.guard_page is not None:
+            page, perms = raised.guard_page
             self.mem_protect(page, self.page_size, perms)
         self.set_pc(exception.pc)
         self.prev_pc = exception.pc
-        faulting_address = exception.params[1] if pending.access_type else None
+        faulting_address = exception.params[1] if raised.access_type else None
         error = guest_callbacks.CallbackError(
-            pending.error_type,
+            raised.error_type,
             exception.address if faulting_address is None else faulting_address,
-            pending.access_type,
+            raised.access_type,
             pc=exception.pc,
-            interrupt_num=pending.interrupt_num,
+            interrupt_num=raised.interrupt_num,
         )
         dispatch = self.config.exceptions.dispatch_handlers
         if dispatch and self.dispatch_seh(faulting_address, exception, error):
@@ -2248,7 +2247,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _step_had_no_effect(self, registers, debugger):
         """Get whether a single step stopped before its instruction with nothing pending."""
-        if debugger.has_pending_stop() or not self._pending.is_empty():
+        if debugger.has_pending_stop() or self._native_exit is not None:
             return False
         return self._pending_fault_stop is None and self.get_register_state() == registers
 
@@ -2265,7 +2264,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         if self.is_kernel_mode or not self.config.exceptions.dispatch_handlers:
             return False
-        if self._pending.api_entry is not None or self._pending.control:
+        if self._native_exit is not None:
             return False
         if deadline is not None and time.monotonic() >= deadline:
             return False
@@ -2300,7 +2299,7 @@ class WindowsEmulator(BinaryEmulator):
     def _hook_out_instruction(self, uc_engine, port, size, value, user_data):
         self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction")
 
-    def _api_call_snapshot(self, entry):
+    def _get_suspended_api_call(self, entry: ApiEntry) -> SuspendedApiCall:
         sp = self.get_stack_ptr()
         try:
             return_address = self.mem_read(sp, self.ptr_size)
@@ -2310,11 +2309,7 @@ class WindowsEmulator(BinaryEmulator):
             code = self.mem_read(entry.address, 16)
         except uc.UcError:
             code = None
-        return sp, return_address, code
-
-    def _suspend_api_call(self, entry):
-        self._pending.api_entry = entry
-        self._pending.api_snapshot = self._api_call_snapshot(entry)
+        return SuspendedApiCall(entry, sp, return_address, code)
 
     def _handle_invalid_fetch(self, emu, address, size, value):
         """
@@ -2325,7 +2320,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         # The rest of an instruction that crosses into the next page; the run already ends at its start
-        if self._pending.control == PendingControl.FAULT_RETURN or self._pending_fault_stop is not None:
+        if isinstance(self._native_exit, FaultReturn) or self._pending_fault_stop is not None:
             return False
 
         return self._raise_memory_fault(address, "fetch")
@@ -2755,7 +2750,7 @@ class WindowsEmulator(BinaryEmulator):
                 and not self.is_emu_complete
                 and self.get_pc() == entry_pc
                 and self.get_stack_ptr() != frame.stack_pointer
-                and not self._pending.control
+                and self._native_exit is None
                 and not origin_run.guest_callbacks
             ):
                 origin_run.error = self.get_error_info("api_handler_did_not_return", entry_pc)
@@ -3221,14 +3216,12 @@ class WindowsEmulator(BinaryEmulator):
             and not self.api_registry.overlaps_traps(address)
         ):
             if module is not None and module._image.source == "guest_pe":
-                # Changing protection while Unicorn is handling this fetch can
-                # invalidate its active translation. Apply it after unwinding.
+                # A change of protection while Unicorn handles this fetch can
+                # make its current translation incorrect. Change it after Unicorn stops.
                 native_perms = next(perms for start, end, perms in self.get_mem_regions() if start <= address <= end)
                 perms = next(perms for perms, native in self.emu_eng.perms.items() if native == native_perms)
                 page = address & ~(self.page_size - 1)
-                self._pending.exec_recovery = (page, perms | common.PERM_MEM_EXEC)
-                self._pending.control = PendingControl.EXEC_RECOVERY
-                self.emu_eng.stop()
+                self._record_exit(ExecRecovery(page, perms | common.PERM_MEM_EXEC))
                 return False
             return True
         error = self.get_error_info("invalid_protect_fetch", address, access_type="fetch")
