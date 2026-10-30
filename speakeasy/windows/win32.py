@@ -18,6 +18,7 @@ from speakeasy.profiler import Run
 from speakeasy.windows.com import COM
 from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import (
+    DLL_PROCESS_ATTACH,
     PeLoader,
     RuntimeModule,
     ShellcodeLoader,
@@ -29,8 +30,6 @@ from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.api.winapi import WindowsApi
 
 logger = logging.getLogger(__name__)
-
-DLL_PROCESS_ATTACH = 1
 
 MAX_EXPORTS_TO_EMULATE = 10
 
