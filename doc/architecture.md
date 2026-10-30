@@ -16,13 +16,18 @@ API handlers are in `speakeasy/winenv/api/`, one class for each DLL. Each handle
 
 A `Run` is one call into guest code: the entry point, a DLL export, a thread, a TLS callback or a DllMain. The emulator keeps a queue of runs. `start()` adds the DllMain and TLS callbacks of the imported DLLs to the front of the queue, and `_execute_runs` runs the queue in order. `_prepare_next_run` sets up the stack and registers for the next run.
 
-`_execute_current_run` runs one run. Unicorn runs guest code until a hook stops it. A hook does not call API handlers while Unicorn is running. It saves what it found in `PendingState` and stops Unicorn. Then `_execute_current_run` reads `PendingState`, does the work, and starts Unicorn again. `PendingState` can hold:
+`_execute_current_run` runs one run. Unicorn runs guest code until a hook stops it. A hook does not call API handlers while Unicorn is running. It records a native exit with `_record_exit` and stops Unicorn. If Unicorn stops and no hook recorded an exit, `_get_exit_at_pc` gets the exit from the address where Unicorn stopped. Then `_handle_exit` does the work for the exit, and the loop starts Unicorn again. A native exit tells why Unicorn stopped. It is one of these types:
 
-- `api_entry`: the guest called an API.
-- `control`: the run returned, a guest callback returned, or a fault ended the run.
-- `cpu_exception`: a CPU exception or a memory fault for guest SEH.
+- `SuspendedApiCall`: the guest called an API. The handler of the API runs next.
+- `RunReturn`: the guest returned from the run. The run is complete.
+- `CallbackReturn`: a guest callback returned. The API handler that called it continues.
+- `FaultReturn`: a fault ended the run.
+- `ExecRecovery`: the guest ran code in a guest PE page without execute permission. The loop adds the permission.
+- `RaisedCpuException`: a CPU exception or a memory fault for guest SEH.
 
-`RunLimits` has the time and instruction limits of a run.
+The emulator keeps one native exit. If a second hook records an exit before Unicorn stops, the first exit stays.
+
+`RunLimits` has the time and instruction limits of a run. The loop checks all limits before each start of Unicorn and before each API handler. Before `RunReturn`, `CallbackReturn`, `FaultReturn` and `ExecRecovery`, it checks only the total time.
 
 ## API calls
 
@@ -74,8 +79,8 @@ If the emulator cancels the runs in the queue, for example when the total time l
 
 If a hook gets an exception, it calls `_end_run_on_hook_error`. This saves the error on the run and stops emulation.
 
-A hook does not send a fault to the guest while Unicorn runs. It calls `raise_cpu_exception`, which saves the exception in `PendingState` and stops Unicorn. Unmapped reads, writes and fetches use this path, and so do invalid instructions, interrupts and most protection faults. An access to the reserved range of the API tokens that is not an API call also uses it. The emulator does not map a page at the fault address.
+A hook does not send a fault to the guest while Unicorn runs. It calls `raise_cpu_exception`, which records the exception as a native exit and stops Unicorn. Unmapped reads, writes and fetches use this path, and so do invalid instructions, interrupts and most protection faults. An access to the reserved range of the API tokens that is not an API call also uses it. The emulator does not map a page at the fault address.
 
-After Unicorn stops, `_execute_current_run` calls `_dispatch_cpu_exception`, which sends the exception to the guest handlers with `dispatch_seh`. If no handler takes the exception, `guest_callbacks.fail` ends the run with the fault error. This function keeps the guest callback frames of the run. Thus, if a DllMain faults in `LoadLibrary`, `_finish_run_initializers` can undo the load before the next run. See [Exception dispatch](exceptions.md).
+After Unicorn stops, `_handle_exit` calls `_dispatch_cpu_exception`, which sends the exception to the guest handlers with `dispatch_seh`. If no handler takes the exception, `guest_callbacks.fail` ends the run with the fault error. This function keeps the guest callback frames of the run. Thus, if a DllMain faults in `LoadLibrary`, `_finish_run_initializers` can undo the load before the next run. See [Exception dispatch](exceptions.md).
 
 `speakeasy/windows/thread_context.py` has the tables that `get_thread_context` and `load_thread_context` use to copy registers to and from a `CONTEXT`. Unicorn does not have debug registers, so the emulator keeps them on the thread.
