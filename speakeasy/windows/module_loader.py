@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from speakeasy.windows.loaders import InitRoutine, LoadState, RuntimeModule
@@ -19,7 +20,8 @@ class ModuleLoader:
     """
     Load images and their dependencies, and keep the data of the loader: the IAT
     entries that the loader bound, the DLLs that each process has in its PEB by
-    default, and the DLLs whose DllMain and TLS callbacks must run.
+    default, and the DLLs whose DllMain and TLS callbacks must run. Record the
+    result of each callback.
 
     WindowsEmulator._load_image maps one image, and the emulator keeps the module
     list. If a load fails, or a DllMain returns FALSE, this class removes what the
@@ -143,6 +145,30 @@ class ModuleLoader:
         frame.initializers.clear()
         frame.created_modules.clear()
         frame.peb_module_snapshot = []
+
+    def finish_initializer(self, routine: InitRoutine, return_value: int, faulted: bool = False) -> bool:
+        """
+        Record the end of an initializer, and return True if it succeeded.
+
+        A DllMain fails if it faults, or if the low byte of its result is zero.
+        The Windows loader reads the BOOL result as a BOOLEAN. A TLS callback fails
+        only if it faults. When the last initializer of a module succeeds, set the
+        state of the module to READY_TO_RUN.
+        """
+        if faulted or (routine.is_entry_point and not return_value & 0xFF):
+            return False
+        if routine.is_last:
+            routine.module.load_states[routine.pid] = LoadState.READY_TO_RUN
+        return True
+
+    def cancel_initializers(self, routines: Iterable[InitRoutine]) -> None:
+        """
+        Clear the INITIALIZING state of initializers that will not run.
+        A later load of the module runs them again.
+        """
+        for routine in routines:
+            if routine.module.load_states.get(routine.pid) is LoadState.INITIALIZING:
+                routine.module.load_states.pop(routine.pid)
 
     def collect_initializers(self) -> list[InitRoutine]:
         """

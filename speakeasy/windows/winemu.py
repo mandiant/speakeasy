@@ -671,34 +671,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Execute the next run from the emulation queue
         """
-        for frame in self.curr_run.guest_callbacks:
-            self.module_loader.rollback_guest_load(frame)
-        self.curr_run.guest_callbacks.clear()
+        self._finish_run_initializers(self.curr_run)
         self._pending.clear()
-        routine = self.curr_run.guest_initialization
-        if routine is not None:
-            module, pid = routine.module, routine.pid
-            if self.curr_run.error or (routine.is_entry_point and not self._dll_main_succeeded()):
-                self.curr_run.error = self.curr_run.error or ErrorInfo(
-                    type="dll_initialization_failed", pc=self.get_pc()
-                )
-                logger.warning(
-                    "guest initializer failed for %s in process %s: %s", module.name, pid, self.curr_run.error.type
-                )
-                # Keep mapped exports alive for already bound IAT slots, while
-                # recording failure rather than claiming successful attachment.
-                module.load_states[pid] = LoadState.INIT_ERROR
-                self.run_queue[:] = [
-                    queued
-                    for queued in self.run_queue
-                    if not (
-                        (pending := queued.guest_initialization) is not None
-                        and pending.module is module
-                        and pending.pid == pid
-                    )
-                ]
-            elif routine.is_last:
-                module.load_states[pid] = LoadState.READY_TO_RUN
         try:
             run = self.run_queue.pop(0)
         except IndexError:
@@ -713,6 +687,55 @@ class WindowsEmulator(BinaryEmulator):
         prepared = self._prepare_run_context(run)
         self.emu_eng.stop()
         return prepared
+
+    def _queue_startup_initializers(self):
+        """
+        Add a run for each initializer of the guest DLLs that the process loaded at start.
+        These runs go before the first run in the queue.
+        """
+        if self.is_kernel_mode or not self.run_queue:
+            return
+        queued = []
+        for routine in self.module_loader.collect_initializers():
+            run = Run()
+            run.type = f"dependency.{routine.module.name}.{'dll_entry' if routine.is_entry_point else 'tls_callback'}"
+            run.start_addr = routine.address
+            run.args = routine.args
+            run.thread = self.run_queue[0].thread or self.curr_thread
+            run.process_context = self.curr_process
+            run.guest_initialization = routine
+            queued.append(run)
+        self.run_queue[:0] = queued
+
+    def _finish_run_initializers(self, run):
+        """
+        Undo the loads that the run did not complete.
+        If the run is a startup initializer and it failed, set the state of its module to INIT_ERROR,
+        and remove the other startup initializers of the module from the queue.
+        """
+        for frame in run.guest_callbacks:
+            self.module_loader.rollback_guest_load(frame)
+        run.guest_callbacks.clear()
+        routine = run.guest_initialization
+        if routine is None or self.module_loader.finish_initializer(
+            routine, self.get_return_val(), faulted=run.error is not None
+        ):
+            return
+        run.error = run.error or ErrorInfo(type="dll_initialization_failed", pc=self.get_pc())
+        logger.warning(
+            "guest initializer failed for %s in process %s: %s", routine.module.name, routine.pid, run.error.type
+        )
+        # Keep the module mapped, because bound import slots can point into it.
+        routine.module.load_states[routine.pid] = LoadState.INIT_ERROR
+        self.run_queue[:] = [
+            queued
+            for queued in self.run_queue
+            if not (
+                (pending := queued.guest_initialization) is not None
+                and pending.module is routine.module
+                and pending.pid == routine.pid
+            )
+        ]
 
     def call(self, addr, params=[]):
         """
@@ -1176,10 +1199,9 @@ class WindowsEmulator(BinaryEmulator):
         canceled = [*self.run_queue, *self.suspended_runs]
         if prepared is not None:
             canceled.append(prepared)
-        for run in canceled:
-            routine = run.guest_initialization
-            if routine is not None and routine.module.load_states.get(routine.pid) is LoadState.INITIALIZING:
-                routine.module.load_states.pop(routine.pid)
+        self.module_loader.cancel_initializers(
+            run.guest_initialization for run in canceled if run.guest_initialization is not None
+        )
         self.run_queue.clear()
         self.suspended_runs.clear()
 
@@ -1205,20 +1227,7 @@ class WindowsEmulator(BinaryEmulator):
         if total_budget.exhausted:
             self._cancel_execution_runs()
             return
-        if not self.is_kernel_mode and self.run_queue:
-            initializers = self.module_loader.collect_initializers()
-            queued = []
-            for routine in initializers:
-                module = routine.module
-                run = Run()
-                run.type = f"dependency.{module.name}.{'dll_entry' if routine.is_entry_point else 'tls_callback'}"
-                run.start_addr = routine.address
-                run.args = (module.base, 1, 0)
-                run.thread = self.run_queue[0].thread or self.curr_thread
-                run.process_context = self.curr_process
-                run.guest_initialization = routine
-                queued.append(run)
-            self.run_queue[:0] = queued
+        self._queue_startup_initializers()
         try:
             run = self.run_queue.pop(0)
         except IndexError:
@@ -2974,11 +2983,6 @@ class WindowsEmulator(BinaryEmulator):
             )
             self.on_run_complete()
 
-    def _dll_main_succeeded(self):
-        # The loader truncates the BOOL result of DllMain to a BOOLEAN, so only
-        # the low byte decides success.
-        return bool(self.get_return_val() & 0xFF)
-
     def start_guest_callback(self, frame, function, args, sp=None):
         """Enter a guest callback on the stack of its frame, or below sp."""
         if frame.saved_registers is None:
@@ -3006,16 +3010,8 @@ class WindowsEmulator(BinaryEmulator):
             guest_callbacks.resume(self, frame)
             return
         routine = frame.initializers.get(frame.function)
-        if routine is not None:
-            if routine.is_entry_point and not self._dll_main_succeeded():
-                frame.result = frame.failure_result
-                for address, data in frame.failure_writes:
-                    self.mem_write(address, data)
-                self.set_last_error(1114)  # ERROR_DLL_INIT_FAILED
-                self.module_loader.remove_failed_module_from_peb(routine.module, routine.pid)
-                self.module_loader.rollback_guest_load(frame)
-            elif routine.is_last:
-                routine.module.load_states[routine.pid] = LoadState.READY_TO_RUN
+        if routine is not None and not self.module_loader.finish_initializer(routine, self.get_return_val()):
+            self._fail_library_initializer(frame, routine)
         self.set_stack_ptr(frame.stack_pointer)
         if frame.pending:
             function, args = frame.pending.pop(0)
@@ -3026,6 +3022,18 @@ class WindowsEmulator(BinaryEmulator):
                 frame.event.ret_val = hex(frame.result) if frame.result is not None else None
             self.restore_caller_registers(frame)
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
+
+    def _fail_library_initializer(self, frame, routine):
+        """
+        Make the load call of the frame fail, and undo the loads that it made.
+        Windows does this when a DllMain returns FALSE.
+        """
+        frame.result = frame.failure_result
+        for address, data in frame.failure_writes:
+            self.mem_write(address, data)
+        self.set_last_error(1114)  # ERROR_DLL_INIT_FAILED
+        self.module_loader.remove_failed_module_from_peb(routine.module, routine.pid)
+        self.module_loader.rollback_guest_load(frame)
 
     def restore_caller_registers(self, frame):
         """Restore the nonvolatile registers the guest calls of frame may have changed, as Windows keeps them."""
@@ -3437,10 +3445,9 @@ class WindowsEmulator(BinaryEmulator):
             tracked = {process.id for process, _ in frame.peb_module_snapshot}
             frame.peb_module_snapshot.extend(item for item in original_peb_modules if item[0].id not in tracked)
             frame.created_modules.extend(module for module in self.modules if module not in original_modules)
-            initializers = self.module_loader.collect_initializers()
             handler = self.api.load_api_handler("kernel32")
-            for routine in initializers:
-                handler.setup_callback(routine.address, (routine.module.base, 1, 0))
+            for routine in self.module_loader.collect_initializers():
+                handler.setup_callback(routine.address, routine.args)
                 frame.initializers[routine.address] = routine
         return module.base
 
