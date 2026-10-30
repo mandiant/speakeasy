@@ -17,7 +17,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
-from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE
+from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
 from speakeasy.winenv.api import api
 
 logger = logging.getLogger(__name__)
@@ -3115,6 +3115,91 @@ class Ntoskrnl(api.ApiHandler):
                     rv = ddk.STATUS_SUCCESS
 
         return rv
+
+    @apihook("ZwCreateKey", argc=7)
+    def ZwCreateKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS ZwCreateKey(
+        PHANDLE            KeyHandle,
+        ACCESS_MASK        DesiredAccess,
+        POBJECT_ATTRIBUTES ObjectAttributes,
+        ULONG              TitleIndex,
+        PUNICODE_STRING    Class,
+        ULONG              CreateOptions,
+        PULONG             Disposition
+        );
+        """
+        phnd, access, objattr, title_index, key_class, options, disposition = argv
+
+        oa = self.mem_cast(self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size()), objattr)
+        path = self.read_unicode_string(oa.ObjectName) if oa.ObjectName else ""
+        if oa.RootDirectory:
+            root = self.reg_get_key(oa.RootDirectory)
+            if not root:
+                return ddk.STATUS_INVALID_HANDLE
+            path = f"{root.get_path()}\\{path}" if path else root.get_path()
+        ctx.args["ObjectAttributes"].display = path
+
+        existing = emu.reg_get_key(path=path)
+        hnd = self.reg_open_key(path, create=True)
+        if not hnd:
+            return ddk.STATUS_OBJECT_NAME_NOT_FOUND
+
+        if phnd:
+            self.mem_write(phnd, hnd.to_bytes(self.get_ptr_size(), "little"))
+        if disposition:
+            disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
+            self.mem_write(disposition, disp.to_bytes(4, "little"))
+
+        self.record_registry_access_event(self.reg_get_key(hnd).get_path(), REG_CREATE, handle=hnd)
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwSetValueKey", argc=6)
+    def ZwSetValueKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSYSAPI NTSTATUS ZwSetValueKey(
+        HANDLE          KeyHandle,
+        PUNICODE_STRING ValueName,
+        ULONG           TitleIndex,
+        ULONG           Type,
+        PVOID           Data,
+        ULONG           DataSize
+        );
+        """
+        hnd, val_name, title_index, val_type, data, size = argv
+        val_type &= 0xFFFFFFFF
+        size &= 0xFFFFFFFF
+
+        key = self.reg_get_key(hnd)
+        if not key:
+            return ddk.STATUS_INVALID_HANDLE
+
+        name = self.read_unicode_string(val_name) if val_name else ""
+        ctx.args["ValueName"].display = name
+
+        raw = self.mem_read(data, size) if data and size else b""
+        value_data: str | int | bytes
+        if val_type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ):
+            value_data = raw.decode("utf-16le", errors="ignore").rstrip("\x00")
+            ctx.args["Data"].display = value_data
+        elif val_type == regdefs.REG_DWORD:
+            value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
+        elif val_type == regdefs.REG_QWORD:
+            value_data = int.from_bytes(raw[:8].ljust(8, b"\x00"), "little")
+        else:
+            value_data = raw
+
+        value = key.get_value(name)
+        if value:
+            value.type = val_type
+            value.data = value.normalize_value(val_type, value_data)
+        else:
+            key.create_value(name, val_type, value_data)
+
+        self.record_registry_access_event(
+            key.get_path(), REG_WRITE, value_name=name, data=raw, handle=hnd, size=size, buffer=data
+        )
+        return ddk.STATUS_SUCCESS
 
     @apihook("ZwCreateFile", argc=11)
     def ZwCreateFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
