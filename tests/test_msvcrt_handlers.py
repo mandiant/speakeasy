@@ -2060,6 +2060,56 @@ def test_cout_insert_of_an_unsigned_long_formats_like_num_put(
     assert se.mem_read(ios + 0x28, 8) == b"\x00" * 8
 
 
+@pytest.mark.parametrize("emu_name, ptr", [("dll_emu", "PA"), ("dll64_emu", "PEA")])
+def test_locale_init_adds_a_reference_only_when_do_incref_is_true(
+    request: pytest.FixtureRequest, emu_name: str, ptr: str
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    init = f"?_Init@locale@std@@CA{ptr}V_Locimp@12@_N@Z"
+    locimp = call(se, "msvcp140", f"?_Getgloballocale@locale@std@@CA{ptr}V_Locimp@12@XZ", [])[0]
+    refs = locimp + se.emu.get_ptr_size()
+    before = int.from_bytes(se.mem_read(refs, 4), "little")
+
+    assert call(se, "msvcp140", init, [0x100])[0] == locimp
+    assert int.from_bytes(se.mem_read(refs, 4), "little") == before
+    assert call(se, "msvcp140", init, [1])[0] == locimp
+    assert int.from_bytes(se.mem_read(refs, 4), "little") == before + 1
+
+
+@pytest.mark.parametrize(
+    "emu_name, incref, decref",
+    [
+        ("dll_emu", "?_Incref@facet@locale@std@@UAEXXZ", "?_Decref@facet@locale@std@@UAEPAV_Facet_base@3@XZ"),
+        (
+            "dll64_emu",
+            "?_Incref@facet@locale@std@@UEAAXXZ",
+            "?_Decref@facet@locale@std@@UEAAPEAV_Facet_base@3@XZ",
+        ),
+    ],
+)
+def test_facet_decref_returns_the_facet_when_the_count_drops_to_zero(
+    request: pytest.FixtureRequest, emu_name: str, incref: str, decref: str
+) -> None:
+    se = request.getfixturevalue(emu_name)
+    assert se.emu is not None
+    ptr_size = se.emu.get_ptr_size()
+    facet = alloc(se, b"\x00" * ptr_size * 2)
+
+    def call_method(name: str) -> int:
+        if ptr_size == 4:
+            se.emu.reg_write(e_arch.X86_REG_ECX, facet)
+            return call(se, "msvcp140", name, [])[0]
+        return call(se, "msvcp140", name, [facet])[0]
+
+    call_method(incref)
+    call_method(incref)
+    assert se.mem_read(facet + ptr_size, 4) == (2).to_bytes(4, "little")
+    assert call_method(decref) == 0
+    assert call_method(decref) == facet
+    assert se.mem_read(facet + ptr_size, 4) == b"\x00" * 4
+
+
 EUPDATE_HELPER = "024e5e537c02b2a5b9a41be151cc36807498f5e338b8c7ee592305af0398283e.exe.xz"
 
 
