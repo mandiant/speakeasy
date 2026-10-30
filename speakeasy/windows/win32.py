@@ -761,7 +761,7 @@ class Win32Emulator(WindowsEmulator):
             self.profiler.record_dropped_files_event(self.curr_run, self.get_dropped_files())
             self._capture_memory_layout()
 
-        return self._exec_next_run()
+        return self._prepare_next_run()
 
     def _capture_memory_layout(self):
         """

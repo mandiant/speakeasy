@@ -650,7 +650,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         self.run_queue.append(run)
 
-    def _exec_next_run(self):
+    def _prepare_next_run(self):
         """
         Execute the next run from the emulation queue
         """
@@ -847,7 +847,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return bytes(data)
 
-    def _run_api_engine(self, address, timeout=0, count=-1, debugger=None):
+    def _execute_current_run(self, address, timeout=0, count=-1, debugger=None):
         """Keep one logical execution action across private API trap yields."""
         address = self._drop_stale_pending(address)
         origin_run = self.curr_run
@@ -876,7 +876,7 @@ class WindowsEmulator(BinaryEmulator):
                     self._stop_at_limit(reached, limits, origin_run, debugger)
                     return
                 if self._pending.api_entry is None and not self._pending.control:
-                    if not self._run_native(address, limits, origin_run, debugger, stepping):
+                    if not self._start_unicorn(address, limits, origin_run, debugger, stepping):
                         return
                     if self._pending.cpu_exception is not None:
                         self._dispatch_cpu_exception()
@@ -916,11 +916,11 @@ class WindowsEmulator(BinaryEmulator):
                 if self.curr_run is not origin_run or debugger_stops():
                     return
         finally:
-            self._finish_api_engine(limits, origin_run, debugger)
+            self._finish_current_run_execution(limits, origin_run, debugger)
             if hook is not None:
                 self.remove_code_hook(hook)
 
-    def _run_native(
+    def _start_unicorn(
         self, address: int, limits: RunLimits, origin_run: Run, debugger: GdbServer | None, stepping: bool
     ) -> bool:
         """
@@ -1001,7 +1001,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return self.add_code_hook(account_instruction)
 
-    def _finish_api_engine(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
+    def _finish_current_run_execution(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
         Add the time of the call to origin_run and to the total execution time. End the
         run if the exit event stopped it, and cancel all runs if the total time ran out.
@@ -1185,7 +1185,7 @@ class WindowsEmulator(BinaryEmulator):
             self.curr_run = Run()
         self.emu_complete = False
         timeout = 0 if self.gdb_port is not None else self.config.timeout
-        self._run_api_engine(addr, timeout=timeout, count=count)
+        self._execute_current_run(addr, timeout=timeout, count=count)
 
     @execution_scope
     def start(self, addr=None, size=None):
@@ -1272,7 +1272,7 @@ class WindowsEmulator(BinaryEmulator):
                 should_execute = debugger is None or debugger.begin_run(debug_action)
                 executing_run = self.curr_run
                 if should_execute:
-                    self._run_api_engine(
+                    self._execute_current_run(
                         resume_addr, timeout=self.config.timeout, count=instruction_count, debugger=debugger
                     )
                 if debugger is None and total_budget.exhausted:

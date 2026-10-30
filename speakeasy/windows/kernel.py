@@ -504,7 +504,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
                 self.next_driver_func(drv)
 
         # Dispatch the next run
-        return self._exec_next_run()
+        return self._prepare_next_run()
 
     def on_emu_complete(self):
         if not self.emu_complete:
