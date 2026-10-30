@@ -2166,6 +2166,42 @@ class Msvcrt(api.ApiHandler):
         b2 = self.mem_read(buff2, cnt)
         return (b1 > b2) - (b1 < b2)
 
+    @apihook("qsort", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def qsort(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void qsort(
+            void *base,
+            size_t number,
+            size_t width,
+            int (__cdecl *compare)(const void *, const void *)
+        );
+        """
+        base, number, width, compare = argv
+        if number < 2 or not width:
+            return
+        return self.sort_elements(base, number, width, compare)
+
+    def sort_elements(self, base: int, number: int, width: int, compare: int):
+        """Merge sort the elements in place, with a guest call to ``compare`` for each comparison."""
+        order = [base + i * width for i in range(number)]
+        run = 1
+        while run < number:
+            merged = []
+            for start in range(0, number, 2 * run):
+                left, right = order[start : start + run], order[start + run : start + 2 * run]
+                i = j = 0
+                while i < len(left) and j < len(right):
+                    result = (yield GuestCall(compare, (left[i], right[j]))) & 0xFFFFFFFF
+                    if 0 < result < 0x80000000:
+                        merged.append(right[j])
+                        j += 1
+                    else:
+                        merged.append(left[i])
+                        i += 1
+                merged += left[i:] + right[j:]
+            order, run = merged, run * 2
+        self.mem_write(base, b"".join(self.mem_read(element, width) for element in order))
+
     @apihook("_except_handler4_common", argc=6, conv=e_arch.CALL_CONV_CDECL)
     def _except_handler4_common(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
