@@ -52,7 +52,8 @@ from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import FileManager
 from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.ioman import IoManager
-from speakeasy.windows.loaders import InitRoutine, LoadState, PeLoader, RuntimeModule, get_prot_string
+from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string
+from speakeasy.windows.module_loader import ModuleLoader
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, get_program_files_values
@@ -361,10 +362,7 @@ class WindowsEmulator(BinaryEmulator):
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
         # Unwind data registered at runtime for code outside loaded images
         self.function_tables: list[unwind.FunctionTable] = []
-        self._guest_dependencies = []
-        self._shared_peb_modules = set()
-        self._import_bindings: dict[int, int] = {}
-        self._load_depth: int = 0
+        self.module_loader = ModuleLoader(self)
         self._active_api_frame: GuestCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
         self.coverage_hook: Any | None = None
@@ -674,7 +672,7 @@ class WindowsEmulator(BinaryEmulator):
         Execute the next run from the emulation queue
         """
         for frame in self.curr_run.guest_callbacks:
-            self._rollback_guest_load(frame)
+            self.module_loader.rollback_guest_load(frame)
         self.curr_run.guest_callbacks.clear()
         self._pending.clear()
         routine = self.curr_run.guest_initialization
@@ -1208,7 +1206,7 @@ class WindowsEmulator(BinaryEmulator):
             self._cancel_execution_runs()
             return
         if not self.is_kernel_mode and self.run_queue:
-            initializers = self._collect_guest_initializers()
+            initializers = self.module_loader.collect_initializers()
             queued = []
             for routine in initializers:
                 module = routine.module
@@ -1668,9 +1666,10 @@ class WindowsEmulator(BinaryEmulator):
         pending = []
         try:
             for slot in mapped_imports.get_import_slots(read, base_addr, ptr_size):
-                if self._import_bindings.get(slot.iat) == slot.current:
+                bindings = self.module_loader.import_bindings
+                if bindings.get(slot.iat) == slot.current:
                     continue
-                if slot.iat in self._import_bindings and (not slot.has_ilt or slot.current != slot.thunk):
+                if slot.iat in bindings and (not slot.has_ilt or slot.current != slot.thunk):
                     # The guest changed an entry that we bound. Keep the guest's value,
                     # unless the guest wrote back the original value from the ILT.
                     continue
@@ -1690,7 +1689,7 @@ class WindowsEmulator(BinaryEmulator):
 
             for iat, address in pending:
                 self.mem_write(iat, address.to_bytes(ptr_size, "little"))
-            self._import_bindings.update(pending)
+            self.module_loader.import_bindings.update(pending)
         except import_errors:
             logger.warning("invalid injected PE import table at %#x", base_addr, exc_info=True)
 
@@ -1709,131 +1708,7 @@ class WindowsEmulator(BinaryEmulator):
         return [mod for mod in self.modules if mod.visible_in_peb]
 
     def load_image(self, image):
-        """Publish a coherent load graph, rolling back module ownership on failure."""
-        outer = not self._load_depth
-        if outer:
-            original_modules = list(self.modules)
-            original_maps = {id(mapping) for mapping in self.maps}
-            original_bindings = dict(self._import_bindings)
-            original_shared = set(self._shared_peb_modules)
-            original_peb_modules = self._snapshot_peb_modules()
-        self._load_depth += 1
-        try:
-            module = self._load_image(image)
-        except Exception:
-            if outer:
-                removed = [module for module in self.modules if module not in original_modules]
-                for module in reversed(removed):
-                    processes = list(self.processes)
-                    if self.curr_process is not None and self.curr_process not in processes:
-                        processes.append(self.curr_process)
-                    for process in processes:
-                        if process.is_peb_active and self.get_address_map(process.peb_ldr_data.address):
-                            process.remove_module_from_peb(module)
-                    self.api_registry.unregister_module(module)
-                self._rollback_peb_modules(original_peb_modules)
-                self.modules[:] = original_modules
-                self._import_bindings = original_bindings
-                self._shared_peb_modules = original_shared
-                self._guest_dependencies[:] = [
-                    module for module in self._guest_dependencies if module in original_modules
-                ]
-                for mapping in tuple(self.maps):
-                    if id(mapping) not in original_maps and (mapping.tag or "").startswith("emu.module."):
-                        self.mem_unmap(mapping.base, mapping.size)
-                        self.maps.remove(mapping)
-            raise
-        finally:
-            self._load_depth -= 1
-        if outer:
-            self._notify_module_change()
-        return module
-
-    def _notify_module_change(self):
-        """Notify every observer without letting one failure disrupt publication."""
-        for listener in tuple(self.module_change_listeners):
-            try:
-                listener()
-            except Exception:
-                logger.exception("module change listener failed: %r", listener)
-
-    def _discard_loaded_module(self, module):
-        processes = list(self.processes)
-        if self.curr_process is not None and self.curr_process not in processes:
-            processes.append(self.curr_process)
-        for process in processes:
-            if process.is_peb_active and self.get_address_map(process.peb_ldr_data.address):
-                process.remove_module_from_peb(module)
-        self.api_registry.unregister_module(module)
-        self._shared_peb_modules.discard(module.base)
-        if module in self.modules:
-            self.modules.remove(module)
-        if module in self._guest_dependencies:
-            self._guest_dependencies.remove(module)
-        mapping = self.get_address_map(module.base)
-        if mapping is not None:
-            self.mem_unmap(mapping.base, mapping.size)
-            self.maps.remove(mapping)
-        self._import_bindings = {
-            address: target
-            for address, target in self._import_bindings.items()
-            if not module.base <= address < module.base + module.image_size
-        }
-        self._notify_module_change()
-
-    def _snapshot_peb_modules(self):
-        processes = list(self.processes)
-        if self.curr_process is not None and self.curr_process not in processes:
-            processes.append(self.curr_process)
-        return [(process, dict(process.peb_modules)) for process in processes]
-
-    def _rollback_peb_modules(self, snapshot):
-        for process, original in snapshot:
-            for base, module in tuple(process.peb_modules.items()):
-                if base not in original:
-                    process.remove_module_from_peb(module)
-
-    def _detach_failed_guest_initialization(self, module, pid):
-        """Fail one process attachment without destroying other owners."""
-        module.load_states.pop(pid, None)
-        for process, _ in self._snapshot_peb_modules():
-            if process.id == pid:
-                process.remove_module_from_peb(module)
-
-    def _rollback_guest_load(self, frame):
-        # Callback frames retain the attachment delta separately from newly
-        # allocated images. Cached images belong to the surviving load graph.
-        self._rollback_peb_modules(frame.peb_module_snapshot)
-        original = {process.id: modules for process, modules in frame.peb_module_snapshot}
-        for routine in frame.initializers.values():
-            module, pid = routine.module, routine.pid
-            if module.load_states.get(pid) is LoadState.INITIALIZING or module.base not in original.get(pid, {}):
-                module.load_states.pop(pid, None)
-        for module in reversed(frame.created_modules):
-            if not any(module.base in process.peb_modules for process, _ in self._snapshot_peb_modules()):
-                self._discard_loaded_module(module)
-        frame.pending[:] = [(function, args) for function, args in frame.pending if function not in frame.initializers]
-        frame.initializers.clear()
-        frame.created_modules.clear()
-        frame.peb_module_snapshot = []
-
-    def _collect_guest_initializers(self):
-        process = self.get_current_process()
-        if process is None:
-            return []
-        result = []
-        for module in self._guest_dependencies:
-            if module not in self.modules or module.base not in process.peb_modules or process.id in module.load_states:
-                continue
-            module.load_states[process.id] = LoadState.INITIALIZING
-            functions = [(function, False) for function in module.get_tls_callbacks()]
-            if module.ep:
-                functions.append((module.base + module.ep, True))
-            if not functions:
-                module.load_states[process.id] = LoadState.READY_TO_RUN
-            for index, (function, is_entry_point) in enumerate(functions):
-                result.append(InitRoutine(module, function, is_entry_point, index == len(functions) - 1, process.id))
-        return result
+        return self.module_loader.load_image(image)
 
     def _load_image(self, image):
         valid_arch = image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64)
@@ -1924,7 +1799,7 @@ class WindowsEmulator(BinaryEmulator):
                 logger.warning("skipping import %s!%s in %s: %s", imp.dll_name, imp.func_name, image.name, error)
                 continue
             self.mem_write(imp.iat_address, encoded)
-            self._import_bindings[imp.iat_address] = address
+            self.module_loader.import_bindings[imp.iat_address] = address
 
         for entry in tuple(self.api_registry.entries.values()):
             if entry.export.kind == "data":
@@ -1962,7 +1837,7 @@ class WindowsEmulator(BinaryEmulator):
             self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
             self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
         if not self.is_kernel_mode and self.get_current_process() is None and mod.visible_in_peb and mod.is_dll():
-            self._shared_peb_modules.add(mod.base)
+            self.module_loader.shared_peb_modules.add(mod.base)
         self._add_module_to_current_peb(mod)
         return mod
 
@@ -3137,8 +3012,8 @@ class WindowsEmulator(BinaryEmulator):
                 for address, data in frame.failure_writes:
                     self.mem_write(address, data)
                 self.set_last_error(1114)  # ERROR_DLL_INIT_FAILED
-                self._detach_failed_guest_initialization(routine.module, routine.pid)
-                self._rollback_guest_load(frame)
+                self.module_loader.remove_failed_module_from_peb(routine.module, routine.pid)
+                self.module_loader.rollback_guest_load(frame)
             elif routine.is_last:
                 routine.module.load_states[routine.pid] = LoadState.READY_TO_RUN
         self.set_stack_ptr(frame.stack_pointer)
@@ -3535,7 +3410,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def load_library(self, mod_name):
         original_modules = list(self.modules)
-        original_peb_modules = self._snapshot_peb_modules()
+        original_peb_modules = self.module_loader.snapshot_peb_modules()
         name = winemu.normalize_dll_name(module_name(mod_name))
         module = self.get_mod_by_name(name)
         data = self.get_module_data_from_emu_file(mod_name) if module is None else None
@@ -3562,7 +3437,7 @@ class WindowsEmulator(BinaryEmulator):
             tracked = {process.id for process, _ in frame.peb_module_snapshot}
             frame.peb_module_snapshot.extend(item for item in original_peb_modules if item[0].id not in tracked)
             frame.created_modules.extend(module for module in self.modules if module not in original_modules)
-            initializers = self._collect_guest_initializers()
+            initializers = self.module_loader.collect_initializers()
             handler = self.api.load_api_handler("kernel32")
             for routine in initializers:
                 handler.setup_callback(routine.address, (routine.module.base, 1, 0))
@@ -3620,7 +3495,7 @@ class WindowsEmulator(BinaryEmulator):
         image.module_type = _module_type_from_path(emu_path)
         module = self.load_image(image)
         if image.source == "guest_pe" and module.is_dll() and not self.is_kernel_mode:
-            self._guest_dependencies.append(module)
+            self.module_loader.guest_dependencies.append(module)
         return module
 
     # This will create a module from a file inside Speakeasy's

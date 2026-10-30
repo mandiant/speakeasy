@@ -410,7 +410,7 @@ class Win32Emulator(WindowsEmulator):
         finished. Memory that API handlers keep a pointer to stays mapped.
         """
         if process.pe in self.modules:
-            self._discard_loaded_module(process.pe)
+            self.module_loader.discard_module(process.pe)
         addresses = [process.peb.address, process.peb.object.ProcessParameters]
         if process.is_peb_active:
             addresses += [process.peb_ldr_data.address] + [entry.address for entry in process.ldr_entries]
@@ -582,7 +582,7 @@ class Win32Emulator(WindowsEmulator):
                 if proc is not None and (m is proc.pe or m.base == proc.base):
                     exe_mods.append(m)
                 continue
-            if m.base not in attached and not (include_defaults and m.base in self._shared_peb_modules):
+            if m.base not in attached and not (include_defaults and m.base in self.module_loader.shared_peb_modules):
                 continue
             name = (m.name or "").lower()
             if not name:
@@ -600,7 +600,7 @@ class Win32Emulator(WindowsEmulator):
         for dll in CORE_DLLS:
             if not self.get_mod_by_name(dll):
                 self.load_module_by_name(dll)
-            self._shared_peb_modules.add(self.get_mod_by_name(dll).base)
+            self.module_loader.shared_peb_modules.add(self.get_mod_by_name(dll).base)
 
     def set_unhandled_exception_handler(self, handler_addr):
         """
