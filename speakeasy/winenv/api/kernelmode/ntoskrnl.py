@@ -7,6 +7,7 @@ import struct
 import uuid
 
 import lznt1
+import pefile
 
 import speakeasy.common as common
 import speakeasy.windows.objman as objman
@@ -2114,9 +2115,27 @@ class Ntoskrnl(api.ApiHandler):
         Base, MappedAsImage, DirectoryEntry, Size = argv
 
         MappedAsImage &= 0xFF
+        DirectoryEntry &= 0xFFFF
         ctx.args["MappedAsImage"].display = hex(MappedAsImage)
 
-        raise Exception("Unimplemented")
+        mm = emu.get_address_map(Base)
+        if not mm:
+            return 0
+        try:
+            pe = pefile.PE(data=self.mem_read(Base, min(0x1000, mm.base + mm.size - Base)), fast_load=True)
+        except pefile.PEFormatError:
+            return 0
+        directories = pe.OPTIONAL_HEADER.DATA_DIRECTORY
+        if DirectoryEntry >= len(directories) or not directories[DirectoryEntry].VirtualAddress:
+            return 0
+        rva = directories[DirectoryEntry].VirtualAddress
+        self.mem_write(Size, directories[DirectoryEntry].Size.to_bytes(4, "little"))
+        if MappedAsImage or rva < pe.OPTIONAL_HEADER.SizeOfHeaders:
+            return Base + rva
+        try:
+            return Base + pe.get_offset_from_rva(rva)
+        except pefile.PEFormatError:
+            return 0
 
     @apihook("ZwOpenEvent", argc=3)
     def ZwOpenEvent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
