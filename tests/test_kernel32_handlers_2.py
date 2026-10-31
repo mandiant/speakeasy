@@ -1232,6 +1232,7 @@ PROGRAM_FILES_APP = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msed
         ("kernel32", "CreateProcessA", None, f'"{PROGRAM_FILES_APP}" --x', PROGRAM_FILES_APP),
         ("advapi32", "CreateProcessAsUserA", PROGRAM_FILES_APP, None, PROGRAM_FILES_APP),
         ("advapi32", "CreateProcessAsUserA", None, f'"{PROGRAM_FILES_APP}" --x', PROGRAM_FILES_APP),
+        ("kernel32", "CreateProcessA", None, 'C:\\cmd.exe /C "reg add "hkcu\\x" /d "no"" 2>&1', "C:\\cmd.exe"),
     ],
 )
 def test_create_process_uses_the_application_name_as_the_path(
