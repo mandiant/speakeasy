@@ -122,10 +122,7 @@ class Psapi(api.ApiHandler):
         if not module_name:
             return 0
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
 
         truncated = module_name[: max(nSize - 1, 0)]
         if cw == 1:
@@ -150,10 +147,7 @@ class Psapi(api.ApiHandler):
         if not module_path:
             return 0
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
 
         truncated = module_path[: max(nSize - 1, 0)]
         if cw == 1:

@@ -643,10 +643,7 @@ class AdvApi32(api.ApiHandler):
         """
         (lpServiceStartTable,) = argv
 
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
 
         ste = self.win.SERVICE_TABLE_ENTRY(emu.get_ptr_size())
         entry = self.mem_cast(ste, lpServiceStartTable)

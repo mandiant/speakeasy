@@ -653,10 +653,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         return next((p.pid for p in emu.get_processes() if p.name.lower() == parent), 0)
 
     def _write_process_entry(self, emu, ctx, pe32, proc):
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
         enc = "utf-16le" if cw == 2 else "utf-8"
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
@@ -797,10 +794,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         return rv
 
     def _write_module_entry(self, emu, ctx, mod32, module, pid):
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
         enc = "utf-16le" if cw == 2 else "utf-8"
 
         mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
@@ -2467,10 +2461,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (src,) = argv
         if not src or not emu.is_address_valid(src):
             return 0
-        try:
-            cw = self.get_char_width(ctx)
-        except Exception:
-            cw = 1
+        cw = self.get_char_width(ctx)
         s = self.read_mem_string(src, cw)
 
         ctx.args["lpString"].display = s
