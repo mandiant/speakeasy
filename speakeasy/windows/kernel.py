@@ -500,8 +500,10 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
             if self.config.analysis.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
-                dec_ansi = [a[1] for a in dec_ansi if a not in self.profiler.strings["ansi"]]
-                dec_unicode = [u[1] for u in dec_unicode if u not in self.profiler.strings["unicode"]]
+                static_ansi = set(self.profiler.strings["ansi"])
+                static_unicode = set(self.profiler.strings["unicode"])
+                dec_ansi = list(dict.fromkeys(s for _, s in dec_ansi if s not in static_ansi))
+                dec_unicode = list(dict.fromkeys(s for _, s in dec_unicode if s not in static_unicode))
                 self.profiler.decoded_strings["ansi"] = dec_ansi
                 self.profiler.decoded_strings["unicode"] = dec_unicode
         self.stop()
