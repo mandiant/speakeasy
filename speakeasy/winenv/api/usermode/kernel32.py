@@ -1228,6 +1228,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
+        flProtect &= 0xFFFFFFFF
         buf = 0
 
         if hProcess == self.get_max_int():
