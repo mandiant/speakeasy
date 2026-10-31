@@ -186,7 +186,7 @@ class Ws2_32(api.ApiHandler):
         """
         (hostshort,) = argv
 
-        netshort = htons(hostshort)
+        netshort = htons(hostshort & 0xFFFF)
 
         return netshort
 
@@ -199,7 +199,7 @@ class Ws2_32(api.ApiHandler):
         """
         (netshort,) = argv
 
-        return ntohs(netshort)
+        return ntohs(netshort & 0xFFFF)
 
     @apihook("ntohl", argc=1, ordinal=14)
     def ntohl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -210,7 +210,7 @@ class Ws2_32(api.ApiHandler):
         """
         (netlong,) = argv
 
-        return ntohl(netlong)
+        return ntohl(netlong & 0xFFFFFFFF)
 
     @apihook("setsockopt", argc=5, ordinal=21)
     def setsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -614,7 +614,7 @@ class Ws2_32(api.ApiHandler):
         uint32_t htonl(uint32_t hostlong);
         """
         (hostlong,) = argv
-        return htonl(hostlong)
+        return htonl(hostlong & 0xFFFFFFFF)
 
     @apihook("__WSAFDIsSet", argc=2, ordinal=151)
     def __WSAFDIsSet(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

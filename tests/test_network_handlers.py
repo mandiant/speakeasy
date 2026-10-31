@@ -649,3 +649,19 @@ def test_internet_open_url_records_the_host_and_port(dll_emu: Speakeasy, url: by
     assert call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])[0]
     events = [e for e in dll_emu.emu.get_current_run().events if e.event == "net_http"]
     assert [(e.server, e.port) for e in events] == [(server, port)]
+
+
+@pytest.mark.parametrize(
+    "emu_fixture, name, arg, rv",
+    [
+        ("dll_emu", "htons", 0xDEAD0050, 0x5000),
+        ("dll_emu", "ntohs", 0xDEAD5000, 0x0050),
+        ("dll64_emu", "htonl", 0xFFFFFFFF12345678, 0x78563412),
+        ("dll64_emu", "ntohl", 0xFFFFFFFF78563412, 0x12345678),
+    ],
+)
+def test_byte_order_ignores_the_bits_above_the_parameter(
+    request: pytest.FixtureRequest, emu_fixture: str, name: str, arg: int, rv: int
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_fixture)
+    assert call(se, "ws2_32", name, [arg])[0] == rv
