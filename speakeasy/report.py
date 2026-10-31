@@ -145,7 +145,8 @@ class ErrorInfo(BaseModel):
         description=(
             "Error category identifier describing the failure mode.\n\n"
             "Examples include unsupported API paths, max API limits, and fault "
-            "conditions raised by emulator hooks."
+            "conditions raised by emulator hooks. A Python exception in Speakeasy "
+            "itself, such as a bug in an API handler, is ``internal_error``."
         )
     )
     pc: HexIntOptional = Field(
@@ -200,6 +201,10 @@ class ErrorInfo(BaseModel):
     traceback: str | None = Field(
         default=None,
         description="Python traceback when the error originated from an internal exception.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Text of the Python exception of an ``internal_error``.",
     )
     api_name: str | None = Field(
         default=None,

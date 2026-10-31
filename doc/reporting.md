@@ -25,6 +25,7 @@ Entry-point highlights:
 - `coverage`: populated only if `analysis.coverage=true`.
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
+- `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
 
 An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value`,
 and `display`. When the signature database declares the function and its prototype consumes

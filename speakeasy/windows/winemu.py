@@ -1362,7 +1362,12 @@ class WindowsEmulator(BinaryEmulator):
                 except Exception as dis_err:
                     logger.error(str(dis_err))
 
-                error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
+                if isinstance(e, uc.UcError) and e.errno == uc.UC_ERR_INSN_INVALID:
+                    error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
+                else:
+                    error = self.get_error_info(
+                        "internal_error", self.get_pc(), traceback=stack_trace, message=str(e) or type(e).__name__
+                    )
                 self._set_run_error(error)
                 terminal_signal = SIGSEGV
 
@@ -2470,11 +2475,13 @@ class WindowsEmulator(BinaryEmulator):
         traceback: str | None = None,
         access_type: str | None = None,
         api_name: str | None = None,
+        message: str | None = None,
     ) -> ErrorInfo:
         """Collect emulator state information in the event of an error.
 
         For an error at an API trap, give the API name and its return address
         as the address, because the trap holds no instruction to show.
+        For an internal_error, give the text of the Python exception as message.
         """
         run = self.get_current_run()
         pc = self.get_pc()
@@ -2496,18 +2503,19 @@ class WindowsEmulator(BinaryEmulator):
         tid = self.curr_thread.tid if self.curr_thread else None
         pid = self.curr_process.id if self.curr_process else None
 
+        label = f"{desc}: {message}" if message else desc
         if api_name:
-            summary = f"{desc} {api_name} called from {self._resolve_module_offset(address) or hex(address)}"
+            summary = f"{label} {api_name} called from {self._resolve_module_offset(address) or hex(address)}"
         else:
             summary = self._build_context_summary(
-                desc, pc, address, access_type, pc_module, address_region, nearby_regions
+                label, pc, address, access_type, pc_module, address_region, nearby_regions
             )
 
         logger.error(
             "0x%x: %s: Caught error: %s\n  summary: %s\n  instr: %s\n  regs: %s",
             pc,
             run.type,
-            desc,
+            label,
             summary,
             instr,
             "  ".join(f"{k}={v}" for k, v in regs.items()),
@@ -2528,6 +2536,7 @@ class WindowsEmulator(BinaryEmulator):
             process_id=pid,
             context_summary=summary,
             traceback=traceback,
+            message=message,
         )
 
     def get_api_handler(self, dll: str, name: str) -> tuple[Any, Any]:
@@ -2901,13 +2910,15 @@ class WindowsEmulator(BinaryEmulator):
                     # Let the outer GDB fault path expose the failed frame
                     # before run cleanup and report signal termination.
                     raise
-                desc, address, access_type = guest_callbacks.get_handler_fault(self, e, self.get_pc())
+                desc, address, access_type, message = guest_callbacks.get_handler_fault(self, e, self.get_pc())
                 if access_type and self._can_raise_api_fault():
                     self.log_api(call.call_pc, imp_api, None, ctx.args.get_report_args(), run=call.run)
                     if self._raise_api_fault(frame, access_type, address):
                         return False
                 logger.exception("0x%x: Error while calling API handler for %s:", call.return_address, imp_api)
-                error = self.get_error_info(desc, address, traceback=traceback.format_exc(), access_type=access_type)
+                error = self.get_error_info(
+                    desc, address, traceback=traceback.format_exc(), access_type=access_type, message=message
+                )
                 self._set_run_error(error)
                 self.on_run_complete()
                 return False
@@ -3101,7 +3112,7 @@ class WindowsEmulator(BinaryEmulator):
             elif access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value)
         except Exception as e:
-            return self._end_run_on_hook_error("Invalid memory exception", str(e))
+            return self._end_run_on_hook_error("Invalid memory exception", e)
 
     def _handle_prot_write(self, emu, address, size, value):
         guarded = address & ~(self.page_size - 1) in self.guard_pages
@@ -3177,10 +3188,15 @@ class WindowsEmulator(BinaryEmulator):
         if self.curr_run is not None:
             self.curr_run.error = error
 
-    def _end_run_on_hook_error(self, description: str, message: str) -> bool:
+    def _end_run_on_hook_error(self, description: str, exception: Exception) -> bool:
         """Log the current exception, save it as the run error, and stop emulation."""
         logger.exception(description)
-        error = self.get_error_info(message, self.get_pc(), traceback=traceback.format_exc())
+        error = self.get_error_info(
+            "internal_error",
+            self.get_pc(),
+            traceback=traceback.format_exc(),
+            message=str(exception) or type(exception).__name__,
+        )
         self._set_run_error(error)
         self.on_emu_complete()
         return False
@@ -3242,7 +3258,7 @@ class WindowsEmulator(BinaryEmulator):
             region.reads += 1
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during memory read", type(e).__name__)
+            return self._end_run_on_hook_error("Exception during memory read", e)
 
     def _hook_mem_write(self, emu, access, address, size, value):
         """
@@ -3263,7 +3279,7 @@ class WindowsEmulator(BinaryEmulator):
             region.writes += 1
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during memory write", type(e).__name__)
+            return self._end_run_on_hook_error("Exception during memory write", e)
 
     def _handle_invalid_read(self, emu, address, size, value):
         """
@@ -3340,7 +3356,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.disable_deferred_work_hook()
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during code hook (deferred work)", str(e))
+            return self._end_run_on_hook_error("Exception during code hook (deferred work)", e)
 
     def _hook_code_coverage(self, emu, addr, size):
         """
@@ -3351,7 +3367,7 @@ class WindowsEmulator(BinaryEmulator):
                 self.curr_run.coverage.add(addr)
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during code hook (coverage)", str(e))
+            return self._end_run_on_hook_error("Exception during code hook (coverage)", e)
 
     def _hook_code_tracing(self, emu, addr, size):
         """
@@ -3381,7 +3397,7 @@ class WindowsEmulator(BinaryEmulator):
             region.execs += 1
             return True
         except Exception as e:
-            return self._end_run_on_hook_error("Exception during code hook (tracing)", str(e))
+            return self._end_run_on_hook_error("Exception during code hook (tracing)", e)
 
     def _hook_code_debug(self, emu, addr, size):
         """

@@ -119,3 +119,22 @@ def test_error_info_round_trips_through_json(_read_error):
     assert restored.access_type == e.access_type
     assert restored.context_summary == e.context_summary
     assert restored.regs == e.regs
+
+
+def test_python_exception_in_speakeasy_is_internal_error(base_config):
+    def hook(emu, api, original, argv):
+        raise ValueError("bad handler state")
+
+    with Speakeasy(config=copy.deepcopy(base_config)) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
+        proc = se.emu.get_proc("kernel32", "GetTickCount")
+        se.mem_write(code, b"\xb8" + proc.to_bytes(4, "little") + b"\xff\xd0\xc3")
+        se.add_api_hook(hook, "kernel32", "GetTickCount", argc=0)
+
+        se.run_shellcode(code)
+
+        e = se.get_report().entry_points[0].error
+        assert e is not None
+        assert (e.type, e.message) == ("internal_error", "bad handler state")
+        assert e.traceback is not None and e.traceback.endswith("ValueError: bad handler state\n")
+        assert e.context_summary is not None and "bad handler state" in e.context_summary
