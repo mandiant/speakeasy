@@ -20,6 +20,7 @@ EBADF = 9
 EAGAIN = 11
 EEXIST = 17
 EINVAL = 22
+EDOM = 33
 ERANGE = 34
 THRD_SUCCESS = 0
 THRD_TIMEDOUT = 2
@@ -1096,7 +1097,16 @@ class Msvcrt(api.ApiHandler):
         x = self.hex_to_double(x)
         y = self.hex_to_double(y)
 
-        z = pow(x, y)
+        try:
+            z = math.pow(x, y)
+        except (OverflowError, ValueError):
+            if x < 0 and not y.is_integer():
+                z = math.nan
+                self.set_errno(EDOM)
+            else:
+                odd = y.is_integer() and y % 2 == 1
+                z = math.copysign(math.inf, x) if odd else math.inf
+                self.set_errno(ERANGE)
 
         z = self.double_to_hex(z)
 
