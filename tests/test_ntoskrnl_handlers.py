@@ -622,12 +622,6 @@ def test_io_queue_work_item_runs_the_routine_with_the_device_and_context(driver_
     call(driver_emu, "ntoskrnl", "IoFreeWorkItem", [item])
 
 
-def test_ke_query_system_time_precise_writes_the_system_time(driver_emu: Speakeasy) -> None:
-    out = alloc(driver_emu, b"\x00" * 8)
-    call(driver_emu, "ntoskrnl", "KeQuerySystemTimePrecise", [out])
-    assert struct.unpack("<Q", driver_emu.mem_read(out, 8))[0] == get_kernel_emu(driver_emu).get_system_time()
-
-
 TRUNCATE = 0xFFFFFFFF
 
 
@@ -696,3 +690,47 @@ def test_rtl_allocate_heap_blocks_can_be_freed(driver64_emu: Speakeasy) -> None:
     assert addr
     freed, _ = call(driver64_emu, "ntoskrnl", "RtlFreeHeap", [0, 0, addr])
     assert freed == 1
+
+
+def query_time_of_day(se: Speakeasy, dll: str, length: int) -> tuple[int, int, bytes]:
+    buf = alloc(se, b"\xcc" * 0x40)
+    retlen = alloc(se, b"\0" * 4)
+    rv, _ = call(
+        se,
+        dll,
+        "NtQuerySystemInformation",
+        [ddk.SYSTEM_INFORMATION_CLASS.SystemTimeOfDayInformation, buf, length, retlen],
+    )
+    return rv, int.from_bytes(se.mem_read(retlen, 4), "little"), bytes(se.mem_read(buf, 0x40))
+
+
+def get_file_time(se: Speakeasy) -> int:
+    ft = alloc(se, b"\0" * 8)
+    call(se, "kernel32", "GetSystemTimeAsFileTime", [ft])
+    return int.from_bytes(se.mem_read(ft, 8), "little")
+
+
+def test_nt_query_system_time_of_day_follows_the_kernel32_clock(dll_emu: Speakeasy) -> None:
+    before = get_file_time(dll_emu)
+    rv, size, data = query_time_of_day(dll_emu, "ntdll", 48)
+    after = get_file_time(dll_emu)
+
+    assert (rv, size) == (ddk.STATUS_SUCCESS, 48)
+    boot, current, bias, zone_id, _, boot_bias, sleep_bias = struct.unpack_from("<QQQIIQQ", data)
+    assert 0 < boot < before < current < after
+    assert (bias, zone_id, boot_bias, sleep_bias) == (0, 0, 0, 0)
+    assert data[48:] == b"\xcc" * 16
+
+
+@pytest.mark.parametrize("name", ["KeQuerySystemTime", "KeQuerySystemTimePrecise"])
+def test_ke_query_system_time_shares_the_clock_of_zw_query_system_information(driver_emu: Speakeasy, name: str) -> None:
+    def query_system_time() -> int:
+        out = alloc(driver_emu, b"\0" * 8)
+        call(driver_emu, "ntoskrnl", name, [out])
+        return int.from_bytes(driver_emu.mem_read(out, 8), "little")
+
+    before = query_system_time()
+    _, _, data = query_time_of_day(driver_emu, "ntoskrnl", 48)
+    after = query_system_time()
+
+    assert before < struct.unpack_from("<Q", data, 8)[0] < after
