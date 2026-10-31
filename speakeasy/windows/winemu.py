@@ -2834,6 +2834,13 @@ class WindowsEmulator(BinaryEmulator):
                 origin_run.error.api_name = f"{dll}.{name}"
                 logger.error("API handler %s.%s changed SP without returning", dll, name)
                 self.end_run_on_fault()
+        except uc.UcError as e:
+            # Reading the arguments or writing the results of the call touched unmapped memory
+            kind, address, access_type, _ = guest_callbacks.get_handler_fault(self, e, entry_pc)
+            if access_type is None or self._should_stop_on_faults:
+                raise
+            logger.error("0x%x: %s in the call of %s.%s", entry_pc, kind, dll, name)
+            guest_callbacks.fail(self, guest_callbacks.CallbackError(kind, address, access_type))
         finally:
             self._active_api_frame = previous
 
