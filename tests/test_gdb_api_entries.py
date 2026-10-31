@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_gdb import GdbRspClient, _find_free_port, _stop_server, _wait_for_port
+from tests.test_gdb import GdbRspClient, _find_free_port, _stop_server
 
 _SERVER_SCRIPT = textwrap.dedent(r"""
     import json
@@ -204,7 +204,6 @@ def _api_target(tmp_path, config, architecture, mode):
     )
     client = None
     try:
-        _wait_for_port(port, proc, timeout=15)
         client = GdbRspClient(port, timeout=5)
         assert client.query_halt_reason().startswith(("S05", "T05"))
         yield ApiTarget(client, proc, architecture, json.loads(metadata_path.read_text()), result_path, metadata_path)

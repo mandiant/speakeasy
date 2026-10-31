@@ -49,9 +49,16 @@ class X86Registers:
 
 class GdbRspClient:
     def __init__(self, port: int, timeout: float = 10.0):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(timeout)
-        self.sock.connect(("127.0.0.1", port))
+        """Connect to the GDB server on port, and try again until the server listens."""
+        deadline = time.monotonic() + 15
+        while True:
+            try:
+                self.sock = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+                return
+            except ConnectionRefusedError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.01)
 
     def close(self):
         self.sock.close()
@@ -138,31 +145,6 @@ def _find_free_port() -> int:
         s.bind(("127.0.0.1", 0))
         port: int = s.getsockname()[1]
         return port
-
-
-def _port_is_listening(port: int) -> bool:
-    """Check if a port is in use without consuming any connection."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("127.0.0.1", port))
-            return False
-        except OSError:
-            return True
-
-
-def _wait_for_port(port: int, proc: subprocess.Popen, timeout: float = 15.0):
-    """Wait until port is listening, or the subprocess dies."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            _, stderr = proc.communicate(timeout=5)
-            pytest.fail(f"GDB server exited early (rc={proc.returncode}): {stderr.decode(errors='replace')}")
-        if _port_is_listening(port):
-            return
-        time.sleep(0.1)
-    proc.kill()
-    _, stderr = proc.communicate(timeout=5)
-    pytest.fail(f"GDB server did not start within {timeout}s: {stderr.decode(errors='replace')}")
 
 
 _PAUSE_SERVER_SCRIPT = textwrap.dedent("""\
@@ -417,13 +399,14 @@ def _start_module_server(filename: str, host: str = "127.0.0.1") -> tuple[int, s
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     return port, proc
 
 
 def _stop_server(proc: subprocess.Popen):
     if proc.poll() is None:
         proc.terminate()
+    elif proc.returncode != 0 and proc.stderr is not None and not proc.stderr.closed:
+        sys.stderr.write(proc.stderr.read().decode(errors="replace"))
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
@@ -485,7 +468,6 @@ def gdb_pause_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     yield port
     _stop_server(proc)
 
@@ -499,7 +481,6 @@ def gdb_fault_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     yield port, proc
     _stop_server(proc)
 
@@ -514,7 +495,6 @@ def gdb_memory_fault_emulator(request):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     assert proc.stdout is not None
     address = int(proc.stdout.readline(), 16)
     yield port, proc, address
@@ -530,7 +510,6 @@ def gdb_exit_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     yield port, proc
     _stop_server(proc)
 
@@ -544,7 +523,6 @@ def gdb_exit_process_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     yield port, proc
     _stop_server(proc)
 
@@ -558,7 +536,6 @@ def gdb_library_load_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     yield port
     _stop_server(proc)
 
@@ -572,7 +549,6 @@ def gdb_watchpoint_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     assert proc.stdout is not None
     address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
     yield port, proc, address, scratch
@@ -587,7 +563,6 @@ def _start_shellcode_server(code: str) -> tuple[int, subprocess.Popen, int, int]
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     assert proc.stdout is not None
     address, scratch = (int(value, 16) for value in proc.stdout.readline().split())
     return port, proc, address, scratch
@@ -611,7 +586,6 @@ def gdb_module_result_emulator(request):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     assert proc.stdout is not None
     exports = json.loads(proc.stdout.readline())
     yield port, proc, exports
@@ -629,7 +603,6 @@ def gdb_export_fault_emulator():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _wait_for_port(port, proc)
     assert proc.stdout is not None
     exports = json.loads(proc.stdout.readline())
     yield port, proc, exports
@@ -1252,9 +1225,6 @@ def test_gdb_resumes_after_a_timeout_log_it_once(config, caplog):
         base = se.load_shellcode(data=b"\xeb\xfe", arch="x86")
         server = threading.Thread(target=se.run_shellcode, args=(base,))
         server.start()
-        deadline = time.monotonic() + 15
-        while not _port_is_listening(port) and time.monotonic() < deadline:
-            time.sleep(0.01)
         client = GdbRspClient(port)
         try:
             assert client.query_halt_reason().startswith(("S05", "T05"))
@@ -1276,9 +1246,6 @@ def _serve(se: Speakeasy, port: int, address: int) -> Iterator[GdbRspClient]:
     """Run the shellcode at address in a thread under the GDB server of se, and connect to it."""
     server = threading.Thread(target=se.run_shellcode, args=(address,))
     server.start()
-    deadline = time.monotonic() + 15
-    while not _port_is_listening(port) and time.monotonic() < deadline:
-        time.sleep(0.01)
     client = GdbRspClient(port)
     try:
         assert client.query_halt_reason().startswith(("S05", "T05"))
