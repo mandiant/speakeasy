@@ -453,6 +453,25 @@ def test_generator_handler_fault_ends_the_run_where_it_reads(config):
         assert (run.error.type, run.error.address) == ("invalid_read", record)
 
 
+def test_guest_call_past_the_end_of_the_stack_ends_the_run_where_it_writes(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        stack = se.mem_alloc(0x1000, base=0x50000000)
+        items = code + 0x800
+        se.mem_write(items, struct.pack("<II", 2, 1))
+        compare = code + 0x900
+        se.mem_write(compare, b"\x31\xc0\xc3")  # xor eax, eax; ret
+        # mov esp: qsort and its stub fit on the stack, the arguments of the compare call do not
+        sort = guest_call(4, get_api(se, "msvcrt", "qsort"), items, 2, 4, compare)
+        se.mem_write(code, b"\xbc" + struct.pack("<I", stack + 24) + sort)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.address) == ("invalid_write", stack - 4)
+
+
 def test_vectored_handler_added_first_runs_first(config):
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")

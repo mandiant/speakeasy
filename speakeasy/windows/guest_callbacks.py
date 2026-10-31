@@ -153,13 +153,13 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
     run = emu.get_current_run()
     try:
         call = frame.handler.generator.send(value)
+        emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
     except StopIteration as done:
         result = done.value
     except uc.UcError as e:
         kind, address, access_type, message = get_handler_fault(emu, e, emu.get_pc())
         raise CallbackError(kind, address, access_type, message=message) from e
     else:
-        emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
         for register, contents in call.registers:
             emu.reg_write(register, contents)
         return
