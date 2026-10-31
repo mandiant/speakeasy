@@ -1708,10 +1708,16 @@ class WindowsEmulator(BinaryEmulator):
         Parse a PE file or buffer without loading it into the emulator
         """
 
-        if not data and not os.path.exists(path):
-            raise WindowsEmuError(f"File: {path} not found")
+        if not data:
+            if path is None:
+                raise WindowsEmuError("No PE data to parse")
+            if not os.path.exists(path):
+                raise WindowsEmuError(f"File: {path} not found")
 
-        return winemu._PeParser(path=path, data=data)
+        try:
+            return winemu._PeParser(path=path, data=data)
+        except pefile.PEFormatError as e:
+            raise WindowsEmuError(f"Invalid PE: {e}") from e
 
     def get_mod_from_addr(self, addr):
         if self.curr_mod and self.curr_mod.base <= addr < self.curr_mod.base + self.curr_mod.image_size:
