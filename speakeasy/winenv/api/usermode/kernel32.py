@@ -20,7 +20,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.errors import ApiEmuError, FileSystemEmuError, OutOfMemoryError, WindowsEmuError
+from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.profiler_events import (
     FILE_CREATE,
     FILE_READ,
@@ -603,12 +603,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
-                for p in emu.get_processes():
-                    if th32ProcessID == p.pid:
-                        proc = p
-                        break
-                else:
-                    raise ApiEmuError("The specified PID not found")
+                proc = next((p for p in emu.get_processes() if p.pid == th32ProcessID), None)
+            if proc is None:
+                # Windows ignores the PID of a snapshot without a module list
+                if dwFlags & k32types.TH32CS_SNAPMODULE:
+                    emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+                    return self.get_max_int()
+                proc = emu.curr_process
             pid = proc.pid
             if dwFlags & k32types.TH32CS_SNAPTHREAD:
                 threads = proc.threads
