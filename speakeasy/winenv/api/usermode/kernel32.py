@@ -4184,7 +4184,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             else:
                 if not bytes_to_map:
                     bytes_to_map = mapping.size - full_offset
-                base, size = get_view_range(bytes_to_map)
+                try:
+                    base, size = get_view_range(bytes_to_map)
+                except OutOfMemoryError:
+                    emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
+                    return 0
                 if not base:
                     emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                     return 0
