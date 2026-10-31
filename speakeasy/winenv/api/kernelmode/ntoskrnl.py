@@ -841,9 +841,10 @@ class Ntoskrnl(api.ApiHandler):
             tod.BootTimeBias = 0
             tod.SleepTimeBias = 0
 
-            size = self.sizeof(tod)
-            if size <= syslen and syslen != 0:
-                self.mem_write(sysinfo, self.get_bytes(tod))
+            if syslen > self.sizeof(tod):
+                return ddk.STATUS_INFO_LENGTH_MISMATCH
+            size = syslen
+            self.mem_write(sysinfo, self.get_bytes(tod)[:size])
             nts = ddk.STATUS_SUCCESS
 
         elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemKernelDebuggerInformation:

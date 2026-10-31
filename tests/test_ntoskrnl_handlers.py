@@ -722,6 +722,23 @@ def test_nt_query_system_time_of_day_follows_the_kernel32_clock(dll_emu: Speakea
     assert data[48:] == b"\xcc" * 16
 
 
+def test_nt_query_system_time_of_day_fills_a_short_buffer(dll_emu: Speakeasy) -> None:
+    rv, size, data = query_time_of_day(dll_emu, "ntdll", 32)
+    tick_count, _ = call(dll_emu, "kernel32", "GetTickCount", [])
+
+    assert (rv, size) == (ddk.STATUS_SUCCESS, 32)
+    assert data[32:] == b"\xcc" * 32
+    boot, current = struct.unpack_from("<QQ", data)
+    assert 0 < tick_count - (current - boot) // 10000 <= 20
+
+
+def test_nt_query_system_time_of_day_rejects_a_long_buffer(dll_emu: Speakeasy) -> None:
+    rv, _, data = query_time_of_day(dll_emu, "ntdll", 49)
+
+    assert rv == ddk.STATUS_INFO_LENGTH_MISMATCH
+    assert data == b"\xcc" * 0x40
+
+
 @pytest.mark.parametrize("name", ["KeQuerySystemTime", "KeQuerySystemTimePrecise"])
 def test_ke_query_system_time_shares_the_clock_of_zw_query_system_information(driver_emu: Speakeasy, name: str) -> None:
     def query_system_time() -> int:
