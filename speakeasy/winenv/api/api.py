@@ -543,14 +543,12 @@ class ApiHandler:
     def get_char_width(self, ctx):
         """
         Based on the API name, determine the character width
-        being used by the function
+        being used by the function. An export without the A or W
+        suffix, such as lstrcpy, is ANSI.
         """
-        name = ctx.func_name
-        if name.endswith("A"):
-            return 1
-        elif name.endswith("W"):
+        if ctx.func_name.endswith("W"):
             return 2
-        raise ApiEmuError(f"Failed to get character width from function: {name}")
+        return 1
 
     def get_va_arg_count(self, fmt):
         """
