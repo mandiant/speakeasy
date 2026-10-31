@@ -3304,7 +3304,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         (penv,) = argv
 
-        self.mem_free(penv)
+        mm = emu.get_address_map(penv)
+        if mm and mm.base == penv and mm.tag and mm.tag.startswith("api.environment."):
+            self.mem_free(penv)
 
         return True
 

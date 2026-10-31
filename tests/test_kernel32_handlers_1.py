@@ -285,6 +285,17 @@ def test_environment_strings_is_a_double_nul_terminated_block(dll_emu: Speakeasy
     assert dll_emu.mem_read(ptr, len(block)) == block
 
 
+def test_free_environment_strings_frees_only_an_environment_block(dll_emu: Speakeasy) -> None:
+    other = alloc(dll_emu, b"\xcc" * 0x10)
+    assert call(dll_emu, "kernel32", "FreeEnvironmentStringsW", [other + 4])[0]
+    assert not dll_emu.emu.get_address_map(other).free
+
+    block, _ = call(dll_emu, "kernel32", "GetEnvironmentStringsW", [])
+    assert call(dll_emu, "kernel32", "FreeEnvironmentStringsW", [block])[0]
+    mm = dll_emu.emu.get_address_map(block)
+    assert mm is None or mm.free
+
+
 @pytest.mark.parametrize("cw", [1, 2])
 def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
     api = "lstrcatW" if cw == 2 else "lstrcatA"
