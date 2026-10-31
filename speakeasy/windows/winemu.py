@@ -5,7 +5,6 @@ import multiprocessing.synchronize
 import ntpath
 import os
 import random
-import shlex
 import struct
 import threading
 import time
@@ -1980,11 +1979,12 @@ class WindowsEmulator(BinaryEmulator):
         if path:
             file_path = path.strip().strip('"')
         else:
-            # Setting posix to false makes shlex not treat '\' as an
-            # escape character, but if each token was surrounded with
-            # quotes, those are kept, so we have to delete them
-            tokens = shlex.split(cmdline or "", posix=False)
-            file_path = tokens[0].strip('"') if tokens else ""
+            # As CreateProcess does: a quoted program name ends at the next quote, any other at white space
+            head = (cmdline or "").lstrip()
+            if head.startswith('"'):
+                file_path = head[1:].partition('"')[0]
+            else:
+                file_path = head.split(maxsplit=1)[0] if head else ""
         if not file_path:
             raise FileSystemEmuError("process creation needs a program name")
 
