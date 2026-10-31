@@ -1,7 +1,9 @@
+import struct
+
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.windows.common import EMU_RESERVED
+from speakeasy.windows.common import EMU_RESERVED, EMU_RESERVED_END
 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
@@ -33,3 +35,16 @@ def test_allocations_do_not_cover_the_return_hook(config, arch, code):
         assert run.ret_val == 0
     finally:
         se.shutdown()
+
+
+@pytest.mark.parametrize("access, insn", [("read", b"\x8b\x07"), ("write", b"\x89\x07")])
+def test_access_across_the_end_of_the_reserved_range_faults_past_its_end(config, access, insn):
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=b"\xcc" * 0x100, arch="x86")
+        # mov edi, EMU_RESERVED_END - 3; mov eax, [edi] or mov [edi], eax
+        se.mem_write(base, b"\xbf" + struct.pack("<I", EMU_RESERVED_END - 3) + insn + b"\xc3")
+
+        se.run_shellcode(base)
+
+        error = se.get_report().entry_points[0].error
+        assert (error.type, error.address) == (f"invalid_{access}", EMU_RESERVED_END)

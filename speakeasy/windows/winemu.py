@@ -3296,9 +3296,8 @@ class WindowsEmulator(BinaryEmulator):
         if mod:
             return True
 
-        if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
-            self._map_reserved_range()
-            return True
+        if winemu.EMU_RESERVED <= address < winemu.EMU_RESERVED_END:
+            return self._complete_reserved_access(address, size, "read")
 
         return self._raise_memory_fault(address, "read")
 
@@ -3334,11 +3333,19 @@ class WindowsEmulator(BinaryEmulator):
         Called when non-writable address is written to
         """
         # ignore patches to APIs
-        if address >= winemu.EMU_RESERVED and address <= (winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE):
-            self._map_reserved_range()
-            return True
+        if winemu.EMU_RESERVED <= address < winemu.EMU_RESERVED_END:
+            return self._complete_reserved_access(address, size, "write")
 
         return self._raise_memory_fault(address, "write")
+
+    def _complete_reserved_access(self, address, size, access_type):
+        """Map the reserved range for an access to it. An access past its end faults at the first unmapped byte."""
+        self._map_reserved_range()
+        first = guest_callbacks.get_first_unmapped(self, address, size)
+        if first != address:
+            self._unmap_reserved_range()
+            return self._raise_memory_fault(first, access_type)
+        return True
 
     def _hook_code_deferred_work(self, emu, addr, size):
         """
