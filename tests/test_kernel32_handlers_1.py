@@ -295,6 +295,24 @@ def test_lstrcat_ends_with_a_full_nul(dll_emu: Speakeasy, cw: int) -> None:
     assert dll_emu.mem_read(dst, 4 * cw + 1) == encode("ABC\0", cw) + b"\xcc"
 
 
+@pytest.mark.parametrize(
+    "api, extra, expected",
+    [("lstrcpy", [], "BCD"), ("lstrcpyn", [3], "BC"), ("lstrcat", [], "ABCD")],
+)
+def test_lstr_exports_without_suffix_write_ansi(dll_emu: Speakeasy, api: str, extra: list[int], expected: str) -> None:
+    dst = alloc(dll_emu, b"A\0" + b"\xcc" * 16)
+    src = alloc(dll_emu, b"BCD\0")
+    rv, _ = call(dll_emu, "kernel32", api, [dst, src, *extra])
+    assert rv == dst
+    assert dll_emu.mem_read(dst, len(expected) + 2) == expected.encode() + b"\0\xcc"
+
+
+@pytest.mark.parametrize("api, s1", [("lstrcmp", b"abc\0X"), ("lstrcmpi", b"ABC\0X")])
+def test_lstrcmp_exports_without_suffix_read_ansi(dll_emu: Speakeasy, api: str, s1: bytes) -> None:
+    rv, _ = call(dll_emu, "kernel32", api, [alloc(dll_emu, s1), alloc(dll_emu, b"abc\0Y")])
+    assert rv == 0
+
+
 def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")
