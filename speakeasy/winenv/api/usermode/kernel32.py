@@ -34,7 +34,7 @@ from speakeasy.profiler_events import (
     THREAD_INJECT,
 )
 from speakeasy.windows.api_registry import module_name
-from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -1727,6 +1727,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             remainder = dwSize & 0xFFF
             if remainder:
                 size += 0x1000
+            if get_first_unmapped(emu, addr, size) != addr:
+                emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                return 0
 
             old_prot &= ~windefs.PAGE_GUARD
             if addr in emu.guard_pages:
