@@ -4070,6 +4070,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             name = self.read_mem_string(map_name, cw)
             ctx.args["lpName"].display = name
 
+        f = emu.get_file_manager().get_file_from_handle(hfile)
+        if f and prot & SEC_IMAGE:
+            try:
+                emu.load_pe(data=f.get_contents())
+            except WindowsEmuError:
+                emu.set_last_error(windefs.ERROR_BAD_EXE_FORMAT)
+                return 0
+
         hmap = self.file_create_mapping(hfile, name, size, prot)
 
         return hmap

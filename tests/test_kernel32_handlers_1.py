@@ -1080,6 +1080,17 @@ def test_map_view_of_image_section_keeps_the_input_metadata(pe_file_emu: Speakea
     assert emu.profiler.meta == before
 
 
+@pytest.mark.parametrize("path", [b"c:\\data.bin", b"c:\\windows\\system32\\kernel32.dll"])
+def test_create_image_section_of_a_file_that_is_not_a_pe_fails(file_emu: Speakeasy, path: bytes) -> None:
+    start_process(file_emu)
+    name = alloc(file_emu, path + b"\x00")
+    hfile, _ = call(file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
+    assert hfile != windefs.INVALID_HANDLE_VALUE
+    hmap, _ = call(file_emu, "kernel32", "CreateFileMappingA", [hfile, 0, 0x02 | SEC_IMAGE, 0, 0, 0])
+    assert hmap == 0
+    assert file_emu.emu.get_last_error() == windefs.ERROR_BAD_EXE_FORMAT
+
+
 RSMB = 0x52534D42
 
 
