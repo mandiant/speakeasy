@@ -38,11 +38,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         self.is_kernel_mode: bool = True
         self.irql: int = ddk.PASSIVE_LEVEL
         self.delayed_runs: list[Run] = []
-        self.system_time: int = self.start_time
         self.ktypes = ntos
-
-    def get_system_time(self):
-        return self.system_time
 
     def get_system_process(self):
         """
