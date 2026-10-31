@@ -35,4 +35,4 @@ def test_map_view_of_file_uses_readable_protections(base_config, tmp_path):
         assert region.prot in {"r--", "rw-", "r-x", "rwx"}
 
     if ep.error is not None:
-        assert ep.error.type != "Read from non-readable memory (UC_ERR_READ_PROT)"
+        assert ep.error.type != "internal_error"

@@ -195,9 +195,12 @@ class BinaryEmulator(MemoryManager, ABC):
             self.profiler.set_start_time()
         try:
             self.emu_eng.start(addr, timeout=self.config.timeout, count=self.config.max_instructions)
-        except Exception:
+        except Exception as e:
             if self.profiler:
-                self.profiler.record_error_event(ErrorInfo(type="internal_error", traceback=traceback.format_exc()))
+                error = ErrorInfo(
+                    type="internal_error", traceback=traceback.format_exc(), message=str(e) or type(e).__name__
+                )
+                self.profiler.record_error_event(error)
             self.on_emu_complete()
 
     def reg_write(self, reg, val) -> None:

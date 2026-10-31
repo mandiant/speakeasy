@@ -88,20 +88,21 @@ def get_first_unmapped(emu, address: int, size: int) -> int:
     return address
 
 
-def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | None]:
+def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | None, str | None]:
     """
-    Get the error type, address and access type for an exception raised by an API handler.
+    Get the error type, address, access type and message for an exception raised by an API handler.
 
     A handler that reads or writes an invalid guest pointer fails like guest code does at the
     first byte it cannot access. Unicorn reports the start of the whole access.
+    Any other exception is an internal_error, with the exception text as the message.
     """
     access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
     if access is None or not error.args:
-        return str(error) or type(error).__name__, pc, None
+        return "internal_error", pc, None, str(error) or type(error).__name__
     address = error.args[0]
     if len(error.args) > 1:
         address = get_first_unmapped(emu, address, error.args[1])
-    return f"invalid_{access}", address, access
+    return f"invalid_{access}", address, access, None
 
 
 @dataclass
@@ -142,7 +143,7 @@ def fail(emu, e: CallbackError) -> None:
     run = emu.get_current_run()
     if e.pc is not None:
         emu.set_pc(e.pc)
-    run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type)
+    run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type, message=e.details.get("message"))
     for name, value in e.details.items():
         setattr(run.error, name, value)
     emu.end_run_on_fault()
@@ -155,8 +156,8 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
     except StopIteration as done:
         result = done.value
     except uc.UcError as e:
-        kind, address, access_type = get_handler_fault(emu, e, emu.get_pc())
-        raise CallbackError(kind, address, access_type) from e
+        kind, address, access_type, message = get_handler_fault(emu, e, emu.get_pc())
+        raise CallbackError(kind, address, access_type, message=message) from e
     else:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
         for register, contents in call.registers:
