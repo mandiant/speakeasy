@@ -98,3 +98,16 @@ def test_handler_access_of_an_unmapped_guest_pointer_is_typed_fault(config, api,
         assert error.access_type == access
         assert error.address == bad
         assert error.traceback
+
+
+def test_api_arguments_past_the_top_of_the_stack_are_a_typed_fault(config):
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        top = se.mem_alloc(0x1000, base=0x50000000) + 0x1000
+        # mov esp, top; call Sleep: the return address fits, the argument is past the top
+        se.mem_write(code, b"\xbc" + dword(top) + b"\xb8" + dword(se.emu.get_proc("kernel32", "Sleep")) + b"\xff\xd0")
+
+        se.run_shellcode(code)
+
+        error = se.get_report().entry_points[0].error
+        assert (error.type, error.address) == ("invalid_read", top)
