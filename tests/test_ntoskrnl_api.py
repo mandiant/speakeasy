@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 from typing import Any
 
+import pefile
 import pytest
 
 import speakeasy.winenv.defs.nt.ddk as ddk
@@ -55,3 +56,18 @@ def test_ps_get_current_process_id_returns_active_pid(driver_emu: Speakeasy) -> 
     proc = next(p for p in emu.processes if p.pid != 4)
     emu.set_current_process(proc)
     assert call(driver_emu, "ntoskrnl", "PsGetCurrentProcessId", [])[0] == proc.pid
+
+
+@pytest.mark.parametrize("mapped", [1, 0x1E100], ids=["image", "file"])
+def test_rtl_image_directory_entry_to_data_finds_the_import_directory(any_driver_emu: Speakeasy, mapped: int) -> None:
+    se = any_driver_emu
+    module = get_kernel_emu(se).modules[0]
+    pe = pefile.PE(data=se.mem_read(module.base, 0x1000), fast_load=True)
+    imports = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]]
+    size = alloc(se, b"\xcc" * 4)
+
+    rv, _ = call(se, "ntoskrnl", "RtlImageDirectoryEntryToData", [module.base, mapped, 1, size])
+
+    offset = imports.VirtualAddress if mapped & 0xFF else pe.get_offset_from_rva(imports.VirtualAddress)
+    assert rv == module.base + offset
+    assert int.from_bytes(se.mem_read(size, 4), "little") == imports.Size
