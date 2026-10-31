@@ -17,6 +17,7 @@ from .. import api, exception_apis
 
 ENOENT = 2
 EBADF = 9
+EAGAIN = 11
 EEXIST = 17
 EINVAL = 22
 ERANGE = 34
@@ -2986,6 +2987,9 @@ class Msvcrt(api.ApiHandler):
         security, stack_size, start_address, arglist, initflag, thrdaddr = argv
 
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
+        if not obj:
+            self.set_errno(EAGAIN)
+            return 0
 
         if thrdaddr:
             self.mem_write(thrdaddr, obj.id.to_bytes(4, "little"))
@@ -3004,6 +3008,9 @@ class Msvcrt(api.ApiHandler):
         start_address, stack_size, arglist = argv
 
         handle, obj = self.create_thread(start_address, arglist, emu.get_current_process())
+        if not obj:
+            self.set_errno(EAGAIN)
+            return self.get_max_int()
         return handle
 
     @apihook("_endthreadex", argc=1, conv=e_arch.CALL_CONV_CDECL)
