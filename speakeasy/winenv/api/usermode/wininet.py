@@ -318,6 +318,9 @@ class Wininet(api.ApiHandler):
         rv = 1
 
         req = self.netman.get_wininet_object(hFile)
+        if not isinstance(req, netman.WininetRequest):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
         resp = req.get_response()
         data = resp.read(size)
 
