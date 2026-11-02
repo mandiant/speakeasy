@@ -81,6 +81,7 @@ class Wininet(api.ApiHandler):
         );
         """
         hnd, server, port, user, password, service, flags, dwctx = argv
+        port &= 0xFFFF
 
         cw = self.get_char_width(ctx)
         if server:

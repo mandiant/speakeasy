@@ -73,6 +73,7 @@ class WinHttp(api.ApiHandler):
         );
         """
         hnd, server, port, reserve = argv
+        port &= 0xFFFF
 
         if server:
             server = self.read_mem_string(server, 2)
