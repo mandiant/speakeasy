@@ -181,12 +181,27 @@ class KIDTENTRY64(EmuStruct):
 
 
 class ETHREAD(EmuStruct):
+    """
+    An opaque 4096-byte ETHREAD.
+
+    The layout of ETHREAD changes with each Windows build, so speakeasy declares no fields.
+    objman.Thread fills the bytes with 0xFF.
+    """
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.Data = ct.c_uint8 * 4096
 
 
 class EPROCESS(EmuStruct):
+    """
+    An opaque 4096-byte EPROCESS.
+
+    The layout of EPROCESS changes with each Windows build, so speakeasy declares no fields. objman.Process
+    writes only ActiveProcessLinks, as an empty LIST_ENTRY that points to itself. Its offset is 0x88 on x86, as
+    in Windows XP, and 0x188 on x64, as in Windows 7.
+    """
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.Data = ct.c_uint8 * 4096
