@@ -46,11 +46,7 @@ class WtsApi32(api.ApiHandler):
         fn = ctx.func_name
         cw = self.get_char_width(ctx)
 
-        winstatname = "RDP-Tcp#1" + "\x00"
-        if cw == 2:
-            sn = winstatname.encode("utf-16le")
-        elif cw == 1:
-            sn = winstatname.encode("utf-8")
+        sn = self.encode_string("RDP-Tcp#1\x00", cw)
 
         wsi = WTS_SESSION_INFO(emu.get_ptr_size())
 
