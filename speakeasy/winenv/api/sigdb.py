@@ -469,8 +469,9 @@ class Win32MetadataSource(SignatureSource):
         if self._loaded:
             return
         with self._lock:
+            # Another thread can load the database while this thread waits for the lock.
             if self._loaded:
-                return
+                return  # type: ignore[unreachable]
             self._loaded = True
             if not os.path.exists(self.path):
                 cls = type(self)

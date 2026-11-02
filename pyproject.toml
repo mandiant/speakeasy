@@ -105,6 +105,7 @@ warn_return_any = true
 warn_unused_ignores = true
 ignore_missing_imports = true
 check_untyped_defs = true
+warn_unreachable = true
 
 # Windows struct definitions using ctypes - extremely dynamic, not worth typing
 [[tool.mypy.overrides]]
