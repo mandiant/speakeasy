@@ -1,11 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
 from speakeasy.struct import EmuStruct, Ptr
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class WTS_SESSION_INFO(EmuStruct):
@@ -28,7 +32,7 @@ class WtsApi32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WTSEnumerateSessions", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WTSEnumerateSessions(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WTSEnumerateSessions(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WTSEnumerateSessions(
             HANDLE hServer,
@@ -76,7 +80,7 @@ class WtsApi32(api.ApiHandler):
         return rv
 
     @apihook("WTSFreeMemory", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def WTSFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WTSFreeMemory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID WTSFreeMemory(
             PVOID pMemory
