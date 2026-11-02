@@ -5762,18 +5762,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (lpVersionInformation,) = argv
 
-        osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size())
+        cw = self.get_char_width(ctx)
+        osver = self.k32types.OSVERSIONINFOEX(emu.get_ptr_size(), cw)
+        is_ex = self.read_dword(lpVersionInformation) == osver.sizeof()
+        if not is_ex:
+            osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size(), cw)
         osver = self.mem_cast(osver, lpVersionInformation)
-
-        # Its an OSVERSIONINFO object
-        if osver.dwOSVersionInfoSize == osver.sizeof():
-            pass
 
         ver = emu.config.os_ver
         osver.dwMajorVersion = ver.major
         osver.dwMinorVersion = ver.minor
         osver.dwBuildNumber = ver.build
-        osver.dwPlatformId = 2
+        osver.dwPlatformId = VER_PLATFORM_WIN32_NT
+        if is_ex:
+            osver.wServicePackMajor = SERVICE_PACK_BUILDS.get(ver.build or 0, 0)
+            osver.wServicePackMinor = 0
+            osver.wSuiteMask = 0
+            osver.wProductType = VER_NT_WORKSTATION
 
         rv = 1
         self.mem_write(lpVersionInformation, osver.get_bytes())

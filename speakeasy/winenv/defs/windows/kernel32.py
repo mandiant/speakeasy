@@ -231,21 +231,27 @@ class STARTUPINFO(EmuStruct):
 
 
 class OSVERSIONINFO(EmuStruct):
-    def __init__(self, ptr_size):
+    def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
         self.dwOSVersionInfoSize = ct.c_uint32
         self.dwMajorVersion = ct.c_uint32
         self.dwMinorVersion = ct.c_uint32
         self.dwBuildNumber = ct.c_uint32
         self.dwPlatformId = ct.c_uint32
-        self.szCSDVersion = ct.c_uint8 * 128
+        self.szCSDVersion = ct.c_uint8 * (128 * width)
 
 
 class OSVERSIONINFOEX(EmuStruct):
-    def __init__(self, ptr_size):
+    def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.dwOSVersion = OSVERSIONINFO
-        self.dwPlatformId = ct.c_uint16
-        self.dwPlatformId = ct.c_uint16
+        self.dwOSVersionInfoSize = ct.c_uint32
+        self.dwMajorVersion = ct.c_uint32
+        self.dwMinorVersion = ct.c_uint32
+        self.dwBuildNumber = ct.c_uint32
+        self.dwPlatformId = ct.c_uint32
+        self.szCSDVersion = ct.c_uint8 * (128 * width)
+        self.wServicePackMajor = ct.c_uint16
+        self.wServicePackMinor = ct.c_uint16
+        self.wSuiteMask = ct.c_uint16
         self.wProductType = ct.c_uint8
         self.wReserved = ct.c_uint8
