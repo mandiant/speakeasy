@@ -296,9 +296,6 @@ class Profiler:
                             evt.data_ref = self.merge_binary_data(evt.data_ref, data, limit=1024)
                         return
 
-        handle_str = hex(handle) if handle else None
-        buffer_str = hex(buffer) if buffer else None
-
         open_flags = None
         if disposition:
             open_flags = disposition if isinstance(disposition, list) else [disposition]
@@ -311,7 +308,7 @@ class Profiler:
             event = FileCreateEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 open_flags=open_flags,
                 access_flags=access_flags,
             )
@@ -319,7 +316,7 @@ class Profiler:
             event = FileOpenEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 open_flags=open_flags,
                 access_flags=access_flags,
             )
@@ -327,19 +324,19 @@ class Profiler:
             event = FileReadEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 size=size,
                 data_ref=data_ref,
-                buffer=buffer_str,
+                buffer=buffer or None,
             )
         elif event_type == EventType.FILE_WRITE:
             event = FileWriteEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 size=size,
                 data_ref=data_ref,
-                buffer=buffer_str,
+                buffer=buffer or None,
             )
         elif event_type == EventType.FILE_DELETE:
             event = FileDeleteEvent(pos=pos, path=path)
@@ -376,9 +373,6 @@ class Profiler:
         """
         data_ref = self.put_binary_data(data or b"", limit=1024)
 
-        handle_str = hex(handle) if handle else None
-        buffer_str = hex(buffer) if buffer else None
-
         open_flags = None
         if disposition:
             open_flags = disposition if isinstance(disposition, list) else [disposition]
@@ -391,7 +385,7 @@ class Profiler:
             event = RegOpenKeyEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 open_flags=open_flags,
                 access_flags=access_flags_list,
             )
@@ -399,7 +393,7 @@ class Profiler:
             event = RegCreateKeyEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 open_flags=open_flags,
                 access_flags=access_flags_list,
             )
@@ -407,39 +401,39 @@ class Profiler:
             event = RegReadValueEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 value_name=value_name,
                 size=size,
                 data_ref=data_ref,
-                buffer=buffer_str,
+                buffer=buffer or None,
             )
         elif event_type == EventType.REG_WRITE_VALUE:
             event = RegWriteValueEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 value_name=value_name,
                 size=size,
                 data_ref=data_ref,
-                buffer=buffer_str,
+                buffer=buffer or None,
             )
         elif event_type == EventType.REG_LIST_SUBKEYS:
             event = RegListSubkeysEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
             )
         elif event_type == EventType.REG_DELETE_KEY:
             event = RegDeleteKeyEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
             )
         elif event_type == EventType.REG_DELETE_VALUE:
             event = RegDeleteValueEvent(
                 pos=pos,
                 path=path,
-                handle=handle_str,
+                handle=handle or None,
                 value_name=value_name,
             )
         else:
