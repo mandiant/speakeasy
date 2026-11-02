@@ -1,9 +1,14 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.winenv.defs.windows import mpr
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Mpr(api.ApiHandler):
@@ -16,7 +21,7 @@ class Mpr(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WNetOpenEnum", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WNetOpenEnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WNetOpenEnum(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetOpenEnum(
             DWORD dwScope,
@@ -43,7 +48,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetEnumResource", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetEnumResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WNetEnumResource(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetEnumResource(
             HANDLE hEnum,
@@ -55,7 +60,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetAddConnection2", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WNetAddConnection2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WNetAddConnection2(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetAddConnection2(
             LPNETRESOURCE lpNetResource,
@@ -67,7 +72,7 @@ class Mpr(api.ApiHandler):
         return mpr.ERROR_NO_NETWORK
 
     @apihook("WNetGetConnection", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def WNetGetConnection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WNetGetConnection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetGetConnection(
             LPCTSTR lpLocalName,
