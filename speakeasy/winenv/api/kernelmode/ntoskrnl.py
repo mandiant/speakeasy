@@ -2425,7 +2425,7 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
         );
         """
-        return None
+        return
 
     @apihook("RtlGetCompressionWorkSpaceSize", argc=3)
     def RtlGetCompressionWorkSpaceSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

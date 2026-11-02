@@ -43,7 +43,7 @@ class Gdiplus(api.ApiHandler):
             ULONG_PTR token
         );
         """
-        return None
+        return
 
     @apihook("GdipAlloc", argc=1)
     def GdipAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

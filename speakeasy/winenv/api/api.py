@@ -261,20 +261,17 @@ class ApiHandler:
     def sizeof(self, obj):
         if isinstance(obj, EmuStruct):
             return obj.sizeof()
-        else:
-            raise ApiEmuError("Invalid object")
+        raise ApiEmuError("Invalid object")
 
     def get_bytes(self, obj):
         if isinstance(obj, EmuStruct):
             return obj.get_bytes()
-        else:
-            raise ApiEmuError("Invalid object")
+        raise ApiEmuError("Invalid object")
 
     def cast(self, obj, bytez):
         if isinstance(obj, EmuStruct):
             return obj.cast(bytez)
-        else:
-            raise ApiEmuError("Invalid object")
+        raise ApiEmuError("Invalid object")
 
     def write_back(self, addr, obj):
         bytez = self.get_bytes(obj)

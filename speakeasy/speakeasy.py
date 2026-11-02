@@ -261,8 +261,7 @@ class Speakeasy:
         # Check for the PE header
         if data[:2] == b"MZ":
             return True
-        else:
-            return False
+        return False
 
     def _auto_mount_target_directory(self, path: str) -> None:
         """
@@ -387,8 +386,7 @@ class Speakeasy:
                 emulate_children=emulate_children,
                 entry_point=entry_point,
             )
-        else:
-            return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)
+        return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)
 
     def load_shellcode(self, fpath=None, arch=None, data=None, filename=None) -> int:
         """
@@ -472,7 +470,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
-            return
+            return None
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
 
     @execution_scope
@@ -532,7 +530,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.code_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_code_hook(cb, begin=begin, end=end, emu=self)
 
     def add_dyn_code_hook(self, cb: Callable):
@@ -548,7 +546,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.dyn_code_hooks.append((cb,))
-            return
+            return None
         return self.emu.add_dyn_code_hook(cb, emu=self)
 
     def add_mem_read_hook(self, cb: Callable, begin=1, end=0):
@@ -566,7 +564,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.mem_read_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_mem_read_hook(cb, begin=begin, end=end, emu=self)
 
     def add_mem_write_hook(self, cb: Callable, begin=1, end=0):
@@ -584,7 +582,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.mem_write_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_mem_write_hook(cb, begin=begin, end=end, emu=self)
 
     def add_IN_instruction_hook(self, cb: Callable, begin=1, end=0):
@@ -602,7 +600,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.in_insn_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=218)
 
     def add_SYSCALL_instruction_hook(self, cb: Callable, begin=1, end=0):
@@ -620,7 +618,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.syscall_insn_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
 
     def add_invalid_instruction_hook(self, cb: Callable):
@@ -636,7 +634,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.invalid_insn_hooks.append((cb,))
-            return
+            return None
         return self.emu.add_invalid_instruction_hook(cb)
 
     def add_mem_invalid_hook(self, cb: Callable):
@@ -652,7 +650,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.mem_invalid_hooks.append((cb,))
-            return
+            return None
         return self.emu.add_mem_invalid_hook(cb, emu=self)
 
     def add_interrupt_hook(self, cb: Callable):
@@ -668,7 +666,7 @@ class Speakeasy:
         """
         if self._emu is None:
             self.interrupt_hooks.append((cb,))
-            return
+            return None
         return self.emu.add_interrupt_hook(cb, emu=self)
 
     def get_registry_key(self, handle=0, path=""):
@@ -942,5 +940,5 @@ class Speakeasy:
         """
         if self._emu is None:
             self.mem_map_hooks.append((cb, begin, end))
-            return
+            return None
         return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)

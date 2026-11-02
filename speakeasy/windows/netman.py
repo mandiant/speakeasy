@@ -60,9 +60,7 @@ class Socket:
 
     def get_recv_data(self, size, peek=False):
         data = self.curr_packet.read(size)
-        if not peek:
-            return data
-        elif peek:
+        if peek:
             self.curr_packet.seek(-len(data), os.SEEK_CUR)
         return data
 

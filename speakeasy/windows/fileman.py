@@ -287,11 +287,10 @@ class FileManager:
             hnd = fm.get_handle()
             self.file_maps.update({hnd: fm})
             return hnd
-        else:
-            fm = FileMap(self.emu.handle_allocator, name, size, prot, None)
-            hnd = fm.get_handle()
-            self.file_maps.update({hnd: fm})
-            return hnd
+        fm = FileMap(self.emu.handle_allocator, name, size, prot, None)
+        hnd = fm.get_handle()
+        self.file_maps.update({hnd: fm})
+        return hnd
 
     def walk_files(self):
         for f in self.file_config.files:

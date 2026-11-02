@@ -1941,7 +1941,7 @@ class Msvcrt(api.ApiHandler):
 
         The emulated time zone is UTC, so there is nothing to set.
         """
-        return None
+        return
 
     @apihook("_strtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2474,7 +2474,7 @@ class Msvcrt(api.ApiHandler):
         """
         base, number, width, compare = argv
         if number < 2 or not width:
-            return
+            return None
         return self.sort_elements(base, number, width, compare)
 
     def sort_elements(self, base: int, number: int, width: int, compare: int):
@@ -4652,7 +4652,7 @@ class Msvcrt(api.ApiHandler):
         tid = emu.get_current_thread().id
         handler = self.thread_invalid_parameter_handlers.get(tid) or self.invalid_parameter_handler
         if not handler:
-            return
+            return None
         return self.call_invalid_parameter_handler(handler)
 
     def call_invalid_parameter_handler(self, handler):
