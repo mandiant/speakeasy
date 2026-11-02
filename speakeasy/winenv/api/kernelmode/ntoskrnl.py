@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import datetime
 import io
 import logging
 import ntpath
@@ -2029,8 +2030,22 @@ class Ntoskrnl(api.ApiHandler):
         """
         Time, TimeFields = argv
 
-        sys_time = self.mem_read(Time, 8)
-        sys_time
+        quad = int.from_bytes(self.mem_read(Time, 8), "little")
+        try:
+            dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
+        except OverflowError:
+            # datetime cannot hold a time after the year 9999
+            return
+        tf = ntos.TIME_FIELDS(emu.get_ptr_size())
+        tf.Year = dt.year
+        tf.Month = dt.month
+        tf.Day = dt.day
+        tf.Hour = dt.hour
+        tf.Minute = dt.minute
+        tf.Second = dt.second
+        tf.Milliseconds = quad // 10000 % 1000
+        tf.Weekday = dt.isoweekday() % 7
+        self.mem_write(TimeFields, self.get_bytes(tf))
 
     @apihook("ExSystemTimeToLocalTime", argc=2)
     def ExSystemTimeToLocalTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

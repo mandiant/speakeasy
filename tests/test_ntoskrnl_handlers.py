@@ -751,3 +751,13 @@ def test_ke_query_system_time_shares_the_clock_of_zw_query_system_information(dr
     after = query_system_time()
 
     assert before < struct.unpack_from("<Q", data, 8)[0] < after
+
+
+def test_rtl_time_to_time_fields_splits_the_time(driver_emu: Speakeasy) -> None:
+    # 2021-03-14 15:09:26.535 UTC, a Sunday, in 100 ns units since 1601-01-01
+    time = alloc(driver_emu, struct.pack("<Q", 132602081665350000))
+    fields = alloc(driver_emu, b"\xcc" * 16)
+
+    call(driver_emu, "ntoskrnl", "RtlTimeToTimeFields", [time, fields])
+
+    assert struct.unpack("<8H", driver_emu.mem_read(fields, 16)) == (2021, 3, 14, 15, 9, 26, 535, 0)

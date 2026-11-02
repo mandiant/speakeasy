@@ -14,6 +14,19 @@ class KSYSTEM_TIME(EmuStruct):
         self.High2Time = ct.c_uint32
 
 
+class TIME_FIELDS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Year = ct.c_uint16
+        self.Month = ct.c_uint16
+        self.Day = ct.c_uint16
+        self.Hour = ct.c_uint16
+        self.Minute = ct.c_uint16
+        self.Second = ct.c_uint16
+        self.Milliseconds = ct.c_uint16
+        self.Weekday = ct.c_uint16
+
+
 class SSDT(EmuStruct):  # KeServiceDescriptorTable
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
