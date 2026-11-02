@@ -132,18 +132,6 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(dest_addr, self.get_bytes(dest))
         return ddk.STATUS_SUCCESS
 
-    def _write_counted_string(self, string, buf, count, width):
-        """
-        Write at most ``count`` characters of ``string`` the way _snprintf
-        does: add a NUL only when there is room, and return -1 when the
-        string does not fit.
-        """
-        out = string[:count].encode(self.get_encoding(width))
-        if len(string) < count:
-            out += b"\x00" * width
-        self.mem_write(buf, out)
-        return len(string) if len(string) <= count else -1
-
     def _write_secure_counted_string(self, string, buf, size, count):
         """
         Write ``string`` the way _snprintf_s does: the buffer always ends
@@ -265,80 +253,6 @@ class Ntoskrnl(api.ApiHandler):
         vargs = self.va_args(arglist, self.get_va_arg_count(fmt_str))
         ctx.args[3].display = self.read_string(Prefix) + self.do_str_format(fmt_str, vargs)
         return ddk.STATUS_SUCCESS
-
-    @apihook("_vsnprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def _vsnprintf(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _vsnprintf(
-            char *buffer,
-            size_t count,
-            const char *format,
-            va_list argptr
-        );
-        """
-        buffer, count, format, argptr = argv
-
-        fmt_str = self.read_mem_string(format, 1)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-
-        vargs = self.va_args(argptr, fmt_cnt)
-
-        fin = self.do_str_format(fmt_str, vargs)
-        out = fin[:count].encode("utf-8")
-        if len(fin) < count:
-            out += b"\x00"
-        self.mem_write(buffer, out)
-        ctx.args[0].display = fin[:count]
-        ctx.args[2].display = fmt_str
-
-        return len(fin) if len(fin) <= count else -1
-
-    @apihook("_vsnwprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def _vsnwprintf(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _vsnwprintf(
-            wchar_t *buffer,
-            size_t count,
-            const wchar_t *format,
-            va_list argptr
-        );
-        """
-        buffer, count, format, argptr = argv
-        fmt_str = self.read_wide_string(format)
-        vargs = self.va_args(argptr, self.get_va_arg_count(fmt_str))
-        fin = self.do_str_format(fmt_str, vargs, wide=True)
-        ctx.args[0].display = fin[:count]
-        ctx.args[2].display = fmt_str
-        return self._write_counted_string(fin, buffer, count, 2)
-
-    @apihook("vsprintf_s", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def vsprintf_s(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int vsprintf_s(
-            char *buffer,
-            size_t numberOfElements,
-            const char *format,
-            va_list argptr
-        );
-        """
-        buffer, numberOfElements, format, argptr = argv
-
-        fmt_str = self.read_mem_string(format, 1)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-
-        vargs = self.va_args(argptr, fmt_cnt)
-
-        fin = self.do_str_format(fmt_str, vargs)
-        ctx.args[2].display = fmt_str
-        # Unlike _vsnprintf, output that does not fit leaves an empty string
-        if len(fin) >= numberOfElements:
-            if numberOfElements > 0:
-                self.mem_write(buffer, b"\x00")
-            return -1
-        self.write_mem_string(fin, buffer, 1)
-        ctx.args[0].display = fin
-
-        return len(fin)
 
     @apihook("RtlAnsiStringToUnicodeString", argc=3)
     def RtlAnsiStringToUnicodeString(
@@ -620,21 +534,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         (P,) = argv
         self.mem_free(P)
-
-    @apihook("memmove", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def memmove(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        void *memmove(
-            void *dest,
-            const void *src,
-            size_t count
-        );
-        """
-        dest, src, count = argv
-
-        data = self.mem_read(src, count)
-        self.mem_write(dest, data)
-        return dest
 
     @apihook("IoDeleteDriver", argc=1)
     def IoDeleteDriver(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -951,39 +850,6 @@ class Ntoskrnl(api.ApiHandler):
         emu.reg_write(_arch.X86_REG_EDX, rv >> 32)
         return rv & 0xFFFFFFFF
 
-    @apihook("wcscpy", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcscpy(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        wchar_t *wcscpy(
-            wchar_t *strDestination,
-            const wchar_t *strSource
-        );
-        """
-        strDestination, strSource = argv
-        ws = self.read_wide_string(strSource)
-
-        self.write_wide_string(ws, strDestination)
-        ctx.args[1].display = ws
-
-        return strDestination
-
-    @apihook("wcsncpy", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def wcsncpy(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        wchar_t *wcsncpy(
-            wchar_t *strDest,
-            const wchar_t *strSource,
-            size_t count
-        );
-        """
-        strDest, strSource, count = argv
-        ws = self.read_wide_string(strSource, max_chars=count)
-
-        data = self.mem_read(strSource, min(self.mem_string_len(strSource, 2), count) * 2)
-        self.mem_write(strDest, data + b"\x00" * (count * 2 - len(data)))
-        ctx.args[1].display = ws
-        return strDest
-
     @apihook("RtlMoveMemory", argc=3)
     def RtlMoveMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -993,98 +859,8 @@ class Ntoskrnl(api.ApiHandler):
             size_t Length
         );
         """
-        self.memcpy(emu, argv)
-
-    @apihook("memcpy", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def memcpy(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        void *memcpy(
-            void *dest,
-            const void *src,
-            size_t count
-        );
-        """
-        dest, src, count = argv
-
-        data = self.mem_read(src, count)
-        self.mem_write(dest, data)
-        return dest
-
-    @apihook("memset", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def memset(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        void *memset(
-            void *dest,
-            int c,
-            size_t count
-        );
-        """
-        dest, c, count = argv
-
-        data = bytes([c & 0xFF])
-        self.mem_write(dest, data * count)
-        return dest
-
-    @apihook("sprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def sprintf(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int sprintf(
-            char *buffer,
-            const char *format,
-            ...
-        );
-        """
-        buf, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2)
-        fmt_str = self.read_string(fmt)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-        _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 2 + fmt_cnt)[2:]
-        fin = self.do_str_format(fmt_str, _argv)
-
-        self.write_string(fin, buf)
-        ctx.args.clear()
-        ctx.args.append(fin)
-        return len(fin)
-
-    @apihook("_snprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def _snprintf(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _snprintf(
-            char *buffer,
-            size_t count,
-            const char *format,
-            ...
-        );
-        """
-        buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
-        fmt_str = self.read_string(fmt)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-        _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-        fin = self.do_str_format(fmt_str, _argv)
-
-        ctx.args.clear()
-        ctx.args.append(fin)
-        return self._write_counted_string(fin, buf, cnt, 1)
-
-    @apihook("_snprintf_s", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def _snprintf_s(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _snprintf_s(
-            char *buffer,
-            size_t sizeOfBuffer,
-            size_t count,
-            const char *format,
-            ...
-        );
-        """
-        buf, size, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 4)
-        fmt_str = self.read_string(fmt)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-        _argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 4 + fmt_cnt)[4:]
-        fin = self.do_str_format(fmt_str, _argv)
-
-        ctx.args.clear()
-        ctx.args.append(fin)
-        return self._write_secure_counted_string(fin, buf, size, cnt)
+        Destination, Source, Length = argv
+        self.mem_write(Destination, self.mem_read(Source, Length))
 
     @apihook("_vsnprintf_s", argc=5, conv=_arch.CALL_CONV_CDECL)
     def _vsnprintf_s(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1103,134 +879,6 @@ class Ntoskrnl(api.ApiHandler):
         fin = self.do_str_format(fmt_str, vargs)
         ctx.args[3].display = fmt_str
         return self._write_secure_counted_string(fin, buffer, sizeOfBuffer, count)
-
-    @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
-    def wcslen(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        size_t wcslen(
-            const wchar_t *str
-        );
-        """
-        string = argv[0]
-        ws = self.read_wide_string(string)
-        if isinstance(ws, str):
-            ctx.args[0].display = ws
-            slen = len(ws)
-        else:
-            slen = int(len(ws) / 2)
-
-        return slen
-
-    @apihook("wcschr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcschr(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        wchar_t *wcschr(
-            const wchar_t *str,
-            wchar_t c
-        );
-        """
-        str, c = argv
-        ws = self.read_wide_string(str)
-        # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(str, (self.mem_string_len(str, 2) + 1) * 2)
-        needle = (c & 0xFFFF).to_bytes(2, "little")
-
-        rv = 0
-        for offset in range(0, len(hay), 2):
-            if hay[offset : offset + 2] == needle:
-                rv = str + offset
-                break
-
-        ctx.args[0].display = ws
-        ctx.args[1].display = needle.decode("utf-16le", "replace")
-
-        return rv
-
-    @apihook("wcscat", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def wcscat(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        wchar_t *wcscat(
-            wchar_t *strDestination,
-            const wchar_t *strSource
-        );
-        """
-        strDestination, strSource = argv
-        sws = self.read_wide_string(strSource)
-        dws = self.read_wide_string(strDestination)
-
-        if dws.endswith("\x00"):
-            dws = dws[:-1]
-        if sws.endswith("\x00"):
-            sws = sws[:-1]
-
-        new = (dws + sws).encode("utf-16le")
-        self.mem_write(strDestination, new)
-        ctx.args[0].display = dws
-        ctx.args[1].display = sws
-        return strDestination
-
-    @apihook("strrchr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def strrchr(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        char *strrchr(
-            const char *str,
-            int c
-        );
-        """
-        str, c = argv
-        # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(str, self.mem_string_len(str, 1) + 1)
-        needle = bytes([c & 0xFF])
-
-        offset = hay.rfind(needle)
-
-        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
-        ctx.args[1].display = needle.decode("latin-1")
-
-        return str + offset if offset >= 0 else 0
-
-    @apihook("strchr", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def strchr(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        char *strchr(
-            const char *str,
-            int c
-        );
-        """
-        str, c = argv
-        # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(str, self.mem_string_len(str, 1) + 1)
-        needle = bytes([c & 0xFF])
-
-        offset = hay.find(needle)
-
-        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
-        ctx.args[1].display = needle.decode("latin-1")
-
-        return str + offset if offset >= 0 else 0
-
-    @apihook("_wcsnicmp", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def _wcsnicmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _wcsnicmp(
-            const wchar_t *string1,
-            const wchar_t *string2,
-            size_t count
-        );
-        """
-        string1, string2, count = argv
-        rv = 1
-
-        ws1 = self.read_wide_string(string1, max_chars=count)
-        ws2 = self.read_wide_string(string2, max_chars=count)
-
-        ctx.args[0].display = ws1
-        ctx.args[1].display = ws2
-
-        if ws1.lower() == ws2.lower():
-            rv = 0
-
-        return rv
 
     @apihook("_stricmp", argc=2, conv=_arch.CALL_CONV_CDECL)
     def _stricmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1253,28 +901,6 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args[1].display = cs2
 
         if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
-
-    @apihook("_wcsicmp", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def _wcsicmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _wcsicmp(
-            const wchar_t *string1,
-            const wchar_t *string2
-        );
-        """
-        string1, string2 = argv
-        rv = 1
-
-        ws1 = self.read_wide_string(string1)
-        ws2 = self.read_wide_string(string2)
-
-        ctx.args[0].display = ws1
-        ctx.args[1].display = ws2
-
-        if ws1.lower() == ws2.lower():
             rv = 0
 
         return rv
@@ -2659,25 +2285,6 @@ class Ntoskrnl(api.ApiHandler):
 
         return nts
 
-    @apihook("_snwprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def _snwprintf(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _snwprintf(
-            wchar_t *buffer,
-            size_t count,
-            const wchar_t *format,
-            ...
-        );
-        """
-        buf, cnt, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
-        fmt_str = self.read_wide_string(fmt)
-        fmt_cnt = self.get_va_arg_count(fmt_str)
-
-        argv = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
-        fin = self.do_str_format(fmt_str, argv, wide=True)
-
-        return self._write_counted_string(fin, buf, cnt, 2)
-
     @apihook("ObReferenceObjectByHandle", argc=6)
     def ObReferenceObjectByHandle(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -3083,32 +2690,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         (NotifyRoutine,) = argv
         rv = ddk.STATUS_SUCCESS
-
-        return rv
-
-    @apihook("mbstowcs", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def mbstowcs(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        size_t mbstowcs(
-            wchar_t *wcstr,
-            const char *mbstr,
-            size_t count
-        );
-        """
-        wcstr, mbstr, count = argv
-
-        rv = 0
-
-        mb = self.read_string(mbstr)
-        ctx.args[1].display = mb
-        if not wcstr:
-            rv = len(mb)
-        else:
-            wide = mb[:count].encode("utf-16le")
-            if len(mb) < count:
-                wide += b"\x00\x00"
-            self.mem_write(wcstr, wide)
-            rv = min(len(mb), count)
 
         return rv
 

@@ -6,6 +6,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
+from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, get_kernel_emu, object_attributes, unicode_string
 
@@ -114,6 +115,36 @@ def test_rtl_compare_memory_counts_matching_bytes(
 ) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "RtlCompareMemory", [alloc(driver_emu, a), alloc(driver_emu, b), length])
     assert rv == expected
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "_snprintf",
+        "_snprintf_s",
+        "_snwprintf",
+        "_vsnprintf",
+        "_vsnwprintf",
+        "_wcsicmp",
+        "_wcsnicmp",
+        "mbstowcs",
+        "memcpy",
+        "memmove",
+        "memset",
+        "sprintf",
+        "strchr",
+        "strrchr",
+        "vsprintf_s",
+        "wcscat",
+        "wcschr",
+        "wcscpy",
+        "wcslen",
+        "wcsncpy",
+    ],
+)
+def test_ntoskrnl_crt_function_runs_the_msvcrt_handler(driver_emu: Speakeasy, name: str) -> None:
+    mod, _ = driver_emu.emu.get_api_handler("ntoskrnl", name)
+    assert isinstance(mod, Msvcrt)
 
 
 def test_memset_fills_with_the_low_byte_of_c(driver_emu: Speakeasy) -> None:
