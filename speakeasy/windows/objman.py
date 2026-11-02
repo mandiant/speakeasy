@@ -57,47 +57,16 @@ class HandleAllocator:
         if self.REUSE_CLOSED_HANDLES:
             self._closed_handles.append(handle)
 
-    def allocate_kernel_object_handle(self) -> int:
-        return self.allocate_handle()
-
     def allocate_kernel_object_id(self) -> int:
         return self._next("_kernel_object_id")
-
-    def allocate_console_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_gui_object_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_wininet_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_file_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_file_map_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_pipe_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_reg_key_handle(self) -> int:
-        return self.allocate_handle()
-
-    def allocate_crypt_context_handle(self) -> int:
-        return self.allocate_handle()
 
 
 class Console:
     """Represents a console window object."""
 
     def __init__(self, allocator: HandleAllocator):
-        self.allocator: HandleAllocator = allocator
-        self.handle: int = self._alloc_handle()
+        self.handle: int = allocator.allocate_handle()
         self.window: int = 0
-
-    def _alloc_handle(self):
-        return self.allocator.allocate_console_handle()
 
 
 class KernelObject:
