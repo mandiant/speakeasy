@@ -103,13 +103,15 @@ class Ndis(api.ApiHandler):
             PNDIS_HANDLE NdisMiniportDriverHandle
         );
         """
-        drv, reg, drv_ctx, chars, phnd = argv
+        DriverObject, RegistryPath, MiniportDriverContext, MiniportDriverCharacteristics, NdisMiniportDriverHandle = (
+            argv
+        )
         rv = NDIS_STATUS_SUCCESS
 
-        if phnd:
+        if NdisMiniportDriverHandle:
             hnd = self.new_id()
             hnd = hnd.to_bytes(self.get_ptr_size(), "little")
-            self.mem_write(phnd, hnd)
+            self.mem_write(NdisMiniportDriverHandle, hnd)
         return rv
 
     @apihook("NdisInitializeWrapper", argc=4)
@@ -122,11 +124,11 @@ class Ndis(api.ApiHandler):
             PVOID SystemSpecific3
         );
         """
-        pHandle, ss1, ss2, ss3 = argv
+        NdisWrapperHandle, SystemSpecific1, SystemSpecific2, SystemSpecific3 = argv
 
         hnd = self.new_id()
         self.wrappers.update({hnd: True})
-        self.mem_write(pHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(NdisWrapperHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisTerminateWrapper", argc=2)
     def NdisTerminateWrapper(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -136,7 +138,7 @@ class Ndis(api.ApiHandler):
             PVOID SystemSpecific
         );
         """
-        hnd, ss = argv
+        NdisWrapperHandle, SystemSpecific = argv
 
     @apihook("NdisInitializeReadWriteLock", argc=1)
     def NdisInitializeReadWriteLock(
@@ -147,7 +149,7 @@ class Ndis(api.ApiHandler):
             PNDIS_RW_LOCK Lock
         );
         """
-        (lock,) = argv
+        (Lock,) = argv
 
     @apihook("NdisMRegisterUnloadHandler", argc=2)
     def NdisMRegisterUnloadHandler(
@@ -159,7 +161,7 @@ class Ndis(api.ApiHandler):
             PDRIVER_UNLOAD UnloadHandler
         );
         """
-        hnd, unload = argv
+        NdisWrapperHandle, UnloadHandler = argv
 
     @apihook("NdisRegisterProtocol", argc=4)
     def NdisRegisterProtocol(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -171,18 +173,18 @@ class Ndis(api.ApiHandler):
             UINT CharacteristicsLength
         );
         """
-        pStatus, pProtoHandle, pChars, clen = argv
+        Status, NdisProtocolHandle, ProtocolCharacteristics, CharacteristicsLength = argv
         rv = NDIS_STATUS_SUCCESS
         hnd = self.new_id()
-        pchr = self.mem_read(pChars, clen)
+        pchr = self.mem_read(ProtocolCharacteristics, CharacteristicsLength)
 
         self.protocols.update({hnd: pchr})
 
-        if pStatus:
-            self.mem_write(pStatus, rv.to_bytes(4, "little"))
+        if Status:
+            self.mem_write(Status, rv.to_bytes(4, "little"))
 
-        if pProtoHandle:
-            self.mem_write(pProtoHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        if NdisProtocolHandle:
+            self.mem_write(NdisProtocolHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisIMRegisterLayeredMiniport", argc=4)
     def NdisIMRegisterLayeredMiniport(
@@ -196,18 +198,18 @@ class Ndis(api.ApiHandler):
             PNDIS_HANDLE DriverHandle
         );
         """
-        hnd, mp_chars, clen, drv_hnd = argv
+        NdisWrapperHandle, MiniportCharacteristics, CharacteristicsLength, DriverHandle = argv
         rv = NDIS_STATUS_SUCCESS
 
-        if not self.wrappers.get(hnd):
+        if not self.wrappers.get(NdisWrapperHandle):
             rv = NDIS_STATUS_FAILURE
 
         dhnd = self.new_id()
-        mpc = self.mem_read(mp_chars, clen)
+        mpc = self.mem_read(MiniportCharacteristics, CharacteristicsLength)
         self.drivers.update({dhnd: mpc})
 
-        if drv_hnd:
-            self.mem_write(drv_hnd, dhnd.to_bytes(self.get_ptr_size(), "little"))
+        if DriverHandle:
+            self.mem_write(DriverHandle, dhnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -219,7 +221,7 @@ class Ndis(api.ApiHandler):
             NDIS_HANDLE ProtocolHandle
         );
         """
-        drv_hnd, phnd = argv
+        DriverHandle, ProtocolHandle = argv
 
     @apihook("NdisAllocateGenericObject", argc=3)
     def NdisAllocateGenericObject(
@@ -232,17 +234,17 @@ class Ndis(api.ApiHandler):
             USHORT Size
         );
         """
-        drv, tag, size = argv
+        DriverObject, Tag, Size = argv
 
         ptr = 0
 
-        stag = self.convert_pool_tag(tag)
+        stag = self.convert_pool_tag(Tag)
         ctx.args[1].display = stag
 
         go = self.ndis.NDIS_GENERIC_OBJECT(emu.get_ptr_size())
-        go.DriverObject = drv  # type: ignore[assignment]
+        go.DriverObject = DriverObject  # type: ignore[assignment]
 
-        total = size + self.sizeof(go)
+        total = Size + self.sizeof(go)
         ptr = self.mem_alloc(size=total, tag=f"api.struct.NDIS_GENERIC_OBJECT.{stag}")
         self.mem_write(ptr, self.get_bytes(go))
 
@@ -259,15 +261,15 @@ class Ndis(api.ApiHandler):
             ULONG Tag
         );
         """
-        va, size, tag = argv
+        VirtualAddress, Length, Tag = argv
 
         rv = ddk.STATUS_SUCCESS
 
-        stag = self.convert_pool_tag(tag)
+        stag = self.convert_pool_tag(Tag)
         ctx.args[2].display = stag
 
-        ptr = self.mem_alloc(size=size, tag=f"api.ndis_pool.{stag}")
-        self.mem_write(va, ptr.to_bytes(emu.get_ptr_size(), "little"))
+        ptr = self.mem_alloc(size=Length, tag=f"api.ndis_pool.{stag}")
+        self.mem_write(VirtualAddress, ptr.to_bytes(emu.get_ptr_size(), "little"))
 
         return rv
 
@@ -308,7 +310,7 @@ class Ndis(api.ApiHandler):
             NDIS_HANDLE PoolHandle
         );
         """
-        (handle,) = argv
+        (PoolHandle,) = argv
 
     @apihook("NdisFreeMemory", argc=3)
     def NdisFreeMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -319,7 +321,7 @@ class Ndis(api.ApiHandler):
             UINT MemoryFlags
         );
         """
-        va, length, flags = argv
+        VirtualAddress, Length, MemoryFlags = argv
 
     @apihook("NdisFreeGenericObject", argc=1)
     def NdisFreeGenericObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -328,4 +330,4 @@ class Ndis(api.ApiHandler):
             PNDIS_GENERIC_OBJECT NdisObject
         );
         """
-        (pObj,) = argv
+        (NdisObject,) = argv

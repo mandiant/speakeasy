@@ -136,7 +136,7 @@ class Wdfldr(api.ApiHandler):
         );
         """
         rv = ddk.STATUS_SUCCESS
-        drv, reg_path, BindInfo, comp_globals = argv
+        DriverObject, RegistryPath, BindInfo, ComponentGlobals = argv
 
         ptr_size = emu.get_ptr_size()
         wbi = self.types.WDF_BIND_INFO(ptr_size)
@@ -149,7 +149,7 @@ class Wdfldr(api.ApiHandler):
         if not self.component_globals:
             components = self.types.WDF_COMPONENT_GLOBALS(ptr_size)
             self.component_globals = self.mem_alloc(components.sizeof(), tag="api.struct.WDF_COMPONENT_GLOBALS")
-        self.mem_write(comp_globals, (self.component_globals).to_bytes(ptr_size, "little"))
+        self.mem_write(ComponentGlobals, (self.component_globals).to_bytes(ptr_size, "little"))
 
         self.set_func_table(emu)
 
@@ -318,7 +318,7 @@ class Wdfldr(api.ApiHandler):
             WDFKEY *Key
         );
         """
-        DriverGlobals, Driver, DesiredAccess, KeyAttributes, pKey = argv
+        DriverGlobals, Driver, DesiredAccess, KeyAttributes, Key = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
         hnd = 0
@@ -329,8 +329,8 @@ class Wdfldr(api.ApiHandler):
         if hnd:
             rv = ddk.STATUS_SUCCESS
 
-        if pKey:
-            self.mem_write(pKey, (hnd).to_bytes(emu.get_ptr_size(), "little"))
+        if Key:
+            self.mem_write(Key, (hnd).to_bytes(emu.get_ptr_size(), "little"))
 
         return rv
 
@@ -543,16 +543,16 @@ class Wdfldr(api.ApiHandler):
             PVOID *Buffer
         );
         """
-        DriverGlobals, Attributes, PoolType, PoolTag, BufferSize, Mem, Buf = argv
+        DriverGlobals, Attributes, PoolType, PoolTag, BufferSize, Memory, Buffer = argv
 
         rv = ddk.STATUS_SUCCESS
 
         ptr = self.mem_alloc(BufferSize, tag="api.struct.WDFMEMORY")
 
-        if Mem:
-            self.mem_write(Mem, (ptr).to_bytes(emu.get_ptr_size(), "little"))
-        if Buf:
-            self.mem_write(Buf, (ptr).to_bytes(emu.get_ptr_size(), "little"))
+        if Memory:
+            self.mem_write(Memory, (ptr).to_bytes(emu.get_ptr_size(), "little"))
+        if Buffer:
+            self.mem_write(Buffer, (ptr).to_bytes(emu.get_ptr_size(), "little"))
 
         return rv
 
@@ -812,7 +812,7 @@ class Wdfldr(api.ApiHandler):
             PWDF_USB_PIPE_INFORMATION PipeInformation
         );
         """
-        DriverGlobals, Pipe, PipeInfo = argv
+        DriverGlobals, Pipe, PipeInformation = argv
 
         _pipe = self.usb_pipes.get(Pipe)
         if _pipe:
@@ -820,20 +820,20 @@ class Wdfldr(api.ApiHandler):
 
             interfaces = self.parse_usb_config(uif.config_desc)
 
-            if PipeInfo:
+            if PipeInformation:
                 for i, eps in interfaces:
                     if uif.iface_index == i.bInterfaceNumber:
                         if _pipe.index >= len(eps):
                             break
                         ep = eps[_pipe.index]
                         info = self.types.WDF_USB_PIPE_INFORMATION(emu.get_ptr_size())
-                        info = self.mem_cast(info, PipeInfo)
+                        info = self.mem_cast(info, PipeInformation)
                         info.Size = info.sizeof()
                         info.MaximumPacketSize = ep.wMaxPacketSize
                         info.EndpointAddress = ep.bEndpointAddress
                         info.Interval = ep.bInterval
                         info.PipeType = self.get_pipe_type(ep)
-                        self.mem_write(PipeInfo, info.get_bytes())
+                        self.mem_write(PipeInformation, info.get_bytes())
 
     @apihook("WdfUsbInterfaceGetInterfaceNumber", argc=2)
     def WdfUsbInterfaceGetInterfaceNumber(
