@@ -98,17 +98,17 @@ class Netio(api.ApiHandler):
         self.prov_disp: wsk.WSK_PROVIDER_DISPATCH = self.win.WSK_PROVIDER_DISPATCH(emu.get_ptr_size())
         self.prov_disp.Version = 0x100
 
-        addr = emu.add_callback(Netio.name, self.WskSocket.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskSocket.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskSocket = addr
-        addr = emu.add_callback(Netio.name, self.WskSocketConnect.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskSocketConnect.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskSocketConnect = addr
-        addr = emu.add_callback(Netio.name, self.WskControlClient.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskControlClient.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskControlClient = addr
-        addr = emu.add_callback(Netio.name, self.WskGetAddressInfo.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskGetAddressInfo.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskGetAddressInfo = addr
-        addr = emu.add_callback(Netio.name, self.WskFreeAddressInfo.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskFreeAddressInfo.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskFreeAddressInfo = addr
-        addr = emu.add_callback(Netio.name, self.WskGetNameInfo.__apihook__[0])
+        addr = emu.add_callback(Netio.name, self.WskGetNameInfo.__apihook__[0])  # type: ignore[attr-defined]
         self.prov_disp.WskGetNameInfo = addr
 
     @apihook("WskRegister", argc=2)
