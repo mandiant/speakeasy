@@ -192,22 +192,38 @@ class EPROCESS(EmuStruct):
         self.Data = ct.c_uint8 * 4096
 
 
+class DISPATCHER_HEADER(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Type = ct.c_uint8
+        self.Signalling = ct.c_uint8
+        self.Size = ct.c_uint8
+        self.Reserved1 = ct.c_uint8
+        self.SignalState = ct.c_int32
+        self.WaitListHead = LIST_ENTRY
+
+
 class KEVENT(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+        self.Header = DISPATCHER_HEADER
 
 
-class MUTANT(EmuStruct):
+class KMUTANT(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+        self.Header = DISPATCHER_HEADER
+        self.MutantListEntry = LIST_ENTRY
+        self.OwnerThread = Ptr
+        self.MutantFlags = ct.c_uint8
+        self.ApcDisable = ct.c_uint8
 
 
 class KSEMAPHORE(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+        self.Header = DISPATCHER_HEADER
+        self.Limit = ct.c_int32
 
 
 class RTL_OSVERSIONINFOW(EmuStruct):
@@ -321,7 +337,7 @@ class KDEVICE_QUEUE(EmuStruct):
         self.Type = ct.c_uint16
         self.Size = ct.c_uint16
         self.DeviceListHead = LIST_ENTRY
-        self.Lock = ct.c_uint64
+        self.Lock = Ptr
         self.Busy = ct.c_uint8
 
 
@@ -337,6 +353,25 @@ class KDPC(EmuStruct):
         self.SystemArgument1 = Ptr
         self.SystemArgument2 = Ptr
         self.DpcData = Ptr
+
+
+class WAIT_CONTEXT_BLOCK(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.WaitQueueEntry = KDEVICE_QUEUE_ENTRY
+        self.DeviceRoutine = Ptr
+        self.DeviceContext = Ptr
+        self.NumberOfMapRegisters = ct.c_uint32
+        self.DeviceObject = Ptr
+        self.CurrentIrp = Ptr
+        self.BufferChainingDpc = Ptr
+
+
+class DEVICE_OBJECT_QUEUE(EmuUnion):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.ListEntry = LIST_ENTRY(ptr_size).get_cstruct()
+        self.Wcb = WAIT_CONTEXT_BLOCK(ptr_size).get_cstruct()
 
 
 class DEVICE_OBJECT(EmuStruct):
@@ -356,7 +391,7 @@ class DEVICE_OBJECT(EmuStruct):
         self.DeviceExtension = Ptr
         self.DeviceType = ct.c_uint32
         self.StackSize = ct.c_uint8
-        self.Queue = LIST_ENTRY
+        self.Queue = DEVICE_OBJECT_QUEUE
         self.AlignmentRequirement = ct.c_uint32
         self.DeviceQueue = KDEVICE_QUEUE
         self.Dpc = KDPC
@@ -367,6 +402,9 @@ class DEVICE_OBJECT(EmuStruct):
         self.Spare1 = ct.c_uint16
         self.DeviceObjectExtension = Ptr
         self.Reserved = Ptr
+        if ptr_size == 8:
+            # DECLSPEC_ALIGN(MEMORY_ALLOCATION_ALIGNMENT) rounds the size up to 16 bytes
+            self.Padding = ct.c_uint8 * 8
 
 
 class FILE_OBJECT(EmuStruct):
@@ -399,7 +437,7 @@ class FILE_OBJECT(EmuStruct):
         self.Lock = KEVENT
         self.Event = KEVENT
         self.CompletionContext = Ptr
-        self.IrpListLock = ct.c_uint32
+        self.IrpListLock = Ptr
         self.IrpList = LIST_ENTRY
         self.FileObjectExtension = Ptr
 
