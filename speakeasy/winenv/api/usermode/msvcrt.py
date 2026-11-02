@@ -18,6 +18,7 @@ from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 from .. import api, exception_apis
+from ..compare import Fold, get_string_order
 
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
@@ -776,7 +777,6 @@ class Msvcrt(api.ApiHandler):
         );
         """
         string1, string2, count = argv
-        rv = 1
         if not count:
             return 0
 
@@ -786,10 +786,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = ws1
         ctx.args[1].display = ws2
 
-        if ws1.lower() == ws2.lower():
-            rv = 0
-
-        return rv
+        return get_string_order(ws1, ws2, Fold.ASCII_LOWER)
 
     # Reference: https://wiki.osdev.org/Visual_C%2B%2B_Runtime
     @apihook("_initterm_e", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -6421,18 +6418,17 @@ class Msvcrt(api.ApiHandler):
         );
         """
         string1, string2 = argv
-        rv = 1
 
-        ws1 = self.read_wide_string(string1)
-        ws2 = self.read_wide_string(string2)
+        if not string1 or not string2:
+            return 1
 
-        ctx.args[0].display = ws1
-        ctx.args[1].display = ws2
+        cs1 = self.read_wide_string(string1)
+        cs2 = self.read_wide_string(string2)
 
-        if ws1.lower() == ws2.lower():
-            rv = 0
+        ctx.args[0].display = cs1
+        ctx.args[1].display = cs2
 
-        return rv
+        return get_string_order(cs1, cs2, Fold.ASCII_LOWER)
 
     @apihook("wcscmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def wcscmp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6443,16 +6439,13 @@ class Msvcrt(api.ApiHandler):
         );
         """
         string1, string2 = argv
-        rv = 1
 
         s1 = self.read_wide_string(string1)
         s2 = self.read_wide_string(string2)
-        if s1 == s2:
-            rv = 0
         ctx.args[0].display = s1
         ctx.args[1].display = s2
 
-        return rv
+        return get_string_order(s1, s2, Fold.NONE)
 
     @apihook("_snwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _snwprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

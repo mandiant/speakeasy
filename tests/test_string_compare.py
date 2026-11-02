@@ -9,6 +9,8 @@ PAIRS = [("a", "b"), ("b", "a"), ("a", "a"), ("ABC", "abc"), ("ab", "abc"), ("_"
 # The sign that Windows gives for each pair.
 LINGUISTIC = [-1, 1, 0, 1, -1, -1]
 LINGUISTIC_IGNORE_CASE = [-1, 1, 0, 0, -1, -1]
+ORDINAL = [-1, 1, 0, -1, -1, 1]
+C_LOCALE_IGNORE_CASE = [-1, 1, 0, 0, -1, -1]
 
 
 def sign(value: int) -> int:
@@ -22,6 +24,11 @@ def sign(value: int) -> int:
         ("kernel32", "lstrcmpW", 2, [], LINGUISTIC),
         ("kernel32", "lstrcmpiA", 1, [], LINGUISTIC_IGNORE_CASE),
         ("kernel32", "lstrcmpiW", 2, [], LINGUISTIC_IGNORE_CASE),
+        ("msvcrt", "wcscmp", 2, [], ORDINAL),
+        ("msvcrt", "_stricmp", 1, [], C_LOCALE_IGNORE_CASE),
+        ("msvcrt", "_strnicmp", 1, [8], C_LOCALE_IGNORE_CASE),
+        ("msvcrt", "_wcsicmp", 2, [], C_LOCALE_IGNORE_CASE),
+        ("msvcrt", "_wcsnicmp", 2, [8], C_LOCALE_IGNORE_CASE),
     ],
 )
 def test_compare_functions_give_the_windows_sign(

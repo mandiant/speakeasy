@@ -439,7 +439,7 @@ def test_strlwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(s, 9) == b"c:\\\x8f\xc9ab\x00\xcc"
 
 
-@pytest.mark.parametrize("a, b, count, rv", [("abX", "ABy", 2, 0), ("a", "b", 0, 0), ("ab", "ac", 2, 1)])
+@pytest.mark.parametrize("a, b, count, rv", [("abX", "ABy", 2, 0), ("a", "b", 0, 0), ("ab", "ac", 2, -1)])
 def test_wcsnicmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count: int, rv: int) -> None:
     args = [alloc(dll_emu, f"{s}\0".encode("utf-16le")) for s in (a, b)]
     assert call(dll_emu, "msvcrt", "_wcsnicmp", [*args, count])[0] == rv
