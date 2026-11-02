@@ -5,11 +5,13 @@ Source of truth:
 - `speakeasy/profiler_events.py`
 - population logic in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`
 
+`speakeasy/resources/report.schema.json` is the JSON schema of the report. It ships in the package. Run `just gen-report-schema` after a change to the report models.
+
 The examples use JSONC for explanation. Remove comments for machine parsing.
 
 ## How report fields are populated
 
-- `report_version`: from `speakeasy.profiler.__report_version__`.
+- `report_version`: from `speakeasy.report.REPORT_VERSION`.
 - `emulation_total_runtime`: profiler start/stop wall-clock duration.
 - `timestamp`: profiler start time epoch seconds.
 - `arch`, `filepath`, `sha256`, `size`, `filetype`: loader/input metadata.
@@ -84,7 +86,7 @@ thread, even for a local create.
 ```jsonc
 {
   // Report format version.
-  "report_version": "5.0.0",
+  "report_version": "6.0.0",
 
   // Total wall-clock runtime in seconds.
   "emulation_total_runtime": 1.234,
@@ -457,7 +459,7 @@ thread, even for a local create.
 
 ```json
 {
-  "report_version": "5.0.0",
+  "report_version": "6.0.0",
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
@@ -481,7 +483,7 @@ thread, even for a local create.
 ```jsonc
 {
   // Report schema version.
-  "report_version": "5.0.0",
+  "report_version": "6.0.0",
 
   // Total runtime in seconds for this emulation session.
   "emulation_total_runtime": 0.012,

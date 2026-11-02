@@ -1,0 +1,2923 @@
+{
+  "$defs": {
+    "ApiArg": {
+      "description": "One argument of an API call, as passed by the caller and as shown in the trace.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parameter name from the API signature. Absent when the signature is not known.",
+          "title": "Name"
+        },
+        "type": {
+          "description": "How to read ``display``: ``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), ``bool`` (TRUE or FALSE), ``enum`` (a member name), ``flags`` (member names joined by ``|``, maybe with a hex remainder), ``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), ``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler).",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw value as the caller passed it. A parameter that uses more than one argument slot has the combined value. A floating point argument that Win64 passes in an XMM register has the value of the integer register for the same position instead. Absent for an entry that a handler adds, such as the formatted output of a printf call.",
+          "title": "Value"
+        },
+        "display": {
+          "description": "Human readable rendering of the argument.",
+          "title": "Display",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "display"
+      ],
+      "title": "ApiArg",
+      "type": "object"
+    },
+    "ApiEvent": {
+      "description": "Records one intercepted API invocation.\n\nAPI events are emitted by import-call handlers and represent core behavioral\ntelemetry for most runs.\n\nUse these entries to understand control flow and argument-level intent.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "api",
+          "default": "api",
+          "description": "Discriminator for API call events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "api_name": {
+          "description": "Resolved API name in ``module.function`` form.\n\nUsed for behavior signatures, clustering, and family comparison.",
+          "title": "Api Name",
+          "type": "string"
+        },
+        "args": {
+          "description": "Arguments of the call. With a usable API signature there is one entry per parameter; otherwise one entry per argument slot, plus any entries a variadic handler adds.",
+          "items": {
+            "$ref": "#/$defs/ApiArg"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "ret_val": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Formatted return value for the API call, when available.\n\nUse this to identify failure codes and branch-driving outcomes.",
+          "title": "Ret Val"
+        }
+      },
+      "required": [
+        "pos",
+        "api_name",
+        "args"
+      ],
+      "title": "ApiEvent",
+      "type": "object"
+    },
+    "DataArtifact": {
+      "additionalProperties": false,
+      "description": "Stores one deduplicated binary payload referenced elsewhere in a report.\n\nPayloads are keyed by SHA-256 in the top-level ``Report.data`` mapping.\nOther models store the SHA-256 key as a reference instead of embedding bytes\ninline repeatedly.",
+      "properties": {
+        "compression": {
+          "description": "Compression algorithm applied to the stored payload.",
+          "title": "Compression",
+          "type": "string"
+        },
+        "encoding": {
+          "description": "Text encoding used for serialized payload bytes.",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "size": {
+          "description": "Uncompressed payload size in bytes.",
+          "title": "Size",
+          "type": "integer"
+        },
+        "data": {
+          "description": "Encoded payload bytes after compression and serialization.",
+          "title": "Data",
+          "type": "string"
+        }
+      },
+      "required": [
+        "compression",
+        "encoding",
+        "size",
+        "data"
+      ],
+      "title": "DataArtifact",
+      "type": "object"
+    },
+    "DirectoryCreateEvent": {
+      "description": "Records directory creation.\n\nEmitted when file APIs create a directory.\n\nUse with file create events to track where a sample drops files.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "directory_create",
+          "default": "directory_create",
+          "description": "Discriminator for directory create events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Directory path targeted by the create request.",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "DirectoryCreateEvent",
+      "type": "object"
+    },
+    "DirectoryDeleteEvent": {
+      "description": "Records directory removal.\n\nEmitted when file APIs remove a directory.\n\nUse with directory create events to track staging directories.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "directory_delete",
+          "default": "directory_delete",
+          "description": "Discriminator for directory delete events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Directory path targeted by the remove request.",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "DirectoryDeleteEvent",
+      "type": "object"
+    },
+    "DroppedFile": {
+      "additionalProperties": false,
+      "description": "Represents one file artifact written by emulated execution.\n\nDropped-file entries are created from filesystem manager state when a run\ncompletes and fully written files are detected.\n\nUse these records to recover secondary payloads and configuration artifacts.",
+      "properties": {
+        "path": {
+          "description": "Emulated destination path of the written file.\n\nInterpret this as the malware-intended filesystem location.",
+          "title": "Path",
+          "type": "string"
+        },
+        "size": {
+          "description": "Dropped file size in bytes.",
+          "title": "Size",
+          "type": "integer"
+        },
+        "sha256": {
+          "description": "SHA-256 hash of the dropped file bytes.\n\nUse this for sample correlation and deduplication workflows.",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional reference into the top-level report ``data`` store.\n\nWhen present, resolve this SHA-256 key in ``Report.data`` to recover the compressed file bytes.",
+          "title": "Data Ref"
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "sha256"
+      ],
+      "title": "DroppedFile",
+      "type": "object"
+    },
+    "DynamicCodeSegment": {
+      "additionalProperties": false,
+      "description": "Describes one dynamically generated code region that executed.\n\nDynamic code segments are added when execution reaches memory previously\nregistered as dynamic code (for example after VirtualAlloc/WriteProcessMemory\nstyle paths).\n\nThis section is useful for unpacking and staged payload detection.",
+      "properties": {
+        "tag": {
+          "description": "Memory-map tag assigned to the dynamic region.\n\nTags help correlate the segment with allocation provenance in traces.",
+          "title": "Tag",
+          "type": "string"
+        },
+        "base": {
+          "description": "Base address of the dynamic code region.\n\nUse this with memory layout data to inspect surrounding mapped content.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Region size of the dynamic code segment.\n\nLarge regions may indicate unpacked module images or staged blobs.",
+          "title": "Size",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tag",
+        "base",
+        "size"
+      ],
+      "title": "DynamicCodeSegment",
+      "type": "object"
+    },
+    "EntryPoint": {
+      "additionalProperties": false,
+      "description": "Represents one emulation execution primitive captured as a run.\n\nA run may be a module entry point, callback, exported function, injected\nthread, or other execution start context.\n\nMost behavioral telemetry is attached at this level, so treat each entry as\na self-contained execution narrative.",
+      "properties": {
+        "ep_type": {
+          "description": "Execution primitive label for this run.\n\nExamples include module entry, export callbacks, and thread contexts.",
+          "title": "Ep Type",
+          "type": "string"
+        },
+        "start_addr": {
+          "description": "Address where this run began executing.\n\nUse this as the anchor when following control flow in disassembly.",
+          "title": "Start Addr",
+          "type": "string"
+        },
+        "ep_args": {
+          "description": "Argument values supplied at run entry.\n\nInteger arguments are serialized as hex strings for readability.",
+          "items": {},
+          "title": "Ep Args",
+          "type": "array"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Process identifier associated with the run context.\n\nPopulated when process context is known for this entry point.",
+          "title": "Pid"
+        },
+        "tid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Thread identifier associated with the run context.\n\nUseful for correlating with per-event ``pos.tid`` values.",
+          "title": "Tid"
+        },
+        "instr_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Instruction count executed for this run.\n\nCan be limited by configuration caps or early termination conditions.",
+          "title": "Instr Count"
+        },
+        "apihash": {
+          "default": "",
+          "description": "SHA-256 hash over unique API names invoked in first-seen order.\n\nUse this for coarse behavioral clustering across samples and architectures.",
+          "title": "Apihash",
+          "type": "string"
+        },
+        "ret_val": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Return value produced when the run ended normally.\n\nInterpret this in the calling convention context of ``ep_type``.",
+          "title": "Ret Val"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run-local error details when execution did not complete cleanly.\n\nConsult this with ``events`` to identify the exact failure transition."
+        },
+        "events": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "api": "#/$defs/ApiEvent",
+                    "directory_create": "#/$defs/DirectoryCreateEvent",
+                    "directory_delete": "#/$defs/DirectoryDeleteEvent",
+                    "exception": "#/$defs/ExceptionEvent",
+                    "file_create": "#/$defs/FileCreateEvent",
+                    "file_delete": "#/$defs/FileDeleteEvent",
+                    "file_open": "#/$defs/FileOpenEvent",
+                    "file_read": "#/$defs/FileReadEvent",
+                    "file_write": "#/$defs/FileWriteEvent",
+                    "mem_alloc": "#/$defs/MemAllocEvent",
+                    "mem_free": "#/$defs/MemFreeEvent",
+                    "mem_protect": "#/$defs/MemProtectEvent",
+                    "mem_read": "#/$defs/MemReadEvent",
+                    "mem_write": "#/$defs/MemWriteEvent",
+                    "module_load": "#/$defs/ModuleLoadEvent",
+                    "net_dns": "#/$defs/NetDnsEvent",
+                    "net_http": "#/$defs/NetHttpEvent",
+                    "net_traffic": "#/$defs/NetTrafficEvent",
+                    "process_create": "#/$defs/ProcessCreateEvent",
+                    "reg_create_key": "#/$defs/RegCreateKeyEvent",
+                    "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
+                    "reg_delete_value": "#/$defs/RegDeleteValueEvent",
+                    "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
+                    "reg_open_key": "#/$defs/RegOpenKeyEvent",
+                    "reg_read_value": "#/$defs/RegReadValueEvent",
+                    "reg_write_value": "#/$defs/RegWriteValueEvent",
+                    "thread_create": "#/$defs/ThreadCreateEvent",
+                    "thread_inject": "#/$defs/ThreadInjectEvent"
+                  },
+                  "propertyName": "event"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ApiEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ProcessCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemAllocEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemWriteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemReadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemProtectEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemFreeEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ModuleLoadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ThreadCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ThreadInjectEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileOpenEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileReadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileWriteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileDeleteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/DirectoryCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/DirectoryDeleteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegOpenKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegCreateKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegReadValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegWriteValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegListSubkeysEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegDeleteKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegDeleteValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetDnsEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetTrafficEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetHttpEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ExceptionEvent"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chronological event stream emitted during this run.\n\nEvent contents are produced by API, process, file, registry, network, and exception recorders.",
+          "title": "Events"
+        },
+        "sym_accesses": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SymAccessReport"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Symbol-level access counters observed during tracing.\n\nTypically populated when memory tracing hooks are active.",
+          "title": "Sym Accesses"
+        },
+        "dynamic_code_segments": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DynamicCodeSegment"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dynamically generated code regions that executed in this run.\n\nIndicates unpacking, JIT-like behavior, or in-memory staging activity.",
+          "title": "Dynamic Code Segments"
+        },
+        "coverage": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sorted list of executed instruction addresses for coverage analysis.\n\nPopulated only when coverage collection is enabled in config.",
+          "title": "Coverage"
+        },
+        "dropped_files": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DroppedFile"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "File artifacts detected as fully written during the run.\n\nUse this list to extract secondary payloads and logs.",
+          "title": "Dropped Files"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryLayout"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional memory and module snapshot captured at run completion.\n\nPopulate this when memory-layout capture is active for the emulator mode."
+        }
+      },
+      "required": [
+        "ep_type",
+        "start_addr"
+      ],
+      "title": "EntryPoint",
+      "type": "object"
+    },
+    "ErrorInfo": {
+      "additionalProperties": false,
+      "description": "Captures failure context for top-level or per-entry-point errors.\n\nError records can represent unsupported API termination, instruction faults,\nexplicit runtime limits, or unhandled exceptions.\n\nInspect this structure first when a run exits unexpectedly.",
+      "properties": {
+        "type": {
+          "description": "Error category identifier describing the failure mode.\n\nExamples include unsupported API paths, max API limits, and fault conditions raised by emulator hooks. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``.",
+          "title": "Type",
+          "type": "string"
+        },
+        "pc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Program counter associated with the error, when available.\n\nUse this address to align failures with disassembly and event traces.",
+          "title": "Pc"
+        },
+        "instr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Faulting instruction text, when known.\n\nUseful for quickly identifying invalid memory operations or bad control flow transitions.",
+          "title": "Instr"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Faulting memory address that triggered the error.",
+          "title": "Address"
+        },
+        "access_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Memory access type that faulted: read, write, or fetch.",
+          "title": "Access Type"
+        },
+        "regs": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Register state snapshot at the time of the error.",
+          "title": "Regs"
+        },
+        "stack": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stack trace entries captured at the time of the error.",
+          "title": "Stack"
+        },
+        "pc_module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Module name + offset containing the faulting PC (e.g. ``sample.exe+0x1234``).",
+          "title": "Pc Module"
+        },
+        "address_region": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RegionInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Memory region containing the faulting address, if mapped."
+        },
+        "nearby_regions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/RegionInfo"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Up to 2 nearest memory regions when the faulting address is unmapped.",
+          "title": "Nearby Regions"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Thread ID at the time of the error.",
+          "title": "Thread Id"
+        },
+        "process_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Process ID at the time of the error.",
+          "title": "Process Id"
+        },
+        "context_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable one-line triage summary of the error.",
+          "title": "Context Summary"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Python traceback when the error originated from an internal exception.",
+          "title": "Traceback"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Text of the Python exception of an ``internal_error``.",
+          "title": "Message"
+        },
+        "api_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "API function name for unsupported-API errors.",
+          "title": "Api Name"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "API call count that triggered a max-API-count limit.",
+          "title": "Count"
+        },
+        "last_api": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Last API name invoked before max-API-count termination.",
+          "title": "Last Api"
+        },
+        "interrupt_num": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interrupt number for unhandled-interrupt errors.",
+          "title": "Interrupt Num"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ErrorInfo",
+      "type": "object"
+    },
+    "ExceptionEvent": {
+      "description": "Records handled exception dispatch activity.\n\nEmitted when exception handling telemetry is captured during execution.\n\nUse this to understand exception-driven control flow and anti-analysis logic.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "exception",
+          "default": "exception",
+          "description": "Discriminator for exception events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "instr": {
+          "description": "Instruction text associated with the exception.",
+          "title": "Instr",
+          "type": "string"
+        },
+        "exception_code": {
+          "description": "Exception code in hexadecimal string form.",
+          "title": "Exception Code",
+          "type": "string"
+        },
+        "handler_address": {
+          "description": "Address of the selected exception handler.",
+          "title": "Handler Address",
+          "type": "string"
+        },
+        "registers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Register snapshot captured at exception time.",
+          "title": "Registers",
+          "type": "object"
+        },
+        "faulting_address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Address that caused the fault, if applicable.",
+          "title": "Faulting Address"
+        },
+        "pc_module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Module name + offset containing the faulting PC.",
+          "title": "Pc Module"
+        },
+        "stack_trace": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stack trace at exception time.",
+          "title": "Stack Trace"
+        }
+      },
+      "required": [
+        "pos",
+        "instr",
+        "exception_code",
+        "handler_address",
+        "registers"
+      ],
+      "title": "ExceptionEvent",
+      "type": "object"
+    },
+    "FileCreateEvent": {
+      "description": "Records file creation/open-with-create semantics.\n\nEmitted when file APIs request creation semantics for a path.\n\nUse with follow-up write events to track dropped artifacts.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "file_create",
+          "default": "file_create",
+          "description": "Discriminator for file create events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path targeted by creation request.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Assigned file handle, when available.",
+          "title": "Handle"
+        },
+        "open_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Creation/open disposition flags supplied by the API call.",
+          "title": "Open Flags"
+        },
+        "access_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested access rights for the file operation.",
+          "title": "Access Flags"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "FileCreateEvent",
+      "type": "object"
+    },
+    "FileDeleteEvent": {
+      "description": "Records file deletion.\n\nEmitted when file APIs delete a file.\n\nUse with file create events to track files that a sample removes after use.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "file_delete",
+          "default": "file_delete",
+          "description": "Discriminator for file delete events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path targeted by the delete request.",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "FileDeleteEvent",
+      "type": "object"
+    },
+    "FileOpenEvent": {
+      "description": "Records file open operations without explicit create intent.\n\nEmitted for open-style file API calls.\n\nUse to reconstruct file-read dependency chains.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "file_open",
+          "default": "file_open",
+          "description": "Discriminator for file open events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path targeted by open request.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Assigned file handle, when available.",
+          "title": "Handle"
+        },
+        "open_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Open disposition flags supplied by the API call.",
+          "title": "Open Flags"
+        },
+        "access_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested access rights for the file operation.",
+          "title": "Access Flags"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "FileOpenEvent",
+      "type": "object"
+    },
+    "FileReadEvent": {
+      "description": "Records reads from a file handle.\n\nEmitted when file-read APIs pull bytes from emulated files.\n\nUseful for identifying configuration ingestion and payload loading.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "file_read",
+          "default": "file_read",
+          "description": "Discriminator for file read events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path associated with the read operation.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "File handle used by the read operation.",
+          "title": "Handle"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Number of bytes requested/read.",
+          "title": "Size"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured file bytes.",
+          "title": "Data Ref"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Destination buffer pointer in hexadecimal string form.",
+          "title": "Buffer"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "FileReadEvent",
+      "type": "object"
+    },
+    "FileWriteEvent": {
+      "description": "Records writes to a file handle.\n\nEmitted when file-write APIs append or overwrite emulated file data.\n\nCombine with dropped-file summaries to recover persisted payloads.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "file_write",
+          "default": "file_write",
+          "description": "Discriminator for file write events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path associated with the write operation.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "File handle used by the write operation.",
+          "title": "Handle"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Number of bytes written.",
+          "title": "Size"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured file bytes.",
+          "title": "Data Ref"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source buffer pointer in hexadecimal string form.",
+          "title": "Buffer"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "FileWriteEvent",
+      "type": "object"
+    },
+    "LoadedModule": {
+      "additionalProperties": false,
+      "description": "Captures one module visible in the run's loaded-module inventory.\n\nModule entries are assembled from runtime module objects at run completion.\n\nThis section provides a concise map of what binaries were present and where.",
+      "properties": {
+        "name": {
+          "description": "Module file name or canonical module identifier.\n\nUse this to correlate module events and API import usage.",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "description": "Emulated module path.\n\nUseful for distinguishing system modules from payload modules.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Module base address in virtual memory.\n\nUse this as the relocation anchor for offsets and symbol lookups.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Total mapped module size in bytes.\n\nHelps identify unusually large or tiny mapped images.",
+          "title": "Size",
+          "type": "string"
+        },
+        "segments": {
+          "description": "Section/segment breakdown for the module mapping.\n\nUse these entries for section-aware interpretation of memory behavior.",
+          "items": {
+            "$ref": "#/$defs/ModuleSegment"
+          },
+          "title": "Segments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "LoadedModule",
+      "type": "object"
+    },
+    "MemAllocEvent": {
+      "description": "Records remote or explicit process memory allocation activity.\n\nEmitted by memory allocation APIs that target process virtual memory.\n\nCommonly seen in injection and unpacking workflows.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "mem_alloc",
+          "default": "mem_alloc",
+          "description": "Discriminator for memory allocation events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path associated with the allocation event.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Allocated base address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Allocation size in hexadecimal string form.",
+          "title": "Size",
+          "type": "string"
+        },
+        "protect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested memory protection flags, when provided by the API path.",
+          "title": "Protect"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) allocates in this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "MemAllocEvent",
+      "type": "object"
+    },
+    "MemFreeEvent": {
+      "description": "Records memory free/decommit operations.\n\nEmitted when memory free APIs are invoked against process regions.\n\nUse this to track lifecycle of allocation artifacts.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "mem_free",
+          "default": "mem_free",
+          "description": "Discriminator for memory free events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path associated with the free event.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Freed region base address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Freed region size in hexadecimal string form.",
+          "title": "Size",
+          "type": "string"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) frees memory in this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "MemFreeEvent",
+      "type": "object"
+    },
+    "MemProtectEvent": {
+      "description": "Records memory protection changes.\n\nEmitted for API paths that alter page permissions in process memory.\n\nThis is a key indicator for RWX transitions and shellcode staging.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "mem_protect",
+          "default": "mem_protect",
+          "description": "Discriminator for memory protection change events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path associated with the protection change.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Protection-change base address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Protection-change size in hexadecimal string form.",
+          "title": "Size",
+          "type": "string"
+        },
+        "protect": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "New protection value requested by the API call.",
+          "title": "Protect"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) changes protection in this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "MemProtectEvent",
+      "type": "object"
+    },
+    "MemReadEvent": {
+      "description": "Records reads from process memory.\n\nEmitted for API-mediated memory reads and may merge adjacent reads in the\nprofiler for compactness.\n\nUseful for identifying memory scraping or credential theft behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "mem_read",
+          "default": "mem_read",
+          "description": "Discriminator for memory read events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path associated with the read event.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Read start address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Number of bytes read.",
+          "title": "Size",
+          "type": "integer"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured read preview bytes.",
+          "title": "Data Ref"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) reads from this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "MemReadEvent",
+      "type": "object"
+    },
+    "MemWriteEvent": {
+      "description": "Records writes into process memory.\n\nEmitted for API-mediated memory writes and may merge adjacent writes in the\nprofiler for compactness.\n\nUse with thread/process events to identify code injection flows.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "mem_write",
+          "default": "mem_write",
+          "description": "Discriminator for memory write events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path associated with the write event.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Write start address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Number of bytes written.",
+          "title": "Size",
+          "type": "integer"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured write preview bytes.",
+          "title": "Data Ref"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) writes into this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "MemWriteEvent",
+      "type": "object"
+    },
+    "MemoryAccesses": {
+      "additionalProperties": false,
+      "description": "Aggregates read/write/execute counters for one memory region.\n\nThese counters are produced by runtime memory tracing hooks when enabled.\n\nUse them to prioritize regions with meaningful behavioral activity.",
+      "properties": {
+        "reads": {
+          "description": "Total read operations observed for the region.\n\nHigh read density often indicates lookup tables or parsed structures.",
+          "title": "Reads",
+          "type": "integer"
+        },
+        "writes": {
+          "description": "Total write operations observed for the region.\n\nHigh write density often indicates decoded payload construction.",
+          "title": "Writes",
+          "type": "integer"
+        },
+        "execs": {
+          "description": "Total execute operations observed for the region.\n\nNon-zero execution marks code-bearing pages and trampoline regions.",
+          "title": "Execs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reads",
+        "writes",
+        "execs"
+      ],
+      "title": "MemoryAccesses",
+      "type": "object"
+    },
+    "MemoryLayout": {
+      "additionalProperties": false,
+      "description": "Bundles memory-region and loaded-module snapshots for one run.\n\nThis object is populated when the emulator captures run-end memory state.\n\nUse it to understand both raw mappings and higher-level module context.",
+      "properties": {
+        "layout": {
+          "description": "Flat list of captured memory regions for the run.\n\nEntries may include module headers/sections and generic maps.",
+          "items": {
+            "$ref": "#/$defs/MemoryRegion"
+          },
+          "title": "Layout",
+          "type": "array"
+        },
+        "modules": {
+          "description": "Loaded modules present when the run completed.\n\nUse alongside ``layout`` to interpret address ownership and segment roles.",
+          "items": {
+            "$ref": "#/$defs/LoadedModule"
+          },
+          "title": "Modules",
+          "type": "array"
+        }
+      },
+      "title": "MemoryLayout",
+      "type": "object"
+    },
+    "MemoryRegion": {
+      "additionalProperties": false,
+      "description": "Represents one memory layout entry captured for an entry point.\n\nMemory layout capture runs at run completion and may include section-split\nmodule regions plus generic heap/stack mappings.\n\nUse this data to correlate execution artifacts with mapped memory topology.",
+      "properties": {
+        "tag": {
+          "description": "Region tag assigned by the memory manager.\n\nTags encode provenance such as module sections, heaps, or emulator internal structures.",
+          "title": "Tag",
+          "type": "string"
+        },
+        "address": {
+          "description": "Base address of the memory region.\n\nTreat this as the start of the region for disassembly and dump slicing.",
+          "title": "Address",
+          "type": "string"
+        },
+        "size": {
+          "description": "Region size in bytes.\n\nCombine with ``address`` to derive half-open address ranges.",
+          "title": "Size",
+          "type": "string"
+        },
+        "prot": {
+          "description": "Protection string (for example ``r-x`` or ``rw-``).\n\nInterpret this as the final effective page protection at capture time.",
+          "title": "Prot",
+          "type": "string"
+        },
+        "is_free": {
+          "default": false,
+          "description": "Whether the region had been freed at capture time.\n\nFreed regions can remain visible when memory retention settings keep old maps for analysis.",
+          "title": "Is Free",
+          "type": "boolean"
+        },
+        "accesses": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryAccesses"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional read/write/execute counters for the region.\n\nPopulated primarily when memory tracing was enabled for the run."
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional reference into the top-level report ``data`` store.\n\nWhen present, resolve this SHA-256 key in ``Report.data`` to recover the compressed region bytes.",
+          "title": "Data Ref"
+        }
+      },
+      "required": [
+        "tag",
+        "address",
+        "size",
+        "prot"
+      ],
+      "title": "MemoryRegion",
+      "type": "object"
+    },
+    "ModuleLoadEvent": {
+      "description": "Records dynamic module loading activity.\n\nEmitted when module load operations map additional images during runtime.\n\nUseful for dependency discovery and staged import behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "module_load",
+          "default": "module_load",
+          "description": "Discriminator for module load events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "description": "Loaded module name.",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "description": "Loaded module path in emulated filesystem space.",
+          "title": "Path",
+          "type": "string"
+        },
+        "base": {
+          "description": "Module base address in hexadecimal string form.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Mapped module size in hexadecimal string form.",
+          "title": "Size",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pos",
+        "name",
+        "path",
+        "base",
+        "size"
+      ],
+      "title": "ModuleLoadEvent",
+      "type": "object"
+    },
+    "ModuleSegment": {
+      "additionalProperties": false,
+      "description": "Describes one section-like segment within a loaded module.\n\nSegment data is collected from module metadata during memory layout capture.\n\nUse this to align addresses with section boundaries and permissions.",
+      "properties": {
+        "name": {
+          "description": "Segment or section name within the module image.\n\nUseful for mapping behavior to familiar PE sections such as ``.text``.",
+          "title": "Name",
+          "type": "string"
+        },
+        "address": {
+          "description": "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges.",
+          "title": "Address",
+          "type": "string"
+        },
+        "size": {
+          "description": "Segment size in bytes.\n\nLarge executable segments usually contain primary code paths.",
+          "title": "Size",
+          "type": "string"
+        },
+        "prot": {
+          "description": "Effective memory protection for the segment.\n\nUse this to identify writable-executable anomalies or data-only regions.",
+          "title": "Prot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "address",
+        "size",
+        "prot"
+      ],
+      "title": "ModuleSegment",
+      "type": "object"
+    },
+    "NetDnsEvent": {
+      "description": "Records DNS name resolution activity.\n\nEmitted when DNS APIs request host resolution or related lookups.\n\nUse for C2 endpoint discovery and fallback behavior analysis.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "net_dns",
+          "default": "net_dns",
+          "description": "Discriminator for DNS events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "query": {
+          "description": "Queried domain or hostname.",
+          "title": "Query",
+          "type": "string"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Resolved IP response, when a mapping was available.",
+          "title": "Response"
+        }
+      },
+      "required": [
+        "pos",
+        "query"
+      ],
+      "title": "NetDnsEvent",
+      "type": "object"
+    },
+    "NetHttpEvent": {
+      "description": "Records HTTP request telemetry.\n\nEmitted by WinInet/WinHTTP handlers when requests are issued.\n\nUse these records to inspect request metadata and transmitted body content.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "net_http",
+          "default": "net_http",
+          "description": "Discriminator for HTTP events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "server": {
+          "description": "HTTP server hostname or address.",
+          "title": "Server",
+          "type": "string"
+        },
+        "port": {
+          "description": "HTTP server port.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "proto": {
+          "description": "Transport/protocol label, e.g. tcp.http or tcp.https.",
+          "title": "Proto",
+          "type": "string"
+        },
+        "headers": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Serialized HTTP request headers, when available.",
+          "title": "Headers"
+        },
+        "body_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
+          "title": "Body Ref"
+        }
+      },
+      "required": [
+        "pos",
+        "server",
+        "port",
+        "proto"
+      ],
+      "title": "NetHttpEvent",
+      "type": "object"
+    },
+    "NetTrafficEvent": {
+      "description": "Records non-HTTP network traffic and socket-level activity.\n\nEmitted for connect/bind/send/recv style network events.\n\nUse this for protocol flow reconstruction outside HTTP abstractions.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "net_traffic",
+          "default": "net_traffic",
+          "description": "Discriminator for socket traffic events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "server": {
+          "description": "Remote endpoint hostname or IP address.",
+          "title": "Server",
+          "type": "string"
+        },
+        "port": {
+          "description": "Remote endpoint port number.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "proto": {
+          "description": "Protocol label such as tcp/udp variants.",
+          "title": "Proto",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Traffic subtype (connect, bind, data_in, data_out, etc.).",
+          "title": "Type"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured traffic payload bytes.",
+          "title": "Data Ref"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source API path or method that produced the event.",
+          "title": "Method"
+        }
+      },
+      "required": [
+        "pos",
+        "server",
+        "port",
+        "proto"
+      ],
+      "title": "NetTrafficEvent",
+      "type": "object"
+    },
+    "ProcessCreateEvent": {
+      "description": "Records creation of a child process context.\n\nEmitted when process-creation APIs are invoked and accepted by emulation.\n\nThese events indicate lateral execution or staged payload spawning.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "process_create",
+          "default": "process_create",
+          "description": "Discriminator for process creation events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process image path.\n\nRepresents the emulated executable location requested by the sample.",
+          "title": "Path",
+          "type": "string"
+        },
+        "cmdline": {
+          "description": "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments.",
+          "title": "Cmdline",
+          "type": "string"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) creates this process; the target may differ.",
+          "title": "Pid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "cmdline"
+      ],
+      "title": "ProcessCreateEvent",
+      "type": "object"
+    },
+    "RegCreateKeyEvent": {
+      "description": "Records registry key creation operations.\n\nEmitted when registry APIs create new keys.\n\nStrong signal for persistence and installation behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_create_key",
+          "default": "reg_create_key",
+          "description": "Discriminator for registry key create events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path targeted by the create operation.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry handle returned for the key, when available.",
+          "title": "Handle"
+        },
+        "open_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Create/open disposition flags associated with the operation.",
+          "title": "Open Flags"
+        },
+        "access_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested registry access rights.",
+          "title": "Access Flags"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegCreateKeyEvent",
+      "type": "object"
+    },
+    "RegDeleteKeyEvent": {
+      "description": "Records registry key deletion.\n\nEmitted when registry APIs delete a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_delete_key",
+          "default": "reg_delete_key",
+          "description": "Discriminator for registry key delete events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path targeted by the delete operation.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry handle used for the delete, when available.",
+          "title": "Handle"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegDeleteKeyEvent",
+      "type": "object"
+    },
+    "RegDeleteValueEvent": {
+      "description": "Records registry value deletion.\n\nEmitted when registry APIs delete a value from a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_delete_value",
+          "default": "reg_delete_value",
+          "description": "Discriminator for registry value delete events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path containing the deleted value.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry key handle used for the delete, when available.",
+          "title": "Handle"
+        },
+        "value_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry value name deleted by the API call.",
+          "title": "Value Name"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegDeleteValueEvent",
+      "type": "object"
+    },
+    "RegListSubkeysEvent": {
+      "description": "Records enumeration of registry subkeys.\n\nEmitted when APIs list child keys beneath a registry path.\n\nHelps reveal discovery behavior for installed software and services.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_list_subkeys",
+          "default": "reg_list_subkeys",
+          "description": "Discriminator for registry subkey enumeration events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path being enumerated.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry handle used for enumeration, when available.",
+          "title": "Handle"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegListSubkeysEvent",
+      "type": "object"
+    },
+    "RegOpenKeyEvent": {
+      "description": "Records registry key open operations.\n\nEmitted when registry APIs open existing keys.\n\nUse these to identify configuration and persistence probing paths.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_open_key",
+          "default": "reg_open_key",
+          "description": "Discriminator for registry key open events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path targeted by the open operation.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry handle returned for the key, when available.",
+          "title": "Handle"
+        },
+        "open_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Open/disposition flags associated with the operation.",
+          "title": "Open Flags"
+        },
+        "access_flags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested registry access rights.",
+          "title": "Access Flags"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegOpenKeyEvent",
+      "type": "object"
+    },
+    "RegReadValueEvent": {
+      "description": "Records registry value read operations.\n\nEmitted when value-query APIs request data from a key.\n\nUse this to identify configuration keys and anti-analysis checks.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_read_value",
+          "default": "reg_read_value",
+          "description": "Discriminator for registry value read events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path containing the queried value.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry key handle used for the read, when available.",
+          "title": "Handle"
+        },
+        "value_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry value name requested by the API call.",
+          "title": "Value Name"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requested/returned value size in bytes.",
+          "title": "Size"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the captured registry value bytes.",
+          "title": "Data Ref"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Destination buffer pointer in hexadecimal string form.",
+          "title": "Buffer"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegReadValueEvent",
+      "type": "object"
+    },
+    "RegWriteValueEvent": {
+      "description": "Records registry value write operations.\n\nEmitted when APIs set or overwrite a registry value.\n\nUse this to capture persistence and configuration mutations.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "reg_write_value",
+          "default": "reg_write_value",
+          "description": "Discriminator for registry value write events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Registry key path containing the written value.",
+          "title": "Path",
+          "type": "string"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry key handle used for the write, when available.",
+          "title": "Handle"
+        },
+        "value_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Registry value name written by the API call.",
+          "title": "Value Name"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Written value size in bytes.",
+          "title": "Size"
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference into the top-level report ``data`` store for the written registry value bytes.",
+          "title": "Data Ref"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source buffer pointer in hexadecimal string form.",
+          "title": "Buffer"
+        }
+      },
+      "required": [
+        "pos",
+        "path"
+      ],
+      "title": "RegWriteValueEvent",
+      "type": "object"
+    },
+    "RegionInfo": {
+      "additionalProperties": false,
+      "description": "Describes a memory region for exception context.",
+      "properties": {
+        "tag": {
+          "description": "Memory-map tag identifying the region.",
+          "title": "Tag",
+          "type": "string"
+        },
+        "base": {
+          "description": "Base address of the region.",
+          "title": "Base",
+          "type": "string"
+        },
+        "size": {
+          "description": "Region size in bytes.",
+          "title": "Size",
+          "type": "string"
+        },
+        "prot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Protection string (e.g. ``r-x``).",
+          "title": "Prot"
+        }
+      },
+      "required": [
+        "tag",
+        "base",
+        "size"
+      ],
+      "title": "RegionInfo",
+      "type": "object"
+    },
+    "StringCollection": {
+      "additionalProperties": false,
+      "description": "Represents one categorized bucket of extracted strings.\n\nString extraction runs both on static image bytes and post-emulation memory\nsnapshots. This model keeps ANSI and UTF-16 findings separated.\n\nCompare these lists to identify runtime-decoded strings that were not present\nin the original file bytes.",
+      "properties": {
+        "ansi": {
+          "description": "ASCII/ANSI strings extracted for this bucket.\n\nThese are populated by static string scans or memory string extraction depending on the parent field.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Ansi",
+          "type": "array"
+        },
+        "unicode": {
+          "description": "UTF-16 style strings extracted for this bucket.\n\nUse these to spot wide-character configuration values and command artifacts.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Unicode",
+          "type": "array"
+        }
+      },
+      "title": "StringCollection",
+      "type": "object"
+    },
+    "StringsReport": {
+      "additionalProperties": false,
+      "description": "Groups static and in-memory string extraction results.\n\nStatic strings come from the original loaded image, while in-memory strings\nare collected after execution and often include decoded/decrypted content.\n\nUse this section to quickly triage embedded versus runtime materialized\nindicators.",
+      "properties": {
+        "static": {
+          "$ref": "#/$defs/StringCollection",
+          "description": "Strings extracted from the initial file image bytes.\n\nPrimarily influenced by the module loader and static string scanner."
+        },
+        "in_memory": {
+          "$ref": "#/$defs/StringCollection",
+          "description": "Strings extracted from memory after emulation executes.\n\nPopulated when string analysis is enabled and runtime decoding created new string material."
+        }
+      },
+      "title": "StringsReport",
+      "type": "object"
+    },
+    "SymAccessReport": {
+      "additionalProperties": false,
+      "description": "Summarizes memory accesses to symbol-resolved addresses.\n\nSymbol access accounting is mainly populated when memory tracing is active\nand the emulator can resolve touched addresses back to known symbols.\n\nUse these counters to identify import-table walking and export resolution\nbehavior.",
+      "properties": {
+        "symbol": {
+          "description": "Resolved symbol name in ``module.symbol`` form.\n\nThis identifies the logical target accessed by code during tracing.",
+          "title": "Symbol",
+          "type": "string"
+        },
+        "reads": {
+          "description": "Number of read accesses observed for this symbol.\n\nHigh values often indicate lookup loops or pointer chasing.",
+          "title": "Reads",
+          "type": "integer"
+        },
+        "writes": {
+          "description": "Number of write accesses observed for this symbol.\n\nNon-zero writes can indicate tampering or patching behavior.",
+          "title": "Writes",
+          "type": "integer"
+        },
+        "execs": {
+          "description": "Number of execution accesses observed for this symbol.\n\nExecution hits often represent direct calls/jumps through symbol-backed addresses.",
+          "title": "Execs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "symbol",
+        "reads",
+        "writes",
+        "execs"
+      ],
+      "title": "SymAccessReport",
+      "type": "object"
+    },
+    "ThreadCreateEvent": {
+      "description": "Records thread creation in a process context.\n\nEmitted for thread creation APIs and often accompanies process injection\nworkflows.\n\nCombine with memory-write and start-address analysis for attribution.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "thread_create",
+          "default": "thread_create",
+          "description": "Discriminator for thread creation events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path where the thread is created.",
+          "title": "Path",
+          "type": "string"
+        },
+        "start_addr": {
+          "description": "Thread start address in hexadecimal string form.",
+          "title": "Start Addr",
+          "type": "string"
+        },
+        "param": {
+          "description": "Thread parameter pointer/value in hexadecimal string form.",
+          "title": "Param",
+          "type": "string"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier.\n\nThe actor (event pos) creates the thread in this process; NULL when the target is the actor itself.",
+          "title": "Pid"
+        },
+        "tid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target thread identifier of the newly created thread, when known.",
+          "title": "Tid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "start_addr",
+        "param"
+      ],
+      "title": "ThreadCreateEvent",
+      "type": "object"
+    },
+    "ThreadInjectEvent": {
+      "description": "Records thread injection activity into another process.\n\nEmitted for injection-oriented thread APIs.\n\nTreat these as high-signal indicators of code injection behavior.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+        },
+        "event": {
+          "const": "thread_inject",
+          "default": "thread_inject",
+          "description": "Discriminator for thread injection events.",
+          "title": "Event",
+          "type": "string"
+        },
+        "path": {
+          "description": "Target process path receiving the injected thread.",
+          "title": "Path",
+          "type": "string"
+        },
+        "start_addr": {
+          "description": "Injected thread start address in hexadecimal string form.",
+          "title": "Start Addr",
+          "type": "string"
+        },
+        "param": {
+          "description": "Injected thread parameter in hexadecimal string form.",
+          "title": "Param",
+          "type": "string"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target process identifier receiving the injected thread.\n\nNULL when the target is the actor itself.",
+          "title": "Pid"
+        },
+        "tid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target thread identifier of the injected thread, when known.",
+          "title": "Tid"
+        }
+      },
+      "required": [
+        "pos",
+        "path",
+        "start_addr",
+        "param"
+      ],
+      "title": "ThreadInjectEvent",
+      "type": "object"
+    },
+    "TracePosition": {
+      "description": "Locates where an event occurred in execution time and context.\n\nEvery emitted event carries this structure so consumers can reconstruct\nchronology and thread/process ownership.\n\nUse ``tick`` ordering for timeline reconstruction and ``pc`` for direct\ndisassembly alignment.",
+      "properties": {
+        "tick": {
+          "description": "Instruction-count tick at the time of the event.\n\nUse this as the primary event ordering key within a run.",
+          "title": "Tick",
+          "type": "integer"
+        },
+        "tid": {
+          "description": "Thread identifier active when the event was emitted.\n\nCorrelate this with thread creation/injection activity.",
+          "title": "Tid",
+          "type": "integer"
+        },
+        "pid": {
+          "description": "Process identifier active when the event was emitted.\n\nUse this to separate behavior across process boundaries.",
+          "title": "Pid",
+          "type": "integer"
+        },
+        "pc": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Program counter at event emission time, when available.\n\nSome synthetic events may omit this if no precise PC context exists.",
+          "title": "Pc"
+        }
+      },
+      "required": [
+        "tick",
+        "tid",
+        "pid"
+      ],
+      "title": "TracePosition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Top-level Speakeasy output report model.\n\nThis object combines run telemetry, metadata for the emulated input, and\noptional analysis artifacts.\n\nTreat this as the canonical machine-readable output for downstream tooling.",
+  "properties": {
+    "report_version": {
+      "default": "6.0.0",
+      "description": "Schema/report format version generated by the profiler.\n\nUse this to route parsing logic when consuming multiple report versions.",
+      "title": "Report Version",
+      "type": "string"
+    },
+    "emulation_total_runtime": {
+      "description": "Total wall-clock runtime in seconds for the emulation session.\n\nDerived from profiler start/stop timing and rounded to milliseconds.",
+      "title": "Emulation Total Runtime",
+      "type": "number"
+    },
+    "timestamp": {
+      "description": "Epoch timestamp (seconds) captured at emulation start time.\n\nUse this for timeline correlation with external logs.",
+      "title": "Timestamp",
+      "type": "integer"
+    },
+    "arch": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Architecture label for the input sample, when known.\n\nPopulated from loader metadata (for example ``x86`` or ``x64``).",
+      "title": "Arch"
+    },
+    "filepath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Original local path of the emulated input file, when available.\n\nUseful for provenance tracking in batch pipelines.",
+      "title": "Filepath"
+    },
+    "sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "SHA-256 hash of the emulated input bytes, when available.\n\nUse this as the primary stable sample identifier.",
+      "title": "Sha256"
+    },
+    "size": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Input file size in bytes, when available.\n\nHelps validate sample identity and triage packaging anomalies.",
+      "title": "Size"
+    },
+    "filetype": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Coarse file-type classification (for example exe, dll, driver).\n\nDerived from loader inspection before emulation starts.",
+      "title": "Filetype"
+    },
+    "image_base": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Base address at which the primary module was loaded during emulation.\n\nUse this to rebase analysis tools (e.g. IDA Pro) to match emulated addresses.",
+      "title": "Image Base"
+    },
+    "errors": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ErrorInfo"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Top-level emulator errors not tied to a specific run.\n\nThese usually reflect session-level failures rather than per-entry-point termination.",
+      "title": "Errors"
+    },
+    "strings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StringsReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional static and in-memory string extraction output.\n\nPresent when string analysis is enabled and at least one string bucket is non-empty."
+    },
+    "data": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/DataArtifact"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Deduplicated binary payload store keyed by SHA-256.\n\nResolve ``*_ref`` fields in the report against this mapping to recover compressed payload bytes.",
+      "title": "Data"
+    },
+    "entry_points": {
+      "description": "Ordered list of all runs executed during emulation.\n\nThis is the primary behavioral timeline for the report.",
+      "items": {
+        "$ref": "#/$defs/EntryPoint"
+      },
+      "title": "Entry Points",
+      "type": "array"
+    }
+  },
+  "required": [
+    "emulation_total_runtime",
+    "timestamp"
+  ],
+  "title": "Report",
+  "type": "object"
+}

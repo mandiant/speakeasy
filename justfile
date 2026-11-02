@@ -22,6 +22,10 @@ gen-signatures:
     ./.venv/bin/python scripts/gen_win32_signatures.py --stats
     ./.venv/bin/python scripts/gen_phnt_signatures.py --stats
 
+# regenerate speakeasy/resources/report.schema.json from the report models
+gen-report-schema:
+    ./.venv/bin/python scripts/gen_report_schema.py
+
 test:
     ./.venv/bin/pytest -x -q --no-header tests/
 
