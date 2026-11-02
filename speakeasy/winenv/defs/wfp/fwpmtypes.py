@@ -1,110 +1,92 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, EmuUnion, Ptr
 
 
 class GUID(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Data1 = ct.c_uint32
-        self.Data2 = ct.c_uint16
-        self.Data3 = ct.c_uint16
-        self.Data4 = ct.c_uint8 * 8
+    Data1: Annotated[int, ct.c_uint32]
+    Data2: Annotated[int, ct.c_uint16]
+    Data3: Annotated[int, ct.c_uint16]
+    Data4: Annotated[bytes, ct.c_uint8 * 8]
 
 
 class FWPM_DISPLAY_DATA0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.name = Ptr
-        self.description = Ptr
+    name: Annotated[int, Ptr]
+    description: Annotated[int, Ptr]
 
 
 class FWP_VALUE0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.type = ct.c_uint32
-        self.data = Ptr
+    type: Annotated[int, ct.c_uint32]
+    data: Annotated[int, Ptr]
 
 
 class FWP_BYTE_BLOB(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.size = ct.c_uint32
-        self.data = Ptr
+    size: Annotated[int, ct.c_uint32]
+    data: Annotated[int, Ptr]
 
 
 class FWPM_SUBLAYER0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.subLayerKey = GUID
-        self.displayData = FWPM_DISPLAY_DATA0
-        self.flags = ct.c_uint32
-        self.providerKey = Ptr
-        self.providerData = FWP_BYTE_BLOB
-        self.weight = ct.c_uint16
+    subLayerKey: GUID
+    displayData: FWPM_DISPLAY_DATA0
+    flags: Annotated[int, ct.c_uint32]
+    providerKey: Annotated[int, Ptr]
+    providerData: FWP_BYTE_BLOB
+    weight: Annotated[int, ct.c_uint16]
 
 
 class FWPS_CALLOUT1(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.calloutKey = GUID
-        self.flags = ct.c_uint32
-        self.classifyFn = Ptr
-        self.notifyFn = Ptr
-        self.flowDeleteFn = Ptr
+    calloutKey: GUID
+    flags: Annotated[int, ct.c_uint32]
+    classifyFn: Annotated[int, Ptr]
+    notifyFn: Annotated[int, Ptr]
+    flowDeleteFn: Annotated[int, Ptr]
 
 
 class FWPM_CALLOUT0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.calloutKey = GUID
-        self.displayData = FWPM_DISPLAY_DATA0
-        self.flags = ct.c_uint32
-        self.providerKey = Ptr
-        self.providerData = FWP_BYTE_BLOB
-        self.applicableLayer = GUID
-        self.calloutId = ct.c_uint32
+    calloutKey: GUID
+    displayData: FWPM_DISPLAY_DATA0
+    flags: Annotated[int, ct.c_uint32]
+    providerKey: Annotated[int, Ptr]
+    providerData: FWP_BYTE_BLOB
+    applicableLayer: GUID
+    calloutId: Annotated[int, ct.c_uint32]
 
 
 class FWPM_FILTER_CONDITION0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.fieldKey = GUID
-        self.matchType = ct.c_uint32
-        self.conditionValue = FWP_VALUE0
+    fieldKey: GUID
+    matchType: Annotated[int, ct.c_uint32]
+    conditionValue: FWP_VALUE0
 
 
 class FWPM_ACTION0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.type = ct.c_uint32
-        self.filterType = GUID
+    type: Annotated[int, ct.c_uint32]
+    filterType: GUID
 
 
 class FWPM_FILTER0_CONTEXT(EmuUnion):
+    rawContext: Annotated[int, ct.c_uint64]
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.rawContext = ct.c_uint64
         self.providerContextKey = GUID(ptr_size).get_cstruct()
 
 
 class FWPM_FILTER0(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.filterKey = GUID
-        self.displayData = FWPM_DISPLAY_DATA0
-        self.flags = ct.c_uint32
-        self.providerKey = Ptr
-        self.providerData = FWP_BYTE_BLOB
-        self.layerKey = GUID
-        self.subLayerKey = GUID
-        self.weight = FWP_VALUE0
-        self.numFilterConditions = ct.c_uint32
-        self.filterCondition = Ptr
-        self.action = FWPM_ACTION0
-        self.Anonymous = FWPM_FILTER0_CONTEXT
-        self.reserved = Ptr
-        self.filterId = ct.c_uint64
-        self.effectiveWeight = FWP_VALUE0
+    filterKey: GUID
+    displayData: FWPM_DISPLAY_DATA0
+    flags: Annotated[int, ct.c_uint32]
+    providerKey: Annotated[int, Ptr]
+    providerData: FWP_BYTE_BLOB
+    layerKey: GUID
+    subLayerKey: GUID
+    weight: FWP_VALUE0
+    numFilterConditions: Annotated[int, ct.c_uint32]
+    filterCondition: Annotated[int, Ptr]
+    action: FWPM_ACTION0
+    Anonymous: FWPM_FILTER0_CONTEXT
+    reserved: Annotated[int, Ptr]
+    filterId: Annotated[int, ct.c_uint64]
+    effectiveWeight: FWP_VALUE0
