@@ -116,6 +116,15 @@
       "title": "ApiEvent",
       "type": "object"
     },
+    "Arch": {
+      "description": "Architecture of the input.",
+      "enum": [
+        "x86",
+        "x64"
+      ],
+      "title": "Arch",
+      "type": "string"
+    },
     "DataArtifact": {
       "additionalProperties": false,
       "description": "Stores one deduplicated binary payload referenced elsewhere in a report.\n\nPayloads are keyed by SHA-256 in the top-level ``Report.data`` mapping.\nOther models store the SHA-256 key as a reference instead of embedding bytes\ninline repeatedly.",
@@ -1250,6 +1259,17 @@
       ],
       "title": "FileReadEvent",
       "type": "object"
+    },
+    "FileType": {
+      "description": "Kind of input file.",
+      "enum": [
+        "exe",
+        "dll",
+        "driver",
+        "shellcode"
+      ],
+      "title": "FileType",
+      "type": "string"
     },
     "FileWriteEvent": {
       "additionalProperties": false,
@@ -2912,7 +2932,7 @@
       "type": "object"
     }
   },
-  "additionalProperties": true,
+  "additionalProperties": false,
   "description": "Top-level Speakeasy output report model.\n\nThis object combines run telemetry, metadata for the emulated input, and\noptional analysis artifacts.\n\nTreat this as the canonical machine-readable output for downstream tooling.",
   "properties": {
     "report_version": {
@@ -2934,17 +2954,16 @@
     "arch": {
       "anyOf": [
         {
-          "type": "string"
+          "$ref": "#/$defs/Arch"
         },
         {
           "type": "null"
         }
       ],
       "default": null,
-      "description": "Architecture label for the input sample, when known.\n\nPopulated from loader metadata (for example ``x86`` or ``x64``).",
-      "title": "Arch"
+      "description": "Architecture of the input sample, when known.\n\nPopulated from loader metadata."
     },
-    "filepath": {
+    "path": {
       "anyOf": [
         {
           "type": "string"
@@ -2954,8 +2973,8 @@
         }
       ],
       "default": null,
-      "description": "Original local path of the emulated input file, when available.\n\nUseful for provenance tracking in batch pipelines.",
-      "title": "Filepath"
+      "description": "Host path of the input file, when the input was loaded from a file.\n\nUseful for provenance tracking in batch pipelines.",
+      "title": "Path"
     },
     "sha256": {
       "anyOf": [
@@ -2983,18 +3002,17 @@
       "description": "Input file size in bytes, when available.\n\nHelps validate sample identity and triage packaging anomalies.",
       "title": "Size"
     },
-    "filetype": {
+    "file_type": {
       "anyOf": [
         {
-          "type": "string"
+          "$ref": "#/$defs/FileType"
         },
         {
           "type": "null"
         }
       ],
       "default": null,
-      "description": "Coarse file-type classification (for example exe, dll, driver).\n\nDerived from loader inspection before emulation starts.",
-      "title": "Filetype"
+      "description": "Kind of input file, when known.\n\nDerived from loader inspection before emulation starts."
     },
     "image_base": {
       "anyOf": [

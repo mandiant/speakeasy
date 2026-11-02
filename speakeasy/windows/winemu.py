@@ -31,7 +31,7 @@ from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuErr
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import EntryPointType, ErrorInfo, ErrorType, RegionInfo
+from speakeasy.report import Arch, EntryPointType, ErrorInfo, ErrorType, FileType, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -93,6 +93,8 @@ NONVOLATILE_AMD64 = (
     _arch.AMD64_REG_R14,
     _arch.AMD64_REG_R15,
 )
+
+REPORT_ARCHES = {_arch.ARCH_X86: Arch.X86, _arch.ARCH_AMD64: Arch.X64}
 
 logger = logging.getLogger(__name__)
 
@@ -1858,6 +1860,28 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_peb_modules(self):
         return [mod for mod in self.modules if mod.visible_in_peb]
+
+    def _set_input_metadata(self, path, data):
+        if not self.profiler:
+            return
+        pe = winemu._PeParser(path=path, data=data, fast_load=True)
+        file_type = None
+        if pe.is_driver():
+            file_type = FileType.DRIVER
+        elif pe.is_dll():
+            file_type = FileType.DLL
+        elif pe.is_exe():
+            file_type = FileType.EXE
+        self.input = {
+            "path": pe.path or None,
+            "sha256": pe.hash,
+            "size": pe.file_size,
+            "arch": REPORT_ARCHES.get(pe.arch),
+            "file_type": file_type,
+            "emu_version": self.get_emu_version(),
+            "os_run": self.get_osver_string(),
+        }
+        self.profiler.add_input_metadata(self.input)
 
     def load_image(self, image, base: int | None = None, *, is_input: bool = False) -> RuntimeModule:
         """

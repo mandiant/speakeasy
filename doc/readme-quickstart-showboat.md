@@ -15,7 +15,7 @@ out.write_bytes(lzma.open(src, 'rb').read())
 print(out)
 PY
 /Users/user/code/hex-rays/ida-sandbox-plugin/deps/speakeasy/.venv/bin/python -m speakeasy -t /tmp/readme_dll_test_x86.dll --no-mp -o /tmp/readme_report.json 2>/dev/null
-jq '{sha256, arch, filetype, entry_points: (.entry_points | length)}' /tmp/readme_report.json
+jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' /tmp/readme_report.json
 ```
 
 ```output
@@ -23,7 +23,7 @@ jq '{sha256, arch, filetype, entry_points: (.entry_points | length)}' /tmp/readm
 {
   "sha256": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45",
   "arch": "x86",
-  "filetype": "dll",
+  "file_type": "dll",
   "entry_points": 3
 }
 ```

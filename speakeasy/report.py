@@ -656,6 +656,22 @@ class EntryPoint(BaseModel):
     )
 
 
+class Arch(str, Enum):
+    """Architecture of the input."""
+
+    X86 = "x86"
+    X64 = "x64"
+
+
+class FileType(str, Enum):
+    """Kind of input file."""
+
+    EXE = "exe"
+    DLL = "dll"
+    DRIVER = "driver"
+    SHELLCODE = "shellcode"
+
+
 class Report(BaseModel):
     """
     Top-level Speakeasy output report model.
@@ -666,7 +682,7 @@ class Report(BaseModel):
     Treat this as the canonical machine-readable output for downstream tooling.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     report_version: str = Field(
         default=REPORT_VERSION,
@@ -687,17 +703,14 @@ class Report(BaseModel):
             "Use this for timeline correlation with external logs."
         )
     )
-    arch: str | None = Field(
+    arch: Arch | None = Field(
         default=None,
-        description=(
-            "Architecture label for the input sample, when known.\n\n"
-            "Populated from loader metadata (for example ``x86`` or ``x64``)."
-        ),
+        description=("Architecture of the input sample, when known.\n\nPopulated from loader metadata."),
     )
-    filepath: str | None = Field(
+    path: str | None = Field(
         default=None,
         description=(
-            "Original local path of the emulated input file, when available.\n\n"
+            "Host path of the input file, when the input was loaded from a file.\n\n"
             "Useful for provenance tracking in batch pipelines."
         ),
     )
@@ -715,12 +728,9 @@ class Report(BaseModel):
             "Helps validate sample identity and triage packaging anomalies."
         ),
     )
-    filetype: str | None = Field(
+    file_type: FileType | None = Field(
         default=None,
-        description=(
-            "Coarse file-type classification (for example exe, dll, driver).\n\n"
-            "Derived from loader inspection before emulation starts."
-        ),
+        description=("Kind of input file, when known.\n\nDerived from loader inspection before emulation starts."),
     )
     image_base: HexIntOptional = Field(
         default=None,

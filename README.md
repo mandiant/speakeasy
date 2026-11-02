@@ -16,14 +16,14 @@ Run a sample and inspect high-level report fields (replace `sample.dll` with you
 
 ```console
 speakeasy -t sample.dll --no-mp -o report.json 2>/dev/null
-jq '{sha256, arch, filetype, entry_points: (.entry_points | length)}' report.json
+jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' report.json
 ```
 
 ```json
 {
   "sha256": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45",
   "arch": "x86",
-  "filetype": "dll",
+  "file_type": "dll",
   "entry_points": 3
 }
 ```

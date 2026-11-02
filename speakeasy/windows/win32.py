@@ -17,10 +17,9 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType
+from speakeasy.report import EntryPointType, FileType
 from speakeasy.windows import objman
 from speakeasy.windows.com import COM
-from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import (
     DLL_PROCESS_ATTACH,
     PeLoader,
@@ -29,7 +28,7 @@ from speakeasy.windows.loaders import (
     get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
-from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
+from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, REPORT_ARCHES, WindowsEmulator
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.codepage import encode_ansi
 
@@ -183,33 +182,6 @@ class Win32Emulator(WindowsEmulator):
         if not cd.endswith("\\"):
             cd += "\\"
         return cd + os.path.basename(self.file_name)
-
-    def _set_input_metadata(self, path, data):
-        if not self.profiler:
-            return
-        pe = _PeParser(path=path, data=data, fast_load=True)
-        pe_type = "unknown"
-        if pe.is_driver():
-            pe_type = "driver"
-        elif pe.is_dll():
-            pe_type = "dll"
-        elif pe.is_exe():
-            pe_type = "exe"
-        arch = "unknown"
-        if pe.arch == _arch.ARCH_AMD64:
-            arch = "x64"
-        elif pe.arch == _arch.ARCH_X86:
-            arch = "x86"
-        self.input = {
-            "path": pe.path,
-            "sha256": pe.hash,
-            "size": pe.file_size,
-            "arch": arch,
-            "filetype": pe_type,
-            "emu_version": self.get_emu_version(),
-            "os_run": self.get_osver_string(),
-        }
-        self.profiler.add_input_metadata(self.input)
 
     def prepare_module_for_emulation(self, module, all_entrypoints, entry_point=None):
         if not module:
@@ -422,19 +394,14 @@ class Win32Emulator(WindowsEmulator):
         rtmod = self.load_image(image, is_input=True)
         sc_addr = rtmod.base
 
-        sc_arch = "unknown"
-        if arch == _arch.ARCH_AMD64:
-            sc_arch = "x64"
-        elif arch == _arch.ARCH_X86:
-            sc_arch = "x86"
-
         sc_tag = f"emu.shellcode.{sc_hash}"
         if self.profiler:
             self.input = {
                 "path": path,
                 "sha256": sc_hash,
                 "size": len(data),
-                "arch": sc_arch,
+                "arch": REPORT_ARCHES.get(arch),
+                "file_type": FileType.SHELLCODE,
                 "image_base": sc_addr,
                 "mem_tag": sc_tag,
                 "emu_version": self.get_emu_version(),

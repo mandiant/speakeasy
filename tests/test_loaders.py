@@ -364,6 +364,16 @@ def test_guest_loaders_accept_malformed_optional_inventory(mode, config, tmp_pat
         se.shutdown()
 
 
+def test_shellcode_report_describes_the_input(config) -> None:
+    se = Speakeasy(config=config)
+    try:
+        se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="x64"))
+        report = se.get_report()
+    finally:
+        se.shutdown()
+    assert (report.file_type, report.arch, report.size) == ("shellcode", "x64", 1)
+
+
 def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) -> None:
     image, _ = build_pe(data=b"\0" * 0x48, extra_dirs={14: (0x2000, 0x48)})
     se = Speakeasy(config=config)
