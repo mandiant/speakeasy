@@ -15,7 +15,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from functools import wraps
 from types import MethodType
-from typing import Any
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
 import capstone as cs
 import pefile
@@ -62,6 +62,9 @@ from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
 from speakeasy.winenv.defs.nt import ddk
+
+if TYPE_CHECKING:
+    from speakeasy.speakeasy import Speakeasy
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover
@@ -175,11 +178,16 @@ class _ApiCallState:
         return f"{self.dll}.{self.name}"
 
 
-def execution_scope(func):
+S = TypeVar("S", bound="WindowsEmulator | Speakeasy")
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def execution_scope(func: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
     """Share one active-time cap across every start in a public invocation."""
 
     @wraps(func)
-    def wrapped(self, *args, **kwargs):
+    def wrapped(self: S, *args: P.args, **kwargs: P.kwargs) -> R:
         emu = self if isinstance(self, WindowsEmulator) else self.emu
         if emu is None or emu._execution_budget is not None:
             return func(self, *args, **kwargs)

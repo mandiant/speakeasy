@@ -7,8 +7,10 @@ import os
 import threading
 import zipfile
 from collections.abc import Callable
+from functools import wraps
 from io import BytesIO
 from pathlib import Path, PureWindowsPath
+from typing import Concatenate, ParamSpec, TypeVar
 
 from pefile import MACHINE_TYPE
 from pydantic import ValidationError
@@ -25,6 +27,9 @@ from speakeasy.winenv import arch as _arch
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
 SHELLCODE_ARCH = {
     "x86": _arch.ARCH_X86,
     "x64": _arch.ARCH_AMD64,
@@ -40,10 +45,11 @@ class Speakeasy:
     config: SpeakeasyConfig
 
     @staticmethod
-    def check_init(func):
+    def check_init(func: Callable[Concatenate["Speakeasy", P], R]) -> Callable[Concatenate["Speakeasy", P], R]:
         """Wrap a method so that it raises ``SpeakeasyError`` while the emulator does not exist."""
 
-        def wrap(self, *args, **kwargs):
+        @wraps(func)
+        def wrap(self: "Speakeasy", *args: P.args, **kwargs: P.kwargs) -> R:
             if self._emu is None:
                 raise SpeakeasyError("Emulator not initialized")
             return func(self, *args, **kwargs)
@@ -474,7 +480,7 @@ class Speakeasy:
         return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
 
     @execution_scope
-    def resume(self, addr, count=-1):
+    def resume(self, addr: int, count: int = -1) -> None:
         """
         Resume emulating at the specified address.
 

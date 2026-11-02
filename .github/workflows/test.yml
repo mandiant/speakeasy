@@ -41,7 +41,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install '.[dev]'
       - name: Type check with mypy
-        run: mypy speakeasy
+        run: mypy speakeasy tests/check_public_types.py
 
   test:
     runs-on: ubuntu-latest

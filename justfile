@@ -12,7 +12,7 @@ ruff:
     git ls-files -z '*.py' | xargs -0 {{ruff}} check --quiet --select I --fix --force-exclude
 
 mypy:
-    ./.venv/bin/mypy speakeasy
+    ./.venv/bin/mypy speakeasy tests/check_public_types.py
 
 lint: format ruff mypy
 
