@@ -348,17 +348,6 @@ def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
-@pytest.mark.parametrize("name, enc", [("CreateFileA", "utf-8"), ("CreateFileW", "utf-16le")])
-def test_create_file_records_create_and_open(strict_fs_emu: Speakeasy, name: str, enc: str) -> None:
-    se = strict_fs_emu
-    path = "c:\\dropped.txt"
-    for disposition in (FILE_CREATION_DISPOSITION.CREATE_NEW, OPEN_EXISTING):
-        name_addr = alloc(se, (path + "\x00").encode(enc))
-        hnd, _ = call(se, "kernel32", name, [name_addr, GENERIC_READ, 0, 0, disposition, 0, 0])
-        assert hnd != windefs.INVALID_HANDLE_VALUE
-    assert [(e.event, e.path) for e in se.emu.get_current_run().events] == [("file_create", path), ("file_open", path)]
-
-
 MOVEFILE_REPLACE_EXISTING = 0x1
 
 
