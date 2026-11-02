@@ -51,7 +51,7 @@ def test_get_adapters_info_small_buffer_gives_size(adapter_emu: Speakeasy) -> No
     size = alloc(adapter_emu, struct.pack("<I", 16))
     rv, _ = call(adapter_emu, "iphlpapi", "GetAdaptersInfo", [buf, size])
     assert rv == 111
-    assert struct.unpack("<I", adapter_emu.mem_read(size, 4))[0] > 16
+    assert struct.unpack("<I", adapter_emu.mem_read(size, 4))[0] == 0x288
     assert adapter_emu.mem_read(buf, 0x400) == b"\xcc" * 0x400
 
 

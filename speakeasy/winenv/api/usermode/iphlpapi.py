@@ -55,7 +55,7 @@ class Iphlpapi(api.ApiHandler):
             adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.type)
             adapter_info.IpAddressList.IpAddress = (adapter.ip_address or "").encode("utf-8")
             adapter_info.IpAddressList.IpMask = (adapter.subnet_mask or "").encode("utf-8")
-            adapter_info.DhcpEnabled = bool(adapter.dhcp_enabled)
+            adapter_info.DhcpEnabled = int(bool(adapter.dhcp_enabled))
 
             if index < adapter_count - 1:
                 ptr_next = self.mem_alloc(adapter_info.sizeof(), tag="api.struct.IP_ADAPTER_INFO")

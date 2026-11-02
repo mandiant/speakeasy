@@ -29,7 +29,7 @@ class IP_ADAPTER_INFO(EmuStruct):
         self.Address = ct.c_uint8 * MAX_ADAPTER_ADDRESS_LENGTH
         self.Index = ct.c_uint32
         self.Type = ct.c_uint32
-        self.DhcpEnabled = ct.c_bool
+        self.DhcpEnabled = ct.c_uint32
         self.CurrentIpAddress = Ptr
         self.IpAddressList = IP_ADDR_STRING
         self.GatewayList = IP_ADDR_STRING
@@ -37,8 +37,8 @@ class IP_ADAPTER_INFO(EmuStruct):
         self.HaveWins = ct.c_uint32
         self.PrimaryWinsServer = IP_ADDR_STRING
         self.SecondaryWinsServer = IP_ADDR_STRING
-        self.LeaseObtained = Ptr
-        self.LeaseExpires = Ptr
+        self.LeaseObtained = ct.c_int64
+        self.LeaseExpires = ct.c_int64
 
 
 class IP_ADDR_STRING(EmuStruct):
