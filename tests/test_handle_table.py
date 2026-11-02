@@ -172,3 +172,17 @@ def test_kernel_close_of_a_registry_key_closes_the_key(driver_emu: Speakeasy) ->
 
     assert call(driver_emu, "ntoskrnl", "ZwClose", [hkey])[0] == ddk.STATUS_SUCCESS
     assert call(driver_emu, "ntoskrnl", "ZwClose", [hkey])[0] == ddk.STATUS_INVALID_HANDLE
+
+
+def test_close_of_a_wininet_connection_closes_its_requests(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
+    server = alloc(dll_emu, b"example.com\x00")
+    conn, _ = call(dll_emu, "wininet", "InternetConnectA", [inet, server, 80, 0, 0, 3, 0, 0])
+    req, _ = call(dll_emu, "wininet", "HttpOpenRequestA", [conn, 0, alloc(dll_emu, b"/\x00"), 0, 0, 0, 0, 0])
+    assert call(dll_emu, "wininet", "HttpSendRequestA", [req, 0, 0, 0, 0])[0] == 1
+
+    assert call(dll_emu, "wininet", "InternetCloseHandle", [conn])[0] == 1
+    assert call(dll_emu, "wininet", "HttpSendRequestA", [req, 0, 0, 0, 0])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+    assert call(dll_emu, "wininet", "InternetConnectA", [inet, server, 80, 0, 0, 3, 0, 0])[0]

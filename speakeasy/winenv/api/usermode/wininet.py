@@ -144,6 +144,9 @@ class Wininet(api.ApiHandler):
         ctx.args["dwFlags"].display = decode(INTERNET_FLAGS, dwFlags)
 
         sess = self.netman.get_wininet_object(hConnect)
+        if not isinstance(sess, netman.WininetSession):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
         req = sess.new_request(
             lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, dwFlags, dwContext
         )
@@ -263,6 +266,9 @@ class Wininet(api.ApiHandler):
             body = self.mem_read(lpOptional, dwOptionalLength)
 
         req = self.netman.get_wininet_object(hRequest)
+        if not isinstance(req, netman.WininetRequest):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
         srv = req.get_server()
         port = req.get_port()
 
@@ -403,6 +409,9 @@ class Wininet(api.ApiHandler):
         rv = False
 
         req = self.netman.get_wininet_object(hFile)
+        if not isinstance(req, netman.WininetRequest):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
