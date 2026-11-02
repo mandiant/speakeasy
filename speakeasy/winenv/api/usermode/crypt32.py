@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import struct
+from typing import TYPE_CHECKING
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -11,6 +12,9 @@ from Crypto.Util.Padding import pad, unpad
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 ERROR_MORE_DATA = 234
 
@@ -53,7 +57,7 @@ class Crypt32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("CryptStringToBinary", argc=7)
-    def CryptStringToBinary(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptStringToBinary(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptStringToBinary(
             LPCTSTR pszString,
@@ -125,7 +129,7 @@ class Crypt32(api.ApiHandler):
         return key[:16], key[16:]
 
     @apihook("CryptProtectData", argc=7)
-    def CryptProtectData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptProtectData(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptProtectData(
             DATA_BLOB *pDataIn,
@@ -158,7 +162,7 @@ class Crypt32(api.ApiHandler):
         return 1
 
     @apihook("CryptUnprotectData", argc=7)
-    def CryptUnprotectData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptUnprotectData(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptUnprotectData(
             DATA_BLOB *pDataIn,
