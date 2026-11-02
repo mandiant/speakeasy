@@ -857,12 +857,12 @@ class WindowsEmulator(BinaryEmulator):
         # ImageNumberLow, ImageNumberHigh (offset 0x02C)
         machine = self.get_native_machine()
         struct.pack_into("<HH", data, 0x02C, machine, machine)
-        # NtMajorVersion (offset 0x260)
-        struct.pack_into("<I", data, 0x260, self.config.os_ver.major or 0)
-        # NtMinorVersion (offset 0x264)
-        struct.pack_into("<I", data, 0x264, self.config.os_ver.minor or 0)
-        # NtBuildNumber (offset 0x268)
-        struct.pack_into("<I", data, 0x268, self.config.os_ver.build or 0)
+        # NtBuildNumber (offset 0x260), a reserved field before Windows 10
+        struct.pack_into("<I", data, 0x260, self.config.os_ver.build or 0)
+        # NtProductType (offset 0x264): NtProductWinNt, and ProductTypeIsValid (offset 0x268): TRUE
+        struct.pack_into("<IB", data, 0x264, 1, 1)
+        # NtMajorVersion (offset 0x26C), NtMinorVersion (offset 0x270)
+        struct.pack_into("<II", data, 0x26C, self.config.os_ver.major or 0, self.config.os_ver.minor or 0)
         # TickCount (offset 0x320): KSYSTEM_TIME
         struct.pack_into("<IiI", data, 0x320, tick_ms, 0, 0)
         # QpcFrequency (offset 0x3B8)
