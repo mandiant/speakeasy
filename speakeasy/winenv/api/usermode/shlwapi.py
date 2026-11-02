@@ -2,6 +2,7 @@
 
 import ntpath
 import os
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
 import speakeasy.winenv.arch as e_arch
@@ -9,6 +10,9 @@ import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 from .shell32 import write_dll_version
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 MAX_PATH = 260
 E_INVALIDARG = 0x80070057
@@ -94,7 +98,7 @@ class Shlwapi(api.ApiHandler):
         return os.path.join(*args, **kwargs).replace("/", "\\")
 
     @apihook("PathIsRelative", argc=1)
-    def PathIsRelative(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathIsRelative(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathIsRelative(
             LPCTSTR pszPath
@@ -115,7 +119,7 @@ class Shlwapi(api.ApiHandler):
         return rv
 
     @apihook("PathFileExists", argc=1)
-    def PathFileExists(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathFileExists(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathFileExists(
             LPCTSTR pszPath
@@ -133,7 +137,7 @@ class Shlwapi(api.ApiHandler):
         return 0
 
     @apihook("StrStr", argc=2)
-    def StrStr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrStr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PCTSTR StrStr(
             PCTSTR pszFirst,
@@ -149,13 +153,13 @@ class Shlwapi(api.ApiHandler):
             ctx.args["pszFirst"].display = _hay
 
         if needle:
-            needle = self.read_mem_string(needle, cw)
-            ctx.args["pszSrch"].display = needle
+            _needle = self.read_mem_string(needle, cw)
+            ctx.args["pszSrch"].display = _needle
 
-        if not hay or not needle:
+        if not hay or not needle or not _needle:
             return 0
 
-        ret = _hay.find(needle)
+        ret = _hay.find(_needle)
         if ret != -1:
             ret = hay + ret * cw
         else:
@@ -164,7 +168,7 @@ class Shlwapi(api.ApiHandler):
         return ret
 
     @apihook("StrStrI", argc=2)
-    def StrStrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrStrI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PCTSTR StrStrI(
             PCTSTR pszFirst,
@@ -181,14 +185,14 @@ class Shlwapi(api.ApiHandler):
             _hay = _hay.lower()
 
         if needle:
-            needle = self.read_mem_string(needle, cw)
-            ctx.args["pszSrch"].display = needle
-            needle = needle.lower()
+            _needle = self.read_mem_string(needle, cw)
+            ctx.args["pszSrch"].display = _needle
+            _needle = _needle.lower()
 
-        if not hay or not needle:
+        if not hay or not needle or not _needle:
             return 0
 
-        ret = _hay.find(needle)
+        ret = _hay.find(_needle)
         if ret != -1:
             ret = hay + ret * cw
         else:
@@ -218,7 +222,7 @@ class Shlwapi(api.ApiHandler):
         return found
 
     @apihook("StrChr", argc=2)
-    def StrChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrChr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PTSTR StrChr(
             PCTSTR pszStart,
@@ -229,7 +233,7 @@ class Shlwapi(api.ApiHandler):
         return self.find_char(start, 0, match, self.get_char_width(ctx), False, False)
 
     @apihook("StrChrI", argc=2)
-    def StrChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrChrI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PTSTR StrChrI(
             PCTSTR pszStart,
@@ -240,7 +244,7 @@ class Shlwapi(api.ApiHandler):
         return self.find_char(start, 0, match, self.get_char_width(ctx), True, False)
 
     @apihook("StrRChr", argc=3)
-    def StrRChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrRChr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PTSTR StrRChr(
             PCTSTR pszStart,
@@ -252,7 +256,7 @@ class Shlwapi(api.ApiHandler):
         return self.find_char(start, end, match, self.get_char_width(ctx), False, True)
 
     @apihook("StrRChrI", argc=3)
-    def StrRChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrRChrI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PTSTR StrRChrI(
             PCTSTR pszStart,
@@ -264,7 +268,7 @@ class Shlwapi(api.ApiHandler):
         return self.find_char(start, end, match, self.get_char_width(ctx), True, True)
 
     @apihook("PathFindExtension", argc=1)
-    def PathFindExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathFindExtension(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPCTSTR PathFindExtension(
             LPCTSTR pszPath
@@ -284,7 +288,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath + (idx1 + 1 + idx2) * cw
 
     @apihook("StrCmpI", argc=2)
-    def StrCmpI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrCmpI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpI(
             PCTSTR psz1,
@@ -294,7 +298,7 @@ class Shlwapi(api.ApiHandler):
         return self.compare_strings(argv, ctx, ignore_case=True)
 
     @apihook("StrCmpIC", argc=2)
-    def StrCmpIC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrCmpIC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpIC(
             LPCTSTR pszStr1,
@@ -304,7 +308,7 @@ class Shlwapi(api.ApiHandler):
         return self.compare_strings(argv, ctx, ignore_case=True)
 
     @apihook("StrCmpC", argc=2)
-    def StrCmpC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StrCmpC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpC(
             LPCTSTR pszStr1,
@@ -328,7 +332,7 @@ class Shlwapi(api.ApiHandler):
         return (s1 > s2) - (s1 < s2)
 
     @apihook("PathFindFileName", argc=1)
-    def PathFindFileName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathFindFileName(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPCTSTR PathFindFileName(
             LPCTSTR pszPath
@@ -346,7 +350,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath + (idx + 1) * cw
 
     @apihook("PathRemoveExtension", argc=1)
-    def PathRemoveExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathRemoveExtension(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void PathRemoveExtension(
             LPTSTR pszPath
@@ -368,7 +372,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath
 
     @apihook("PathStripPath", argc=1)
-    def PathStripPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathStripPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void PathStripPath(
             LPTSTR pszPath
@@ -385,7 +389,7 @@ class Shlwapi(api.ApiHandler):
         self.mem_write(pszPath, mod_name)
 
     @apihook("wvnsprintfA", argc=4)
-    def wvnsprintfA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def wvnsprintfA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wvnsprintfA(
             PSTR pszDest,
@@ -411,7 +415,7 @@ class Shlwapi(api.ApiHandler):
         return len(fin) if len(fin) < count else -1
 
     @apihook("wnsprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
-    def wnsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def wnsprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wnsprintf(
             PTSTR pszDest,
@@ -439,7 +443,7 @@ class Shlwapi(api.ApiHandler):
         return len(fin) if len(fin) < max_buf_size else -1
 
     @apihook("PathAppend", argc=2)
-    def PathAppend(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathAppend(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathAppend(
             LPTSTR pszPath,
@@ -460,7 +464,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathCombine", argc=3)
-    def PathCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathCombine(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR PathCombine(
             LPTSTR pszDest,
@@ -494,7 +498,7 @@ class Shlwapi(api.ApiHandler):
         return pszDest
 
     @apihook("PathCanonicalize", argc=2)
-    def PathCanonicalize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathCanonicalize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathCanonicalize(
             LPTSTR pszBuf,
@@ -508,7 +512,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("PathRemoveFileSpec", argc=1)
-    def PathRemoveFileSpec(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathRemoveFileSpec(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathRemoveFileSpec(
             LPTSTR pszPath
@@ -524,7 +528,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("UrlCombine", argc=5)
-    def UrlCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UrlCombine(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT UrlCombine(
             PCTSTR pszBase,
@@ -552,7 +556,7 @@ class Shlwapi(api.ApiHandler):
         return 0
 
     @apihook("PathAddBackslash", argc=1)
-    def PathAddBackslash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathAddBackslash(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR PathAddBackslash(
             LPTSTR pszPath
@@ -570,7 +574,7 @@ class Shlwapi(api.ApiHandler):
         return pszPath + len(s) * cw
 
     @apihook("PathRenameExtension", argc=2)
-    def PathRenameExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PathRenameExtension(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathRenameExtension(
             LPTSTR pszPath,
@@ -599,7 +603,7 @@ class Shlwapi(api.ApiHandler):
         return 1
 
     @apihook("DllGetVersion", argc=1)
-    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DllGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT DllGetVersion(
             DLLVERSIONINFO *pdvi
@@ -610,7 +614,7 @@ class Shlwapi(api.ApiHandler):
         return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)
 
     @apihook("IsOS", argc=1)
-    def IsOS(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsOS(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsOS(
             DWORD dwOS
