@@ -11,7 +11,6 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.kernel32 as k32
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 from speakeasy.windows import objman
@@ -1389,7 +1388,7 @@ class AdvApi32(api.ApiHandler):
         if info_class in (TOKEN_USER, TOKEN_INTEGRITY_LEVEL):
             ptr_size = emu.get_ptr_size()
             if info_class == TOKEN_USER:
-                str_sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+                str_sid = emu.config.user.sid
                 attributes = 0
             else:
                 str_sid = "S-1-16-12288" if emu.config.user.is_admin else "S-1-16-8192"

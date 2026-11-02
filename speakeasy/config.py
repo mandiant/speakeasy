@@ -1,284 +1,257 @@
 from __future__ import annotations
 
-import copy
 import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
-DEFAULT_CONFIG_DATA: dict[str, Any] = {
-    "config_version": 0.2,
-    "description": "Default emulation profile to use when not overridden by user",
-    "emu_engine": "unicorn",
-    "timeout": 60,
-    "max_total_time": 0,
-    "max_api_count": 10000,
-    "stack_size": 0,
-    "system": "windows",
-    "analysis": {"memory_tracing": False, "strings": True, "coverage": False},
-    "keep_memory_on_free": False,
-    "exceptions": {"dispatch_handlers": True},
-    "os_ver": {"name": "windows", "major": 6, "minor": 1, "build": 7601},
-    "current_dir": "C:\\Windows\\system32",
-    "command_line": "svchost.exe myarg1 myarg2",
-    "env": {
-        "comspec": "C:\\Windows\\system32\\cmd.exe",
-        "systemroot": "C:\\Windows",
-        "windir": "C:\\Windows",
-        "temp": "C:\\Windows\\temp",
-        "tmp": "C:\\Windows\\temp",
-        "userprofile": "C:\\Users\\speakeasy_user",
-        "systemdrive": "C:",
-        "allusersprofile": "C:\\ProgramData",
-        "programdata": "C:\\ProgramData",
-        "programfiles": "C:\\Program Files",
-        "commonprogramfiles": "C:\\Program Files\\Common Files",
-        "public": "C:\\Users\\Public",
-        "appdata": "C:\\Users\\speakeasy_user\\AppData\\Roaming",
-        "localappdata": "C:\\Users\\speakeasy_user\\AppData\\Local",
-        "homedrive": "C:",
-        "homepath": "\\Users\\speakeasy_user",
-        "username": "speakeasy_user",
-        "computername": "speakeasy_host",
-        "path": "C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;"
-        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\",
-        "pathext": ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC",
-        "os": "Windows_NT",
-        "number_of_processors": "2",
-    },
-    "domain": "speakeasy_domain",
-    "hostname": "speakeasy_host",
-    "user": {"name": "speakeasy_user", "is_admin": True, "sid": "S-1-5-21-1111111111-2222222222-3333333333-1001"},
-    "api_hammering": {"enabled": False, "threshold": 2000},
-    "symlinks": [
-        {"name": "\\??\\C:", "target": "\\Device\\HarddiskVolume1"},
-        {"name": "\\??\\PhysicalDrive0", "target": "\\Device\\Harddisk0\\DR0"},
-    ],
-    "drives": [
-        {
-            "root_path": "C:\\",
-            "drive_type": "DRIVE_FIXED",
-            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\",
-        },
-        {
-            "root_path": "D:\\",
-            "drive_type": "DRIVE_CDROM",
-            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\",
-        },
-        {
-            "root_path": "E:\\",
-            "drive_type": "DRIVE_REMOTE",
-            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000003}\\",
-        },
-        {
-            "root_path": "F:\\",
-            "drive_type": "DRIVE_REMOVABLE",
-            "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000004}\\",
-        },
-    ],
-    "filesystem": {
-        "files": [
-            {
-                "mode": "full_path",
-                "emu_path": "c:\\programdata\\mydir\\myfile.bin",
-                "byte_fill": {"byte": "0x41", "size": 512},
-            },
-            {
-                "mode": "full_path",
-                "emu_path": "c:\\Windows\\system32\\cmd.exe",
-                "path": "$ROOT$/resources/files/default.bin",
-            },
-            {
-                "mode": "full_path",
-                "emu_path": "c:\\Windows\\system32\\svchost.exe",
-                "path": "$ROOT$/resources/files/default.bin",
-            },
-            {"mode": "by_ext", "ext": "exe", "path": "$ROOT$/resources/files/default.bin"},
-            {"mode": "by_ext", "ext": "txt", "path": "$ROOT$/resources/files/default.bin"},
-            {"mode": "full_path", "emu_path": "\\\\.\\pipe*", "path": "$ROOT$/resources/web/stager.bin"},
-        ]
-    },
-    "registry": {
-        "keys": [
-            {
-                "path": "HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\usbsamp",
-                "values": [
-                    {"name": "DisplayName", "type": "REG_SZ", "data": "An example service"},
-                    {"name": "Start", "type": "REG_DWORD", "data": "0x00000003"},
-                ],
-            },
-            {
-                "path": "HKEY_CLASSES_ROOT\\Interface\\{b196b287-bab4-101a-b69c-00aa00341d07}",
-                "values": [{"name": "default", "type": "REG_SZ", "data": "IEnumConnections"}],
-            },
-            {
-                "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-                "values": [{"name": "default", "type": "REG_SZ", "data": "IEnumConnections"}],
-            },
-            {
-                "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
-                "values": [],
-            },
-            {
-                "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost",
-                "values": [
-                    {
-                        "name": "netsvcs",
-                        "type": "REG_MULTI_SZ",
-                        "data": "AeLookupSvc\x00BITS\x00Browser\x00CertPropSvc\x00EventSystem\x00gpsvc\x00"
-                        "iphlpsvc\x00LanmanServer\x00ProfSvc\x00Schedule\x00SENS\x00ShellHWDetection\x00"
-                        "Themes\x00Winmgmt\x00wuauserv",
-                    },
-                    {"name": "LocalService", "type": "REG_MULTI_SZ", "data": "nsi\x00W32Time\x00WinHttpAutoProxySvc"},
-                ],
-            },
-            {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
-            {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
-            {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
-            {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
-        ]
-    },
-    "network": {
-        "dns": {
-            "names": {
-                "speakeasy_host": "127.0.0.1",
-                "default": "10.1.2.3",
-                "google.com": "8.8.8.8",
-                "localhost": "127.0.0.1",
-            },
-            "txt": [{"name": "default", "path": "$ROOT$/resources/web/default.bin"}],
-        },
-        "http": {
-            "responses": [
-                {
-                    "verb": "GET",
-                    "files": [
-                        {"mode": "default", "path": "$ROOT$/resources/web/default.bin"},
-                        {"mode": "by_ext", "ext": "gif", "path": "$ROOT$/resources/web/decoy.gif"},
-                        {"mode": "by_ext", "ext": "jpg", "path": "$ROOT$/resources/web/decoy.jpg"},
-                    ],
-                }
-            ]
-        },
-        "winsock": {"responses": [{"mode": "default", "path": "$ROOT$/resources/web/stager.bin"}]},
-        "adapters": [
-            {
-                "name": "{00000000-0000-0000-0000-000000000000}",
-                "description": "Intel(R) PRO/1000 MT Network Connection",
-                "mac_address": "00-13-CE-12-34-56",
-                "type": "ethernet",
-                "ip_address": "127.0.0.1",
-                "subnet_mask": "255.0.0.0",
-                "dhcp_enabled": True,
-            }
-        ],
-    },
-    "processes": [
-        {"name": "System", "base_addr": "0x80000000", "pid": 4, "path": "[System Process]"},
-        {"name": "smss", "base_addr": "0x05000000", "path": "C:\\Windows\\system32\\smss.exe"},
-        {"name": "csrss", "base_addr": "0x05510000", "path": "C:\\Windows\\system32\\csrss.exe"},
-        {"name": "wininit", "base_addr": "0x05520000", "path": "C:\\Windows\\system32\\wininit.exe"},
-        {"name": "services", "base_addr": "0x05530000", "path": "C:\\Windows\\system32\\services.exe"},
-        {"name": "lsass", "base_addr": "0x05540000", "path": "C:\\Windows\\system32\\lsass.exe"},
-        {"name": "winlogon", "base_addr": "0x05550000", "path": "C:\\Windows\\system32\\winlogon.exe"},
-        {"name": "svchost", "base_addr": "0x05560000", "path": "C:\\Windows\\system32\\svchost.exe"},
-        {"name": "outlook", "base_addr": "0x05590000", "path": "C:\\Windows\\system32\\outlook.exe"},
-        {"name": "explorer", "base_addr": "0x05570000", "path": "C:\\Windows\\explorer.exe"},
-        {
-            "name": "main",
-            "base_addr": "0x00400000",
-            "path": "C:\\Windows\\system32\\svchost.exe",
-            "command_line": "svchost.exe",
-            "is_main_exe": True,
-            "session": 1,
-        },
-    ],
-    "modules": {
-        "modules_always_exist": False,
-        "functions_always_exist": False,
-        "system_modules": [
-            {"name": "ntoskrnl", "base_addr": "0x803d0000", "path": "C:\\Windows\\system32\\ntoskrnl.exe"},
-            {"name": "hal", "base_addr": "0xC1000000", "path": "C:\\Windows\\system32\\hal.dll"},
-            {"name": "ntfs", "base_addr": "0xC2000000", "path": "C:\\Windows\\system32\\drivers\\ntfs.sys"},
-            {"name": "netio", "base_addr": "0xD4000000", "path": "C:\\Windows\\system32\\drivers\\netio.sys"},
-            {
-                "name": "volmgr",
-                "base_addr": "0xC6000000",
-                "path": "C:\\Windows\\system32\\drivers\\volmgr.sys",
-                "driver": {"name": "\\Driver\\volmgr", "devices": [{"name": "\\Device\\HarddiskVolume1"}]},
-            },
-            {
-                "name": "disk",
-                "base_addr": "0xC3000000",
-                "path": "C:\\Windows\\system32\\drivers\\disk.sys",
-                "driver": {"name": "\\Driver\\Disk", "devices": [{"name": "\\Device\\Harddisk0\\DR0"}]},
-            },
-            {
-                "name": "tcpip",
-                "base_addr": "0xC4000000",
-                "path": "C:\\Windows\\system32\\drivers\\tcpip.sys",
-                "driver": {"name": "\\Driver\\Tcpip", "devices": [{"name": "\\Device\\Tcp"}]},
-            },
-            {
-                "name": "ndis",
-                "base_addr": "0xC7000000",
-                "path": "C:\\Windows\\system32\\drivers\\ndis.sys",
-                "driver": {"name": "\\Driver\\Ndis", "devices": [{"name": "\\Device\\Ndis"}]},
-            },
-        ],
-        "user_modules": [
-            {"name": "ntdll", "base_addr": "0x7C000000", "path": "C:\\Windows\\system32\\ntdll.dll"},
-            {"name": "kernel32", "base_addr": "0x77000000", "path": "C:\\Windows\\system32\\kernel32.dll"},
-            {"name": "ws2_32", "base_addr": "0x78C00000", "path": "C:\\Windows\\system32\\ws2_32.dll"},
-            {"name": "wininet", "base_addr": "0x7BC00000", "path": "C:\\Windows\\system32\\wininet.dll"},
-            {"name": "winhttp", "base_addr": "0x7BA00000", "path": "C:\\Windows\\system32\\winhttp.dll"},
-            {"name": "advapi32", "base_addr": "0x78000000", "path": "C:\\Windows\\system32\\advapi32.dll"},
-            {"name": "psapi", "base_addr": "0x71000000", "path": "C:\\Windows\\system32\\psapi.dll"},
-            {"name": "user32", "base_addr": "0x77D10000", "path": "C:\\Windows\\system32\\user32.dll"},
-            {"name": "gdi32", "base_addr": "0x77E10000", "path": "C:\\Windows\\system32\\gdi32.dll"},
-            {"name": "msvcrt", "base_addr": "0x77F10000", "path": "C:\\Windows\\system32\\msvcrt.dll"},
-            {"name": "dnsapi", "base_addr": "0x78F10000", "path": "C:\\Windows\\system32\\dnsapi.dll"},
-            {"name": "shlwapi", "base_addr": "0x67000000", "path": "C:\\Windows\\system32\\shlwapi.dll"},
-            {"name": "advpack", "base_addr": "0x68F00000", "path": "C:\\Windows\\system32\\advpack.dll"},
-            {"name": "dbghelp", "base_addr": "0x62000000", "path": "C:\\Windows\\system32\\dbghelp.dll"},
-            {"name": "shell32", "base_addr": "0x69000000", "path": "C:\\Windows\\system32\\shell32.dll"},
-            {"name": "WTSAPI32", "base_addr": "0x63000000", "path": "C:\\Windows\\system32\\WTSAPI32.dll"},
-            {"name": "CRYPT32", "base_addr": "0x58000000", "path": "C:\\Windows\\system32\\CRYPT32.dll"},
-            {"name": "mscoree", "base_addr": "0x53000000", "path": "C:\\Windows\\system32\\mscoree.dll"},
-            {"name": "urlmon", "base_addr": "0x54500000", "path": "C:\\Windows\\system32\\urlmon.dll"},
-            {"name": "riched32", "base_addr": "0x56500000", "path": "C:\\Windows\\system32\\riched32.dll"},
-            {"name": "userenv", "base_addr": "0x76500000", "path": "C:\\Windows\\system32\\userenv.dll"},
-            {"name": "ole32", "base_addr": "0x65500000", "path": "C:\\Windows\\system32\\ole32.dll"},
-            {"name": "gdiplus", "base_addr": "0x75500000", "path": "C:\\Windows\\system32\\gdiplus.dll"},
-            {"name": "setupapi", "base_addr": "0x55500000", "path": "C:\\Windows\\system32\\setupapi.dll"},
-            {"name": "NETAPI32", "base_addr": "0x54400000", "path": "C:\\Windows\\system32\\NETAPI32.dll"},
-            {"name": "rpcrt4", "base_addr": "0x53300000", "path": "C:\\Windows\\system32\\Rpcrt4.dll"},
-            {"name": "linkinfo", "base_addr": "0x63300000", "path": "C:\\Windows\\system32\\linkinfo.dll"},
-            {"name": "EhStorShell", "base_addr": "0x73300000", "path": "C:\\Windows\\system32\\EhStorShell.dll"},
-            {"name": "comctl32", "base_addr": "0x5f500000", "path": "C:\\Windows\\system32\\comctl32.dll"},
-            {"name": "secur32", "base_addr": "0x5f600000", "path": "C:\\Windows\\system32\\secur32.dll"},
-            {"name": "KtmW32", "base_addr": "0x5f700000", "path": "C:\\Windows\\system32\\KtmW32.dll"},
-            {"name": "oleaut32", "base_addr": "0x5f800000", "path": "C:\\Windows\\system32\\oleaut32.dll"},
-            {"name": "bcrypt", "base_addr": "0x5f900000", "path": "C:\\Windows\\system32\\bcrypt.dll"},
-            {"name": "ncrypt", "base_addr": "0x5fa00000", "path": "C:\\Windows\\system32\\ncrypt.dll"},
-            {"name": "netutils", "base_addr": "0x5fb00000", "path": "C:\\Windows\\system32\\netutils.dll"},
-            {"name": "wkscli", "base_addr": "0x5fc00000", "path": "C:\\Windows\\system32\\wkscli.dll"},
-            {"name": "iphlpapi", "base_addr": "0x5fd00000", "path": "C:\\Windows\\system32\\iphlpapi.dll"},
-            {"name": "sfc_os", "base_addr": "0x5fe00000", "path": "C:\\Windows\\system32\\sfc_os.dll"},
-            {"name": "winmm", "base_addr": "0x5ff00000", "path": "C:\\Windows\\system32\\winmm.dll"},
-            {
-                "name": "bcryptprimitives",
-                "base_addr": "0x60000000",
-                "path": "C:\\Windows\\system32\\bcryptprimitives.dll",
-            },
-            {"name": "version", "base_addr": "0x60100000", "path": "C:\\Windows\\system32\\version.dll"},
-        ],
-    },
+_DEFAULT_ENV: dict[str, str] = {
+    "comspec": "C:\\Windows\\system32\\cmd.exe",
+    "systemroot": "C:\\Windows",
+    "windir": "C:\\Windows",
+    "temp": "C:\\Windows\\temp",
+    "tmp": "C:\\Windows\\temp",
+    "userprofile": "C:\\Users\\speakeasy_user",
+    "systemdrive": "C:",
+    "allusersprofile": "C:\\ProgramData",
+    "programdata": "C:\\ProgramData",
+    "programfiles": "C:\\Program Files",
+    "commonprogramfiles": "C:\\Program Files\\Common Files",
+    "public": "C:\\Users\\Public",
+    "appdata": "C:\\Users\\speakeasy_user\\AppData\\Roaming",
+    "localappdata": "C:\\Users\\speakeasy_user\\AppData\\Local",
+    "homedrive": "C:",
+    "homepath": "\\Users\\speakeasy_user",
+    "username": "speakeasy_user",
+    "computername": "speakeasy_host",
+    "path": "C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;"
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\",
+    "pathext": ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC",
+    "os": "Windows_NT",
+    "number_of_processors": "2",
 }
 
+_DEFAULT_SYMLINKS: list[dict[str, Any]] = [
+    {"name": "\\??\\C:", "target": "\\Device\\HarddiskVolume1"},
+    {"name": "\\??\\PhysicalDrive0", "target": "\\Device\\Harddisk0\\DR0"},
+]
 
-def _copy_default_value(key: str) -> Any:
-    return copy.deepcopy(DEFAULT_CONFIG_DATA[key])
+_DEFAULT_DRIVES: list[dict[str, Any]] = [
+    {
+        "root_path": "C:\\",
+        "drive_type": "DRIVE_FIXED",
+        "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000001}\\",
+    },
+    {
+        "root_path": "D:\\",
+        "drive_type": "DRIVE_CDROM",
+        "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000002}\\",
+    },
+    {
+        "root_path": "E:\\",
+        "drive_type": "DRIVE_REMOTE",
+        "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000003}\\",
+    },
+    {
+        "root_path": "F:\\",
+        "drive_type": "DRIVE_REMOVABLE",
+        "volume_guid_path": "\\\\?\\Volume{bb1d6623-5e53-11ea-a949-100000000004}\\",
+    },
+]
+
+_DEFAULT_FILES: list[dict[str, Any]] = [
+    {
+        "mode": "full_path",
+        "emu_path": "c:\\programdata\\mydir\\myfile.bin",
+        "byte_fill": {"byte": "0x41", "size": 512},
+    },
+    {
+        "mode": "full_path",
+        "emu_path": "c:\\Windows\\system32\\cmd.exe",
+        "path": "$ROOT$/resources/files/default.bin",
+    },
+    {
+        "mode": "full_path",
+        "emu_path": "c:\\Windows\\system32\\svchost.exe",
+        "path": "$ROOT$/resources/files/default.bin",
+    },
+    {"mode": "by_ext", "ext": "exe", "path": "$ROOT$/resources/files/default.bin"},
+    {"mode": "by_ext", "ext": "txt", "path": "$ROOT$/resources/files/default.bin"},
+    {"mode": "full_path", "emu_path": "\\\\.\\pipe*", "path": "$ROOT$/resources/web/stager.bin"},
+]
+
+_DEFAULT_REGISTRY_KEYS: list[dict[str, Any]] = [
+    {
+        "path": "HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\usbsamp",
+        "values": [
+            {"name": "DisplayName", "type": "REG_SZ", "data": "An example service"},
+            {"name": "Start", "type": "REG_DWORD", "data": "0x00000003"},
+        ],
+    },
+    {
+        "path": "HKEY_CLASSES_ROOT\\Interface\\{b196b287-bab4-101a-b69c-00aa00341d07}",
+        "values": [{"name": "default", "type": "REG_SZ", "data": "IEnumConnections"}],
+    },
+    {
+        "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "values": [{"name": "default", "type": "REG_SZ", "data": "IEnumConnections"}],
+    },
+    {
+        "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Windows",
+        "values": [],
+    },
+    {
+        "path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost",
+        "values": [
+            {
+                "name": "netsvcs",
+                "type": "REG_MULTI_SZ",
+                "data": "AeLookupSvc\x00BITS\x00Browser\x00CertPropSvc\x00EventSystem\x00gpsvc\x00"
+                "iphlpsvc\x00LanmanServer\x00ProfSvc\x00Schedule\x00SENS\x00ShellHWDetection\x00"
+                "Themes\x00Winmgmt\x00wuauserv",
+            },
+            {"name": "LocalService", "type": "REG_MULTI_SZ", "data": "nsi\x00W32Time\x00WinHttpAutoProxySvc"},
+        ],
+    },
+    {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
+    {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
+    {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
+    {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
+]
+
+_DEFAULT_DNS_NAMES: dict[str, str] = {
+    "speakeasy_host": "127.0.0.1",
+    "default": "10.1.2.3",
+    "google.com": "8.8.8.8",
+    "localhost": "127.0.0.1",
+}
+
+_DEFAULT_DNS_TXT: list[dict[str, Any]] = [{"name": "default", "path": "$ROOT$/resources/web/default.bin"}]
+
+_DEFAULT_HTTP_RESPONSES: list[dict[str, Any]] = [
+    {
+        "verb": "GET",
+        "files": [
+            {"mode": "default", "path": "$ROOT$/resources/web/default.bin"},
+            {"mode": "by_ext", "ext": "gif", "path": "$ROOT$/resources/web/decoy.gif"},
+            {"mode": "by_ext", "ext": "jpg", "path": "$ROOT$/resources/web/decoy.jpg"},
+        ],
+    }
+]
+
+_DEFAULT_WINSOCK_RESPONSES: list[dict[str, Any]] = [{"mode": "default", "path": "$ROOT$/resources/web/stager.bin"}]
+
+_DEFAULT_ADAPTERS: list[dict[str, Any]] = [
+    {
+        "name": "{00000000-0000-0000-0000-000000000000}",
+        "description": "Intel(R) PRO/1000 MT Network Connection",
+        "mac_address": "00-13-CE-12-34-56",
+        "type": "ethernet",
+        "ip_address": "127.0.0.1",
+        "subnet_mask": "255.0.0.0",
+        "dhcp_enabled": True,
+    }
+]
+
+_DEFAULT_PROCESSES: list[dict[str, Any]] = [
+    {"name": "System", "base_addr": "0x80000000", "pid": 4, "path": "[System Process]"},
+    {"name": "smss", "base_addr": "0x05000000", "path": "C:\\Windows\\system32\\smss.exe"},
+    {"name": "csrss", "base_addr": "0x05510000", "path": "C:\\Windows\\system32\\csrss.exe"},
+    {"name": "wininit", "base_addr": "0x05520000", "path": "C:\\Windows\\system32\\wininit.exe"},
+    {"name": "services", "base_addr": "0x05530000", "path": "C:\\Windows\\system32\\services.exe"},
+    {"name": "lsass", "base_addr": "0x05540000", "path": "C:\\Windows\\system32\\lsass.exe"},
+    {"name": "winlogon", "base_addr": "0x05550000", "path": "C:\\Windows\\system32\\winlogon.exe"},
+    {"name": "svchost", "base_addr": "0x05560000", "path": "C:\\Windows\\system32\\svchost.exe"},
+    {"name": "outlook", "base_addr": "0x05590000", "path": "C:\\Windows\\system32\\outlook.exe"},
+    {"name": "explorer", "base_addr": "0x05570000", "path": "C:\\Windows\\explorer.exe"},
+    {
+        "name": "main",
+        "base_addr": "0x00400000",
+        "path": "C:\\Windows\\system32\\svchost.exe",
+        "command_line": "svchost.exe",
+        "is_main_exe": True,
+        "session": 1,
+    },
+]
+
+_DEFAULT_SYSTEM_MODULES: list[dict[str, Any]] = [
+    {"name": "ntoskrnl", "base_addr": "0x803d0000", "path": "C:\\Windows\\system32\\ntoskrnl.exe"},
+    {"name": "hal", "base_addr": "0xC1000000", "path": "C:\\Windows\\system32\\hal.dll"},
+    {"name": "ntfs", "base_addr": "0xC2000000", "path": "C:\\Windows\\system32\\drivers\\ntfs.sys"},
+    {"name": "netio", "base_addr": "0xD4000000", "path": "C:\\Windows\\system32\\drivers\\netio.sys"},
+    {
+        "name": "volmgr",
+        "base_addr": "0xC6000000",
+        "path": "C:\\Windows\\system32\\drivers\\volmgr.sys",
+        "driver": {"name": "\\Driver\\volmgr", "devices": [{"name": "\\Device\\HarddiskVolume1"}]},
+    },
+    {
+        "name": "disk",
+        "base_addr": "0xC3000000",
+        "path": "C:\\Windows\\system32\\drivers\\disk.sys",
+        "driver": {"name": "\\Driver\\Disk", "devices": [{"name": "\\Device\\Harddisk0\\DR0"}]},
+    },
+    {
+        "name": "tcpip",
+        "base_addr": "0xC4000000",
+        "path": "C:\\Windows\\system32\\drivers\\tcpip.sys",
+        "driver": {"name": "\\Driver\\Tcpip", "devices": [{"name": "\\Device\\Tcp"}]},
+    },
+    {
+        "name": "ndis",
+        "base_addr": "0xC7000000",
+        "path": "C:\\Windows\\system32\\drivers\\ndis.sys",
+        "driver": {"name": "\\Driver\\Ndis", "devices": [{"name": "\\Device\\Ndis"}]},
+    },
+]
+
+_DEFAULT_USER_MODULES: list[dict[str, Any]] = [
+    {"name": "ntdll", "base_addr": "0x7C000000", "path": "C:\\Windows\\system32\\ntdll.dll"},
+    {"name": "kernel32", "base_addr": "0x77000000", "path": "C:\\Windows\\system32\\kernel32.dll"},
+    {"name": "ws2_32", "base_addr": "0x78C00000", "path": "C:\\Windows\\system32\\ws2_32.dll"},
+    {"name": "wininet", "base_addr": "0x7BC00000", "path": "C:\\Windows\\system32\\wininet.dll"},
+    {"name": "winhttp", "base_addr": "0x7BA00000", "path": "C:\\Windows\\system32\\winhttp.dll"},
+    {"name": "advapi32", "base_addr": "0x78000000", "path": "C:\\Windows\\system32\\advapi32.dll"},
+    {"name": "psapi", "base_addr": "0x71000000", "path": "C:\\Windows\\system32\\psapi.dll"},
+    {"name": "user32", "base_addr": "0x77D10000", "path": "C:\\Windows\\system32\\user32.dll"},
+    {"name": "gdi32", "base_addr": "0x77E10000", "path": "C:\\Windows\\system32\\gdi32.dll"},
+    {"name": "msvcrt", "base_addr": "0x77F10000", "path": "C:\\Windows\\system32\\msvcrt.dll"},
+    {"name": "dnsapi", "base_addr": "0x78F10000", "path": "C:\\Windows\\system32\\dnsapi.dll"},
+    {"name": "shlwapi", "base_addr": "0x67000000", "path": "C:\\Windows\\system32\\shlwapi.dll"},
+    {"name": "advpack", "base_addr": "0x68F00000", "path": "C:\\Windows\\system32\\advpack.dll"},
+    {"name": "dbghelp", "base_addr": "0x62000000", "path": "C:\\Windows\\system32\\dbghelp.dll"},
+    {"name": "shell32", "base_addr": "0x69000000", "path": "C:\\Windows\\system32\\shell32.dll"},
+    {"name": "WTSAPI32", "base_addr": "0x63000000", "path": "C:\\Windows\\system32\\WTSAPI32.dll"},
+    {"name": "CRYPT32", "base_addr": "0x58000000", "path": "C:\\Windows\\system32\\CRYPT32.dll"},
+    {"name": "mscoree", "base_addr": "0x53000000", "path": "C:\\Windows\\system32\\mscoree.dll"},
+    {"name": "urlmon", "base_addr": "0x54500000", "path": "C:\\Windows\\system32\\urlmon.dll"},
+    {"name": "riched32", "base_addr": "0x56500000", "path": "C:\\Windows\\system32\\riched32.dll"},
+    {"name": "userenv", "base_addr": "0x76500000", "path": "C:\\Windows\\system32\\userenv.dll"},
+    {"name": "ole32", "base_addr": "0x65500000", "path": "C:\\Windows\\system32\\ole32.dll"},
+    {"name": "gdiplus", "base_addr": "0x75500000", "path": "C:\\Windows\\system32\\gdiplus.dll"},
+    {"name": "setupapi", "base_addr": "0x55500000", "path": "C:\\Windows\\system32\\setupapi.dll"},
+    {"name": "NETAPI32", "base_addr": "0x54400000", "path": "C:\\Windows\\system32\\NETAPI32.dll"},
+    {"name": "rpcrt4", "base_addr": "0x53300000", "path": "C:\\Windows\\system32\\Rpcrt4.dll"},
+    {"name": "linkinfo", "base_addr": "0x63300000", "path": "C:\\Windows\\system32\\linkinfo.dll"},
+    {"name": "EhStorShell", "base_addr": "0x73300000", "path": "C:\\Windows\\system32\\EhStorShell.dll"},
+    {"name": "comctl32", "base_addr": "0x5f500000", "path": "C:\\Windows\\system32\\comctl32.dll"},
+    {"name": "secur32", "base_addr": "0x5f600000", "path": "C:\\Windows\\system32\\secur32.dll"},
+    {"name": "KtmW32", "base_addr": "0x5f700000", "path": "C:\\Windows\\system32\\KtmW32.dll"},
+    {"name": "oleaut32", "base_addr": "0x5f800000", "path": "C:\\Windows\\system32\\oleaut32.dll"},
+    {"name": "bcrypt", "base_addr": "0x5f900000", "path": "C:\\Windows\\system32\\bcrypt.dll"},
+    {"name": "ncrypt", "base_addr": "0x5fa00000", "path": "C:\\Windows\\system32\\ncrypt.dll"},
+    {"name": "netutils", "base_addr": "0x5fb00000", "path": "C:\\Windows\\system32\\netutils.dll"},
+    {"name": "wkscli", "base_addr": "0x5fc00000", "path": "C:\\Windows\\system32\\wkscli.dll"},
+    {"name": "iphlpapi", "base_addr": "0x5fd00000", "path": "C:\\Windows\\system32\\iphlpapi.dll"},
+    {"name": "sfc_os", "base_addr": "0x5fe00000", "path": "C:\\Windows\\system32\\sfc_os.dll"},
+    {"name": "winmm", "base_addr": "0x5ff00000", "path": "C:\\Windows\\system32\\winmm.dll"},
+    {
+        "name": "bcryptprimitives",
+        "base_addr": "0x60000000",
+        "path": "C:\\Windows\\system32\\bcryptprimitives.dll",
+    },
+    {"name": "version", "base_addr": "0x60100000", "path": "C:\\Windows\\system32\\version.dll"},
+]
 
 
 def parse_start_time(text: str) -> datetime.datetime:
@@ -313,25 +286,25 @@ class OsVersionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: Literal["windows"] = Field(default="windows", description="Emulated operating system family.")
-    major: int | None = Field(default=None, description="Emulated OS major version.")
-    minor: int | None = Field(default=None, description="Emulated OS minor version.")
+    major: int | None = Field(default=6, description="Emulated OS major version.")
+    minor: int | None = Field(default=1, description="Emulated OS minor version.")
     release: int | None = Field(default=None, description="Optional emulated OS release number.")
-    build: int | None = Field(default=None, description="Emulated OS build number.")
+    build: int | None = Field(default=7601, description="Emulated OS build number.")
 
 
 class UserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str = Field(description="Username exposed to account and profile APIs.")
-    is_admin: bool = Field(default=False, description="Expose elevated privileges to admin checks.")
-    sid: str | None = Field(default=None, description="Optional explicit SID for the emulated user.")
+    name: str = Field(default="speakeasy_user", description="Username exposed to account and profile APIs.")
+    is_admin: bool = Field(default=True, description="Expose elevated privileges to admin checks.")
+    sid: str = Field(default="S-1-5-21-1111111111-2222222222-3333333333-1001", description="SID of the emulated user.")
 
 
 class ApiHammeringConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool = Field(description="Enable API hammering mitigation.")
-    threshold: int = Field(description="Repetition threshold that triggers mitigation.")
+    enabled: bool = Field(default=False, description="Enable API hammering mitigation.")
+    threshold: int = Field(default=2000, description="Repetition threshold that triggers mitigation.")
     allow_list: list[str] = Field(default_factory=list, description="API names exempt from mitigation.")
 
 
@@ -387,12 +360,16 @@ FileEntry = Annotated[
     FileEntryFullPath | FileEntryByExt | FileEntryDefault,
     Field(discriminator="mode"),
 ]
+_FILE_ENTRY: TypeAdapter[FileEntry] = TypeAdapter(FileEntry)
 
 
 class FilesystemConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    files: list[FileEntry] = Field(default_factory=list, description="Filesystem response mapping rules.")
+    files: list[FileEntry] = Field(
+        default_factory=lambda: [_FILE_ENTRY.validate_python(item) for item in _DEFAULT_FILES],
+        description="Filesystem response mapping rules.",
+    )
 
 
 class RegistryValueConfig(BaseModel):
@@ -413,7 +390,10 @@ class RegistryKeyConfig(BaseModel):
 class RegistryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    keys: list[RegistryKeyConfig] = Field(default_factory=list, description="Seed registry key definitions.")
+    keys: list[RegistryKeyConfig] = Field(
+        default_factory=lambda: [RegistryKeyConfig.model_validate(item) for item in _DEFAULT_REGISTRY_KEYS],
+        description="Seed registry key definitions.",
+    )
 
 
 class DnsTxtConfig(BaseModel):
@@ -426,8 +406,13 @@ class DnsTxtConfig(BaseModel):
 class DnsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    names: dict[str, str] = Field(default_factory=dict, description="Domain-to-IP mappings used by DNS lookups.")
-    txt: list[DnsTxtConfig] = Field(default_factory=list, description="TXT response mapping entries.")
+    names: dict[str, str] = Field(
+        default_factory=lambda: dict(_DEFAULT_DNS_NAMES), description="Domain-to-IP mappings used by DNS lookups."
+    )
+    txt: list[DnsTxtConfig] = Field(
+        default_factory=lambda: [DnsTxtConfig.model_validate(item) for item in _DEFAULT_DNS_TXT],
+        description="TXT response mapping entries.",
+    )
 
 
 class HttpResponseConfig(BaseModel):
@@ -442,13 +427,19 @@ class HttpResponseConfig(BaseModel):
 class HttpConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    responses: list[HttpResponseConfig] = Field(default_factory=list, description="HTTP response mapping entries.")
+    responses: list[HttpResponseConfig] = Field(
+        default_factory=lambda: [HttpResponseConfig.model_validate(item) for item in _DEFAULT_HTTP_RESPONSES],
+        description="HTTP response mapping entries.",
+    )
 
 
 class WinsockConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    responses: list[FileEntry] = Field(default_factory=list, description="Winsock receive response mapping entries.")
+    responses: list[FileEntry] = Field(
+        default_factory=lambda: [_FILE_ENTRY.validate_python(item) for item in _DEFAULT_WINSOCK_RESPONSES],
+        description="Winsock receive response mapping entries.",
+    )
 
 
 class NetworkAdapterConfig(BaseModel):
@@ -466,10 +457,13 @@ class NetworkAdapterConfig(BaseModel):
 class NetworkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    dns: DnsConfig | None = Field(default=None, description="DNS emulation settings.")
-    http: HttpConfig | None = Field(default=None, description="HTTP emulation settings.")
-    winsock: WinsockConfig | None = Field(default=None, description="Winsock emulation settings.")
-    adapters: list[NetworkAdapterConfig] = Field(default_factory=list, description="Network adapters returned by APIs.")
+    dns: DnsConfig | None = Field(default_factory=DnsConfig, description="DNS emulation settings.")
+    http: HttpConfig | None = Field(default_factory=HttpConfig, description="HTTP emulation settings.")
+    winsock: WinsockConfig | None = Field(default_factory=WinsockConfig, description="Winsock emulation settings.")
+    adapters: list[NetworkAdapterConfig] = Field(
+        default_factory=lambda: [NetworkAdapterConfig.model_validate(item) for item in _DEFAULT_ADAPTERS],
+        description="Network adapters returned by APIs.",
+    )
 
 
 class ProcessConfig(BaseModel):
@@ -552,10 +546,12 @@ class ModulesConfig(BaseModel):
         default=None, description="Directory of x64 DLLs to load instead of synthetic API modules."
     )
     user_modules: list[UserModuleConfig] = Field(
-        default_factory=list, description="Configured user-mode module inventory."
+        default_factory=lambda: [UserModuleConfig.model_validate(item) for item in _DEFAULT_USER_MODULES],
+        description="Configured user-mode module inventory.",
     )
     system_modules: list[SystemModuleConfig] = Field(
-        default_factory=list, description="Configured kernel/system module inventory."
+        default_factory=lambda: [SystemModuleConfig.model_validate(item) for item in _DEFAULT_SYSTEM_MODULES],
+        description="Configured kernel/system module inventory.",
     )
 
 
@@ -577,31 +573,28 @@ class SpeakeasyConfig(BaseModel):
         return data
 
     config_version: Literal[0.2] = Field(  # type: ignore[valid-type]
-        default=DEFAULT_CONFIG_DATA["config_version"],
+        default=0.2,
         description="Configuration schema version.",
     )
     description: str | None = Field(
-        default=DEFAULT_CONFIG_DATA["description"], description="Human-readable profile description."
+        default="Default emulation profile to use when not overridden by user",
+        description="Human-readable profile description.",
     )
-    emu_engine: Literal["unicorn"] = Field(
-        default=DEFAULT_CONFIG_DATA["emu_engine"], description="Emulation backend identifier."
-    )
+    emu_engine: Literal["unicorn"] = Field(default="unicorn", description="Emulation backend identifier.")
     timeout: float = Field(
-        default=DEFAULT_CONFIG_DATA["timeout"],
+        default=60,
         description="Active execution timeout in seconds per Run. 0 disables it.",
     )
     max_total_time: float = Field(
-        default=DEFAULT_CONFIG_DATA["max_total_time"],
+        default=0,
         ge=0,
         allow_inf_nan=False,
         description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
     )
-    max_api_count: int = Field(
-        default=DEFAULT_CONFIG_DATA["max_api_count"], description="Maximum API calls allowed per run."
-    )
+    max_api_count: int = Field(default=10000, description="Maximum API calls allowed per run.")
     max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
     stack_size: int = Field(
-        default=DEFAULT_CONFIG_DATA["stack_size"],
+        default=0,
         description="Override stack size in bytes. 0 uses the PE header value or the built-in default (0x12000).",
     )
     random_seed: int = Field(
@@ -613,15 +606,13 @@ class SpeakeasyConfig(BaseModel):
         description="System time when emulation starts, in ISO 8601 with a time zone."
         " The emulated clock counts from it. The default is fixed so that runs repeat.",
     )
-    system: Literal["windows"] = Field(
-        default=DEFAULT_CONFIG_DATA["system"], description="Emulated operating system family."
-    )
+    system: Literal["windows"] = Field(default="windows", description="Emulated operating system family.")
     analysis: AnalysisConfig = Field(
-        default_factory=lambda: AnalysisConfig.model_validate(_copy_default_value("analysis")),
+        default_factory=AnalysisConfig,
         description="Analysis and telemetry collection settings.",
     )
     keep_memory_on_free: bool = Field(
-        default=DEFAULT_CONFIG_DATA["keep_memory_on_free"],
+        default=False,
         description="Retain freed memory maps for post-free inspection.",
     )
     snapshot_memory_regions: bool = Field(
@@ -629,63 +620,61 @@ class SpeakeasyConfig(BaseModel):
         description="Include run-end memory region snapshots in the report data store.",
     )
     exceptions: ExceptionsConfig = Field(
-        default_factory=lambda: ExceptionsConfig.model_validate(_copy_default_value("exceptions")),
+        default_factory=ExceptionsConfig,
         description="Exception dispatch behavior.",
     )
     os_ver: OsVersionConfig = Field(
-        default_factory=lambda: OsVersionConfig.model_validate(_copy_default_value("os_ver")),
+        default_factory=OsVersionConfig,
         description="OS version values exposed to emulated code.",
     )
     current_dir: str = Field(
-        default=DEFAULT_CONFIG_DATA["current_dir"],
+        default="C:\\Windows\\system32",
         description="Current working directory for emulated process APIs.",
     )
     command_line: str = Field(
-        default=DEFAULT_CONFIG_DATA["command_line"],
+        default="svchost.exe myarg1 myarg2",
         description="Command line exposed to emulated process APIs.",
     )
     env: dict[str, str] = Field(
-        default_factory=lambda: _copy_default_value("env"),
+        default_factory=lambda: dict(_DEFAULT_ENV),
         description="Environment variables visible to the emulated process.",
     )
-    domain: str | None = Field(default=DEFAULT_CONFIG_DATA["domain"], description="Domain or workgroup identity.")
-    hostname: str = Field(
-        default=DEFAULT_CONFIG_DATA["hostname"], description="Hostname exposed to emulated system APIs."
-    )
+    domain: str | None = Field(default="speakeasy_domain", description="Domain or workgroup identity.")
+    hostname: str = Field(default="speakeasy_host", description="Hostname exposed to emulated system APIs.")
     user: UserConfig = Field(
-        default_factory=lambda: UserConfig.model_validate(_copy_default_value("user")),
+        default_factory=UserConfig,
         description="Primary emulated user account.",
     )
     api_hammering: ApiHammeringConfig | None = Field(
-        default_factory=lambda: ApiHammeringConfig.model_validate(_copy_default_value("api_hammering")),
+        default_factory=ApiHammeringConfig,
         description="API hammering mitigation settings.",
     )
     symlinks: list[SymlinkConfig] = Field(
-        default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _copy_default_value("symlinks")],
+        default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _DEFAULT_SYMLINKS],
         description="Object manager symbolic links.",
     )
     drives: list[DriveConfig] = Field(
-        default_factory=lambda: [DriveConfig.model_validate(item) for item in _copy_default_value("drives")],
+        default_factory=lambda: [DriveConfig.model_validate(item) for item in _DEFAULT_DRIVES],
         description="Virtual drive metadata.",
     )
     filesystem: FilesystemConfig = Field(
-        default_factory=lambda: FilesystemConfig.model_validate(_copy_default_value("filesystem")),
+        default_factory=FilesystemConfig,
         description="Filesystem mapping rules.",
     )
     registry: RegistryConfig | None = Field(
-        default_factory=lambda: RegistryConfig.model_validate(_copy_default_value("registry")),
+        default_factory=RegistryConfig,
         description="Registry key and value seed data.",
     )
     network: NetworkConfig = Field(
-        default_factory=lambda: NetworkConfig.model_validate(_copy_default_value("network")),
+        default_factory=NetworkConfig,
         description="Network emulation settings.",
     )
     processes: list[ProcessConfig] = Field(
-        default_factory=lambda: [ProcessConfig.model_validate(item) for item in _copy_default_value("processes")],
+        default_factory=lambda: [ProcessConfig.model_validate(item) for item in _DEFAULT_PROCESSES],
         description="Process inventory visible to enumeration APIs.",
     )
     modules: ModulesConfig = Field(
-        default_factory=lambda: ModulesConfig.model_validate(_copy_default_value("modules")),
+        default_factory=ModulesConfig,
         description="Module loading and inventory settings.",
     )
 

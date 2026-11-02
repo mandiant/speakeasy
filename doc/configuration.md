@@ -422,10 +422,9 @@ Runtime precedence:
 2. optional `--config` overlay
 3. explicit CLI flags
 
-Overlay semantics:
-- mappings merge recursively
-- lists replace the baseline list wholesale
-- omitted fields inherit model defaults
+The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict:
+- a key that the file gives replaces the default value. This is also true for a mapping such as `env` or `network.dns.names`, and for a list
+- a key that the file leaves out gets its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`
 
 `--volume` is a dedicated shortcut for filesystem mappings and is applied before schema-derived CLI overrides.
 
