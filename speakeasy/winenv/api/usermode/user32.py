@@ -53,6 +53,25 @@ RT_STRING = 6
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
+# The devices that EnumDisplayDevices lists under each parent device name: one Intel adapter, as in an
+# OptiPlex 7090, with one monitor. Each entry gives DeviceName, DeviceString, StateFlags, DeviceID and DeviceKey.
+DISPLAY_DEVICES = {
+    None: (
+        "\\\\.\\DISPLAY1",
+        "Intel(R) UHD Graphics 750",
+        windefs.DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | windefs.DISPLAY_DEVICE_PRIMARY_DEVICE,
+        "PCI\\VEN_8086&DEV_4C8A&SUBSYS_0A6F1028&REV_04",
+        "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Video\\{6E5A3F42-9C1B-4D7E-8F20-3B1A5C7D9E04}\\0000",
+    ),
+    "\\\\.\\DISPLAY1": (
+        "\\\\.\\DISPLAY1\\Monitor0",
+        "Generic PnP Monitor",
+        windefs.DISPLAY_DEVICE_ACTIVE | windefs.DISPLAY_DEVICE_ATTACHED,
+        "MONITOR\\DELA1A8\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
+        "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
+    ),
+}
+
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
 
@@ -2078,6 +2097,42 @@ class User32(api.ApiHandler):
 
         # Most callers expect TRUE to indicate success.
         # We do not invoke the callback — Speakeasy doesn't emulate monitor enumeration.
+        return 1
+
+    @apihook("EnumDisplayDevices", argc=4)
+    def EnumDisplayDevices(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumDisplayDevices(
+            LPCTSTR lpDevice,
+            DWORD iDevNum,
+            PDISPLAY_DEVICE lpDisplayDevice,
+            DWORD dwFlags
+        );
+
+        Older callers set cb to the size of the struct without DeviceID and DeviceKey, so the handler writes only
+        cb bytes.
+        """
+        lpDevice, iDevNum, lpDisplayDevice, dwFlags = argv
+
+        cw = self.get_char_width(ctx)
+        parent = self.read_mem_string(lpDevice, cw).upper() if lpDevice else None
+        if iDevNum or not lpDisplayDevice or parent not in DISPLAY_DEVICES:
+            return 0
+
+        dd = windefs.DISPLAY_DEVICE(emu.get_ptr_size(), cw)
+        cb = int.from_bytes(self.mem_read(lpDisplayDevice, 4), "little")
+        if cb < dd.get_cstruct().DeviceID.offset:
+            return 0
+
+        encoding = "utf-16le" if cw == 2 else "latin-1"
+        name, text, flags, device_id, key = DISPLAY_DEVICES[parent]
+        dd.cb = cb
+        dd.DeviceName = name.encode(encoding)
+        dd.DeviceString = text.encode(encoding)
+        dd.StateFlags = flags
+        dd.DeviceID = device_id.encode(encoding)
+        dd.DeviceKey = key.encode(encoding)
+        self.mem_write(lpDisplayDevice, dd.get_bytes()[:cb])
         return 1
 
     @apihook("OemToCharA", argc=2)
