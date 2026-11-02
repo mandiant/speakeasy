@@ -37,8 +37,8 @@ class Winmm(api.ApiHandler):
             LPARAM lParam2
         );
         """
-        _, _, msg, _, _ = argv
-        if msg in (DRV_LOAD, DRV_ENABLE, DRV_DISABLE, DRV_FREE, DRV_INSTALL, DRV_REMOVE):
+        dwDriverIdentifier, hdrvr, uMsg, lParam1, lParam2 = argv
+        if uMsg in (DRV_LOAD, DRV_ENABLE, DRV_DISABLE, DRV_FREE, DRV_INSTALL, DRV_REMOVE):
             return 1
         return 0
 

@@ -52,15 +52,15 @@ class OleAut32(api.ApiHandler):
             UINT ui
         );
         """
-        strin, ui = argv
+        strIn, ui = argv
 
         ws_len = (ui + 1) * 2
         bstr = self.mem_alloc(4 + ws_len)
 
-        if not strin:
+        if not strIn:
             bstr_bytes = struct.pack("<I", ui * 2)
         else:
-            ws = self.mem_read(strin, ui * 2)
+            ws = self.mem_read(strIn, ui * 2)
             ctx.args["strIn"].display = ws.decode("utf-16le", errors="replace")
             bstr_bytes = struct.pack("<I", ui * 2) + ws + b"\x00\x00"
 
@@ -76,11 +76,11 @@ class OleAut32(api.ApiHandler):
             UINT len
         );
         """
-        psz, length = argv
+        psz, len = argv
 
-        data = self.mem_read(psz, length) if psz else b"\x00" * length
-        bstr = self.mem_alloc(4 + length + 2)
-        self.mem_write(bstr, struct.pack("<I", length) + data + b"\x00\x00")
+        data = self.mem_read(psz, len) if psz else b"\x00" * len
+        bstr = self.mem_alloc(4 + len + 2)
+        self.mem_write(bstr, struct.pack("<I", len) + data + b"\x00\x00")
 
         return bstr + 4
 
@@ -93,17 +93,17 @@ class OleAut32(api.ApiHandler):
             unsigned int len
         );
         """
-        pbstr, psz, ui = argv
+        pbstr, psz, len = argv
         if not pbstr:
             return 0
 
-        ws = b"\x00" * (ui * 2)
+        ws = b"\x00" * (len * 2)
         if psz:
-            ws = self.mem_read(psz, ui * 2)
+            ws = self.mem_read(psz, len * 2)
             ctx.args["psz"].display = ws.decode("utf-16le", errors="replace")
 
-        bstr = self.mem_alloc(4 + ui * 2 + 2)
-        self.mem_write(bstr, struct.pack("<I", ui * 2) + ws + b"\x00\x00")
+        bstr = self.mem_alloc(4 + len * 2 + 2)
+        self.mem_write(bstr, struct.pack("<I", len * 2) + ws + b"\x00\x00")
         self.mem_write(pbstr, (bstr + 4).to_bytes(self.get_ptr_size(), "little"))
 
         return 1

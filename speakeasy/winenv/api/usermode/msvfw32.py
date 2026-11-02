@@ -34,7 +34,7 @@ class Msvfw32(api.ApiHandler):
             UINT wMode
         );
         """
-        _fcc_type, _fcc_handler, _mode = argv
+        fccType, fccHandler, wMode = argv
         return self.get_handle()
 
     @apihook("ICSendMessage", argc=4)
@@ -47,7 +47,7 @@ class Msvfw32(api.ApiHandler):
             DWORD_PTR dw2
         );
         """
-        _hic, _msg, _dw1, _dw2 = argv
+        hic, msg, dw1, dw2 = argv
         return 1
 
     @apihook("ICClose", argc=1)

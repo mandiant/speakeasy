@@ -60,15 +60,15 @@ class Urlmon(api.ApiHandler):
     def URLDownloadToCacheFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToCacheFile(
-            LPUNKNOWN pCaller,
+            LPUNKNOWN lpUnkcaller,
             LPCTSTR szURL,
             LPTSTR szFileName,
             DWORD cchFileName,
             DWORD dwReserved,
-            LPBINDSTATUSCALLBACK lpfnCB
+            LPBINDSTATUSCALLBACK pBSC
         );
         """
-        pCaller, szURL, szFileName, cchFileName, dwReserved, lpfnCB = argv
+        lpUnkcaller, szURL, szFileName, cchFileName, dwReserved, pBSC = argv
         rv = windefs.ERROR_SUCCESS
         cw = self.get_char_width(ctx)
 

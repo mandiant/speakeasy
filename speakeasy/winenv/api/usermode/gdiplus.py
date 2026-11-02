@@ -33,8 +33,8 @@ class Gdiplus(api.ApiHandler):
             GdiplusStartupOutput *output
         );
         """
-        token, startup_input, output = argv
-        if not token or not startup_input:
+        token, input, output = argv
+        if not token or not input:
             return INVALID_PARAMETER
         self.mem_write(token, (1).to_bytes(emu.get_ptr_size(), "little"))
         if output:

@@ -44,15 +44,17 @@ class Ws2_32(api.ApiHandler):
     def WSAStartup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAStartup(
-            WORD wVersionRequired,
+            WORD wVersionRequested,
             LPWSADATA lpWSAData
         );
         """
-        ver, lpWSAData = argv
+        wVersionRequested, lpWSAData = argv
 
         data = self.wstypes.WSAData(emu.get_ptr_size())
 
-        data.wVersion = 0x0202 if (ver & 0xFF, (ver >> 8) & 0xFF) >= (2, 2) else ver
+        data.wVersion = (
+            0x0202 if (wVersionRequested & 0xFF, (wVersionRequested >> 8) & 0xFF) >= (2, 2) else wVersionRequested
+        )
         data.wHighVersion = 0x0202
         data.iMaxSockets = 0x1000
         data.iMaxUdpDg = 0x1000
@@ -83,10 +85,10 @@ class Ws2_32(api.ApiHandler):
             DWORD dwFlags
         );
         """
-        af, typ, protocol, lpProtocolInfo, g, dwFlags = argv
+        af, type, protocol, lpProtocolInfo, g, dwFlags = argv
 
         fam_str = winsock.get_addr_family(af)
-        sock_str = winsock.get_sock_type(typ)
+        sock_str = winsock.get_sock_type(type)
 
         sock = self.netman.new_socket(fam_str, sock_str, protocol, dwFlags)
 
@@ -142,10 +144,10 @@ class Ws2_32(api.ApiHandler):
             int protocol
         );
         """
-        af, typ, protocol = argv
+        af, type, protocol = argv
 
         fam_str = winsock.get_addr_family(af)
-        sock_str = winsock.get_sock_type(typ)
+        sock_str = winsock.get_sock_type(type)
 
         sock = self.netman.new_socket(fam_str, sock_str, protocol, 0)
 
@@ -163,14 +165,14 @@ class Ws2_32(api.ApiHandler):
             const char *cp
         );
         """
-        (a,) = argv
+        (cp,) = argv
         rv = INADDR_NONE
 
-        if a:
-            cp = self.read_mem_string(a, 1)
-            ctx.args["cp"].display = cp
+        if cp:
+            addr = self.read_mem_string(cp, 1)
+            ctx.args["cp"].display = addr
             try:
-                rv = int.from_bytes(inet_aton(cp), "little")
+                rv = int.from_bytes(inet_aton(addr), "little")
             except OSError:
                 rv = INADDR_NONE
 
@@ -333,12 +335,12 @@ class Ws2_32(api.ApiHandler):
             int namelen
         );
         """
-        s, pname, namelen = argv
+        s, name, namelen = argv
 
         rv = windefs.ERROR_SUCCESS
 
         sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
-        sa = self.mem_cast(sockaddr, pname)
+        sa = self.mem_cast(sockaddr, name)
 
         raddr = inet_ntoa(sa.sin_addr.to_bytes(4, "little"))
         rport = ntohs(sa.sin_port)
@@ -373,11 +375,11 @@ class Ws2_32(api.ApiHandler):
             int namelen
         );
         """
-        s, pname, namelen = argv
+        s, name, namelen = argv
         rv = windefs.ERROR_SUCCESS
 
         sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
-        sa = self.mem_cast(sockaddr, pname)
+        sa = self.mem_cast(sockaddr, name)
         raddr = inet_ntoa(sa.sin_addr.to_bytes(4, "little"))
         rport = ntohs(sa.sin_port)
 
@@ -541,9 +543,9 @@ class Ws2_32(api.ApiHandler):
             struct in_addr in
         );
         """
-        (in_addr,) = argv
+        (in_,) = argv
 
-        raddr = inet_ntoa(in_addr.to_bytes(4, "little"))
+        raddr = inet_ntoa(in_.to_bytes(4, "little"))
         buf = self.addr_bufs.get(raddr)
         if not buf:
             buf = self.mem_alloc(len(raddr) + 1, tag=f"api.ws2_32.inet_ntoa.{raddr}")
@@ -561,9 +563,9 @@ class Ws2_32(api.ApiHandler):
             size_t StringBufSize
         );
         """
-        family, pAddr, pStringBuf, StringBufSize = argv
+        Family, pAddr, pStringBuf, StringBufSize = argv
 
-        fam_str = winsock.get_addr_family(family)
+        fam_str = winsock.get_addr_family(Family)
         ctx.args["Family"].display = fam_str
 
         # TODO: implement case AF_INET6
@@ -571,7 +573,7 @@ class Ws2_32(api.ApiHandler):
             ipv4_bytes = self.mem_read(pAddr, 4)
             ctx.args["pAddr"].display = hex(int.from_bytes(ipv4_bytes, "big"))
             try:
-                ipv4_str = inet_ntop(family, ipv4_bytes)
+                ipv4_str = inet_ntop(Family, ipv4_bytes)
             except OSError:
                 return 0
 
@@ -589,9 +591,9 @@ class Ws2_32(api.ApiHandler):
             PVOID pAddrBuf
         );
         """
-        family, pszAddrString, pAddrBuf = argv
+        Family, pszAddrString, pAddrBuf = argv
 
-        fam_str = winsock.get_addr_family(family)
+        fam_str = winsock.get_addr_family(Family)
         ctx.args["Family"].display = fam_str
 
         # TODO: implement case AF_INET6
@@ -599,7 +601,7 @@ class Ws2_32(api.ApiHandler):
             ipv4_str = self.read_string(pszAddrString)
             ctx.args["pszAddrString"].display = ipv4_str
             try:
-                ipv4_bytes = inet_pton(family, ipv4_str)
+                ipv4_bytes = inet_pton(Family, ipv4_str)
             except OSError:
                 return 0
 
@@ -623,16 +625,16 @@ class Ws2_32(api.ApiHandler):
         """
         int __WSAFDIsSet(
             SOCKET fd,
-            fd_set *unnamedParam2
+            fd_set *set
         );
         """
-        sock, fd_set = argv
-        if not fd_set:
+        fd, set = argv
+        if not set:
             return 0
         ptr_size = emu.get_ptr_size()
-        count = min(int.from_bytes(self.mem_read(fd_set, 4), "little"), 64)
-        fds = self.mem_read(fd_set + ptr_size, count * ptr_size)
-        return int(any(int.from_bytes(fds[i : i + ptr_size], "little") == sock for i in range(0, len(fds), ptr_size)))
+        count = min(int.from_bytes(self.mem_read(set, 4), "little"), 64)
+        fds = self.mem_read(set + ptr_size, count * ptr_size)
+        return int(any(int.from_bytes(fds[i : i + ptr_size], "little") == fd for i in range(0, len(fds), ptr_size)))
 
     @apihook("shutdown", argc=2, ordinal=22)
     def shutdown(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

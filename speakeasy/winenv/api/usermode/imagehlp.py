@@ -30,19 +30,19 @@ class Imagehlp(api.ApiHandler):
             PDWORD CheckSum
         );
         """
-        base, length, header_sum, check_sum = argv
-        data = self.mem_read(base, length) + b"\x00" * (length & 1)
+        BaseAddress, FileLength, HeaderSum, CheckSum = argv
+        data = self.mem_read(BaseAddress, FileLength) + b"\x00" * (FileLength & 1)
         calc = sum(struct.unpack(f"<{len(data) // 2}H", data))
         while calc >> 16:
             calc = (calc & 0xFFFF) + (calc >> 16)
 
-        if self.mem_read(base, 2) != b"MZ":
+        if self.mem_read(BaseAddress, 2) != b"MZ":
             return 0
-        nt = base + struct.unpack("<I", self.mem_read(base + 0x3C, 4))[0]
+        nt = BaseAddress + struct.unpack("<I", self.mem_read(BaseAddress + 0x3C, 4))[0]
         if self.mem_read(nt, 4) != b"PE\x00\x00":
             return 0
         stored = struct.unpack("<I", self.mem_read(nt + 24 + 64, 4))[0]
-        self.mem_write(header_sum, stored.to_bytes(4, "little"))
+        self.mem_write(HeaderSum, stored.to_bytes(4, "little"))
 
         # Remove the stored checksum from the one's complement sum, as Windows does
         for word in (stored & 0xFFFF, stored >> 16):
@@ -50,5 +50,5 @@ class Imagehlp(api.ApiHandler):
                 calc -= word
             else:
                 calc = ((calc - word) & 0xFFFF) - 1
-        self.mem_write(check_sum, ((calc + length) & 0xFFFFFFFF).to_bytes(4, "little"))
+        self.mem_write(CheckSum, ((calc + FileLength) & 0xFFFFFFFF).to_bytes(4, "little"))
         return nt

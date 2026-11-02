@@ -34,15 +34,15 @@ class Iphlpapi(api.ApiHandler):
             PULONG SizePointer
         );
         """
-        ptr_adapter_info, size_ptr = argv
+        AdapterInfo, SizePointer = argv
         rv = 0
 
         adapters = emu.config.network.adapters
         adapter_count = len(adapters)
 
         size = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size()).sizeof()
-        if not ptr_adapter_info or int.from_bytes(self.mem_read(size_ptr, 4), "little") < size:
-            self.mem_write(size_ptr, size.to_bytes(4, "little"))
+        if not AdapterInfo or int.from_bytes(self.mem_read(SizePointer, 4), "little") < size:
+            self.mem_write(SizePointer, size.to_bytes(4, "little"))
             return windefs.ERROR_BUFFER_OVERFLOW
 
         for index, adapter in enumerate(adapters):
@@ -63,7 +63,7 @@ class Iphlpapi(api.ApiHandler):
                 ptr_next = 0
 
             adapter_info.Next = ptr_next
-            self.mem_write(ptr_adapter_info, self.get_bytes(adapter_info))
-            ptr_adapter_info = ptr_next
+            self.mem_write(AdapterInfo, self.get_bytes(adapter_info))
+            AdapterInfo = ptr_next
 
         return rv
