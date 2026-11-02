@@ -375,7 +375,7 @@ class Bcrypt(api.ApiHandler):
         );
         """
         (hKey,) = argv
-        emu.get_crypt_manager().get_key(hKey).context.delete_key(hKey)
+        emu.get_crypt_manager().delete_key(hKey)
         return ddk.STATUS_SUCCESS
 
     @apihook("BCryptGenRandom", argc=4, fail=ddk.STATUS_INVALID_HANDLE)

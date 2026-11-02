@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
+from speakeasy.windows.cryptman import CryptContext
 from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
@@ -459,7 +460,7 @@ def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
 @pytest.mark.parametrize("name", [None, "Microsoft Software Key Storage Provider"])
 def test_ncrypt_open_storage_provider_returns_a_handle(dll_emu: Speakeasy, name: str | None) -> None:
     hprov = _open_storage_provider(dll_emu, name)
-    assert dll_emu.emu.get_crypt_manager().crypt_get(hprov) is not None
+    assert isinstance(dll_emu.emu.get_crypt_manager().get_context(hprov), CryptContext)
 
 
 def test_ncrypt_import_key_ignores_the_high_bits_of_the_size(dll64_emu: Speakeasy) -> None:
