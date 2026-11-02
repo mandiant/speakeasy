@@ -31,6 +31,7 @@ from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
 from speakeasy.windows.handles import HandleTable
+from speakeasy.winenv import codepage
 from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
     CREATE_TOOLHELP_SNAPSHOT_FLAGS,
@@ -3504,9 +3505,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         UINT GetACP();
         """
-        windows_1252 = 1252
-
-        return windows_1252
+        return codepage.ANSI_CODE_PAGE
 
     @apihook("IsValidCodePage", argc=1)
     def IsValidCodePage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3517,7 +3516,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (CodePage,) = argv
 
-        return True
+        # CP_ACP, CP_OEMCP and CP_THREAD_ACP are not valid here: Windows wants a real code page number.
+        return CodePage in (codepage.ANSI_CODE_PAGE, codepage.OEM_CODE_PAGE, codepage.CP_UTF8)
 
     @apihook("GetCPInfo", argc=2)
     def GetCPInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3529,9 +3529,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         CodePage, lpCPInfo = argv
 
-        cp_info = (2).to_bytes(4, "little") + (b"\x00" * 8)
+        try:
+            codepage.get_codec(CodePage)
+        except ValueError:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
 
-        self.mem_write(lpCPInfo, cp_info)
+        # typedef struct _cpinfo {
+        #     UINT MaxCharSize;
+        #     BYTE DefaultChar[2];
+        #     BYTE LeadByte[12];
+        # } CPINFO;
+        max_char_size = 4 if CodePage == codepage.CP_UTF8 else 1
+        self.mem_write(lpCPInfo, struct.pack("<I2s12s", max_char_size, b"?", b""))
 
         return True
 
@@ -3549,8 +3559,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPBOOL lpUsedDefaultChar
         );
         """
-        rv = 0
-
         (
             CodePage,
             dwFlags,
@@ -3567,41 +3575,34 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if not lpWideCharStr or not cchWideChar:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-        elif not lpMultiByteStr or cbMultiByte == 0:
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            if cchWideChar == 0xFFFFFFFF:
-                wcs = b""
-                o = 0
-                while emu.is_address_valid(lpWideCharStr + o + 2):
-                    wcs += self.mem_read(lpWideCharStr + o, 2)
-                    if wcs.endswith(b"\0\0"):
-                        break
-                    o += 2
-            else:
-                wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
-            cs = wcs.decode("utf-16le", "ignore")
-            rv = len(cs.encode("utf-8", "ignore"))
-        else:
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            if cchWideChar == 0xFFFFFFFF:
-                wcs = b""
-                o = 0
-                while emu.is_address_valid(lpWideCharStr + o + 2):
-                    wcs += self.mem_read(lpWideCharStr + o, 2)
-                    if wcs.endswith(b"\0\0"):
-                        break
-                    o += 2
-            else:
-                wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
-            mbs = wcs.decode("utf-16le", "ignore").encode("utf-8", "ignore")
-            if len(mbs) > cbMultiByte:
-                self.mem_write(lpMultiByteStr, mbs[:cbMultiByte])
-                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-            else:
-                self.mem_write(lpMultiByteStr, mbs)
-                rv = len(mbs)
+            return 0
 
-        return rv
+        if cchWideChar == 0xFFFFFFFF:
+            wcs = b""
+            o = 0
+            while emu.is_address_valid(lpWideCharStr + o + 2):
+                wcs += self.mem_read(lpWideCharStr + o, 2)
+                if wcs.endswith(b"\0\0"):
+                    break
+                o += 2
+        else:
+            wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
+
+        try:
+            cs = codepage.encode_code_page(wcs.decode("utf-16le", "ignore"), CodePage)
+        except ValueError:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        if not lpMultiByteStr or cbMultiByte == 0:
+            return len(cs)
+        if len(cs) > cbMultiByte:
+            self.mem_write(lpMultiByteStr, cs[:cbMultiByte])
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            return 0
+        self.mem_write(lpMultiByteStr, cs)
+        return len(cs)
 
     @apihook("MultiByteToWideChar", argc=6)
     def MultiByteToWideChar(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3620,47 +3621,29 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cchWideChar = cchWideChar & 0xFFFFFFFF
         cbMultiByte = cbMultiByte & 0xFFFFFFFF
 
-        rv = 0
-        if cchWideChar == 0:
-            if cbMultiByte == 0xFFFFFFFF:
-                mbs = self.read_mem_string(lpMultiByteStr, 1)
-                ctx.args["lpMultiByteStr"].display = mbs
-                rv = len(mbs) + 1
-            else:
-                mbs = self.mem_read(lpMultiByteStr, cbMultiByte).decode("utf-8", "ignore")
-                ctx.args["lpMultiByteStr"].display = mbs
-                rv = len(mbs.encode("utf-16le")) // 2
-        elif lpMultiByteStr == 0 or cbMultiByte == 0:
+        if not lpMultiByteStr or not cbMultiByte or (cchWideChar and not lpWideCharStr):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
+        if cbMultiByte == 0xFFFFFFFF:
+            cbMultiByte = self.mem_string_len(lpMultiByteStr, 1) + 1
+        try:
+            mbs = codepage.decode_code_page(self.mem_read(lpMultiByteStr, cbMultiByte), CodePage)
+        except ValueError:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        ctx.args["lpMultiByteStr"].display = mbs.rstrip("\x00")
+
+        ws = mbs.encode("utf-16le")
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        if not cchWideChar:
+            return len(ws) // 2
+        if len(ws) // 2 > cchWideChar:
+            self.mem_write(lpWideCharStr, ws[: cchWideChar * 2])
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-            rv = 0
-        elif lpWideCharStr != 0:
-            if cbMultiByte == 0xFFFFFFFF:
-                mbs = self.read_mem_string(lpMultiByteStr, 1)
-                ctx.args["lpMultiByteStr"].display = mbs
-                mbs += "\x00"
-                ws = mbs.encode("utf-16le")
-
-                if len(ws) / 2 > cchWideChar:
-                    self.mem_write(lpWideCharStr, ws[: cchWideChar * 2])
-                    emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-                    rv = 0
-                else:
-                    self.mem_write(lpWideCharStr, ws)
-                    emu.set_last_error(windefs.ERROR_SUCCESS)
-                    rv = len(mbs)
-            else:
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-                cs = self.mem_read(lpMultiByteStr, cbMultiByte)
-                cs = cs.decode("utf-8", "ignore")
-                cs = cs.encode("utf-16le")
-                if len(cs) // 2 > cchWideChar:
-                    self.mem_write(lpWideCharStr, cs[: cchWideChar * 2])
-                    emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-                else:
-                    self.mem_write(lpWideCharStr, cs)
-                    rv = len(cs) // 2
-
-        return rv
+            return 0
+        self.mem_write(lpWideCharStr, ws)
+        return len(ws) // 2
 
     @apihook("GetStringTypeA", argc=5)
     def GetStringTypeA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5296,7 +5279,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         UINT GetOEMCP();
         """
-        return 1200
+        return codepage.OEM_CODE_PAGE
 
     @apihook("GlobalLock", argc=1)
     def GlobalLock(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
