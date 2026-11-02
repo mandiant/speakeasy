@@ -14,6 +14,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 from speakeasy.windows import objman
+from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import (
     ENUM_SERVICE_STATE,
     ENUM_SERVICE_TYPE,
@@ -231,7 +232,7 @@ class AdvApi32(api.ApiHandler):
         if lpData and cbData:
             raw = self.mem_read(lpData, cbData)
             if dwType in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ, REG_VALUE_TYPE.REG_MULTI_SZ):
-                value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
+                value_data = self.decode_string(raw, cw).rstrip("\x00")
             elif dwType == REG_VALUE_TYPE.REG_DWORD:
                 value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
             elif dwType == REG_VALUE_TYPE.REG_QWORD:
@@ -1293,8 +1294,8 @@ class AdvApi32(api.ApiHandler):
             guid_bytes = guid_bytes.ljust(39 * 2, b"\x00")[: 39 * 2]
             name_bytes = name_bytes.ljust(80 * 2, b"\x00")[: 80 * 2]
         else:
-            guid_bytes = (guid + "\x00").encode("utf-8")
-            name_bytes = (profile_name + "\x00").encode("utf-8")
+            guid_bytes = encode_ansi(guid + "\x00")
+            name_bytes = encode_ansi(profile_name + "\x00")
             guid_bytes = guid_bytes.ljust(39, b"\x00")[:39]
             name_bytes = name_bytes.ljust(80, b"\x00")[:80]
 
@@ -2055,7 +2056,7 @@ class AdvApi32(api.ApiHandler):
         services = services[start:]
 
         def encode(text):
-            return (text + "\0").encode("utf-16le" if cw == 2 else "ascii")
+            return self.encode_string(text + "\0", cw)
 
         sizes = [entry_size + len(encode(name)) + len(encode(display)) for name, display, _, _ in services]
         count = 0
