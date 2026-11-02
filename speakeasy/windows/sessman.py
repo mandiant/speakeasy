@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from speakeasy.windows.handles import HandleTable
+from speakeasy.winenv.defs.windows.windows import ERROR_INVALID_WINDOW_HANDLE
+
 if TYPE_CHECKING:
     from speakeasy.windows.objman import HandleAllocator
 
@@ -12,12 +15,9 @@ if TYPE_CHECKING:
 class GuiObject:
     """Base class for all GUI objects."""
 
-    def __init__(self, allocator: HandleAllocator):
-        self.allocator: HandleAllocator = allocator
-        self.handle: int = self._alloc_handle()
-
-    def _alloc_handle(self):
-        return self.allocator.allocate_gui_object_handle()
+    def __init__(self, handles: HandleTable):
+        self.handles: HandleTable = handles
+        self.handle: int = handles.new_handle(self)
 
     def get_handle(self):
         return self.handle
@@ -26,13 +26,13 @@ class GuiObject:
 class Session(GuiObject):
     """Represents a windows Session."""
 
-    def __init__(self, allocator: HandleAllocator, sess_id):
-        super().__init__(allocator)
+    def __init__(self, handles: HandleTable, sess_id):
+        super().__init__(handles)
         self.id: int = sess_id
         self.stations: dict[int, Station] = {}
 
     def new_station(self, name="WinSta0"):
-        stat = Station(self.allocator, name=name)
+        stat = Station(self.handles, name=name)
         self.stations.update({stat.get_handle(): stat})
         return stat
 
@@ -40,13 +40,13 @@ class Session(GuiObject):
 class Station(GuiObject):
     """Represents a window station."""
 
-    def __init__(self, allocator: HandleAllocator, name=""):
-        super().__init__(allocator)
+    def __init__(self, handles: HandleTable, name=""):
+        super().__init__(handles)
         self.name: str = name
         self.desktops: dict[int, Desktop] = {}
 
     def new_desktop(self, name=""):
-        desk = Desktop(self.allocator, name=name)
+        desk = Desktop(self.handles, name=name)
         self.desktops.update({desk.get_handle(): desk})
         return desk
 
@@ -54,14 +54,14 @@ class Station(GuiObject):
 class Desktop(GuiObject):
     """Represents a Desktop object."""
 
-    def __init__(self, allocator: HandleAllocator, name=""):
-        super().__init__(allocator)
+    def __init__(self, handles: HandleTable, name=""):
+        super().__init__(handles)
         self.windows: dict[int, Window] = {}
         self.desktop_window: Window = self.new_window()
         self.name: str = name
 
     def new_window(self):
-        window = Window(self.allocator)
+        window = Window(self.handles)
         self.windows.update({window.get_handle(): window})
         return window
 
@@ -77,10 +77,10 @@ class ListViewColumn:
 class Window(GuiObject):
     """Represents a GUI window."""
 
-    def __init__(
-        self, allocator: HandleAllocator, name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0
-    ):
-        super().__init__(allocator)
+    invalid_handle_error = ERROR_INVALID_WINDOW_HANDLE
+
+    def __init__(self, handles: HandleTable, name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0):
+        super().__init__(handles)
         self.name: str | None = name
         self.class_name: str | None = class_name
         self.style: int = style
@@ -94,8 +94,8 @@ class Window(GuiObject):
 class WindowClass(GuiObject):
     """Represents a GUI window class."""
 
-    def __init__(self, allocator: HandleAllocator, wclass, name):
-        super().__init__(allocator)
+    def __init__(self, handles: HandleTable, wclass, name):
+        super().__init__(handles)
         self.wclass: Any = wclass
         self.name: str = name
 
@@ -104,11 +104,14 @@ class SessionManager:
     """
     The session manager for the emulator.
 
-    It manages things like desktops, windows, and session isolation.
+    It manages things like desktops, windows, and session isolation. USER objects, such as
+    windows, desktops and window classes, belong to the session on Windows, not to a process,
+    so their handles are in a table of the manager.
     """
 
     def __init__(self, config, allocator: HandleAllocator):
         super().__init__()
+        self.handles: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.sessions: dict[int, Session] = {}
         self.window_classes: dict[int | str, WindowClass] = {}
         self.windows: dict[int | str, Window] = {}
@@ -116,11 +119,10 @@ class SessionManager:
         self.curr_station: Station | None = None
         self.curr_desktop: Desktop | None = None
         self.config: Any = config
-        self.allocator: HandleAllocator = allocator
-        self.dev_ctx: int = allocator.allocate_gui_object_handle()
+        self.dev_ctx: int = allocator.allocate_handle()
 
         # create a session 0
-        self.curr_session = Session(allocator, sess_id=0)
+        self.curr_session = Session(self.handles, sess_id=0)
 
         # create WinSta0
         self.curr_station = self.curr_session.new_station(name="WinSta0")
@@ -134,7 +136,7 @@ class SessionManager:
         self.curr_desktop = default
 
     def create_window_class(self, class_obj, class_name=None):
-        wc = WindowClass(self.allocator, class_obj, class_name)
+        wc = WindowClass(self.handles, class_obj, class_name)
         atom = wc.get_handle()
         self.window_classes.update({atom: wc})
         if class_name:
@@ -142,7 +144,7 @@ class SessionManager:
         return atom
 
     def create_window(self, window_name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0):
-        wc = Window(self.allocator, window_name, class_name, style, parent, thread_id, process_id)
+        wc = Window(self.handles, window_name, class_name, style, parent, thread_id, process_id)
         hnd = wc.get_handle()
         self.windows.update({hnd: wc})
         if window_name:
