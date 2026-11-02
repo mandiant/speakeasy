@@ -269,6 +269,8 @@ def update_config_mapping_keys(data: dict[str, Any], path: tuple[str, ...], upda
         target = {}
         cursor[path[-1]] = target
     for key, value in updates:
+        # Move the key to the end, so that it wins over a config file key that differs only in case.
+        target.pop(key, None)
         target[key] = value
 
 

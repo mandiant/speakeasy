@@ -105,6 +105,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   // Environment variables visible to the emulated process.
   // Change when malware reads env values for path decisions or anti-sandbox checks.
+  // Names are not case-sensitive, and the config stores them in lower case.
   // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
   // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion; registry.keys values take precedence.
   "env": {

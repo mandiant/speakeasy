@@ -11,6 +11,7 @@ from speakeasy.cli_config import (
     get_singular_word,
 )
 from speakeasy.config import SpeakeasyConfig
+from tests.handler_harness import alloc, call, load_emu
 
 
 def get_cli_config(data: dict, argv: list[str]) -> SpeakeasyConfig:
@@ -53,3 +54,29 @@ def test_dump_default_config_flag_outputs_valid_json():
         text=True,
     )
     SpeakeasyConfig.model_validate(json.loads(result.stdout))
+
+
+def test_env_names_from_the_cli_replace_the_defaults_in_any_case(load_test_bin):
+    config = get_cli_config(
+        {},
+        ["--env", "TEMP=C:\\Windows\\Temp"]
+        + ["--env", "APPDATA=C:\\Users\\jdoe\\AppData\\Roaming"]
+        + ["--env", "COMPUTERNAME=WS-3471"],
+    )
+
+    assert config.env["temp"] == "C:\\Windows\\Temp"
+    assert config.env["appdata"] == "C:\\Users\\jdoe\\AppData\\Roaming"
+    assert config.env["computername"] == "WS-3471"
+    assert all(name.islower() for name in config.env)
+
+    for se in load_emu(config.model_dump(), load_test_bin("dll_test_x86.dll.xz")):
+        name = alloc(se, b"ComputerName\x00")
+        buf = alloc(se, b"\x00" * 0x40)
+        rv, _ = call(se, "kernel32", "GetEnvironmentVariableA", [name, buf, 0x40])
+        assert se.mem_read(buf, rv) == b"WS-3471"
+
+
+def test_an_env_name_from_the_cli_replaces_a_config_file_name_in_any_case():
+    config = get_cli_config({"env": {"TEMP": "C:\\config"}}, ["--env", "temp=C:\\cli"])
+
+    assert config.env["temp"] == "C:\\cli"
