@@ -64,7 +64,7 @@ def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
     fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
     if fn:
         return fn
-    for table in emu.function_tables:
+    for table in emu.get_function_tables():
         if table.begin <= pc < table.end and not table.callback:
             return unwind.search_function_table(emu.mem_read, table, pc)
     return None
@@ -259,7 +259,7 @@ def add_function_table(emu, table: int, count: int, base: int) -> bool:
         return False
     begin = base + min(b for b, _, _ in entries)
     end = base + max(e for _, e, _ in entries)
-    emu.function_tables.append(unwind.FunctionTable(table, base, begin, end, count=count))
+    emu.get_function_tables().append(unwind.FunctionTable(table, base, begin, end, count=count))
     return True
 
 
@@ -267,14 +267,15 @@ def install_function_table_callback(emu, identifier: int, base: int, length: int
     """RtlInstallFunctionTableCallback."""
     if identifier & 3 != 3:  # the low bits mark a callback table
         return False
-    emu.function_tables.append(unwind.FunctionTable(identifier, base, base, base + length, callback=callback))
+    emu.get_function_tables().append(unwind.FunctionTable(identifier, base, base, base + length, callback=callback))
     return True
 
 
 def delete_function_table(emu, identifier: int) -> bool:
     """RtlDeleteFunctionTable."""
-    for table in emu.function_tables:
+    tables = emu.get_function_tables()
+    for table in tables:
         if table.identifier == identifier:
-            emu.function_tables.remove(table)
+            tables.remove(table)
             return True
     return False

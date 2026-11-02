@@ -198,6 +198,15 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """Get the handle table of the emulator. The kernel emulator keeps all handles in one table."""
         return self.handles
 
+    def _get_process_state(self) -> WindowsEmulator:
+        """
+        Get the emulator for the state that each process has.
+
+        A driver runs in the context of any process, and KeStackAttachProcess changes the current process. The
+        function tables of the kernel do not change with it.
+        """
+        return self
+
     def run_module(self, module, all_entrypoints=False, entry_point=None) -> None:
         """Begin emulation fo a previously loaded kernel module."""
         self.all_entrypoints = all_entrypoints

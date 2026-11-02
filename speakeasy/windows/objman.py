@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
-from speakeasy.windows import thread_context
+from speakeasy.windows import thread_context, unwind
 from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntos
@@ -456,6 +456,10 @@ class Process(KernelObject):
         self.pe: RuntimeModule | None = pe
         self.pe_data: bytes | None = None
         self.is_modified: bool = False
+        self.veh_handlers: list[int] = []
+        self.unhandled_exception_filter: int = 0
+        # Unwind data registered at runtime for code outside loaded images
+        self.function_tables: list[unwind.FunctionTable] = []
 
         self.stdin: int = (0xF000) + 1
         self.stdout: int = (0xF000) + 2

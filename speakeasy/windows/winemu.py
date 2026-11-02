@@ -358,8 +358,6 @@ class WindowsEmulator(BinaryEmulator):
         # Guard pages, mapped without access, with the protection their first access restores
         self.guard_pages: dict[int, int] = {}
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
-        # Unwind data registered at runtime for code outside loaded images
-        self.function_tables: list[unwind.FunctionTable] = []
         self.module_loader: ModuleLoader = ModuleLoader(self)
         self._active_api_frame: GuestCallbackFrame | None = None
         self.mem_trace_hooks: list[Any] = []
@@ -371,7 +369,6 @@ class WindowsEmulator(BinaryEmulator):
         # Code hook for work that must wait until the next instruction, such as the end
         # of a run. It is enabled only when there is such work.
         self.deferred_work_hook: Any | None = None
-        self.veh_handlers: list[int] = []
 
         self.is_run_complete: bool = False
         self.is_emu_complete: bool = False
@@ -383,7 +380,11 @@ class WindowsEmulator(BinaryEmulator):
         self.child_processes: list[Any] = []
         self.curr_thread: Any | None = None
         self.prev_pc: int = 0
+        # The exception handlers and function tables of the kernel, and of a user-mode emulator before a process
+        # exists. Each process has its own.
+        self.veh_handlers: list[int] = []
         self.unhandled_exception_filter: int = 0
+        self.function_tables: list[unwind.FunctionTable] = []
         self._seh_last_fault: tuple[int, int | None] | None = None
         self._seh_repeat_count: int = 0
         self._seh_resume_pc: int | None = None
@@ -1909,6 +1910,23 @@ class WindowsEmulator(BinaryEmulator):
         """Get the handle table of the current process, or the table of the emulator if no process exists."""
         proc = self.get_current_process()
         return proc.handles if proc is not None else self.handles
+
+    def _get_process_state(self) -> "objman.Process | WindowsEmulator":
+        """Get the current process, or the emulator if no process exists, for the state that each process has."""
+        proc = self.get_current_process()
+        return proc if proc is not None else self
+
+    def get_veh_handlers(self) -> list[int]:
+        """Get the vectored exception handlers of the current process, in the order that the dispatcher calls them."""
+        return self._get_process_state().veh_handlers
+
+    def get_unhandled_exception_handler(self) -> int:
+        """Get the filter that SetUnhandledExceptionFilter set for the current process, or 0."""
+        return self._get_process_state().unhandled_exception_filter
+
+    def get_function_tables(self) -> list[unwind.FunctionTable]:
+        """Get the function tables that the current process registered at runtime."""
+        return self._get_process_state().function_tables
 
     def get_pseudo_handle_object(self, handle: int) -> Any:
         """Get the current process for the pseudo handle -1, the current thread for -2, else None."""
