@@ -34,3 +34,12 @@ def test_rtl_get_version_reads_the_config(
         if size == RTL_OSVERSIONINFOEXW_SIZE:
             # The UCHAR wProductType follows szCSDVersion and three USHORT fields.
             assert se.mem_read(info + 282, 1)[0] == windefs.VER_NT_WORKSTATION
+
+
+def test_rtl_get_nt_version_numbers_reads_the_config(
+    win10_config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    for se in load_emu(win10_config, load_test_bin("dll_test_x86.dll.xz")):
+        out = alloc(se, b"\x00" * 12)
+        call(se, "ntdll", "RtlGetNtVersionNumbers", [out, out + 4, out + 8])
+        assert struct.unpack("<3I", se.mem_read(out, 12)) == (10, 0, 0xF0000000 | 19045)
