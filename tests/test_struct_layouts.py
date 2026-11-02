@@ -412,12 +412,6 @@ KERNEL_LAYOUTS = {
 
 # Layouts that are not correct yet
 XFAIL = {
-    "fwpmtypes.FWPM_CALLOUT0-x64",
-    "fwpmtypes.FWPM_CALLOUT0-x86",
-    "fwpmtypes.FWPM_FILTER0-x64",
-    "fwpmtypes.FWPM_FILTER0-x86",
-    "fwpmtypes.FWPM_SUBLAYER0-x64",
-    "fwpmtypes.FWPM_SUBLAYER0-x86",
     "user32.LVCOLUMNA-x64",
     "user32.LVCOLUMNA-x86",
 }

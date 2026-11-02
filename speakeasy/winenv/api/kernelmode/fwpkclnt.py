@@ -142,7 +142,7 @@ class Fwpkclnt(api.ApiHandler):
         subkey = uuid.UUID(bytes_le=subkey)
         subkey = str(subkey)
 
-        provkey = self.get_bytes(layer.providerKey)
+        provkey = self.mem_read(layer.providerKey, 16) if layer.providerKey else bytes(16)
         if all(x == 0 for x in provkey):
             provkey = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         provkey = uuid.UUID(bytes_le=provkey)
