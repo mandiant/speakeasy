@@ -10,6 +10,7 @@ Handler rules:
 - annotate `argv` as `list[int]` and `emu` as the emulator that runs the handler: `Win32Emulator` in `usermode` modules and `WinKernelEmulator` in `kernelmode` modules. msvcrt and ntoskrnl handlers run in both modes, so they use `WindowsEmulator`
 - unpack `argv` into locals with the parameter names of the prototype, as in the example below. When a name is a Python keyword or hides a builtin that the handler uses, use a close name (`in_` for `in`, `blen` for `len`)
 - to show a decoded value in the report, set the `display` of the argument in `ctx.args` (for example `ctx.args["lpFileName"].display = path`)
+- write integers to guest memory with `self.write_dword`, `self.write_qword` or `self.write_ptr`, and read them with `self.read_dword` or `self.read_ptr`. The write helpers call `ApiHandler.mem_write`, which also writes to the other views of a shared file mapping
 - return the value expected by the sample path
 - start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. The function name is the hook name: a hook without the `A` or `W` suffix uses the generic name and TCHAR types (`LPCTSTR`). Parameter names come from the Microsoft documentation. When the signature database has other names, use those, because the report and `ctx.args` use them. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
 
