@@ -205,7 +205,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         Advance the tick count by 1 ms and return the local time.
         The time zone that GetTimeZoneInformation reports has no bias.
         """
-        return datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=self.get_system_time() // 10)
+        return winemu.get_datetime_from_filetime(self.get_system_time())
 
     def get_performance_counter(self):
         """
@@ -223,7 +223,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     def get_system_time_struct(self, quad):
         st = self.k32types.SYSTEMTIME(self.emu.get_ptr_size())
-        dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=quad // 10)
+        dt = winemu.get_datetime_from_filetime(quad)
         st.wYear = dt.year
         st.wMonth = dt.month
         st.wDayOfWeek = dt.isoweekday() % 7
@@ -2018,9 +2018,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         st = self.mem_cast(self.k32types.SYSTEMTIME(emu.get_ptr_size()), src)
         try:
             dt = datetime.datetime(
-                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds * 1000
+                st.wYear,
+                st.wMonth,
+                st.wDay,
+                st.wHour,
+                st.wMinute,
+                st.wSecond,
+                st.wMilliseconds * 1000,
+                tzinfo=datetime.timezone.utc,
             )
-            quad = (dt - datetime.datetime(1601, 1, 1)) // datetime.timedelta(microseconds=1) * 10
+            quad = winemu.get_filetime(dt)
             quad += sign * bias * 60 * 10000000
             out = self.get_system_time_struct(quad) if quad >= 0 else None
         except (ValueError, OverflowError):
@@ -2100,8 +2107,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return False
 
-        delta = dt - datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
-        timestamp = (delta.days * 86400 + delta.seconds) * 10000000 + delta.microseconds * 10
+        timestamp = winemu.get_filetime(dt)
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
         ft.dwLowDateTime = 0xFFFFFFFF & timestamp

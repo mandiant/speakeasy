@@ -13,6 +13,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
 from speakeasy.windows import seh32
+from speakeasy.windows.common import FILETIME_UNIX_EPOCH
 from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api, exception_apis
@@ -148,7 +149,6 @@ IOS_FOPEN_MODES = {
 LOCALE_ALL = 0x7E
 
 TIME_BASE = 1576292568
-FILETIME_UNIX_EPOCH = 116444736000000000
 S_IFREG_RW = 0x81B6
 A_SUBDIR = 0x10
 DRIVE_C = 2
