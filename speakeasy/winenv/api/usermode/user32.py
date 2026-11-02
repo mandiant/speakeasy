@@ -2151,16 +2151,8 @@ class User32(api.ApiHandler):
 
         # If destination buffer exists, copy source bytes into it.
         if pSrc and pDst:
-            try:
-                data = emu.mem_read(pSrc, self.mem_string_len(pSrc, 1) + 1)
-                try:
-                    emu.mem_write(pDst, data)
-                except Exception:
-                    base_addr = pDst & ~0xFFF
-                    emu.mem_map(0x1000, base=base_addr)
-                    emu.mem_write(pDst, data)
-            except Exception:
-                pass
+            data = emu.mem_read(pSrc, self.mem_string_len(pSrc, 1) + 1)
+            emu.mem_write(pDst, data)
 
         # Return TRUE
         return 1
