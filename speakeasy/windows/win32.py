@@ -29,6 +29,7 @@ from speakeasy.windows.loaders import (
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
+from speakeasy.winenv.codepage import encode_ansi
 
 logger = logging.getLogger(__name__)
 
@@ -74,18 +75,13 @@ class Win32Emulator(WindowsEmulator):
         if service_args:
             args.extend(service_args)
 
-        enc_args = []
-        if char_width == 1:
-            codec = "utf-8"
-        elif char_width == 2:
-            codec = "utf-16le"
-        else:
+        if char_width not in (1, 2):
             raise Win32EmuError(f"Unsupported service argument width: {char_width}")
 
+        enc_args = []
         for arg in args:
-            if not isinstance(arg, str):
-                arg = str(arg)
-            enc_args.append((arg + "\x00").encode(codec))
+            text = f"{arg}\x00"
+            enc_args.append(encode_ansi(text) if char_width == 1 else text.encode("utf-16le"))
 
         ptr_count = len(enc_args) + 1
         size = ptr_count * ptr_size + sum(len(arg) for arg in enc_args)
