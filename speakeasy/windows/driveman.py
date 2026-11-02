@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.windows.kernel32 as k32defs
+from speakeasy.winenv.defs.windows.kernel32 import DRIVE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import DriveConfig
@@ -38,6 +38,6 @@ class DriveManager:
         drive = self.get_drive(root_path=root_path)
         if drive:
             if drive.root_path == root_path:
-                return k32defs.get_define_value(drive.drive_type)
+                return DRIVE_TYPE.__members__.get(drive.drive_type)
 
-        return k32defs.DRIVE_NO_ROOT_DIR
+        return DRIVE_TYPE.DRIVE_NO_ROOT_DIR

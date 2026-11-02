@@ -14,7 +14,12 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.windows import FILE_CREATION_DISPOSITION, PAGE_PROTECTION_FLAGS
+from speakeasy.winenv.defs.windows.kernel32 import LCTYPE
+from speakeasy.winenv.defs.windows.windows import (
+    FILE_CREATION_DISPOSITION,
+    PAGE_PROTECTION_FLAGS,
+    THREAD_CREATION_FLAGS,
+)
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
@@ -290,21 +295,18 @@ def test_llseek(emu: Speakeasy) -> None:
     assert call(emu, "kernel32", "_llseek", [0x7FF0, 0, FILE_BEGIN])[0] == windefs.HFILE_ERROR
 
 
-LOCALE_SENGLISHCOUNTRYNAME = 0x1002
-
-
 @pytest.mark.parametrize("name, width", [("GetLocaleInfoA", 1), ("GetLocaleInfoW", 2)])
 def test_get_locale_info_counts_characters(emu: Speakeasy, name: str, width: int) -> None:
     enc = "utf-8" if width == 1 else "utf-16le"
-    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, 0, 0])[0] == 14
+    assert call(emu, "kernel32", name, [0x400, LCTYPE.LOCALE_SENGLISHCOUNTRYNAME, 0, 0])[0] == 14
 
     small = alloc(emu, b"\xcc" * 4 * width)
-    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, small, 4])[0] == 0
+    assert call(emu, "kernel32", name, [0x400, LCTYPE.LOCALE_SENGLISHCOUNTRYNAME, small, 4])[0] == 0
     assert last_error(emu) == windefs.ERROR_INSUFFICIENT_BUFFER
     assert emu.mem_read(small, 4 * width) == b"\xcc" * 4 * width
 
     buf = alloc(emu, b"\xcc" * 32 * width)
-    assert call(emu, "kernel32", name, [0x400, LOCALE_SENGLISHCOUNTRYNAME, buf, 32])[0] == 14
+    assert call(emu, "kernel32", name, [0x400, LCTYPE.LOCALE_SENGLISHCOUNTRYNAME, buf, 32])[0] == 14
     assert emu.mem_read(buf, 14 * width) == "United States\x00".encode(enc)
 
 
@@ -565,7 +567,9 @@ def test_wait_returns_while_a_thread_is_queued(idle_emu: Speakeasy) -> None:
 
 
 def test_wait_returns_for_a_thread(idle_emu: Speakeasy) -> None:
-    thread, _ = call(idle_emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    thread, _ = call(
+        idle_emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, THREAD_CREATION_FLAGS.THREAD_CREATE_SUSPENDED, 0]
+    )
     assert wait_one(idle_emu, thread) == windefs.WAIT_OBJECT_0
     assert wait_many(idle_emu, [thread], 1) == windefs.WAIT_OBJECT_0
 
@@ -1153,7 +1157,9 @@ def test_current_thread_pseudo_handle(request: pytest.FixtureRequest, fixture: s
 
 def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
     runs = len(emu.emu.run_queue)
-    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    hnd, _ = call(
+        emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, THREAD_CREATION_FLAGS.THREAD_CREATE_SUSPENDED, 0]
+    )
     assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 1
     assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 2
     assert len(emu.emu.run_queue) == runs
@@ -1166,7 +1172,9 @@ def test_resume_thread_starts_a_suspended_thread_once(emu: Speakeasy) -> None:
 def test_suspend_thread_holds_a_queued_thread_until_resume(emu: Speakeasy) -> None:
     start_process(emu)
     runs = len(emu.emu.run_queue)
-    hnd, _ = call(emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, windefs.CREATE_SUSPENDED, 0])
+    hnd, _ = call(
+        emu, "kernel32", "CreateThread", [0, 0, 0x401000, 0, THREAD_CREATION_FLAGS.THREAD_CREATE_SUSPENDED, 0]
+    )
     assert call(emu, "kernel32", "ResumeThread", [hnd])[0] == 1
     assert call(emu, "kernel32", "SuspendThread", [hnd])[0] == 0
     assert len(emu.emu.run_queue) == runs

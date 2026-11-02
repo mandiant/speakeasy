@@ -15,7 +15,8 @@ from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS
+from speakeasy.winenv.defs.windows.kernel32 import CREATE_TOOLHELP_SNAPSHOT_FLAGS
+from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 PAGE_READWRITE = 0x04
@@ -382,7 +383,9 @@ def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
     app = alloc(se, b"c:\\Windows\\system32\\cmd.exe\x00")
     si = alloc(se, b"\x00" * 0x44)
     pi = alloc(se, b"\x00" * 0x10)
-    ok, _ = call(se, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, windefs.CREATE_SUSPENDED, 0, 0, si, pi])
+    ok, _ = call(
+        se, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, PROCESS_CREATION_FLAGS.CREATE_SUSPENDED, 0, 0, si, pi]
+    )
     assert ok
     hproc, hthread = struct.unpack("<II", se.mem_read(pi, 8))
     return hproc, hthread
@@ -466,15 +469,13 @@ def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speak
     assert len(dll_emu.emu.run_queue) == queued
 
 
-TH32CS_SNAPALL = 0xF
-TH32CS_SNAPPROCESS = 0x2
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 
 @pytest.mark.parametrize(
     "flags, walks",
     [
-        (TH32CS_SNAPALL, ["Process32First", "Thread32First", "Module32First"]),
+        (CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPALL, ["Process32First", "Thread32First", "Module32First"]),
         (0x8 | 0x10, ["Module32First"]),
         (0x80000000 | 0x2, ["Process32First"]),
         (0x2 | 0x4, ["Process32FirstW", "Thread32First"]),
@@ -491,7 +492,7 @@ def test_toolhelp_snapshot_holds_every_requested_list(dll_emu: Speakeasy, flags:
 
 
 def list_processes(se: Speakeasy) -> dict[int, str]:
-    hsnap, _ = call(se, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    hsnap, _ = call(se, "kernel32", "CreateToolhelp32Snapshot", [CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS, 0])
     entry = k32defs.PROCESSENTRY32(se.get_ptr_size(), 1)
     entry.dwSize = entry.sizeof()
     addr = alloc(se, entry.get_bytes())
@@ -510,7 +511,9 @@ def list_processes(se: Speakeasy) -> dict[int, str]:
 def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, width: int) -> None:
     start_process(dll_emu)
     explorer = next(p.pid for p in dll_emu.emu.get_processes() if p.name == "explorer")
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    hsnap, _ = call(
+        dll_emu, "kernel32", "CreateToolhelp32Snapshot", [CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS, 0]
+    )
     entry = k32defs.PROCESSENTRY32(dll_emu.get_ptr_size(), width)
     size = entry.sizeof()
     addr = alloc(dll_emu, b"\x00" * size)
@@ -539,7 +542,9 @@ def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> 
 
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    hsnap, _ = call(dll_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    hsnap, _ = call(
+        dll_emu, "kernel32", "CreateToolhelp32Snapshot", [CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS, 0]
+    )
     assert call(dll_emu, "kernel32", "CloseHandle", [hsnap])[0] == 1
     assert call(dll_emu, "kernel32", "CloseHandle", [hsnap])[0] == 0
     entry = alloc(dll_emu, struct.pack("<I", 0x128) + b"\x00" * 0x124)
@@ -1218,7 +1223,9 @@ def test_the_main_process_can_open_itself(exe_emu: Speakeasy) -> None:
 def test_toolhelp_lists_the_main_process_once(exe_emu: Speakeasy) -> None:
     pid, _ = call(exe_emu, "kernel32", "GetCurrentProcessId", [])
     pids = []
-    hsnap, _ = call(exe_emu, "kernel32", "CreateToolhelp32Snapshot", [TH32CS_SNAPPROCESS, 0])
+    hsnap, _ = call(
+        exe_emu, "kernel32", "CreateToolhelp32Snapshot", [CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS, 0]
+    )
     entry = k32defs.PROCESSENTRY32(exe_emu.get_ptr_size(), 1)
     entry.dwSize = entry.sizeof()
     addr = alloc(exe_emu, entry.get_bytes())
