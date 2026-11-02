@@ -3035,7 +3035,7 @@ class Msvcrt(api.ApiHandler):
         return dst
 
     def get_block_size(self, emu, mem):
-        size = next((n for a, n, _ in reversed(emu.heap_allocs) if a == mem), None)
+        size = next((n for a, n, _ in reversed(emu.get_heap_allocs()) if a == mem), None)
         if size is None:
             mm = emu.get_address_map(mem)
             size = mm.base + mm.size - mem if mm else 0

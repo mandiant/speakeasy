@@ -346,7 +346,6 @@ class WindowsEmulator(BinaryEmulator):
         self.unicode_strings: list[str] = []
         self.run_queue: list[Run] = []
         self.suspended_runs: list[Run] = []
-        self.cd: str = ""
         self.is_reserved_range_unmapped: bool = True
         self.curr_process: Any | None = None
         self.om: objman.ObjectManager | None = None
@@ -373,15 +372,16 @@ class WindowsEmulator(BinaryEmulator):
         self.is_run_complete: bool = False
         self.is_emu_complete: bool = False
         self.processes: list[Any] = []
-        self.heap_allocs: list[tuple[int, int, str]] = []
         # Child processes created by calls to CreateProcess
         # by any module. This is separate from self.processes in order
         # to not mix up config processes with child processes
         self.child_processes: list[Any] = []
         self.curr_thread: Any | None = None
         self.prev_pc: int = 0
-        # The exception handlers and function tables of the kernel, and of a user-mode emulator before a process
-        # exists. Each process has its own.
+        # The state of the kernel, and of a user-mode emulator before a process exists. Each process has its own.
+        # The environment is in BinaryEmulator.env.
+        self.cd: str = ""
+        self.heap_allocs: list[tuple[int, int, str]] = []
         self.veh_handlers: list[int] = []
         self.unhandled_exception_filter: int = 0
         self.function_tables: list[unwind.FunctionTable] = []
@@ -1456,7 +1456,7 @@ class WindowsEmulator(BinaryEmulator):
             addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
         except OutOfMemoryError:
             return 0
-        self.heap_allocs.append((addr, size, heap))
+        self.get_heap_allocs().append((addr, size, heap))
         return addr
 
     def pool_alloc(self, pooltype, size, tag="None") -> int:
@@ -1861,28 +1861,30 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_system_root(self):
         """Get the path of the "SYSTEMROOT" environment variable."""
-        sysroot = self.env.get("systemroot", "C:\\WINDOWS\\system32")
+        sysroot = self.get_env().get("systemroot", "C:\\WINDOWS\\system32")
         if not sysroot.endswith("\\"):
             sysroot += "\\"
         return sysroot
 
     def get_cd(self):
-        """Get the path of the current directory."""
-        if not self.cd:
-            self.cd = self.env.get("cd", "C:\\WINDOWS\\system32")
-            if not self.cd.endswith("\\"):
-                self.cd += "\\"
-        return self.cd
+        """Get the path of the current directory of the current process."""
+        state = self._get_process_state()
+        if not state.cd:
+            state.cd = state.env.get("cd", "C:\\WINDOWS\\system32")
+            if not state.cd.endswith("\\"):
+                state.cd += "\\"
+        return state.cd
 
     def set_cd(self, cd):
-        """Sets the current directory path."""
-        self.cd = cd
+        """Set the path of the current directory of the current process."""
+        self._get_process_state().cd = cd
 
     def get_env(self):
-        return self.env
+        """Get the environment variables of the current process, by lower-case name."""
+        return self._get_process_state().env
 
     def set_env(self, var, val):
-        return self.env.update({var.lower(): val})
+        return self.get_env().update({var.lower(): val})
 
     def get_object_from_addr(self, addr):
         om = self.get_object_manager("object lookup by address")
@@ -1927,6 +1929,10 @@ class WindowsEmulator(BinaryEmulator):
     def get_function_tables(self) -> list[unwind.FunctionTable]:
         """Get the function tables that the current process registered at runtime."""
         return self._get_process_state().function_tables
+
+    def get_heap_allocs(self) -> list[tuple[int, int, str]]:
+        """Get the address, size and heap name of each block that heap_alloc returned in the current process."""
+        return self._get_process_state().heap_allocs
 
     def get_pseudo_handle_object(self, handle: int) -> Any:
         """Get the current process for the pseudo handle -1, the current thread for -2, else None."""

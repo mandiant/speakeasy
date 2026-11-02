@@ -74,7 +74,7 @@ def test_finished_parent_gives_up_its_image_peb_and_heap(config, load_test_bin):
         se.run_module(module, emulate_children=True)
         parent = se.emu.processes[0]
         maps = se.emu.get_mem_maps()
-        heap = [address for address, _, name in se.emu.heap_allocs if name == "LocalAlloc"]
+        heap = [address for address, _, name in parent.heap_allocs if name == "LocalAlloc"]
 
     assert parent.pe is module
     assert module not in se.emu.modules
@@ -102,3 +102,23 @@ def test_child_does_not_get_the_exception_handlers_of_the_parent(config, load_te
 
     assert parent == ([module.base + 0x1000], module.base + 0x1100)
     assert child == ([], 0)
+
+
+def test_child_gets_a_copy_of_the_directory_and_environment_of_the_parent(config, load_test_bin):
+    def create_process(e, api, original, args):
+        e.set_cd("C:\\parent\\")
+        rv = original(args)
+        e.set_env("after", "1")
+        return rv
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+        se.add_api_hook(create_process, "kernel32", "CreateProcessA")
+        se.run_module(module, emulate_children=True)
+        child = (se.emu.get_cd(), "after" in se.emu.get_env())
+        se.emu.set_current_process(se.emu.processes[0])
+        parent = (se.emu.get_cd(), "after" in se.emu.get_env())
+
+    assert parent == ("C:\\parent\\", True)
+    assert child == ("C:\\parent\\", False)
