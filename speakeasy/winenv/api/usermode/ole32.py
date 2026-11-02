@@ -11,6 +11,7 @@ from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
+    from speakeasy.windows.win32 import Win32Emulator
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class Ole32(api.ApiHandler):
             self.com_init.pop(tid, None)
 
     @apihook("OleInitialize", argc=1)
-    def OleInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OleInitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT OleInitialize(
             LPVOID pvReserved
@@ -54,14 +55,14 @@ class Ole32(api.ApiHandler):
         return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
 
     @apihook("OleUninitialize", argc=0)
-    def OleUninitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OleUninitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void OleUninitialize();
         """
         self.co_uninitialize(emu)
 
     @apihook("CoInitialize", argc=1)
-    def CoInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoInitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitialize(
             LPVOID pvReserved
@@ -70,7 +71,7 @@ class Ole32(api.ApiHandler):
         return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
 
     @apihook("CoInitializeEx", argc=2)
-    def CoInitializeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoInitializeEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitializeEx(
             LPVOID pvReserved,
@@ -81,14 +82,14 @@ class Ole32(api.ApiHandler):
         return self.co_initialize(emu, dwCoInit & com.COINIT_APARTMENTTHREADED)
 
     @apihook("CoUninitialize", argc=0)
-    def CoUninitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoUninitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void CoUninitialize();
         """
         self.co_uninitialize(emu)
 
     @apihook("CoInitializeSecurity", argc=9)
-    def CoInitializeSecurity(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoInitializeSecurity(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitializeSecurity(
             PSECURITY_DESCRIPTOR pSecDesc,
@@ -115,7 +116,7 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CoCreateInstance", argc=5)
-    def CoCreateInstance(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoCreateInstance(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoCreateInstance(
             REFCLSID rclsid,
@@ -155,7 +156,7 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CoGetObject", argc=4)
-    def CoGetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoGetObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoGetObject(
             LPCWSTR pszName,
@@ -175,7 +176,7 @@ class Ole32(api.ApiHandler):
         return com.MK_E_SYNTAX
 
     @apihook("CoSetProxyBlanket", argc=8)
-    def CoSetProxyBlanket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoSetProxyBlanket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoSetProxyBlanket(
             IUnknown *pProxy,
@@ -191,7 +192,7 @@ class Ole32(api.ApiHandler):
         return windefs.S_OK
 
     @apihook("StringFromCLSID", argc=2)
-    def StringFromCLSID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StringFromCLSID(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT StringFromCLSID(
             REFCLSID rclsid,
@@ -215,7 +216,7 @@ class Ole32(api.ApiHandler):
         return rv
 
     @apihook("CLSIDFromProgID", argc=2)
-    def CLSIDFromProgID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CLSIDFromProgID(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CLSIDFromProgID(
             LPCOLESTR lpszProgID,
@@ -235,7 +236,7 @@ class Ole32(api.ApiHandler):
         return windefs.S_OK
 
     @apihook("CLSIDFromProgIDEx", argc=2)
-    def CLSIDFromProgIDEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CLSIDFromProgIDEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CLSIDFromProgIDEx(
             LPCOLESTR lpszProgID,
@@ -245,7 +246,7 @@ class Ole32(api.ApiHandler):
         return self.CLSIDFromProgID(emu, argv, ctx)
 
     @apihook("StringFromGUID2", argc=3)
-    def StringFromGUID2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StringFromGUID2(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StringFromGUID2(
             REFGUID rguid,
@@ -265,7 +266,7 @@ class Ole32(api.ApiHandler):
         return len(u)
 
     @apihook("CoTaskMemAlloc", argc=1)
-    def CoTaskMemAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoTaskMemAlloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPVOID CoTaskMemAlloc(
             SIZE_T cb
@@ -275,7 +276,7 @@ class Ole32(api.ApiHandler):
         return self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
 
     @apihook("CoTaskMemRealloc", argc=2)
-    def CoTaskMemRealloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoTaskMemRealloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPVOID CoTaskMemRealloc(
             LPVOID pv,
@@ -297,7 +298,7 @@ class Ole32(api.ApiHandler):
         return new
 
     @apihook("CoTaskMemFree", argc=1)
-    def CoTaskMemFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoTaskMemFree(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void CoTaskMemFree(
             LPVOID pv
@@ -308,7 +309,7 @@ class Ole32(api.ApiHandler):
             self.heap_free(pv)
 
     @apihook("CoCreateGuid", argc=1)
-    def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CoCreateGuid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoCreateGuid(
             GUID *pguid
