@@ -7,6 +7,7 @@ Handler rules:
 - specify `argc` so stack cleanup is correct
 - if calling convention is omitted, stdcall is assumed
 - `argv` contains the raw integer argument slots; handlers do not change it
+- annotate `argv` as `list[int]` and `emu` as the emulator that runs the handler: `Win32Emulator` in `usermode` modules and `WinKernelEmulator` in `kernelmode` modules. msvcrt and ntoskrnl handlers run in both modes, so they use `WindowsEmulator`
 - to show a decoded value in the report, set the `display` of the argument in `ctx.args` (for example `ctx.args["lpFileName"].display = path`)
 - return the value expected by the sample path
 - start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. The function name is the hook name: a hook without the `A` or `W` suffix uses the generic name and TCHAR types (`LPCTSTR`). Parameter names come from the Microsoft documentation. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
@@ -21,7 +22,7 @@ An API set uses the handlers of the module that implements it. `DLL_HOSTS` in `s
 
 ```python
 @apihook("HeapAlloc", argc=3)
-def HeapAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+def HeapAlloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
     """
     LPVOID HeapAlloc(
         HANDLE hHeap,
