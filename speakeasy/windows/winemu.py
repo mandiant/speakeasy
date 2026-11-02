@@ -30,7 +30,7 @@ from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
-from speakeasy.profiler_events import ApiArg, TracePosition
+from speakeasy.profiler_events import ApiArg, EventType, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
@@ -617,6 +617,104 @@ class WindowsEmulator(BinaryEmulator):
         if path:
             return self.regman.get_key_from_path(path)
         return self.regman.get_key_from_handle(handle)
+
+    def get_trace_position(self) -> TracePosition:
+        """Get the position of the current run, thread, process and program counter, for a report event."""
+        run = self.get_current_run()
+        thread = self.get_current_thread()
+        proc = self.get_current_process()
+        tick = run.instr_cnt if run else 0
+        tid = thread.tid if thread else 0
+        pid = proc.id if proc else 0
+        pc = None
+        try:
+            pc = self.get_pc()
+        except Exception:
+            pc = None
+        return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
+
+    def record_file_event(
+        self, path, event_type: EventType, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
+    ):
+        """Record a file or directory event in the report."""
+        logger.debug("%s: %s", event_type.value, path)
+        if self.profiler:
+            self.profiler.record_file_access_event(
+                self.get_current_run(),
+                self.get_trace_position(),
+                path,
+                event_type,
+                data,
+                handle,
+                disposition,
+                access,
+                buffer,
+                size,
+            )
+
+    def record_registry_event(
+        self,
+        path,
+        event_type: EventType,
+        value_name=None,
+        data=None,
+        handle=0,
+        disposition=None,
+        access=None,
+        buffer=0,
+        size=None,
+    ):
+        """Record a registry key or value event in the report."""
+        logger.debug("%s: %s", event_type.value, path)
+        if self.profiler:
+            self.profiler.record_registry_access_event(
+                self.get_current_run(),
+                self.get_trace_position(),
+                path,
+                event_type,
+                value_name,
+                data,
+                handle,
+                disposition,
+                access,
+                buffer,
+                size,
+            )
+
+    def record_dns_event(self, domain, ip=""):
+        """Record a DNS name lookup in the report."""
+        logger.debug("dns: %s -> %s", domain, ip)
+        if self.profiler:
+            self.profiler.record_dns_event(self.get_current_run(), self.get_trace_position(), domain, ip)
+
+    def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+        """Record socket activity in the report."""
+        logger.debug("net: %s:%d %s", server, port, proto)
+        if self.profiler:
+            self.profiler.record_network_event(
+                self.get_current_run(),
+                self.get_trace_position(),
+                server,
+                port,
+                typ=typ,
+                proto=proto,
+                data=data,
+                method=method,
+            )
+
+    def record_http_event(self, server, port, headers="", body=b"", secure=False):
+        """Record an HTTP request in the report."""
+        logger.debug("http: %s:%d", server, port)
+        if self.profiler:
+            self.profiler.record_http_event(
+                self.get_current_run(),
+                self.get_trace_position(),
+                server,
+                port,
+                headers=headers,
+                body=body,
+                secure=secure,
+            )
 
     def _unmap_reserved_range(self):
         """Unmap reserved memory space so we can handle events (e.g. import APIs, entry point returns, etc.)."""

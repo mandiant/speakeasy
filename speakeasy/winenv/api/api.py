@@ -14,7 +14,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
-from speakeasy.profiler_events import ApiArg, EventType, TracePosition
+from speakeasy.profiler_events import ApiArg, EventType
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -425,38 +425,17 @@ class ApiHandler:
         run.args = run_args
         self.emu.add_run(run)
 
-    def _get_current_trace_position(self) -> TracePosition:
-        run = self.emu.get_current_run()
-        thread = self.emu.get_current_thread()
-        proc = self.emu.get_current_process()
-        tick = run.instr_cnt if run else 0
-        tid = thread.tid if thread else 0
-        pid = proc.id if proc else 0
-        pc = None
-        try:
-            pc = self.emu.get_pc()
-        except Exception:
-            pc = None
-        return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
-
     def record_file_access_event(
         self, path, event_type: EventType, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
     ):
-        logger.debug("%s: %s", event_type.value, path)
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
-            profiler.record_file_access_event(
-                run, pos, path, event_type, data, handle, disposition, access, buffer, size
-            )
+        self.emu.record_file_event(path, event_type, data, handle, disposition, access, buffer, size)
 
     def record_process_event(self, proc, event_type: EventType, **kwargs):
         logger.debug("%s: pid=%d", event_type.value, proc.id)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
+            pos = self.emu.get_trace_position()
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
     def record_registry_access_event(
@@ -471,38 +450,16 @@ class ApiHandler:
         buffer=0,
         size=None,
     ):
-        logger.debug("%s: %s", event_type.value, path)
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
-            profiler.record_registry_access_event(
-                run, pos, path, event_type, value_name, data, handle, disposition, access, buffer, size
-            )
+        self.emu.record_registry_event(path, event_type, value_name, data, handle, disposition, access, buffer, size)
 
     def record_dns_event(self, domain, ip=""):
-        logger.debug("dns: %s -> %s", domain, ip)
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
-            profiler.record_dns_event(run, pos, domain, ip)
+        self.emu.record_dns_event(domain, ip)
 
     def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
-        logger.debug("net: %s:%d %s", server, port, proto)
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
-            profiler.record_network_event(run, pos, server, port, typ=typ, proto=proto, data=data, method=method)
+        self.emu.record_network_event(server, port, typ=typ, proto=proto, data=data, method=method)
 
     def record_http_event(self, server, port, headers="", body=b"", secure=False):
-        logger.debug("http: %s:%d", server, port)
-        profiler = self.emu.get_profiler()
-        if profiler:
-            run = self.emu.get_current_run()
-            pos = self._get_current_trace_position()
-            profiler.record_http_event(run, pos, server, port, headers=headers, body=body, secure=secure)
+        self.emu.record_http_event(server, port, headers=headers, body=body, secure=secure)
 
     def get_max_int(self):
         # Byte order is irrelevant here
