@@ -51,12 +51,17 @@ def hook_messagebox(emu, api_name, func, params):
 
 For runnable scripts, see [../examples](../examples/).
 
+## Errors
+
+The library raises the exceptions in `speakeasy.errors`, which all derive from `SpeakeasyError`. A missing or unsupported input raises `InputError`, and a configuration or volume that is not valid raises `ConfigError`. [Python exceptions](errors.md) lists the tree and the exceptions of each method.
+
 ## Related docs
 
 - [Project README](../README.md)
 - [Documentation index](index.md)
 - [Configuration walkthrough](configuration.md)
 - [Report walkthrough](reporting.md)
+- [Python exceptions](errors.md)
 - [Mounting host files with --volume](volumes.md)
 - [GDB debugging reference](gdb.md)
 - [Help and troubleshooting](help.md)

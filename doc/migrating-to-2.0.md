@@ -126,3 +126,54 @@ These keys take one value from a fixed set. The schema lists them:
 2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `--analysis-coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`.
 
 The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.0.0, and the [report walkthrough](reporting.md) describes each key.
+
+## Exceptions
+
+The exceptions in `speakeasy.errors` now have a tree with `InputError`, `ConfigError`, `EmulationError` and `EngineError` below `SpeakeasyError`. See [Python exceptions](errors.md).
+
+Two classes have new names:
+
+| 1.x | 2.0 |
+|---|---|
+| `EmuException` | `CpuError` |
+| `EmuEngineError` | `EngineError` |
+
+The old names are aliases of the new classes for one release, so `except EmuException` still works. Change it to the new name.
+
+The `Speakeasy` constructor, `load_module` and `load_shellcode` check their arguments, and do not let exceptions of other packages go to the caller.
+
+| Call | 1.x | 2.0 |
+|---|---|---|
+| `load_shellcode` with an architecture that is not x86, x64 or amd64 | `unicorn.UcError` | `InputError` |
+| `load_shellcode` with a missing file | `FileNotFoundError` | `InputError` |
+| `load_module` with a missing file, or a file that is not a PE | `SpeakeasyError` | `InputError` |
+| `load_module` with a PE that pefile cannot parse | `pefile.PEFormatError` | `InputError` |
+| `load_module` with a PE that pefile parses but the loader cannot map | `ValueError` | `InputError` |
+| `load_module` with an unknown machine type | `KeyError` | `InputError` |
+| `load_module` with a PE that is not x86 or x64 | `SpeakeasyError` | `InputError` |
+| `Speakeasy(volumes=...)` with a malformed volume | `ValueError` | `ConfigError` |
+| `Speakeasy(volumes=...)` with a missing host path | `FileNotFoundError` | `ConfigError` |
+
+`load_shellcode` now takes the architecture name in any case, so `"X64"` works.
+
+Before:
+
+```python
+import unicorn
+
+try:
+    addr = se.load_shellcode(path, arch)
+except (FileNotFoundError, unicorn.UcError) as err:
+    print(f"cannot load {path}: {err}")
+```
+
+After:
+
+```python
+from speakeasy.errors import InputError
+
+try:
+    addr = se.load_shellcode(path, arch)
+except InputError as err:
+    print(f"cannot load {path}: {err}")
+```

@@ -14,7 +14,6 @@ import time
 from rich.console import Console
 from rich.logging import RichHandler
 
-import speakeasy.winenv.arch as e_arch
 from speakeasy import Speakeasy
 from speakeasy.cli_config import add_config_cli_arguments, get_active_config, get_config_cli_field_specs
 from speakeasy.config import SpeakeasyConfig
@@ -63,14 +62,6 @@ def emulate_binary(
             gdb_host=gdb_host,
         )
         if do_raw:
-            arch = arch.lower()
-            if arch == "x86":
-                arch = e_arch.ARCH_X86
-            elif arch in ("x64", "amd64"):
-                arch = e_arch.ARCH_AMD64
-            else:
-                raise Exception(f"Unsupported architecture: {arch}")
-
             sc_addr = se.load_shellcode(fpath, arch)
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:

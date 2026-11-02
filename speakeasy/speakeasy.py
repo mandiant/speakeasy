@@ -12,13 +12,13 @@ from io import BytesIO
 from pathlib import Path, PureWindowsPath
 from typing import Concatenate, ParamSpec, TypeVar
 
-from pefile import MACHINE_TYPE
+from pefile import MACHINE_TYPE, PEFormatError
 from pydantic import ValidationError
 
 from speakeasy import Win32Emulator, WinKernelEmulator
 from speakeasy.cli_config import output_active_config
 from speakeasy.config import SpeakeasyConfig
-from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
+from speakeasy.errors import ConfigError, InputError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
 from speakeasy.windows.common import _PeParser
@@ -80,8 +80,8 @@ class Speakeasy:
             gdb_host: Address on which the GDB server listens.
 
         Raises:
-            ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, or if the
-                configuration is not valid.
+            ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, if a volume
+                is malformed or its host path does not exist, or if the configuration is not valid.
         """
         if volumes and isinstance(config, SpeakeasyConfig):
             raise ConfigError(
@@ -92,7 +92,10 @@ class Speakeasy:
         if volumes:
             # Mount the volumes on the validated config, so that a partial dict keeps the default files.
             data = self.config.model_dump()
-            apply_volumes(data, volumes)
+            try:
+                apply_volumes(data, volumes)
+            except (ValueError, FileNotFoundError) as err:
+                raise ConfigError(f"Invalid volume: {err}") from err
             self._init_config(data)
         self._emu: Win32Emulator | WinKernelEmulator | None = None
         self.api_hooks: list[tuple[Callable, str, str, int, object | None]] = []
@@ -167,14 +170,18 @@ class Speakeasy:
         machine for the architecture of the PE.
 
         Raises:
-            SpeakeasyError: if the PE architecture is not x86 or x64.
+            InputError: if the PE is not valid, or its architecture is not x86 or x64.
             NotSupportedError: if the PE is a .NET assembly.
         """
-        pe = _PeParser(path=path, data=data)
+        try:
+            pe = _PeParser(path=path, data=data)
+        except (PEFormatError, ValueError) as err:
+            raise InputError(f"Target file is not a valid PE: {err}") from err
         # Get the machine type we only support x86/x64 atm
-        mach = MACHINE_TYPE[pe.FILE_HEADER.Machine].split("_")[-1:][0].lower()
+        machine = pe.FILE_HEADER.Machine
+        mach = MACHINE_TYPE.get(machine, f"0x{machine:x}").split("_")[-1].lower()
         if mach not in ("amd64", "i386"):
-            raise SpeakeasyError(f"Unsupported architecture: {mach}")
+            raise InputError(f"Unsupported architecture: {mach}")
 
         if pe.is_dotnet():
             raise NotSupportedError(".NET assemblies are not currently supported")
@@ -321,15 +328,15 @@ class Speakeasy:
             The loaded module object from the emulator.
 
         Raises:
-            SpeakeasyError: if neither ``path`` nor ``data`` is given, the file does not exist,
-                the input is not a PE, or its architecture is not x86 or x64.
+            InputError: if neither ``path`` nor ``data`` is given, the file does not exist,
+                the input is not a valid PE, or its architecture is not x86 or x64.
             NotSupportedError: if the PE is a .NET assembly.
         """
         if not path and not data:
-            raise SpeakeasyError("No emulation target supplied")
+            raise InputError("No emulation target supplied")
 
         if path and not os.path.exists(path):
-            raise SpeakeasyError(f"Target file not found: {path}")
+            raise InputError(f"Target file not found: {path}")
 
         if data:
             test = data
@@ -340,14 +347,18 @@ class Speakeasy:
         self.loaded_bins.append(path)
 
         if not self.is_pe(test):
-            raise SpeakeasyError("Target file is not a PE")
+            raise InputError("Target file is not a PE")
 
         if path:
             self._auto_mount_target_directory(path)
 
         self._init_pe_emulator(path=path, data=data)
 
-        return self.emu.load_module(path=path, data=data, filename=filename)
+        try:
+            return self.emu.load_module(path=path, data=data, filename=filename)
+        except ValueError as err:
+            # PeLoader raises ValueError for a PE that pefile parses but that cannot be mapped.
+            raise InputError(f"Target file is not a valid PE: {err}") from err
 
     def load_image(self, image):
         """
@@ -401,20 +412,32 @@ class Speakeasy:
 
         Args:
             fpath: File path of the shellcode blob.
-            arch: Architecture (``x86`` or ``amd64``) to load the shellcode as.
-                Other values select x86.
+            arch: Architecture to load the shellcode as: ``x86``, ``x64`` or ``amd64`` in any case,
+                or ``ARCH_X86`` or ``ARCH_AMD64`` from ``speakeasy.winenv.arch``.
             data: Bytes of the shellcode blob.
             filename: Override for the module filename that the emulated program sees.
 
         Returns:
             Address of the loaded shellcode in the emulation space.
+
+        Raises:
+            InputError: if neither ``fpath`` nor ``data`` is given, the file does not exist,
+                or ``arch`` is not one of the values above.
         """
+        sc_arch = SHELLCODE_ARCH.get(arch.lower() if isinstance(arch, str) else arch)
+        if sc_arch is None:
+            raise InputError(f"Unsupported shellcode architecture: {arch!r}")
+        if fpath is None and data is None:
+            raise InputError("No emulation target supplied")
+        if data is None and not os.path.exists(fpath):
+            raise InputError(f"Target file not found: {fpath}")
+
         emu = self._init_user_emulator()
-        emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86))
+        emu.init_machine(sc_arch)
         emu.load_container()
         self.loaded_bins.append(fpath)
 
-        return emu.load_shellcode(fpath, arch, data=data, filename=filename)
+        return emu.load_shellcode(fpath, sc_arch, data=data, filename=filename)
 
     @check_init
     @execution_scope
@@ -710,6 +733,10 @@ class Speakeasy:
 
         Returns:
             Address of the newly allocated memory block.
+
+        Raises:
+            OutOfMemoryError: if no free range below the address limit can hold the block.
+            SpeakeasyError: if the emulator does not exist.
         """
         return self.emu.mem_map(size, base=base, tag=tag)
 
@@ -755,11 +782,23 @@ class Speakeasy:
         return self.emu.mem_cast(obj, addr)
 
     def reg_read(self, reg: str) -> int:
-        """Read the value of a register by name."""
+        """
+        Read the value of a register by name.
+
+        Raises:
+            CpuError: if ``reg`` is not a register name.
+            SpeakeasyError: if the emulator does not exist.
+        """
         return self.emu.reg_read(reg)
 
     def reg_write(self, reg: str, val: int) -> None:
-        """Write a value to a register by name."""
+        """
+        Write a value to a register by name.
+
+        Raises:
+            CpuError: if ``reg`` is not a register name.
+            SpeakeasyError: if the emulator does not exist.
+        """
         return self.emu.reg_write(reg, val)
 
     def get_dropped_files(self) -> list:
