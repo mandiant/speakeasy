@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Msvfw32(api.ApiHandler):
@@ -21,7 +26,7 @@ class Msvfw32(api.ApiHandler):
         return handle
 
     @apihook("ICOpen", argc=3)
-    def ICOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ICOpen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HIC ICOpen(
             DWORD fccType,
@@ -33,7 +38,7 @@ class Msvfw32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("ICSendMessage", argc=4)
-    def ICSendMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ICSendMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT ICSendMessage(
             HIC hic,
@@ -46,7 +51,7 @@ class Msvfw32(api.ApiHandler):
         return 1
 
     @apihook("ICClose", argc=1)
-    def ICClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ICClose(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT ICClose(
             HIC hic
@@ -55,14 +60,14 @@ class Msvfw32(api.ApiHandler):
         return 1
 
     @apihook("DrawDibOpen", argc=0)
-    def DrawDibOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DrawDibOpen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDRAWDIB DrawDibOpen();
         """
         return self.get_handle()
 
     @apihook("DrawDibClose", argc=1)
-    def DrawDibClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DrawDibClose(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DrawDibClose(
             HDRAWDIB hdd
@@ -71,7 +76,7 @@ class Msvfw32(api.ApiHandler):
         return 1
 
     @apihook("DrawDibDraw", argc=13)
-    def DrawDibDraw(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DrawDibDraw(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DrawDibDraw(
             HDRAWDIB hdd,
