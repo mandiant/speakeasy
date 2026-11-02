@@ -14,7 +14,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
-from speakeasy.profiler_events import ApiArg, TracePosition
+from speakeasy.profiler_events import ApiArg, EventType, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -440,9 +440,9 @@ class ApiHandler:
         return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
 
     def record_file_access_event(
-        self, path, event_type, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
+        self, path, event_type: EventType, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
     ):
-        logger.debug("file_%s: %s", event_type, path)
+        logger.debug("%s: %s", event_type.value, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
@@ -451,8 +451,8 @@ class ApiHandler:
                 run, pos, path, event_type, data, handle, disposition, access, buffer, size
             )
 
-    def record_process_event(self, proc, event_type, **kwargs):
-        logger.debug("process_%s: pid=%d", event_type, proc.id)
+    def record_process_event(self, proc, event_type: EventType, **kwargs):
+        logger.debug("%s: pid=%d", event_type.value, proc.id)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()
@@ -460,9 +460,18 @@ class ApiHandler:
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
     def record_registry_access_event(
-        self, path, event_type, value_name=None, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
+        self,
+        path,
+        event_type: EventType,
+        value_name=None,
+        data=None,
+        handle=0,
+        disposition=None,
+        access=None,
+        buffer=0,
+        size=None,
     ):
-        logger.debug("reg_%s: %s", event_type, path)
+        logger.debug("%s: %s", event_type.value, path)
         profiler = self.emu.get_profiler()
         if profiler:
             run = self.emu.get_current_run()

@@ -12,26 +12,11 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
 from speakeasy.errors import SpeakeasyError
 from speakeasy.profiler_events import (
-    FILE_CREATE,
-    FILE_OPEN,
-    FILE_READ,
-    FILE_WRITE,
-    MEM_ALLOC,
-    MEM_FREE,
-    MEM_PROTECT,
-    MEM_READ,
-    MEM_WRITE,
-    PROC_CREATE,
-    REG_CREATE,
-    REG_LIST,
-    REG_OPEN,
-    REG_READ,
-    REG_WRITE,
-    THREAD_CREATE,
-    THREAD_INJECT,
     AnyEvent,
     ApiArg,
     ApiEvent,
+    DirectoryCreateEvent,
+    EventType,
     ExceptionEvent,
     FileCreateEvent,
     FileOpenEvent,
@@ -283,7 +268,7 @@ class Profiler:
         run,
         pos: TracePosition,
         path,
-        event_type,
+        event_type: EventType,
         data=None,
         handle=0,
         disposition=None,
@@ -295,10 +280,13 @@ class Profiler:
         Log file access events.
 
         This includes handles being opened, data reads, and data writes.
+
+        Raises:
+            ValueError: if ``event_type`` is not a file event type.
         """
         data_ref = self.put_binary_data(data or b"", limit=1024)
 
-        for et in (FILE_WRITE, FILE_READ):
+        for et in (EventType.FILE_WRITE, EventType.FILE_READ):
             if event_type == et:
                 for evt in reversed(run.events):
                     if isinstance(evt, (FileWriteEvent, FileReadEvent)) and evt.path == path and evt.event == et:
@@ -319,7 +307,7 @@ class Profiler:
             access_flags = access if isinstance(access, list) else [access]
 
         event: AnyEvent
-        if event_type == FILE_CREATE:
+        if event_type == EventType.FILE_CREATE:
             event = FileCreateEvent(
                 pos=pos,
                 path=path,
@@ -327,7 +315,7 @@ class Profiler:
                 open_flags=open_flags,
                 access_flags=access_flags,
             )
-        elif event_type == FILE_OPEN:
+        elif event_type == EventType.FILE_OPEN:
             event = FileOpenEvent(
                 pos=pos,
                 path=path,
@@ -335,7 +323,7 @@ class Profiler:
                 open_flags=open_flags,
                 access_flags=access_flags,
             )
-        elif event_type == FILE_READ:
+        elif event_type == EventType.FILE_READ:
             event = FileReadEvent(
                 pos=pos,
                 path=path,
@@ -344,7 +332,7 @@ class Profiler:
                 data_ref=data_ref,
                 buffer=buffer_str,
             )
-        elif event_type == FILE_WRITE:
+        elif event_type == EventType.FILE_WRITE:
             event = FileWriteEvent(
                 pos=pos,
                 path=path,
@@ -353,8 +341,10 @@ class Profiler:
                 data_ref=data_ref,
                 buffer=buffer_str,
             )
+        elif event_type == EventType.DIRECTORY_CREATE:
+            event = DirectoryCreateEvent(pos=pos, path=path)
         else:
-            return
+            raise ValueError(f"not a file event type: {event_type}")
 
         run.events.append(event)
 
@@ -363,7 +353,7 @@ class Profiler:
         run,
         pos: TracePosition,
         path,
-        event_type,
+        event_type: EventType,
         value_name=None,
         data=None,
         handle=0,
@@ -376,6 +366,9 @@ class Profiler:
         Log registry access events.
 
         This includes values and keys being accessed, read, and written.
+
+        Raises:
+            ValueError: if ``event_type`` is not a registry event type.
         """
         data_ref = self.put_binary_data(data or b"", limit=1024)
 
@@ -390,7 +383,7 @@ class Profiler:
             access_flags_list = access if isinstance(access, list) else [access]
 
         event: AnyEvent
-        if event_type == REG_OPEN:
+        if event_type == EventType.REG_OPEN_KEY:
             event = RegOpenKeyEvent(
                 pos=pos,
                 path=path,
@@ -398,7 +391,7 @@ class Profiler:
                 open_flags=open_flags,
                 access_flags=access_flags_list,
             )
-        elif event_type == REG_CREATE:
+        elif event_type == EventType.REG_CREATE_KEY:
             event = RegCreateKeyEvent(
                 pos=pos,
                 path=path,
@@ -406,7 +399,7 @@ class Profiler:
                 open_flags=open_flags,
                 access_flags=access_flags_list,
             )
-        elif event_type == REG_READ:
+        elif event_type == EventType.REG_READ_VALUE:
             event = RegReadValueEvent(
                 pos=pos,
                 path=path,
@@ -416,7 +409,7 @@ class Profiler:
                 data_ref=data_ref,
                 buffer=buffer_str,
             )
-        elif event_type == REG_WRITE:
+        elif event_type == EventType.REG_WRITE_VALUE:
             event = RegWriteValueEvent(
                 pos=pos,
                 path=path,
@@ -426,18 +419,18 @@ class Profiler:
                 data_ref=data_ref,
                 buffer=buffer_str,
             )
-        elif event_type == REG_LIST:
+        elif event_type == EventType.REG_LIST_SUBKEYS:
             event = RegListSubkeysEvent(
                 pos=pos,
                 path=path,
                 handle=handle_str,
             )
         else:
-            return
+            raise ValueError(f"not a registry event type: {event_type}")
 
         run.events.append(event)
 
-    def record_process_event(self, run, pos: TracePosition, proc, event_type, kwargs):
+    def record_process_event(self, run, pos: TracePosition, proc, event_type: EventType, kwargs):
         """
         Log events related to a process accessing another process.
 
@@ -449,12 +442,15 @@ class Profiler:
         event payload (``pid``) so the event stays in the actor's timeline. When the
         target is the actor's own process, the payload ``pid`` is left NULL, so a
         populated ``pid`` always means the operation crossed a process boundary.
+
+        Raises:
+            ValueError: if ``event_type`` is not a process, memory or thread event type.
         """
         pid = None if proc.id == pos.pid else proc.id
         path = proc.path
 
         event: AnyEvent
-        if event_type == PROC_CREATE:
+        if event_type == EventType.PROCESS_CREATE:
             event = ProcessCreateEvent(
                 pos=pos,
                 path=path,
@@ -462,7 +458,7 @@ class Profiler:
                 pid=pid,
             )
 
-        elif event_type == MEM_ALLOC:
+        elif event_type == EventType.MEM_ALLOC:
             event = MemAllocEvent(
                 pos=pos,
                 path=path,
@@ -472,7 +468,7 @@ class Profiler:
                 pid=pid,
             )
 
-        elif event_type == MEM_PROTECT:
+        elif event_type == EventType.MEM_PROTECT:
             event = MemProtectEvent(
                 pos=pos,
                 path=path,
@@ -482,7 +478,7 @@ class Profiler:
                 pid=pid,
             )
 
-        elif event_type == MEM_FREE:
+        elif event_type == EventType.MEM_FREE:
             event = MemFreeEvent(
                 pos=pos,
                 path=path,
@@ -491,7 +487,7 @@ class Profiler:
                 pid=pid,
             )
 
-        elif event_type == MEM_WRITE:
+        elif event_type == EventType.MEM_WRITE:
             base = kwargs["base"]
             size = kwargs["size"]
             data = kwargs["data"]
@@ -512,7 +508,7 @@ class Profiler:
             )
             self.last_data = [base, size]
 
-        elif event_type == MEM_READ:
+        elif event_type == EventType.MEM_READ:
             base = kwargs["base"]
             size = kwargs["size"]
             data = kwargs["data"]
@@ -533,7 +529,7 @@ class Profiler:
             )
             self.last_data = [base, size]
 
-        elif event_type == THREAD_INJECT:
+        elif event_type == EventType.THREAD_INJECT:
             event = ThreadInjectEvent(
                 pos=pos,
                 path=path,
@@ -543,7 +539,7 @@ class Profiler:
                 tid=kwargs.get("tid"),
             )
 
-        elif event_type == THREAD_CREATE:
+        elif event_type == EventType.THREAD_CREATE:
             event = ThreadCreateEvent(
                 pos=pos,
                 path=path,
@@ -554,7 +550,7 @@ class Profiler:
             )
 
         else:
-            return
+            raise ValueError(f"not a process event type: {event_type}")
 
         run.events.append(event)
         self.last_event = event

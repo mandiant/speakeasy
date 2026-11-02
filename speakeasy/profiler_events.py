@@ -1,36 +1,40 @@
+from enum import Enum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field
 
-# process events
-PROC_CREATE = "process_create"
-MEM_ALLOC = "mem_alloc"
-MEM_WRITE = "mem_write"
-MEM_READ = "mem_read"
-MEM_PROTECT = "mem_protect"
-MEM_FREE = "mem_free"
-THREAD_INJECT = "thread_inject"
-THREAD_CREATE = "thread_create"
 
-# file events
-FILE_CREATE = "file_create"
-FILE_WRITE = "file_write"
-FILE_OPEN = "file_open"
-FILE_READ = "file_read"
+class EventType(str, Enum):
+    """
+    Event type discriminators, as they appear in the ``event`` field of a report event.
 
-# registry events
-REG_OPEN = "reg_open_key"
-REG_READ = "reg_read_value"
-REG_WRITE = "reg_write_value"
-REG_LIST = "reg_list_subkeys"
-REG_CREATE = "reg_create_key"
+    Use ``StrEnum`` when the minimum Python version is 3.11.
+    """
 
-# network events
-
-# exception events
-
-# api events
-API = "api"
+    API = "api"
+    PROCESS_CREATE = "process_create"
+    MEM_ALLOC = "mem_alloc"
+    MEM_WRITE = "mem_write"
+    MEM_READ = "mem_read"
+    MEM_PROTECT = "mem_protect"
+    MEM_FREE = "mem_free"
+    MODULE_LOAD = "module_load"
+    THREAD_CREATE = "thread_create"
+    THREAD_INJECT = "thread_inject"
+    FILE_CREATE = "file_create"
+    FILE_OPEN = "file_open"
+    FILE_READ = "file_read"
+    FILE_WRITE = "file_write"
+    DIRECTORY_CREATE = "directory_create"
+    REG_OPEN_KEY = "reg_open_key"
+    REG_CREATE_KEY = "reg_create_key"
+    REG_READ_VALUE = "reg_read_value"
+    REG_WRITE_VALUE = "reg_write_value"
+    REG_LIST_SUBKEYS = "reg_list_subkeys"
+    NET_DNS = "net_dns"
+    NET_TRAFFIC = "net_traffic"
+    NET_HTTP = "net_http"
+    EXCEPTION = "exception"
 
 
 class TracePosition(BaseModel):
@@ -86,7 +90,9 @@ class Event(BaseModel):
             "Used to align event payloads with timeline and execution context."
         )
     )
-    event: str = Field(description=("Event type discriminator.\n\nDetermines which concrete payload schema applies."))
+    event: EventType = Field(
+        description=("Event type discriminator.\n\nDetermines which concrete payload schema applies.")
+    )
 
 
 class ApiArg(BaseModel):
@@ -129,7 +135,7 @@ class ApiEvent(Event):
     Use these entries to understand control flow and argument-level intent.
     """
 
-    event: Literal["api"] = Field(default="api", description="Discriminator for API call events.")
+    event: Literal[EventType.API] = Field(default=EventType.API, description="Discriminator for API call events.")
     api_name: str = Field(
         description=(
             "Resolved API name in ``module.function`` form.\n\n"
@@ -160,8 +166,8 @@ class ProcessCreateEvent(Event):
     These events indicate lateral execution or staged payload spawning.
     """
 
-    event: Literal["process_create"] = Field(
-        default="process_create",
+    event: Literal[EventType.PROCESS_CREATE] = Field(
+        default=EventType.PROCESS_CREATE,
         description="Discriminator for process creation events.",
     )
     path: str = Field(
@@ -191,7 +197,9 @@ class MemAllocEvent(Event):
     Commonly seen in injection and unpacking workflows.
     """
 
-    event: Literal["mem_alloc"] = Field(default="mem_alloc", description="Discriminator for memory allocation events.")
+    event: Literal[EventType.MEM_ALLOC] = Field(
+        default=EventType.MEM_ALLOC, description="Discriminator for memory allocation events."
+    )
     path: str = Field(description="Target process path associated with the allocation event.")
     base: str = Field(description="Allocated base address in hexadecimal string form.")
     size: str = Field(description="Allocation size in hexadecimal string form.")
@@ -218,7 +226,9 @@ class MemWriteEvent(Event):
     Use with thread/process events to identify code injection flows.
     """
 
-    event: Literal["mem_write"] = Field(default="mem_write", description="Discriminator for memory write events.")
+    event: Literal[EventType.MEM_WRITE] = Field(
+        default=EventType.MEM_WRITE, description="Discriminator for memory write events."
+    )
     path: str = Field(description="Target process path associated with the write event.")
     base: str = Field(description="Write start address in hexadecimal string form.")
     size: int = Field(description="Number of bytes written.")
@@ -245,7 +255,9 @@ class MemReadEvent(Event):
     Useful for identifying memory scraping or credential theft behavior.
     """
 
-    event: Literal["mem_read"] = Field(default="mem_read", description="Discriminator for memory read events.")
+    event: Literal[EventType.MEM_READ] = Field(
+        default=EventType.MEM_READ, description="Discriminator for memory read events."
+    )
     path: str = Field(description="Target process path associated with the read event.")
     base: str = Field(description="Read start address in hexadecimal string form.")
     size: int = Field(description="Number of bytes read.")
@@ -271,8 +283,8 @@ class MemProtectEvent(Event):
     This is a key indicator for RWX transitions and shellcode staging.
     """
 
-    event: Literal["mem_protect"] = Field(
-        default="mem_protect",
+    event: Literal[EventType.MEM_PROTECT] = Field(
+        default=EventType.MEM_PROTECT,
         description="Discriminator for memory protection change events.",
     )
     path: str = Field(description="Target process path associated with the protection change.")
@@ -300,7 +312,9 @@ class MemFreeEvent(Event):
     Use this to track lifecycle of allocation artifacts.
     """
 
-    event: Literal["mem_free"] = Field(default="mem_free", description="Discriminator for memory free events.")
+    event: Literal[EventType.MEM_FREE] = Field(
+        default=EventType.MEM_FREE, description="Discriminator for memory free events."
+    )
     path: str = Field(description="Target process path associated with the free event.")
     base: str = Field(description="Freed region base address in hexadecimal string form.")
     size: str = Field(description="Freed region size in hexadecimal string form.")
@@ -322,7 +336,9 @@ class ModuleLoadEvent(Event):
     Useful for dependency discovery and staged import behavior.
     """
 
-    event: Literal["module_load"] = Field(default="module_load", description="Discriminator for module load events.")
+    event: Literal[EventType.MODULE_LOAD] = Field(
+        default=EventType.MODULE_LOAD, description="Discriminator for module load events."
+    )
     name: str = Field(description="Loaded module name.")
     path: str = Field(description="Loaded module path in emulated filesystem space.")
     base: str = Field(description="Module base address in hexadecimal string form.")
@@ -339,8 +355,8 @@ class ThreadCreateEvent(Event):
     Combine with memory-write and start-address analysis for attribution.
     """
 
-    event: Literal["thread_create"] = Field(
-        default="thread_create",
+    event: Literal[EventType.THREAD_CREATE] = Field(
+        default=EventType.THREAD_CREATE,
         description="Discriminator for thread creation events.",
     )
     path: str = Field(description="Target process path where the thread is created.")
@@ -368,8 +384,8 @@ class ThreadInjectEvent(Event):
     Treat these as high-signal indicators of code injection behavior.
     """
 
-    event: Literal["thread_inject"] = Field(
-        default="thread_inject",
+    event: Literal[EventType.THREAD_INJECT] = Field(
+        default=EventType.THREAD_INJECT,
         description="Discriminator for thread injection events.",
     )
     path: str = Field(description="Target process path receiving the injected thread.")
@@ -396,7 +412,9 @@ class FileCreateEvent(Event):
     Use with follow-up write events to track dropped artifacts.
     """
 
-    event: Literal["file_create"] = Field(default="file_create", description="Discriminator for file create events.")
+    event: Literal[EventType.FILE_CREATE] = Field(
+        default=EventType.FILE_CREATE, description="Discriminator for file create events."
+    )
     path: str = Field(description="File path targeted by creation request.")
     handle: str | None = Field(default=None, description="Assigned file handle, when available.")
     open_flags: list[str] | None = Field(
@@ -418,7 +436,9 @@ class FileOpenEvent(Event):
     Use to reconstruct file-read dependency chains.
     """
 
-    event: Literal["file_open"] = Field(default="file_open", description="Discriminator for file open events.")
+    event: Literal[EventType.FILE_OPEN] = Field(
+        default=EventType.FILE_OPEN, description="Discriminator for file open events."
+    )
     path: str = Field(description="File path targeted by open request.")
     handle: str | None = Field(default=None, description="Assigned file handle, when available.")
     open_flags: list[str] | None = Field(
@@ -440,7 +460,9 @@ class FileReadEvent(Event):
     Useful for identifying configuration ingestion and payload loading.
     """
 
-    event: Literal["file_read"] = Field(default="file_read", description="Discriminator for file read events.")
+    event: Literal[EventType.FILE_READ] = Field(
+        default=EventType.FILE_READ, description="Discriminator for file read events."
+    )
     path: str = Field(description="File path associated with the read operation.")
     handle: str | None = Field(default=None, description="File handle used by the read operation.")
     size: int | None = Field(default=None, description="Number of bytes requested/read.")
@@ -463,7 +485,9 @@ class FileWriteEvent(Event):
     Combine with dropped-file summaries to recover persisted payloads.
     """
 
-    event: Literal["file_write"] = Field(default="file_write", description="Discriminator for file write events.")
+    event: Literal[EventType.FILE_WRITE] = Field(
+        default=EventType.FILE_WRITE, description="Discriminator for file write events."
+    )
     path: str = Field(description="File path associated with the write operation.")
     handle: str | None = Field(default=None, description="File handle used by the write operation.")
     size: int | None = Field(default=None, description="Number of bytes written.")
@@ -477,6 +501,21 @@ class FileWriteEvent(Event):
     )
 
 
+class DirectoryCreateEvent(Event):
+    """
+    Records directory creation.
+
+    Emitted when file APIs create a directory.
+
+    Use with file create events to track where a sample drops files.
+    """
+
+    event: Literal[EventType.DIRECTORY_CREATE] = Field(
+        default=EventType.DIRECTORY_CREATE, description="Discriminator for directory create events."
+    )
+    path: str = Field(description="Directory path targeted by the create request.")
+
+
 class RegOpenKeyEvent(Event):
     """
     Records registry key open operations.
@@ -486,8 +525,8 @@ class RegOpenKeyEvent(Event):
     Use these to identify configuration and persistence probing paths.
     """
 
-    event: Literal["reg_open_key"] = Field(
-        default="reg_open_key",
+    event: Literal[EventType.REG_OPEN_KEY] = Field(
+        default=EventType.REG_OPEN_KEY,
         description="Discriminator for registry key open events.",
     )
     path: str = Field(description="Registry key path targeted by the open operation.")
@@ -511,8 +550,8 @@ class RegCreateKeyEvent(Event):
     Strong signal for persistence and installation behavior.
     """
 
-    event: Literal["reg_create_key"] = Field(
-        default="reg_create_key",
+    event: Literal[EventType.REG_CREATE_KEY] = Field(
+        default=EventType.REG_CREATE_KEY,
         description="Discriminator for registry key create events.",
     )
     path: str = Field(description="Registry key path targeted by the create operation.")
@@ -536,8 +575,8 @@ class RegReadValueEvent(Event):
     Use this to identify configuration keys and anti-analysis checks.
     """
 
-    event: Literal["reg_read_value"] = Field(
-        default="reg_read_value",
+    event: Literal[EventType.REG_READ_VALUE] = Field(
+        default=EventType.REG_READ_VALUE,
         description="Discriminator for registry value read events.",
     )
     path: str = Field(description="Registry key path containing the queried value.")
@@ -560,8 +599,8 @@ class RegWriteValueEvent(Event):
     Use this to capture persistence and configuration mutations.
     """
 
-    event: Literal["reg_write_value"] = Field(
-        default="reg_write_value",
+    event: Literal[EventType.REG_WRITE_VALUE] = Field(
+        default=EventType.REG_WRITE_VALUE,
         description="Discriminator for registry value write events.",
     )
     path: str = Field(description="Registry key path containing the written value.")
@@ -584,8 +623,8 @@ class RegListSubkeysEvent(Event):
     Helps reveal discovery behavior for installed software and services.
     """
 
-    event: Literal["reg_list_subkeys"] = Field(
-        default="reg_list_subkeys",
+    event: Literal[EventType.REG_LIST_SUBKEYS] = Field(
+        default=EventType.REG_LIST_SUBKEYS,
         description="Discriminator for registry subkey enumeration events.",
     )
     path: str = Field(description="Registry key path being enumerated.")
@@ -601,7 +640,7 @@ class NetDnsEvent(Event):
     Use for C2 endpoint discovery and fallback behavior analysis.
     """
 
-    event: Literal["net_dns"] = Field(default="net_dns", description="Discriminator for DNS events.")
+    event: Literal[EventType.NET_DNS] = Field(default=EventType.NET_DNS, description="Discriminator for DNS events.")
     query: str = Field(description="Queried domain or hostname.")
     response: str | None = Field(
         default=None,
@@ -618,7 +657,9 @@ class NetTrafficEvent(Event):
     Use this for protocol flow reconstruction outside HTTP abstractions.
     """
 
-    event: Literal["net_traffic"] = Field(default="net_traffic", description="Discriminator for socket traffic events.")
+    event: Literal[EventType.NET_TRAFFIC] = Field(
+        default=EventType.NET_TRAFFIC, description="Discriminator for socket traffic events."
+    )
     server: str = Field(description="Remote endpoint hostname or IP address.")
     port: int = Field(description="Remote endpoint port number.")
     proto: str = Field(description="Protocol label such as tcp/udp variants.")
@@ -639,7 +680,7 @@ class NetHttpEvent(Event):
     Use these records to inspect request metadata and transmitted body content.
     """
 
-    event: Literal["net_http"] = Field(default="net_http", description="Discriminator for HTTP events.")
+    event: Literal[EventType.NET_HTTP] = Field(default=EventType.NET_HTTP, description="Discriminator for HTTP events.")
     server: str = Field(description="HTTP server hostname or address.")
     port: int = Field(description="HTTP server port.")
     proto: str = Field(description="Transport/protocol label, e.g. tcp.http or tcp.https.")
@@ -659,7 +700,9 @@ class ExceptionEvent(Event):
     Use this to understand exception-driven control flow and anti-analysis logic.
     """
 
-    event: Literal["exception"] = Field(default="exception", description="Discriminator for exception events.")
+    event: Literal[EventType.EXCEPTION] = Field(
+        default=EventType.EXCEPTION, description="Discriminator for exception events."
+    )
     instr: str = Field(description="Instruction text associated with the exception.")
     exception_code: str = Field(description="Exception code in hexadecimal string form.")
     handler_address: str = Field(description="Address of the selected exception handler.")
@@ -684,6 +727,7 @@ AnyEvent = Annotated[
     | FileOpenEvent
     | FileReadEvent
     | FileWriteEvent
+    | DirectoryCreateEvent
     | RegOpenKeyEvent
     | RegCreateKeyEvent
     | RegReadValueEvent

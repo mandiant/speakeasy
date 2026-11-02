@@ -9,7 +9,7 @@ import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
+from speakeasy.profiler_events import EventType
 from speakeasy.windows import objman, seh
 from speakeasy.winenv.defs.nt import ddk
 
@@ -796,11 +796,11 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         if proc_obj is emu.get_current_process():
             run_type = "thread"
-            evt_type = THREAD_CREATE
+            evt_type = EventType.THREAD_CREATE
         else:
             proc_path = ntpath.basename(proc_path).replace(".", "_")
             run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
-            evt_type = THREAD_INJECT
+            evt_type = EventType.THREAD_INJECT
 
         is_suspended = bool(CreateFlags & ddk.THREAD_CREATE_FLAGS_CREATE_SUSPENDED)
         handle, obj = self.create_thread(

@@ -4,13 +4,9 @@ from dataclasses import dataclass
 
 from speakeasy.profiler import Profiler, Run
 from speakeasy.profiler_events import (
-    FILE_WRITE,
-    MEM_ALLOC,
-    REG_WRITE,
-    THREAD_CREATE,
-    THREAD_INJECT,
     ApiArg,
     ApiEvent,
+    EventType,
     FileWriteEvent,
     MemAllocEvent,
     RegWriteValueEvent,
@@ -87,8 +83,8 @@ def test_file_write_merge_preserves_raw_bytes():
     run = Run()
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
 
-    profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", FILE_WRITE, data=b"\x00\xff", size=2)
-    profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", FILE_WRITE, data=b"\x01\x02", size=2)
+    profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=b"\x00\xff", size=2)
+    profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=b"\x01\x02", size=2)
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, FileWriteEvent))
@@ -107,7 +103,7 @@ def test_registry_write_event_is_reported_with_data_ref():
         run,
         pos,
         "HKEY_LOCAL_MACHINE\\Software\\Example",
-        REG_WRITE,
+        EventType.REG_WRITE_VALUE,
         value_name="ValueName",
         data=b"abc",
         size=3,
@@ -126,7 +122,7 @@ def test_local_memory_event_omits_target_pid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     actor = TargetProcess(id=3, path="C:\\sample.exe")
 
-    profiler.record_process_event(run, pos, actor, MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(run, pos, actor, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, MemAllocEvent))
@@ -140,7 +136,7 @@ def test_remote_memory_event_carries_target_pid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     target = TargetProcess(id=9, path="C:\\victim.exe")
 
-    profiler.record_process_event(run, pos, target, MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(run, pos, target, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, MemAllocEvent))
@@ -153,7 +149,9 @@ def test_local_thread_create_keeps_target_tid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     actor = TargetProcess(id=3, path="C:\\sample.exe")
 
-    profiler.record_process_event(run, pos, actor, THREAD_CREATE, {"start_addr": 0x401500, "param": 0, "tid": 44})
+    profiler.record_process_event(
+        run, pos, actor, EventType.THREAD_CREATE, {"start_addr": 0x401500, "param": 0, "tid": 44}
+    )
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, ThreadCreateEvent))
@@ -167,7 +165,9 @@ def test_remote_thread_inject_carries_target_pid_and_tid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     target = TargetProcess(id=9, path="C:\\victim.exe")
 
-    profiler.record_process_event(run, pos, target, THREAD_INJECT, {"start_addr": 0x401500, "param": 0, "tid": 44})
+    profiler.record_process_event(
+        run, pos, target, EventType.THREAD_INJECT, {"start_addr": 0x401500, "param": 0, "tid": 44}
+    )
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.entry_points[0].events if isinstance(evt, ThreadInjectEvent))

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
+from speakeasy.profiler_events import EventType
 from speakeasy.windows import seh32
 from speakeasy.windows.common import FILETIME_UNIX_EPOCH
 from speakeasy.windows.guest_callbacks import GuestCall
@@ -4130,7 +4130,7 @@ class Msvcrt(api.ApiHandler):
             self.set_errno(EBADF)
             return -1
         fobj.write_data(data)
-        self.record_file_access_event(fobj.path, FILE_WRITE, data=data, buffer=buffer, size=len(data))
+        self.record_file_access_event(fobj.path, EventType.FILE_WRITE, data=data, buffer=buffer, size=len(data))
         return count
 
     @apihook("_open", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -7360,8 +7360,8 @@ class Msvcrt(api.ApiHandler):
             return -1
         dst.add_data(src.get_data(reset_pointer=True) or b"")
         emu.file_delete(old)
-        self.record_file_access_event(new, FILE_CREATE)
-        self.record_file_access_event(new, FILE_WRITE)
+        self.record_file_access_event(new, EventType.FILE_CREATE)
+        self.record_file_access_event(new, EventType.FILE_WRITE)
         return 0
 
     @apihook("_unlink", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -7664,7 +7664,7 @@ class Msvcrt(api.ApiHandler):
         if hfile is None or not fobj:
             return None
         fobj.add_data(data)
-        self.record_file_access_event(fobj.path, FILE_WRITE, data=data, buffer=buffer, size=len(data))
+        self.record_file_access_event(fobj.path, EventType.FILE_WRITE, data=data, buffer=buffer, size=len(data))
         return hfile
 
     @apihook("fputc", argc=2, conv=e_arch.CALL_CONV_CDECL)

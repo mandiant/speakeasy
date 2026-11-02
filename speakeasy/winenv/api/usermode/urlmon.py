@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
+from speakeasy.profiler_events import EventType
 
 from .. import api
 
@@ -51,8 +51,8 @@ class Urlmon(api.ApiHandler):
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
             ctx.args["szFileName"].display = name
-            self.record_file_access_event(name, FILE_CREATE)
-            self.record_file_access_event(name, FILE_WRITE)
+            self.record_file_access_event(name, EventType.FILE_CREATE)
+            self.record_file_access_event(name, EventType.FILE_WRITE)
 
         return rv
 
@@ -89,8 +89,8 @@ class Urlmon(api.ApiHandler):
             ctx.args["szFileName"].display = cache_name
             if cchFileName >= required:
                 self.write_mem_string(cache_name, szFileName, cw)
-                self.record_file_access_event(cache_name, FILE_CREATE)
-                self.record_file_access_event(cache_name, FILE_WRITE)
+                self.record_file_access_event(cache_name, EventType.FILE_CREATE)
+                self.record_file_access_event(cache_name, EventType.FILE_WRITE)
             else:
                 rv = windefs.E_OUTOFMEMORY
 

@@ -277,6 +277,11 @@ thread, even for a local create.
           "buffer": "0x130000"
         },
         {
+          "pos": {"tick": 145, "tid": 2000, "pid": 1337, "pc": 4198535},
+          "event": "directory_create",
+          "path": "C:\\ProgramData\\stage"
+        },
+        {
           "pos": {"tick": 150, "tid": 2000, "pid": 1337, "pc": 4198540},
           "event": "reg_open_key",
           "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft",
