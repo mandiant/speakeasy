@@ -215,15 +215,18 @@ class RegistryManager:
         except InvalidHandle:
             return None
 
-    def close_key(self, handle) -> bool:
-        """Close an open key handle. Closing a predefined key does nothing."""
+    def close_key(self, handle):
+        """
+        Close an open key handle. Closing a predefined key does nothing.
+
+        Raises:
+            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
+        """
         handle = regdefs.normalize_hkey(handle)
         if handle in self.predefined_keys:
-            return True
-        if self.get_key_from_handle(handle) is None:
-            return False
+            return
+        self.get_handle_table().get(handle, RegKey)
         self.get_handle_table().close(handle)
-        return True
 
     def get_key_from_path(self, path):
         path = self.normalize_reg_path(path)

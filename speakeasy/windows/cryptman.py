@@ -72,10 +72,13 @@ class CryptoManager:
         return self.handles.new_handle(CryptContext(self.handles, cname, pname, ptype, flags))
 
     def crypt_close(self, hnd):
-        """Close a provider handle and the handles of its keys."""
-        ctx = self.crypt_get(hnd)
-        if ctx is None:
-            return
+        """
+        Close a provider handle and the handles of its keys.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a provider.
+        """
+        ctx = self.handles.get(hnd, CryptContext)
         for key_hnd in list(ctx.keys):
             ctx.delete_key(key_hnd)
         self.handles.close(hnd)
@@ -105,6 +108,10 @@ class CryptoManager:
         return self.handles.new_handle(CryptHash(hasher))
 
     def get_hash(self, hnd):
-        """Get the hashlib object of a hash handle, or None."""
-        obj = self.get_handle_object(hnd, CryptHash)
-        return obj.hasher if obj else None
+        """
+        Get the hashlib object of a hash handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a hash.
+        """
+        return self.handles.get(hnd, CryptHash).hasher

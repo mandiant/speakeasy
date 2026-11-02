@@ -96,10 +96,7 @@ class AdvApi32(api.ApiHandler):
         if hkey_name:
             ctx.args["hKey"].display = hkey_name
         else:
-            key_obj = self.reg_get_key(hKey)
-            if not key_obj:
-                return windefs.ERROR_INVALID_HANDLE
-            hkey_name = key_obj.get_path()
+            hkey_name = self.get_reg_key(hKey).get_path()
 
         hnd = hKey
         cw = self.get_char_width(ctx)
@@ -160,9 +157,7 @@ class AdvApi32(api.ApiHandler):
             length = int.from_bytes(length, "little")
             ctx.args["lpcbData"].display = hex(length)
 
-        key = self.reg_get_key(hKey)
-        if not key:
-            return windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hKey)
         val = key.get_value(value_name)
         if val:
             self.write_value_type(val, lpType, ctx.args["lpType"])
@@ -217,9 +212,7 @@ class AdvApi32(api.ApiHandler):
         dwType &= 0xFFFFFFFF
         cbData &= 0xFFFFFFFF
 
-        key = self.reg_get_key(hKey)
-        if not key:
-            return windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hKey)
 
         cw = self.get_char_width(ctx)
         value_name = ""
@@ -269,9 +262,7 @@ class AdvApi32(api.ApiHandler):
         """
         (hKey,) = argv
 
-        if not emu.regman.close_key(hKey):
-            return windefs.ERROR_INVALID_HANDLE
-
+        emu.regman.close_key(hKey)
         return windefs.ERROR_SUCCESS
 
     @apihook("RegEnumKey", argc=4, conv=_arch.CALL_CONV_STDCALL)
@@ -318,27 +309,22 @@ class AdvApi32(api.ApiHandler):
         ``cch`` characters. Return the status and the name.
         """
         cw = self.get_char_width(ctx)
-        rv = windefs.ERROR_INVALID_HANDLE
         name = ""
-        if hKey:
-            key = self.reg_get_key(hKey)
-            if not key:
-                rv = windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hKey)
+        ctx.args["hKey"].display = key.get_path()
+        subkeys = self.reg_get_subkeys(key)
+        if (dwIndex + 1) > len(subkeys):
+            rv = windefs.ERROR_NO_MORE_ITEMS
+        elif not lpName:
+            rv = windefs.ERROR_INVALID_PARAMETER
+        else:
+            name = subkeys[dwIndex]
+            if cch < len(name) + 1:
+                rv = windefs.ERROR_MORE_DATA
             else:
-                ctx.args["hKey"].display = key.get_path()
-                subkeys = self.reg_get_subkeys(key)
-                if (dwIndex + 1) > len(subkeys):
-                    rv = windefs.ERROR_NO_MORE_ITEMS
-                elif not lpName:
-                    rv = windefs.ERROR_INVALID_PARAMETER
-                else:
-                    name = subkeys[dwIndex]
-                    if cch < len(name) + 1:
-                        rv = windefs.ERROR_MORE_DATA
-                    else:
-                        self.write_mem_string(name, lpName, cw)
-                        rv = windefs.ERROR_SUCCESS
-                self.record_registry_access_event(key.get_path(), REG_LIST)
+                self.write_mem_string(name, lpName, cw)
+                rv = windefs.ERROR_SUCCESS
+        self.record_registry_access_event(key.get_path(), REG_LIST)
         return rv, name
 
     @apihook("RegCreateKey", argc=3)
@@ -351,27 +337,21 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hKey, lpSubKey, phkResult = argv
-        rv = windefs.ERROR_INVALID_HANDLE
-        if hKey:
-            key = self.reg_get_key(hKey)
-            if not key:
-                rv = windefs.ERROR_INVALID_HANDLE
-            else:
-                ctx.args["hKey"].display = key.get_path()
-                cw = self.get_char_width(ctx)
-                sub_key = ""
-                if lpSubKey:
-                    sub_key = self.read_mem_string(lpSubKey, cw)
-                    ctx.args["lpSubKey"].display = sub_key
-                hnd = hKey
-                if sub_key:
-                    sub_key_path = key.get_path() + "\\" + sub_key.lstrip("\\")
-                    hnd = self.reg_open_key(sub_key_path, create=True)
-                    self.record_registry_access_event(sub_key_path, REG_CREATE, handle=hnd)
-                if phkResult:
-                    self.write_ptr(phkResult, hnd)
-                rv = windefs.ERROR_SUCCESS
-        return rv
+        key = self.get_reg_key(hKey)
+        ctx.args["hKey"].display = key.get_path()
+        cw = self.get_char_width(ctx)
+        sub_key = ""
+        if lpSubKey:
+            sub_key = self.read_mem_string(lpSubKey, cw)
+            ctx.args["lpSubKey"].display = sub_key
+        hnd = hKey
+        if sub_key:
+            sub_key_path = key.get_path() + "\\" + sub_key.lstrip("\\")
+            hnd = self.reg_open_key(sub_key_path, create=True)
+            self.record_registry_access_event(sub_key_path, REG_CREATE, handle=hnd)
+        if phkResult:
+            self.write_ptr(phkResult, hnd)
+        return windefs.ERROR_SUCCESS
 
     @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
     def RegCreateKeyEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -398,10 +378,7 @@ class AdvApi32(api.ApiHandler):
             ctx.args["hKey"].display = hkey_name
             key_path = hkey_name
         else:
-            key_obj = self.reg_get_key(hKey)
-            if not key_obj:
-                return windefs.ERROR_INVALID_HANDLE
-            key_path = key_obj.get_path()
+            key_path = self.get_reg_key(hKey).get_path()
 
         cw = self.get_char_width(ctx)
         if lpSubKey:
@@ -437,9 +414,7 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, lpValueName = argv
 
-        key = self.reg_get_key(hKey)
-        if not key:
-            return windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hKey)
 
         cw = self.get_char_width(ctx)
         value_name = ""
@@ -494,9 +469,7 @@ class AdvApi32(api.ApiHandler):
         if hkey_name:
             ctx.args["hKey"].display = hkey_name
 
-        key = self.reg_get_key(hKey)
-        if not key:
-            return windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hKey)
 
         cw = self.get_char_width(ctx)
         subkey_names = self.reg_get_subkeys(key)
@@ -532,22 +505,16 @@ class AdvApi32(api.ApiHandler):
         ProcessHandle, DesiredAccess, TokenHandle = argv
         rv = 0
 
-        if ProcessHandle == self.get_max_int():
-            obj = emu.get_current_process()
+        obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        hToken = emu.get_object_manager(ctx.func_name).new_handle(obj.token)
+
+        if TokenHandle:
+            hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
+            self.mem_write(TokenHandle, hnd)
+            rv = 1
+            emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
-            obj = self.get_object_from_handle(ProcessHandle)
-
-        if obj:
-            token = obj.token
-            hToken = emu.get_object_manager(ctx.func_name).new_handle(token)
-
-            if TokenHandle:
-                hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
-                self.mem_write(TokenHandle, hnd)
-                rv = 1
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-            else:
-                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
         return rv
 
@@ -564,22 +531,16 @@ class AdvApi32(api.ApiHandler):
         ThreadHandle, DesiredAccess, OpenAsSelf, TokenHandle = argv
         rv = 0
 
-        if ThreadHandle in (self.get_max_int(), self.get_max_int() - 1):
-            obj = emu.get_current_thread()
+        obj = emu.get_handle_table().get(ThreadHandle, objman.Thread)
+        hToken = emu.get_object_manager(ctx.func_name).new_handle(obj.token)
+
+        if TokenHandle:
+            hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
+            self.mem_write(TokenHandle, hnd)
+            rv = 1
+            emu.set_last_error(windefs.ERROR_SUCCESS)
         else:
-            obj = self.get_object_from_handle(ThreadHandle)
-
-        if obj:
-            token = obj.token
-            hToken = emu.get_object_manager(ctx.func_name).new_handle(token)
-
-            if TokenHandle:
-                hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
-                self.mem_write(TokenHandle, hnd)
-                rv = 1
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-            else:
-                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
         return rv
 
@@ -598,19 +559,17 @@ class AdvApi32(api.ApiHandler):
         (hExistingToken, dwDesiredAccess, lpTokenAttributes, ImpersonationLevel, TokenType, phNewToken) = argv
         rv = 0
 
-        obj = self.get_object_from_handle(hExistingToken)
+        emu.get_handle_table().get(hExistingToken, objman.Token)
+        new_token = emu.new_object(objman.Token)
+        hnd_new_token = emu.get_object_manager(ctx.func_name).new_handle(new_token)
 
-        if obj:
-            new_token = emu.new_object(objman.Token)
-            hnd_new_token = emu.get_object_manager(ctx.func_name).new_handle(new_token)
-
-            if phNewToken:
-                hnd = (hnd_new_token).to_bytes(self.get_ptr_size(), "little")
-                self.mem_write(phNewToken, hnd)
-                rv = 1
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-            else:
-                emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+        if phNewToken:
+            hnd = (hnd_new_token).to_bytes(self.get_ptr_size(), "little")
+            self.mem_write(phNewToken, hnd)
+            rv = 1
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+        else:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
         return rv
 
@@ -1266,11 +1225,7 @@ class AdvApi32(api.ApiHandler):
         hProv, dwFlags = argv
         rv = True
 
-        cm = emu.get_crypt_manager()
-        if not cm.crypt_get(hProv):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
-        cm.crypt_close(hProv)
+        emu.get_crypt_manager().crypt_close(hProv)
 
         return rv
 
@@ -1728,9 +1683,6 @@ class AdvApi32(api.ApiHandler):
         """
         hHash, pbData, dwDataLen, dwFlags = argv
         hnd = emu.get_crypt_manager().get_hash(hHash)
-        if hnd is None:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
 
         if dwDataLen == 0:
             return 1
@@ -1758,9 +1710,6 @@ class AdvApi32(api.ApiHandler):
             ctx.args["dwParam"].display = param_enums[dwParam]
 
         hnd = emu.get_crypt_manager().get_hash(hHash)
-        if hnd is None:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
 
         if dwParam == adv32defs.HP_HASHVAL:
             value = hnd.digest()
@@ -1860,10 +1809,6 @@ class AdvApi32(api.ApiHandler):
             return 0
 
         hnd = emu.get_crypt_manager().get_hash(hBaseData)
-
-        if hnd is None:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
 
         # The upper 16 bits of dwFlags give the key length in bits. A 40-bit
         # key, the default, gets 11 zero bytes of salt unless CRYPT_NO_SALT
@@ -1972,45 +1917,42 @@ class AdvApi32(api.ApiHandler):
             length = self.mem_read(pcbData, 4)
             length = int.from_bytes(length, "little")
 
-        key = self.reg_get_key(hkey)
-        if not key:
-            return windefs.ERROR_INVALID_HANDLE
+        key = self.get_reg_key(hkey)
         if lpSubKey:
             hnd = self.reg_open_key(key.get_path() + "\\" + lpSubKey)
             if not hnd:
                 return windefs.ERROR_FILE_NOT_FOUND
-            key = self.reg_get_key(hnd)
-        if key:
-            val = key.get_value(value_name)
-            if val:
-                self.write_value_type(val, pdwType, ctx.args["pdwType"])
-                output = val.get_bytes(cw)
-                if pcbData:
-                    self.write_dword(pcbData, len(output))
-                if pvData:
-                    if not pcbData:
-                        rv = windefs.ERROR_INVALID_PARAMETER
-                    elif len(output) > length:
-                        rv = windefs.ERROR_MORE_DATA
-                    else:
-                        self.mem_write(pvData, output)
-
-            # For now, return an empty buffer
-            else:
-                output = b"\x00" * length
-                if pvData:
+            key = self.get_reg_key(hnd)
+        val = key.get_value(value_name)
+        if val:
+            self.write_value_type(val, pdwType, ctx.args["pdwType"])
+            output = val.get_bytes(cw)
+            if pcbData:
+                self.write_dword(pcbData, len(output))
+            if pvData:
+                if not pcbData:
+                    rv = windefs.ERROR_INVALID_PARAMETER
+                elif len(output) > length:
+                    rv = windefs.ERROR_MORE_DATA
+                else:
                     self.mem_write(pvData, output)
-                rv = windefs.ERROR_SUCCESS
 
-            kp = key.get_path()
-            self.record_registry_access_event(
-                kp,
-                REG_READ,
-                value_name=value_name,
-                data=output,
-                size=length,
-                buffer=pvData,
-            )
+        # For now, return an empty buffer
+        else:
+            output = b"\x00" * length
+            if pvData:
+                self.mem_write(pvData, output)
+            rv = windefs.ERROR_SUCCESS
+
+        kp = key.get_path()
+        self.record_registry_access_event(
+            kp,
+            REG_READ,
+            value_name=value_name,
+            data=output,
+            size=length,
+            buffer=pvData,
+        )
 
         return rv
 
