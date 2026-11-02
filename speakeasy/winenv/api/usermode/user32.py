@@ -207,8 +207,6 @@ class User32(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.window_hooks: dict[int, tuple[int, int, int]] = {}
-        self.handle: int = 0
-        self.handles: list[int] = []
         self.wndprocs: dict[int, int] = {}
         self.window_longs: dict[int, dict[int, int]] = {}
         self.window_messages: dict[str, int] = {}
@@ -224,11 +222,9 @@ class User32(api.ApiHandler):
 
         super().__get_hook_attrs__(self)
 
-    def get_handle(self):
-        self.handle += 4
-        hnd = self.handle
-        self.handles.append(hnd)
-        return hnd
+    def new_window_handle(self):
+        """Get the handle of a new window that EnumWindows does not give."""
+        return sessman.Window(self.sessman.handles).get_handle()
 
     def get_synthetic_async_key_state(self, vkey):
         if self.synthetic_async_key_index >= len(self.synthetic_async_keys):
@@ -336,7 +332,7 @@ class User32(api.ApiHandler):
         """
         lpwinsta, dwFlags, dwDesiredAccess, lpsa = argv
 
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("SetProcessWindowStation", argc=1)
     def SetProcessWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -765,7 +761,7 @@ class User32(api.ApiHandler):
         """
         hInstance, lpBitmapName = argv
         self.read_res_identifier(emu, ctx, "lpBitmapName", self.get_char_width(ctx), lpBitmapName)
-        rv = self.get_handle()
+        rv = emu.handle_allocator.allocate_handle()
         return rv
 
     @apihook("GetClientRect", argc=2)
@@ -941,7 +937,7 @@ class User32(api.ApiHandler):
 
         ctx.args["idHook"].display = decode(WINDOWS_HOOK_ID, idHook)
 
-        hnd = self.get_handle()
+        hnd = emu.handle_allocator.allocate_handle()
         self.window_hooks.update({hnd: (idHook, lpfn, hmod)})
         return hnd
 
@@ -1076,7 +1072,7 @@ class User32(api.ApiHandler):
         """
         hInstance, lpCursorName = argv
         self.read_res_identifier(emu, ctx, "lpCursorName", self.get_char_width(ctx), lpCursorName)
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("FindWindow", argc=2)
     def FindWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1357,8 +1353,7 @@ class User32(api.ApiHandler):
         Get the values that SetWindowLong stored for ``hWnd``. For an unknown
         window, set ERROR_INVALID_WINDOW_HANDLE and return None.
         """
-        desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
-        if not self.sessman.get_window(hWnd) and hWnd not in self.handles and hWnd != desktop:
+        if self.sessman.get_handle_object(hWnd, sessman.Window) is None:
             emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
             return None
         return self.window_longs.setdefault(hWnd, {})
@@ -1448,7 +1443,7 @@ class User32(api.ApiHandler):
         self.read_res_identifier(emu, ctx, "lpTemplateName", self.get_char_width(ctx), lpTemplateName)
         if not lpDialogFunc:
             return IDCANCEL
-        return self.run_dialog(self.get_handle(), lpDialogFunc, dwInitParam)
+        return self.run_dialog(self.new_window_handle(), lpDialogFunc, dwInitParam)
 
     def run_dialog(self, hdlg, func, param):
         # No user input arrives, so the dialog ends when the procedure calls EndDialog
@@ -1487,7 +1482,7 @@ class User32(api.ApiHandler):
             dwInitParam,
         ) = argv
 
-        hdlg = self.get_handle()
+        hdlg = self.new_window_handle()
         cb_args = (hdlg, u32defs.WM_INITDIALOG, 0, dwInitParam)
         self.setup_callback(lpDialogFunc, cb_args)
         return hdlg
@@ -1520,7 +1515,7 @@ class User32(api.ApiHandler):
         """
         hInstance, lpTableName = argv
         self.read_res_identifier(emu, ctx, "lpTableName", self.get_char_width(ctx), lpTableName)
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("IsWindowVisible", argc=1)
     def IsWindowVisible(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1539,7 +1534,7 @@ class User32(api.ApiHandler):
             LPPAINTSTRUCT lpPaint
         );
         """
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("LookupIconIdFromDirectory", argc=2)
     def LookupIconIdFromDirectory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1556,7 +1551,7 @@ class User32(api.ApiHandler):
         """
         HWND GetActiveWindow();
         """
-        return self.get_handle()
+        return self.new_window_handle()
 
     @apihook("GetLastActivePopup", argc=1)
     def GetLastActivePopup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1566,7 +1561,7 @@ class User32(api.ApiHandler):
         );
         """
         (hWnd,) = argv
-        return self.get_handle()
+        return self.new_window_handle()
 
     @apihook("GetUserObjectInformation", argc=5)
     def GetUserObjectInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1643,7 +1638,8 @@ class User32(api.ApiHandler):
 
         ptr_size = self.get_ptr_size()
         for i, dev_type in enumerate(types):
-            entry = self.get_handle().to_bytes(ptr_size, "little") + dev_type.to_bytes(ptr_size, "little")
+            hnd = emu.handle_allocator.allocate_handle()
+            entry = hnd.to_bytes(ptr_size, "little") + dev_type.to_bytes(ptr_size, "little")
             self.mem_write(pRawInputDeviceList + i * 2 * ptr_size, entry)
         return num_devices
 
@@ -1879,7 +1875,7 @@ class User32(api.ApiHandler):
             self.timers = [t for t in self.timers if t[:2] != (hWnd, nIDEvent)]
             self.timers.append((hWnd, nIDEvent, lpTimerFunc))
             return nIDEvent
-        tid = self.get_handle()
+        tid = emu.handle_allocator.allocate_handle()
         self.timers.append((0, tid, lpTimerFunc))
         return tid
 
@@ -1909,7 +1905,7 @@ class User32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         desktop = self.read_mem_string(lpszDesktop, cw)
         ctx.args["lpszDesktop"].display = desktop
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("SetThreadDesktop", argc=1)
     def SetThreadDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

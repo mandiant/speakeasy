@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from speakeasy.windows.handles import HandleTable
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 from speakeasy.winenv.defs.windows.windows import ERROR_INVALID_WINDOW_HANDLE
 
 if TYPE_CHECKING:
@@ -156,6 +156,13 @@ class SessionManager:
 
     def get_window(self, handle):
         return self.windows.get(handle)
+
+    def get_handle_object(self, handle, *types):
+        """Get the object of an open USER object handle if it is one of ``types``, else None."""
+        try:
+            return self.handles.get(handle, *types)
+        except InvalidHandle:
+            return None
 
     def get_device_context(self):
         return self.dev_ctx
