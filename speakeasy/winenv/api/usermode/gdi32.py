@@ -49,16 +49,10 @@ class GDI32(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle: int = 0
         self.count: int = 0
         self.stock_objects: dict[int, int] = {}
         self.selected: dict[int, int] = {}
         super().__get_hook_attrs__(self)
-
-    def get_handle(self):
-        self.handle += 4
-        hnd = self.handle
-        return hnd
 
     @apihook("CreateBitmap", argc=5)
     def CreateBitmap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -71,7 +65,7 @@ class GDI32(api.ApiHandler):
             const VOID *lpBits
         );
         """
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("MoveToEx", argc=4)
     def MoveToEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -225,7 +219,7 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("GetDIBits", argc=7)
     def GetDIBits(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -261,7 +255,7 @@ class GDI32(api.ApiHandler):
         size = (width * bit_count + 31) // 32 * 4 * abs(height)
         if width > 0 and height != 0 and bit_count in (1, 4, 8, 16, 24, 32) and size <= MAX_DIB_SIZE:
             bits = self.mem_alloc(size, tag="api.gdi32.CreateDIBSection")
-            hbm = self.get_handle()
+            hbm = emu.handle_allocator.allocate_handle()
         if ppvBits:
             self.write_ptr(ppvBits, bits)
         return hbm
@@ -316,7 +310,7 @@ class GDI32(api.ApiHandler):
         (lplf,) = argv
         if not lplf:
             return 0
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("GetObjectA", argc=3)
     def GetObjectA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
