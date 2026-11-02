@@ -11,3 +11,8 @@ def test_validation_rejects_invalid_engine():
 
     with pytest.raises(ConfigError):
         Speakeasy(config=conf)
+
+
+def test_validation_rejects_another_config_version():
+    with pytest.raises(ConfigError, match="'2.0'"):
+        Speakeasy(config={"config_version": 0.2})

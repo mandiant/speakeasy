@@ -8,12 +8,9 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
 
 ```jsonc
 {
-  // Schema version expected by speakeasy.config.SpeakeasyConfig.
-  // Keep at 0.2 unless the schema version changes in source.
-  "config_version": 0.2,
-
-  // Human note for analysts. Safe to change any time.
-  "description": "Example profile for walkthrough documentation",
+  // Schema version. Speakeasy 2.0 reads only "2.0" and gives a ConfigError for
+  // other values, such as the 0.2 of Speakeasy 1.x configs. Leave it out to use "2.0".
+  "config_version": "2.0",
 
   // Emulation backend. Only "unicorn" is currently supported.
   "emu_engine": "unicorn",
@@ -51,9 +48,6 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
   // time query and each Sleep or wait moves the clock forward.
   // The default is fixed so that runs give the same times to the sample.
   "start_time": "2026-10-31T15:15:00Z",
-
-  // OS family model. Only "windows" is supported.
-  "system": "windows",
 
   "analysis": {
     // Enables per-region memory access counters and symbol access telemetry.
@@ -93,9 +87,6 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
     // Align these with the environment your sample expects.
     "major": 6,
     "minor": 1,
-
-    // Optional release discriminator. Usually left null.
-    "release": null,
 
     // Build number used by version checks.
     "build": 7601
@@ -358,24 +349,12 @@ The example below is JSONC (JSON with comments). Remove comment lines for machin
       {
         "name": "ntdll",
         "base_addr": "0x7C000000",
-        "path": "C:\\Windows\\system32\\ntdll.dll",
-        "images": [
-          {
-            // arch accepts 32/64 or aliases x86/i386/x64/amd64.
-            "arch": "x86",
-            "name": "ntdll"
-          },
-          {
-            "arch": "x64",
-            "name": "ntdll"
-          }
-        ]
+        "path": "C:\\Windows\\system32\\ntdll.dll"
       },
       {
         "name": "kernel32",
         "base_addr": "0x77000000",
-        "path": "C:\\Windows\\system32\\kernel32.dll",
-        "images": []
+        "path": "C:\\Windows\\system32\\kernel32.dll"
       }
     ],
 

@@ -3501,11 +3501,7 @@ class WindowsEmulator(BinaryEmulator):
             if isinstance(base, str):
                 base = int(base, 16)
             path = modconf.path or name + ".dll"
-            native = None
-            for image in getattr(modconf, "images", ()):
-                if image.arch == self.get_arch():
-                    native = self.get_native_module_path(image.name)
-            rtmods.append(self.load_module_by_name(name, emu_path=path, base=base, native_path=native))
+            rtmods.append(self.load_module_by_name(name, emu_path=path, base=base))
         return rtmods
 
     def get_thread_context(self, thread=None):
