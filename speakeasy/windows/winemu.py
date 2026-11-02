@@ -3548,7 +3548,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_code_debug(self, emu, addr, size):
         """
-        Print disassembly and register state for every instruction when debug mode is enabled.
+        Log disassembly and register state for every instruction when debug mode is enabled.
 
         This is a persistent code hook.
         """
@@ -3558,7 +3558,7 @@ class WindowsEmulator(BinaryEmulator):
         else:
             regs = ("eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp")
         vals = " : ".join(f"{r}=0x{self.reg_read(r):x}" for r in regs)
-        print(f"0x{addr:x}: {x}, {vals}")  # noqa: T201
+        logger.debug("0x%x: %s, %s", addr, x, vals)
         return True
 
     def get_native_module_path(self, mod_name=""):

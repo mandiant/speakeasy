@@ -7,7 +7,8 @@ import sys
 
 import pytest
 
-from speakeasy.cli import wait_for_child
+from speakeasy.cli import get_wall_limit, wait_for_child
+from speakeasy.config import SpeakeasyConfig
 from tests.pe_builder import build_pe
 
 
@@ -29,6 +30,63 @@ def test_cli_reports_a_load_error_and_exits_nonzero(tmp_path, mode):
     assert "error: .NET assemblies are not currently supported" in result.stderr
     assert "Traceback" not in result.stderr
     assert not output.exists()
+
+
+def run_cli(*args):
+    return subprocess.run(
+        [sys.executable, "-m", "speakeasy.cli", *args], check=False, capture_output=True, text=True, timeout=60
+    )
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--raw"], "--raw needs --arch"),
+        (["-V", "/nonexistent:c:\\x"], "Volume host path does not exist: /nonexistent"),
+    ],
+)
+def test_cli_rejects_bad_arguments(tmp_path, args, message):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+
+    result = run_cli("-t", str(target), "--no-mp", *args)
+
+    assert result.returncode == 2
+    assert message in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+# ud2 at offset 10, so that only a decimal start offset of 10 runs it.
+UD2_AT_10 = b"\xc3" * 10 + b"\x0f\x0b" + b"\xc3" * 10
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "args"),
+    [
+        ("sc.bin", UD2_AT_10, ["--raw", "--arch", "x86", "--raw-offset", "10"]),
+        ("ep.exe", build_pe(text=UD2_AT_10)[0], ["--entry-point", str(0x1000 + 10)]),
+    ],
+)
+def test_cli_writes_the_report_of_a_failed_run_to_stdout_and_exits_zero(tmp_path, name, content, args):
+    target = tmp_path / name
+    target.write_bytes(content)
+
+    result = run_cli("-t", str(target), "--no-mp", *args)
+
+    assert result.returncode == 0
+    entry_point = json.loads(result.stdout)["entry_points"][0]
+    assert entry_point["error"]["type"] == "invalid_instruction"
+    assert entry_point["error"]["pc"] == entry_point["start_address"]
+
+
+@pytest.mark.parametrize(
+    ("max_run_time", "max_total_time", "wall_limit"),
+    [(60, 0, 60), (0, 30, 30), (10, 30, 30), (0, 0, 0)],
+)
+def test_the_cli_stops_the_child_after_the_larger_time_limit(max_run_time, max_total_time, wall_limit):
+    config = SpeakeasyConfig(max_run_time=max_run_time, max_total_time=max_total_time)
+
+    assert get_wall_limit(config) == wall_limit
 
 
 def spinning_threads(base, iat):

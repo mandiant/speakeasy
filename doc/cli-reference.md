@@ -23,13 +23,14 @@ speakeasy --dump-default-config > default-config.json
 These flags are not generated from the config schema.
 
 - `-t, --target`: input file to emulate
-- `-o, --output`: output report JSON path
+- `-o, --output`: output report JSON path. Without it, the CLI writes the report to stdout
 - `--argv`: argv values for the emulated process (quoted string, parsed with shell rules). For an EXE they replace `command_line`, and the process command line is the quoted program path followed by these values
 - `-c, --config`: JSON config overlay file
 - `--dump-default-config`: print built-in default config and exit
 - `--raw`: treat input as raw bytes/shellcode
-- `--raw-offset`: raw execution start offset (hex)
-- `--arch`: architecture override (`x86`, `amd64`; `x64` accepted in raw mode)
+- `--raw-offset`: raw execution start offset
+- `--entry-point`: RVA where a PE starts, in place of its entry point
+- `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it; other modes ignore it
 - `--dropped-files-path`: dropped-files archive output path
 - `-k, --emulate-children`: emulate child processes spawned by the sample
 - `--no-mp`: run in current process instead of worker process
@@ -41,8 +42,18 @@ These flags are not generated from the config schema.
 
 Notes:
 - `--gdb` implies `--no-mp`; Speakeasy enables this automatically.
-- `--raw-offset` is parsed as base-16.
+- `--raw-offset` and `--entry-point` take a decimal number, or a hex number with `0x`: `--raw-offset 32` and `--raw-offset 0x20` are the same.
 - option abbreviations are disabled; pass full flag names.
+
+## Output and exit status
+
+The CLI writes the report JSON to the `--output` file, or to stdout without `--output`. Log messages go to stderr, so you can pipe stdout to another tool:
+
+```bash
+speakeasy --target sample.exe | jq '.entry_points[].error'
+```
+
+The CLI exits 0 when it writes a report, also when an entry point in the report has an `error`, for example an invalid instruction or a timeout. A batch script reads `error` in each entry point to see that emulation stopped early. The CLI exits 1 when it cannot make a report, for example because the loader rejects the input, and writes the error message to stderr. When an error stops the emulation outside an entry point, the CLI writes the report that it has and also exits 1. An argument error, for example `--raw` without `--arch` or a `--volume` host path that does not exist, gives exit status 2.
 
 ## Schema-derived config flags
 
@@ -148,7 +159,7 @@ speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output rep
 Memory snapshots and dropped-files archive:
 
 ```bash
-speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dropped.zip
+speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dropped.zip --output report.json
 ```
 
 ## Related docs

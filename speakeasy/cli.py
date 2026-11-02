@@ -144,6 +144,15 @@ def wait_for_child(q: mp.Queue[ChildResult], p: mp.Process, evt, wall_limit) -> 
     return result
 
 
+def get_wall_limit(config: SpeakeasyConfig) -> float:
+    """
+    Get the number of seconds after which the CLI stops the emulation process, or 0 for no limit.
+
+    The emulator applies both limits itself. The CLI limit stops a process that hangs in Python code.
+    """
+    return max(config.max_run_time, config.max_total_time)
+
+
 def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> str | None:
     target = args.target
     output = args.output
@@ -171,13 +180,16 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         with open(config_path) as f:
             user_cfg = json.load(f)
 
+    if do_raw and not arch:
+        parser.error("--raw needs --arch")
+
     try:
         validated = get_active_config(user_cfg, args.volumes, args, config_specs)
     except Exception as err:
         parser.error(f"Invalid active configuration: {err}")
 
     active_cfg = validated.model_dump(mode="python")
-    wall_limit = max(validated.max_run_time, validated.max_total_time) if validated.max_run_time else 0
+    wall_limit = get_wall_limit(validated)
 
     if target and not os.path.isfile(target):
         parser.error(f"Target file not found: {target}")
@@ -238,6 +250,8 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         logger.info("* Saving emulation report to %s", output)
         with open(output, "w") as f:
             f.write(report)
+    elif report:
+        print(report)  # noqa: T201
 
     return error
 
@@ -248,7 +262,12 @@ def main():
         "-t", "--target", action="store", dest="target", required=False, help="Path to input file to emulate"
     )
     parser.add_argument(
-        "-o", "--output", action="store", dest="output", required=False, help="Path to output file to save report"
+        "-o",
+        "--output",
+        action="store",
+        dest="output",
+        required=False,
+        help="Path to output file to save report (default: write the report to stdout)",
     )
     parser.add_argument(
         "--argv",
@@ -278,11 +297,11 @@ def main():
     )
     parser.add_argument(
         "--raw-offset",
-        type=lambda s: int(s, 0x10),
+        type=lambda s: int(s, 0),
         default=0,
         required=False,
         dest="raw_offset",
-        help="When in raw mode, offset (hex) to start emulating",
+        help="When in raw mode, offset to start emulating: decimal, or hex with 0x",
     )
     parser.add_argument(
         "--entry-point",
@@ -290,16 +309,17 @@ def main():
         default=None,
         required=False,
         dest="entry_point",
-        help="RVA (hex) to use as entry point instead of the PE's default. "
-        "Prefix with 0x for hex (e.g. 0x1234). Only applies to PE modules, not raw/shellcode.",
+        help="RVA to use as entry point instead of the PE's default: decimal, or hex with 0x. "
+        "Only applies to PE modules, not raw/shellcode.",
     )
     parser.add_argument(
         "--arch",
         action="store",
         dest="arch",
+        type=str.lower,
+        choices=["x86", "x64", "amd64"],
         required=False,
-        help="Force architecture to use during emulation (for multi-architecture files or shellcode). "
-        "Supported archs: [ x86 | amd64 ]",
+        help="Architecture of the shellcode. Required with --raw, and only applies to raw mode.",
     )
     parser.add_argument(
         "--dropped-files-path",

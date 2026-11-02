@@ -97,7 +97,7 @@ class Speakeasy:
             config: Emulator configuration as a raw dict or a validated ``SpeakeasyConfig``.
                 ``None`` selects the default configuration.
             argv: Command line arguments for the emulated program.
-            debug: Whether to enable debug output in the emulator.
+            debug: Whether to log each instruction and the registers at the DEBUG level.
             exit_event: Event that stops the emulation when it is set.
             gdb_port: Port on which to listen for a GDB client. ``None`` disables the GDB server.
             volumes: Host paths to mount into the emulated file system.
