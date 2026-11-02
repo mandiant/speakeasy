@@ -203,7 +203,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         Get the emulator for the state that each process has.
 
         A driver runs in the context of any process, and KeStackAttachProcess changes the current process. The
-        function tables of the kernel do not change with it.
+        function tables, heap blocks, current directory and environment of the kernel do not change with it.
         """
         return self
 

@@ -460,6 +460,11 @@ class Process(KernelObject):
         self.unhandled_exception_filter: int = 0
         # Unwind data registered at runtime for code outside loaded images
         self.function_tables: list[unwind.FunctionTable] = []
+        # As on Windows, a new process gets a copy of the current directory and environment of its parent. The
+        # first process gets them from the config.
+        self.cd: str = emu.get_cd()
+        self.env: dict[str, str] = dict(emu.get_env())
+        self.heap_allocs: list[tuple[int, int, str]] = []
 
         self.stdin: int = (0xF000) + 1
         self.stdout: int = (0xF000) + 2

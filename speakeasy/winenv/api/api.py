@@ -298,7 +298,7 @@ class ApiHandler:
         mm = self.emu.get_address_map(addr)
         if not mm or mm.free or mm.base != addr or not (mm.tag or "").startswith("api.heap"):
             return None
-        return next((n for a, n, _ in reversed(self.emu.heap_allocs) if a == addr), mm.size)
+        return next((n for a, n, _ in reversed(self.emu.get_heap_allocs()) if a == addr), mm.size)
 
     def heap_free(self, addr):
         """
