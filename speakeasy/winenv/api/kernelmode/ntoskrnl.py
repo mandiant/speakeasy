@@ -1400,16 +1400,20 @@ class Ntoskrnl(api.ApiHandler):
         osver = emu.config.os_ver
         size = self.read_dword(VersionInformation)
 
-        verinfo: ntos.RTL_OSVERSIONINFOW | ntos.RTL_OSVERSIONINFOEXW
-        if size == self.sizeof(self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())):
-            verinfo = self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())
-        else:
-            verinfo = self.win.RTL_OSVERSIONINFOEXW(emu.get_ptr_size())
+        # Windows writes the extended fields only when the caller gives the size of RTL_OSVERSIONINFOEXW.
+        vi: ntos.RTL_OSVERSIONINFOW | ntos.RTL_OSVERSIONINFOEXW = self.win.RTL_OSVERSIONINFOEXW(emu.get_ptr_size())
+        if size != self.sizeof(vi):
+            vi = self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())
 
-        vi = self.mem_cast(verinfo, VersionInformation)
-        vi.dwMajorVersion = osver.major
-        vi.dwMinorVersion = osver.minor
-        vi.dwBuildNumber = osver.build
+        # Windows writes each field of the structure. The fields that the handler does not set, such as
+        # szCSDVersion (no service pack), are zero and not the old bytes of the guest buffer.
+        vi.dwOSVersionInfoSize = size
+        vi.dwMajorVersion = osver.major or 0
+        vi.dwMinorVersion = osver.minor or 0
+        vi.dwBuildNumber = osver.build or 0
+        vi.dwPlatformId = windefs.VER_PLATFORM_WIN32_NT
+        if isinstance(vi, ntos.RTL_OSVERSIONINFOEXW):
+            vi.wProductType = windefs.VER_NT_WORKSTATION
 
         self.mem_write(VersionInformation, self.get_bytes(vi))
 
