@@ -252,7 +252,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 if not hook.added:
                     hook.add()
 
-    def _cs_disasm(self, mem, addr, fast=True):
+    def _cs_disasm(self, mem, addr, fast=True) -> tuple[str, str, str] | list[cs.CsInsn]:
         """Disassemble bytes using capstone."""
         try:
             if fast:
@@ -266,7 +266,7 @@ class BinaryEmulator(MemoryManager, ABC):
         op = f"{mnem} {oper}"
         return (mnem, oper, op)
 
-    def disasm(self, mem, addr, fast=True):
+    def disasm(self, mem: bytes, addr: int, *, fast: bool = True) -> tuple[str, str, str] | list[cs.CsInsn]:
         """
         Disassemble bytes at a specified address.
 
@@ -314,9 +314,9 @@ class BinaryEmulator(MemoryManager, ABC):
                 regs[name] = self.reg_read(reg)
         return regs
 
-    def get_disasm(self, addr, size, fast=True):
+    def get_disasm(self, addr: int, size: int, *, fast: bool = True) -> tuple[str, str, str] | list[cs.CsInsn]:
         """Get the disassembly from an address."""
-        return self.disasm(self.mem_read(addr, size), addr, fast)
+        return self.disasm(self.mem_read(addr, size), addr, fast=fast)
 
     def set_func_args(self, stack_addr, ret_addr, *args, conv, home_space=True):
         """
@@ -770,7 +770,7 @@ class BinaryEmulator(MemoryManager, ABC):
     def write_ptr(self, address, val):
         self.mem_write(address, val.to_bytes(self.ptr_size, "little"))
 
-    def get_ptr_size(self):
+    def get_ptr_size(self) -> int:
         """Get the pointer size of the current emulation state."""
         return self.ptr_size
 

@@ -70,7 +70,7 @@ class Hook:
     emu: BinaryEmulator
     emu_eng: EmuEngine
 
-    def __init__(self, cb, native_hook=False):
+    def __init__(self, cb, *, native_hook=False):
         """
         Create a hook.
 
@@ -177,7 +177,7 @@ class CodeHook(Hook):
 
     htype = HOOK_CODE
 
-    def __init__(self, cb, begin=1, end=0, native_hook=True):
+    def __init__(self, cb, begin=1, end=0, *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
         self.begin: int = begin
         self.end: int = end
@@ -193,7 +193,7 @@ class ReadMemHook(Hook):
 
     htype = HOOK_MEM_READ
 
-    def __init__(self, cb, begin=1, end=0, native_hook=True):
+    def __init__(self, cb, begin=1, end=0, *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
         self.begin: int = begin
         self.end: int = end
@@ -211,7 +211,7 @@ class WriteMemHook(Hook):
 
     htype = HOOK_MEM_WRITE
 
-    def __init__(self, cb, begin=1, end=0, native_hook=True):
+    def __init__(self, cb, begin=1, end=0, *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
         self.begin: int = begin
         self.end: int = end
@@ -251,7 +251,7 @@ class InterruptHook(Hook):
 
     htype = HOOK_INTERRUPT
 
-    def __init__(self, cb, native_hook=True):
+    def __init__(self, cb, *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
 
     def add(self):
@@ -270,7 +270,7 @@ class InstructionHook(Hook):
 
     htype = HOOK_INSN
 
-    def __init__(self, cb, begin=1, end=0, insns=(), native_hook=True):
+    def __init__(self, cb, begin=1, end=0, insns=(), *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
         self.begin: int = begin
         self.end: int = end
@@ -314,7 +314,7 @@ class InvalidInstructionHook(Hook):
 
     htype = HOOK_INSN_INVALID
 
-    def __init__(self, cb, native_hook=True):
+    def __init__(self, cb, *, native_hook=True):
         super().__init__(cb, native_hook=native_hook)
 
     def add(self):

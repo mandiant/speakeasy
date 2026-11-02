@@ -46,7 +46,7 @@ class Win32Emulator(WindowsEmulator):
     file_name: str
     mod_name: str
 
-    def __init__(self, config, argv=None, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
+    def __init__(self, config, argv=None, *, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
         self.peb_addr = 0
@@ -152,7 +152,7 @@ class Win32Emulator(WindowsEmulator):
 
             self.processes.append(p)
 
-    def load_module(self, path=None, data=None, filename=None):
+    def load_module(self, path=None, data=None, filename=None) -> RuntimeModule:
         self._init_name(path, data, filename=filename)
 
         if not data:
@@ -260,7 +260,7 @@ class Win32Emulator(WindowsEmulator):
 
         return startup
 
-    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
+    def run_module(self, module, *, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
         Begin emulating a previously loaded module.
 

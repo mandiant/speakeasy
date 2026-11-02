@@ -447,7 +447,7 @@ class ApiHandler:
         return self.emu.mem_read(addr, size)
 
     def file_open(self, path, create=False, truncate=False, disposition=None, access=None):
-        return self.emu.file_open(path, create, truncate=truncate, disposition=disposition, access=access)
+        return self.emu.file_open(path, create=create, truncate=truncate, disposition=disposition, access=access)
 
     def file_create_mapping(self, hfile, name, size, prot):
         return self.emu.file_create_mapping(hfile, name, size, prot)
@@ -463,7 +463,7 @@ class ApiHandler:
         return self.emu.does_file_exist(path)
 
     def reg_open_key(self, path, create=False):
-        return self.emu.reg_open_key(path, create)
+        return self.emu.reg_open_key(path, create=create)
 
     def get_reg_key(self, handle) -> RegKey | None:
         """Get the key of a predefined key or an open key handle, or None if the handle refers to no key."""
