@@ -1,8 +1,13 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.defs.windows.com as comdefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class ComApi(api.ApiHandler):
@@ -24,7 +29,7 @@ class ComApi(api.ApiHandler):
 
     # First argument (self) is not reflected in method definitions; note this increases argc by 1
     @apihook("IUnknown.QueryInterface", argc=3)
-    def IUnknown_QueryInterface(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IUnknown_QueryInterface(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT IUnknown::QueryInterface(
             REFIID riid,
@@ -48,7 +53,7 @@ class ComApi(api.ApiHandler):
         return comdefs.E_NOINTERFACE
 
     @apihook("IUnknown.AddRef", argc=1)
-    def IUnknown_AddRef(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IUnknown_AddRef(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG IUnknown::AddRef();
 
@@ -58,7 +63,7 @@ class ComApi(api.ApiHandler):
         return 1
 
     @apihook("IUnknown.Release", argc=1)
-    def IUnknown_Release(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IUnknown_Release(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG IUnknown::Release();
 
@@ -68,7 +73,7 @@ class ComApi(api.ApiHandler):
         return 0
 
     @apihook("IMalloc.Alloc", argc=2)
-    def IMalloc_Alloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_Alloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *IMalloc::Alloc(
             SIZE_T cb
@@ -80,7 +85,7 @@ class ComApi(api.ApiHandler):
         return self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
 
     @apihook("IMalloc.Realloc", argc=3)
-    def IMalloc_Realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_Realloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *IMalloc::Realloc(
             void *pv,
@@ -104,7 +109,7 @@ class ComApi(api.ApiHandler):
         return new
 
     @apihook("IMalloc.Free", argc=2)
-    def IMalloc_Free(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_Free(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IMalloc::Free(
             void *pv
@@ -117,7 +122,7 @@ class ComApi(api.ApiHandler):
             self.heap_free(pv)
 
     @apihook("IMalloc.GetSize", argc=2)
-    def IMalloc_GetSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_GetSize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SIZE_T IMalloc::GetSize(
             void *pv
@@ -132,7 +137,7 @@ class ComApi(api.ApiHandler):
         return size
 
     @apihook("IMalloc.DidAlloc", argc=2)
-    def IMalloc_DidAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_DidAlloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int IMalloc::DidAlloc(
             void *pv
@@ -146,7 +151,7 @@ class ComApi(api.ApiHandler):
         return int(self.heap_size(pv) is not None)
 
     @apihook("IMalloc.HeapMinimize", argc=1)
-    def IMalloc_HeapMinimize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IMalloc_HeapMinimize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void IMalloc::HeapMinimize();
 
@@ -154,7 +159,7 @@ class ComApi(api.ApiHandler):
         """
 
     @apihook("IWbemLocator.ConnectServer", argc=9)
-    def IWbemLocator_ConnectServer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IWbemLocator_ConnectServer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT IWbemLocator::ConnectServer(
             const BSTR strNetworkResource,
@@ -181,7 +186,7 @@ class ComApi(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("IWbemServices.GetObject", argc=6)
-    def IWbemServices_GetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IWbemServices_GetObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT IWbemServices::GetObject(
             const BSTR strObjectPath,
@@ -204,7 +209,7 @@ class ComApi(api.ApiHandler):
         return comdefs.WBEM_E_NOT_FOUND
 
     @apihook("IWbemServices.ExecQuery", argc=6)
-    def IWbemServices_ExecQuery(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IWbemServices_ExecQuery(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT IWbemServices::ExecQuery(
             const BSTR strQueryLanguage,
