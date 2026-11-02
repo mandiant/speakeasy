@@ -2301,7 +2301,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcmp", argc=2)
     def lstrcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int lstrcmpiA(
+        int lstrcmpA(
             LPCSTR lpString1,
             LPCSTR lpString2
         );
@@ -2420,7 +2420,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     @apihook("QueryDosDevice", argc=3)
     def QueryDosDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """Return synthetic DOS device mappings as an ANSI or wide MULTI_SZ."""
+        """
+        DWORD QueryDosDevice(
+            LPCTSTR lpDeviceName,
+            LPTSTR lpTargetPath,
+            DWORD ucchMax
+        );
+
+        Return synthetic DOS device mappings as an ANSI or wide MULTI_SZ.
+        """
         device, output, capacity = argv
         width = self.get_char_width(ctx)
         mappings = {"C:": "\\Device\\HarddiskVolume1"}
@@ -2701,7 +2709,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GlobalAlloc", argc=2)
     def GlobalAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DECLSPEC_ALLOCATOR HGLOBAL GlobalAlloc(
+        HGLOBAL GlobalAlloc(
             UINT uFlags,
             SIZE_T dwBytes
         );
@@ -2751,7 +2759,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("LocalAlloc", argc=2)
     def LocalAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DECLSPEC_ALLOCATOR HLOCAL LocalAlloc(
+        HLOCAL LocalAlloc(
             UINT uFlags,
             SIZE_T uBytes
         );
@@ -2765,7 +2773,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("HeapAlloc", argc=3)
     def HeapAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DECLSPEC_ALLOCATOR LPVOID HeapAlloc(
+        LPVOID HeapAlloc(
             HANDLE hHeap,
             DWORD dwFlags,
             SIZE_T dwBytes
@@ -2913,7 +2921,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("HeapReAlloc", argc=4)
     def HeapReAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DECLSPEC_ALLOCATOR LPVOID HeapReAlloc(
+        LPVOID HeapReAlloc(
             HANDLE hHeap,
             DWORD dwFlags,
             LPVOID lpMem,
@@ -2939,7 +2947,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("LocalReAlloc", argc=3)
     def LocalReAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DECLSPEC_ALLOCATOR HLOCAL LocalReAlloc(
+        HLOCAL LocalReAlloc(
             HLOCAL hMem,
             SIZE_T uBytes,
             UINT uFlags
@@ -7864,14 +7872,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetThreadPriority", argc=1)
     def GetThreadPriority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE hThread;
+        int GetThreadPriority(
+            HANDLE hThread
+        );
         """
         return k32types.THREAD_PRIORITY_NORMAL
 
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _EXCEPTION_POINTERS *ExceptionInfo;
+        LONG UnhandledExceptionFilter(
+            struct _EXCEPTION_POINTERS *ExceptionInfo
+        );
         """
         return k32types.EXCEPTION_EXECUTE_HANDLER
 
@@ -7948,7 +7960,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetUserDefaultLCID", argc=0)
     def GetUserDefaultLCID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LCID GetUserDefaultLCID();
+        LCID GetSystemDefaultLCID();
         """
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
@@ -7956,7 +7968,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetSystemDefaultLCID", argc=0)
     def GetSystemDefaultLCID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LCID GetUserDefaultLCID();
+        LCID GetSystemDefaultLCID();
         """
         # https://learn.microsoft.com/en-us/windows/win32/intl/locale-system-default
         return LOCALE_SYSTEM_DEFAULT
@@ -8223,14 +8235,31 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     @apihook("WTSGetActiveConsoleSessionId", argc=0)
     def WTSGetActiveConsoleSessionId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD WTSGetActiveConsoleSessionId();
+        """
         return emu.get_current_process().session
 
     @apihook("WaitForSingleObjectEx", argc=3)
     def WaitForSingleObjectEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD WaitForSingleObjectEx(
+            HANDLE hHandle,
+            DWORD dwMilliseconds,
+            BOOL bAlertable
+        );
+        """
         return 0  # = WAIT_OBJECT_0
 
     @apihook("GetProfileInt", argc=3)
     def GetProfileInt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        UINT GetProfileInt(
+            LPCTSTR lpAppName,
+            LPCTSTR lpKeyName,
+            INT nDefault
+        );
+        """
         _, _, nDefault = argv
         return nDefault
 

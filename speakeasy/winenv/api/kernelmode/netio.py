@@ -159,7 +159,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskSocket", argc=11)
     def WskSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskSocket(
+        NTSTATUS WskSocket(
             PWSK_CLIENT Client,
             ADDRESS_FAMILY AddressFamily,
             USHORT SocketType,
@@ -191,7 +191,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskSocketConnect", argc=12)
     def WskSocketConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskSocketConnect(
+        NTSTATUS WskSocketConnect(
             PWSK_CLIENT Client,
             USHORT SocketType,
             ULONG Protocol,
@@ -215,7 +215,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskControlClient", argc=8)
     def WskControlClient(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskControlClient(
+        NTSTATUS WskControlClient(
             PWSK_CLIENT Client,
             ULONG ControlCode,
             SIZE_T InputSize,
@@ -234,7 +234,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskGetAddressInfo", argc=10)
     def WskGetAddressInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskGetAddressInfo(
+        NTSTATUS WskGetAddressInfo(
             PWSK_CLIENT Client,
             PUNICODE_STRING NodeName,
             PUNICODE_STRING ServiceName,
@@ -255,7 +255,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskFreeAddressInfo", argc=2)
     def WskFreeAddressInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void PfnWskFreeAddressInfo(
+        void WskFreeAddressInfo(
             PWSK_CLIENT Client,
             PADDRINFOEXW AddrInfo
         );
@@ -268,7 +268,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskGetNameInfo", argc=9)
     def WskGetNameInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskGetNameInfo(
+        NTSTATUS WskGetNameInfo(
             PWSK_CLIENT Client,
             PSOCKADDR SockAddr,
             ULONG SockAddrLength,
@@ -288,7 +288,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskControlSocket", argc=10)
     def WskControlSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskControlSocket(
+        NTSTATUS WskControlSocket(
             PWSK_SOCKET Socket,
             WSK_CONTROL_SOCKET_TYPE RequestType,
             ULONG ControlCode,
@@ -309,7 +309,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskCloseSocket", argc=2)
     def WskCloseSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskCloseSocket(
+        NTSTATUS WskCloseSocket(
             PWSK_SOCKET Socket,
             PIRP Irp
         );
@@ -322,7 +322,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskBind", argc=4)
     def WskBind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskBind(
+        NTSTATUS WskBind(
             PWSK_SOCKET Socket,
             PSOCKADDR LocalAddress,
             ULONG Flags,
@@ -344,7 +344,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskSendTo", argc=7)
     def WskSendTo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskSendTo(
+        NTSTATUS WskSendTo(
             PWSK_SOCKET Socket,
             PWSK_BUF Buffer,
             ULONG Flags,
@@ -362,7 +362,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskReceiveFrom", argc=8)
     def WskReceiveFrom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskReceiveFrom(
+        NTSTATUS WskReceiveFrom(
             PWSK_SOCKET Socket,
             PWSK_BUF Buffer,
             ULONG Flags,
@@ -381,7 +381,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskRelease", argc=2)
     def WskRelease(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS *WskRelease(
+        NTSTATUS WskRelease(
             PWSK_SOCKET Socket,
             PWSK_DATA_INDICATION DataIndication
         );
@@ -394,7 +394,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskGetLocalAddress", argc=3)
     def WskGetLocalAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS PfnWskGetLocalAddress(
+        NTSTATUS WskGetLocalAddress(
             PWSK_SOCKET Socket,
             PSOCKADDR LocalAddress,
             PIRP Irp
@@ -419,7 +419,10 @@ class Netio(api.ApiHandler):
     @apihook("NsiEnumerateObjectsAllParametersEx", argc=0)
     def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        N/A
+        NTSTATUS NsiEnumerateObjectsAllParametersEx();
+
+        The Nsi interface is undocumented. The handler takes no arguments and
+        returns 0.
         """
         return
 
