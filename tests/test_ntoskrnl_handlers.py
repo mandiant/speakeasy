@@ -9,7 +9,7 @@ from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
 from speakeasy.winenv.defs.nt import ddk
-from tests.handler_harness import alloc, call, get_kernel_emu, load_emu, object_attributes, unicode_string
+from tests.handler_harness import alloc, ansi_string, call, get_kernel_emu, load_emu, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -337,13 +337,9 @@ def test_ob_reference_object_by_handle_resolves_pseudo_handles(driver_emu: Speak
     assert int.from_bytes(driver_emu.mem_read(out, 4), "little") == expected.address
 
 
-def ansi_string_x86(se: Speakeasy, text: bytes) -> int:
-    return alloc(se, struct.pack("<HHI", len(text), len(text) + 1, alloc(se, text + b"\x00")))
-
-
 def test_rtl_ansi_string_to_unicode_string_keeps_the_caller_buffer_size(driver_emu: Speakeasy) -> None:
     dest = empty_unicode_string_x86(driver_emu, 64)
-    rv, _ = call(driver_emu, "ntoskrnl", "RtlAnsiStringToUnicodeString", [dest, ansi_string_x86(driver_emu, b"ab"), 0])
+    rv, _ = call(driver_emu, "ntoskrnl", "RtlAnsiStringToUnicodeString", [dest, ansi_string(driver_emu, b"ab"), 0])
     assert rv == ddk.STATUS_SUCCESS
     assert read_unicode_string_x86(driver_emu, dest) == (4, 64, "ab".encode("utf-16le"))
 

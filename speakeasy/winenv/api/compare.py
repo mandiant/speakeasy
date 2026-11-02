@@ -8,6 +8,8 @@ is less than ``a`` (0x61). A fold to upper case gives a result that is greater t
 
 import enum
 
+from speakeasy.winenv.codepage import DECODING_TABLE
+
 ASCII_LOWER_TABLE = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
@@ -24,6 +26,13 @@ def fold_upper(c: str) -> str:
     # outside the BMP stay the same.
     upper = c.upper()
     return upper if len(upper) == 1 and ord(c) < 0x10000 else c
+
+
+# RtlUpperChar folds a byte in the ANSI code page. A byte whose upper case is not in the code page
+# stays the same.
+ANSI_UPPER_TABLE = bytes(
+    DECODING_TABLE.index(u) if (u := fold_upper(c)) in DECODING_TABLE else b for b, c in enumerate(DECODING_TABLE)
+)
 
 
 def get_sort_key(s: str, fold: Fold) -> tuple[str | bytes, ...]:
