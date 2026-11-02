@@ -15,6 +15,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 
 from pefile import MACHINE_TYPE, PEFormatError
 from pydantic import ValidationError
+from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER
 
 from speakeasy import Win32Emulator, WinKernelEmulator, common
 from speakeasy.cli_config import output_active_config
@@ -610,7 +611,13 @@ class Speakeasy:
         Set a callback to fire when an IN instruction executes.
 
         The emulator calls ``cb(emu, port, size)``. The callback returns the value that the
-        instruction reads from ``port``.
+        instruction reads from ``port``. Only one IN hook runs for an instruction: the first
+        hook that is enabled and covers the address.
+
+        In user mode, when ``exceptions.dispatch_handlers`` is set, the emulator adds its own
+        IN hook when the first run starts. That hook raises a privileged instruction exception,
+        as Windows does. A hook that you add before the run comes first, so it replaces the
+        exception.
 
         Args:
             cb: Python function to call.
@@ -620,7 +627,7 @@ class Speakeasy:
         Returns:
             The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        return self._add_hook(common.InstructionHook(cb, insn=218))
+        return self._add_hook(common.InstructionHook(cb, begin, end, insns=(UC_X86_INS_IN,)))
 
     def add_IN_instruction_hook(self, cb: InHookCallback, begin=1, end=0) -> common.InstructionHook:
         """Deprecated alias of ``add_in_instruction_hook``."""
@@ -631,9 +638,10 @@ class Speakeasy:
 
     def add_syscall_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
         """
-        Set a callback to fire when a SYSCALL / SYSENTER instruction executes.
+        Set a callback to fire when a SYSCALL or SYSENTER instruction executes.
 
-        The emulator calls ``cb(emu)``. The return value is not used.
+        The emulator calls ``cb(emu)``. The return value is not used. Unicorn does not
+        emulate the system call, so the emulation continues at the next instruction.
 
         Args:
             cb: Python function to call.
@@ -643,7 +651,7 @@ class Speakeasy:
         Returns:
             The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        return self._add_hook(common.InstructionHook(cb, insn=700))
+        return self._add_hook(common.InstructionHook(cb, begin, end, insns=(UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER)))
 
     def add_SYSCALL_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
         """Deprecated alias of ``add_syscall_instruction_hook``."""

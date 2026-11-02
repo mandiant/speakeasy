@@ -53,8 +53,10 @@ Each `add_*_hook` method calls its callback with the emulator as the first argum
 | `add_interrupt_hook(cb)` | `cb(emu, number)` | not used |
 | `add_invalid_instruction_hook(cb)` | `cb(emu)` | `True` if the callback handled the instruction |
 | `add_dyn_code_hook(cb)` | `cb(emu, region)` | not used |
-| `add_in_instruction_hook(cb)` | `cb(emu, port, size)` | the value that the IN instruction reads |
-| `add_syscall_instruction_hook(cb)` | `cb(emu)` | not used |
+| `add_in_instruction_hook(cb, begin, end)` | `cb(emu, port, size)` | the value that the IN instruction reads |
+| `add_syscall_instruction_hook(cb, begin, end)` | `cb(emu)` | not used |
+
+The SYSCALL hook fires for SYSCALL and SYSENTER. Only one IN hook runs for an instruction: the first hook that is enabled and covers the address. When `exceptions.dispatch_handlers` is set, the user mode emulator adds its own IN hook at the start of the first run. That hook raises a privileged instruction exception, as Windows does. An IN hook that you add before the run comes first, so it replaces the exception.
 
 This code hook runs one time, then removes itself:
 

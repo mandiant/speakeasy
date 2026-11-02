@@ -32,6 +32,9 @@ CASES = {
     "interrupt": (lambda se, cb: se.add_interrupt_hook(cb), lambda se: b"\xcc\xc3"),
     "invalid_instruction": (lambda se, cb: se.add_invalid_instruction_hook(cb), lambda se: b"\x0f\x0b\xc3"),
     "dyn_code": (lambda se, cb: se.add_dyn_code_hook(cb), _get_virtual_alloc_code),
+    # mov edx, 0x5658 ; in eax, dx ; ret
+    "in_instruction": (lambda se, cb: se.add_in_instruction_hook(cb), lambda se: b"\xba\x58\x56\x00\x00\xed\xc3"),
+    "syscall_instruction": (lambda se, cb: se.add_syscall_instruction_hook(cb), lambda se: b"\x0f\x34\xc3"),
 }
 
 
@@ -64,3 +67,43 @@ def test_hook_gets_emulator_and_stops_after_remove_or_disable(config, kind, when
     assert all(isinstance(emu, Win32Emulator) for emu in kept)
     assert removed == []
     assert disabled == []
+
+
+def test_in_hook_gives_the_value_of_the_first_hook_that_covers_the_instruction(config):
+    # mov edx, 0x5658 ; in eax, dx ; ret
+    code = b"\xba\x58\x56\x00\x00\xed\xc3"
+    other: list = []
+    calls: list = []
+    eax: list = []
+
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=bytes(0x1000), arch="x86")
+        ret = base + len(code) - 1
+        se.add_in_instruction_hook(lambda emu, port, size: other.append(port) or 1, begin=ret, end=ret)
+        se.add_in_instruction_hook(lambda emu, port, size: calls.append((port, size)) or 0x564D5868)
+        se.add_code_hook(lambda emu, address, size: eax.append(emu.reg_read("eax")), begin=ret, end=ret)
+        se.mem_write(base, code)
+        se.run_shellcode(base)
+
+    assert other == []
+    assert calls == [(0x5658, 4)]
+    assert eax == [0x564D5868]
+
+
+@pytest.mark.parametrize(("arch", "insn"), [("x64", b"\x0f\x05"), ("x86", b"\x0f\x34")], ids=["syscall", "sysenter"])
+def test_syscall_hook_fires_in_its_range(config, arch, insn):
+    # The instruction comes after some nops, so that it is not the first one of its block.
+    code = b"\x90" * 4 + insn + b"\xc3"
+    inside: list = []
+    before: list = []
+
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=bytes(0x1000), arch=arch)
+        address = base + 4
+        se.add_syscall_instruction_hook(lambda emu: inside.append(emu.get_pc()), begin=address, end=address)
+        se.add_syscall_instruction_hook(lambda emu: before.append(emu.get_pc()), begin=base, end=address - 1)
+        se.mem_write(base, code)
+        se.run_shellcode(base)
+
+    assert inside == [address]
+    assert before == []
