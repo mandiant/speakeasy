@@ -627,10 +627,8 @@ class Msvcrt(api.ApiHandler):
         _argv = self.emu.get_argv()
         _argv = " ".join(_argv).encode("utf-8")
 
-        ptr_size = self.emu.get_ptr_size()
-
         p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
-        self.emu.mem_write(ptr, p_cmdln.to_bytes(ptr_size, "little"))
+        self.write_ptr(ptr, p_cmdln)
         self.emu.mem_write(p_cmdln, _argv + b"\x00")
         return ptr
 
@@ -643,7 +641,7 @@ class Msvcrt(api.ApiHandler):
         """
         data = (" ".join(self.emu.get_argv()) + "\x00").encode("utf-16le")
         p_cmdln = self.mem_alloc(len(data), tag="api.msvcrt.command_line")
-        self.emu.mem_write(ptr, p_cmdln.to_bytes(self.emu.get_ptr_size(), "little"))
+        self.write_ptr(ptr, p_cmdln)
         self.emu.mem_write(p_cmdln, data)
         return ptr
 
@@ -735,11 +733,10 @@ class Msvcrt(api.ApiHandler):
         );
         """
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
-        ptr_size = self.get_ptr_size()
 
         rv = 0
         if pReturnValue:
-            self.mem_write(pReturnValue, (0).to_bytes(ptr_size, "little"))
+            self.write_ptr(pReturnValue, 0)
 
         # Sanity checks
         if (sizeInWords > 0 and not wcstr) or not mbstr or (sizeInWords == 0 and wcstr):
@@ -763,7 +760,7 @@ class Msvcrt(api.ApiHandler):
                     rv = STRUNCATE
                 self.mem_write(wcstr, (text[: n - 1] + "\x00").encode("utf-16le"))
             if pReturnValue:
-                self.mem_write(pReturnValue, n.to_bytes(ptr_size, "little"))
+                self.write_ptr(pReturnValue, n)
 
         return rv
 
@@ -818,7 +815,7 @@ class Msvcrt(api.ApiHandler):
     def _call_initializers(self, pfbegin, pfend, stop_on_error):
         ptr_size = self.get_ptr_size()
         for entry in range(pfbegin, pfend, ptr_size):
-            function = int.from_bytes(self.mem_read(entry, ptr_size), "little")
+            function = self.read_ptr(entry)
             if not function:
                 continue
             result = (yield GuestCall(function)) & 0xFFFFFFFF
@@ -836,7 +833,7 @@ class Msvcrt(api.ApiHandler):
         argc = len(_argv)
 
         if _Argc:
-            self.mem_write(_Argc, argc.to_bytes(4, "little"))
+            self.write_dword(_Argc, argc)
 
         if _Argv:
             argv_list = [(a + "\x00").encode(encoding) for a in _argv]
@@ -848,13 +845,13 @@ class Msvcrt(api.ApiHandler):
             sptr = arg_mem + array_size
 
             for a in argv_list:
-                self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+                self.write_ptr(pptr, sptr)
                 pptr += ptr_size
                 self.mem_write(sptr, a)
                 sptr += len(a)
             self.mem_write(pptr, b"\x00" * ptr_size)
 
-            self.mem_write(_Argv, arg_mem.to_bytes(ptr_size, "little"))
+            self.write_ptr(_Argv, arg_mem)
 
         if _Env:
             env = emu.get_env()
@@ -872,13 +869,13 @@ class Msvcrt(api.ApiHandler):
             sptr = env_mem + ptr_size * (len(fmt_env) + 1)
 
             for v in fmt_env:
-                self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+                self.write_ptr(pptr, sptr)
                 pptr += ptr_size
                 self.mem_write(sptr, v)
                 sptr += len(v)
             self.mem_write(pptr, b"\x00" * ptr_size)
 
-            self.mem_write(_Env, env_mem.to_bytes(ptr_size, "little"))
+            self.write_ptr(_Env, env_mem)
 
         return rv
 
@@ -938,11 +935,11 @@ class Msvcrt(api.ApiHandler):
 
         arg_mem = self.mem_alloc(size=total, tag="api.argv")
         pptr = arg_mem + ptr_size
-        self.mem_write(arg_mem, pptr.to_bytes(ptr_size, "little"))
+        self.write_ptr(arg_mem, pptr)
         sptr = pptr + array_size
 
         for a in args:
-            self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+            self.write_ptr(pptr, sptr)
             pptr += ptr_size
             self.mem_write(sptr, a)
             sptr += len(a)
@@ -971,11 +968,11 @@ class Msvcrt(api.ApiHandler):
 
         arg_mem = self.mem_alloc(size=total, tag="api.argv")
         pptr = arg_mem + ptr_size
-        self.mem_write(arg_mem, pptr.to_bytes(ptr_size, "little"))
+        self.write_ptr(arg_mem, pptr)
         sptr = pptr + array_size
 
         for a in args:
-            self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+            self.write_ptr(pptr, sptr)
             pptr += ptr_size
             self.mem_write(sptr, a)
             sptr += len(a)
@@ -992,7 +989,7 @@ class Msvcrt(api.ApiHandler):
         _argv = emu.get_argv()
 
         argc = self.mem_alloc(size=4, tag="api.argc")
-        self.mem_write(argc, len(_argv).to_bytes(4, "little"))
+        self.write_dword(argc, len(_argv))
         return argc
 
     @impdata("__initenv")
@@ -1037,7 +1034,7 @@ class Msvcrt(api.ApiHandler):
         Writable global, shared with __p__environ.
         """
         envp = self._get_initial_narrow_environment(self.emu, [])
-        self.mem_write(ptr, envp.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(ptr, envp)
         return ptr
 
     @apihook("__p__environ", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -1055,7 +1052,7 @@ class Msvcrt(api.ApiHandler):
         Writable global, shared with __p__wenviron.
         """
         envp = self._get_initial_wide_environment(self.emu, [])
-        self.mem_write(ptr, envp.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(ptr, envp)
         return ptr
 
     @apihook("__p__wenviron", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -1091,7 +1088,7 @@ class Msvcrt(api.ApiHandler):
         sptr += envp
 
         for v in fmt_env:
-            self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+            self.write_ptr(pptr, sptr)
             pptr += ptr_size
             self.mem_write(sptr, v)
             sptr += len(v)
@@ -1124,7 +1121,7 @@ class Msvcrt(api.ApiHandler):
         sptr += envp
 
         for v in fmt_env:
-            self.mem_write(pptr, sptr.to_bytes(ptr_size, "little"))
+            self.write_ptr(pptr, sptr)
             pptr += ptr_size
             self.mem_write(sptr, v)
             sptr += len(v)
@@ -1233,7 +1230,7 @@ class Msvcrt(api.ApiHandler):
         """
         size, file_offset = self.get_file_layout()
         for fd in (self.stdin, self.stdout, self.stderr):
-            self.mem_write(ptr + fd * size + file_offset, fd.to_bytes(4, "little"))
+            self.write_dword(ptr + fd * size + file_offset, fd)
         self.iob = ptr
         return ptr
 
@@ -2154,7 +2151,7 @@ class Msvcrt(api.ApiHandler):
         if not randomValue:
             return EINVAL
         self.rand_int += 1
-        self.mem_write(randomValue, (self.rand_int & 0xFFFFFFFF).to_bytes(4, "little"))
+        self.write_dword(randomValue, self.rand_int & 0xFFFFFFFF)
         return 0
 
     @apihook("__set_app_type", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -2184,7 +2181,7 @@ class Msvcrt(api.ApiHandler):
         """
         _O_TEXT = 0x4000
 
-        self.mem_write(ptr, _O_TEXT.to_bytes(4, "little"))
+        self.write_dword(ptr, _O_TEXT)
         return ptr
 
     @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -2203,7 +2200,7 @@ class Msvcrt(api.ApiHandler):
         """
         _IOCOMMIT = 0x4000
 
-        self.mem_write(ptr, _IOCOMMIT.to_bytes(4, "little"))
+        self.write_dword(ptr, _IOCOMMIT)
         return ptr
 
     @apihook("__p__commode", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -2597,13 +2594,13 @@ class Msvcrt(api.ApiHandler):
 
     def read_onexit_table(self, emu, table: int) -> tuple[int, int, int]:
         ptr_size = self.get_ptr_size()
-        first, last, end = (emu.read_ptr(table + i * ptr_size) for i in range(3))
+        first, last, end = (self.read_ptr(table + i * ptr_size) for i in range(3))
         return first, last, end
 
     def write_onexit_table(self, emu, table: int, first: int, last: int, end: int) -> None:
         ptr_size = self.get_ptr_size()
         for i, value in enumerate((first, last, end)):
-            emu.write_ptr(table + i * ptr_size, value)
+            self.write_ptr(table + i * ptr_size, value)
 
     @apihook("_initialize_onexit_table", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _initialize_onexit_table(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2641,7 +2638,7 @@ class Msvcrt(api.ApiHandler):
                 self.mem_write(array, self.mem_read(first, count * ptr_size))
                 self.heap_free(first)
             first, last, end = array, array + count * ptr_size, array + max(count * 2, 32) * ptr_size
-        emu.write_ptr(last, function)
+        self.write_ptr(last, function)
         self.write_onexit_table(emu, table, first, last + ptr_size, end)
         return 0
 
@@ -2665,12 +2662,12 @@ class Msvcrt(api.ApiHandler):
         saved = (first, last)
         while True:
             last -= ptr_size
-            while last >= first and not emu.read_ptr(last):
+            while last >= first and not self.read_ptr(last):
                 last -= ptr_size
             if last < first:
                 break
-            function = emu.read_ptr(last)
-            emu.write_ptr(last, 0)
+            function = self.read_ptr(last)
+            self.write_ptr(last, 0)
             yield GuestCall(function)
             new_first, new_last, _ = self.read_onexit_table(emu, table)
             if (new_first, new_last) != saved:
@@ -3091,16 +3088,15 @@ class Msvcrt(api.ApiHandler):
         if not buffer or not name:
             self.set_errno(EINVAL)
             return EINVAL
-        ptr_size = self.get_ptr_size()
         val = next((v for k, v in emu.get_env().items() if k.lower() == key.lower()), None)
         dst = 0
         if val is not None:
             data = (val + "\x00").encode("utf-16le" if width == 2 else "latin-1")
             dst = self.heap_alloc(len(data), heap="HeapAlloc")
             self.mem_write(dst, data)
-        self.mem_write(buffer, dst.to_bytes(ptr_size, "little"))
+        self.write_ptr(buffer, dst)
         if count:
-            self.mem_write(count, (len(val) + 1 if val is not None else 0).to_bytes(ptr_size, "little"))
+            self.write_ptr(count, len(val) + 1 if val is not None else 0)
         return 0
 
     @apihook("_dupenv_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -3154,7 +3150,7 @@ class Msvcrt(api.ApiHandler):
         string, end_ptr, base = argv
         val, used = parse_c_integer(self.read_cstr(string), base)
         if end_ptr:
-            emu.write_ptr(end_ptr, string + used)
+            self.write_ptr(end_ptr, string + used)
         return max(-0x80000000, min(val, 0x7FFFFFFF))
 
     @apihook("strtoul", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -3169,7 +3165,7 @@ class Msvcrt(api.ApiHandler):
         strSource, endptr, base = argv
         val, used = parse_c_integer(self.read_cstr(strSource), base)
         if endptr:
-            emu.write_ptr(endptr, strSource + used)
+            self.write_ptr(endptr, strSource + used)
         return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
 
     @apihook("wcstoul", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -3184,7 +3180,7 @@ class Msvcrt(api.ApiHandler):
         strSource, endptr, base = argv
         val, used = parse_c_integer(self.read_number_text(strSource, 2), base)
         if endptr:
-            emu.write_ptr(endptr, strSource + used * 2)
+            self.write_ptr(endptr, strSource + used * 2)
         return 0xFFFFFFFF if abs(val) > 0xFFFFFFFF else val & 0xFFFFFFFF
 
     def read_number_text(self, addr, width):
@@ -3199,7 +3195,7 @@ class Msvcrt(api.ApiHandler):
         src, endptr, base = argv
         val, used = parse_c_integer(self.read_number_text(src, width), base)
         if endptr:
-            emu.write_ptr(endptr, src + used * width)
+            self.write_ptr(endptr, src + used * width)
         if signed and not -(1 << 63) <= val < 1 << 63:
             self.set_errno(ERANGE)
             val = -(1 << 63) if val < 0 else (1 << 63) - 1
@@ -3304,7 +3300,7 @@ class Msvcrt(api.ApiHandler):
             return 0
 
         if thrdaddr:
-            self.mem_write(thrdaddr, obj.id.to_bytes(4, "little"))
+            self.write_dword(thrdaddr, obj.id)
 
         return handle
 
@@ -4026,7 +4022,7 @@ class Msvcrt(api.ApiHandler):
 
         Writable global, shared with __p__pctype.
         """
-        self.mem_write(ptr, self.get_pctype_table().to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(ptr, self.get_pctype_table())
         return ptr
 
     @apihook("__pctype_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -4050,7 +4046,7 @@ class Msvcrt(api.ApiHandler):
 
         Writable global. The C locale has single-byte characters.
         """
-        self.mem_write(ptr, (1).to_bytes(4, "little"))
+        self.write_dword(ptr, 1)
         return ptr
 
     @apihook("__p___mb_cur_max", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -4299,7 +4295,7 @@ class Msvcrt(api.ApiHandler):
         ptr_size = self.get_ptr_size()
         for out, field in ((base, stream + ptr_size), (ptr, stream), (count, stream + 2 * ptr_size)):
             if out:
-                emu.write_ptr(out, field)
+                self.write_ptr(out, field)
         return 0
 
     def get_file_layout(self):
@@ -4321,7 +4317,7 @@ class Msvcrt(api.ApiHandler):
         """Allocate a FILE for descriptor ``fd`` and the file handle ``hfile``."""
         size, file_offset = self.get_file_layout()
         stream = self.mem_alloc(size, tag=tag)
-        self.mem_write(stream + file_offset, fd.to_bytes(4, "little"))
+        self.write_dword(stream + file_offset, fd)
         self.crt_streams.add(stream)
         if hfile is not None:
             self.file_streams[stream] = hfile
@@ -4414,7 +4410,7 @@ class Msvcrt(api.ApiHandler):
         (pcond,) = argv
         cond = self.heap_alloc(CND_SIZE, heap="HeapAlloc")
         self.mem_write(cond, b"\x00" * CND_SIZE)
-        self.mem_write(pcond, cond.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(pcond, cond)
         return THRD_SUCCESS
 
     @apihook("_Cnd_destroy", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -4726,13 +4722,13 @@ class Msvcrt(api.ApiHandler):
         );
         """
         src, dst = argv
-        what = emu.read_ptr(src)
+        what = self.read_ptr(src)
         do_free = self.mem_read(src + self.get_ptr_size(), 1) != b"\x00"
         if do_free and what:
             what = self._strdup(emu, [what], ctx)
         else:
             do_free = False
-        emu.write_ptr(dst, what)
+        self.write_ptr(dst, what)
         self.mem_write(dst + self.get_ptr_size(), bytes([do_free]))
 
     @apihook("__std_exception_destroy", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -4744,8 +4740,8 @@ class Msvcrt(api.ApiHandler):
         """
         (data,) = argv
         if self.mem_read(data + self.get_ptr_size(), 1) != b"\x00":
-            self.heap_free(emu.read_ptr(data))
-        emu.write_ptr(data, 0)
+            self.heap_free(self.read_ptr(data))
+        self.write_ptr(data, 0)
         self.mem_write(data + self.get_ptr_size(), b"\x00")
 
     @apihook("__std_type_info_destroy_list", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -5239,7 +5235,7 @@ class Msvcrt(api.ApiHandler):
 
     def get_ios_base(self, emu, obj):
         """Return the address of the basic_ios virtual base of an x64 stream object."""
-        vbtable = emu.read_ptr(obj)
+        vbtable = self.read_ptr(obj)
         return obj + int.from_bytes(self.mem_read(vbtable + VBTABLE_OFFSET_VBASE, 4), "little", signed=True)
 
     def init_basic_ios(self, ios, strbuf):
@@ -5289,10 +5285,10 @@ class Msvcrt(api.ApiHandler):
         The first argument is the implicit this pointer.
         """
         ios, state, reraise = argv
-        state |= int.from_bytes(self.mem_read(ios + IOS64_OFFSET_MYSTATE, 4), "little")
-        if not emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF):
+        state |= self.read_dword(ios + IOS64_OFFSET_MYSTATE)
+        if not self.read_ptr(ios + IOS64_OFFSET_MYSTRBUF):
             state |= IOS_BADBIT
-        self.mem_write(ios + IOS64_OFFSET_MYSTATE, (state & IOS_STATMASK).to_bytes(4, "little"))
+        self.write_dword(ios + IOS64_OFFSET_MYSTATE, state & IOS_STATMASK)
 
     @apihook(
         "??0?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
@@ -5316,7 +5312,7 @@ class Msvcrt(api.ApiHandler):
             if self.istream_vbtable is None:
                 self.istream_vbtable = self.mem_alloc(8, tag="api.msvcrt.basic_istream_vbtable")
                 self.mem_write(self.istream_vbtable, struct.pack("<ii", 0, 0x10))
-            emu.write_ptr(this, self.istream_vbtable)
+            self.write_ptr(this, self.istream_vbtable)
         self.mem_write(this + 8, b"\x00" * 8)
         self.init_basic_ios(self.get_ios_base(emu, this), strbuf)
         return this
@@ -5339,7 +5335,7 @@ class Msvcrt(api.ApiHandler):
         """
         (sb,) = argv
         self.init_basic_streambuf(sb)
-        emu.write_ptr(sb + STREAMBUF64_OFFSET_PLOCALE, 0)
+        self.write_ptr(sb + STREAMBUF64_OFFSET_PLOCALE, 0)
         return sb
 
     @apihook("??1?$basic_streambuf@DU?$char_traits@D@std@@@std@@UEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -5419,13 +5415,13 @@ class Msvcrt(api.ApiHandler):
         filebuf = self.mem_alloc(STREAMBUF64_SIZE + STREAMBUF_VTABLE_SLOTS * 8, tag="api.msvcrt.cout_filebuf")
         vtable = filebuf + STREAMBUF64_SIZE
         self.init_basic_streambuf(filebuf)
-        self.emu.write_ptr(filebuf, vtable)
+        self.write_ptr(filebuf, vtable)
         for slot, handler in virtuals.items():
-            self.emu.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))
+            self.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))
         ios = ptr + 8
         vbtable = ios + IOS64_SIZE
         self.mem_write(vbtable, struct.pack("<ii", 0, ios - ptr))
-        self.emu.write_ptr(ptr, vbtable)
+        self.write_ptr(ptr, vbtable)
         self.init_basic_ios(ios, filebuf)
         return ptr
 
@@ -5506,14 +5502,14 @@ class Msvcrt(api.ApiHandler):
         sb, c = argv
         c &= 0xFF
         pnext_ptr, pcount_ptr = (
-            emu.read_ptr(sb + STREAMBUF64_OFFSET_IPNEXT),
-            emu.read_ptr(sb + STREAMBUF64_OFFSET_IPCOUNT),
+            self.read_ptr(sb + STREAMBUF64_OFFSET_IPNEXT),
+            self.read_ptr(sb + STREAMBUF64_OFFSET_IPCOUNT),
         )
-        pnext = emu.read_ptr(pnext_ptr)
+        pnext = self.read_ptr(pnext_ptr)
         pcount = int.from_bytes(self.mem_read(pcount_ptr, 4), "little", signed=True) if pnext else 0
         if pcount > 0:
-            self.mem_write(pcount_ptr, (pcount - 1).to_bytes(4, "little", signed=True))
-            emu.write_ptr(pnext_ptr, pnext + 1)
+            self.write_dword(pcount_ptr, pcount - 1)
+            self.write_ptr(pnext_ptr, pnext + 1)
             self.mem_write(pnext, bytes([c]))
             return c
         return (yield GuestCall(self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_OVERFLOW), (sb, c))) & 0xFFFFFFFF
@@ -5544,12 +5540,12 @@ class Msvcrt(api.ApiHandler):
 
     def get_streambuf_virtual(self, emu, sb, slot):
         """Return the address of a virtual function of an x64 basic_streambuf."""
-        return emu.read_ptr(emu.read_ptr(sb) + slot * 8)
+        return self.read_ptr(self.read_ptr(sb) + slot * 8)
 
     def sync_ostream(self, emu, ostream):
         """Call the virtual sync of the buffer of a good stream, and set badbit when it fails."""
         ios = self.get_ios_base(emu, ostream)
-        sb = emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
+        sb = self.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
         if not sb or not self.ios_base_good_x64(emu, [ios]):
             return
         sync = self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_SYNC)
@@ -5574,7 +5570,7 @@ class Msvcrt(api.ApiHandler):
         The first argument is the implicit this pointer.
         """
         ios = self.get_ios_base(emu, argv[0])
-        if int.from_bytes(self.mem_read(ios + IOS64_OFFSET_FMTFL, 4), "little") & IOS_UNITBUF:
+        if self.read_dword(ios + IOS64_OFFSET_FMTFL) & IOS_UNITBUF:
             yield from self.sync_ostream(emu, argv[0])
 
     @apihook("??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@K@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -5594,15 +5590,15 @@ class Msvcrt(api.ApiHandler):
         ostream, value = argv
         value &= 0xFFFFFFFF
         ios = self.get_ios_base(emu, ostream)
-        tie = emu.read_ptr(ios + IOS64_OFFSET_TIESTR)
+        tie = self.read_ptr(ios + IOS64_OFFSET_TIESTR)
         if self.ios_base_good_x64(emu, [ios]) and tie and tie != ostream:
             yield from self.sync_ostream(emu, tie)
-        sb = emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
+        sb = self.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
         if not sb or not self.ios_base_good_x64(emu, [ios]):
             self.basic_ios_setstate_x64(emu, [ios, IOS_GOODBIT, 0])
             return ostream
 
-        flags = int.from_bytes(self.mem_read(ios + IOS64_OFFSET_FMTFL, 4), "little")
+        flags = self.read_dword(ios + IOS64_OFFSET_FMTFL)
         prefix = ""
         if flags & IOS_BASEFIELD == IOS_HEX:
             digits = f"{value:X}" if flags & IOS_UPPERCASE else f"{value:x}"
@@ -5675,7 +5671,7 @@ class Msvcrt(api.ApiHandler):
         ptr_size = emu.get_ptr_size()
         vtable = self.mem_alloc(len(methods) * ptr_size, tag="api.msvcrt.locimp_vtable")
         for i, method in enumerate(methods):
-            emu.write_ptr(vtable + i * ptr_size, emu.add_callback(self.name, method))
+            self.write_ptr(vtable + i * ptr_size, emu.add_callback(self.name, method))
         name = self.mem_alloc(2, tag="api.msvcrt.locimp_name")
         self.mem_write(name, b"C\x00")
         locimp = self.mem_alloc(size, tag="api.msvcrt.locimp")
@@ -5686,8 +5682,8 @@ class Msvcrt(api.ApiHandler):
     def add_facet_refs(self, facet, delta):
         """Add ``delta`` to the reference count of a std::locale::facet and return the new count."""
         refs_offset = self.get_ptr_size()
-        refs = (int.from_bytes(self.mem_read(facet + refs_offset, 4), "little") + delta) & 0xFFFFFFFF
-        self.mem_write(facet + refs_offset, refs.to_bytes(4, "little"))
+        refs = (self.read_dword(facet + refs_offset) + delta) & 0xFFFFFFFF
+        self.write_dword(facet + refs_offset, refs)
         return refs
 
     def locale_init(self, emu, do_incref):
@@ -5966,7 +5962,7 @@ class Msvcrt(api.ApiHandler):
         (mode,) = argv
         if mode not in (O_TEXT, O_BINARY):
             return EINVAL
-        self.mem_write(emu.get_proc("msvcrt", "_fmode"), mode.to_bytes(4, "little"))
+        self.write_dword(emu.get_proc("msvcrt", "_fmode"), mode)
         return 0
 
     @apihook("_itoa", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -6176,16 +6172,16 @@ class Msvcrt(api.ApiHandler):
 
         # mov     eax, DWORD PTR fs:[0]
         # push    eax
-        emu.push_stack(emu.read_ptr(emu.fs_addr + 0))
+        emu.push_stack(self.read_ptr(emu.fs_addr + 0))
 
         # mov     eax, DWORD PTR [esp+12]
-        eax = emu.read_ptr(emu.reg_read(e_arch.X86_REG_ESP) + 12)
+        eax = self.read_ptr(emu.reg_read(e_arch.X86_REG_ESP) + 12)
 
         # mov     DWORD PTR fs:[0], esp
-        emu.write_ptr(emu.fs_addr + 0, emu.reg_read(e_arch.X86_REG_ESP))
+        self.write_ptr(emu.fs_addr + 0, emu.reg_read(e_arch.X86_REG_ESP))
 
         # mov     DWORD PTR [esp+12], ebp
-        emu.write_ptr(emu.reg_read(e_arch.X86_REG_ESP) + 12, emu.reg_read(e_arch.X86_REG_EBP))
+        self.write_ptr(emu.reg_read(e_arch.X86_REG_ESP) + 12, emu.reg_read(e_arch.X86_REG_EBP))
 
         # lea     ebp, DWORD PTR [esp+12]
         emu.reg_write(e_arch.X86_REG_EBP, emu.reg_read(e_arch.X86_REG_ESP) + 12)
@@ -6225,15 +6221,15 @@ class Msvcrt(api.ApiHandler):
     def save_jump_buffer(self, emu, buf):
         regs, sp_off, pc_off = self.jump_buffer_layout(emu)
         for off, reg in regs:
-            emu.write_ptr(buf + off, emu.reg_read(reg))
+            self.write_ptr(buf + off, emu.reg_read(reg))
         sp = emu.get_stack_ptr()
-        emu.write_ptr(buf + sp_off, sp + emu.get_ptr_size())
-        emu.write_ptr(buf + pc_off, emu.read_ptr(sp))
+        self.write_ptr(buf + sp_off, sp + emu.get_ptr_size())
+        self.write_ptr(buf + pc_off, self.read_ptr(sp))
         if emu.get_arch() == e_arch.ARCH_X86:
-            emu.write_ptr(buf + 0x18, emu.read_ptr(emu.fs_addr))
-            emu.write_ptr(buf + 0x1C, 0xFFFFFFFF)
+            self.write_ptr(buf + 0x18, self.read_ptr(emu.fs_addr))
+            self.write_ptr(buf + 0x1C, 0xFFFFFFFF)
         else:
-            emu.write_ptr(buf, 0)
+            self.write_ptr(buf, 0)
         return 0
 
     @apihook("_setjmp", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -6254,7 +6250,7 @@ class Msvcrt(api.ApiHandler):
             ...
         );
         """
-        return self.save_jump_buffer(emu, emu.read_ptr(emu.get_stack_ptr() + 4))
+        return self.save_jump_buffer(emu, self.read_ptr(emu.get_stack_ptr() + 4))
 
     @apihook("_setjmpex", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _setjmpex(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6298,14 +6294,14 @@ class Msvcrt(api.ApiHandler):
         value = (value & 0xFFFFFFFF) or 1
         regs, sp_off, pc_off = self.jump_buffer_layout(emu)
         for off, reg in regs:
-            emu.reg_write(reg, emu.read_ptr(env + off))
+            emu.reg_write(reg, self.read_ptr(env + off))
         if emu.get_arch() == e_arch.ARCH_X86:
-            emu.write_ptr(emu.fs_addr, emu.read_ptr(env + 0x18))
+            self.write_ptr(emu.fs_addr, self.read_ptr(env + 0x18))
             emu.reg_write(e_arch.X86_REG_EAX, value)
         else:
             emu.reg_write(e_arch.AMD64_REG_RAX, value)
-        emu.set_stack_ptr(emu.read_ptr(env + sp_off))
-        emu.set_pc(emu.read_ptr(env + pc_off))
+        emu.set_stack_ptr(self.read_ptr(env + sp_off))
+        emu.set_pc(self.read_ptr(env + pc_off))
         return value
 
     @apihook("wcstombs", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -6388,7 +6384,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         wcstr, mbstr, count, mbstate = argv
-        src = emu.read_ptr(mbstr)
+        src = self.read_ptr(mbstr)
         s = self.read_cstr(src, max_chars=count if wcstr else 0)
         ctx.args[1].display = s.decode("latin-1")
         if not wcstr:
@@ -6396,10 +6392,10 @@ class Msvcrt(api.ApiHandler):
         ws = s.decode("latin-1").encode("utf-16le")
         if len(s) < count:
             self.mem_write(wcstr, ws + b"\x00\x00")
-            emu.write_ptr(mbstr, 0)
+            self.write_ptr(mbstr, 0)
         else:
             self.mem_write(wcstr, ws)
-            emu.write_ptr(mbstr, src + len(s))
+            self.write_ptr(mbstr, src + len(s))
         return len(s)
 
     @apihook("_stricmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -6745,7 +6741,7 @@ class Msvcrt(api.ApiHandler):
 
         if not self.errno_t:
             self.errno_t = self.mem_alloc(4, tag="api.msvcrt._errno")
-            self.mem_write(self.errno_t, _VAL.to_bytes(4, "little"))
+            self.write_dword(self.errno_t, _VAL)
 
         return self.errno_t
 
@@ -6756,7 +6752,7 @@ class Msvcrt(api.ApiHandler):
 
         Number of messages in _sys_errlist.
         """
-        self.mem_write(ptr, len(SYS_ERRLIST).to_bytes(4, "little"))
+        self.write_dword(ptr, len(SYS_ERRLIST))
         return ptr
 
     @apihook("strerror", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -6993,7 +6989,7 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(pFile, b"\x00" * self.get_ptr_size())
             return EINVAL
         stream = self.open_stream_args(filename, mode, width, ctx, first=1)
-        self.mem_write(pFile, stream.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(pFile, stream)
         return 0 if stream else ENOENT
 
     @apihook("fopen_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -7085,7 +7081,7 @@ class Msvcrt(api.ApiHandler):
         if not stream or not mode or not oldStream:
             return EINVAL
         new = self.reopen_stream(fileName, mode, oldStream, ctx)
-        self.mem_write(stream, new.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(stream, new)
         return 0 if new else ENOENT
 
     @apihook("fclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -7110,8 +7106,7 @@ class Msvcrt(api.ApiHandler):
         return 0
 
     def set_errno(self, value):
-        self._errno(self.emu, [])
-        self.mem_write(self.errno_t, value.to_bytes(4, "little"))
+        self.write_dword(self._errno(self.emu, []), value)
 
     def stat_file(self, argv, ctx, wide, size64, time64):
         """
@@ -7529,7 +7524,7 @@ class Msvcrt(api.ApiHandler):
         if not fobj or not pos:
             self.set_errno(EINVAL)
             return -1
-        self.mem_write(pos, (fobj.tell() or 0).to_bytes(8, "little"))
+        self.write_qword(pos, fobj.tell() or 0)
         return 0
 
     @apihook("fsetpos", argc=2, conv=e_arch.CALL_CONV_CDECL)
