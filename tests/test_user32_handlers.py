@@ -582,12 +582,12 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config:
         events = api_events(se)
 
     created = [e for e in events if e.api_name == "user32.CreateWindowExW"]
-    hwnd = int(created[0].ret_val, 16)
+    hwnd = created[0].ret_val
     assert hwnd
     assert messages == [(hwnd, WM_NCCREATE, "180000", "Jungo"), (hwnd, WM_CREATE, "180000", "Jungo")]
     assert [a.display for a in created[1].args[1:3]] == ["button", "Star"]
     assert created[1].args[8].value == hwnd
-    assert int(created[1].ret_val, 16)
+    assert created[1].ret_val
 
 
 def test_create_window_fails_when_the_window_procedure_rejects_creation(config: dict, load_test_bin, run_test) -> None:

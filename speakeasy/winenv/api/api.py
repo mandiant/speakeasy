@@ -14,7 +14,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
-from speakeasy.profiler_events import ApiArg, EventType
+from speakeasy.profiler_events import ApiArg, ApiArgType, EventType
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -73,7 +73,7 @@ class HandlerArg:
         return self._arg.value
 
     @property
-    def type(self) -> str:
+    def type(self) -> ApiArgType:
         return self._arg.type
 
     @property
@@ -90,14 +90,18 @@ class HandlerArg:
         such as ``None`` from a failed lookup or a NULL pointer the handler
         did not decode, keeps the current display.
         """
-        if not isinstance(text, str) or (self._param is not None and self._arg.type in ("enum", "flags")):
+        if not isinstance(text, str) or (
+            self._param is not None and self._arg.type in (ApiArgType.ENUM, ApiArgType.FLAGS)
+        ):
             return
         self._arg.display = text
-        self._arg.type = "str" if self._param is not None and self._param.kind in sigdb.STRING_KINDS else "text"
+        self._arg.type = (
+            ApiArgType.STR if self._param is not None and self._param.kind in sigdb.STRING_KINDS else ApiArgType.TEXT
+        )
 
 
 def _detached_arg() -> HandlerArg:
-    return HandlerArg(ApiArg(type="int", display=""))
+    return HandlerArg(ApiArg(type=ApiArgType.INT, display=""))
 
 
 class HandlerArgs:
@@ -144,7 +148,7 @@ class HandlerArgs:
         params = self._params or []
         return HandlerArg(self._args[key], params[key] if key < len(params) else None)
 
-    def append(self, display: str, type: str = "text") -> HandlerArg:
+    def append(self, display: str, type: ApiArgType = ApiArgType.TEXT) -> HandlerArg:
         """Add an argument without a raw value, such as the output of a printf call."""
         arg = ApiArg(type=type, display=display)
         if not self._discard:

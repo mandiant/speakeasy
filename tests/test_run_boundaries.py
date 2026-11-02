@@ -120,8 +120,8 @@ def test_sp_changing_exit_hook_ends_run_and_successor_owns_its_events(api_emu):
 
     assert exiting.error is None
     assert following.error is None and following.ret_val == 43
-    assert [(event.api_name, event.ret_val) for event in api_events(exiting)] == [("kernel32.ExitThread", "0x4d")]
-    assert [(event.api_name, event.ret_val) for event in api_events(following)] == [("run_boundary.Next", "0x2b")]
+    assert [(event.api_name, event.ret_val) for event in api_events(exiting)] == [("kernel32.ExitThread", 0x4D)]
+    assert [(event.api_name, event.ret_val) for event in api_events(following)] == [("run_boundary.Next", 0x2B)]
     assert not emu.run_queue
 
 

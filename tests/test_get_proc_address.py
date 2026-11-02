@@ -55,7 +55,7 @@ def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tupl
             elif event.api_name == "kernel32.GetProcAddress" and event.args[1].display == "szFile":
                 assert int(event.args[0].display, 16) == module.base
                 dll, name = forwarder.split(".")
-                resolutions.append((forwarder, int(event.ret_val, 16), se.emu.get_proc(dll, name)))
+                resolutions.append((forwarder, event.ret_val, se.emu.get_proc(dll, name)))
     return resolutions, size_before, size_after
 
 
@@ -67,10 +67,10 @@ def test_get_proc_address_on_missing_function_returns_zero(config, load_test_bin
     get_proc_addr = get_api_calls(eps[0], "kernel32.GetProcAddress")
 
     assert get_proc_addr[2].args[1].display == "AreFileApisANSI"
-    assert get_proc_addr[2].ret_val != "0x0"
+    assert get_proc_addr[2].ret_val != 0
 
     assert get_proc_addr[3].args[1].display == "ThisFunctionIsNotExportedByKernel32"
-    assert get_proc_addr[3].ret_val == "0x0"
+    assert get_proc_addr[3].ret_val == 0
 
 
 def test_get_proc_address_on_the_host_image_of_a_dll_returns_zero(dll_emu):

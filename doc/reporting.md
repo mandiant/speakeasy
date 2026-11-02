@@ -52,8 +52,8 @@ consumer how to read `display`.
 | `float` | decimal number |
 | `text` | a value that a handler decoded itself |
 
-`value` holds the raw integer the caller passed, so a consumer can match a flag or constant
-without parsing `display`. A parameter that uses two argument slots on x86 (a 64-bit integer,
+`value` holds the raw value the caller passed, as a hex string, so a consumer can match a flag
+or constant without parsing `display`. A parameter that uses two argument slots on x86 (a 64-bit integer,
 for example) has the combined value. For a call served by a handler, a value the handler
 decoded itself (such as the key path behind a registry handle) replaces the `display` of that
 parameter, and `value` still holds what the caller passed. An entry that a variadic handler
@@ -159,15 +159,15 @@ thread, even for a local create.
       // Unified chronological event stream.
       "events": [
         {
-          "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": 4198400},
+          "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
           "event": "api",
           "api_name": "kernel32.LoadLibraryA",
           // "name" is present when the API signature is known.
-          "args": [{"name": "lpLibFileName", "type": "str", "value": 4206732, "display": "ws2_32"}],
+          "args": [{"name": "lpLibFileName", "type": "str", "value": "0x40308c", "display": "ws2_32"}],
           "ret_val": "0x78c00000"
         },
         {
-          "pos": {"tick": 20, "tid": 2000, "pid": 1337, "pc": 4198410},
+          "pos": {"tick": 20, "tid": 2000, "pid": 1337, "pc": "0x40100a"},
           "event": "process_create",
           "path": "C:\\Windows\\System32\\cmd.exe",
           "cmdline": "cmd.exe /c whoami",
@@ -175,7 +175,7 @@ thread, even for a local create.
         },
         {
           // Cross-process: the actor (pid 1337) allocates inside pid 4242.
-          "pos": {"tick": 30, "tid": 2000, "pid": 1337, "pc": 4198420},
+          "pos": {"tick": 30, "tid": 2000, "pid": 1337, "pc": "0x401014"},
           "event": "mem_alloc",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -184,7 +184,7 @@ thread, even for a local create.
           "pid": 4242
         },
         {
-          "pos": {"tick": 40, "tid": 2000, "pid": 1337, "pc": 4198430},
+          "pos": {"tick": 40, "tid": 2000, "pid": 1337, "pc": "0x40101e"},
           "event": "mem_write",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -193,7 +193,7 @@ thread, even for a local create.
           "pid": 4242
         },
         {
-          "pos": {"tick": 50, "tid": 2000, "pid": 1337, "pc": 4198440},
+          "pos": {"tick": 50, "tid": 2000, "pid": 1337, "pc": "0x401028"},
           "event": "mem_read",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -203,7 +203,7 @@ thread, even for a local create.
         },
         {
           // Local: no pid payload, so the target is the actor's own process.
-          "pos": {"tick": 60, "tid": 2000, "pid": 1337, "pc": 4198450},
+          "pos": {"tick": 60, "tid": 2000, "pid": 1337, "pc": "0x401032"},
           "event": "mem_protect",
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x401000",
@@ -211,7 +211,7 @@ thread, even for a local create.
           "protect": "PAGE_EXECUTE_READ"
         },
         {
-          "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": 4198460},
+          "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
           "event": "mem_free",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -219,7 +219,7 @@ thread, even for a local create.
           "pid": 4242
         },
         {
-          "pos": {"tick": 80, "tid": 2000, "pid": 1337, "pc": 4198470},
+          "pos": {"tick": 80, "tid": 2000, "pid": 1337, "pc": "0x401046"},
           "event": "module_load",
           "name": "wininet.dll",
           "path": "C:\\Windows\\System32\\wininet.dll",
@@ -228,7 +228,7 @@ thread, even for a local create.
         },
         {
           // Local thread creation keeps the new tid but carries no pid payload.
-          "pos": {"tick": 90, "tid": 2000, "pid": 1337, "pc": 4198480},
+          "pos": {"tick": 90, "tid": 2000, "pid": 1337, "pc": "0x401050"},
           "event": "thread_create",
           "path": "C:\\Windows\\System32\\sample.exe",
           "start_addr": "0x401500",
@@ -236,7 +236,7 @@ thread, even for a local create.
           "tid": 2100
         },
         {
-          "pos": {"tick": 100, "tid": 2000, "pid": 1337, "pc": 4198490},
+          "pos": {"tick": 100, "tid": 2000, "pid": 1337, "pc": "0x40105a"},
           "event": "thread_inject",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "start_addr": "0x10000000",
@@ -245,7 +245,7 @@ thread, even for a local create.
           "tid": 4300
         },
         {
-          "pos": {"tick": 110, "tid": 2000, "pid": 1337, "pc": 4198500},
+          "pos": {"tick": 110, "tid": 2000, "pid": 1337, "pc": "0x401064"},
           "event": "file_create",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x80",
@@ -253,7 +253,7 @@ thread, even for a local create.
           "access_flags": ["GENERIC_WRITE"]
         },
         {
-          "pos": {"tick": 120, "tid": 2000, "pid": 1337, "pc": 4198510},
+          "pos": {"tick": 120, "tid": 2000, "pid": 1337, "pc": "0x40106e"},
           "event": "file_open",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x84",
@@ -261,7 +261,7 @@ thread, even for a local create.
           "access_flags": ["GENERIC_READ"]
         },
         {
-          "pos": {"tick": 130, "tid": 2000, "pid": 1337, "pc": 4198520},
+          "pos": {"tick": 130, "tid": 2000, "pid": 1337, "pc": "0x401078"},
           "event": "file_read",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x84",
@@ -270,7 +270,7 @@ thread, even for a local create.
           "buffer": "0x120000"
         },
         {
-          "pos": {"tick": 140, "tid": 2000, "pid": 1337, "pc": 4198530},
+          "pos": {"tick": 140, "tid": 2000, "pid": 1337, "pc": "0x401082"},
           "event": "file_write",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x80",
@@ -279,22 +279,22 @@ thread, even for a local create.
           "buffer": "0x130000"
         },
         {
-          "pos": {"tick": 142, "tid": 2000, "pid": 1337, "pc": 4198532},
+          "pos": {"tick": 142, "tid": 2000, "pid": 1337, "pc": "0x401084"},
           "event": "file_delete",
           "path": "C:\\ProgramData\\drop.bin"
         },
         {
-          "pos": {"tick": 145, "tid": 2000, "pid": 1337, "pc": 4198535},
+          "pos": {"tick": 145, "tid": 2000, "pid": 1337, "pc": "0x401087"},
           "event": "directory_create",
           "path": "C:\\ProgramData\\stage"
         },
         {
-          "pos": {"tick": 147, "tid": 2000, "pid": 1337, "pc": 4198537},
+          "pos": {"tick": 147, "tid": 2000, "pid": 1337, "pc": "0x401089"},
           "event": "directory_delete",
           "path": "C:\\ProgramData\\stage"
         },
         {
-          "pos": {"tick": 150, "tid": 2000, "pid": 1337, "pc": 4198540},
+          "pos": {"tick": 150, "tid": 2000, "pid": 1337, "pc": "0x40108c"},
           "event": "reg_open_key",
           "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft",
           "handle": "0x88",
@@ -302,7 +302,7 @@ thread, even for a local create.
           "access_flags": ["KEY_READ"]
         },
         {
-          "pos": {"tick": 160, "tid": 2000, "pid": 1337, "pc": 4198550},
+          "pos": {"tick": 160, "tid": 2000, "pid": 1337, "pc": "0x401096"},
           "event": "reg_create_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -310,7 +310,7 @@ thread, even for a local create.
           "access_flags": ["KEY_WRITE"]
         },
         {
-          "pos": {"tick": 170, "tid": 2000, "pid": 1337, "pc": 4198560},
+          "pos": {"tick": 170, "tid": 2000, "pid": 1337, "pc": "0x4010a0"},
           "event": "reg_read_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -320,7 +320,7 @@ thread, even for a local create.
           "buffer": "0x140000"
         },
         {
-          "pos": {"tick": 175, "tid": 2000, "pid": 1337, "pc": 4198565},
+          "pos": {"tick": 175, "tid": 2000, "pid": 1337, "pc": "0x4010a5"},
           "event": "reg_write_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -330,32 +330,32 @@ thread, even for a local create.
           "buffer": "0x140000"
         },
         {
-          "pos": {"tick": 180, "tid": 2000, "pid": 1337, "pc": 4198570},
+          "pos": {"tick": 180, "tid": 2000, "pid": 1337, "pc": "0x4010aa"},
           "event": "reg_list_subkeys",
           "path": "HKEY_CURRENT_USER\\Software",
           "handle": "0x8c"
         },
         {
-          "pos": {"tick": 182, "tid": 2000, "pid": 1337, "pc": 4198572},
+          "pos": {"tick": 182, "tid": 2000, "pid": 1337, "pc": "0x4010ac"},
           "event": "reg_delete_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x184",
           "value_name": "Config"
         },
         {
-          "pos": {"tick": 185, "tid": 2000, "pid": 1337, "pc": 4198575},
+          "pos": {"tick": 185, "tid": 2000, "pid": 1337, "pc": "0x4010af"},
           "event": "reg_delete_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x184"
         },
         {
-          "pos": {"tick": 190, "tid": 2000, "pid": 1337, "pc": 4198580},
+          "pos": {"tick": 190, "tid": 2000, "pid": 1337, "pc": "0x4010b4"},
           "event": "net_dns",
           "query": "example.org",
           "response": "93.184.216.34"
         },
         {
-          "pos": {"tick": 200, "tid": 2000, "pid": 1337, "pc": 4198590},
+          "pos": {"tick": 200, "tid": 2000, "pid": 1337, "pc": "0x4010be"},
           "event": "net_traffic",
           "server": "93.184.216.34",
           "port": 443,
@@ -365,7 +365,7 @@ thread, even for a local create.
           "method": "winsock.connect"
         },
         {
-          "pos": {"tick": 210, "tid": 2000, "pid": 1337, "pc": 4198600},
+          "pos": {"tick": 210, "tid": 2000, "pid": 1337, "pc": "0x4010c8"},
           "event": "net_http",
           "server": "example.org",
           "port": 443,
@@ -374,7 +374,7 @@ thread, even for a local create.
           "body_ref": null
         },
         {
-          "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": 4198610},
+          "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},
           "event": "exception",
           "instr": "int 3",
           "exception_code": "0x80000003",
