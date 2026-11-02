@@ -137,12 +137,9 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> Generator[G
 
     A target_frame of 0 unwinds them all.
     """
-    if record:
-        fields = seh.read_record(emu, record)
-    else:
-        fields = [STATUS_UNWIND, 0, 0, 0, 0] + [0] * 15
-    fields[1] |= seh.EXCEPTION_UNWINDING if target_frame else UNWINDING
-    record = guest_callbacks.alloca(emu, seh.EXCEPTION_RECORD32.pack(*fields))
+    fields = seh.read_record(emu, record) if record else seh.exception_record(emu, STATUS_UNWIND, 0, 0)
+    fields.ExceptionFlags |= seh.EXCEPTION_UNWINDING if target_frame else UNWINDING
+    record = guest_callbacks.alloca(emu, fields.get_bytes())
     context = guest_callbacks.alloca(emu, emu.get_thread_context().get_bytes())
     dispatcher_context = guest_callbacks.alloca(emu, bytes(4))
 

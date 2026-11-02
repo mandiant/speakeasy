@@ -13,7 +13,7 @@ from __future__ import annotations
 import ctypes as ct
 import struct
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -40,10 +40,6 @@ TRAP_FLAG = 0x100
 # Exceptions whose parameters are the access type and the address
 MEMORY_FAULTS = (ddk.STATUS_ACCESS_VIOLATION, STATUS_GUARD_PAGE_VIOLATION)
 
-# EXCEPTION_RECORD: code, flags, nested record, address, parameter count, 15 parameters
-EXCEPTION_RECORD64 = struct.Struct("<IIQQI4x15Q")
-EXCEPTION_RECORD32 = struct.Struct("<IIIII15I")
-
 # Frames, registrations or scopes walked before a chain is taken as corrupt
 MAX_FRAMES = 4096
 
@@ -68,19 +64,20 @@ def as_long(value: int) -> int:
     return ct.c_int32(value).value
 
 
-def record_struct(emu) -> struct.Struct:
-    return EXCEPTION_RECORD64 if emu.get_ptr_size() == 8 else EXCEPTION_RECORD32
-
-
-def exception_record(emu, code: int, flags: int, address: int, params=()) -> bytes:
+def exception_record(emu, code: int, flags: int, address: int, params=()):
     mask = (1 << 8 * emu.get_ptr_size()) - 1
-    params = [param & mask for param in params][:15]
-    return record_struct(emu).pack(code, flags, 0, address, len(params), *params, *[0] * (15 - len(params)))
+    params = [param & mask for param in params][: windefs.EXCEPTION_MAXIMUM_PARAMETERS]
+    record: Any = windefs.EXCEPTION_RECORD(emu.get_ptr_size())
+    record.ExceptionCode = code
+    record.ExceptionFlags = flags
+    record.ExceptionAddress = address
+    record.NumberParameters = len(params)
+    record.ExceptionInformation[: len(params)] = params
+    return record
 
 
-def read_record(emu, address: int) -> list[int]:
-    layout = record_struct(emu)
-    return list(layout.unpack(emu.mem_read(address, layout.size)))
+def read_record(emu, address: int):
+    return emu.mem_cast(windefs.EXCEPTION_RECORD(emu.get_ptr_size()), address)
 
 
 def read_context(emu, address: int):
@@ -106,7 +103,11 @@ class Dispatch:
         self.emu: WindowsEmulator = emu
         self.record: int = record
         self.context: int = context
-        self.code, self.flags, _, self.address, _, *self.information = read_record(emu, record)
+        fields = read_record(emu, record)
+        self.code = fields.ExceptionCode
+        self.flags = fields.ExceptionFlags
+        self.address = fields.ExceptionAddress
+        self.information = list(fields.ExceptionInformation)
         pack = "<QQ" if emu.get_ptr_size() == 8 else "<II"
         self.pointers: int = guest_callbacks.alloca(emu, struct.pack(pack, record, context))
         self.reported: bool = False
@@ -173,7 +174,7 @@ def dispatch_fault(
         guest_callbacks.current(emu).context = context  # an unwind through this frame continues at the fault
         record = exception_record(emu, exception.code, 0, exception.address, exception.params)
         try:
-            return (yield from dispatch_exception(emu, guest_callbacks.alloca(emu, record), context))
+            return (yield from dispatch_exception(emu, guest_callbacks.alloca(emu, record.get_bytes()), context))
         except UnhandledException:
             if error is None:
                 raise
@@ -208,7 +209,7 @@ def raise_in_caller(emu, code: int, flags: int, params, dispatch_exception: Disp
     """Dispatch an exception at the caller of the API."""
     ctx = guest_callbacks.caller_context(emu)
     record = guest_callbacks.alloca(
-        emu, exception_record(emu, code, flags, thread_context.instruction_pointer(ctx), params)
+        emu, exception_record(emu, code, flags, thread_context.instruction_pointer(ctx), params).get_bytes()
     )
     return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
 
@@ -216,7 +217,8 @@ def raise_in_caller(emu, code: int, flags: int, params, dispatch_exception: Disp
 def rtl_raise_exception(emu, record: int, dispatch_exception: Dispatcher) -> GeneratorHandler:
     """RtlRaiseException: dispatch the caller's record, raised at the caller."""
     ctx = guest_callbacks.caller_context(emu)
-    emu.write_ptr(record + 4 + 4 + emu.get_ptr_size(), thread_context.instruction_pointer(ctx))  # ExceptionAddress
+    offset = windefs.EXCEPTION_RECORD(emu.get_ptr_size()).get_cstruct().ExceptionAddress.offset
+    emu.write_ptr(record + offset, thread_context.instruction_pointer(ctx))
     return (yield from dispatch_exception(emu, record, guest_callbacks.alloca(emu, ctx.get_bytes())))
 
 

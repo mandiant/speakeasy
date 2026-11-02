@@ -420,7 +420,6 @@ XFAIL = {
     "fwpmtypes.FWPM_SUBLAYER0-x86",
     "user32.LVCOLUMNA-x64",
     "user32.LVCOLUMNA-x86",
-    "windows.EXCEPTION_RECORD-x64",
 }
 
 
