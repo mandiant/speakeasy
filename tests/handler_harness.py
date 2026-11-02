@@ -117,9 +117,9 @@ def start_process(se: Speakeasy) -> None:
         p = objman.Process(emu, path=module.emu_path, base=module.base, pe=module, cmdline=emu.command_line)
         emu.processes.append(p)
         emu.curr_process = p
-        emu.om.objects.update({p.address: p})
+        emu.om.add_object(p)
     t = objman.Thread(emu, stack_base=emu.stack_base, stack_commit=module.stack_commit)
-    emu.om.objects.update({t.address: t})
+    emu.om.add_object(t)
     assert emu.curr_process is not None
     emu.curr_process.threads.append(t)
     emu.curr_thread = t

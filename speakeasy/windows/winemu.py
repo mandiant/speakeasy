@@ -52,7 +52,13 @@ from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import File, FileManager
 from speakeasy.windows.hammer import ApiHammer
-from speakeasy.windows.handles import InvalidHandle
+from speakeasy.windows.handles import (
+    CURRENT_PROCESS_HANDLE,
+    CURRENT_THREAD_HANDLE,
+    HANDLE_MASK,
+    HandleTable,
+    InvalidHandle,
+)
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string, relocate_image
 from speakeasy.windows.module_loader import ModuleLoader
@@ -392,6 +398,8 @@ class WindowsEmulator(BinaryEmulator):
 
         self.wintypes = windefs
         self.handle_allocator: HandleAllocator = HandleAllocator()
+        # The handles of the kernel, and of a user-mode emulator before a process exists
+        self.handles: HandleTable = HandleTable(self.handle_allocator, self.dec_ref, self.get_pseudo_handle_object)
         # OS resource managers
         self.regman: RegistryManager = RegistryManager(
             self.handle_allocator, self.config.registry, os_ver=self.config.os_ver
@@ -771,7 +779,7 @@ class WindowsEmulator(BinaryEmulator):
             self.set_current_thread(run.thread)
         elif not self.is_kernel_mode:
             thread = objman.Thread(self, stack_base=self.stack_base)
-            self.get_object_manager("thread registration").objects.update({thread.address: thread})
+            self.get_object_manager("thread registration").add_object(thread)
             if self.curr_process:
                 thread.process = self.curr_process
                 self.curr_process.threads.append(thread)
@@ -1905,7 +1913,21 @@ class WindowsEmulator(BinaryEmulator):
         om = self.get_object_manager("object handle lookup")
         obj = om.objects.get(obj.address)
         if obj:
-            return om.get_handle(obj)
+            return om.new_handle(obj)
+
+    def get_handle_table(self) -> HandleTable:
+        """Get the handle table of the current process, or the table of the emulator if no process exists."""
+        proc = self.get_current_process()
+        return proc.handles if proc is not None else self.handles
+
+    def get_pseudo_handle_object(self, handle: int) -> Any:
+        """Get the current process for the pseudo handle -1, the current thread for -2, else None."""
+        handle &= HANDLE_MASK
+        if handle == CURRENT_PROCESS_HANDLE:
+            return self.get_current_process()
+        if handle == CURRENT_THREAD_HANDLE:
+            return self.get_current_thread()
+        return None
 
     def add_object(self, obj):
         om = self.get_object_manager("object registration")
@@ -1998,7 +2020,7 @@ class WindowsEmulator(BinaryEmulator):
 
         thread = om.new_object(objman.Thread)
         thread.process = proc_obj
-        hnd = om.get_handle(thread)
+        hnd = om.new_handle(thread)
 
         run = Run()
         run.type = thread_type
@@ -2699,7 +2721,7 @@ class WindowsEmulator(BinaryEmulator):
             return 1
         if kind == "h":
             if self.om is not None:
-                return self.om.new_handle()
+                return self.om.allocate_handle()
             return 4
         # Status codes (HRESULT, NTSTATUS, WIN32_ERROR), counts and pointers all
         # read as "nothing happened" at zero.
@@ -3645,13 +3667,22 @@ class WindowsEmulator(BinaryEmulator):
             self._seh_repeat_count = 0
             self._seh_resume_pc = None
 
+    def _new_object_handle(self, otype, name):
+        """
+        Create an object that only its handles keep.
+
+        The handle takes over the reference of the object manager, so the last close removes the object.
+        """
+        om = self.get_object_manager("object creation")
+        obj = om.new_object(otype)
+        obj.name = name
+        hnd = om.new_handle(obj)
+        om.dec_ref(obj)
+        return hnd, obj
+
     def create_event(self, name=""):
         """Create a kernel event object."""
-        om = self.get_object_manager("event creation")
-        evt = self.new_object(objman.Event)
-        evt.name = name
-        hnd = om.get_handle(evt)
-        return hnd, evt
+        return self._new_object_handle(objman.Event, name)
 
     def dec_ref(self, obj):
         """Dereference an object."""
@@ -3660,21 +3691,13 @@ class WindowsEmulator(BinaryEmulator):
 
     def create_mutant(self, name=""):
         """Create a kernel mutant object."""
-        om = self.get_object_manager("mutant creation")
         if name == 0:
             name = ""
-        mtx = self.new_object(objman.Mutant)
-        mtx.name = name
-        hnd = om.get_handle(mtx)
-        return hnd, mtx
+        return self._new_object_handle(objman.Mutant, name)
 
     def create_semaphore(self, name=""):
         """Create a kernel semaphore object."""
-        om = self.get_object_manager("semaphore creation")
-        sem = self.new_object(objman.Semaphore)
-        sem.name = name
-        hnd = om.get_handle(sem)
-        return hnd, sem
+        return self._new_object_handle(objman.Semaphore, name)
 
     def _hook_interrupt(self, emu, intnum):
         """Called when software interrupts occur."""

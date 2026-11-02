@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 from speakeasy.windows import thread_context
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntos
 
@@ -108,7 +109,6 @@ class KernelObject:
         self.name: str = ""
         self.object: Any = 0
         self.ref_cnt: int = 0
-        self.handles: list[int] = []
         self.arch: int = emu.get_arch()
         self.id: int = emu.handle_allocator.allocate_kernel_object_id()
 
@@ -140,11 +140,6 @@ class KernelObject:
 
     def get_mem_tag(self):
         return f"emu.struct.{self.get_class_name()}"
-
-    def get_handle(self):
-        tmp = self.emu.handle_allocator.allocate_kernel_object_handle()
-        self.handles.append(tmp)
-        return tmp
 
 
 class Driver(KernelObject):
@@ -482,6 +477,7 @@ class Process(KernelObject):
         self.pid: int = self.id
         self.modules: list[RuntimeModule] = user_modules if user_modules is not None else []
         self.threads: list[Thread] = []
+        self.handles: HandleTable = HandleTable(emu.handle_allocator, emu.dec_ref, emu.get_pseudo_handle_object)
         self.console: Console | None = None
         self.curr_thread: Thread | None = None
         self.cmdline: str = cmdline
@@ -893,15 +889,13 @@ class ObjectManager:
                 self.remove_object(obj)
             return obj.ref_cnt
 
-    def get_handle(self, obj):
-        tmp = self.new_handle()
-        obj.handles.append(tmp)
-        return tmp
+    def new_handle(self, obj) -> int:
+        """Open a handle to an object in the handle table of the current process."""
+        return self.emu.get_handle_table().new_handle(obj)
 
-    def new_handle(self) -> int:
+    def allocate_handle(self) -> int:
         """Allocate a fresh handle value that is not attached to any object."""
-        handle: int = self.emu.handle_allocator.allocate_kernel_object_handle()
-        return handle
+        return self.emu.handle_allocator.allocate_handle()
 
     def new_id(self):
         return self.emu.handle_allocator.allocate_kernel_object_id()
@@ -930,6 +924,7 @@ class ObjectManager:
             return self.get_object_from_name(name, False)
 
     def get_object_from_handle(self, handle):
-        for o in self.objects.values():
-            if handle in o.handles:
-                return o
+        try:
+            return self.emu.get_handle_table().get(handle)
+        except InvalidHandle:
+            return None

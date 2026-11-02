@@ -15,6 +15,10 @@ T = TypeVar("T")
 # A 64-bit guest can pass a handle sign-extended, so a table looks up only the low 32 bits.
 HANDLE_MASK = 0xFFFFFFFF
 
+# (HANDLE)-1 and (HANDLE)-2, as GetCurrentProcess and GetCurrentThread return them
+CURRENT_PROCESS_HANDLE = 0xFFFFFFFF
+CURRENT_THREAD_HANDLE = 0xFFFFFFFE
+
 
 class InvalidHandle(Exception):
     """

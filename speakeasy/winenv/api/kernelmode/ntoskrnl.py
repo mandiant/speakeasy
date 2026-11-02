@@ -174,10 +174,13 @@ class Ntoskrnl(api.ApiHandler):
             HANDLE Handle
         );
         """
-        rv = ddk.STATUS_SUCCESS
-
-        # For now, just leave the handle open so we can reference it later
-        return rv
+        (Handle,) = argv
+        table = emu.get_handle_table()
+        # File and registry key handles are not in the handle table yet, so they stay open
+        if Handle not in table and (emu.fileman.get_object_from_handle(Handle) or emu.reg_get_key(handle=Handle)):
+            return ddk.STATUS_SUCCESS
+        table.close(Handle)
+        return ddk.STATUS_SUCCESS
 
     @apihook("DbgPrint", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
     def DbgPrint(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1213,7 +1216,6 @@ class Ntoskrnl(api.ApiHandler):
         obj = self.get_object_from_addr(Object)
         if not obj:
             return ddk.STATUS_INVALID_PARAMETER
-        obj.ref_cnt += 1
 
         hnd = self.get_object_handle(obj)
         self.write_ptr(Handle, hnd)
@@ -1811,7 +1813,7 @@ class Ntoskrnl(api.ApiHandler):
             rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
         else:
             if EventHandle:
-                hnd = obj.get_handle()
+                hnd = emu.get_object_handle(obj)
                 self.write_ptr(EventHandle, hnd)
             rv = ddk.STATUS_SUCCESS
 
@@ -3719,7 +3721,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         Callback, Context, ObservedChangeStamp, RegistrationHandle = argv
         if RegistrationHandle:
-            self.write_ptr(RegistrationHandle, emu.get_object_manager(ctx.func_name).new_handle())
+            self.write_ptr(RegistrationHandle, emu.get_object_manager(ctx.func_name).allocate_handle())
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlUnregisterFeatureConfigurationChangeNotification", argc=1)
@@ -3746,7 +3748,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         Callback, Descriptor, ProviderHandle = argv
         if ProviderHandle:
-            self.write_ptr(ProviderHandle, emu.get_object_manager(ctx.func_name).new_handle())
+            self.write_ptr(ProviderHandle, emu.get_object_manager(ctx.func_name).allocate_handle())
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlUnregisterFeatureUsageProvider", argc=1)
