@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class kernelbase(api.ApiHandler):
@@ -15,7 +20,7 @@ class kernelbase(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("LogStagedFeatureUsage", argc=3)
-    def LogStagedFeatureUsage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LogStagedFeatureUsage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID LogStagedFeatureUsage(
             UINT32 featureId,
