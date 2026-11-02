@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.defs.nt import ddk
@@ -9,18 +10,14 @@ from . import kernel_mod as km
 
 
 class DISK_EXTENT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.DiskNumber = ct.c_uint32
-        self.StartingOffset = ct.c_uint64
-        self.ExtentLength = ct.c_uint64
+    DiskNumber: Annotated[int, ct.c_uint32]
+    StartingOffset: Annotated[int, ct.c_uint64]
+    ExtentLength: Annotated[int, ct.c_uint64]
 
 
 class VOLUME_DISK_EXTENTS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.NumberOfDiskExtents = ct.c_uint32
-        self.Extents = DISK_EXTENT * 1
+    NumberOfDiskExtents: Annotated[int, ct.c_uint32]
+    Extents: Annotated[list[DISK_EXTENT], DISK_EXTENT * 1]
 
 
 class DriverModule(km.KernelModule):
