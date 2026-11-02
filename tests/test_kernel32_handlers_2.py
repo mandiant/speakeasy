@@ -1512,3 +1512,46 @@ def test_ansi_strings_use_code_page_1252(strict_fs_emu: Speakeasy) -> None:
     assert displays["lpFileName"] == "c:\\résumé.txt"
     assert se.emu.get_file_manager().get_file_from_handle(hnd).path == "c:\\résumé.txt"
 
+
+CP_ACP = 0
+CP_OEMCP = 1
+CP_UTF8 = 65001
+
+
+@pytest.mark.parametrize(
+    "code_page, data",
+    [(CP_ACP, b"caf\xe9"), (1252, b"caf\xe9"), (CP_OEMCP, b"caf\x82"), (437, b"caf\x82"), (CP_UTF8, b"caf\xc3\xa9")],
+)
+def test_conversion_functions_use_the_code_page(emu: Speakeasy, code_page: int, data: bytes) -> None:
+    wide = alloc(emu, b"\xcc" * 16)
+    rv, _ = call(emu, "kernel32", "MultiByteToWideChar", [code_page, 0, alloc(emu, data + b"\x00"), -1, wide, 8])
+    assert rv == 5
+    assert emu.mem_read(wide, 12) == "café\x00".encode("utf-16le") + b"\xcc\xcc"
+
+    out = alloc(emu, b"\xcc" * 16)
+    rv, _ = call(emu, "kernel32", "WideCharToMultiByte", [code_page, 0, wide, -1, out, 16, 0, 0])
+    assert rv == len(data) + 1
+    assert emu.mem_read(out, len(data) + 2) == data + b"\x00\xcc"
+
+
+def test_conversion_functions_reject_an_unknown_code_page(emu: Speakeasy) -> None:
+    src = alloc(emu, "abc\x00".encode("utf-16le"))
+    out = alloc(emu, b"\x00" * 16)
+    assert call(emu, "kernel32", "WideCharToMultiByte", [12345, 0, src, -1, out, 16, 0, 0])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+    assert call(emu, "kernel32", "MultiByteToWideChar", [12345, 0, alloc(emu, b"abc\x00"), -1, out, 8])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+
+
+def test_wide_char_to_multi_byte_writes_a_question_mark_for_a_character_outside_the_code_page(emu: Speakeasy) -> None:
+    src = alloc(emu, "a\u0101\u4e2d\x00".encode("utf-16le"))
+    out = alloc(emu, b"\xcc" * 8)
+    assert call(emu, "kernel32", "WideCharToMultiByte", [CP_ACP, 0, src, -1, out, 8, 0, 0])[0] == 4
+    assert emu.mem_read(out, 5) == b"a??\x00\xcc"
+
+
+@pytest.mark.parametrize("code_page, max_char_size", [(CP_ACP, 1), (1252, 1), (CP_OEMCP, 1), (CP_UTF8, 4)])
+def test_get_cp_info_describes_the_code_page(emu: Speakeasy, code_page: int, max_char_size: int) -> None:
+    info = alloc(emu, b"\xcc" * 20)
+    assert call(emu, "kernel32", "GetCPInfo", [code_page, info])[0] == 1
+    assert emu.mem_read(info, 20) == struct.pack("<I", max_char_size) + b"?\x00" + b"\x00" * 12 + b"\xcc\xcc"
