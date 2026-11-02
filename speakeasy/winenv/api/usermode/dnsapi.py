@@ -11,6 +11,7 @@ from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
+    from speakeasy.windows.win32 import Win32Emulator
 
 DNS_TYPE_A = 0x0001
 DNS_TYPE_TEXT = 0x0010
@@ -48,7 +49,7 @@ class DnsApi(api.ApiHandler):
         self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("DnsQuery_", argc=6)
-    def DnsQuery_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DnsQuery_(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DNS_STATUS DnsQuery_(
             PCTSTR pszName,
