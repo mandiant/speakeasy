@@ -18,7 +18,7 @@ from speakeasy.winenv.defs.nt import ntoskrnl as ntos
 if TYPE_CHECKING:
     from speakeasy.windows.kernel import WinKernelEmulator
     from speakeasy.windows.loaders import RuntimeModule
-    from speakeasy.windows.sessman import SessionManager
+    from speakeasy.windows.sessman import SessionManager, Window
     from speakeasy.windows.win32 import Win32Emulator
     from speakeasy.windows.winemu import WindowsEmulator
 
@@ -66,7 +66,7 @@ class Console:
 
     def __init__(self, allocator: HandleAllocator):
         self.handle: int = allocator.allocate_handle()
-        self.window: int = 0
+        self.window: Window | None = None
 
 
 class KernelObject:
@@ -504,7 +504,7 @@ class Process(KernelObject):
             self.console = Console(self.emu.handle_allocator)
         sm = self.get_session_manager()
         desk = sm.get_current_desktop()
-        self.console.window = desk.new_window()
+        self.console.window = desk.new_window(process_id=self.pid)
 
     def get_desktop_name(self):
         sm = self.get_session_manager()

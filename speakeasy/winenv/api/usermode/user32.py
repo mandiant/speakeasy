@@ -1330,9 +1330,14 @@ class User32(api.ApiHandler):
                 window.thread_id = emu.handle_allocator.allocate_kernel_object_id()
         else:
             window = self.sessman.get_window(hWnd)
-        if not window:
-            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
-            return 0
+            if not window:
+                emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
+                return 0
+            if window.process_id and not window.thread_id:
+                # The console window reports the first thread of the process that owns the console
+                owner = next((p for p in emu.get_processes() if p.pid == window.process_id), None)
+                if owner and owner.threads:
+                    window.thread_id = owner.threads[0].tid
         if lpdwProcessId:
             self.write_dword(lpdwProcessId, window.process_id)
         return window.thread_id

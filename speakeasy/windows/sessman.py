@@ -25,13 +25,14 @@ class GuiObject:
 class Session(GuiObject):
     """Represents a windows Session."""
 
-    def __init__(self, handles: HandleTable, sess_id):
+    def __init__(self, handles: HandleTable, windows: dict[int | str, Window], sess_id):
         super().__init__(handles)
+        self.windows: dict[int | str, Window] = windows
         self.id: int = sess_id
         self.stations: dict[int, Station] = {}
 
     def new_station(self, name="WinSta0"):
-        stat = Station(self.handles, name=name)
+        stat = Station(self.handles, self.windows, name=name)
         self.stations.update({stat.get_handle(): stat})
         return stat
 
@@ -39,29 +40,37 @@ class Session(GuiObject):
 class Station(GuiObject):
     """Represents a window station."""
 
-    def __init__(self, handles: HandleTable, name=""):
+    def __init__(self, handles: HandleTable, windows: dict[int | str, Window], name=""):
         super().__init__(handles)
+        self.windows: dict[int | str, Window] = windows
         self.name: str = name
         self.desktops: dict[int, Desktop] = {}
 
     def new_desktop(self, name=""):
-        desk = Desktop(self.handles, name=name)
+        desk = Desktop(self.handles, self.windows, name=name)
         self.desktops.update({desk.get_handle(): desk})
         return desk
 
 
 class Desktop(GuiObject):
-    """Represents a Desktop object."""
+    """
+    Represents a Desktop object.
 
-    def __init__(self, handles: HandleTable, name=""):
+    The windows of all desktops are in the one window store of the session manager. The desktop
+    window is not in the store, because EnumWindows does not give it.
+    """
+
+    def __init__(self, handles: HandleTable, windows: dict[int | str, Window], name=""):
         super().__init__(handles)
-        self.windows: dict[int, Window] = {}
-        self.desktop_window: Window = self.new_window()
+        self.windows: dict[int | str, Window] = windows
+        self.desktop_window: Window = Window(handles)
         self.name: str = name
 
-    def new_window(self):
-        window = Window(self.handles)
+    def new_window(self, window_name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0) -> Window:
+        window = Window(self.handles, window_name, class_name, style, parent, thread_id, process_id)
         self.windows.update({window.get_handle(): window})
+        if window_name:
+            self.windows.update({window_name: window})
         return window
 
 
@@ -119,7 +128,7 @@ class SessionManager:
         self.dev_ctx: int = allocator.allocate_handle()
 
         # create a session 0
-        self.curr_session = Session(self.handles, sess_id=0)
+        self.curr_session = Session(self.handles, self.windows, sess_id=0)
 
         # create WinSta0
         self.curr_station = self.curr_session.new_station(name="WinSta0")
@@ -141,12 +150,8 @@ class SessionManager:
         return atom
 
     def create_window(self, window_name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0):
-        wc = Window(self.handles, window_name, class_name, style, parent, thread_id, process_id)
-        hnd = wc.get_handle()
-        self.windows.update({hnd: wc})
-        if window_name:
-            self.windows.update({window_name: wc})
-        return hnd
+        desk = self.get_current_desktop()
+        return desk.new_window(window_name, class_name, style, parent, thread_id, process_id).get_handle()
 
     def get_window_class(self, atom):
         return self.window_classes.get(atom)

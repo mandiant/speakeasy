@@ -2663,15 +2663,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HWND GetConsoleWindow();
         """
-        hwnd = 0
-
-        proc = emu.get_current_process()
-        console = proc.console
-        if console:
-            win = console.window
-            hwnd = win.handle
-
-        return hwnd
+        console = emu.get_current_process().console
+        if console and console.window:
+            return console.window.handle
+        return 0
 
     @apihook("Sleep", argc=1)
     def Sleep(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
