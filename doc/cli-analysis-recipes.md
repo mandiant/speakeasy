@@ -39,7 +39,7 @@ Expected artifact:
 Quick verification:
 
 ```bash
-jq '.entry_points[] | {start_addr, coverage_count: (.coverage // [] | length)}' report.json
+jq '.entry_points[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
 Tradeoff:
@@ -56,12 +56,12 @@ speakeasy -t sample.exe --analysis-memory-tracing -o report.json
 
 Expected artifact:
 - per-region access counters in `memory.layout[*].accesses`
-- symbol access summaries in `sym_accesses`
+- symbol access summaries in `symbol_accesses`
 
 Quick verification:
 
 ```bash
-jq '.entry_points[] | {start_addr, sym_accesses: (.sym_accesses // [] | length)}' report.json
+jq '.entry_points[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
 ```
 
 Tradeoff:

@@ -17,6 +17,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
+from speakeasy.report import EntryPointType
 from speakeasy.windows import objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.common import _PeParser
@@ -223,7 +224,8 @@ class Win32Emulator(WindowsEmulator):
             if base < cb_addr < base + module.image_size:
                 run = Run()
                 run.start_addr = cb_addr
-                run.type = f"tls_callback_{i}"
+                run.type = EntryPointType.TLS_CALLBACK
+                run.name = str(i)
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
                 startup.append(run)
@@ -238,9 +240,10 @@ class Win32Emulator(WindowsEmulator):
 
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
-            run.type = "dll_entry.DLL_PROCESS_ATTACH"
+            run.type = EntryPointType.DLL_ENTRY
+            run.name = "DLL_PROCESS_ATTACH"
         else:
-            run.type = "module_entry"
+            run.type = EntryPointType.MODULE_ENTRY
             run.args = [self.mem_map(8, tag=f"emu.module_arg_{i}") for i in range(4)]
 
         if entry_point is not None or module.is_exe() or ep != module.base:
@@ -264,12 +267,8 @@ class Win32Emulator(WindowsEmulator):
                     ):
                         continue
                     run = Run()
-                    if exp.name:
-                        fn = exp.name
-                    else:
-                        fn = "no_name"
-
-                    run.type = f"export.{fn}"
+                    run.type = EntryPointType.EXPORT
+                    run.name = exp.name or None
                     run.start_addr = exp.address
                     if exp.name and exp.name.startswith("ServiceMain"):
                         char_width = self.get_service_main_char_width(module, exp.name)
@@ -461,7 +460,7 @@ class Win32Emulator(WindowsEmulator):
         self.set_func_args(stack_addr, self.return_hook, 0x7000, conv=_arch.CALL_CONV_STDCALL)
 
         run = Run()
-        run.type = "shellcode"
+        run.type = EntryPointType.SHELLCODE
         run.start_addr = sc_addr + offset
         run.instr_cnt = 0
         args = [self.mem_map(1024, tag=f"emu.shellcode_arg_{i}", base=0x41420000 + i) for i in range(4)]

@@ -1400,19 +1400,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        proc_path = proc_obj.path
-        ctx.args["hProcess"].display = proc_path
-        proc_path = ntpath.basename(proc_path)
-        proc_path = proc_path.replace(".", "_")
+        ctx.args["hProcess"].display = proc_obj.path
 
         if is_remote:
-            run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
+            run_name = ntpath.basename(proc_obj.path)
             evt_type = EventType.THREAD_INJECT
         else:
-            run_type = "thread"
+            run_name = None
             evt_type = EventType.THREAD_CREATE
 
-        handle, obj = self.create_thread(lpStartAddress, lpParameter, proc_obj, thread_type=run_type)
+        handle, obj = self.create_thread(lpStartAddress, lpParameter, proc_obj, name=run_name)
 
         if not obj:
             return handle
@@ -1444,9 +1441,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ctx.args["dwCreationFlags"].display = decode(THREAD_CREATION_FLAGS, dwCreationFlags)
         is_suspended = bool(dwCreationFlags & THREAD_CREATION_FLAGS.THREAD_CREATE_SUSPENDED)
 
-        handle, obj = self.create_thread(
-            lpStartAddress, lpParameter, proc_obj, thread_type="thread", is_suspended=is_suspended
-        )
+        handle, obj = self.create_thread(lpStartAddress, lpParameter, proc_obj, is_suspended=is_suspended)
 
         if not obj:
             return handle
@@ -1500,7 +1495,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if mm:
                     emu.ensure_pe_import_hooks(mm.base)
 
-            handle, obj = self.create_thread(start_addr, 0, proc, thread_type=f"thread.{proc.name}.{proc.id}")
+            handle, obj = self.create_thread(start_addr, 0, proc, name=proc.name)
             emu.child_processes.remove(proc)
         return rv
 
@@ -6805,8 +6800,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         pfnAPC, hThread, dwData = argv
-        run_type = f"apc_thread_{hThread:x}"
-        self.create_thread(pfnAPC, dwData, 0, thread_type=run_type)
+        self.create_thread(pfnAPC, dwData, 0, name="apc")
         return 1
 
     @apihook("DuplicateHandle", argc=7)

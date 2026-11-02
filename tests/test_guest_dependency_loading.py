@@ -306,12 +306,12 @@ def test_startup_initializer_failure_continues_startup(config, tmp_path, result,
 
         se.run_shellcode(code)
 
-        runs = [(ep.ep_type, ep.error.type if ep.error else None) for ep in se.get_report().entry_points]
+        runs = [(ep.type, ep.name, ep.error.type if ep.error else None) for ep in se.get_report().entry_points]
         assert runs == [
-            *((f"dependency.first.{kind}", error) for kind, error in first_runs),
-            ("dependency.second.tls_callback", None),
-            ("dependency.second.dll_entry", None),
-            ("shellcode", None),
+            *((f"dependency_{kind}", "first", error) for kind, error in first_runs),
+            ("dependency_tls_callback", "second", None),
+            ("dependency_dll_entry", "second", None),
+            ("shellcode", None, None),
         ]
         assert se.get_report().entry_points[-1].ret_val == 2
         assert int.from_bytes(se.mem_read(first["Flag"], 4), "little") == flag
@@ -436,11 +436,11 @@ def test_all_entrypoints_skips_data_and_forwarded_exports(config, tmp_path):
     with Speakeasy(config=config) as se:
         module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
         se.run_module(module, all_entrypoints=True)
-        runs = [ep.ep_type for ep in se.get_report().entry_points]
+        runs = [(ep.type, ep.name) for ep in se.get_report().entry_points]
 
-    assert "export.GetTickCount" in runs
-    assert "export.Flag" not in runs
-    assert "export.Forwarded" not in runs
+    assert ("export", "GetTickCount") in runs
+    assert ("export", "Flag") not in runs
+    assert ("export", "Forwarded") not in runs
 
 
 def test_dll_without_an_entry_point_runs_only_its_exports(config, tmp_path):
@@ -456,6 +456,6 @@ def test_dll_without_an_entry_point_runs_only_its_exports(config, tmp_path):
         se.run_module(module, all_entrypoints=True)
         entries = se.get_report().entry_points
 
-    assert [ep.ep_type for ep in entries if not ep.ep_type.startswith("export.")] == ["tls_callback_0"]
-    assert "export.GetTickCount" in [ep.ep_type for ep in entries]
+    assert [(ep.type, ep.name) for ep in entries if ep.type != "export"] == [("tls_callback", "0")]
+    assert ("export", "GetTickCount") in [(ep.type, ep.name) for ep in entries]
     assert all(ep.error is None for ep in entries)

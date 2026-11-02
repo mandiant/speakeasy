@@ -2135,9 +2135,9 @@ def test_endthreadex_ends_only_the_current_thread(
 
         se.add_code_hook(end_accept_loop, begin=module.base + 0x133F7, end=module.base + 0x133F7)
         se.run_module(module)
-        runs = [run for run in se.get_report().entry_points if run.start_addr == module.base + 0x144FC]
+        runs = [run for run in se.get_report().entry_points if run.start_address == module.base + 0x144FC]
 
-    assert [(run.ep_type, run.error) for run in runs] == [("thread", None), ("thread", None)]
+    assert [(run.type, run.error) for run in runs] == [("thread", None), ("thread", None)]
     for run in runs:
         apis = [e for e in run.events or [] if e.event == "api"]
         assert [(e.api_name, e.args[0].value) for e in apis[-2:]] == [
@@ -2151,7 +2151,7 @@ def test_endthread_ends_only_the_current_thread(
 ) -> None:
     entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
     ending, checking = entries[4], entries[5]
-    assert (ending.ep_type, ending.error) == ("thread", None)
+    assert (ending.type, ending.error) == ("thread", None)
     assert [event.api_name for event in ending.events or [] if event.event == "api"] == ["msvcrt._endthread"]
-    assert (checking.ep_type, checking.error) == ("thread", None)
+    assert (checking.type, checking.error) == ("thread", None)
     assert checking.ret_val & 0x08, "the thread that calls _endthread gives 0"

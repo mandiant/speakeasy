@@ -791,21 +791,17 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         proc_obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
         if not proc_obj:
             return ddk.STATUS_INVALID_HANDLE
-        proc_path = proc_obj.path
-        ctx.args["ProcessHandle"].display = proc_path
+        ctx.args["ProcessHandle"].display = proc_obj.path
 
         if proc_obj is emu.get_current_process():
-            run_type = "thread"
+            run_name = None
             evt_type = EventType.THREAD_CREATE
         else:
-            proc_path = ntpath.basename(proc_path).replace(".", "_")
-            run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
+            run_name = ntpath.basename(proc_obj.path)
             evt_type = EventType.THREAD_INJECT
 
         is_suspended = bool(CreateFlags & ddk.THREAD_CREATE_FLAGS_CREATE_SUSPENDED)
-        handle, obj = self.create_thread(
-            StartRoutine, Argument, proc_obj, thread_type=run_type, is_suspended=is_suspended
-        )
+        handle, obj = self.create_thread(StartRoutine, Argument, proc_obj, name=run_name, is_suspended=is_suspended)
         if not obj:
             return ddk.STATUS_UNSUCCESSFUL
 

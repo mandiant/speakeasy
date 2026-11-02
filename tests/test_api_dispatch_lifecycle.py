@@ -126,7 +126,7 @@ def run_until(se, module, stop, entry_point=None):
     se.add_code_hook(stop_here, begin=module.base + stop, end=module.base + stop)
     se.run_module(module, entry_point=entry_point)
     start = module.base + (module.ep if entry_point is None else entry_point)
-    return next(e for e in se.get_report().entry_points if e.start_addr == start)
+    return next(e for e in se.get_report().entry_points if e.start_address == start)
 
 
 def test_x64_run_entry_stack_is_aligned(config, load_test_bin):

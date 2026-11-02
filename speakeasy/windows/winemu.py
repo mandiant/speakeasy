@@ -31,7 +31,7 @@ from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuErr
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import ErrorInfo, ErrorType, RegionInfo
+from speakeasy.report import EntryPointType, ErrorInfo, ErrorType, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -785,7 +785,11 @@ class WindowsEmulator(BinaryEmulator):
         queued = []
         for routine in self.module_loader.collect_initializers():
             run = Run()
-            run.type = f"dependency.{routine.module.name}.{'dll_entry' if routine.is_entry_point else 'tls_callback'}"
+            if routine.is_entry_point:
+                run.type = EntryPointType.DEPENDENCY_DLL_ENTRY
+            else:
+                run.type = EntryPointType.DEPENDENCY_TLS_CALLBACK
+            run.name = routine.module.name
             run.start_addr = routine.address
             run.args = routine.args
             run.thread = self.run_queue[0].thread or self.curr_thread
@@ -832,7 +836,7 @@ class WindowsEmulator(BinaryEmulator):
         mm = self.get_address_map(self.stack_base - 1)
         self.mem_write(mm.base, b"\x00" * mm.size)
         run = Run()
-        run.type = f"call_0x{addr:x}"
+        run.type = EntryPointType.CALL
         run.start_addr = addr
         run.args = params or []
 
@@ -844,7 +848,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _prepare_run_context(self, run):
         """Prepare CPU and memory state for the given run without starting emulation."""
-        logger.info("* exec: %s", run.type)
+        logger.info("* exec: %s", run.get_label())
 
         self.curr_run = run
         self._seh_last_fault = None
@@ -2134,7 +2138,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return p
 
-    def create_thread(self, addr, ctx, proc_obj, thread_type="thread", is_suspended=False):
+    def create_thread(self, addr, ctx, proc_obj, name=None, is_suspended=False):
         """Create a thread object that will exist in the emulator."""
         om = self.get_object_manager("thread creation")
 
@@ -2146,7 +2150,8 @@ class WindowsEmulator(BinaryEmulator):
         hnd = om.new_handle(thread)
 
         run = Run()
-        run.type = thread_type
+        run.type = EntryPointType.THREAD
+        run.name = name
         run.start_addr = addr
         run.instr_cnt = 0
         run.args = (ctx,)
@@ -2613,7 +2618,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.error(
             "0x%x: %s: Caught error: %s\n  summary: %s\n  instr: %s\n  regs: %s",
             pc,
-            run.type,
+            run.get_label(),
             label,
             summary,
             instr,

@@ -140,4 +140,4 @@ def test_usb_emu_example_runs_and_emits_report(load_test_bin):
     assert [endpoint.bEndpointAddress for endpoint in usb.endpoints] == [0x81, 0x06, 0x88]
     assert param_key.get_value("MaximumTransferSize").get_data() == 65536
     assert report["entry_points"]
-    assert report["entry_points"][0]["ep_type"] == "entry_point"
+    assert report["entry_points"][0]["type"] == "driver_entry"

@@ -32,7 +32,7 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     assert (child.name, child.emu_path) == ("child", CHILD_PATH)
     assert report.sha256 == hashlib.sha256(parent).hexdigest()
 
-    assert [(ep.ep_type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
+    assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[0].ret_val == 1
     assert entries[1].ret_val == module.base
     assert len(set(pids)) == 2
@@ -48,7 +48,7 @@ def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_
             se.run_module(module, emulate_children=True)
         report = se.get_report()
 
-    assert [(ep.ep_type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
+    assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
     assert f"skipping child process {CHILD_PATH}" in caplog.text
     assert "Cannot rebase a guest PE without valid relocation data" in caplog.text
 
@@ -61,7 +61,7 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bi
         child = se.emu.get_current_process()
         entries = se.get_report().entry_points
 
-    assert [(ep.ep_type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
+    assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[1].ret_val == CHILD_BASE
     assert [entry.object.DllBase for entry in child.ldr_entries][:4] == [
         CHILD_BASE,

@@ -27,7 +27,7 @@ def capped_session(config):
 def assert_limit(run, budget):
     assert run.error.type == "max_instructions"
     assert run.error.count == budget
-    assert run.instr_count == budget
+    assert run.instruction_count == budget
 
 
 @pytest.mark.parametrize("memory_tracing", [False, True])

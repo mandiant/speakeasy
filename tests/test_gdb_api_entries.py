@@ -124,7 +124,7 @@ _SERVER_SCRIPT = textwrap.dedent(r"""
         Path(result_path).write_text(json.dumps({
             "calls": calls, "counter": int.from_bytes(se.mem_read(counter, 4), "little"),
             "return_value": emu.get_return_val(), "sp": emu.get_stack_ptr(),
-            "instructions": run.instr_count,
+            "instructions": run.instruction_count,
             "error_type": run.error.type if run.error else None,
         }))
     finally:
