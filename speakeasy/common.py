@@ -6,6 +6,8 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
+
 if TYPE_CHECKING:
     from speakeasy.binemu import BinaryEmulator
     from speakeasy.engines.unicorn_eng import EmuEngine
@@ -103,6 +105,14 @@ class Hook:
         if self.added:
             self.emu_eng.hook_disable(self.handle)
 
+    def remove(self):
+        """Remove the hook from the engine, so that the engine does not call it again."""
+        if self.added and self.native_hook:
+            self.emu_eng.hook_remove(self.handle)
+        self.handle = 0
+        self.added = False
+        self.enabled = False
+
     def _wrap_code_cb(self, emu, addr, size, ctx=None):
         try:
             if self.enabled:
@@ -120,11 +130,6 @@ class Hook:
             return self.cb(self.emu, num)
         return True
 
-    def _wrap_syscall_insn_cb(self, emu, ctx=None):
-        if self.enabled:
-            return self.cb(self.emu)
-        return True
-
     def _wrap_memory_access_cb(self, emu, access, addr, size, value, ctx=None):
         try:
             if self.enabled:
@@ -140,7 +145,8 @@ class Hook:
     def _wrap_invalid_insn_cb(self, emu, ctx=None):
         if self.enabled:
             return self.cb(self.emu)
-        return True
+        # Unicorn reads True as "handled", so a disabled hook must not claim the instruction.
+        return False
 
 
 class ApiHook(Hook):
@@ -258,19 +264,48 @@ class InstructionHook(Hook):
     """
     Hook that fires when a selected instruction executes.
 
-    Unicorn supports only the instructions IN, OUT, SYSCALL, and SYSENTER.
+    Unicorn supports only the instructions IN, OUT, SYSCALL, and SYSENTER. The emulator
+    calls the IN hooks through one dispatch hook (see ``BinaryEmulator._hook_in_dispatch``).
     """
 
     htype = HOOK_INSN
 
-    def __init__(self, cb, native_hook=True, insn=None):
+    def __init__(self, cb, begin=1, end=0, insns=(), native_hook=True):
         super().__init__(cb, native_hook=native_hook)
-        self.insn: int | None = insn
+        self.begin: int = begin
+        self.end: int = end
+        self.insns: tuple[int, ...] = tuple(insns)
+        self.handles: list[int] = []
+
+    def covers(self, address: int) -> bool:
+        """Get whether the address is in the range of the hook. ``begin > end`` means all addresses."""
+        # Unicorn does not check the range of an IN or OUT hook, and checks a SYSENTER hook
+        # against a pc that is not up to date, so the wrappers check the range here.
+        return self.begin > self.end or self.begin <= address <= self.end
 
     def add(self):
         if not self.added and self.native_hook:
-            self.handle = self.emu_eng.hook_add(htype=HOOK_INSN, cb=self._wrap_syscall_insn_cb, arg1=self.insn)
+            for insn in self.insns:
+                if insn == UC_X86_INS_IN:
+                    continue
+                cb = self._wrap_out_insn_cb if insn == UC_X86_INS_OUT else self._wrap_syscall_insn_cb
+                self.handles.append(self.emu_eng.hook_add(htype=HOOK_INSN, cb=cb, arg1=insn))
         self.added = True
+
+    def remove(self):
+        for handle in self.handles:
+            self.emu_eng.hook_remove(handle)
+        self.handles.clear()
+        self.added = False
+        self.enabled = False
+
+    def _wrap_out_insn_cb(self, emu, port, size, value, ctx=None):
+        if self.enabled and self.covers(self.emu.get_pc()):
+            self.cb(self.emu, port, size, value)
+
+    def _wrap_syscall_insn_cb(self, emu, ctx=None):
+        if self.enabled and self.covers(self.emu.get_pc()):
+            self.cb(self.emu)
 
 
 class InvalidInstructionHook(Hook):

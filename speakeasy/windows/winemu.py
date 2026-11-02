@@ -2488,14 +2488,14 @@ class WindowsEmulator(BinaryEmulator):
         self.raise_cpu_exception(exception, ErrorType.INVALID_INSTRUCTION)
         return False
 
-    def _hook_in_instruction(self, uc_engine, port, size, user_data):
+    def _hook_in_instruction(self, emu, port, size):
         rax = self.get_return_val()
         self.raise_cpu_exception(
             cpu_exceptions.privileged_instruction(self.get_pc()), ErrorType.PRIVILEGED_INSTRUCTION, rax=rax
         )
         return rax & 0xFFFFFFFF
 
-    def _hook_out_instruction(self, uc_engine, port, size, value, user_data):
+    def _hook_out_instruction(self, emu, port, size, value):
         self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), ErrorType.PRIVILEGED_INSTRUCTION)
 
     def _get_suspended_api_call(self, entry: ApiEntry) -> SuspendedApiCall:

@@ -41,6 +41,10 @@ class InHookCallback(Protocol):
     def __call__(self, emu: WindowsEmulator, port: int, size: int, /) -> int: ...
 
 
+class OutHookCallback(Protocol):
+    def __call__(self, emu: WindowsEmulator, port: int, size: int, value: int, /) -> None: ...
+
+
 class SyscallHookCallback(Protocol):
     def __call__(self, emu: WindowsEmulator, /) -> None: ...
 

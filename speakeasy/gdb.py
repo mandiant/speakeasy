@@ -180,7 +180,7 @@ class GdbServer:
             self.emu.module_change_listeners.remove(self._on_module_change)
         for hook in self._hooks:
             try:
-                self._remove_hook(hook)
+                hook.remove()
             except Exception:
                 pass
         # Prevent BinaryEmulator.set_hooks() from restoring debugger hooks if
@@ -367,15 +367,7 @@ class GdbServer:
         self._refresh_hooks()
 
     @staticmethod
-    def _remove_hook(hook: Any) -> None:
-        if hook.added and hook.native_hook:
-            hook.emu_eng.hook_remove(hook.handle)
-        hook.handle = 0
-        hook.added = False
-        hook.enabled = False
-
-    @classmethod
-    def _set_hook_enabled(cls, hook: Any | None, enabled: bool) -> None:
+    def _set_hook_enabled(hook: Any | None, enabled: bool) -> None:
         if hook is None:
             return
         if enabled and not hook.added:
@@ -385,7 +377,7 @@ class GdbServer:
         elif not enabled and hook.added:
             # Hook.disable() still enters Python for every native event. Remove
             # the Unicorn hook entirely to avoid that callback overhead.
-            cls._remove_hook(hook)
+            hook.remove()
 
     def _breakpoint_ranges(self) -> set[tuple[int, int]]:
         """

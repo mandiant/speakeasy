@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from typing import Any, TypeVar
 
 import capstone as cs
+from unicorn.x86_const import UC_X86_INS_IN
 
 import speakeasy.winenv.arch as e_arch
 from speakeasy import common, version
@@ -27,6 +28,7 @@ from speakeasy.hooks import (
     InvalidInstructionHookCallback,
     MemAccessHookCallback,
     MemMapHookCallback,
+    OutHookCallback,
     SyscallHookCallback,
 )
 from speakeasy.memmgr import MemoryManager
@@ -127,6 +129,7 @@ class BinaryEmulator(MemoryManager, ABC):
 
         self.stack_base: int = 0
         self.has_builtin_hooks: bool = False
+        self._in_dispatch_handle: int = 0
         self.config: SpeakeasyConfig = config
         self.hooks: dict[int, Any] = {}
 
@@ -857,7 +860,8 @@ class BinaryEmulator(MemoryManager, ABC):
         When multiple hooks are registered for the same event, they run in
         FIFO order (first registered, first called). All hooks in the chain run,
         and the return value of the last hook is used. This order applies to all
-        hook types in Speakeasy.
+        hook types in Speakeasy. An IN instruction is the exception: only the first
+        IN hook that is enabled and covers the address runs.
         """
         hook.bind(self)
         if isinstance(hook, common.ApiHook):
@@ -870,6 +874,10 @@ class BinaryEmulator(MemoryManager, ABC):
                 dispatch_hook.add()
                 hl.append(dispatch_hook)
             hl.append(hook)
+        if isinstance(hook, common.InstructionHook) and UC_X86_INS_IN in hook.insns and not self._in_dispatch_handle:
+            self._in_dispatch_handle = self.emu_eng.hook_add(
+                htype=common.HOOK_INSN, cb=self._hook_in_dispatch, arg1=UC_X86_INS_IN
+            )
         hook.add()
         return hook
 
@@ -889,11 +897,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 self.hooks[hook.htype].remove(hook)
         except (KeyError, ValueError):
             raise ValueError("The emulator does not have this hook") from None
-        if hook.added and hook.native_hook:
-            self.emu_eng.hook_remove(hook.handle)
-        hook.handle = 0
-        hook.added = False
-        hook.enabled = False
+        hook.remove()
 
     def _add_api_hook(self, hook: common.ApiHook) -> None:
         module = hook.module
@@ -1003,10 +1007,19 @@ class BinaryEmulator(MemoryManager, ABC):
         return self.add_hook(common.InterruptHook(cb))
 
     def add_instruction_hook(
-        self, cb: InHookCallback | SyscallHookCallback, begin=1, end=0, insn=None
+        self, cb: InHookCallback | OutHookCallback | SyscallHookCallback, begin=1, end=0, insn=None
     ) -> common.InstructionHook:
-        """Add a hook that will fire for IN, SYSCALL, or SYSENTER instructions."""
-        return self.add_hook(common.InstructionHook(cb, insn=insn))
+        """Add a hook that will fire for an IN, OUT, SYSCALL, or SYSENTER instruction."""
+        return self.add_hook(common.InstructionHook(cb, begin, end, insns=(insn,)))
+
+    def _hook_in_dispatch(self, uc_engine, port, size, user_data):
+        # Unicorn uses the value of the first IN hook and does not call the others, so one
+        # engine hook calls the first IN hook that is enabled and covers the address.
+        pc = self.get_pc()
+        for hook in self.hooks.get(common.HOOK_INSN, []):
+            if hook.enabled and UC_X86_INS_IN in hook.insns and hook.covers(pc):
+                return hook.cb(hook.emu, port, size)
+        return 0
 
     def add_invalid_instruction_hook(self, cb: InvalidInstructionHookCallback) -> common.InvalidInstructionHook:
         """Add a hook that will fire for invalid instructions."""

@@ -22,15 +22,15 @@ class DummyHook:
     def __init__(self):
         self.enabled = True
         self.added = True
-        self.native_hook = True
-        self.handle = 1
         self.begin = 1
         self.end = 0
-        self.emu_eng = SimpleNamespace(hook_remove=lambda handle: None)
 
     def add(self):
         self.added = True
-        self.handle = 1
+
+    def remove(self):
+        self.enabled = False
+        self.added = False
 
     def enable(self):
         self.enabled = True

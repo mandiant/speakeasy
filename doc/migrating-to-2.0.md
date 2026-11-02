@@ -224,5 +224,6 @@ These changes can break your code:
 - A dynamic code callback gets `(emu, region)`. In 1.x it got only `region`.
 - `remove_code_hook` is removed. Use `remove_hook`.
 - `add_IN_instruction_hook` and `add_SYSCALL_instruction_hook` are now `add_in_instruction_hook` and `add_syscall_instruction_hook`. The old names give a `DeprecationWarning` for one release.
+- The IN hook now calls its callback with `(emu, port, size)`, and the IN instruction reads the return value. In 1.x the callback did not run. The SYSCALL hook now fires for SYSCALL and SYSENTER. In 1.x it fired only for SYSENTER. Both hooks now use `begin` and `end`.
 
 Code that uses the internals of hooks also changes. The emulator `add_*_hook` methods do not take the `emu` argument. `Speakeasy` does not have the `api_hooks`, `code_hooks` and other lists of hooks that wait for the load, and `pending_hooks` holds them in the order that you added them. The `Hook` classes in `speakeasy.common` do not take `se_obj` and `emu_eng`, and the `se_obj` attribute is now `emu`.
