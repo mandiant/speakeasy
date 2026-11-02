@@ -1,6 +1,8 @@
+import copy
 import struct
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -259,6 +261,28 @@ def test_internet_read_file_without_a_configured_response(dll_emu: Speakeasy) ->
     rv, _ = call(dll_emu, "wininet", "InternetReadFile", [req, buf, 16, read])
     assert rv == 1
     assert dll_emu.mem_read(read, 4) == b"\x00" * 4
+
+
+def test_each_emulator_reads_its_own_http_response(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], tmp_path: Path
+) -> None:
+    data = load_test_bin("dll_test_x86.dll.xz")
+    with ExitStack() as stack:
+        emus = []
+        for name in ("A", "B"):
+            path = tmp_path / f"{name}.bin"
+            path.write_bytes(f"response for {name}".encode())
+            cfg = copy.deepcopy(config)
+            cfg["network"]["http"] = {"responses": [{"verb": "GET", "files": [{"mode": "default", "path": str(path)}]}]}
+            emus.append(stack.enter_context(contextmanager(load_emu)(cfg, data)))
+        reqs = [_wininet_request(se, b"GET", b"/x") for se in emus]
+        for se, req, name in zip(emus, reqs, ("A", "B"), strict=True):
+            assert call(se, "wininet", "HttpSendRequestA", [req, 0, 0, 0, 0])[0] == 1
+            buf = alloc(se, b"\x00" * 32)
+            read = alloc(se, b"\x00" * 4)
+            assert call(se, "wininet", "InternetReadFile", [req, buf, 32, read])[0] == 1
+            size = struct.unpack("<I", se.mem_read(read, 4))[0]
+            assert se.mem_read(buf, size) == f"response for {name}".encode()
 
 
 def test_win_http_read_data_without_a_configured_response(dll_emu: Speakeasy) -> None:

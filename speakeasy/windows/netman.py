@@ -80,8 +80,6 @@ class Socket:
 class WininetComponent:
     """Base class used for WinInet connections."""
 
-    config: NetworkConfig | None = None
-
     def __init__(self, handles):
         super().__init__()
         self.handles: HandleTable = handles
@@ -171,7 +169,7 @@ class WininetRequest(WininetComponent):
 
     def get_response(self):
         """Check the configuration file for a handler for the current WinInet request."""
-        cfg = WininetComponent.config
+        cfg = self.get_instance().config
 
         if self.response:
             return self.response
@@ -237,8 +235,9 @@ class WininetSession(WininetComponent):
 
 
 class WininetInstance(WininetComponent):
-    def __init__(self, handles, user_agent, access, proxy, bypass, flags):
+    def __init__(self, handles, config, user_agent, access, proxy, bypass, flags):
         super().__init__(handles)
+        self.config: NetworkConfig | None = config
         self.user_agent: str | int = user_agent
         self.access: int = access
         self.proxy: str | int = proxy
@@ -267,7 +266,6 @@ class NetworkManager:
         self.config: NetworkConfig = config
         self.dns: DnsConfig | None = None
 
-        WininetComponent.config = config
         if config:
             self.dns = config.dns
 
@@ -317,7 +315,7 @@ class NetworkManager:
             return _read_txt_data(txt[0])
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
-        return WininetInstance(self.wininets, user_agent, access, proxy, bypass, flags)
+        return WininetInstance(self.wininets, self.config, user_agent, access, proxy, bypass, flags)
 
     def get_wininet(self, handle, cls: type[T]) -> T | None:
         """Get the WinInet object of an open handle, or None if the handle refers to no ``cls`` object."""
