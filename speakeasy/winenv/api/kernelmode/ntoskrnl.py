@@ -10,16 +10,16 @@ import uuid
 import lznt1
 import pefile
 
-import speakeasy.common as common
-import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
+from speakeasy.windows import objman
 from speakeasy.winenv.api import api
+from speakeasy.winenv.defs.nt import ddk
 
 logger = logging.getLogger(__name__)
 

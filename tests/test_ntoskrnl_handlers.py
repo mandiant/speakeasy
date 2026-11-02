@@ -3,10 +3,10 @@ import struct
 import pytest
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
+from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, get_kernel_emu, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141

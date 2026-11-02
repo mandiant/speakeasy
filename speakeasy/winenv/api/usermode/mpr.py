@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.windows.mpr as mpr
+from speakeasy.winenv.defs.windows import mpr
 
 from .. import api
 

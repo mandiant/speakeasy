@@ -9,10 +9,9 @@ from types import MappingProxyType, ModuleType
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.windows.common as winemu
-import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
-import speakeasy.winenv.defs.nt.ntoskrnl as ntoskrnl
+from speakeasy.windows import thread_context
+from speakeasy.winenv.defs.nt import ddk, ntoskrnl
 
 if TYPE_CHECKING:
     from speakeasy.windows.loaders import RuntimeModule

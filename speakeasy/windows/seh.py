@@ -15,14 +15,13 @@ import struct
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler import GuestCallbackFrame
+from speakeasy.windows import guest_callbacks, thread_context
 from speakeasy.windows.cpu_exceptions import ACCESS_CODES, STATUS_GUARD_PAGE_VIOLATION, CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
+from speakeasy.winenv.defs.nt import ddk
 
 if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator

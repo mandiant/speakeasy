@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-import speakeasy.common as common
+from speakeasy import common
 from speakeasy.errors import OutOfMemoryError
 
 if TYPE_CHECKING:

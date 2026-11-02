@@ -3,8 +3,8 @@
 import uuid
 from typing import Any
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.wfp.fwpmtypes as fwp
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 

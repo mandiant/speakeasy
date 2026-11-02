@@ -10,16 +10,11 @@ import zlib
 from collections.abc import Iterator
 from typing import Any
 
-import speakeasy.common as common
 import speakeasy.windows.common as winemu
-import speakeasy.windows.fileman as fileman
-import speakeasy.windows.objman as objman
-import speakeasy.windows.seh as seh
-import speakeasy.windows.thread_context as thread_context
 import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.kernel32 as k32types
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy import common
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.profiler_events import (
     FILE_CREATE,
@@ -33,8 +28,10 @@ from speakeasy.profiler_events import (
     THREAD_CREATE,
     THREAD_INJECT,
 )
+from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 from ..exception_apis import ExceptionApis

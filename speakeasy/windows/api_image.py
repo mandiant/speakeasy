@@ -11,8 +11,8 @@ import struct
 from dataclasses import dataclass
 from typing import Any
 
-import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+from speakeasy import common
 from speakeasy.windows.export_manifest import get_export_manifest
 from speakeasy.windows.loaders import ExportEntry, LoadedImage, MemoryRegion, PeMetadata, SectionEntry
 from speakeasy.winenv.api.sigdb import SignatureDatabase

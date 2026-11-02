@@ -9,11 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import speakeasy.windows.seh as seh
-import speakeasy.windows.seh32 as seh32
-import speakeasy.windows.seh64 as seh64
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.windows import seh, seh32, seh64
 from speakeasy.winenv.api import api
 
 if TYPE_CHECKING:

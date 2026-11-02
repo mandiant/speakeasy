@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
-import speakeasy.common as common
+from speakeasy import common
 from speakeasy.windows.common import get_dll_hosts
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiHandler

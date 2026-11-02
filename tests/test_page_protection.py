@@ -1,7 +1,6 @@
 import pytest
 
-import speakeasy.common as common
-from speakeasy import Speakeasy
+from speakeasy import Speakeasy, common
 from speakeasy.windows.winemu import get_page_protection_runs
 
 PAGE = 0x1000

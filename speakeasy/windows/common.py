@@ -10,8 +10,8 @@ from typing import Any
 import pefile
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.struct import Enum
+from speakeasy.winenv.defs.nt import ddk
 
 # GDT Constants needed to set our emulator into protected mode
 # Access bits

@@ -5,9 +5,9 @@ import struct
 import pefile
 import pytest
 
-import speakeasy.common as common
-import speakeasy.winenv.arch as arch
+from speakeasy import common
 from speakeasy.windows.api_image import ApiExportSpec, build_api_image
+from speakeasy.winenv import arch
 
 
 def image_bytes(image):

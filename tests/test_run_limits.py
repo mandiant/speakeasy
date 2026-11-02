@@ -6,12 +6,12 @@ import time
 import pytest
 import unicorn as uc
 
-import speakeasy.winenv.arch as arch
 from speakeasy import Speakeasy
 from speakeasy.engines.start_timer import StartTimer
 from speakeasy.engines.unicorn_eng import EmuEngine, get_exception_state_offset, get_tsc_offset_location
 from speakeasy.profiler import Run
 from speakeasy.windows.winemu import RunLimits, _ExecutionBudget
+from speakeasy.winenv import arch
 
 
 def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):

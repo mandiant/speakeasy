@@ -9,9 +9,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, TracePosition

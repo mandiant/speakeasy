@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.windows.cpu_exceptions import CpuException
+from speakeasy.winenv.defs.nt import ddk
 
 if TYPE_CHECKING:
     from speakeasy.common import CodeHook

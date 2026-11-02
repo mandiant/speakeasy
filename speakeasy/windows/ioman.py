@@ -1,8 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import speakeasy.windows.kernel_mods as km
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.windows.kernel_mods.kernel_mod import KernelModule
+from speakeasy.winenv.defs.nt import ddk
 
 
 class IoManager:

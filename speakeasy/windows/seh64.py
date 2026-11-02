@@ -23,10 +23,8 @@ from typing import Any
 import unicorn as uc
 
 import speakeasy.windows.common as winemu
-import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.seh as seh
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.windows import unwind
+from speakeasy.windows import guest_callbacks, seh, unwind
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import (

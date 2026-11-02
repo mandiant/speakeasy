@@ -12,8 +12,8 @@ from typing import Any
 
 import pefile
 
-import speakeasy.common as common
 import speakeasy.winenv.arch as _arch
+from speakeasy import common
 from speakeasy.windows.common import ImageSectionCharacteristics, _PeParser
 
 logger = logging.getLogger(__name__)

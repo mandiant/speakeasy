@@ -21,22 +21,10 @@ import capstone as cs
 import pefile
 import unicorn as uc
 
-import speakeasy.common as common
-import speakeasy.windows.api_resolution as api_resolution
 import speakeasy.windows.common as winemu
-import speakeasy.windows.cpu_exceptions as cpu_exceptions
-import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.hardware_breakpoints as hardware_breakpoints
-import speakeasy.windows.mapped_imports as mapped_imports
-import speakeasy.windows.objman as objman
-import speakeasy.windows.seh as seh
-import speakeasy.windows.seh32 as seh32
-import speakeasy.windows.seh64 as seh64
-import speakeasy.windows.thread_context as thread_context
-import speakeasy.windows.unwind as unwind
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.windows.windows as windef
+from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
@@ -45,6 +33,19 @@ from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
+from speakeasy.windows import (
+    api_resolution,
+    cpu_exceptions,
+    guest_callbacks,
+    hardware_breakpoints,
+    mapped_imports,
+    objman,
+    seh,
+    seh32,
+    seh64,
+    thread_context,
+    unwind,
+)
 from speakeasy.windows.api_image import ApiModuleLoader
 from speakeasy.windows.api_registry import ApiEntry, ApiRegistry, module_name, symbol_ref
 from speakeasy.windows.cryptman import CryptoManager
@@ -60,6 +61,7 @@ from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManage
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
+from speakeasy.winenv.defs.nt import ddk
 
 # When disassembling, a minimum instruction size needs to be supplied
 # This number is arbitrary and just needs to be large enough to cover

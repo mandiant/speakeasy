@@ -8,8 +8,7 @@ from typing import Any
 
 import pytest
 
-import speakeasy.common as common
-from speakeasy import Speakeasy
+from speakeasy import Speakeasy, common
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.nt import ddk

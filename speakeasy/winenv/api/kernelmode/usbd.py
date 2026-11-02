@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.winenv.api import api
+from speakeasy.winenv.defs.nt import ddk
 
 
 class Usbd(api.ApiHandler):

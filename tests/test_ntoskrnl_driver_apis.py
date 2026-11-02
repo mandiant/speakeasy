@@ -9,12 +9,12 @@ from typing import Any
 
 import pytest
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
+from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call
 from tests.test_ntoskrnl_handlers import CDECL, STDCALL, call_x86
 
