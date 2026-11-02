@@ -28,8 +28,6 @@ jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' report.js
 }
 ```
 
-Executable proof for this snippet: [doc/readme-quickstart-showboat.md](https://github.com/mandiant/speakeasy/blob/master/doc/readme-quickstart-showboat.md).
-
 ## Documentation map
 
 ### Start here
@@ -45,7 +43,6 @@ Executable proof for this snippet: [doc/readme-quickstart-showboat.md](https://g
 - [CLI analysis recipes](https://github.com/mandiant/speakeasy/blob/master/doc/cli-analysis-recipes.md)
 - [CLI environment overrides](https://github.com/mandiant/speakeasy/blob/master/doc/cli-environment-overrides.md)
 - [CLI execution controls](https://github.com/mandiant/speakeasy/blob/master/doc/cli-execution-controls.md)
-- [CLI help snapshot (showboat)](https://github.com/mandiant/speakeasy/blob/master/doc/cli-help-showboat.md)
 
 ### Reports, configuration, and runtime behavior
 
@@ -57,7 +54,6 @@ Executable proof for this snippet: [doc/readme-quickstart-showboat.md](https://g
 ### Debugging and extension
 
 - [GDB debugging reference](https://github.com/mandiant/speakeasy/blob/master/doc/gdb.md)
-- [GDB sessions (showboat)](https://github.com/mandiant/speakeasy/blob/master/doc/gdb-examples.md)
 - [Mounting host files with `--volume`](https://github.com/mandiant/speakeasy/blob/master/doc/volumes.md)
 - [Adding API handlers](https://github.com/mandiant/speakeasy/blob/master/doc/api-handlers.md)
 - [Examples directory](https://github.com/mandiant/speakeasy/tree/master/examples)

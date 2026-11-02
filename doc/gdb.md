@@ -193,6 +193,5 @@ Unsupported optional packets receive an empty response as required by RSP. Non-s
 
 - [Project README](../README.md)
 - [Documentation index](index.md)
-- [GDB sessions (showboat)](gdb-examples.md)
 - [CLI execution controls](cli-execution-controls.md)
 - [Help and troubleshooting](help.md)

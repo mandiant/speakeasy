@@ -18,7 +18,7 @@ The actual side effects happen in `load_image()`, which materializes that data i
 
 A new -V/--volume CLI option maps host files or directories into the emulated Windows filesystem using host_path:guest_path syntax. Volume entries are expanded and injected with precedence so mounted data is resolved before default file mappings. This gives analysts a direct, repeatable way to stage sample dependencies without rewriting config files.
 
-Here is a showboat-verified CLI run using `-V` to mount a host file as `c:\myfile.txt` inside the emulator. I ran with `-v` so you can see exactly where the mapping lands and what the sample reads.
+Here is a CLI run using `-V` to mount a host file as `c:\myfile.txt` inside the emulator. I ran with `-v` so you can see where the mapping goes and what the sample reads.
 
 ```console
 speakeasy -t /tmp/se_vol_demo2/target/file_access_test_x86.exe --no-mp -v -V /tmp/se_vol_demo2/mount/myfile.txt:c:\myfile.txt
@@ -241,7 +241,7 @@ Speakeasy provides a native GDB remote stub and can pause before the first instr
 
 Quick way to use it: in terminal 1 run `speakeasy -t sample.dll --gdb --gdb-port 1234` and wait for the listener message; Speakeasy will force `--no-mp` automatically so the stub stays attached to the same Unicorn instance. In terminal 2 run `gdb-multiarch`, then `set architecture i386` (or `i386:x86-64` for 64-bit), and `target remote localhost:1234`; from there standard commands like `info registers`, `x/10i $pc`, `break *0x...`, `stepi`, and `continue` work as expected.
 
-For the full reference and caveats, use [doc/gdb.md](gdb.md) and [doc/gdb-examples.md](gdb-examples.md). Those docs cover the practical details this summary skips, including IDA Remote GDB setup, one-session-per-process limits, and how breakpoints behave across multi-run flows like DllMain plus exports.
+For the full reference and caveats, use [doc/gdb.md](gdb.md). That page covers the practical details this summary skips, including IDA Remote GDB setup, one-session-per-process limits, and how breakpoints behave across multi-run flows like DllMain plus exports.
 
 ## Timeout enforcement across multi-run and parent supervision
 

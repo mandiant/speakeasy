@@ -172,6 +172,5 @@ speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dro
 - [CLI analysis recipes](cli-analysis-recipes.md)
 - [CLI environment overrides](cli-environment-overrides.md)
 - [CLI execution controls](cli-execution-controls.md)
-- [CLI help snapshot (showboat)](cli-help-showboat.md)
 - [Configuration walkthrough](configuration.md)
 - [Help and troubleshooting](help.md)

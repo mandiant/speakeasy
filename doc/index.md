@@ -15,7 +15,6 @@ This page maps common tasks to the right Speakeasy documentation.
 - [CLI analysis recipes](cli-analysis-recipes.md)
 - [CLI environment overrides](cli-environment-overrides.md)
 - [CLI execution controls](cli-execution-controls.md)
-- [CLI help snapshot (showboat)](cli-help-showboat.md)
 
 ## Configuration and reports
 
@@ -29,7 +28,6 @@ This page maps common tasks to the right Speakeasy documentation.
 ## Debugging
 
 - [GDB debugging reference](gdb.md)
-- [GDB sessions (showboat)](gdb-examples.md)
 
 ## Extending and embedding
 
