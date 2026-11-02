@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -47,74 +48,64 @@ class ComInterface:
 
 
 class IUnknown(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.QueryInterface = Ptr
-        self.AddRef = Ptr
-        self.Release = Ptr
+    QueryInterface: Annotated[int, Ptr]
+    AddRef: Annotated[int, Ptr]
+    Release: Annotated[int, Ptr]
 
 
 class IMalloc(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.IUnknown = IUnknown
-        self.Alloc = Ptr
-        self.Realloc = Ptr
-        self.Free = Ptr
-        self.GetSize = Ptr
-        self.DidAlloc = Ptr
-        self.HeapMinimize = Ptr
+    IUnknown: IUnknown
+    Alloc: Annotated[int, Ptr]
+    Realloc: Annotated[int, Ptr]
+    Free: Annotated[int, Ptr]
+    GetSize: Annotated[int, Ptr]
+    DidAlloc: Annotated[int, Ptr]
+    HeapMinimize: Annotated[int, Ptr]
 
 
 class IWbemLocator(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.IUnknown = IUnknown
-        self.ConnectServer = Ptr
+    IUnknown: IUnknown
+    ConnectServer: Annotated[int, Ptr]
 
 
 class IWbemServices(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.IUnknown = IUnknown
-        self.OpenNamespace = Ptr
-        self.CancelAsyncCall = Ptr
-        self.QueryObjectSink = Ptr
-        self.GetObject = Ptr
-        self.GetObjectAsync = Ptr
-        self.PutClass = Ptr
-        self.PutClassAsync = Ptr
-        self.DeleteClass = Ptr
-        self.DeleteClassAsync = Ptr
-        self.CreateClassEnum = Ptr
-        self.CreateClassEnumAsync = Ptr
-        self.PutInstance = Ptr
-        self.PutInstanceAsync = Ptr
-        self.DeleteInstance = Ptr
-        self.DeleteInstanceAsync = Ptr
-        self.CreateInstanceEnum = Ptr
-        self.CreateInstanceEnumAsync = Ptr
-        self.ExecQuery = Ptr
-        self.ExecQueryAsync = Ptr
-        self.ExecNotificationQuery = Ptr
-        self.ExecNotificationQueryAsync = Ptr
-        self.ExecMethod = Ptr
-        self.ExecMethodAsync = Ptr
+    IUnknown: IUnknown
+    OpenNamespace: Annotated[int, Ptr]
+    CancelAsyncCall: Annotated[int, Ptr]
+    QueryObjectSink: Annotated[int, Ptr]
+    GetObject: Annotated[int, Ptr]
+    GetObjectAsync: Annotated[int, Ptr]
+    PutClass: Annotated[int, Ptr]
+    PutClassAsync: Annotated[int, Ptr]
+    DeleteClass: Annotated[int, Ptr]
+    DeleteClassAsync: Annotated[int, Ptr]
+    CreateClassEnum: Annotated[int, Ptr]
+    CreateClassEnumAsync: Annotated[int, Ptr]
+    PutInstance: Annotated[int, Ptr]
+    PutInstanceAsync: Annotated[int, Ptr]
+    DeleteInstance: Annotated[int, Ptr]
+    DeleteInstanceAsync: Annotated[int, Ptr]
+    CreateInstanceEnum: Annotated[int, Ptr]
+    CreateInstanceEnumAsync: Annotated[int, Ptr]
+    ExecQuery: Annotated[int, Ptr]
+    ExecQueryAsync: Annotated[int, Ptr]
+    ExecNotificationQuery: Annotated[int, Ptr]
+    ExecNotificationQueryAsync: Annotated[int, Ptr]
+    ExecMethod: Annotated[int, Ptr]
+    ExecMethodAsync: Annotated[int, Ptr]
 
 
 class IWbemContext(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.IUnknown = IUnknown
-        self.Clone = Ptr
-        self.GetNames = Ptr
-        self.BeginEnumeration = Ptr
-        self.Next = Ptr
-        self.EndEnumeration = Ptr
-        self.SetValue = Ptr
-        self.GetValue = Ptr
-        self.DeleteValue = Ptr
-        self.DeleteAll = Ptr
+    IUnknown: IUnknown
+    Clone: Annotated[int, Ptr]
+    GetNames: Annotated[int, Ptr]
+    BeginEnumeration: Annotated[int, Ptr]
+    Next: Annotated[int, Ptr]
+    EndEnumeration: Annotated[int, Ptr]
+    SetValue: Annotated[int, Ptr]
+    GetValue: Annotated[int, Ptr]
+    DeleteValue: Annotated[int, Ptr]
+    DeleteAll: Annotated[int, Ptr]
 
 
 IFACE_TYPES = {
