@@ -182,6 +182,7 @@ USER_ROWS = [
     row("winhttp", "WinHttpReadData", [BAD, buf, 16, buf], 0, ERROR_INVALID_HANDLE),
     row("winhttp", "WinHttpQueryDataAvailable", [BAD, buf], 0, ERROR_INVALID_HANDLE),
     row("winhttp", "WinHttpQueryHeaders", [BAD, 1, 0, buf, buf, 0], 0, ERROR_INVALID_HANDLE),
+    row("winhttp", "WinHttpCloseHandle", [BAD], 0, ERROR_INVALID_HANDLE),
     row("ncrypt", "NCryptImportKey", [BAD, 0, buf, 0, buf, buf, 16, 0], adv32.NTE_INVALID_HANDLE, UNSET),
     row("ncrypt", "NCryptDeleteKey", [BAD, 0], adv32.NTE_INVALID_HANDLE, UNSET),
     row("ncrypt", "NCryptFreeObject", [BAD], adv32.NTE_INVALID_HANDLE, UNSET),
