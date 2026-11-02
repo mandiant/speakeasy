@@ -58,7 +58,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.trace_handle: int = 0x1000
         self.random_values: list[int] = list(RTL_RANDOM_VALUES)
 
         super().__get_hook_attrs__(self)
@@ -640,8 +639,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         handle_ptr = argv[7]
         if not handle_ptr:
             return windefs.ERROR_INVALID_PARAMETER
-        self.trace_handle += 4
-        self.write_qword(handle_ptr, self.trace_handle)
+        self.write_qword(handle_ptr, emu.handle_allocator.allocate_handle())
         return windefs.ERROR_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsA", argc=8)
