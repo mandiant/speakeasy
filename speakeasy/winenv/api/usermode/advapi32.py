@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
 
 MD5_INITIAL_STATE = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
-SERVICE_STATUS_HANDLE_BASE = 0x1000
 TOKEN_USER = 1
 TOKEN_INTEGRITY_LEVEL = 25
 SE_GROUP_INTEGRITY = 0x20
@@ -52,16 +51,10 @@ class AdvApi32(api.ApiHandler):
         self.md5_contexts: dict[int, hashlib._Hash] = {}
         self.k32types = k32defs
         self.win = adv32defs
-        self.curr_handle: int = 0x2800
-        self.service_status_handle: int = SERVICE_STATUS_HANDLE_BASE
 
         self.rc4: ARC4Cipher | None = None
 
         super().__get_hook_attrs__(self)
-
-    def get_handle(self):
-        self.curr_handle += 4
-        return self.curr_handle
 
     @apihook("RegOpenKey", argc=3, conv=_arch.CALL_CONV_STDCALL)
     def RegOpenKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -689,11 +682,11 @@ class AdvApi32(api.ApiHandler):
         lpServiceName, lpHandlerProc = argv
 
         # dummy SERVICE_STATUS_HANDLE
-        self.service_status_handle += 1
+        hnd = emu.handle_allocator.allocate_handle()
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
-        return self.service_status_handle
+        return hnd
 
     @apihook("RegisterServiceCtrlHandlerEx", argc=3)
     def RegisterServiceCtrlHandlerEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2112,7 +2105,7 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         svcname = self.read_mem_string(lpServiceName, cw)
         ctx.args["lpServiceName"].display = svcname
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("DeleteService", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def DeleteService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
