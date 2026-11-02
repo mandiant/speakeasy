@@ -9,7 +9,7 @@ def _get_kmods():
     def imports():
         import types
 
-        for name, val in globals().items():
+        for val in globals().values():
             if isinstance(val, types.ModuleType):
                 yield val
 

@@ -285,7 +285,7 @@ class Driver(KernelObject):
     def read_back(self):
         super().read_back()
 
-        for i, func in enumerate(self.mj_funcs):
+        for i in range(len(self.mj_funcs)):
             self.mj_funcs[i] = self.object.MajorFunction[i]
 
         self.on_unload = self.object.DriverUnload
@@ -778,7 +778,7 @@ class IDT(KernelObject):
                 entry.OffsetLow = 0 + (4 * i)
                 entry.Base = kbase
         elif self.emu.get_arch() == _arch.ARCH_AMD64:
-            for i, entry in enumerate(tbl.Table):
+            for entry in tbl.Table:
                 entry.OffsetLow = 0xFFFF & kbase
                 entry.OffsetMiddle = (0xFFFF0000 & kbase) >> 16
                 entry.OffsetHigh = (0xFFFFFFFF00000000 & kbase) >> 32
@@ -877,7 +877,7 @@ class ObjectManager:
         return self.objects.get(addr)
 
     def get_object_from_id(self, id):
-        for a, o in self.objects.items():
+        for o in self.objects.values():
             if o.id == id:
                 return o
 
@@ -885,7 +885,7 @@ class ObjectManager:
         if not name:
             return None
         name = name.rstrip("\\")
-        for a, o in self.objects.items():
+        for o in self.objects.values():
             if not o.name:
                 continue
             if o.name.lower() == name.lower():
@@ -897,6 +897,6 @@ class ObjectManager:
             return self.get_object_from_name(name, False)
 
     def get_object_from_handle(self, handle):
-        for a, o in self.objects.items():
+        for o in self.objects.values():
             if handle in o.handles:
                 return o

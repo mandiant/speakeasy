@@ -240,7 +240,7 @@ class BinaryEmulator(MemoryManager, ABC):
             else:
                 return [i for i in self.disasm_eng.disasm(bytes(mem), addr)]
         except IndexError:
-            raise EmuException(f"Failed to disasm at address: 0x{addr:x}")
+            raise EmuException(f"Failed to disasm at address: 0x{addr:x}") from None
 
         op = f"{mnem} {oper}"
         return (mnem, oper, op)
@@ -389,9 +389,7 @@ class BinaryEmulator(MemoryManager, ABC):
             sp = self.reg_read(e_arch.AMD64_REG_RSP)
             sp += 0x20
 
-            for i, r in enumerate(
-                (e_arch.AMD64_REG_RCX, e_arch.AMD64_REG_RDX, e_arch.AMD64_REG_R8, e_arch.AMD64_REG_R9)
-            ):
+            for r in (e_arch.AMD64_REG_RCX, e_arch.AMD64_REG_RDX, e_arch.AMD64_REG_R8, e_arch.AMD64_REG_R9):
                 if nargs == 0:
                     break
                 val = self.reg_read(r)
@@ -402,7 +400,7 @@ class BinaryEmulator(MemoryManager, ABC):
 
         # Skip past the saved ret addr
         sp += ptr_size
-        for i in range(nargs):
+        for _ in range(nargs):
             ptr = self.mem_read(sp, ptr_size)
             argv.append(int.from_bytes(ptr, "little"))
             sp += ptr_size

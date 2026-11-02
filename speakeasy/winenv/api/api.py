@@ -378,7 +378,9 @@ class ApiHandler:
     def write_string(self, string, addr):
         return self.write_mem_string(string, addr, width=1)
 
-    def queue_run(self, run_type, ep, run_args=[]):
+    def queue_run(self, run_type, ep, run_args=None):
+        if run_args is None:
+            run_args = []
         run = Run()
         if not isinstance(run_type, str):
             raise ApiEmuError("Invalid run type")
@@ -407,7 +409,7 @@ class ApiHandler:
         return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
 
     def record_file_access_event(
-        self, path, event_type, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+        self, path, event_type, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
     ):
         logger.debug("file_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
@@ -427,7 +429,7 @@ class ApiHandler:
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
     def record_registry_access_event(
-        self, path, event_type, value_name=None, data=None, handle=0, disposition=[], access=[], buffer=0, size=None
+        self, path, event_type, value_name=None, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
     ):
         logger.debug("reg_%s: %s", event_type, path)
         profiler = self.emu.get_profiler()
@@ -508,7 +510,7 @@ class ApiHandler:
             fm = self.emu.get_file_manager()
             fmap = fm.get_mapping_from_addr(mm.base)
             if fmap:
-                for base, view in fmap.views.items():
+                for base in fmap.views:
                     if base == mm.base:
                         continue
                     tgt_offset = addr - mm.base
@@ -563,7 +565,7 @@ class ApiHandler:
         ptr = va_list
         ptrsize = self.get_ptr_size()
 
-        for n in range(num_args):
+        for _ in range(num_args):
             arg = int.from_bytes(self.emu.mem_read(ptr, ptrsize), "little")
             args.append(arg)
             ptr += ptrsize

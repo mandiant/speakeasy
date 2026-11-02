@@ -279,8 +279,7 @@ class _PeParser(pefile.PE):
 
     def is_dotnet(self):
         """Is the current PE file a .NET assembly?"""
-        for addr, imp in self.imports.items():
-            dll, func = imp
+        for dll, func in self.imports.values():
             if dll == "mscoree" and func in ["_CorExeMain", "_CorDllMain"]:
                 return True
         directories = self.OPTIONAL_HEADER.DATA_DIRECTORY

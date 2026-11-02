@@ -18,7 +18,7 @@ def autoload_api_handlers():
     for modname, modobj in sys.modules.items():
         if not modname.startswith(("speakeasy.winenv.api.kernelmode.", "speakeasy.winenv.api.usermode.")):
             continue
-        for clsname, clsobj in inspect.getmembers(modobj, inspect.isclass):
+        for _, clsobj in inspect.getmembers(modobj, inspect.isclass):
             if clsobj is not api.ApiHandler and issubclass(clsobj, api.ApiHandler):
                 api_handlers.append((clsobj.name, clsobj))
 

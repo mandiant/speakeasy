@@ -253,8 +253,8 @@ class Speakeasy:
         """
         try:
             return self.emu.get_disasm(addr, size, fast)
-        except Exception:
-            raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}")
+        except Exception as e:
+            raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}") from e
 
     def is_pe(self, data: bytes) -> bool:
         """Check whether the data starts with the PE ``MZ`` header."""
@@ -504,7 +504,7 @@ class Speakeasy:
             self._emu.emu_eng.close()
 
     @execution_scope
-    def call(self, addr: int, params=[]) -> None:
+    def call(self, addr: int, params: list[int] | None = None) -> None:
         """
         Call the function at the specified address.
 
@@ -719,8 +719,8 @@ class Speakeasy:
         """
         try:
             return self.emu.mem_read(addr, size)
-        except Exception:
-            raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}")
+        except Exception as e:
+            raise SpeakeasyError(f"Failed to read {size} bytes at address: 0x{addr:x}") from e
 
     def mem_write(self, addr: int, data: bytes) -> None:
         """
@@ -731,8 +731,8 @@ class Speakeasy:
         """
         try:
             return self.emu.mem_write(addr, data)
-        except Exception:
-            raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}")
+        except Exception as e:
+            raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}") from e
 
     def mem_cast(self, obj, addr: int):
         """

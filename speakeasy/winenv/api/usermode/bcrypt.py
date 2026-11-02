@@ -381,7 +381,7 @@ class Bcrypt(api.ApiHandler):
         """
         (hKey,) = argv
         cm = emu.get_crypt_manager()
-        for hnd, crypt_ctx in cm.ctx_handles.items():
+        for crypt_ctx in cm.ctx_handles.values():
             hnd_key = crypt_ctx.get_key(hKey)
             if hnd_key:
                 crypt_ctx.delete_key(hKey)
