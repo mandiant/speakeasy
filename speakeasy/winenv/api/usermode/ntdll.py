@@ -569,12 +569,14 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         NtMajorVersion, NtMinorVersion, NtBuildNumber = argv
+        ver = emu.config.os_ver
         if NtMajorVersion:
-            self.write_dword(NtMajorVersion, 10)
+            self.write_dword(NtMajorVersion, ver.major or 0)
         if NtMinorVersion:
-            self.write_dword(NtMinorVersion, 0)
+            self.write_dword(NtMinorVersion, ver.minor or 0)
         if NtBuildNumber:
-            self.write_dword(NtBuildNumber, 0xF0004A61)
+            # Windows sets the top four bits of the build number (0xF) for a free build.
+            self.write_dword(NtBuildNumber, 0xF0000000 | (ver.build or 0))
 
     @apihook("RtlFormatCurrentUserKeyPath", argc=1)
     def RtlFormatCurrentUserKeyPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
