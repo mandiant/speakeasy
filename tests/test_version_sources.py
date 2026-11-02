@@ -6,7 +6,7 @@ import pytest
 
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, load_emu
+from tests.handler_harness import alloc, call, get_win32_emu, load_emu, start_process
 
 RTL_OSVERSIONINFOW_SIZE = 276
 RTL_OSVERSIONINFOEXW_SIZE = 284
@@ -43,3 +43,14 @@ def test_rtl_get_nt_version_numbers_reads_the_config(
         out = alloc(se, b"\x00" * 12)
         call(se, "ntdll", "RtlGetNtVersionNumbers", [out, out + 4, out + 8])
         assert struct.unpack("<3I", se.mem_read(out, 12)) == (10, 0, 0xF0000000 | 19045)
+
+
+def test_peb_reads_the_config(win10_config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
+    for se in load_emu(win10_config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        emu = get_win32_emu(se)
+        peb = emu.alloc_peb(emu.curr_process)
+        # PEB (x86): ULONG OSMajorVersion at 0xA4, ULONG OSMinorVersion at 0xA8, USHORT OSBuildNumber at 0xAC,
+        # USHORT OSCSDVersion at 0xAE, ULONG OSPlatformId at 0xB0
+        major, minor, build, _, platform = struct.unpack("<IIHHI", se.mem_read(peb.address + 0xA4, 16))
+        assert (major, minor, build, platform) == (10, 0, 19045, windefs.VER_PLATFORM_WIN32_NT)
