@@ -457,8 +457,7 @@ class Ws2_32(api.ApiHandler):
             aip = "127.0.0.1"
 
         port = socket.connected_port
-        nip = inet_aton(aip)
-        nip = int.from_bytes(nip, "little")
+        nip = int.from_bytes(inet_aton(aip), "little")
 
         new_sock.set_connection_info(aip, port)
 

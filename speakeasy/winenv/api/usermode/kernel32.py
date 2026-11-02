@@ -266,7 +266,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     # gets atom and its reference count
     def get_local_atom(self, s):
-        atom = None, None
+        atom: tuple[int | None, int | None] = None, None
         for k, v in self.local_atom_table.items():
             if v[0].lower() == s.lower():
                 atom = k, v[1]
@@ -2197,7 +2197,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD ProcessorFeature
         );
         """
-        rv = 1
         """
         Not all the features must return 1, because those can represent a feature which can be unavailable
         for your processor. For example PF_FLOATING_POINT_PRECISION_ERRATA is a Pentium instructions
@@ -3584,14 +3583,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     o += 2
             else:
                 wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
-            cs = wcs.decode("utf-16le", "ignore")
-            cs = cs.encode("utf-8", "ignore")
-            if len(cs) > cbMultiByte:
-                self.mem_write(lpMultiByteStr, cs[:cbMultiByte])
+            mbs = wcs.decode("utf-16le", "ignore").encode("utf-8", "ignore")
+            if len(mbs) > cbMultiByte:
+                self.mem_write(lpMultiByteStr, mbs[:cbMultiByte])
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             else:
-                self.mem_write(lpMultiByteStr, cs)
-                rv = len(cs)
+                self.mem_write(lpMultiByteStr, mbs)
+                rv = len(mbs)
 
         return rv
 
@@ -5762,9 +5760,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (lpVersionInformation,) = argv
 
         cw = self.get_char_width(ctx)
-        osver = self.k32types.OSVERSIONINFOEX(emu.get_ptr_size(), cw)
-        is_ex = self.read_dword(lpVersionInformation) == osver.sizeof()
-        if not is_ex:
+        osver: k32defs.OSVERSIONINFO | k32defs.OSVERSIONINFOEX = self.k32types.OSVERSIONINFOEX(emu.get_ptr_size(), cw)
+        if self.read_dword(lpVersionInformation) != osver.sizeof():
             osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size(), cw)
         osver = self.mem_cast(osver, lpVersionInformation)
 
@@ -5773,7 +5770,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         osver.dwMinorVersion = ver.minor or 0
         osver.dwBuildNumber = ver.build or 0
         osver.dwPlatformId = VER_PLATFORM_WIN32_NT
-        if is_ex:
+        if isinstance(osver, self.k32types.OSVERSIONINFOEX):
             osver.wServicePackMajor = SERVICE_PACK_BUILDS.get(ver.build or 0, 0)
             osver.wServicePackMinor = 0
             osver.wSuiteMask = 0

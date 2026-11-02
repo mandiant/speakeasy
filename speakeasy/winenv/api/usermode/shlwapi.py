@@ -93,8 +93,8 @@ class Shlwapi(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     def join_windows_path(self, *args, **kwargs):
-        args = list(map(lambda x: x.replace("\\", "/"), args))
-        return os.path.join(*args, **kwargs).replace("/", "\\")
+        parts = [x.replace("\\", "/") for x in args]
+        return os.path.join(*parts, **kwargs).replace("/", "\\")
 
     @apihook("PathIsRelative", argc=1)
     def PathIsRelative(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -384,8 +384,7 @@ class Shlwapi(api.ApiHandler):
         mod_name = ntpath.basename(s) + "\x00"
 
         enc = self.get_encoding(cw)
-        mod_name = mod_name.encode(enc)
-        self.mem_write(pszPath, mod_name)
+        self.mem_write(pszPath, mod_name.encode(enc))
 
     @apihook("wvnsprintfA", argc=4)
     def wvnsprintfA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
