@@ -41,8 +41,8 @@ class Iphlpapi(api.ApiHandler):
         adapter_count = len(adapters)
 
         size = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size()).sizeof()
-        if not AdapterInfo or int.from_bytes(self.mem_read(SizePointer, 4), "little") < size:
-            self.mem_write(SizePointer, size.to_bytes(4, "little"))
+        if not AdapterInfo or self.read_dword(SizePointer) < size:
+            self.write_dword(SizePointer, size)
             return windefs.ERROR_BUFFER_OVERFLOW
 
         for index, adapter in enumerate(adapters):

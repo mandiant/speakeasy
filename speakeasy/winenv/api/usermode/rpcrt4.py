@@ -61,7 +61,7 @@ class RPCRT4(api.ApiHandler):
 
         buf = self.mem_alloc(len(string), tag="api.UuidToStringA")
         self.mem_write(buf, string.encode("utf-8"))
-        self.mem_write(StringUuid, buf.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(StringUuid, buf)
 
         return 0
 
@@ -76,15 +76,15 @@ class RPCRT4(api.ApiHandler):
         """
         ptr_size = self.get_ptr_size()
         interfaces = []
-        while info := self.emu.read_ptr(proxy_file_list):
-            stubs = self.emu.read_ptr(info + ptr_size)
-            names = self.emu.read_ptr(info + ptr_size * 2)
+        while info := self.read_ptr(proxy_file_list):
+            stubs = self.read_ptr(info + ptr_size)
+            names = self.read_ptr(info + ptr_size * 2)
             table_size = int.from_bytes(self.mem_read(info + ptr_size * 5, 2), "little")
             for i in range(table_size):
-                stub = self.emu.read_ptr(stubs + i * ptr_size)
-                iid = self.read_guid_string(self.emu.read_ptr(stub))
-                method_count = int.from_bytes(self.mem_read(stub + ptr_size * 2, 4), "little")
-                name_ptr = self.emu.read_ptr(names + i * ptr_size) if names else 0
+                stub = self.read_ptr(stubs + i * ptr_size)
+                iid = self.read_guid_string(self.read_ptr(stub))
+                method_count = self.read_dword(stub + ptr_size * 2)
+                name_ptr = self.read_ptr(names + i * ptr_size) if names else 0
                 name = self.read_mem_string(name_ptr, 1) if name_ptr else ""
                 interfaces.append((iid, name, method_count))
             proxy_file_list += ptr_size
@@ -166,5 +166,5 @@ class RPCRT4(api.ApiHandler):
         """
         (pPSFactoryBuffer,) = argv
 
-        ref_count = int.from_bytes(self.mem_read(pPSFactoryBuffer + self.get_ptr_size(), 4), "little")
+        ref_count = self.read_dword(pPSFactoryBuffer + self.get_ptr_size())
         return comdefs.S_FALSE if ref_count else comdefs.S_OK

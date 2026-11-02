@@ -42,7 +42,7 @@ class Imagehlp(api.ApiHandler):
         if self.mem_read(nt, 4) != b"PE\x00\x00":
             return 0
         stored = struct.unpack("<I", self.mem_read(nt + 24 + 64, 4))[0]
-        self.mem_write(HeaderSum, stored.to_bytes(4, "little"))
+        self.write_dword(HeaderSum, stored)
 
         # Remove the stored checksum from the one's complement sum, as Windows does
         for word in (stored & 0xFFFF, stored >> 16):
@@ -50,5 +50,5 @@ class Imagehlp(api.ApiHandler):
                 calc -= word
             else:
                 calc = ((calc - word) & 0xFFFF) - 1
-        self.mem_write(CheckSum, ((calc + FileLength) & 0xFFFFFFFF).to_bytes(4, "little"))
+        self.write_dword(CheckSum, (calc + FileLength) & 0xFFFFFFFF)
         return nt

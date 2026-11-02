@@ -21,7 +21,7 @@ def write_dll_version(handler: api.ApiHandler, pdvi: int, major: int, minor: int
     Fill the DLLVERSIONINFO or DLLVERSIONINFO2 at ``pdvi`` the way DllGetVersion
     does, and return the HRESULT. The size in cbSize selects the structure.
     """
-    size = int.from_bytes(handler.mem_read(pdvi, 4), "little")
+    size = handler.read_dword(pdvi)
     if size not in (20, 32):
         return windefs.E_INVALIDARG
     data = struct.pack("<IIII", major, minor, build, DLLVER_PLATFORM_NT)
@@ -147,7 +147,7 @@ class Shell32(api.ApiHandler):
             ctx.args["csidl"].display = shell32_defs.CSIDL[csidl]
             pidl = self.new_pidl(self.get_folder_path(emu, csidl))
         if ppidl:
-            self.mem_write(ppidl, pidl.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ppidl, pidl)
         return windefs.S_OK if pidl else windefs.E_INVALIDARG
 
     @apihook("SHCreateDirectoryEx", argc=3)
@@ -279,8 +279,8 @@ class Shell32(api.ApiHandler):
         if ppMalloc:
             ci = emu.com.get_interface(emu, emu.get_ptr_size(), "IMalloc")
             pv = self.mem_alloc(emu.get_ptr_size(), tag="emu.COM.pv_IMalloc")
-            self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
-            self.mem_write(ppMalloc, pv.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(pv, ci.address)
+            self.write_ptr(ppMalloc, pv)
         rv = windefs.S_OK
         return rv
 
@@ -311,7 +311,7 @@ class Shell32(api.ApiHandler):
         ptrs = buf
         strs = buf + ((len(split) + 1) * ptrsize)
         for i, p in enumerate(split):
-            self.mem_write(ptrs + (i * ptrsize), strs.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ptrs + (i * ptrsize), strs)
 
             p += "\x00"
             if cw == 2:
@@ -323,7 +323,7 @@ class Shell32(api.ApiHandler):
             strs += len(s)
 
         if pNumArgs:
-            self.mem_write(pNumArgs, nargs.to_bytes(4, "little"))
+            self.write_dword(pNumArgs, nargs)
 
         return buf
 
@@ -442,7 +442,7 @@ class Shell32(api.ApiHandler):
         ctx.args["rfid"].display = folder[0] if folder else guid
         pidl = self.new_pidl(folder[1].format(user=emu.config.user.name)) if folder else 0
         if ppidl:
-            self.mem_write(ppidl, pidl.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ppidl, pidl)
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
 
     @apihook("SHGetPathFromIDList", argc=2)
@@ -482,7 +482,7 @@ class Shell32(api.ApiHandler):
             ptr = self.mem_alloc(len(path), tag="api.SHGetKnownFolderPath")
             self.mem_write(ptr, path)
         if ppszPath:
-            self.mem_write(ppszPath, ptr.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ppszPath, ptr)
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
 
     @apihook("DllGetVersion", argc=1)

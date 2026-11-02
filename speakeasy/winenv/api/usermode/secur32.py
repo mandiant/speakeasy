@@ -44,14 +44,14 @@ class Secur32(api.ApiHandler):
         ctx.args["lpNameBuffer"].display = user_name
         ctx.args["nSize"].display = hex(user_name_len)
 
-        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        size = self.read_dword(nSize)
         if not lpNameBuffer or size < user_name_len + 1:
-            self.mem_write(nSize, (user_name_len + 1).to_bytes(4, "little"))
+            self.write_dword(nSize, user_name_len + 1)
             emu.set_last_error(windefs.ERROR_MORE_DATA)
             return 0
 
         self.write_mem_string(user_name, lpNameBuffer, cw)
-        self.mem_write(nSize, user_name_len.to_bytes(4, "little"))
+        self.write_dword(nSize, user_name_len)
 
         return 1
 

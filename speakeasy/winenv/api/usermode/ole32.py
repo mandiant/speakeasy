@@ -142,8 +142,8 @@ class Ole32(api.ApiHandler):
                 if ppv:
                     ci = emu.com.get_interface(emu, emu.get_ptr_size(), iid_name.replace("IID_", ""))
                     pv = self.mem_alloc(emu.get_ptr_size(), tag=f"emu.COM.pv_{iid_name}")
-                    self.mem_write(pv, ci.address.to_bytes(emu.get_ptr_size(), "little"))
-                    self.mem_write(ppv, pv.to_bytes(emu.get_ptr_size(), "little"))
+                    self.write_ptr(pv, ci.address)
+                    self.write_ptr(ppv, pv)
                 return rv
             logger.info("Unsupported COM IID %s", riid_str)
             rv = com.E_NOINTERFACE
@@ -211,7 +211,7 @@ class Ole32(api.ApiHandler):
         self.mem_write(ptr, u)
 
         if lplpsz:
-            self.mem_write(lplpsz, ptr.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(lplpsz, ptr)
 
         return rv
 

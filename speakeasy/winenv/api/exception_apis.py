@@ -146,7 +146,7 @@ class ExceptionApis(_ApiHandlerBase):
         PcValue, BaseOfImage = argv
         mod = emu.get_mod_from_addr(PcValue)
         base = mod.base if mod else 0
-        self.mem_write(BaseOfImage, base.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(BaseOfImage, base)
         return base
 
     @apihook("RtlLookupFunctionEntry", argc=3)

@@ -131,7 +131,7 @@ class Version(api.ApiHandler):
 
     def get_size(self, emu, filename, arg, lpdwHandle, ctx):
         if lpdwHandle:
-            self.mem_write(lpdwHandle, (0).to_bytes(4, "little"))
+            self.write_dword(lpdwHandle, 0)
         resource = self.get_version_resource(emu, filename, arg, ctx)
         if not resource:
             return 0
@@ -229,7 +229,7 @@ class Version(api.ApiHandler):
             value = pBlock + length + len(VS_VERSION_SIGNATURE) + offset
             self.mem_write(value, text.encode("latin-1", "replace"))
         if lplpBuffer:
-            self.mem_write(lplpBuffer, value.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(lplpBuffer, value)
         if puLen:
-            self.mem_write(puLen, value_length.to_bytes(4, "little"))
+            self.write_dword(puLen, value_length)
         return 1

@@ -44,10 +44,10 @@ class NetApi32(api.ApiHandler):
         ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)
-        self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(lpNameBuffer, namebuf)
 
         ctx.args["BufferType"].display = "NetSetupDomainName"
-        self.mem_write(BufferType, netapi32defs.NetSetupDomainName.to_bytes(4, "little"))
+        self.write_dword(BufferType, netapi32defs.NetSetupDomainName)
 
         return netapi32defs.NERR_Success
 
@@ -106,7 +106,7 @@ class NetApi32(api.ApiHandler):
         wki.wki_ver_minor = osver.minor
 
         self.mem_write(wki_addr, wki.get_bytes())
-        self.mem_write(bufptr, wki_addr.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(bufptr, wki_addr)
 
         return netapi32defs.NERR_Success
 

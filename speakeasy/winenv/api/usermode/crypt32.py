@@ -91,11 +91,11 @@ class Crypt32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_DATA)
             return 0
 
-        cbBinary = int.from_bytes(self.mem_read(pcbBinary, 4), "little")
+        cbBinary = self.read_dword(pcbBinary)
         out_len = len(decoded)
 
         if pbBinary == 0:
-            self.mem_write(pcbBinary, out_len.to_bytes(4, "little"))
+            self.write_dword(pcbBinary, out_len)
             return 1
 
         if out_len > cbBinary:
@@ -103,7 +103,7 @@ class Crypt32(api.ApiHandler):
             return 0
 
         self.mem_write(pbBinary, decoded)
-        self.mem_write(pcbBinary, out_len.to_bytes(4, "little"))
+        self.write_dword(pcbBinary, out_len)
 
         if pdwSkip:
             self.mem_write(pdwSkip, b"\x00" * 4)
@@ -112,16 +112,16 @@ class Crypt32(api.ApiHandler):
 
     def read_data_blob(self, addr):
         ptr_size = self.get_ptr_size()
-        size = int.from_bytes(self.mem_read(addr, 4), "little")
-        data = int.from_bytes(self.mem_read(addr + ptr_size, ptr_size), "little")
+        size = self.read_dword(addr)
+        data = self.read_ptr(addr + ptr_size)
         return self.mem_read(data, size) if size else b""
 
     def write_data_blob(self, addr, data):
         ptr_size = self.get_ptr_size()
         buf = self.heap_alloc(max(len(data), 1), heap="LocalAlloc")
         self.mem_write(buf, data)
-        self.mem_write(addr, len(data).to_bytes(4, "little"))
-        self.mem_write(addr + ptr_size, buf.to_bytes(ptr_size, "little"))
+        self.write_dword(addr, len(data))
+        self.write_ptr(addr + ptr_size, buf)
 
     def get_dpapi_keys(self, pOptionalEntropy):
         entropy = self.read_data_blob(pOptionalEntropy) if pOptionalEntropy else b""
@@ -204,6 +204,6 @@ class Crypt32(api.ApiHandler):
             descr = blob[DPAPI_HEADER.size : DPAPI_HEADER.size + descr_len]
             buf = self.heap_alloc(max(len(descr), 2), heap="LocalAlloc")
             self.mem_write(buf, descr)
-            self.mem_write(ppszDataDescr, buf.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(ppszDataDescr, buf)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1

@@ -104,7 +104,7 @@ class OleAut32(api.ApiHandler):
 
         bstr = self.mem_alloc(4 + len * 2 + 2)
         self.mem_write(bstr, struct.pack("<I", len * 2) + ws + b"\x00\x00")
-        self.mem_write(pbstr, (bstr + 4).to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(pbstr, bstr + 4)
 
         return 1
 
