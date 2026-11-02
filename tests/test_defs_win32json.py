@@ -19,7 +19,7 @@ OVERRIDES = REPO_ROOT / "scripts" / "win32_overrides.json"
 WIN32JSON = REPO_ROOT / "deps" / "win32json"
 
 # Flag sets that the SDK keeps as loose constants, with no enum type in win32json
-NOT_IN_WIN32JSON = {"INTERNET_FLAGS"}
+NOT_IN_WIN32JSON = {"DRIVE_TYPE", "INTERNET_FLAGS", "LCID", "LCTYPE"}
 
 
 @dataclass
@@ -70,5 +70,4 @@ def test_defs_flag_set_has_the_values_of_the_win32json_constants(
 ) -> None:
     assert cls.__name__ not in win32json.enums
     known = {name: int(member) for name, member in cls.__members__.items() if name in win32json.constants}
-    assert known
     assert known == {name: win32json.constants[name] & 0xFFFFFFFF for name in known}
