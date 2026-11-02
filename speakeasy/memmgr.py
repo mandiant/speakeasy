@@ -116,6 +116,7 @@ class MemoryManager:
         perms: int = common.PERM_MEM_RWX,
         tag: str | None = None,
         flags: int = 0,
+        *,
         shared: bool = False,
         process: Any = None,
     ) -> int:
@@ -221,7 +222,7 @@ class MemoryManager:
             if address >= m.base and address <= (m.base + m.size) - 1:
                 return m.tag
 
-    def mem_reserve(self, size, base=None, perms=None, tag=None, flags=0, shared=False):
+    def mem_reserve(self, size, base=None, perms=None, tag=None, flags=0, *, shared=False):
         """Reserve (but do not map) a block of memory."""
         if base is None:
             block = self.get_valid_ranges(size)

@@ -212,7 +212,7 @@ class RegistryManager:
             return key
         return self.get_handle_table().get(handle, RegKey)
 
-    def get_key_from_handle(self, handle):
+    def get_key_from_handle(self, handle: int) -> RegKey | None:
         """Get the key of a predefined key or an open key handle, else None."""
         return self.get_key(handle)
 
@@ -229,7 +229,7 @@ class RegistryManager:
             return False
         return self.get_handle_table().close(handle)
 
-    def get_key_from_path(self, path):
+    def get_key_from_path(self, path: str) -> RegKey | None:
         path = self.normalize_reg_path(path)
         for key in self.keys:
             if fnmatch.fnmatch(key.get_path().lower(), path.lower()):

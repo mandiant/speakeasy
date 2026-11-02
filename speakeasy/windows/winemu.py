@@ -63,7 +63,7 @@ from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_pr
 from speakeasy.windows.module_loader import ModuleLoader
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
-from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, get_program_files_values
+from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, RegKey, get_program_files_values
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
@@ -324,7 +324,7 @@ class WindowsEmulator(BinaryEmulator):
         """Initialize configured processes. Subclasses must implement."""
         ...
 
-    def __init__(self, config, exit_event=None, debug=False, gdb_port=None, gdb_host=None):
+    def __init__(self, config, *, exit_event=None, debug=False, gdb_port=None, gdb_host=None):
         super().__init__(config)
 
         self.debug: bool = debug
@@ -550,7 +550,7 @@ class WindowsEmulator(BinaryEmulator):
             raise WindowsEmuError("Invalid object for cast")
         return obj.cast(bytez)
 
-    def file_open(self, path, create=False, truncate=False, disposition=None, access=None):
+    def file_open(self, path, *, create=False, truncate=False, disposition=None, access=None):
         """Open an emulated file using the file manager."""
         return self.fileman.file_open(path, create, truncate=truncate, disposition=disposition, access=access)
 
@@ -606,7 +606,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
 
-    def reg_open_key(self, path, create=False):
+    def reg_open_key(self, path, *, create=False):
         """Open or create a registry key in the emulation space."""
         return self.regman.open_key(path, create)
 
@@ -614,7 +614,7 @@ class WindowsEmulator(BinaryEmulator):
         """Get subkeys for a given registry key."""
         return self.regman.get_subkeys(hkey)
 
-    def reg_get_key(self, handle=0, path=""):
+    def reg_get_key(self, handle: int = 0, path: str = "") -> RegKey | None:
         """Get registry key by path or handle."""
         if path:
             return self.regman.get_key_from_path(path)
@@ -2088,7 +2088,7 @@ class WindowsEmulator(BinaryEmulator):
         om = self.get_object_manager("object creation")
         return om.new_object(otype)
 
-    def create_process(self, path=None, cmdline=None, image=None, child=False):
+    def create_process(self, path=None, cmdline=None, image=None, *, child=False):
         """
         Create a process object that will exist in the emulator.
 
@@ -2162,7 +2162,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return p
 
-    def create_thread(self, addr, ctx, proc_obj, name=None, is_suspended=False):
+    def create_thread(self, addr, ctx, proc_obj, name=None, *, is_suspended=False):
         """Create a thread object that will exist in the emulator."""
         om = self.get_object_manager("thread creation")
 

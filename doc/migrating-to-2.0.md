@@ -170,7 +170,7 @@ except (FileNotFoundError, unicorn.UcError) as err:
 After:
 
 ```python
-from speakeasy.errors import InputError
+from speakeasy import InputError
 
 try:
     addr = se.load_shellcode(path, arch)
@@ -227,3 +227,47 @@ These changes can break your code:
 - The IN hook now calls its callback with `(emu, port, size)`, and the IN instruction reads the return value. In 1.x the callback did not run. The SYSCALL hook now fires for SYSCALL and SYSENTER. In 1.x it fired only for SYSENTER. Both hooks now use `begin` and `end`.
 
 Code that uses the internals of hooks also changes. The emulator `add_*_hook` methods do not take the `emu` argument. `Speakeasy` does not have the `api_hooks`, `code_hooks` and other lists of hooks that wait for the load, and `pending_hooks` holds them in the order that you added them. The `Hook` classes in `speakeasy.common` do not take `se_obj` and `emu_eng`, and the `se_obj` attribute is now `emu`.
+
+## Public interface and keyword-only flags
+
+`speakeasy.__all__` lists the public names, and [Python library usage](library.md#public-interface) tells which methods are public. Import the public names from `speakeasy`. The exceptions, `SpeakeasyConfig`, `Report` and the report models, `Hook` and the hook callback types are all available there.
+
+`speakeasy` does not export `_PeParser` now. It is internal. Import it from `speakeasy.windows.common` if you must use it, but a minor release can change it.
+
+The boolean parameters of the public methods of `Speakeasy`, `Win32Emulator` and `WinKernelEmulator`, and the parameters after them, are keyword-only. A call that gives them by position raises `TypeError`. In this table, a method without a class name is a method of both emulators:
+
+| Method | Keyword-only parameters |
+|---|---|
+| `Speakeasy(...)` | `debug`, `exit_event`, `gdb_port`, `volumes`, `gdb_host` |
+| `Speakeasy.run_module`, `Win32Emulator.run_module` | `all_entrypoints`, `emulate_children`, `entry_point` |
+| `WinKernelEmulator.run_module` | `all_entrypoints`, `entry_point` |
+| `Speakeasy.disasm`, `disasm`, `get_disasm` | `fast` |
+| `Win32Emulator(...)`, `WinKernelEmulator(...)` | `debug`, `exit_event`, `gdb_port`, `gdb_host` |
+| `file_open` | `create`, `truncate`, `disposition`, `access` |
+| `reg_open_key` | `create` |
+| `create_process` | `child` |
+| `create_thread` | `is_suspended` |
+| `mem_map` | `shared`, `process` |
+| `mem_reserve` | `shared` |
+
+The `Hook` classes take `native_hook` only as a keyword.
+
+Before:
+
+```python
+import speakeasy
+from speakeasy import _PeParser
+
+se = speakeasy.Speakeasy(config, argv, True)
+se.run_module(module, True, False)
+```
+
+After:
+
+```python
+import speakeasy
+from speakeasy.windows.common import _PeParser
+
+se = speakeasy.Speakeasy(config, argv, debug=True)
+se.run_module(module, all_entrypoints=True, emulate_children=False)
+```

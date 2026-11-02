@@ -12,7 +12,7 @@ from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType
 from speakeasy.windows import objman
 from speakeasy.windows.handles import HandleTable
-from speakeasy.windows.loaders import PeLoader
+from speakeasy.windows.loaders import PeLoader, RuntimeModule
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
@@ -23,7 +23,7 @@ class WinKernelEmulator(WindowsEmulator):
 
     ssdt_ptr: int
 
-    def __init__(self, config, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
+    def __init__(self, config, *, debug=False, exit_event=None, gdb_port=None, gdb_host=None):
         super().__init__(config, debug=debug, exit_event=exit_event, gdb_port=gdb_port, gdb_host=gdb_host)
 
         self.drivers: list[objman.Driver] = []
@@ -66,7 +66,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.setup_kernel_mode()
         self.setup_user_shared_data()
 
-    def load_module(self, path=None, data=None, filename=None):
+    def load_module(self, path=None, data=None, filename=None) -> RuntimeModule:
         if filename:
             file_name = ntpath.basename(filename)
             mod_name = os.path.splitext(file_name)[0]
@@ -201,7 +201,7 @@ class WinKernelEmulator(WindowsEmulator):
         """
         return self
 
-    def run_module(self, module, all_entrypoints=False, entry_point=None) -> None:
+    def run_module(self, module, *, all_entrypoints=False, entry_point=None) -> None:
         """Begin emulation fo a previously loaded kernel module."""
         self.all_entrypoints = all_entrypoints
 

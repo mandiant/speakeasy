@@ -1,6 +1,6 @@
 # Python exceptions
 
-The `Speakeasy` class raises the exceptions in `speakeasy.errors`. All of them derive from `SpeakeasyError`, so one `except SpeakeasyError` catches every error that Speakeasy raises. These are Python exceptions for the caller. For the CPU exceptions that the guest program gets, see [Guest exception dispatch](exceptions.md).
+The `Speakeasy` class raises the exceptions that `speakeasy` exports, for example `speakeasy.InputError`. All of them derive from `SpeakeasyError`, so one `except SpeakeasyError` catches every error that Speakeasy raises. These are Python exceptions for the caller. For the CPU exceptions that the guest program gets, see [Guest exception dispatch](exceptions.md).
 
 ```
 SpeakeasyError
@@ -20,7 +20,7 @@ SpeakeasyError
 └── EngineError              the CPU engine rejected a request, for example an unknown hook type
 ```
 
-`EmuException` and `EmuEngineError` are the 1.x names of `CpuError` and `EngineError`. They stay as aliases for one release.
+`EmuException` and `EmuEngineError` are the 1.x names of `CpuError` and `EngineError`. They stay in `speakeasy.errors` as aliases for one release, but `speakeasy` does not export them.
 
 Each method that uses the emulator raises `SpeakeasyError` if no input is loaded yet. The table gives the other exceptions of the public methods:
 

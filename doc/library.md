@@ -2,6 +2,14 @@
 
 You can use Speakeasy as a Python library through the `speakeasy.Speakeasy` interface.
 
+## Public interface
+
+The public interface is the names in `speakeasy.__all__`, and the methods of `Win32Emulator` and `WinKernelEmulator` (including the methods they inherit) whose names do not start with `_`. Speakeasy follows semantic versioning for this interface: only a major release removes a name or changes a signature in a way that breaks a caller. Import these names from `speakeasy`, for example `from speakeasy import Speakeasy, InputError`.
+
+All other modules, such as `speakeasy.windows.winemu` or `speakeasy.winenv.api`, are internal, and a minor release can change them. `speakeasy.defs` and `speakeasy.arch` stay available for the structures and constants of the Windows API, but they are internal too.
+
+The boolean parameters of the public methods are keyword-only, for example `se.run_module(module, all_entrypoints=True)` and `se.disasm(addr, size, fast=False)`.
+
 ## Minimal DLL emulation flow
 
 ```python
@@ -40,7 +48,7 @@ se.shutdown()
 
 ## Hooks
 
-Each `add_*_hook` method calls its callback with the emulator as the first argument. You can add a hook before or after `load_module`. The method returns a hook object, and `se.remove_hook(hook)` removes the hook. `speakeasy.hooks` has a `Protocol` for each callback type.
+Each `add_*_hook` method calls its callback with the emulator as the first argument. You can add a hook before or after `load_module`. The method returns a hook object, and `se.remove_hook(hook)` removes the hook. `speakeasy` has a `Protocol` for each callback type, for example `CodeHookCallback`.
 
 | Method | Callback | Return value of the callback |
 |---|---|---|
@@ -82,7 +90,7 @@ For runnable scripts, see [../examples](../examples/).
 
 ## Errors
 
-The library raises the exceptions in `speakeasy.errors`, which all derive from `SpeakeasyError`. A missing or unsupported input raises `InputError`, and a configuration or volume that is not valid raises `ConfigError`. [Python exceptions](errors.md) lists the tree and the exceptions of each method.
+The library raises the exceptions that `speakeasy` exports, which all derive from `SpeakeasyError`. A missing or unsupported input raises `InputError`, and a configuration or volume that is not valid raises `ConfigError`. [Python exceptions](errors.md) lists the tree and the exceptions of each method.
 
 ## Related docs
 

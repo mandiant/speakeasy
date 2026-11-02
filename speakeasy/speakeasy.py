@@ -7,17 +7,19 @@ import os
 import threading
 import warnings
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from functools import wraps
 from io import BytesIO
 from pathlib import Path, PureWindowsPath
-from typing import Concatenate, ParamSpec, TypeVar
+from types import TracebackType
+from typing import Any, Concatenate, ParamSpec, TypeVar
 
+from capstone import CsInsn
 from pefile import MACHINE_TYPE, PEFormatError
 from pydantic import ValidationError
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER
 
-from speakeasy import Win32Emulator, WinKernelEmulator, common
+from speakeasy import common
 from speakeasy.cli_config import output_active_config
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, InputError, NotSupportedError, SpeakeasyError
@@ -32,9 +34,16 @@ from speakeasy.hooks import (
     MemMapHookCallback,
     SyscallHookCallback,
 )
+from speakeasy.memmgr import MemMap
 from speakeasy.report import FileManifestEntry, Report
+from speakeasy.struct import EmuStruct
 from speakeasy.volumes import apply_volumes
 from speakeasy.windows.common import _PeParser
+from speakeasy.windows.fileman import File
+from speakeasy.windows.kernel import WinKernelEmulator
+from speakeasy.windows.loaders import LoadedImage, RuntimeModule
+from speakeasy.windows.regman import RegKey
+from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.windows.winemu import execution_scope
 from speakeasy.winenv import arch as _arch
 
@@ -72,14 +81,15 @@ class Speakeasy:
 
     def __init__(
         self,
-        config=None,
-        argv=None,
-        debug=False,
-        exit_event=None,
-        gdb_port=None,
-        volumes=None,
-        gdb_host="127.0.0.1",
-    ):
+        config: dict | SpeakeasyConfig | None = None,
+        argv: list[str] | None = None,
+        *,
+        debug: bool = False,
+        exit_event: threading.Event | multiprocessing.synchronize.Event | None = None,
+        gdb_port: int | None = None,
+        volumes: list[str] | None = None,
+        gdb_host: str = "127.0.0.1",
+    ) -> None:
         """
         Create a wrapper for the emulators.
 
@@ -137,10 +147,12 @@ class Speakeasy:
             raise SpeakeasyError("Emulator not initialized")
         return self._emu
 
-    def __enter__(self):
+    def __enter__(self) -> "Speakeasy":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
         self.shutdown()
 
     def _init_config(self, config: dict | SpeakeasyConfig | None) -> None:
@@ -166,7 +178,7 @@ class Speakeasy:
                 logger.exception("Invalid config: %s", str(err))
                 raise ConfigError(f"Invalid config: {err}") from err
 
-    def _init_pe_emulator(self, path=None, data=None) -> None:
+    def _init_pe_emulator(self, path: str | None = None, data: bytes | None = None) -> None:
         """
         Create the emulator that fits the PE metadata and its machine.
 
@@ -244,7 +256,7 @@ class Speakeasy:
         else:
             raise ValueError("Speakeasy does not have this hook")
 
-    def disasm(self, addr: int, size: int, fast=True):
+    def disasm(self, addr: int, size: int, *, fast: bool = True) -> tuple[str, str, str] | list[CsInsn]:
         """
         Disassemble the code at an address.
 
@@ -254,13 +266,14 @@ class Speakeasy:
             fast: Whether to use the fast disassembly path.
 
         Returns:
-            A tuple of the mnemonic, the operands, and the full instruction.
+            A tuple of the mnemonic, the operands, and the full instruction. If ``fast`` is false,
+            a list of capstone instructions.
 
         Raises:
             SpeakeasyError: if the disassembly fails or the emulator does not exist.
         """
         try:
-            return self.emu.get_disasm(addr, size, fast)
+            return self.emu.get_disasm(addr, size, fast=fast)
         except Exception as e:
             raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}") from e
 
@@ -307,7 +320,9 @@ class Speakeasy:
         for e in entries:
             logger.debug("  %s -> %s", e["emu_path"], e["path"])
 
-    def load_module(self, path=None, data=None, filename=None):
+    def load_module(
+        self, path: str | None = None, data: bytes | None = None, filename: str | None = None
+    ) -> RuntimeModule:
         """
         Load a PE module into the emulator.
 
@@ -335,6 +350,7 @@ class Speakeasy:
         if data:
             test = data
         else:
+            assert path is not None
             with open(path, "rb") as f:
                 test = f.read(4)
 
@@ -354,7 +370,7 @@ class Speakeasy:
             # PeLoader raises ValueError for a PE that pefile parses but that cannot be mapped.
             raise InputError(f"Target file is not a valid PE: {err}") from err
 
-    def load_image(self, image):
+    def load_image(self, image: LoadedImage) -> RuntimeModule:
         """
         Load a ``LoadedImage`` into the emulator.
 
@@ -372,7 +388,14 @@ class Speakeasy:
 
     @check_init
     @execution_scope
-    def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
+    def run_module(
+        self,
+        module: RuntimeModule,
+        *,
+        all_entrypoints: bool = False,
+        emulate_children: bool = False,
+        entry_point: int | None = None,
+    ) -> None:
         """
         Run a previously loaded module through the configured emulator.
 
@@ -400,7 +423,13 @@ class Speakeasy:
             )
         return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)
 
-    def load_shellcode(self, fpath=None, arch=None, data=None, filename=None) -> int:
+    def load_shellcode(
+        self,
+        fpath: str | None = None,
+        arch: str | int | None = None,
+        data: bytes | None = None,
+        filename: str | None = None,
+    ) -> int:
         """
         Load a shellcode blob into the emulation space.
 
@@ -423,7 +452,7 @@ class Speakeasy:
             raise InputError(f"Unsupported shellcode architecture: {arch!r}")
         if fpath is None and data is None:
             raise InputError("No emulation target supplied")
-        if data is None and not os.path.exists(fpath):
+        if data is None and fpath is not None and not os.path.exists(fpath):
             raise InputError(f"Target file not found: {fpath}")
 
         emu = self._init_user_emulator()
@@ -435,7 +464,7 @@ class Speakeasy:
 
     @check_init
     @execution_scope
-    def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
+    def run_shellcode(self, sc_addr: int, stack_commit: int = 0x4000, offset: int = 0) -> None:
         """
         Run a previously loaded shellcode blob by address.
 
@@ -477,7 +506,9 @@ class Speakeasy:
         """
         return self.emu.get_json_report()
 
-    def add_api_hook(self, cb: ApiHookCallback, module="", api_name="", argc=0, call_conv=None) -> common.ApiHook:
+    def add_api_hook(
+        self, cb: ApiHookCallback, module: str = "", api_name: str = "", argc: int = 0, call_conv: int | None = None
+    ) -> common.ApiHook:
         """
         Set a callback to fire when the emulated program calls a specified API.
 
@@ -541,7 +572,7 @@ class Speakeasy:
         self._init_hooks()
         return self.emu.call(addr, params=params)
 
-    def add_code_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.CodeHook:
+    def add_code_hook(self, cb: CodeHookCallback, begin: int = 1, end: int = 0) -> common.CodeHook:
         """
         Set a callback to fire for every CPU instruction that is emulated.
 
@@ -573,7 +604,7 @@ class Speakeasy:
         """
         return self._add_hook(common.DynCodeHook(cb))
 
-    def add_mem_read_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.ReadMemHook:
+    def add_mem_read_hook(self, cb: MemAccessHookCallback, begin: int = 1, end: int = 0) -> common.ReadMemHook:
         """
         Set a callback to fire when a memory address is read from.
 
@@ -589,7 +620,7 @@ class Speakeasy:
         """
         return self._add_hook(common.ReadMemHook(cb, begin, end))
 
-    def add_mem_write_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.WriteMemHook:
+    def add_mem_write_hook(self, cb: MemAccessHookCallback, begin: int = 1, end: int = 0) -> common.WriteMemHook:
         """
         Set a callback to fire when a memory address is written to.
 
@@ -606,7 +637,7 @@ class Speakeasy:
         """
         return self._add_hook(common.WriteMemHook(cb, begin, end))
 
-    def add_in_instruction_hook(self, cb: InHookCallback, begin=1, end=0) -> common.InstructionHook:
+    def add_in_instruction_hook(self, cb: InHookCallback, begin: int = 1, end: int = 0) -> common.InstructionHook:
         """
         Set a callback to fire when an IN instruction executes.
 
@@ -629,14 +660,16 @@ class Speakeasy:
         """
         return self._add_hook(common.InstructionHook(cb, begin, end, insns=(UC_X86_INS_IN,)))
 
-    def add_IN_instruction_hook(self, cb: InHookCallback, begin=1, end=0) -> common.InstructionHook:
+    def add_IN_instruction_hook(self, cb: InHookCallback, begin: int = 1, end: int = 0) -> common.InstructionHook:
         """Deprecated alias of ``add_in_instruction_hook``."""
         warnings.warn(
             "add_IN_instruction_hook is deprecated, use add_in_instruction_hook", DeprecationWarning, stacklevel=2
         )
         return self.add_in_instruction_hook(cb, begin, end)
 
-    def add_syscall_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
+    def add_syscall_instruction_hook(
+        self, cb: SyscallHookCallback, begin: int = 1, end: int = 0
+    ) -> common.InstructionHook:
         """
         Set a callback to fire when a SYSCALL or SYSENTER instruction executes.
 
@@ -653,7 +686,9 @@ class Speakeasy:
         """
         return self._add_hook(common.InstructionHook(cb, begin, end, insns=(UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER)))
 
-    def add_SYSCALL_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
+    def add_SYSCALL_instruction_hook(
+        self, cb: SyscallHookCallback, begin: int = 1, end: int = 0
+    ) -> common.InstructionHook:
         """Deprecated alias of ``add_syscall_instruction_hook``."""
         warnings.warn(
             "add_SYSCALL_instruction_hook is deprecated, use add_syscall_instruction_hook",
@@ -708,7 +743,7 @@ class Speakeasy:
         """
         return self._add_hook(common.InterruptHook(cb))
 
-    def get_registry_key(self, handle=0, path=""):
+    def get_registry_key(self, handle: int = 0, path: str = "") -> RegKey | None:
         """
         Get a registry key by path or handle.
 
@@ -721,16 +756,17 @@ class Speakeasy:
         """
         return self.emu.reg_get_key(handle=handle, path=path)
 
-    def get_address_map(self, addr: int):
+    def get_address_map(self, addr: int) -> MemMap | None:
         """
         Get the memory map that holds the specified address.
 
         Args:
             addr: Address in the emulation space.
         """
-        return self.emu.get_address_map(addr)
+        mm: MemMap | None = self.emu.get_address_map(addr)
+        return mm
 
-    def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
+    def mem_alloc(self, size: int, base: int | None = None, tag: str = "speakeasy.None") -> int:
         """
         Allocate a block of memory in the emulation space.
 
@@ -777,7 +813,7 @@ class Speakeasy:
         except Exception as e:
             raise SpeakeasyError(f"Failed to write {len(data)} bytes at address: 0x{addr:x}") from e
 
-    def mem_cast(self, obj, addr: int):
+    def mem_cast(self, obj: EmuStruct, addr: int) -> Any:
         """
         Cast an address as an object for easy access.
 
@@ -810,7 +846,7 @@ class Speakeasy:
         """
         return self.emu.reg_write(reg, val)
 
-    def get_dropped_files(self) -> list:
+    def get_dropped_files(self) -> list[File]:
         """Get the files that the sample wrote during emulation."""
         return self.emu.get_dropped_files()
 
@@ -849,11 +885,11 @@ class Speakeasy:
 
         return _zip.getvalue()
 
-    def get_mem_maps(self) -> list:
+    def get_mem_maps(self) -> list[MemMap]:
         """Get all valid memory maps in the emulation space."""
         return self.emu.get_mem_maps()
 
-    def get_memory_dumps(self):
+    def get_memory_dumps(self) -> Generator[tuple[str | None, int, int, bool, Any, bytes], None, None]:
         """
         Yield the contents of all readable memory maps with context information.
 
@@ -873,7 +909,7 @@ class Speakeasy:
                 continue
             yield (tag, base, size, is_free, proc, data)
 
-    def read_mem_string(self, address: int, width=1, max_chars=0) -> str:
+    def read_mem_string(self, address: int, width: int = 1, max_chars: int = 0) -> str:
         """
         Read a string from emulated memory.
 
@@ -900,7 +936,7 @@ class Speakeasy:
         """Get the value stored at the top of the stack."""
         return self.emu.get_ret_address()
 
-    def set_ret_address(self, addr) -> None:
+    def set_ret_address(self, addr: int) -> None:
         """Set the return address on the stack."""
         return self.emu.set_ret_address(addr)
 
@@ -950,7 +986,7 @@ class Speakeasy:
         """Get the architecture constant of the emulator."""
         return self.emu.get_arch()
 
-    def get_ptr_size(self):
+    def get_ptr_size(self) -> int:
         """Get the size of a pointer in bytes."""
         return self.emu.ptr_size
 
@@ -981,7 +1017,7 @@ class Speakeasy:
         """Check whether the address is reserved or mapped."""
         return self.emu.is_address_valid(address)
 
-    def add_mem_map_hook(self, cb: MemMapHookCallback, begin=1, end=0) -> common.MapMemHook:
+    def add_mem_map_hook(self, cb: MemMapHookCallback, begin: int = 1, end: int = 0) -> common.MapMemHook:
         """
         Set a callback to fire when a memory address is mapped.
 
