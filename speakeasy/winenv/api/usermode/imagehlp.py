@@ -1,6 +1,10 @@
 import struct
+from typing import TYPE_CHECKING
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Imagehlp(api.ApiHandler):
@@ -17,7 +21,7 @@ class Imagehlp(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("CheckSumMappedFile", argc=4)
-    def CheckSumMappedFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CheckSumMappedFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PIMAGE_NT_HEADERS CheckSumMappedFile(
             PVOID BaseAddress,
