@@ -124,7 +124,7 @@ def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
     CreateFileW and WriteFile, then loads it from that path with LoadLibraryExW. The third letter of
     the temp folder name comes from GetTickCount.
     """
-    config["max_api_count"] = 300000  # NSIS calls CharNextW for each path character
+    config["max_api_calls"] = 300000  # NSIS calls CharNextW for each path character
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(NSIS_INSTALLER))
         loaded = []

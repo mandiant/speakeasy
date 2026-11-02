@@ -18,7 +18,7 @@ TICK = {"kernel32.dll": ["GetTickCount"]}
 
 def configured(**overrides):
     config = get_default_config_dict()
-    config.update(timeout=3, max_instructions=1000, max_api_count=10)
+    config.update(max_run_time=3, max_instructions=1000, max_api_calls=10)
     for key, value in overrides.items():
         node = config
         *parents, leaf = key.split(".")
@@ -55,7 +55,7 @@ def api_names(entry):
 def test_timeout_budget_public_pe_iat_calls_are_independent():
     marker = b"\xb8\x37\x13\0\0"
     data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")], suffix=marker), imports=TICK)
-    with Speakeasy(config=configured(timeout=0.5)) as se:
+    with Speakeasy(config=configured(max_run_time=0.5)) as se:
 
         def tick(emu, name, original, args):
             time.sleep(0.3)

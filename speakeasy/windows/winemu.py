@@ -1215,7 +1215,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.curr_run is None:
             self.curr_run = Run()
         self.is_emu_complete = False
-        timeout = 0 if self.gdb_port is not None else self.config.timeout
+        timeout = 0 if self.gdb_port is not None else self.config.max_run_time
         self._execute_current_run(addr, timeout=timeout, count=count)
 
     @execution_scope
@@ -1293,7 +1293,7 @@ class WindowsEmulator(BinaryEmulator):
                 should_execute = debugger is None or debugger.begin_run(debug_action)
                 if should_execute:
                     self._execute_current_run(
-                        resume_addr, timeout=self.config.timeout, count=instruction_count, debugger=debugger
+                        resume_addr, timeout=self.config.max_run_time, count=instruction_count, debugger=debugger
                     )
                 if debugger is None and total_budget.exhausted:
                     self._end_at_total_budget()
@@ -2973,12 +2973,12 @@ class WindowsEmulator(BinaryEmulator):
 
     def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()
-        if run is origin_run and run and run.get_api_count() > self.config.max_api_count:
+        if run is origin_run and run and run.get_api_count() > self.config.max_api_calls:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             run.error = ErrorInfo(
                 type="max_api_count",
                 pc=self.get_pc(),
-                count=self.config.max_api_count,
+                count=self.config.max_api_calls,
                 last_api=imp_api,
             )
             self.on_run_complete()

@@ -1981,8 +1981,8 @@ BASIC_FILEBUF = "?$basic_filebuf@DU?$char_traits@D@std@@@std@@"
 
 @pytest.fixture
 def shellcode64_emu(config: dict[str, Any]) -> Iterator[Speakeasy]:
-    config["timeout"] = 5
-    config["max_api_count"] = 200
+    config["max_run_time"] = 5
+    config["max_api_calls"] = 200
     with Speakeasy(config=config) as se:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="amd64"))
         yield se

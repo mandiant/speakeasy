@@ -59,8 +59,8 @@ def normalize_value(value: str) -> str:
 
 def build_case_config(base_config: dict[str, Any], case: PmaCase) -> dict[str, Any]:
     cfg = copy.deepcopy(base_config)
-    cfg["timeout"] = 4
-    cfg["max_api_count"] = 600
+    cfg["max_run_time"] = 4
+    cfg["max_api_calls"] = 600
     merge_config_patch(cfg, case.config_patch)
     return cfg
 

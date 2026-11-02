@@ -9,7 +9,7 @@ from speakeasy import Speakeasy
 
 @pytest.fixture
 def capped_session(config):
-    config["timeout"] = 3
+    config["max_run_time"] = 3
     sessions = []
 
     def create(budget, memory_tracing=False):

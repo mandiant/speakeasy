@@ -17,9 +17,10 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   // Emulation backend. Only "unicorn" is currently supported.
   "emu_engine": "unicorn",
 
-  // Active execution timeout in seconds for each run. 0 disables it.
+  // Active execution cap in seconds for each run. 0 disables it.
+  // If exceeded, the run ends with a timeout error.
   // Raise for slow/staged samples. Lower for quick triage.
-  "timeout": 60,
+  "max_run_time": 60,
 
   // Active execution cap in seconds across all runs of one run_module,
   // run_shellcode, or call invocation. 0 disables it.
@@ -27,7 +28,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
   // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
-  "max_api_count": 10000,
+  "max_api_calls": 10000,
 
   // Instruction cap forwarded to the emulator.
   // -1 means effectively unbounded from Speakeasy policy.
