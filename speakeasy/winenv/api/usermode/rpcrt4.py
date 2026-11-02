@@ -3,9 +3,9 @@
 import uuid
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.com as comdefs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 
 from .. import api
 
@@ -112,19 +112,19 @@ class RPCRT4(api.ApiHandler):
         for iid, name, method_count in interfaces:
             key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\Interface\\{iid}")
             if name:
-                key.create_value("", regdefs.REG_SZ, name)
+                key.create_value("", REG_VALUE_TYPE.REG_SZ, name)
             key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\Interface\\{iid}\\NumMethods")
-            key.create_value("", regdefs.REG_SZ, str(method_count))
+            key.create_value("", REG_VALUE_TYPE.REG_SZ, str(method_count))
             key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\Interface\\{iid}\\ProxyStubClsid32")
-            key.create_value("", regdefs.REG_SZ, clsid)
+            key.create_value("", REG_VALUE_TYPE.REG_SZ, clsid)
 
         key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\CLSID\\{clsid}")
-        key.create_value("", regdefs.REG_SZ, "PSFactoryBuffer")
+        key.create_value("", REG_VALUE_TYPE.REG_SZ, "PSFactoryBuffer")
         mod = emu.get_mod_from_addr(hDll)
         if mod:
             key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\CLSID\\{clsid}\\InprocServer32")
-            key.create_value("", regdefs.REG_SZ, mod.emu_path)
-            key.create_value("ThreadingModel", regdefs.REG_SZ, "Both")
+            key.create_value("", REG_VALUE_TYPE.REG_SZ, mod.emu_path)
+            key.create_value("ThreadingModel", REG_VALUE_TYPE.REG_SZ, "Both")
 
         return comdefs.S_OK
 

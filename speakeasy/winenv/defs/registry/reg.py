@@ -1,16 +1,27 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from enum import IntEnum
 
 from speakeasy.struct import EmuStruct, Enum
 
-REG_NONE = 0
-REG_SZ = 1
-REG_EXPAND_SZ = 2
-REG_BINARY = 3
-REG_DWORD = 4
-REG_MULTI_SZ = 7
-REG_QWORD = 11
+
+class REG_VALUE_TYPE(IntEnum):
+    REG_NONE = 0
+    REG_SZ = 1
+    REG_EXPAND_SZ = 2
+    REG_BINARY = 3
+    REG_DWORD = 4
+    REG_DWORD_LITTLE_ENDIAN = 4
+    REG_DWORD_BIG_ENDIAN = 5
+    REG_LINK = 6
+    REG_MULTI_SZ = 7
+    REG_RESOURCE_LIST = 8
+    REG_FULL_RESOURCE_DESCRIPTOR = 9
+    REG_RESOURCE_REQUIREMENTS_LIST = 10
+    REG_QWORD = 11
+    REG_QWORD_LITTLE_ENDIAN = 11
+
 
 REG_CREATED_NEW_KEY = 1
 REG_OPENED_EXISTING_KEY = 2
@@ -23,10 +34,14 @@ RTL_REGISTRY_DEVICEMAP = 4
 RTL_REGISTRY_USER = 5
 RTL_REGISTRY_MAXIMUM = 6
 
-HKEY_CLASSES_ROOT = 0x80000000
-HKEY_CURRENT_USER = 0x80000001
-HKEY_LOCAL_MACHINE = 0x80000002
-HKEY_USERS = 0x80000003
+
+class HKEY(IntEnum):
+    """The predefined registry keys that the registry manager creates. The SDK has no enum type for them."""
+
+    HKEY_CLASSES_ROOT = 0x80000000
+    HKEY_CURRENT_USER = 0x80000001
+    HKEY_LOCAL_MACHINE = 0x80000002
+    HKEY_USERS = 0x80000003
 
 
 KEY_VALUE_INFORMATION_CLASS = Enum()
@@ -67,25 +82,6 @@ class KEY_VALUE_FULL_INFORMATION(EmuStruct):
         self.NameLength = ct.c_uint32
 
 
-def get_defines(define, prefix=""):
-    for k, v in globals().items():
-        if not isinstance(v, int) or v != define:
-            continue
-        if prefix:
-            if k.startswith(prefix):
-                return k
-        else:
-            return k
-
-
-def get_flag_value(flag):
-    return globals().get(flag)
-
-
-def get_value_type(define):
-    return get_defines(define, prefix="REG_")
-
-
 def normalize_hkey(hkey):
     """
     Map a predefined key that x64 code passes sign-extended to its 32-bit value.
@@ -97,5 +93,7 @@ def normalize_hkey(hkey):
     return hkey
 
 
-def get_hkey_type(define):
-    return get_defines(normalize_hkey(define), prefix="HKEY_")
+def get_hkey_type(hkey):
+    """Get the name of a predefined key, or None for another key."""
+    hkey = normalize_hkey(hkey)
+    return next((key.name for key in HKEY if key == hkey), None)

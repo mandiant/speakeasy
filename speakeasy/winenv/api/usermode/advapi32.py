@@ -14,6 +14,9 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 from speakeasy.windows import objman
+from speakeasy.winenv.defs.lookup import decode
+from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
+from speakeasy.winenv.defs.windows.advapi32 import ENUM_SERVICE_STATE, ENUM_SERVICE_TYPE, SERVICE_STATUS_CURRENT_STATE
 
 from .. import api
 
@@ -132,7 +135,7 @@ class AdvApi32(api.ApiHandler):
         if not lpType or not isinstance(code, int):
             return
         self.write_dword(lpType, code)
-        arg.display = regdefs.get_value_type(code)
+        arg.display = decode(REG_VALUE_TYPE, code)
 
     @apihook("RegQueryValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
     def RegQueryValueEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -231,11 +234,11 @@ class AdvApi32(api.ApiHandler):
         value_data: str | int | bytes = ""
         if lpData and cbData:
             raw = self.mem_read(lpData, cbData)
-            if dwType in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ):
+            if dwType in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ, REG_VALUE_TYPE.REG_MULTI_SZ):
                 value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
-            elif dwType == regdefs.REG_DWORD:
+            elif dwType == REG_VALUE_TYPE.REG_DWORD:
                 value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
-            elif dwType == regdefs.REG_QWORD:
+            elif dwType == REG_VALUE_TYPE.REG_QWORD:
                 value_data = int.from_bytes(raw[:8].ljust(8, b"\x00"), "little")
             else:
                 value_data = raw
@@ -798,12 +801,12 @@ class AdvApi32(api.ApiHandler):
 
         if lpServiceName:
             key = emu.regman.create_key(f"HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\{_sname}")
-            key.create_value("Type", regdefs.REG_DWORD, dwServiceType)
-            key.create_value("Start", regdefs.REG_DWORD, dwStartType)
-            key.create_value("ErrorControl", regdefs.REG_DWORD, dwErrorControl)
-            key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, _bpname)
+            key.create_value("Type", REG_VALUE_TYPE.REG_DWORD, dwServiceType)
+            key.create_value("Start", REG_VALUE_TYPE.REG_DWORD, dwStartType)
+            key.create_value("ErrorControl", REG_VALUE_TYPE.REG_DWORD, dwErrorControl)
+            key.create_value("ImagePath", REG_VALUE_TYPE.REG_EXPAND_SZ, _bpname)
             if lpDisplayName:
-                key.create_value("DisplayName", regdefs.REG_SZ, _dname)
+                key.create_value("DisplayName", REG_VALUE_TYPE.REG_SZ, _dname)
 
         hSvc = self.mem_alloc(size=8)
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -2041,13 +2044,8 @@ class AdvApi32(api.ApiHandler):
             lpResumeHandle,
         ) = argv
 
-        service_type_str = adv32defs.get_define_int(dwServiceType, "SERVICE_")
-        if service_type_str:
-            ctx.args["dwServiceType"].display = service_type_str
-
-        service_state_str = adv32defs.get_define_int(dwServiceState, "SERVICE_")
-        if service_state_str:
-            ctx.args["dwServiceState"].display = service_state_str
+        ctx.args["dwServiceType"].display = decode(ENUM_SERVICE_TYPE, dwServiceType)
+        ctx.args["dwServiceState"].display = decode(ENUM_SERVICE_STATE, dwServiceState)
 
         cw = self.get_char_width(ctx)
         ptr_size = emu.get_ptr_size()
@@ -2057,7 +2055,11 @@ class AdvApi32(api.ApiHandler):
             for service in adv32defs.EMULATED_SERVICES
             if service[2] & dwServiceType
             and dwServiceState
-            & (adv32defs.SERVICE_ACTIVE if service[3] == adv32defs.SERVICE_RUNNING else adv32defs.SERVICE_INACTIVE)
+            & (
+                ENUM_SERVICE_STATE.SERVICE_ACTIVE
+                if service[3] == SERVICE_STATUS_CURRENT_STATE.SERVICE_RUNNING
+                else ENUM_SERVICE_STATE.SERVICE_INACTIVE
+            )
         ]
         start = self.read_dword(lpResumeHandle) if lpResumeHandle else 0
         services = services[start:]
@@ -2078,7 +2080,7 @@ class AdvApi32(api.ApiHandler):
                 self.mem_write(strings, data)
                 entry[offset : offset + ptr_size] = strings.to_bytes(ptr_size, "little")
                 strings += len(data)
-            accepted = adv32defs.SERVICE_ACCEPT_STOP if state == adv32defs.SERVICE_RUNNING else 0
+            accepted = adv32defs.SERVICE_ACCEPT_STOP if state == SERVICE_STATUS_CURRENT_STATE.SERVICE_RUNNING else 0
             struct.pack_into("<7I", entry, 2 * ptr_size, service_type, state, accepted, 0, 0, 0, 0)
             self.mem_write(lpServices + index * entry_size, bytes(entry))
 

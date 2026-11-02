@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.usb as usbdefs
 from speakeasy.winenv.defs import wdf
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 
 from .. import api
 
@@ -353,7 +353,7 @@ class Wdfldr(api.ApiHandler):
             ctx.args[2].display = val_name
             value = wkey.get_value(val_name)
             if value:
-                if value.get_type() != regdefs.REG_DWORD:
+                if value.get_type() != REG_VALUE_TYPE.REG_DWORD:
                     rv = ddk.STATUS_OBJECT_TYPE_MISMATCH
                 else:
                     self.mem_write(Value, value.get_bytes(2))

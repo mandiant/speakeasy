@@ -8,15 +8,11 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
+from speakeasy.winenv.defs.registry.reg import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import RegistryConfig
     from speakeasy.windows.objman import HandleAllocator
-
-HKEY_CLASSES_ROOT = 0x80000000
-HKEY_CURRENT_USER = 0x80000001
-HKEY_LOCAL_MACHINE = 0x80000002
-HKEY_USERS = 0x80000003
 
 CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 WINDOWS_CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
@@ -35,17 +31,17 @@ def get_current_version_values(os_ver):
         return []
     # Windows 10 and later keep CurrentVersion at 6.3 and give the real version as numbers
     values = [
-        ("ProductName", regdefs.REG_SZ, product_name),
-        ("CurrentVersion", regdefs.REG_SZ, "6.3" if os_ver.major >= 10 else f"{os_ver.major}.{os_ver.minor}"),
-        ("EditionID", regdefs.REG_SZ, "Professional"),
-        ("InstallationType", regdefs.REG_SZ, "Client"),
+        ("ProductName", REG_VALUE_TYPE.REG_SZ, product_name),
+        ("CurrentVersion", REG_VALUE_TYPE.REG_SZ, "6.3" if os_ver.major >= 10 else f"{os_ver.major}.{os_ver.minor}"),
+        ("EditionID", REG_VALUE_TYPE.REG_SZ, "Professional"),
+        ("InstallationType", REG_VALUE_TYPE.REG_SZ, "Client"),
     ]
     if os_ver.major >= 10:
-        values.append(("CurrentMajorVersionNumber", regdefs.REG_DWORD, os_ver.major))
-        values.append(("CurrentMinorVersionNumber", regdefs.REG_DWORD, os_ver.minor))
+        values.append(("CurrentMajorVersionNumber", REG_VALUE_TYPE.REG_DWORD, os_ver.major))
+        values.append(("CurrentMinorVersionNumber", REG_VALUE_TYPE.REG_DWORD, os_ver.minor))
     if os_ver.build is not None:
-        values.append(("CurrentBuild", regdefs.REG_SZ, str(os_ver.build)))
-        values.append(("CurrentBuildNumber", regdefs.REG_SZ, str(os_ver.build)))
+        values.append(("CurrentBuild", REG_VALUE_TYPE.REG_SZ, str(os_ver.build)))
+        values.append(("CurrentBuildNumber", REG_VALUE_TYPE.REG_SZ, str(os_ver.build)))
     return values
 
 
@@ -54,19 +50,19 @@ def get_program_files_values(env, is_x64):
     program_files = env.get("programfiles", "C:\\Program Files")
     common_files = env.get("commonprogramfiles", f"{program_files}\\Common Files")
     values = [
-        ("ProgramFilesDir", regdefs.REG_SZ, program_files),
-        ("CommonFilesDir", regdefs.REG_SZ, common_files),
+        ("ProgramFilesDir", REG_VALUE_TYPE.REG_SZ, program_files),
+        ("CommonFilesDir", REG_VALUE_TYPE.REG_SZ, common_files),
     ]
     if is_x64:
         values += [
-            ("ProgramFilesDir (x86)", regdefs.REG_SZ, env.get("programfiles(x86)", f"{program_files} (x86)")),
+            ("ProgramFilesDir (x86)", REG_VALUE_TYPE.REG_SZ, env.get("programfiles(x86)", f"{program_files} (x86)")),
             (
                 "CommonFilesDir (x86)",
-                regdefs.REG_SZ,
+                REG_VALUE_TYPE.REG_SZ,
                 env.get("commonprogramfiles(x86)", f"{program_files} (x86)\\Common Files"),
             ),
-            ("ProgramW6432Dir", regdefs.REG_SZ, env.get("programw6432", program_files)),
-            ("CommonW6432Dir", regdefs.REG_SZ, common_files),
+            ("ProgramW6432Dir", REG_VALUE_TYPE.REG_SZ, env.get("programw6432", program_files)),
+            ("CommonW6432Dir", REG_VALUE_TYPE.REG_SZ, common_files),
         ]
     return values
 
@@ -81,16 +77,16 @@ class RegValue:
 
     def normalize_value(self, val_type, data):
         """Convert registry values to python types."""
-        if val_type in (regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ, regdefs.REG_SZ):
+        if val_type in (REG_VALUE_TYPE.REG_EXPAND_SZ, REG_VALUE_TYPE.REG_MULTI_SZ, REG_VALUE_TYPE.REG_SZ):
             if not isinstance(data, str):
                 raise RegistryEmuError("Invalid registry value expected string")
             return data
-        if val_type in (regdefs.REG_DWORD, regdefs.REG_QWORD):
+        if val_type in (REG_VALUE_TYPE.REG_DWORD, REG_VALUE_TYPE.REG_QWORD):
             if isinstance(data, str):
                 return int(data, 0)
             if isinstance(data, int):
                 return data
-        elif val_type == regdefs.REG_BINARY:
+        elif val_type == REG_VALUE_TYPE.REG_BINARY:
             if isinstance(data, bytes):
                 return base64.b64encode(data)
             if isinstance(data, str):
@@ -115,15 +111,15 @@ class RegValue:
         Strings use characters of ``width`` bytes.
         """
         enc = "utf-16le" if width == 2 else "utf-8"
-        if self.type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ) and isinstance(self.data, str):
+        if self.type in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ) and isinstance(self.data, str):
             return (self.data + "\x00").encode(enc)
-        if self.type == regdefs.REG_MULTI_SZ and isinstance(self.data, str):
+        if self.type == REG_VALUE_TYPE.REG_MULTI_SZ and isinstance(self.data, str):
             return (self.data + "\x00\x00").encode(enc)
-        if self.type == regdefs.REG_DWORD and isinstance(self.data, int):
+        if self.type == REG_VALUE_TYPE.REG_DWORD and isinstance(self.data, int):
             return (self.data & 0xFFFFFFFF).to_bytes(4, "little")
-        if self.type == regdefs.REG_QWORD and isinstance(self.data, int):
+        if self.type == REG_VALUE_TYPE.REG_QWORD and isinstance(self.data, int):
             return (self.data & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little")
-        if self.type == regdefs.REG_BINARY and isinstance(self.data, bytes):
+        if self.type == REG_VALUE_TYPE.REG_BINARY and isinstance(self.data, bytes):
             return base64.b64decode(self.data)
         return self.data if isinstance(self.data, bytes) else b""
 
@@ -167,9 +163,8 @@ class RegistryManager:
         self.config: RegistryConfig | None = config
         self.allocator: HandleAllocator = allocator
 
-        for hk in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):
-            path = regdefs.get_hkey_type(hk)
-            key = self.create_key(path)
+        for hk in HKEY:
+            key = self.create_key(hk.name)
             self.reg_handles.update({hk: key})
 
         if os_ver:
@@ -204,7 +199,7 @@ class RegistryManager:
         handle = regdefs.normalize_hkey(handle)
         if handle not in self.reg_handles:
             return False
-        if handle not in (HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, HKEY_USERS):
+        if regdefs.get_hkey_type(handle) is None:
             del self.reg_handles[handle]
         return True
 
@@ -256,7 +251,7 @@ class RegistryManager:
                 new_key = RegKey(self.allocator, path)
                 for value in key.values:
                     val_name = value.name or ""
-                    new_key.create_value(val_name, regdefs.get_flag_value(value.type), value.data)
+                    new_key.create_value(val_name, REG_VALUE_TYPE.__members__.get(value.type), value.data)
                 return new_key
         return None
 

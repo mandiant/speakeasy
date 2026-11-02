@@ -197,7 +197,7 @@ def main(args):
     usb.run_module(module)
 
     param_key = usb.get_registry_key(path="HKLM\\System\\CurrentControlSet\\Services\\*\\Parameters")
-    param_key.create_value("MaximumTransferSize", reg.REG_DWORD, 65536)
+    param_key.create_value("MaximumTransferSize", reg.REG_VALUE_TYPE.REG_DWORD, 65536)
 
     # Call the AddDevice function to get us setup
 
