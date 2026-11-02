@@ -176,15 +176,27 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, af, stype, proto, flags, sctx, disp, proc, thr, secdesc, pIrp = argv
+        (
+            Client,
+            AddressFamily,
+            SocketType,
+            Protocol,
+            Flags,
+            SocketContext,
+            Dispatch,
+            OwningProcess,
+            OwningThread,
+            SecurityDescriptor,
+            Irp,
+        ) = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
-        if pIrp:
-            irp = self.mem_cast(self.nt.IRP(emu.get_ptr_size()), pIrp)
-            sock = WskSocket(self, af, stype, proto, flags)
+        if Irp:
+            irp = self.mem_cast(self.nt.IRP(emu.get_ptr_size()), Irp)
+            sock = WskSocket(self, AddressFamily, SocketType, Protocol, Flags)
             addr = sock.get_dispatch_ptr()
             irp.IoStatus.Information = addr
-            self.write_back(pIrp, irp)
+            self.write_back(Irp, irp)
 
             rv = ddk.STATUS_SUCCESS
             self.wsk_sockets.update({addr: sock})
@@ -209,7 +221,20 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, stype, proto, laddr, raddr, flags, sctx, disp, proc, thr, secdesc, irp = argv
+        (
+            Client,
+            SocketType,
+            Protocol,
+            LocalAddress,
+            RemoteAddress,
+            Flags,
+            SocketContext,
+            Dispatch,
+            OwningProcess,
+            OwningThread,
+            SecurityDescriptor,
+            Irp,
+        ) = argv
 
         rv = 0
 
@@ -229,7 +254,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, ctl, insiz, inbuf, osiz, obuf, oret, irp = argv
+        Client, ControlCode, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp = argv
         rv = 0
 
         return rv
@@ -250,7 +275,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, node, svc, namespace, prov, hints, res, proc, thr, irp = argv
+        Client, NodeName, ServiceName, NameSpace, Provider, Hints, Result, OwningProcess, OwningThread, Irp = argv
         rv = 0
 
         return rv
@@ -263,7 +288,7 @@ class Netio(api.ApiHandler):
             PADDRINFOEXW AddrInfo
         );
         """
-        cli, addr = argv
+        Client, AddrInfo = argv
         rv = 0
 
         return rv
@@ -283,7 +308,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, saddr, saddrlen, node, svc, flags, proc, thr, irp = argv
+        Client, SockAddr, SockAddrLength, NodeName, ServiceName, Flags, OwningProcess, OwningThread, Irp = argv
         rv = 0
 
         return rv
@@ -304,7 +329,18 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, rtype, ctl, level, isize, ibuf, osize, obuf, oret, irp = argv
+        (
+            Socket,
+            RequestType,
+            ControlCode,
+            Level,
+            InputSize,
+            InputBuffer,
+            OutputSize,
+            OutputBuffer,
+            OutputSizeReturned,
+            Irp,
+        ) = argv
         rv = 0
 
         return rv
@@ -317,7 +353,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, irp = argv
+        Socket, Irp = argv
         rv = 0
 
         return rv
@@ -332,10 +368,10 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, laddr, flags, irp = argv
+        Socket, LocalAddress, Flags, Irp = argv
         rv = 0
 
-        sock_addr = self.mem_cast(winsock.sockaddr_in(emu.get_ptr_size()), laddr)
+        sock_addr = self.mem_cast(winsock.sockaddr_in(emu.get_ptr_size()), LocalAddress)
 
         raddr = inet_ntoa(sock_addr.sin_addr.to_bytes(4, "little"))
         rport = ntohs(sock_addr.sin_port)
@@ -357,7 +393,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, buf, flags, raddr, infolen, ctlinfo, irp = argv
+        Socket, Buffer, Flags, RemoteAddress, ControlInfoLength, ControlInfo, Irp = argv
         rv = 0
 
         return rv
@@ -376,7 +412,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, buf, flags, raddr, ctllen, ctlinfo, ctlflags, irp = argv
+        Socket, Buffer, Flags, RemoteAddress, ControlLength, ControlInfo, ControlFlags, Irp = argv
         rv = 0
 
         return rv
@@ -389,7 +425,7 @@ class Netio(api.ApiHandler):
             PWSK_DATA_INDICATION DataIndication
         );
         """
-        sock, data_indic = argv
+        Socket, DataIndication = argv
         rv = 0
 
         return rv
@@ -403,7 +439,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        sock, laddr, irp = argv
+        Socket, LocalAddress, Irp = argv
         rv = 0
 
         return rv
@@ -415,7 +451,7 @@ class Netio(api.ApiHandler):
             PWSK_REGISTRATION WskRegistration
         );
         """
-        (reg,) = argv
+        (WskRegistration,) = argv
 
     @apihook("NsiEnumerateObjectsAllParametersEx", argc=0)
     def NsiEnumerateObjectsAllParametersEx(
@@ -436,4 +472,4 @@ class Netio(api.ApiHandler):
             PWSK_REGISTRATION WskRegistration
         );
         """
-        (reg,) = argv
+        (WskRegistration,) = argv

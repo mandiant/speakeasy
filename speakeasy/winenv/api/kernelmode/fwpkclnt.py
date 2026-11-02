@@ -81,13 +81,13 @@ class Fwpkclnt(api.ApiHandler):
             HANDLE *engineHandle
         );
         """
-        sname, asvc, authid, sess, eng = argv
+        serverName, authnService, authIdentity, session, engineHandle = argv
 
         rv = ddk.STATUS_SUCCESS
 
         hnd = self.new_session()
 
-        self.mem_write(eng, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(engineHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -102,13 +102,13 @@ class Fwpkclnt(api.ApiHandler):
             HANDLE *injectionHandle
         );
         """
-        family, flags, inj_handle = argv
+        addressFamily, flags, injectionHandle = argv
 
         rv = ddk.STATUS_SUCCESS
 
         hnd = self.new_injection()
 
-        self.mem_write(inj_handle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(injectionHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -163,18 +163,18 @@ class Fwpkclnt(api.ApiHandler):
             UINT32 *calloutId
         );
         """
-        deviceObject, pCallout, calloutId = argv
+        deviceObject, callout, calloutId = argv
 
         rv = ddk.STATUS_SUCCESS
         cid = self.new_id()
 
         _co = self.fwp.FWPS_CALLOUT1(emu.get_ptr_size())
-        callout = self.mem_cast(_co, pCallout)
-        classify_fn = callout.classifyFn
-        notify_fn = callout.notifyFn
-        delete_fn = callout.flowDeleteFn
+        fwps_callout = self.mem_cast(_co, callout)
+        classify_fn = fwps_callout.classifyFn
+        notify_fn = fwps_callout.notifyFn
+        delete_fn = fwps_callout.flowDeleteFn
 
-        co_key = self.get_bytes(callout.calloutKey)
+        co_key = self.get_bytes(fwps_callout.calloutKey)
         if all(x == 0 for x in co_key):
             co_key = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
         co_key = uuid.UUID(bytes_le=co_key)
@@ -183,7 +183,7 @@ class Fwpkclnt(api.ApiHandler):
         co = {
             cid: {
                 "key": co_key,
-                "flags": callout.flags,
+                "flags": fwps_callout.flags,
                 "classify_fn": classify_fn,
                 "notify_fn": notify_fn,
                 "delete_fn": delete_fn,
@@ -207,20 +207,20 @@ class Fwpkclnt(api.ApiHandler):
             UINT32 *id
         );
         """
-        eng, pCallout, sd, pCid = argv
+        engineHandle, callout, sd, id = argv
 
         name = ""
         desc = ""
         rv = ddk.STATUS_SUCCESS
 
         _co = self.fwp.FWPM_CALLOUT0(emu.get_ptr_size())
-        callout = self.mem_cast(_co, pCallout)
-        if callout.displayData.name:
-            name = self.read_wide_string(callout.displayData.name)
-        if callout.displayData.description:
-            desc = self.read_wide_string(callout.displayData.description)
+        fwpm_callout = self.mem_cast(_co, callout)
+        if fwpm_callout.displayData.name:
+            name = self.read_wide_string(fwpm_callout.displayData.name)
+        if fwpm_callout.displayData.description:
+            desc = self.read_wide_string(fwpm_callout.displayData.description)
 
-        co_key = self.get_bytes(callout.calloutKey)
+        co_key = self.get_bytes(fwpm_callout.calloutKey)
         # was the guid set to 0?
         if all(x == 0 for x in co_key):
             co_key = uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le
@@ -233,8 +233,8 @@ class Fwpkclnt(api.ApiHandler):
                 cid = k
                 self.callouts[k].update({"name": name, "desc": desc})
 
-        if pCid:
-            cid = self.mem_write(pCid, cid.to_bytes(4, "little"))
+        if id:
+            cid = self.mem_write(id, cid.to_bytes(4, "little"))
 
         return rv
 
@@ -248,7 +248,7 @@ class Fwpkclnt(api.ApiHandler):
             UINT64 *id
         );
         """
-        eng, pFilter, sd, pId = argv
+        engineHandle, filter, sd, id = argv
 
         rv = ddk.STATUS_SUCCESS
 
@@ -256,7 +256,7 @@ class Fwpkclnt(api.ApiHandler):
         desc = ""
 
         _filt = self.fwp.FWPM_FILTER0(emu.get_ptr_size())
-        filt = self.mem_cast(_filt, pFilter)
+        filt = self.mem_cast(_filt, filter)
         if filt.displayData.name:
             name = self.read_wide_string(filt.displayData.name)
         if filt.displayData.description:
@@ -272,8 +272,8 @@ class Fwpkclnt(api.ApiHandler):
         flt_key = str(flt_key)
 
         fid = self.new_filter(name, desc, flt_key)
-        if pId:
-            self.mem_write(pId, fid.to_bytes(8, "little"))
+        if id:
+            self.mem_write(id, fid.to_bytes(8, "little"))
 
         return rv
 
@@ -304,10 +304,10 @@ class Fwpkclnt(api.ApiHandler):
             UINT32 id
         );
         """
-        eng, cid = argv
+        engineHandle, id = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
-        co = self.callouts.get(cid)
+        co = self.callouts.get(id)
         if co:
             rv = ddk.STATUS_SUCCESS
         return rv
@@ -321,10 +321,10 @@ class Fwpkclnt(api.ApiHandler):
             const UINT32 calloutId
         );
         """
-        (cid,) = argv
+        (calloutId,) = argv
         rv = FWP_E_CALLOUT_NOT_FOUND
 
-        co = self.callouts.get(cid)
+        co = self.callouts.get(calloutId)
         if co:
             rv = ddk.STATUS_SUCCESS
         return rv
@@ -337,7 +337,7 @@ class Fwpkclnt(api.ApiHandler):
             const GUID *key
         );
         """
-        eng, key = argv
+        engineHandle, key = argv
 
         rv = FWP_E_SUBLAYER_NOT_FOUND
 
@@ -356,7 +356,7 @@ class Fwpkclnt(api.ApiHandler):
             HANDLE engineHandle
         );
         """
-        (eng,) = argv
+        (engineHandle,) = argv
 
         rv = ddk.STATUS_SUCCESS
         return rv
@@ -370,10 +370,10 @@ class Fwpkclnt(api.ApiHandler):
             HANDLE injectionHandle
         );
         """
-        (handle,) = argv
+        (injectionHandle,) = argv
 
         rv = ddk.STATUS_SUCCESS
-        if not self.injections.get(handle):
+        if not self.injections.get(injectionHandle):
             rv = FWP_E_NOT_FOUND
 
         return rv
