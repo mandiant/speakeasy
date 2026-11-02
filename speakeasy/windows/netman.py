@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import os
 from io import BytesIO
+from socket import inet_aton
 from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
@@ -13,6 +14,14 @@ from speakeasy.errors import NetworkEmuError
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
     from speakeasy.windows.objman import HandleAllocator
+
+
+def is_ip_address(ip):
+    try:
+        inet_aton(ip)
+        return True
+    except Exception:
+        return False
 
 
 def normalize_response_path(path):
