@@ -2,12 +2,16 @@
 
 import ntpath
 import struct
+from typing import TYPE_CHECKING
 
 import pefile
 
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 RT_VERSION = 16
 VS_VERSION_SIGNATURE = b"FE2X"
@@ -148,7 +152,7 @@ class Version(api.ApiHandler):
         return 1
 
     @apihook("GetFileVersionInfoSize", argc=2)
-    def GetFileVersionInfoSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetFileVersionInfoSize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileVersionInfoSize(
             LPCTSTR lptstrFilename,
@@ -159,7 +163,7 @@ class Version(api.ApiHandler):
         return self.get_size(emu, lptstrFilename, 0, lpdwHandle, ctx)
 
     @apihook("GetFileVersionInfoSizeEx", argc=3)
-    def GetFileVersionInfoSizeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetFileVersionInfoSizeEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileVersionInfoSizeEx(
             DWORD dwFlags,
@@ -171,7 +175,7 @@ class Version(api.ApiHandler):
         return self.get_size(emu, lpwstrFilename, 1, lpdwHandle, ctx)
 
     @apihook("GetFileVersionInfo", argc=4)
-    def GetFileVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetFileVersionInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileVersionInfo(
             LPCTSTR lptstrFilename,
@@ -184,7 +188,7 @@ class Version(api.ApiHandler):
         return self.get_info(emu, lptstrFilename, 0, dwLen, lpData, ctx)
 
     @apihook("GetFileVersionInfoEx", argc=5)
-    def GetFileVersionInfoEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetFileVersionInfoEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileVersionInfoEx(
             DWORD dwFlags,
@@ -198,7 +202,7 @@ class Version(api.ApiHandler):
         return self.get_info(emu, lpwstrFilename, 1, dwLen, lpData, ctx)
 
     @apihook("VerQueryValue", argc=4)
-    def VerQueryValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def VerQueryValue(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL VerQueryValue(
             LPCVOID pBlock,
