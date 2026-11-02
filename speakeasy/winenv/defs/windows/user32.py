@@ -40,14 +40,21 @@ DISPLAY_DEVICE_ATTACHED = 0x2
 
 class DISPLAY_DEVICE(EmuStruct):
     cb: Annotated[int, ct.c_uint32]
+    DeviceName: bytes
+    DeviceString: bytes
+    StateFlags: int
+    DeviceID: bytes
+    DeviceKey: bytes
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.DeviceName = ct.c_uint8 * (32 * width)
-        self.DeviceString = ct.c_uint8 * (128 * width)
-        self.StateFlags = ct.c_uint32
-        self.DeviceID = ct.c_uint8 * (128 * width)
-        self.DeviceKey = ct.c_uint8 * (128 * width)
+        self.add_fields(
+            DeviceName=ct.c_uint8 * (32 * width),
+            DeviceString=ct.c_uint8 * (128 * width),
+            StateFlags=ct.c_uint32,
+            DeviceID=ct.c_uint8 * (128 * width),
+            DeviceKey=ct.c_uint8 * (128 * width),
+        )
 
 
 class MSG(EmuStruct):

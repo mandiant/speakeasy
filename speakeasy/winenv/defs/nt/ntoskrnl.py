@@ -267,12 +267,11 @@ class FILE_STANDARD_INFORMATION(EmuStruct):
 
 
 class DESCRIPTOR_TABLE(EmuStruct):
+    Table: list[KIDTENTRY] | list[KIDTENTRY64]
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        if ptr_size == 4:
-            self.Table = KIDTENTRY * 256
-        else:
-            self.Table = KIDTENTRY64 * 256
+        self.add_fields(Table=(KIDTENTRY if ptr_size == 4 else KIDTENTRY64) * 256)
 
 
 class DRIVER_OBJECT(EmuStruct):
@@ -356,12 +355,13 @@ class DEVICE_OBJECT(EmuStruct):
     Spare1: Annotated[int, ct.c_uint16]
     DeviceObjectExtension: Annotated[int, Ptr]
     Reserved: Annotated[int, Ptr]
+    Padding: bytes
 
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         if ptr_size == 8:
             # DECLSPEC_ALIGN(MEMORY_ALLOCATION_ALIGNMENT) rounds the size up to 16 bytes
-            self.Padding = ct.c_uint8 * 8
+            self.add_fields(Padding=ct.c_uint8 * 8)
 
 
 class FILE_OBJECT(EmuStruct):
@@ -564,41 +564,69 @@ class PEB(EmuStruct):
     ImageSubsystemMajorVersion: Annotated[int, ct.c_uint32]
     ImageSubsystemMinorVersion: Annotated[int, Ptr]
     ActiveProcessAffinityMask: Annotated[int, Ptr]
+    GdiHandleBuffer: list[int]
+    PostProcessInitRoutine: int
+    TlsExpansionBitmap: int
+    TlsExpansionBitmapBits: list[int]
+    SessionId: int
+    AppCompatFlags: int
+    AppCompatFlagsUser: int
+    pShimData: int
+    AppCompatInfo: int
+    CSDVersion: UNICODE_STRING
+    ActivationContextData: int
+    ProcessAssemblyStorageMap: int
+    SystemDefaultActivationContextData: int
+    SystemAssemblyStorageMap: int
+    MinimumStackCommit: int
+    FlsCallback: int
+    FlsListHead: LIST_ENTRY
+    FlsBitmap: int
+    FlsBitmapBits: list[int]
+    FlsHighIndex: int
+    WerRegistrationData: int
+    WerShipAssertPtr: int
+    pUnused: int
+    pImageHeaderHash: int
+    TracingFlags: int
+    CsrServerReadOnlySharedMemoryBase: int
+    TppWorkerpListLock: int
+    TppWorkerpList: LIST_ENTRY
+    WaitOnAddressHashTable: list[int]
 
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        if ptr_size == 8:
-            self.GdiHandleBuffer = ct.c_uint32 * 60
-        else:
-            self.GdiHandleBuffer = ct.c_uint32 * 34
-        self.PostProcessInitRoutine = Ptr
-        self.TlsExpansionBitmap = Ptr
-        self.TlsExpansionBitmapBits = ct.c_uint32 * 32
-        self.SessionId = Ptr
-        self.AppCompatFlags = ct.c_ulonglong  # ULARGE_INTEGER
-        self.AppCompatFlagsUser = ct.c_ulonglong  # ULARGE_INTEGER
-        self.pShimData = Ptr
-        self.AppCompatInfo = Ptr
-        self.CSDVersion = UNICODE_STRING
-        self.ActivationContextData = Ptr
-        self.ProcessAssemblyStorageMap = Ptr
-        self.SystemDefaultActivationContextData = Ptr
-        self.SystemAssemblyStorageMap = Ptr
-        self.MinimumStackCommit = Ptr
-        self.FlsCallback = Ptr
-        self.FlsListHead = LIST_ENTRY
-        self.FlsBitmap = Ptr
-        self.FlsBitmapBits = ct.c_uint32 * 4
-        self.FlsHighIndex = Ptr
-        self.WerRegistrationData = Ptr
-        self.WerShipAssertPtr = Ptr
-        self.pUnused = Ptr  # pContextData
-        self.pImageHeaderHash = Ptr
-        self.TracingFlags = ct.c_uint64
-        self.CsrServerReadOnlySharedMemoryBase = ct.c_uint64
-        self.TppWorkerpListLock = Ptr
-        self.TppWorkerpList = LIST_ENTRY
-        self.WaitOnAddressHashTable = Ptr * 128
+        self.add_fields(
+            GdiHandleBuffer=ct.c_uint32 * (60 if ptr_size == 8 else 34),
+            PostProcessInitRoutine=Ptr,
+            TlsExpansionBitmap=Ptr,
+            TlsExpansionBitmapBits=ct.c_uint32 * 32,
+            SessionId=Ptr,
+            AppCompatFlags=ct.c_ulonglong,  # ULARGE_INTEGER
+            AppCompatFlagsUser=ct.c_ulonglong,  # ULARGE_INTEGER
+            pShimData=Ptr,
+            AppCompatInfo=Ptr,
+            CSDVersion=UNICODE_STRING,
+            ActivationContextData=Ptr,
+            ProcessAssemblyStorageMap=Ptr,
+            SystemDefaultActivationContextData=Ptr,
+            SystemAssemblyStorageMap=Ptr,
+            MinimumStackCommit=Ptr,
+            FlsCallback=Ptr,
+            FlsListHead=LIST_ENTRY,
+            FlsBitmap=Ptr,
+            FlsBitmapBits=ct.c_uint32 * 4,
+            FlsHighIndex=Ptr,
+            WerRegistrationData=Ptr,
+            WerShipAssertPtr=Ptr,
+            pUnused=Ptr,  # pContextData
+            pImageHeaderHash=Ptr,
+            TracingFlags=ct.c_uint64,
+            CsrServerReadOnlySharedMemoryBase=ct.c_uint64,
+            TppWorkerpListLock=Ptr,
+            TppWorkerpList=LIST_ENTRY,
+            WaitOnAddressHashTable=Ptr * 128,
+        )
 
 
 class PEB_LDR_DATA(EmuStruct):

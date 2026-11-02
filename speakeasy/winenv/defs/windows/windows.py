@@ -110,10 +110,11 @@ class SID(EmuStruct):
     Revision: Annotated[int, ct.c_uint8]
     SubAuthorityCount: Annotated[int, ct.c_uint8]
     IdentifierAuthority: Annotated[bytes, ct.c_uint8 * 6]
+    SubAuthority: list[int]
 
     def __init__(self, ptr_size, sub_authority_count):
         super().__init__(ptr_size)
-        self.SubAuthority = ct.c_uint32 * sub_authority_count
+        self.add_fields(SubAuthority=ct.c_uint32 * sub_authority_count)
 
 
 class KSYSTEM_TIME(EmuStruct):

@@ -69,8 +69,22 @@ class EmuStruct(metaclass=CMeta):
             MaximumLength: Annotated[int, ct.c_uint16]
             Buffer: Annotated[int, Ptr]
 
-    A field that depends on ``ptr_size`` or on a constructor parameter is assigned in ``__init__`` after the
-    super call, for example ``self.Name = ct.c_uint8 * (4 * width)``. These fields come after the declared ones.
+    A field that depends on ``ptr_size`` or on a constructor parameter has a class-level declaration with its
+    Python type and no ``Annotated``. ``__init__`` gives its ctypes type with ``add_fields`` after the super call:
+
+        class DISPLAY_DEVICE(EmuStruct):
+            cb: Annotated[int, ct.c_uint32]
+            DeviceName: bytes
+
+            def __init__(self, ptr_size, width):
+                super().__init__(ptr_size)
+                self.add_fields(DeviceName=ct.c_uint8 * (32 * width))
+
+    These fields come after the declared ones, so a field that comes after them also goes in ``add_fields``.
+
+    A union has at most one nested struct member, because ``get_bytes`` writes each nested struct back into the
+    union, and two of them overwrite each other. ``__init__`` assigns the other struct members as ctypes types
+    (``self.Apc = KAPC(ptr_size).get_cstruct()``), and mypy gives these fields their ctypes type.
     """
 
     # Save the unique types we create here
@@ -111,10 +125,22 @@ class EmuStruct(metaclass=CMeta):
             for name, hint in get_type_hints(cls, include_extras=True).items():
                 if get_origin(hint) is Annotated:
                     fields.append((name, get_args(hint)[1]))
-                elif isinstance(hint, type) and issubclass(hint, EmuStruct):
+                elif get_origin(hint) is None and isinstance(hint, type) and issubclass(hint, EmuStruct):
                     fields.append((name, hint))
             EmuStruct.__declared__[cls] = fields
         return fields
+
+    def add_fields(self, **fields: Any) -> None:
+        """
+        Add fields at the end of the struct, in the order of the arguments.
+
+        ``__init__`` calls it for the fields whose ctypes type depends on ``ptr_size`` or on a constructor
+        parameter, and for the fields that come after them. A nested struct field also has a class-level
+        declaration, which puts it with the declared fields, so this method moves it to the end.
+        """
+        for name, ctype in fields.items():
+            self.__dict__.pop(name, None)
+            self.__dict__[name] = ctype
 
     def _is_ctype(self, obj):
         """Test whether the object has a ctype base."""

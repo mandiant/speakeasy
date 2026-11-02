@@ -106,6 +106,7 @@ class RECORD_BY_INIT(EmuStruct):
         if ptr_size == 8:
             self.Padding = ct.c_uint32
         self.Flags = ct.c_uint32
+        self.End = POINT_BY_INIT
 
 
 class RECORD(EmuStruct):
@@ -116,12 +117,15 @@ class RECORD(EmuStruct):
     Corners: Annotated[list[POINT], POINT * 2]
     Slots: Annotated[list[int], Ptr * 3]
     Name: Annotated[bytes, ct.c_uint8 * 6]
+    Padding: int
+    Flags: int
+    End: POINT
 
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         if ptr_size == 8:
-            self.Padding = ct.c_uint32
-        self.Flags = ct.c_uint32
+            self.add_fields(Padding=ct.c_uint32)
+        self.add_fields(Flags=ct.c_uint32, End=POINT)
 
 
 class POINT(EmuStruct):
@@ -137,6 +141,7 @@ def fill(record: Any) -> bytes:
     record.Slots[2] = 0x77
     record.Name = b"abcdef"
     record.Flags = 0x88
+    record.End.x = 9
     return bytes(record.get_bytes())
 
 

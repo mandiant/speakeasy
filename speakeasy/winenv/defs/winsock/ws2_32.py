@@ -12,21 +12,32 @@ WSASYS_STATUS_LEN = 128
 class WSAData(EmuStruct):
     wVersion: Annotated[int, ct.c_uint16]
     wHighVersion: Annotated[int, ct.c_uint16]
+    szDescription: bytes
+    szSystemStatus: bytes
+    iMaxSockets: int
+    iMaxUdpDg: int
+    lpVendorInfo: int
 
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
+        description = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
+        status = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
         if ptr_size == 8:
-            self.iMaxSockets = ct.c_uint16
-            self.iMaxUdpDg = ct.c_uint16
-            self.lpVendorInfo = Ptr
-            self.szDescription = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
-            self.szSystemStatus = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
+            self.add_fields(
+                iMaxSockets=ct.c_uint16,
+                iMaxUdpDg=ct.c_uint16,
+                lpVendorInfo=Ptr,
+                szDescription=description,
+                szSystemStatus=status,
+            )
         else:
-            self.szDescription = ct.c_uint8 * (WSADESCRIPTION_LEN + 1)
-            self.szSystemStatus = ct.c_uint8 * (WSASYS_STATUS_LEN + 1)
-            self.iMaxSockets = ct.c_uint16
-            self.iMaxUdpDg = ct.c_uint16
-            self.lpVendorInfo = Ptr
+            self.add_fields(
+                szDescription=description,
+                szSystemStatus=status,
+                iMaxSockets=ct.c_uint16,
+                iMaxUdpDg=ct.c_uint16,
+                lpVendorInfo=Ptr,
+            )
 
 
 class sockaddr(EmuStruct):
