@@ -129,8 +129,23 @@ def get_raw_smbios_data() -> bytes:
         struct.pack("<BBBB16sBBB", 1, 2, 3, 4, uuid, 6, 5, 6),
         ["Dell Inc.", "OptiPlex 7090", "1.0", "7J5D3N3", "0A6F", "OptiPlex"],
     )
+    caches = b"".join(
+        get_smbios_structure(
+            7,
+            0x0700 + level - 1,
+            struct.pack(
+                "<BHHHHHBBBBII", 1, config, size_kb, size_kb, 0x20, 0x20, 0, ecc, cache_type, ways, size_kb, size_kb
+            ),
+            [f"L{level} Cache"],
+        )
+        for level, config, size_kb, ecc, cache_type, ways in [
+            (1, 0x0180, 384, 4, 4, 9),
+            (2, 0x0181, 4096, 5, 5, 7),
+            (3, 0x0182, 16384, 5, 5, 8),
+        ]
+    )
     end = get_smbios_structure(127, 0xFFFF, b"", [])
-    tables = bios + system + end
+    tables = bios + system + caches + end
     return struct.pack("<BBBBI", 0, 3, 3, 0, len(tables)) + tables
 
 
