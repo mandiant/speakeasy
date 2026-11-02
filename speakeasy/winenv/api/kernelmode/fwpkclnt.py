@@ -87,7 +87,7 @@ class Fwpkclnt(api.ApiHandler):
 
         hnd = self.new_session()
 
-        self.mem_write(engineHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(engineHandle, hnd)
 
         return rv
 
@@ -108,7 +108,7 @@ class Fwpkclnt(api.ApiHandler):
 
         hnd = self.new_injection()
 
-        self.mem_write(injectionHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(injectionHandle, hnd)
 
         return rv
 
@@ -193,7 +193,7 @@ class Fwpkclnt(api.ApiHandler):
         self.callouts.update(co)
 
         if calloutId:
-            self.mem_write(calloutId, cid.to_bytes(4, "little"))
+            self.write_dword(calloutId, cid)
 
         return rv
 
@@ -234,7 +234,7 @@ class Fwpkclnt(api.ApiHandler):
                 self.callouts[k].update({"name": name, "desc": desc})
 
         if id:
-            cid = self.mem_write(id, cid.to_bytes(4, "little"))
+            self.write_dword(id, cid)
 
         return rv
 
@@ -273,7 +273,7 @@ class Fwpkclnt(api.ApiHandler):
 
         fid = self.new_filter(name, desc, flt_key)
         if id:
-            self.mem_write(id, fid.to_bytes(8, "little"))
+            self.write_qword(id, fid)
 
         return rv
 

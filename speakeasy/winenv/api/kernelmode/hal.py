@@ -52,7 +52,7 @@ class Hal(api.ApiHandler):
         """
         (PerformanceFrequency,) = argv
         if PerformanceFrequency:
-            self.mem_write(PerformanceFrequency, PERF_FREQUENCY.to_bytes(8, "little"))
+            self.write_qword(PerformanceFrequency, PERF_FREQUENCY)
         self.perf_counter += PERF_FREQUENCY // 1000
         if emu.get_ptr_size() == 4:
             emu.reg_write(_arch.X86_REG_EDX, self.perf_counter >> 32)

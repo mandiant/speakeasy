@@ -128,7 +128,7 @@ class Ndis(api.ApiHandler):
 
         hnd = self.new_id()
         self.wrappers.update({hnd: True})
-        self.mem_write(NdisWrapperHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(NdisWrapperHandle, hnd)
 
     @apihook("NdisTerminateWrapper", argc=2)
     def NdisTerminateWrapper(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -181,10 +181,10 @@ class Ndis(api.ApiHandler):
         self.protocols.update({hnd: pchr})
 
         if Status:
-            self.mem_write(Status, rv.to_bytes(4, "little"))
+            self.write_dword(Status, rv)
 
         if NdisProtocolHandle:
-            self.mem_write(NdisProtocolHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(NdisProtocolHandle, hnd)
 
     @apihook("NdisIMRegisterLayeredMiniport", argc=4)
     def NdisIMRegisterLayeredMiniport(
@@ -209,7 +209,7 @@ class Ndis(api.ApiHandler):
         self.drivers.update({dhnd: mpc})
 
         if DriverHandle:
-            self.mem_write(DriverHandle, dhnd.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(DriverHandle, dhnd)
 
         return rv
 
@@ -269,7 +269,7 @@ class Ndis(api.ApiHandler):
         ctx.args[2].display = stag
 
         ptr = self.mem_alloc(size=Length, tag=f"api.ndis_pool.{stag}")
-        self.mem_write(VirtualAddress, ptr.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(VirtualAddress, ptr)
 
         return rv
 
