@@ -1,8 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import struct
+from typing import TYPE_CHECKING
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class OleAut32(api.ApiHandler):
@@ -15,7 +19,7 @@ class OleAut32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SysAllocString", argc=1, ordinal=2)
-    def SysAllocString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysAllocString(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BSTR SysAllocString(
             const OLECHAR *psz
@@ -41,7 +45,7 @@ class OleAut32(api.ApiHandler):
         return bstr + 4
 
     @apihook("SysAllocStringLen", argc=2, ordinal=4)
-    def SysAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysAllocStringLen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BSTR SysAllocStringLen(
             const OLECHAR *strIn,
@@ -65,7 +69,7 @@ class OleAut32(api.ApiHandler):
         return bstr + 4
 
     @apihook("SysAllocStringByteLen", argc=2, ordinal=150)
-    def SysAllocStringByteLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysAllocStringByteLen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BSTR SysAllocStringByteLen(
             LPCSTR psz,
@@ -81,7 +85,7 @@ class OleAut32(api.ApiHandler):
         return bstr + 4
 
     @apihook("SysReAllocStringLen", argc=3, ordinal=5)
-    def SysReAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysReAllocStringLen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT SysReAllocStringLen(
             BSTR *pbstr,
@@ -105,7 +109,7 @@ class OleAut32(api.ApiHandler):
         return 1
 
     @apihook("SysFreeString", argc=1, ordinal=6)
-    def SysFreeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysFreeString(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void SysFreeString(
             BSTR bstrString
@@ -115,7 +119,7 @@ class OleAut32(api.ApiHandler):
             ctx.args["bstrString"].display = self.read_wide_string(argv[0])
 
     @apihook("SysStringLen", argc=1, ordinal=7)
-    def SysStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysStringLen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT SysStringLen(
             BSTR pbstr
@@ -124,7 +128,7 @@ class OleAut32(api.ApiHandler):
         return self.SysStringByteLen(emu, argv, ctx) // 2
 
     @apihook("SysStringByteLen", argc=1, ordinal=149)
-    def SysStringByteLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SysStringByteLen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT SysStringByteLen(
             BSTR bstr
@@ -136,7 +140,7 @@ class OleAut32(api.ApiHandler):
         return struct.unpack("<I", self.mem_read(bstr - 4, 4))[0]
 
     @apihook("VariantInit", argc=1, ordinal=8)
-    def VariantInit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def VariantInit(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void VariantInit(
             VARIANTARG *pvarg
