@@ -5,6 +5,7 @@ import multiprocessing.synchronize
 import ntpath
 import os
 import threading
+import warnings
 import zipfile
 from collections.abc import Callable
 from functools import wraps
@@ -15,10 +16,21 @@ from typing import Concatenate, ParamSpec, TypeVar
 from pefile import MACHINE_TYPE, PEFormatError
 from pydantic import ValidationError
 
-from speakeasy import Win32Emulator, WinKernelEmulator
+from speakeasy import Win32Emulator, WinKernelEmulator, common
 from speakeasy.cli_config import output_active_config
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, InputError, NotSupportedError, SpeakeasyError
+from speakeasy.hooks import (
+    ApiHookCallback,
+    CodeHookCallback,
+    DynCodeHookCallback,
+    InHookCallback,
+    InterruptHookCallback,
+    InvalidInstructionHookCallback,
+    MemAccessHookCallback,
+    MemMapHookCallback,
+    SyscallHookCallback,
+)
 from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
 from speakeasy.windows.common import _PeParser
@@ -29,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
 R = TypeVar("R")
+HookT = TypeVar("HookT", bound=common.Hook)
 
 SHELLCODE_ARCH = {
     "x86": _arch.ARCH_X86,
@@ -98,23 +111,13 @@ class Speakeasy:
                 raise ConfigError(f"Invalid volume: {err}") from err
             self._init_config(data)
         self._emu: Win32Emulator | WinKernelEmulator | None = None
-        self.api_hooks: list[tuple[Callable, str, str, int, object | None]] = []
-        self.code_hooks: list[tuple[Callable, int, int]] = []
-        self.dyn_code_hooks: list[tuple[Callable]] = []
-        self.invalid_insn_hooks: list[tuple[Callable]] = []
-        self.mem_read_hooks: list[tuple[Callable, int, int]] = []
+        self.pending_hooks: list[common.Hook] = []
         self.argv: list[str] = argv if argv is not None else []
         self.exit_event: threading.Event | multiprocessing.synchronize.Event | None = exit_event
         self.debug: bool = debug
         self.gdb_port: int | None = gdb_port
         self.gdb_host: str = gdb_host
         self.loaded_bins: list[str | None] = []
-        self.mem_write_hooks: list[tuple[Callable, int, int]] = []
-        self.in_insn_hooks: list[tuple[Callable, int, int]] = []
-        self.syscall_insn_hooks: list[tuple[Callable, int, int]] = []
-        self.mem_invalid_hooks: list[tuple[Callable]] = []
-        self.interrupt_hooks: list[tuple[Callable]] = []
-        self.mem_map_hooks: list[tuple[Callable, int, int]] = []
 
     @property
     def has_emulator(self) -> bool:
@@ -215,40 +218,30 @@ class Speakeasy:
         return emu
 
     def _init_hooks(self) -> None:
-        """Add the hooks that the user registered before the emulator engine existed."""
-        while self.api_hooks:
-            cb, mod, func, argc, cconv = self.api_hooks.pop(0)
-            self.add_api_hook(cb, mod, func, argc, cconv)
-        while self.code_hooks:
-            cb, begin, end = self.code_hooks.pop(0)
-            self.add_code_hook(cb, begin, end)
-        while self.dyn_code_hooks:
-            (cb,) = self.dyn_code_hooks.pop(0)
-            self.add_dyn_code_hook(cb)
-        while self.invalid_insn_hooks:
-            (cb,) = self.invalid_insn_hooks.pop(0)
-            self.add_invalid_instruction_hook(cb)
-        while self.mem_read_hooks:
-            cb, begin, end = self.mem_read_hooks.pop(0)
-            self.add_mem_read_hook(cb, begin, end)
-        while self.mem_write_hooks:
-            cb, begin, end = self.mem_write_hooks.pop(0)
-            self.add_mem_write_hook(cb, begin, end)
-        while self.in_insn_hooks:
-            cb, begin, end = self.in_insn_hooks.pop(0)
-            self.add_IN_instruction_hook(cb, begin, end)
-        while self.syscall_insn_hooks:
-            cb, begin, end = self.syscall_insn_hooks.pop(0)
-            self.add_SYSCALL_instruction_hook(cb, begin, end)
-        while self.mem_invalid_hooks:
-            (cb,) = self.mem_invalid_hooks.pop(0)
-            self.add_mem_invalid_hook(cb)
-        while self.interrupt_hooks:
-            (cb,) = self.interrupt_hooks.pop(0)
-            self.add_interrupt_hook(cb)
-        while self.mem_map_hooks:
-            cb, begin, end = self.mem_map_hooks.pop(0)
-            self.add_mem_map_hook(cb, begin, end)
+        """Add the hooks that the user registered before the emulator existed."""
+        while self.pending_hooks:
+            self.emu.add_hook(self.pending_hooks.pop(0))
+
+    def _add_hook(self, hook: HookT) -> HookT:
+        # Append to the pending hooks, so that the emulator adds the hooks in the order that the caller added them.
+        self.pending_hooks.append(hook)
+        if self._emu is not None:
+            self._init_hooks()
+        return hook
+
+    def remove_hook(self, hook: common.Hook) -> None:
+        """
+        Remove a hook that an ``add_*_hook`` method returned, so that its callback is not called again.
+
+        Raises:
+            ValueError: if the hook is not added, for example because it is already removed.
+        """
+        if hook in self.pending_hooks:
+            self.pending_hooks.remove(hook)
+        elif self._emu is not None:
+            self._emu.remove_hook(hook)
+        else:
+            raise ValueError("Speakeasy does not have this hook")
 
     def disasm(self, addr: int, size: int, fast=True):
         """
@@ -483,9 +476,13 @@ class Speakeasy:
         """
         return self.emu.get_json_report()
 
-    def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
+    def add_api_hook(self, cb: ApiHookCallback, module="", api_name="", argc=0, call_conv=None) -> common.ApiHook:
         """
         Set a callback to fire when the emulated program calls a specified API.
+
+        The emulator calls ``cb(emu, api_name, func, argv)`` in place of the API handler.
+        ``argv`` holds the raw arguments, and ``func(argv)`` runs the handler. ``func`` is
+        ``None`` when the API has no handler. The callback returns the return value of the API.
 
         Args:
             cb: Python function to call.
@@ -495,13 +492,9 @@ class Speakeasy:
             call_conv: Force the emulator to use this calling convention for the hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.api_hooks.append((cb, module, api_name, argc, call_conv))
-            return None
-        return self.emu.add_api_hook(cb, module=module, api_name=api_name, argc=argc, call_conv=call_conv, emu=self)
+        return self._add_hook(common.ApiHook(cb, module, api_name, argc, call_conv))
 
     @execution_scope
     def resume(self, addr: int, count: int = -1) -> None:
@@ -513,6 +506,7 @@ class Speakeasy:
             count: Number of instructions to emulate. ``-1`` means no limit.
         """
         output_active_config(self.config, logger)
+        self._init_hooks()
         self.emu.is_run_complete = False
         self.emu.resume(addr, count=count)
 
@@ -543,161 +537,168 @@ class Speakeasy:
             params: Arguments to push onto the stack for the call.
         """
         output_active_config(self.config, logger)
+        self._init_hooks()
         return self.emu.call(addr, params=params)
 
-    def add_code_hook(self, cb: Callable, begin=1, end=0):
+    def add_code_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.CodeHook:
         """
         Set a callback to fire for every CPU instruction that is emulated.
 
+        The emulator calls ``cb(emu, address, size)`` before the instruction at ``address`` runs.
+        The return value is not used.
+
         Args:
             cb: Python function to call.
             begin: Start of the address range to hook.
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.code_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_code_hook(cb, begin=begin, end=end, emu=self)
+        return self._add_hook(common.CodeHook(cb, begin, end))
 
-    def add_dyn_code_hook(self, cb: Callable):
+    def add_dyn_code_hook(self, cb: DynCodeHookCallback) -> common.DynCodeHook:
         """
         Set a callback to fire when dynamically generated or copied code runs.
 
+        The emulator calls ``cb(emu, region)`` with the ``MemMap`` of the code.
+        The return value is not used.
+
         Args:
             cb: Python function to call.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.dyn_code_hooks.append((cb,))
-            return None
-        return self.emu.add_dyn_code_hook(cb, emu=self)
+        return self._add_hook(common.DynCodeHook(cb))
 
-    def add_mem_read_hook(self, cb: Callable, begin=1, end=0):
+    def add_mem_read_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.ReadMemHook:
         """
         Set a callback to fire when a memory address is read from.
 
+        The emulator calls ``cb(emu, access, address, size, value)``. The return value is not used.
+
         Args:
             cb: Python function to call.
             begin: Start of the address range to hook.
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.mem_read_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_mem_read_hook(cb, begin=begin, end=end, emu=self)
+        return self._add_hook(common.ReadMemHook(cb, begin, end))
 
-    def add_mem_write_hook(self, cb: Callable, begin=1, end=0):
+    def add_mem_write_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.WriteMemHook:
         """
         Set a callback to fire when a memory address is written to.
 
+        The emulator calls ``cb(emu, access, address, size, value)``, where ``value`` is the
+        value that the instruction writes. The return value is not used.
+
         Args:
             cb: Python function to call.
             begin: Start of the address range to hook.
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.mem_write_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_mem_write_hook(cb, begin=begin, end=end, emu=self)
+        return self._add_hook(common.WriteMemHook(cb, begin, end))
 
-    def add_IN_instruction_hook(self, cb: Callable, begin=1, end=0):
+    def add_in_instruction_hook(self, cb: InHookCallback, begin=1, end=0) -> common.InstructionHook:
         """
         Set a callback to fire when an IN instruction executes.
 
+        The emulator calls ``cb(emu, port, size)``. The callback returns the value that the
+        instruction reads from ``port``.
+
         Args:
             cb: Python function to call.
             begin: Start of the address range to hook.
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.in_insn_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=218)
+        return self._add_hook(common.InstructionHook(cb, insn=218))
 
-    def add_SYSCALL_instruction_hook(self, cb: Callable, begin=1, end=0):
+    def add_IN_instruction_hook(self, cb: InHookCallback, begin=1, end=0) -> common.InstructionHook:
+        """Deprecated alias of ``add_in_instruction_hook``."""
+        warnings.warn(
+            "add_IN_instruction_hook is deprecated, use add_in_instruction_hook", DeprecationWarning, stacklevel=2
+        )
+        return self.add_in_instruction_hook(cb, begin, end)
+
+    def add_syscall_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
         """
         Set a callback to fire when a SYSCALL / SYSENTER instruction executes.
 
+        The emulator calls ``cb(emu)``. The return value is not used.
+
         Args:
             cb: Python function to call.
             begin: Start of the address range to hook.
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.syscall_insn_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_instruction_hook(cb, begin=begin, end=end, emu=self, insn=700)
+        return self._add_hook(common.InstructionHook(cb, insn=700))
 
-    def add_invalid_instruction_hook(self, cb: Callable):
+    def add_SYSCALL_instruction_hook(self, cb: SyscallHookCallback, begin=1, end=0) -> common.InstructionHook:
+        """Deprecated alias of ``add_syscall_instruction_hook``."""
+        warnings.warn(
+            "add_SYSCALL_instruction_hook is deprecated, use add_syscall_instruction_hook",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.add_syscall_instruction_hook(cb, begin, end)
+
+    def add_invalid_instruction_hook(self, cb: InvalidInstructionHookCallback) -> common.InvalidInstructionHook:
         """
         Set a callback to fire when the emulator hits an invalid instruction.
 
+        The emulator calls ``cb(emu)``. The callback returns ``True`` if it handled the
+        instruction, so that the hooks after it do not run, or ``False`` to let the next hook
+        handle it.
+
         Args:
             cb: Python function to call.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.invalid_insn_hooks.append((cb,))
-            return None
-        return self.emu.add_invalid_instruction_hook(cb)
+        return self._add_hook(common.InvalidInstructionHook(cb))
 
-    def add_mem_invalid_hook(self, cb: Callable):
+    def add_mem_invalid_hook(self, cb: MemAccessHookCallback) -> common.InvalidMemHook:
         """
         Set a callback to fire when a memory access violation occurs.
 
+        The emulator calls ``cb(emu, access, address, size, value)``. The callback returns
+        ``False`` to stop the hooks after it and fail the access. Any other value lets the next
+        hook handle the access.
+
         Args:
             cb: Python function to call.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.mem_invalid_hooks.append((cb,))
-            return None
-        return self.emu.add_mem_invalid_hook(cb, emu=self)
+        return self._add_hook(common.InvalidMemHook(cb))
 
-    def add_interrupt_hook(self, cb: Callable):
+    def add_interrupt_hook(self, cb: InterruptHookCallback) -> common.InterruptHook:
         """
         Set a callback to fire for software interrupts.
 
+        The emulator calls ``cb(emu, number)`` with the interrupt number. The return value is not used.
+
         Args:
             cb: Python function to call.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.interrupt_hooks.append((cb,))
-            return None
-        return self.emu.add_interrupt_hook(cb, emu=self)
+        return self._add_hook(common.InterruptHook(cb))
 
     def get_registry_key(self, handle=0, path=""):
         """
@@ -972,9 +973,12 @@ class Speakeasy:
         """Check whether the address is reserved or mapped."""
         return self.emu.is_address_valid(address)
 
-    def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
+    def add_mem_map_hook(self, cb: MemMapHookCallback, begin=1, end=0) -> common.MapMemHook:
         """
         Set a callback to fire when a memory address is mapped.
+
+        The emulator calls ``cb(emu, base, size, tag, perms, flags)`` for each new map with a base
+        in the range. The return value is not used.
 
         Args:
             cb: Python function to call.
@@ -982,10 +986,6 @@ class Speakeasy:
             end: End of the address range to hook.
 
         Returns:
-            The hook object, or ``None`` if the emulator does not exist yet. In that case,
-            the hook is added when the emulator is created.
+            The hook object. Pass it to ``remove_hook`` to remove the hook.
         """
-        if self._emu is None:
-            self.mem_map_hooks.append((cb, begin, end))
-            return None
-        return self.emu.add_mem_map_hook(cb, begin=begin, end=end, emu=self)
+        return self._add_hook(common.MapMemHook(cb, begin, end))

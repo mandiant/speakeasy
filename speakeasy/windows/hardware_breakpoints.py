@@ -51,7 +51,7 @@ class HardwareBreakpoints:
         if thread is not None and not self.emu.is_kernel_mode:
             wanted = execute_breakpoints(thread.debug_registers)
         for address in self.hooks.keys() - wanted.keys():
-            self.emu.remove_code_hook(self.hooks.pop(address))
+            self.emu.remove_hook(self.hooks.pop(address))
         for address in wanted.keys() - self.hooks.keys():
             self.hooks[address] = self.emu.add_code_hook(self._hit, begin=address, end=address)
             # Code that already ran was translated without the hook

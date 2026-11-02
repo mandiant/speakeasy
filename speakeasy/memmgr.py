@@ -101,12 +101,13 @@ class MemoryManager:
 
     def _hook_mem_map_dispatch(self, mm):
         hl = self.hooks.get(common.HOOK_MEM_MAP, [])
-        for mem_map_hook in hl:
+        # Copy the list, because a callback can remove its hook.
+        for mem_map_hook in list(hl):
             if mem_map_hook.enabled:
                 # the mapped memory region's base address falls within the hook's bounds
                 if mem_map_hook.begin <= mm.base:
                     if not mem_map_hook.end or mem_map_hook.end > mm.base:
-                        mem_map_hook.cb(self, mm.base, mm.size, mm.tag, mm.prot, mm.flags)
+                        mem_map_hook.cb(mem_map_hook.emu, mm.base, mm.size, mm.tag, mm.prot, mm.flags)
 
     def mem_map(
         self,

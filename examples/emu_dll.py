@@ -50,7 +50,7 @@ def hook_mem_write(emu, access, address, size, value):
             end = start + mm.size
             if start < address < end:
                 # Get the assembly instruction that did the write
-                mnem, op, instr = emu.disasm(emu.reg_read("eip"), 0x20)
+                mnem, op, instr = emu.get_disasm(emu.reg_read("eip"), 0x20)
 
                 msg = f"Stack written to: instr: {instr} addr:0x{address:x}"
                 logger.info(msg)

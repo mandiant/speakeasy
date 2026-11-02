@@ -3,11 +3,13 @@
 import fnmatch
 import logging
 import math
+import multiprocessing.synchronize
 import re
 import struct
+import threading
 import traceback
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, TypeVar
 
 import capstone as cs
 
@@ -16,6 +18,17 @@ from speakeasy import common, version
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.engines import unicorn_eng
 from speakeasy.errors import CpuError
+from speakeasy.hooks import (
+    ApiHookCallback,
+    CodeHookCallback,
+    DynCodeHookCallback,
+    InHookCallback,
+    InterruptHookCallback,
+    InvalidInstructionHookCallback,
+    MemAccessHookCallback,
+    MemMapHookCallback,
+    SyscallHookCallback,
+)
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
 from speakeasy.profiler_events import StackEntry
@@ -71,6 +84,8 @@ WILDCARD_FLAG = bool
 API_LEVEL = tuple[dict[str, list[common.ApiHook]], WILDCARD_FLAG]
 MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 
+HookT = TypeVar("HookT", bound=common.Hook)
+
 
 # Generic emulator class for binary code
 class BinaryEmulator(MemoryManager, ABC):
@@ -81,11 +96,13 @@ class BinaryEmulator(MemoryManager, ABC):
         arch: Architecture constant (for example, ``ARCH_X86`` or ``ARCH_AMD64``).
         modules: Loaded modules.
         input: Input metadata dictionary, or ``None``.
+        exit_event: Event that stops the emulation when it is set, or ``None``.
     """
 
     arch: int
     modules: list[Any]
     input: dict[str, Any] | None
+    exit_event: threading.Event | multiprocessing.synchronize.Event | None
     emu_eng: unicorn_eng.EmuEngine
     disasm_eng: cs.Cs
     ptr_size: int
@@ -831,19 +848,56 @@ class BinaryEmulator(MemoryManager, ABC):
                 for func_name_saved, list_of_hooks in hooks.items():
                     if fnmatch.fnmatch(func_name, func_name_saved) and func_name != func_name_saved:
                         user_hooks.extend(list_of_hooks)
-        return user_hooks
+        return [hook for hook in user_hooks if hook.enabled]
 
-    def add_api_hook(self, cb, module="", api_name="", argc=0, call_conv=None, emu=None) -> common.ApiHook:
+    def add_hook(self, hook: HookT) -> HookT:
         """
-        Add an API level hook (for example, ``kernel32.CreateFile``).
+        Bind a hook to this emulator and add it.
 
-        When multiple hooks are registered for the same API, they run in
+        When multiple hooks are registered for the same event, they run in
         FIFO order (first registered, first called). All hooks in the chain run,
         and the return value of the last hook is used. This order applies to all
         hook types in Speakeasy.
         """
-        module = module.lower()
-        api_name = api_name.lower()
+        hook.bind(self)
+        if isinstance(hook, common.ApiHook):
+            self._add_api_hook(hook)
+        else:
+            hl = self.hooks.setdefault(hook.htype, [])
+            if not hl and hook.htype == common.HOOK_MEM_INVALID:
+                dispatch_hook = common.InvalidMemHook(self._hook_mem_invalid_dispatch, native_hook=True)
+                dispatch_hook.bind(self)
+                dispatch_hook.add()
+                hl.append(dispatch_hook)
+            hl.append(hook)
+        hook.add()
+        return hook
+
+    def remove_hook(self, hook: common.Hook) -> None:
+        """
+        Remove a hook, so that its callback is not called again.
+
+        Raises:
+            ValueError: if the emulator does not have the hook.
+        """
+        try:
+            if isinstance(hook, common.ApiHook):
+                module_dict, _ = self.hooks[common.HOOK_API]
+                api_dict, _ = module_dict[hook.module]
+                api_dict[hook.api_name].remove(hook)
+            else:
+                self.hooks[hook.htype].remove(hook)
+        except (KeyError, ValueError):
+            raise ValueError("The emulator does not have this hook") from None
+        if hook.added and hook.native_hook:
+            self.emu_eng.hook_remove(hook.handle)
+        hook.handle = 0
+        hook.added = False
+        hook.enabled = False
+
+    def _add_api_hook(self, hook: common.ApiHook) -> None:
+        module = hook.module
+        api_name = hook.api_name
 
         wildcard_module, wildcard_api = False, False
         for wc in ["?", "*", "[", "]"]:
@@ -852,9 +906,6 @@ class BinaryEmulator(MemoryManager, ABC):
             if wc in api_name:
                 wildcard_api = True
 
-        if not emu:
-            emu = self
-        hook = common.ApiHook(emu, self.emu_eng, cb, module, api_name, argc, call_conv)
         _hooks: MODULE_LEVEL | None = self.hooks.get(common.HOOK_API)
 
         api_dictionary = ({api_name: [hook]}, wildcard_api)
@@ -874,34 +925,14 @@ class BinaryEmulator(MemoryManager, ABC):
                 module_dict[module] = (api_dict, previous_wildcard_api | wildcard_api)
             obj = (module_dict, previous_wildcard_module | wildcard_module)
         self.hooks.update({common.HOOK_API: obj})
-        return hook
 
-    def add_code_hook(self, cb, begin=1, end=0, emu=None):
+    def add_api_hook(self, cb: ApiHookCallback, module="", api_name="", argc=0, call_conv=None) -> common.ApiHook:
+        """Add an API level hook (for example, ``kernel32.CreateFile``)."""
+        return self.add_hook(common.ApiHook(cb, module, api_name, argc, call_conv))
+
+    def add_code_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.CodeHook:
         """Add a hook that will fire for every CPU instruction."""
-        hl = self.hooks.get(common.HOOK_CODE, [])
-        if not emu:
-            emu = self
-        hook = common.CodeHook(self, self.emu_eng, cb, begin, end)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_CODE: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
-
-        hook.add()
-
-        return hook
-
-    def remove_code_hook(self, hook):
-        """Remove a hook that add_code_hook returned."""
-        if hook.added:
-            self.emu_eng.hook_remove(hook.handle)
-        self.hooks[common.HOOK_CODE].remove(hook)
+        return self.add_hook(common.CodeHook(cb, begin, end))
 
     def _fire_dyn_code_hooks(self, addr):
         profiler = self.get_profiler()
@@ -910,8 +941,10 @@ class BinaryEmulator(MemoryManager, ABC):
             run = self.get_current_run()
             profiler.record_dyn_code_event(run, mm.tag, mm.base, mm.size)
 
-        for h in self.hooks.get(common.HOOK_DYN_CODE, []):
-            h.cb(mm)
+        # Copy the list, because a callback can remove its hook.
+        for h in list(self.hooks.get(common.HOOK_DYN_CODE, [])):
+            if h.enabled:
+                h.cb(h.emu, mm)
 
     def _set_dyn_code_hook(self, addr, size):
         """Set the top level dispatch hook for dynamic code execution."""
@@ -928,88 +961,21 @@ class BinaryEmulator(MemoryManager, ABC):
 
         hook_ref[0] = self.add_code_hook(cb=_dynamic_code_cb, begin=addr, end=addr + size)
 
-    def add_dyn_code_hook(self, cb, emu=None):
+    def add_dyn_code_hook(self, cb: DynCodeHookCallback) -> common.DynCodeHook:
         """Add a hook that will fire when dynamically generated/copied code is executed."""
-        if not emu:
-            emu = self
-        hl = self.hooks.get(common.HOOK_DYN_CODE, [])
+        return self.add_hook(common.DynCodeHook(cb))
 
-        hook = common.DynCodeHook(emu, self.emu_eng, cb)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_DYN_CODE: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
-
-        return hook
-
-    def add_mem_read_hook(self, cb, begin=1, end=0, emu=None):
+    def add_mem_read_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.ReadMemHook:
         """Add a hook that will fire for memory reads."""
-        if not emu:
-            emu = self
-        hook = common.ReadMemHook(emu, self.emu_eng, cb, begin, end)
-        hl = self.hooks.get(common.HOOK_MEM_READ)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_MEM_READ: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
+        return self.add_hook(common.ReadMemHook(cb, begin, end))
 
-        hook.add()
-
-        return hook
-
-    def add_mem_write_hook(self, cb, begin=1, end=0, emu=None):
+    def add_mem_write_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.WriteMemHook:
         """Add a hook that will fire for memory writes."""
-        if not emu:
-            emu = self
-        hook = common.WriteMemHook(emu, self.emu_eng, cb, begin, end)
-        hl = self.hooks.get(common.HOOK_MEM_WRITE)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_MEM_WRITE: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
+        return self.add_hook(common.WriteMemHook(cb, begin, end))
 
-        hook.add()
-
-        return hook
-
-    def add_mem_map_hook(self, cb, begin=1, end=0, emu=None):
+    def add_mem_map_hook(self, cb: MemMapHookCallback, begin=1, end=0) -> common.MapMemHook:
         """Add a hook that will fire for memory maps."""
-        if not emu:
-            emu = self
-        hook = common.MapMemHook(emu, self.emu_eng, cb, begin, end)
-        hl = self.hooks.get(common.HOOK_MEM_MAP)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_MEM_MAP: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
-
-        hook.add()
-
-        return hook
+        return self.add_hook(common.MapMemHook(cb, begin, end))
 
     def _intercept_api_trap(self, access, address, size):
         return False
@@ -1023,89 +989,25 @@ class BinaryEmulator(MemoryManager, ABC):
         rv = True
         for mem_access_hook in hl[1:]:
             if mem_access_hook.enabled:
-                rv = mem_access_hook.cb(emu, access, address, size, value)
+                rv = mem_access_hook.cb(mem_access_hook.emu, access, address, size, value)
                 if rv is False:
                     break
         return rv
 
-    def add_mem_invalid_hook(self, cb, emu=None):
+    def add_mem_invalid_hook(self, cb: MemAccessHookCallback) -> common.InvalidMemHook:
         """Add a hook that will fire for invalid memory access."""
-        hook = common.InvalidMemHook(self, self.emu_eng, cb, native_hook=False)
-        hl = self.hooks.get(common.HOOK_MEM_INVALID)
-        if not emu:
-            emu = self
-        if not hl:
-            dispatch_hook = common.InvalidMemHook(emu, self.emu_eng, self._hook_mem_invalid_dispatch, native_hook=True)
-            dispatch_hook.add()
+        return self.add_hook(common.InvalidMemHook(cb))
 
-            self.hooks.update({common.HOOK_MEM_INVALID: [dispatch_hook, hook]})
-        else:
-            hl.append(hook)
-
-        hook.add()
-
-        return hook
-
-    def add_interrupt_hook(self, cb, emu=None):
+    def add_interrupt_hook(self, cb: InterruptHookCallback) -> common.InterruptHook:
         """Add a hook that will fire for software interrupts."""
-        if not emu:
-            emu = self
-        hook = common.InterruptHook(emu, self.emu_eng, cb)
-        hl = self.hooks.get(common.HOOK_INTERRUPT)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_INTERRUPT: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
+        return self.add_hook(common.InterruptHook(cb))
 
-        hook.add()
-
-        return hook
-
-    def add_instruction_hook(self, cb, begin=1, end=0, emu=None, insn=None):
+    def add_instruction_hook(
+        self, cb: InHookCallback | SyscallHookCallback, begin=1, end=0, insn=None
+    ) -> common.InstructionHook:
         """Add a hook that will fire for IN, SYSCALL, or SYSENTER instructions."""
-        if not emu:
-            emu = self
-        hook = common.InstructionHook(emu, self.emu_eng, cb, insn=insn)
-        hl = self.hooks.get(common.HOOK_INSN)
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_INSN: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
+        return self.add_hook(common.InstructionHook(cb, insn=insn))
 
-        hook.add()
-
-        return hook
-
-    def add_invalid_instruction_hook(self, cb, emu=None):
-        if not emu:
-            emu = self
-
-        hook = common.InvalidInstructionHook(emu, self.emu_eng, cb)
-        hl = self.hooks.get(common.HOOK_INSN_INVALID)
-
-        if not hl:
-            self.hooks.update(
-                {
-                    common.HOOK_INSN_INVALID: [
-                        hook,
-                    ]
-                }
-            )
-        else:
-            hl.append(hook)
-
-        hook.add()
-
-        return hook
+    def add_invalid_instruction_hook(self, cb: InvalidInstructionHookCallback) -> common.InvalidInstructionHook:
+        """Add a hook that will fire for invalid instructions."""
+        return self.add_hook(common.InvalidInstructionHook(cb))

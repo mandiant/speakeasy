@@ -29,9 +29,11 @@ class DummyHook:
         self.emu_eng = SimpleNamespace(hook_remove=lambda handle: None)
 
     def add(self):
-        self.enabled = True
         self.added = True
         self.handle = 1
+
+    def enable(self):
+        self.enabled = True
 
 
 class DummyModule:
@@ -60,7 +62,7 @@ class DummyEmulator:
         self.code_hooks.append(hook)
         return hook
 
-    def remove_code_hook(self, hook):
+    def remove_hook(self, hook):
         self.code_hooks.remove(hook)
 
     def code_hook_ranges(self):

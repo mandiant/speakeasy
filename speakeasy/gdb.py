@@ -379,7 +379,9 @@ class GdbServer:
         if hook is None:
             return
         if enabled and not hook.added:
+            # A removed hook is disabled, and add() keeps that state.
             hook.add()
+            hook.enable()
         elif not enabled and hook.added:
             # Hook.disable() still enters Python for every native event. Remove
             # the Unicorn hook entirely to avoid that callback overhead.
@@ -411,7 +413,7 @@ class GdbServer:
         for key in self._breakpoint_hooks.keys() - wanted:
             hook = self._breakpoint_hooks.pop(key)
             self._hooks.remove(hook)
-            self.emu.remove_code_hook(hook)
+            self.emu.remove_hook(hook)
         for begin, end in wanted - self._breakpoint_hooks.keys():
             hook = self.emu.add_code_hook(self._on_code, begin=begin, end=end)
             self._breakpoint_hooks[(begin, end)] = hook

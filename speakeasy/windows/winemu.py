@@ -1030,7 +1030,7 @@ class WindowsEmulator(BinaryEmulator):
         finally:
             self._finish_current_run_execution(limits, origin_run, debugger)
             if hook is not None:
-                self.remove_code_hook(hook)
+                self.remove_hook(hook)
 
     def _start_unicorn(
         self, address: int, limits: RunLimits, origin_run: Run, debugger: GdbServer | None, stepping: bool
@@ -3045,7 +3045,7 @@ class WindowsEmulator(BinaryEmulator):
             prev_ctx, self.api_ctx = self.api_ctx, ctx
             try:
                 for hook in hooks:
-                    rv = hook.cb(self, imp_api, orig, argv)
+                    rv = hook.cb(hook.emu, imp_api, orig, argv)
             finally:
                 self.api_ctx = prev_ctx
         else:
@@ -3121,7 +3121,7 @@ class WindowsEmulator(BinaryEmulator):
         call.frame.argc = hook.argc
         call.frame.convention = hook.call_conv
         self.hammer.handle_import_func(call.api_name, hook.call_conv, hook.argc)
-        rv = hook.cb(self, call.api_name, None, argv)
+        rv = hook.cb(hook.emu, call.api_name, None, argv)
         call.frame.result = rv
         ret = self.get_ret_address()
         self.log_api(call.call_pc, call.api_name, rv, sigfmt.get_slot_args(argv), run=call.run)
