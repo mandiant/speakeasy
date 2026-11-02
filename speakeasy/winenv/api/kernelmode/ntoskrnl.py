@@ -1949,9 +1949,8 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (SubAuthorityCount,) = argv
-        rv = SubAuthorityCount * 16
-
-        return rv
+        header = windefs.SID(emu.get_ptr_size(), 0)
+        return self.sizeof(header) + 4 * SubAuthorityCount
 
     @apihook("RtlInitializeSid", argc=3)
     def RtlInitializeSid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
