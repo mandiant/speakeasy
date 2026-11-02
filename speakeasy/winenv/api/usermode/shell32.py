@@ -1,5 +1,6 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 import struct
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
@@ -8,6 +9,9 @@ from speakeasy.profiler_events import PROC_CREATE
 from speakeasy.winenv.defs.windows import com
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 DLLVER_PLATFORM_NT = 2
 
@@ -147,7 +151,7 @@ class Shell32(api.ApiHandler):
         return windefs.S_OK if pidl else windefs.E_INVALIDARG
 
     @apihook("SHCreateDirectoryEx", argc=3)
-    def SHCreateDirectoryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHCreateDirectoryEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int SHCreateDirectoryEx(
             HWND hwnd,
@@ -168,7 +172,7 @@ class Shell32(api.ApiHandler):
         return 0
 
     @apihook("ShellExecute", argc=6)
-    def ShellExecute(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ShellExecute(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINSTANCE ShellExecute(
             HWND hwnd,
@@ -223,7 +227,7 @@ class Shell32(api.ApiHandler):
         return 33, proc
 
     @apihook("ShellExecuteEx", argc=1)
-    def ShellExecuteEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ShellExecuteEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ShellExecuteEx(
             SHELLEXECUTEINFO *pExecInfo
@@ -245,7 +249,7 @@ class Shell32(api.ApiHandler):
         return rv > 32
 
     @apihook("SHChangeNotify", argc=4)
-    def SHChangeNotify(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHChangeNotify(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void SHChangeNotify(
             LONG wEventId,
@@ -257,14 +261,14 @@ class Shell32(api.ApiHandler):
         return
 
     @apihook("IsUserAnAdmin", argc=0, ordinal=680)
-    def IsUserAnAdmin(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsUserAnAdmin(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsUserAnAdmin();
         """
         return emu.config.user.is_admin
 
     @apihook("SHGetMalloc", argc=1)
-    def SHGetMalloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetMalloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetMalloc(
             IMalloc **ppMalloc
@@ -281,7 +285,7 @@ class Shell32(api.ApiHandler):
         return rv
 
     @apihook("CommandLineToArgv", argc=2)
-    def CommandLineToArgv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CommandLineToArgv(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPWSTR *CommandLineToArgv(
             LPCWSTR lpCmdLine,
@@ -324,7 +328,7 @@ class Shell32(api.ApiHandler):
         return buf
 
     @apihook("ExtractIcon", argc=3)
-    def ExtractIcon(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExtractIcon(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HICON ExtractIcon(
             HINSTANCE hInst,
@@ -335,7 +339,7 @@ class Shell32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("SHGetFolderPath", argc=5)
-    def SHGetFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetFolderPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetFolderPath(
             HWND hwnd,
@@ -354,7 +358,7 @@ class Shell32(api.ApiHandler):
         return 0
 
     @apihook("SHGetFolderPathAndSubDir", argc=6)
-    def SHGetFolderPathAndSubDir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetFolderPathAndSubDir(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetFolderPathAndSubDir(
             HWND hwnd,
@@ -379,7 +383,7 @@ class Shell32(api.ApiHandler):
         return windefs.S_OK
 
     @apihook("SHGetSpecialFolderPath", argc=4)
-    def SHGetSpecialFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetSpecialFolderPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SHGetSpecialFolderPath(
             HWND hwnd,
@@ -398,7 +402,7 @@ class Shell32(api.ApiHandler):
         return 1
 
     @apihook("SHGetSpecialFolderLocation", argc=3)
-    def SHGetSpecialFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetSpecialFolderLocation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetSpecialFolderLocation(
             HWND hwnd,
@@ -410,7 +414,7 @@ class Shell32(api.ApiHandler):
         return self.write_folder_pidl(emu, csidl, ppidl, ctx)
 
     @apihook("SHGetFolderLocation", argc=5)
-    def SHGetFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetFolderLocation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetFolderLocation(
             HWND hwnd,
@@ -424,7 +428,7 @@ class Shell32(api.ApiHandler):
         return self.write_folder_pidl(emu, csidl, ppidl, ctx)
 
     @apihook("SHGetKnownFolderIDList", argc=4)
-    def SHGetKnownFolderIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetKnownFolderIDList(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetKnownFolderIDList(
             REFKNOWNFOLDERID rfid,
@@ -442,7 +446,7 @@ class Shell32(api.ApiHandler):
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
 
     @apihook("SHGetPathFromIDList", argc=2)
-    def SHGetPathFromIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetPathFromIDList(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SHGetPathFromIDList(
             PCIDLIST_ABSOLUTE pidl,
@@ -460,7 +464,7 @@ class Shell32(api.ApiHandler):
         return 1
 
     @apihook("SHGetKnownFolderPath", argc=4)
-    def SHGetKnownFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHGetKnownFolderPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetKnownFolderPath(
             REFKNOWNFOLDERID rfid,
@@ -482,7 +486,7 @@ class Shell32(api.ApiHandler):
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
 
     @apihook("DllGetVersion", argc=1)
-    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DllGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT DllGetVersion(
             DLLVERSIONINFO *pdvi
