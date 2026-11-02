@@ -297,26 +297,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return emu.get_current_thread()
         return self.get_object_from_handle(handle)
 
-    def win_perms_to_emu_perms(self, win_perms):
-        new = 0
-        if win_perms & (windefs.PAGE_EXECUTE_READWRITE | windefs.PAGE_EXECUTE_WRITECOPY):
-            new = common.PERM_MEM_RWX
-        elif win_perms & windefs.PAGE_NOACCESS:
-            new = common.PERM_MEM_NONE
-        else:
-            if win_perms & windefs.PAGE_EXECUTE or win_perms & windefs.PAGE_EXECUTE_READ:
-                new |= common.PERM_MEM_EXEC
-            if (
-                win_perms & windefs.PAGE_EXECUTE_READ
-                or win_perms & windefs.PAGE_READONLY
-                or win_perms & windefs.PAGE_READWRITE
-                or win_perms & windefs.PAGE_WRITECOPY
-            ):
-                new |= common.PERM_MEM_READ
-            if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
-                new |= common.PERM_MEM_WRITE
-        return new
-
     def emu_perms_to_win_perms(self, emu_perms):
         if emu_perms & common.PERM_MEM_WRITE:
             if emu_perms & common.PERM_MEM_EXEC:

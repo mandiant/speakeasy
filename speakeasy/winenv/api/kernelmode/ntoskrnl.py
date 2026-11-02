@@ -15,7 +15,6 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
 from speakeasy.windows import objman
@@ -54,29 +53,6 @@ class Ntoskrnl(api.ApiHandler):
 
     def set_current_irql(self, irql):
         return self.emu.set_current_irql(irql)
-
-    def win_perms_to_emu_perms(self, win_perms):
-        """
-        Maps Windows permissions to emulator engine permissions
-        """
-        new = 0
-        if win_perms & (windefs.PAGE_EXECUTE_READWRITE | windefs.PAGE_EXECUTE_WRITECOPY):
-            new = common.PERM_MEM_RWX
-        elif win_perms & windefs.PAGE_NOACCESS:
-            new = common.PERM_MEM_NONE
-        else:
-            if win_perms & windefs.PAGE_EXECUTE or win_perms & windefs.PAGE_EXECUTE_READ:
-                new |= common.PERM_MEM_EXEC
-            if (
-                win_perms & windefs.PAGE_EXECUTE_READ
-                or win_perms & windefs.PAGE_READONLY
-                or win_perms & windefs.PAGE_READWRITE
-                or win_perms & windefs.PAGE_WRITECOPY
-            ):
-                new |= common.PERM_MEM_READ
-            if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
-                new |= common.PERM_MEM_WRITE
-        return new
 
     @impdata("IoDriverObjectType")
     def IoDriverObjectType(self, ptr):
