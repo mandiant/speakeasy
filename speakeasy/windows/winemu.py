@@ -630,7 +630,7 @@ class WindowsEmulator(BinaryEmulator):
         The range stays unmapped so that a return to the return hook faults.
         """
         base, total = super().get_valid_ranges(size, addr=addr)
-        if base < winemu.EMU_RESERVED_END and winemu.EMU_RESERVED < base + total:
+        if base < winemu.EMU_RESERVED_END and base + total > winemu.EMU_RESERVED:
             base, total = super().get_valid_ranges(size, addr=winemu.EMU_RESERVED_END)
         return base, total
 
@@ -1517,7 +1517,7 @@ class WindowsEmulator(BinaryEmulator):
 
         # x86 user mode uses the selectors of native 32-bit Windows: CS 0x1B, DS and ES 0x23, FS 0x3B.
         # SS stays a ring 0 selector because Unicorn runs the guest at CPL 0 and rejects an RPL 3 SS.
-        native_x86 = _arch.ARCH_X86 == arch and not self.is_kernel_mode
+        native_x86 = arch == _arch.ARCH_X86 and not self.is_kernel_mode
         data_index, code_index, fs_index = (4, 3, 7) if native_x86 else (16, 17, 19)
 
         gdt_addr, gdt_size = self.get_valid_ranges(GDT_SIZE)
@@ -1545,7 +1545,7 @@ class WindowsEmulator(BinaryEmulator):
         self.reg_write(_arch.X86_REG_SS, selector)
 
         teb_addr = None if self.is_kernel_mode else winemu.TEB_ADDRESS
-        if _arch.ARCH_X86 == arch:
+        if arch == _arch.ARCH_X86:
             # FS segment needed for PEB access at fs:[0x30]
             fs_addr, fs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(fs_size, base=fs_addr, tag="emu.segment.fs")
@@ -1556,7 +1556,7 @@ class WindowsEmulator(BinaryEmulator):
             selector = _create_selector(fs_index, winemu.GDT_FLAGS.Ring3)
             self.reg_write(_arch.X86_REG_FS, selector)
 
-        elif _arch.ARCH_AMD64 == arch:
+        elif arch == _arch.ARCH_AMD64:
             # GS Segment needed for PEB access at gs:[0x60]
             gs_addr, gs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(gs_size, base=gs_addr, tag="emu.segment.gs")

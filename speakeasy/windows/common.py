@@ -165,7 +165,7 @@ class _PeParser(pefile.PE):
     def __init__(self, path=None, data=None, emu_path="", fast_load=False):
         super().__init__(name=path, data=data, fast_load=fast_load)
 
-        if 0 == self.OPTIONAL_HEADER.ImageBase:
+        if self.OPTIONAL_HEADER.ImageBase == 0:
             self.relocate_image(DEFAULT_LOAD_ADDR)
             super().__init__(name=None, data=self.write())
 

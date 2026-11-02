@@ -230,9 +230,7 @@ class AdvApi32(api.ApiHandler):
         value_data: str | int | bytes = ""
         if lpData and cbData:
             raw = self.mem_read(lpData, cbData)
-            if dwType in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ):
-                value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
-            elif dwType == regdefs.REG_MULTI_SZ:
+            if dwType in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ):
                 value_data = raw.decode("utf-16le" if cw == 2 else "utf-8", errors="ignore").rstrip("\x00")
             elif dwType == regdefs.REG_DWORD:
                 value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")

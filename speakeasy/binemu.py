@@ -257,7 +257,7 @@ class BinaryEmulator(MemoryManager, ABC):
     def get_register_state(self) -> dict[str, str]:
         """Get the current state of registers from the emulator."""
         regs = {}
-        if e_arch.ARCH_X86 == self.get_arch():
+        if self.get_arch() == e_arch.ARCH_X86:
             for name, reg in (
                 ("esp", e_arch.X86_REG_ESP),
                 ("ebp", e_arch.X86_REG_EBP),
@@ -271,7 +271,7 @@ class BinaryEmulator(MemoryManager, ABC):
             ):
                 val = self.reg_read(reg)
                 regs[name] = "{0:#0{1}x}".format(val, 2 + (self.get_ptr_size() * 2))
-        elif e_arch.ARCH_AMD64 == self.get_arch():
+        elif self.get_arch() == e_arch.ARCH_AMD64:
             for name, reg in (
                 ("rsp", e_arch.AMD64_REG_RSP),
                 ("rbp", e_arch.AMD64_REG_RBP),
