@@ -15,6 +15,7 @@ from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType
+from speakeasy.report import EntryPointType
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -413,11 +414,11 @@ class ApiHandler:
     def write_string(self, string, addr):
         return self.write_mem_string(string, addr, width=1)
 
-    def queue_run(self, run_type, ep, run_args=None):
+    def queue_run(self, run_type, ep, run_args=None, name=None):
         if run_args is None:
             run_args = []
         run = Run()
-        if not isinstance(run_type, str):
+        if not isinstance(run_type, EntryPointType):
             raise ApiEmuError("Invalid run type")
         if not isinstance(ep, int):
             raise ApiEmuError("Invalid run entry point")
@@ -425,6 +426,7 @@ class ApiHandler:
             raise ApiEmuError("Invalid run args")
 
         run.type = run_type
+        run.name = name
         run.start_addr = ep
         run.args = run_args
         self.emu.add_run(run)
@@ -531,8 +533,8 @@ class ApiHandler:
     def write_ptr(self, addr: int, value: int) -> None:
         self.mem_write(addr, value.to_bytes(self.ptr_size, "little"))
 
-    def create_thread(self, addr, ctx, hproc, thread_type="thread", is_suspended=False):
-        return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type, is_suspended=is_suspended)
+    def create_thread(self, addr, ctx, hproc, name=None, is_suspended=False):
+        return self.emu.create_thread(addr, ctx, hproc, name=name, is_suspended=is_suspended)
 
     def get_object_from_id(self, id):
         return self.emu.get_object_from_id(id)

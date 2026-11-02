@@ -17,7 +17,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import EventType
-from speakeasy.report import ErrorType
+from speakeasy.report import EntryPointType, ErrorType
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
@@ -911,7 +911,7 @@ class Ntoskrnl(api.ApiHandler):
         if ProcessHandle and not proc_obj:
             return ddk.STATUS_INVALID_HANDLE
 
-        handle, obj = self.create_thread(StartRoutine, StartContext, proc_obj, thread_type="system_thread")
+        handle, obj = self.create_thread(StartRoutine, StartContext, proc_obj)
 
         self.write_ptr(ThreadHandle, handle)
 
@@ -1595,7 +1595,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         DriverObject, DriverReinitializationRoutine, Context = argv
 
-        self.queue_run("driver_reinit", DriverReinitializationRoutine, (DriverObject, Context, 1))
+        self.queue_run(EntryPointType.DRIVER_REINIT, DriverReinitializationRoutine, (DriverObject, Context, 1))
 
     @apihook("KdDisableDebugger", argc=0)
     def KdDisableDebugger(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

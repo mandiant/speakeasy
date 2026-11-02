@@ -25,10 +25,10 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(TAEF_COMMON))
         se.run_module(module, all_entrypoints=True)
-        runs = [ep for ep in se.get_report().entry_points if ep.ep_type.startswith("export.")]
+        runs = [ep for ep in se.get_report().entry_points if ep.type == "export"]
 
     assert len(runs) == 10
-    assert all(run.ep_type.startswith("export.??0?$TestDataArray@") for run in runs)
+    assert all(run.name.startswith("??0?$TestDataArray@") for run in runs)
     assert [run.error for run in runs] == [None] * 10
     assert runs[0].ret_val
     assert {run.ret_val for run in runs} == {runs[0].ret_val}

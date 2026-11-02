@@ -1465,7 +1465,7 @@ def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
 ) -> None:
     entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
-    assert [(entry.ep_type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
+    assert [(entry.type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
     assert entries[0].ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"
     failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].ret_val & bit]
     assert not failed

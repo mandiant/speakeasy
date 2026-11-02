@@ -5,6 +5,7 @@ import unicorn as uc
 
 from speakeasy import Speakeasy, common
 from speakeasy.profiler import Run
+from speakeasy.report import EntryPointType
 
 
 @pytest.fixture(params=["dll_emu", "dll64_emu"])
@@ -20,7 +21,8 @@ def api_emu(request):
 def queue_run(emu, address, name):
     run = Run()
     run.start_addr = address
-    run.type = name
+    run.type = EntryPointType.CALL
+    run.name = name
     run.args = []
     emu.add_run(run)
     return run

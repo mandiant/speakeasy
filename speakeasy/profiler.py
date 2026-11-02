@@ -48,6 +48,7 @@ from speakeasy.report import (
     DroppedFile,
     DynamicCodeSegment,
     EntryPoint,
+    EntryPointType,
     ErrorInfo,
     LoadedModule,
     MemoryAccesses,
@@ -145,7 +146,8 @@ class Run:
         self.args: list[Any] | tuple[Any, ...] | None = None
         self.registers: dict[int, int] = {}
         self.start_addr: int | None = None
-        self.type: str | int | None = None
+        self.type: EntryPointType | None = None
+        self.name: str | None = None
         self.error: ErrorInfo | None = None
         self.num_apis: int = 0
         self.coverage: set[int] = set()
@@ -155,6 +157,11 @@ class Run:
     def get_api_count(self):
         """Get the number of APIs that the run called."""
         return self.num_apis
+
+    def get_label(self) -> str:
+        """Get the type and the name of the run for log messages, for example ``export DllRegisterServer``."""
+        kind = self.type.value if self.type is not None else "unknown"
+        return f"{kind} {self.name}" if self.name else kind
 
 
 class Profiler:
@@ -672,26 +679,19 @@ class Profiler:
         entry_points = []
 
         for r in self.runs:
-            args: list[Any] = []
-            for a in r.args or []:
-                if isinstance(a, int):
-                    args.append(hex(a))
-                else:
-                    args.append(a)
-
             error_info = r.error
 
             events = None
             if r.events:
                 events = list(r.events)
 
-            sym_accesses: list[SymAccessReport] | None = None
+            symbol_accesses: list[SymAccessReport] | None = None
             if r.sym_access:
-                sym_accesses = []
+                symbol_accesses = []
                 for maccess in r.sym_access.values():
                     if maccess.sym is None:
                         continue
-                    sym_accesses.append(
+                    symbol_accesses.append(
                         SymAccessReport(
                             symbol=maccess.sym,
                             reads=maccess.reads,
@@ -699,8 +699,8 @@ class Profiler:
                             execs=maccess.execs,
                         )
                     )
-                if not sym_accesses:
-                    sym_accesses = None
+                if not symbol_accesses:
+                    symbol_accesses = None
 
             dyn_code_segments = None
             if r.dyn_code and r.dyn_code.get("mmap"):
@@ -768,18 +768,21 @@ class Profiler:
 
             if r.start_addr is None:
                 raise SpeakeasyError("run has no start address")
+            if r.type is None:
+                raise SpeakeasyError("run has no type")
             ep = EntryPoint(
-                ep_type=str(r.type) if r.type is not None else "",
-                start_addr=r.start_addr,
-                ep_args=args,
+                type=r.type,
+                name=r.name,
+                start_address=r.start_addr,
+                args=list(r.args or []),
                 pid=ep_pid,
                 tid=ep_tid,
-                instr_count=r.instr_cnt if r.instr_cnt else None,
-                apihash=r.api_hash.hexdigest(),
+                instruction_count=r.instr_cnt if r.instr_cnt else None,
+                api_hash=r.api_hash.hexdigest(),
                 ret_val=r.ret_val,
                 error=error_info,
                 events=events,
-                sym_accesses=sym_accesses,
+                symbol_accesses=symbol_accesses,
                 dynamic_code_segments=dyn_code_segments,
                 coverage=sorted(r.coverage) if r.coverage else None,
                 dropped_files=dropped_files,

@@ -287,7 +287,7 @@ def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
     assert api_names(main)[-3:] == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject", "ntdll.NtTerminateProcess"]
     create = next(e for e in main.events if e.event == "api" and e.api_name == "ntdll.NtCreateThreadEx")
     start_routine = create.args[4].value
-    assert [(thread.ep_type, thread.start_addr) for thread in threads] == [("thread", start_routine)]
+    assert [(thread.type, thread.start_address) for thread in threads] == [("thread", start_routine)]
     assert api_names(threads[0])[:2] == ["kernel32.LoadLibraryA", "wininet.InternetOpenA"]
 
 

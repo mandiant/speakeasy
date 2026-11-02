@@ -9,15 +9,13 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
+from speakeasy.report import EntryPointType
 from speakeasy.windows import objman
 from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
-
-EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
-EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
 
 
 class WinKernelEmulator(WindowsEmulator):
@@ -219,7 +217,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         if entry_point is not None or module.ep > 0:
             run = Run()
-            run.type = EP_DRIVER_ENTRY
+            run.type = EntryPointType.DRIVER_ENTRY
             run.start_addr = ep
             run.instr_cnt = 0
             run.args = [drv.address, drv.reg_path_ptr]
@@ -234,11 +232,8 @@ class WinKernelEmulator(WindowsEmulator):
                 args = [self.mem_map(8, tag=f"emu.export_arg_{i}") for i in range(4)]
                 for exp in exports:
                     run = Run()
-                    if exp.name:
-                        fn = exp.name
-                    else:
-                        fn = "no_name"
-                    run.type = f"export.{fn}"
+                    run.type = EntryPointType.EXPORT
+                    run.name = exp.name or None
                     run.start_addr = exp.address
                     # Here we set dummy args to pass into the export function
                     run.args = args
@@ -373,7 +368,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.set_pc(drv.on_unload)
 
         run = Run()
-        run.type = EP_DRIVER_UNLOAD
+        run.type = EntryPointType.DRIVER_UNLOAD
         run.start_addr = drv.on_unload
         run.instr_cnt = 0
         run.args = (drv.address,)
@@ -401,18 +396,18 @@ class WinKernelEmulator(WindowsEmulator):
             dev = drv.devices[0]
 
         # Run any remaining IRP handlers
-        for hdlr, i in (
-            (self.irp_mj_create, ddk.IRP_MJ_CREATE),
-            (self.irp_mj_dev_io, ddk.IRP_MJ_DEVICE_CONTROL),
-            (self.irp_mj_read, ddk.IRP_MJ_READ),
-            (self.irp_mj_write, ddk.IRP_MJ_WRITE),
-            (self.irp_mj_close, ddk.IRP_MJ_CLOSE),
-            (self.irp_mj_cleanup, ddk.IRP_MJ_CLEANUP),
+        for hdlr, major, irp_name in (
+            (self.irp_mj_create, ddk.IRP_MJ_CREATE, "IRP_MJ_CREATE"),
+            (self.irp_mj_dev_io, ddk.IRP_MJ_DEVICE_CONTROL, "IRP_MJ_DEVICE_CONTROL"),
+            (self.irp_mj_read, ddk.IRP_MJ_READ, "IRP_MJ_READ"),
+            (self.irp_mj_write, ddk.IRP_MJ_WRITE, "IRP_MJ_WRITE"),
+            (self.irp_mj_close, ddk.IRP_MJ_CLOSE, "IRP_MJ_CLOSE"),
+            (self.irp_mj_cleanup, ddk.IRP_MJ_CLEANUP, "IRP_MJ_CLEANUP"),
         ):
             # Did we run this mj func yet?
-            if i not in [r.type for r in self.runs]:
+            if not any(r.type == EntryPointType.IRP and r.name == irp_name for r in self.runs):
                 func_handler = hdlr
-                func_addr = int(drv.mj_funcs[i])
+                func_addr = int(drv.mj_funcs[major])
 
                 if not func_addr:
                     continue
@@ -430,7 +425,8 @@ class WinKernelEmulator(WindowsEmulator):
         irp = func_handler(func_addr, dev)
 
         run = Run()
-        run.type = i
+        run.type = EntryPointType.IRP
+        run.name = irp_name
         run.start_addr = func_addr
         run.instr_cnt = 0
         run.args = (dev.address, irp.address)
@@ -488,30 +484,6 @@ class WinKernelEmulator(WindowsEmulator):
         if mod:
             return mod
         raise KernelEmuError("Failed to get kernel base")
-
-    def _set_entry_point_names(self):
-        run_types: dict[str | int | None, str] = {
-            ddk.IRP_MJ_CREATE: "irp_mj_create",
-            ddk.IRP_MJ_DEVICE_CONTROL: "irp_mj_device_control",
-            ddk.IRP_MJ_READ: "irp_mj_read",
-            ddk.IRP_MJ_WRITE: "irp_mj_write",
-            ddk.IRP_MJ_CLOSE: "irp_mj_close",
-            ddk.IRP_MJ_CLEANUP: "irp_mj_cleanup",
-            EP_DRIVER_ENTRY: "entry_point",
-            EP_DRIVER_UNLOAD: "driver_unload",
-        }
-        for r in self.runs:
-            if not r.type or run_types.get(r.type):
-                r.type = run_types.get(r.type, "unk")
-
-    def get_report(self):
-        """Retrieve the execution profile for the emulator."""
-        self._set_entry_point_names()
-        return super().get_report()
-
-    def get_json_report(self):
-        self._set_entry_point_names()
-        return super().get_json_report()
 
     def get_ssdt_ptr(self):
         return self.ssdt_ptr

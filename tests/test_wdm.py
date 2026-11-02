@@ -53,26 +53,39 @@ def test_wdm_driver_load_unload(wdm_report):
     assert delete_dev.args[0].display != "0x0"
 
 
+def test_wdm_entry_points_name_each_driver_routine(wdm_report):
+    assert [(ep.type, ep.name) for ep in wdm_report.entry_points] == [
+        ("driver_entry", None),
+        ("irp", "IRP_MJ_CREATE"),
+        ("irp", "IRP_MJ_DEVICE_CONTROL"),
+        ("irp", "IRP_MJ_READ"),
+        ("irp", "IRP_MJ_WRITE"),
+        ("irp", "IRP_MJ_CLOSE"),
+        ("irp", "IRP_MJ_CLEANUP"),
+        ("driver_unload", None),
+    ]
+
+
 def test_wdm_irp_handlers(wdm_report):
     eps = wdm_report.entry_points
 
-    irp_handlers = [ep for ep in eps if ep.ep_type.startswith("irp_")]
+    irp_handlers = [ep for ep in eps if ep.type == "irp"]
     assert len(irp_handlers) == 6
 
     for handler in irp_handlers:
-        if handler.ep_type == "irp_mj_create":
+        if handler.name == "IRP_MJ_CREATE":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside IRP_MJ_CREATE handler"
             assert handler.ret_val == 0
-        elif handler.ep_type == "irp_mj_device_control":
+        elif handler.name == "IRP_MJ_DEVICE_CONTROL":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside IRP_MJ_DEVICE_CONTROL handler"
             assert handler.ret_val == 0
-        elif handler.ep_type == "irp_mj_close":
+        elif handler.name == "IRP_MJ_CLOSE":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]

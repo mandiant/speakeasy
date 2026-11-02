@@ -211,20 +211,23 @@ Here is a real `entry_points` excerpt from a run of `dll_test_x86.dll` with `all
 ```json
 [
   {
-    "ep_type": "dll_entry.DLL_PROCESS_ATTACH",
-    "start_addr": "0x10001383",
+    "type": "dll_entry",
+    "name": "DLL_PROCESS_ATTACH",
+    "start_address": "0x10001383",
     "pid": 1056,
     "tid": 1076
   },
   {
-    "ep_type": "export.emu_test_one",
-    "start_addr": "0x10001030",
+    "type": "export",
+    "name": "emu_test_one",
+    "start_address": "0x10001030",
     "pid": 1056,
     "tid": 1200
   },
   {
-    "ep_type": "export.emu_test_two",
-    "start_addr": "0x10001050",
+    "type": "export",
+    "name": "emu_test_two",
+    "start_address": "0x10001050",
     "pid": 1056,
     "tid": 1212
   }

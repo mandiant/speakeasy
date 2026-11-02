@@ -53,7 +53,7 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
     )
 
     report = json.loads(output.read_text())
-    assert [(ep["ep_type"], ep["error"]["type"]) for ep in report["entry_points"]] == [
+    assert [(ep["type"], ep["error"]["type"]) for ep in report["entry_points"]] == [
         ("module_entry", "timeout"),
         ("thread", "timeout"),
     ]

@@ -20,14 +20,31 @@ The examples use JSONC for explanation. Remove comments for machine parsing.
 - `entry_points`: one per run (`Run` object) in execution order.
 
 Entry-point highlights:
-- `apihash`: SHA-256 over unique API names, lowercased, first-seen order.
+- `type` and `name`: the kind of code that the run executes, and a detail for that kind. The JSON report leaves out `name` when the kind has no detail (`None` in Python). See the table below.
+- `api_hash`: SHA-256 over unique API names, lowercased, first-seen order.
 - `events`: built by profiler recorders (`record_api_event`, `record_file_access_event`, `record_process_event`, `record_registry_access_event`, `record_dns_event`, `record_http_event`, `record_network_event`, `record_exception_event`).
-- `sym_accesses`: populated from memory-tracing symbol counters.
+- `symbol_accesses`: populated from memory-tracing symbol counters.
 - `dynamic_code_segments`: populated when dynamically mapped code executes.
-- `coverage`: populated only if `analysis.coverage=true`.
+- `coverage`: executed instruction addresses as hex strings, populated only if `analysis.coverage=true`.
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
 - `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
+
+| `type` | `name` |
+|---|---|
+| `module_entry` | none |
+| `dll_entry` | `DLL_PROCESS_ATTACH` |
+| `tls_callback` | index of the callback in the TLS callback array, for example `0` |
+| `export` | export name, or none for an export without a name |
+| `shellcode` | none |
+| `thread` | none for a thread in the same process, the process name for a thread in another process, `apc` for a `QueueUserAPC` routine |
+| `service_main` | service name from `StartServiceCtrlDispatcher` |
+| `dependency_dll_entry`, `dependency_tls_callback` | name of the DLL that the process loaded |
+| `call` | none (`Speakeasy.call` started the run) |
+| `driver_entry`, `driver_unload`, `driver_reinit` | none |
+| `irp` | IRP major function, for example `IRP_MJ_DEVICE_CONTROL` |
+
+The schema also has the type `callback`, which Speakeasy does not set.
 
 An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value`,
 and `display`. When the signature database declares the function and its prototype consumes
@@ -76,7 +93,7 @@ thread, even for a local create.
 
 - top-level `strings` is controlled by `--analysis-strings` / `--no-analysis-strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
 - `entry_points[*].coverage` is populated by `--analysis-coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
-- `entry_points[*].sym_accesses` and `entry_points[*].memory.layout[*].accesses` are populated by `--analysis-memory-tracing` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
+- `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` are populated by `--analysis-memory-tracing` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
 - `entry_points[*].memory.layout[*].data_ref` is populated by `--snapshot-memory-regions` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
 - `entry_points[*].dropped_files[*].data_ref` resolves through the top-level `data` store; large files keep metadata only. Dropped-files archive export is still available via `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 - report-wide binary payload deduplication lives in the top-level `data` mapping, keyed by SHA-256.
@@ -126,24 +143,24 @@ thread, even for a local create.
 
   "entry_points": [
     {
-      // Execution primitive label.
-      "ep_type": "module_entry",
+      // Kind of code that this run executes. A module_entry run has no name.
+      "type": "module_entry",
 
       // Address where this run started.
-      "start_addr": "0x401000",
+      "start_address": "0x401000",
 
-      // Entry arguments, integers usually hex-encoded.
-      "ep_args": ["0x1", "0x2"],
+      // Entry arguments.
+      "args": ["0x1", "0x2"],
 
       // Process/thread context when known.
       "pid": 1337,
       "tid": 2000,
 
       // Total instructions executed by this run.
-      "instr_count": 12345,
+      "instruction_count": 12345,
 
       // Hash over unique API names called in this run.
-      "apihash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "api_hash": "2222222222222222222222222222222222222222222222222222222222222222",
 
       // Return value of the run entry point.
       "ret_val": "0x0",
@@ -387,7 +404,7 @@ thread, even for a local create.
       ],
 
       // Symbol-level R/W/X counts, typically from memory tracing.
-      "sym_accesses": [
+      "symbol_accesses": [
         {
           "symbol": "kernel32.LoadLibraryA",
           "reads": 1,
@@ -406,7 +423,7 @@ thread, even for a local create.
       ],
 
       // Instruction addresses executed when coverage is enabled.
-      "coverage": [4198400, 4198405, 4198410],
+      "coverage": ["0x401000", "0x401005", "0x40100a"],
 
       // Files fully written during the run.
       "dropped_files": [
@@ -472,10 +489,10 @@ thread, even for a local create.
   "filetype": "exe",
   "entry_points": [
     {
-      "ep_type": "module_entry",
-      "start_addr": "0x401000",
-      "ep_args": [],
-      "apihash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "type": "module_entry",
+      "start_address": "0x401000",
+      "args": [],
+      "api_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ]
 }
@@ -503,18 +520,18 @@ thread, even for a local create.
 
   "entry_points": [
     {
-      // This run started at the module entrypoint.
-      "ep_type": "module_entry",
+      // This run started at the module entrypoint. A module_entry run has no name.
+      "type": "module_entry",
 
       // Entry virtual address where execution began.
-      "start_addr": "0x401000",
+      "start_address": "0x401000",
 
       // No explicit entry args in this minimal case.
-      "ep_args": [],
+      "args": [],
 
       // SHA-256 of unique API names called in order.
       // e3b0... means no API events were recorded for this run.
-      "apihash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "api_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ]
 }

@@ -27,7 +27,7 @@ def exceptions(run):
 
 
 def module_entry(se):
-    return next(e for e in se.get_report().entry_points if e.ep_type == "module_entry")
+    return next(e for e in se.get_report().entry_points if e.type == "module_entry")
 
 
 def run_span(se, module, start, stop):

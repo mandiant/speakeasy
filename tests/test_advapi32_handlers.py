@@ -973,7 +973,7 @@ def test_start_service_ctrl_dispatcher_ends_the_table_at_a_bad_entry(
     rv, _ = call(se, "advapi32", "StartServiceCtrlDispatcherW", [table])
 
     assert rv
-    assert [(r.type, r.start_addr) for r in se.emu.run_queue] == [("thread.service", service_main)]
+    assert [(r.type, r.name, r.start_addr) for r in se.emu.run_queue] == [("service_main", "svc", service_main)]
 
 
 @pytest.mark.parametrize(

@@ -79,7 +79,7 @@ def vectored_handler_x86(data, step):
 
 
 def module_entry(se):
-    return next(e for e in se.get_report().entry_points if e.ep_type == "module_entry")
+    return next(e for e in se.get_report().entry_points if e.type == "module_entry")
 
 
 def run_under_handler(config, arch, insn, step):
@@ -330,9 +330,7 @@ def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(MEMCPY_PAST_ARGS))
         se.run_module(module, all_entrypoints=True)
-        run = next(
-            ep for ep in se.get_report().entry_points if ep.ep_type == "export.??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z"
-        )
+        run = next(ep for ep in se.get_report().entry_points if ep.name == "??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z")
         first_unmapped = se.get_address_map(0x41424000)
 
     assert [e.api_name for e in run.events or [] if e.event == "api"] == ["msvcrt.memcpy"]
@@ -513,8 +511,8 @@ def test_run_after_a_fastfail_runs_once(config, load_test_bin):
         se.run_module(module, all_entrypoints=True)
         dll_main, export = se.get_report().entry_points[:2]
 
-    assert dll_main.ep_type == "dll_entry.DLL_PROCESS_ATTACH"
+    assert (dll_main.type, dll_main.name) == ("dll_entry", "DLL_PROCESS_ATTACH")
     assert (dll_main.error.type, dll_main.error.interrupt_num) == ("unhandled_interrupt", 0x29)
-    assert export.ep_type == "export.?RdvServiceMain@@YAXPEAX0K0K@Z"
+    assert (export.type, export.name) == ("export", "?RdvServiceMain@@YAXPEAX0K0K@Z")
     assert [e.api_name for e in export.events or [] if e.event == "api"] == ["kernel32.VirtualAlloc"]
     assert (export.error.type, export.error.pc, export.error.address) == ("invalid_read", module.base + 0x12276, 0xC)

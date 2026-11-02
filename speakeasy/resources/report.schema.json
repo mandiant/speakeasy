@@ -279,20 +279,34 @@
       "additionalProperties": false,
       "description": "Represents one emulation execution primitive captured as a run.\n\nA run may be a module entry point, callback, exported function, injected\nthread, or other execution start context.\n\nMost behavioral telemetry is attached at this level, so treat each entry as\na self-contained execution narrative.",
       "properties": {
-        "ep_type": {
-          "description": "Execution primitive label for this run.\n\nExamples include module entry, export callbacks, and thread contexts.",
-          "title": "Ep Type",
-          "type": "string"
+        "type": {
+          "$ref": "#/$defs/EntryPointType",
+          "description": "Kind of code that this run executes.\n\nExamples include the module entry point, an export, a TLS callback, and a thread."
         },
-        "start_addr": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Detail for ``type``, or null when the type has no detail.\n\nFor example the export name, the TLS callback index, the dependency module, or the IRP major function.",
+          "title": "Name"
+        },
+        "start_address": {
           "description": "Address where this run began executing.\n\nUse this as the anchor when following control flow in disassembly.",
-          "title": "Start Addr",
+          "title": "Start Address",
           "type": "string"
         },
-        "ep_args": {
-          "description": "Argument values supplied at run entry.\n\nInteger arguments are serialized as hex strings for readability.",
-          "items": {},
-          "title": "Ep Args",
+        "args": {
+          "description": "Argument values supplied at run entry.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
           "type": "array"
         },
         "pid": {
@@ -321,7 +335,7 @@
           "description": "Thread identifier associated with the run context.\n\nUseful for correlating with per-event ``pos.tid`` values.",
           "title": "Tid"
         },
-        "instr_count": {
+        "instruction_count": {
           "anyOf": [
             {
               "type": "integer"
@@ -332,12 +346,12 @@
           ],
           "default": null,
           "description": "Instruction count executed for this run.\n\nCan be limited by configuration caps or early termination conditions.",
-          "title": "Instr Count"
+          "title": "Instruction Count"
         },
-        "apihash": {
+        "api_hash": {
           "default": "",
           "description": "SHA-256 hash over unique API names invoked in first-seen order.\n\nUse this for coarse behavioral clustering across samples and architectures.",
-          "title": "Apihash",
+          "title": "Api Hash",
           "type": "string"
         },
         "ret_val": {
@@ -350,7 +364,7 @@
             }
           ],
           "default": null,
-          "description": "Return value produced when the run ended normally.\n\nInterpret this in the calling convention context of ``ep_type``.",
+          "description": "Return value produced when the run ended normally.\n\nInterpret this in the calling convention context of ``type``.",
           "title": "Ret Val"
         },
         "error": {
@@ -499,7 +513,7 @@
           "description": "Chronological event stream emitted during this run.\n\nEvent contents are produced by API, process, file, registry, network, and exception recorders.",
           "title": "Events"
         },
-        "sym_accesses": {
+        "symbol_accesses": {
           "anyOf": [
             {
               "items": {
@@ -513,7 +527,7 @@
           ],
           "default": null,
           "description": "Symbol-level access counters observed during tracing.\n\nTypically populated when memory tracing hooks are active.",
-          "title": "Sym Accesses"
+          "title": "Symbol Accesses"
         },
         "dynamic_code_segments": {
           "anyOf": [
@@ -535,7 +549,7 @@
           "anyOf": [
             {
               "items": {
-                "type": "integer"
+                "type": "string"
               },
               "type": "array"
             },
@@ -577,11 +591,33 @@
         }
       },
       "required": [
-        "ep_type",
-        "start_addr"
+        "type",
+        "start_address"
       ],
       "title": "EntryPoint",
       "type": "object"
+    },
+    "EntryPointType": {
+      "description": "Kind of code that a run executes.",
+      "enum": [
+        "module_entry",
+        "dll_entry",
+        "tls_callback",
+        "export",
+        "shellcode",
+        "thread",
+        "service_main",
+        "dependency_dll_entry",
+        "dependency_tls_callback",
+        "call",
+        "callback",
+        "driver_entry",
+        "driver_unload",
+        "driver_reinit",
+        "irp"
+      ],
+      "title": "EntryPointType",
+      "type": "string"
     },
     "ErrorInfo": {
       "additionalProperties": false,

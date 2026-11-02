@@ -1155,7 +1155,7 @@ def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
         se.run_shellcode(_load_patch_own_page(se))
         (run,) = se.get_report().entry_points
         assert run.error is None
-        count = run.instr_count
+        count = run.instruction_count
 
     # The limit that the run without a debugger needs exactly
     config["max_instructions"] = count
@@ -1169,7 +1169,7 @@ def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
             assert client.continue_().startswith("T05")
             assert client.continue_() == "W00"
         (run,) = se.get_report().entry_points
-        assert (run.error, run.instr_count) == (None, count)
+        assert (run.error, run.instruction_count) == (None, count)
 
 
 # mov ecx, 0x20000; loop: mov [scratch], ecx; dec ecx; jnz loop; ret

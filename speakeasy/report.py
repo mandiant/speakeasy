@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -514,6 +513,26 @@ class MemoryLayout(BaseModel):
     )
 
 
+class EntryPointType(str, Enum):
+    """Kind of code that a run executes."""
+
+    MODULE_ENTRY = "module_entry"
+    DLL_ENTRY = "dll_entry"
+    TLS_CALLBACK = "tls_callback"
+    EXPORT = "export"
+    SHELLCODE = "shellcode"
+    THREAD = "thread"
+    SERVICE_MAIN = "service_main"
+    DEPENDENCY_DLL_ENTRY = "dependency_dll_entry"
+    DEPENDENCY_TLS_CALLBACK = "dependency_tls_callback"
+    CALL = "call"
+    CALLBACK = "callback"
+    DRIVER_ENTRY = "driver_entry"
+    DRIVER_UNLOAD = "driver_unload"
+    DRIVER_REINIT = "driver_reinit"
+    IRP = "irp"
+
+
 class EntryPoint(BaseModel):
     """
     Represents one emulation execution primitive captured as a run.
@@ -527,23 +546,28 @@ class EntryPoint(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    ep_type: str = Field(
+    type: EntryPointType = Field(
         description=(
-            "Execution primitive label for this run.\n\n"
-            "Examples include module entry, export callbacks, and thread contexts."
+            "Kind of code that this run executes.\n\n"
+            "Examples include the module entry point, an export, a TLS callback, and a thread."
         )
     )
-    start_addr: HexInt = Field(
+    name: str | None = Field(
+        default=None,
+        description=(
+            "Detail for ``type``, or null when the type has no detail.\n\n"
+            "For example the export name, the TLS callback index, the dependency module, or the IRP major function."
+        ),
+    )
+    start_address: HexInt = Field(
         description=(
             "Address where this run began executing.\n\n"
             "Use this as the anchor when following control flow in disassembly."
         )
     )
-    ep_args: list[Any] = Field(
+    args: list[HexInt] = Field(
         default_factory=list,
-        description=(
-            "Argument values supplied at run entry.\n\nInteger arguments are serialized as hex strings for readability."
-        ),
+        description="Argument values supplied at run entry.",
     )
     pid: int | None = Field(
         default=None,
@@ -559,14 +583,14 @@ class EntryPoint(BaseModel):
             "Useful for correlating with per-event ``pos.tid`` values."
         ),
     )
-    instr_count: int | None = Field(
+    instruction_count: int | None = Field(
         default=None,
         description=(
             "Instruction count executed for this run.\n\n"
             "Can be limited by configuration caps or early termination conditions."
         ),
     )
-    apihash: str = Field(
+    api_hash: str = Field(
         default="",
         description=(
             "SHA-256 hash over unique API names invoked in first-seen order.\n\n"
@@ -577,7 +601,7 @@ class EntryPoint(BaseModel):
         default=None,
         description=(
             "Return value produced when the run ended normally.\n\n"
-            "Interpret this in the calling convention context of ``ep_type``."
+            "Interpret this in the calling convention context of ``type``."
         ),
     )
     error: ErrorInfo | None = Field(
@@ -595,7 +619,7 @@ class EntryPoint(BaseModel):
             "and exception recorders."
         ),
     )
-    sym_accesses: list[SymAccessReport] | None = Field(
+    symbol_accesses: list[SymAccessReport] | None = Field(
         default=None,
         description=(
             "Symbol-level access counters observed during tracing.\n\n"
@@ -609,7 +633,7 @@ class EntryPoint(BaseModel):
             "Indicates unpacking, JIT-like behavior, or in-memory staging activity."
         ),
     )
-    coverage: list[int] | None = Field(
+    coverage: list[HexInt] | None = Field(
         default=None,
         description=(
             "Sorted list of executed instruction addresses for coverage analysis.\n\n"
