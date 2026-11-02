@@ -17,13 +17,7 @@ class Msvfw32(api.ApiHandler):
         super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        self.next_handle: int = 0x7000
         super().__get_hook_attrs__(self)
-
-    def get_handle(self):
-        handle = self.next_handle
-        self.next_handle += 4
-        return handle
 
     @apihook("ICOpen", argc=3)
     def ICOpen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -35,7 +29,7 @@ class Msvfw32(api.ApiHandler):
         );
         """
         fccType, fccHandler, wMode = argv
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("ICSendMessage", argc=4)
     def ICSendMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -64,7 +58,7 @@ class Msvfw32(api.ApiHandler):
         """
         HDRAWDIB DrawDibOpen();
         """
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("DrawDibClose", argc=1)
     def DrawDibClose(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
