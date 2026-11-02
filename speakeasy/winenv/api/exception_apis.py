@@ -15,6 +15,7 @@ from speakeasy.windows import seh, seh32, seh64
 from speakeasy.winenv.api import api
 
 if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
     from speakeasy.windows.winemu import WindowsEmulator
 
     _ApiHandlerBase = api.ApiHandler
@@ -37,7 +38,7 @@ def c_specific_handler(emu, argv):
 
 class ExceptionApis(_ApiHandlerBase):
     @apihook("RtlUnwind", argc=4)
-    def RtlUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlUnwind(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlUnwind(
             PVOID TargetFrame,
@@ -51,7 +52,7 @@ class ExceptionApis(_ApiHandlerBase):
         return seh32.rtl_unwind(emu, *argv)
 
     @apihook("RtlUnwindEx", argc=6)
-    def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlUnwindEx(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlUnwindEx(
             PVOID TargetFrame,
@@ -66,7 +67,7 @@ class ExceptionApis(_ApiHandlerBase):
             return seh64.rtl_unwind_ex(emu, *argv[:4])
 
     @apihook("__C_specific_handler", argc=4)
-    def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def __C_specific_handler(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         EXCEPTION_DISPOSITION __C_specific_handler(
             struct _EXCEPTION_RECORD *ExceptionRecord,
@@ -78,7 +79,7 @@ class ExceptionApis(_ApiHandlerBase):
         return c_specific_handler(emu, argv)
 
     @apihook("RtlCaptureContext", argc=1)
-    def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCaptureContext(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlCaptureContext(
             PCONTEXT ContextRecord
@@ -88,7 +89,7 @@ class ExceptionApis(_ApiHandlerBase):
             seh.capture_context(emu, argv[0])
 
     @apihook("RtlRestoreContext", argc=2)
-    def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRestoreContext(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlRestoreContext(
             PCONTEXT ContextRecord,
@@ -99,7 +100,7 @@ class ExceptionApis(_ApiHandlerBase):
             return seh.restore_context(emu, argv[0])
 
     @apihook("RtlAddFunctionTable", argc=3)
-    def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlAddFunctionTable(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlAddFunctionTable(
             PRUNTIME_FUNCTION FunctionTable,
@@ -110,7 +111,9 @@ class ExceptionApis(_ApiHandlerBase):
         return is_amd64(emu) and seh64.add_function_table(emu, *argv)
 
     @apihook("RtlInstallFunctionTableCallback", argc=6)
-    def RtlInstallFunctionTableCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlInstallFunctionTableCallback(
+        self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         BOOLEAN RtlInstallFunctionTableCallback(
             DWORD64 TableIdentifier,
@@ -124,7 +127,7 @@ class ExceptionApis(_ApiHandlerBase):
         return is_amd64(emu) and seh64.install_function_table_callback(emu, *argv[:4])
 
     @apihook("RtlDeleteFunctionTable", argc=1)
-    def RtlDeleteFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDeleteFunctionTable(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlDeleteFunctionTable(
             PRUNTIME_FUNCTION FunctionTable
@@ -133,7 +136,7 @@ class ExceptionApis(_ApiHandlerBase):
         return is_amd64(emu) and seh64.delete_function_table(emu, argv[0])
 
     @apihook("RtlPcToFileHeader", argc=2)
-    def RtlPcToFileHeader(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlPcToFileHeader(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlPcToFileHeader(
             PVOID PcValue,
@@ -147,7 +150,7 @@ class ExceptionApis(_ApiHandlerBase):
         return base
 
     @apihook("RtlLookupFunctionEntry", argc=3)
-    def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlLookupFunctionEntry(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PRUNTIME_FUNCTION RtlLookupFunctionEntry(
             DWORD64 ControlPc,
@@ -160,7 +163,7 @@ class ExceptionApis(_ApiHandlerBase):
         return seh64.lookup_function_entry(emu, *argv[:2])
 
     @apihook("RtlVirtualUnwind", argc=8)
-    def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlVirtualUnwind(self, emu: Win32Emulator, argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PEXCEPTION_ROUTINE RtlVirtualUnwind(
             DWORD HandlerType,
