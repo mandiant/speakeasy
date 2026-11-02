@@ -223,7 +223,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("NtYieldExecution", argc=0)
     def NtYieldExecution(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NtYieldExecution();
+        NTSTATUS NtYieldExecution();
         """
         return 0
 
@@ -470,26 +470,26 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("LdrFindResource_U", argc=4)
     def LdrFindResource_U(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        pub unsafe extern "system" fn LdrFindResource_U(
-            DllHandle: PVOID,
-            ResourceInfo: PLDR_RESOURCE_INFO,
-            Level: ULONG,
-            ResourceDataEntry: *mut PIMAGE_RESOURCE_DATA_ENTRY
-        ) -> NTSTATUS
+        NTSTATUS LdrFindResource_U(
+            PVOID DllHandle,
+            PLDR_RESOURCE_INFO ResourceInfo,
+            ULONG Level,
+            PIMAGE_RESOURCE_DATA_ENTRY *ResourceDataEntry
+        );
 
-         typedef struct _LDR_RESOURCE_INFO
-         {
-             ULONG_PTR Type;
-             ULONG_PTR Name;
-             ULONG_PTR Language;
-         } LDR_RESOURCE_INFO, *PLDR_RESOURCE_INFO;
+        typedef struct _LDR_RESOURCE_INFO
+        {
+            ULONG_PTR Type;
+            ULONG_PTR Name;
+            ULONG_PTR Language;
+        } LDR_RESOURCE_INFO, *PLDR_RESOURCE_INFO;
 
-         typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
-           ULONG OffsetToData;
-           ULONG Size;
-           ULONG CodePage;
-           ULONG Reserved;
-         } IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
+        typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
+          ULONG OffsetToData;
+          ULONG Size;
+          ULONG CodePage;
+          ULONG Reserved;
+        } IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
         """
         DllHandle, ResourceInfo, Level, ResourceDataEntry = argv
 
@@ -680,6 +680,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         ULONG EtwGetTraceEnableFlags(
             TRACEHANDLE TraceHandle
         );
+
+        The handle takes two stack slots on x86. On x64 the second slot is unused.
         """
         return 0
 
@@ -689,6 +691,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         UCHAR EtwGetTraceEnableLevel(
             TRACEHANDLE TraceHandle
         );
+
+        The handle takes two stack slots on x86. On x64 the second slot is unused.
         """
         return 0
 
