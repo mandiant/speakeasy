@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.iphlpapi as iphlpapi_types
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.codepage import encode_ansi
 
 from .. import api
 
@@ -48,8 +49,8 @@ class Iphlpapi(api.ApiHandler):
         for index, adapter in enumerate(adapters):
             adapter_info = self.iphlpapi_types.IP_ADAPTER_INFO(emu.get_ptr_size())
 
-            adapter_info.AdapterName = (adapter.name or "").encode("utf-8")
-            adapter_info.Description = (adapter.description or "").encode("utf-8")
+            adapter_info.AdapterName = encode_ansi(adapter.name or "")
+            adapter_info.Description = encode_ansi(adapter.description or "")
             adapter_info.AddressLength = 6
             adapter_info.Address = binascii.unhexlify((adapter.mac_address or "00-00-00-00-00-00").replace("-", ""))
             adapter_info.Type = iphlpapi_types.get_adapter_type(adapter.type)
