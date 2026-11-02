@@ -82,8 +82,10 @@ Boolean toggles:
 
 Scalars:
 - `--max-run-time`
+- `--max-total-time`
 - `--max-api-calls`
 - `--max-instructions`
+- `--stack-size`
 - `--random-seed`
 - `--start-time`
 - `--os-ver-major`
