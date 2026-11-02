@@ -81,11 +81,7 @@ class WinHttp(api.ApiHandler):
             pswzServerName = self.read_mem_string(pswzServerName, 2)
             ctx.args["pswzServerName"].display = pswzServerName
 
-        wini = self.netman.get_wininet_object(hSession)
-
-        if not wini:
-            return 0
-
+        wini = self.netman.get_wininet(hSession, netman.WininetInstance)
         sess = wini.new_session(pswzServerName, nServerPort, None, None, 0, 0, None)
         hdl = sess.get_handle()
         return hdl
@@ -128,7 +124,7 @@ class WinHttp(api.ApiHandler):
 
         ctx.args["dwFlags"].display = decode(WINHTTP_OPEN_REQUEST_FLAGS, dwFlags)
 
-        sess = self.netman.get_wininet_object(hConnect)
+        sess = self.netman.get_wininet(hConnect, netman.WininetSession)
         req = sess.new_request(pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags, None)
         hdl = req.get_handle()
 
@@ -211,7 +207,7 @@ class WinHttp(api.ApiHandler):
         if lpOptional and dwOptionalLength:
             body = self.mem_read(lpOptional, dwOptionalLength)
 
-        req = self.netman.get_wininet_object(hRequest)
+        req = self.netman.get_wininet(hRequest, netman.WininetRequest)
         srv = req.get_server()
         port = req.get_port()
 
@@ -250,7 +246,7 @@ class WinHttp(api.ApiHandler):
 
         rv = 1
 
-        req = self.netman.get_wininet_object(hRequest)
+        req = self.netman.get_wininet(hRequest, netman.WininetRequest)
         resp = req.get_response()
         data = resp.read(dwNumberOfBytesToRead)
 
@@ -272,7 +268,7 @@ class WinHttp(api.ApiHandler):
         """
         hRequest, lpdwNumberOfBytesAvailable = argv
 
-        req = self.netman.get_wininet_object(hRequest)
+        req = self.netman.get_wininet(hRequest, netman.WininetRequest)
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
@@ -373,10 +369,7 @@ class WinHttp(api.ApiHandler):
         if header_id == WINHTTP_QUERY.WINHTTP_QUERY_STATUS_CODE:
             text = inetdefs.HTTP_STATUS_OK
         else:
-            req = self.netman.get_wininet_object(hRequest)
-            if not isinstance(req, netman.WininetRequest):
-                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-                return 0
+            req = self.netman.get_wininet(hRequest, netman.WininetRequest)
             text = inetdefs.get_header_text(header_id, req.get_response_headers())
             if text is None:
                 emu.set_last_error(inetdefs.ERROR_HTTP_HEADER_NOT_FOUND)
