@@ -1,8 +1,13 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.defs.windows.netapi32 as netapi32defs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class NetUtils(api.ApiHandler):
@@ -15,7 +20,7 @@ class NetUtils(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NetApiBufferFree", argc=1)
-    def NetApiBufferFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NetApiBufferFree(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NetApiBufferFree(
             LPVOID Buffer
