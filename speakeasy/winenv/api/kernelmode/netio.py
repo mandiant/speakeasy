@@ -120,7 +120,7 @@ class Netio(api.ApiHandler):
         );
         """
         WskClientNpi, WskRegistration = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         self.wsk_registrations.update({WskRegistration: WskClientNpi})
 
@@ -136,7 +136,7 @@ class Netio(api.ApiHandler):
         );
         """
         WskRegistration, WaitTimeout, WskProviderNpi = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         cli = self.wsk_registrations.get(WskRegistration)
         if not cli:
@@ -236,7 +236,7 @@ class Netio(api.ApiHandler):
             Irp,
         ) = argv
 
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -255,7 +255,7 @@ class Netio(api.ApiHandler):
         );
         """
         Client, ControlCode, InputSize, InputBuffer, OutputSize, OutputBuffer, OutputSizeReturned, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -276,7 +276,7 @@ class Netio(api.ApiHandler):
         );
         """
         Client, NodeName, ServiceName, NameSpace, Provider, Hints, Result, OwningProcess, OwningThread, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -309,7 +309,7 @@ class Netio(api.ApiHandler):
         );
         """
         Client, SockAddr, SockAddrLength, NodeName, ServiceName, Flags, OwningProcess, OwningThread, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -341,7 +341,7 @@ class Netio(api.ApiHandler):
             OutputSizeReturned,
             Irp,
         ) = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -354,7 +354,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -369,7 +369,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, LocalAddress, Flags, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         sock_addr = self.mem_cast(wstypes.sockaddr_in(emu.get_ptr_size()), LocalAddress)
 
@@ -394,7 +394,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, Buffer, Flags, RemoteAddress, ControlInfoLength, ControlInfo, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -413,7 +413,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, Buffer, Flags, RemoteAddress, ControlLength, ControlInfo, ControlFlags, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -426,7 +426,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, DataIndication = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -440,7 +440,7 @@ class Netio(api.ApiHandler):
         );
         """
         Socket, LocalAddress, Irp = argv
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 

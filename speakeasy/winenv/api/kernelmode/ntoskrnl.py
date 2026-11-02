@@ -1285,9 +1285,8 @@ class Ntoskrnl(api.ApiHandler):
             PSIZE_T NumberOfBytesWritten
         );
         """
-        rv = ddk.STATUS_SUCCESS
         ProcessHandle, BaseAddress, Buffer, NumberOfBytesToWrite, NumberOfBytesWritten = argv
-        rv = False
+        rv = ddk.STATUS_SUCCESS
 
         if ProcessHandle == self.get_max_int():
             obj = emu.get_current_process()

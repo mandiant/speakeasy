@@ -230,7 +230,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         NTSTATUS NtYieldExecution();
         """
-        return 0
+        return ddk.STATUS_SUCCESS
 
     @apihook("RtlRemoveVectoredExceptionHandler", argc=1)
     def RtlRemoveVectoredExceptionHandler(
@@ -300,7 +300,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             if DllHandle:
                 frame.failure_writes.append((DllHandle, b"\x00" * self.get_ptr_size()))
 
-        return 0
+        return ddk.STATUS_SUCCESS
 
     @apihook("LdrGetProcedureAddress", argc=4)
     def LdrGetProcedureAddress(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -409,7 +409,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             ULONG ProcessInformationLength
         );
         """
-        return 0
+        return ddk.STATUS_SUCCESS
 
     @apihook("RtlEncodePointer", argc=1)
     def RtlEncodePointer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -621,7 +621,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         info = struct.pack("<IIIII", 276, 10, 0, 19041, 2)  # VER_PLATFORM_WIN32_NT=2
         info += b"\x00" * (276 - len(info))
         self.mem_write(VersionInformation, info)
-        return 0  # STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsW", argc=8)
     def EtwRegisterTraceGuidsW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

@@ -197,7 +197,7 @@ class Wdfldr(api.ApiHandler):
                 self.types.WDF_DRIVER_CONFIG(emu.get_ptr_size()),
                 DriverConfig,
             )
-        rv = 0
+        rv = ddk.STATUS_SUCCESS
 
         return rv
 
