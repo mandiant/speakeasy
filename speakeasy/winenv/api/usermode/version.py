@@ -23,7 +23,7 @@ def get_version_node(block: bytes, offset: int) -> tuple[int, str, int, int, boo
     offset, wValueLength, and whether the value is text.
 
     Raises:
-        struct.error: the node header is outside the block.
+        struct.error: if the node header is outside the block.
     """
     length, value_length, value_type = struct.unpack_from("<HHH", block, offset)
     end = min(offset + length, len(block))

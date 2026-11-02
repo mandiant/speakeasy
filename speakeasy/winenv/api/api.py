@@ -114,7 +114,7 @@ class HandlerArgs:
     ) -> HandlerArgs:
         """
         Raises:
-            ValueError: the slots do not match the slots the signature consumes.
+            ValueError: if the slots do not match the slots the signature consumes.
         """
         return cls(sigfmt.get_call_args(sig, ptr_size, rendered, slots), list(sig.params))
 
