@@ -116,11 +116,8 @@ class AdvApi32(api.ApiHandler):
             hnd = self.reg_open_key(lpSubKey, create=False)
             if not hnd:
                 rv = windefs.ERROR_FILE_NOT_FOUND
-
-            self.record_registry_access_event(lpSubKey, EventType.REG_OPEN_KEY, handle=hnd)
         elif new_handle:
             hnd = self.reg_open_key(hkey_name, create=False)
-            self.record_registry_access_event(hkey_name, EventType.REG_OPEN_KEY, handle=hnd)
 
         if phkResult:
             self.write_ptr(phkResult, hnd or 0)
@@ -164,7 +161,7 @@ class AdvApi32(api.ApiHandler):
         key = self.get_reg_key(hKey)
         if not key:
             return windefs.ERROR_INVALID_HANDLE
-        val = key.get_value(value_name)
+        val = emu.regman.read_value(key, value_name, cw, handle=hKey, buffer=lpData, size=length)
         if val:
             self.write_value_type(val, lpType, ctx.args["lpType"])
             output = val.get_bytes(cw)
@@ -189,16 +186,6 @@ class AdvApi32(api.ApiHandler):
             if lpcbData:
                 self.write_dword(lpcbData, len(output))
             rv = windefs.ERROR_SUCCESS
-
-        kp = key.get_path()
-        self.record_registry_access_event(
-            kp,
-            EventType.REG_READ_VALUE,
-            value_name=value_name,
-            data=output,
-            size=length,
-            buffer=lpData,
-        )
 
         return rv
 
@@ -229,6 +216,7 @@ class AdvApi32(api.ApiHandler):
             ctx.args["lpValueName"].display = value_name
 
         value_data: str | int | bytes = ""
+        raw = b""
         if lpData and cbData:
             raw = self.mem_read(lpData, cbData)
             if dwType in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ, REG_VALUE_TYPE.REG_MULTI_SZ):
@@ -242,22 +230,7 @@ class AdvApi32(api.ApiHandler):
             if isinstance(value_data, str):
                 ctx.args["lpData"].display = value_data
 
-        value = key.get_value(value_name)
-        if value:
-            value.type = dwType
-            value.data = value.normalize_value(dwType, value_data)
-        else:
-            key.create_value(value_name, dwType, value_data)
-
-        self.record_registry_access_event(
-            key.get_path(),
-            EventType.REG_WRITE_VALUE,
-            value_name=value_name,
-            data=raw if lpData and cbData else b"",
-            handle=hKey,
-            size=cbData,
-            buffer=lpData,
-        )
+        emu.regman.write_value(key, value_name, dwType, value_data, raw=raw, handle=hKey, buffer=lpData)
 
         return windefs.ERROR_SUCCESS
 
@@ -327,7 +300,7 @@ class AdvApi32(api.ApiHandler):
                 rv = windefs.ERROR_INVALID_HANDLE
             else:
                 ctx.args["hKey"].display = key.get_path()
-                subkeys = self.reg_get_subkeys(key)
+                subkeys = self.emu.regman.list_subkeys(key, handle=hKey)
                 if (dwIndex + 1) > len(subkeys):
                     rv = windefs.ERROR_NO_MORE_ITEMS
                 elif not lpName:
@@ -339,7 +312,6 @@ class AdvApi32(api.ApiHandler):
                     else:
                         self.write_mem_string(name, lpName, cw)
                         rv = windefs.ERROR_SUCCESS
-                self.record_registry_access_event(key.get_path(), EventType.REG_LIST_SUBKEYS)
         return rv, name
 
     @apihook("RegCreateKey", argc=3)
@@ -368,7 +340,6 @@ class AdvApi32(api.ApiHandler):
                 if sub_key:
                     sub_key_path = key.get_path() + "\\" + sub_key.lstrip("\\")
                     hnd = self.reg_open_key(sub_key_path, create=True)
-                    self.record_registry_access_event(sub_key_path, EventType.REG_CREATE_KEY, handle=hnd)
                 if phkResult:
                     self.write_ptr(phkResult, hnd)
                 rv = windefs.ERROR_SUCCESS
@@ -425,7 +396,6 @@ class AdvApi32(api.ApiHandler):
             disp = 2 if existing else 1
             self.write_dword(lpdwDisposition, disp)
 
-        self.record_registry_access_event(key_path, EventType.REG_CREATE_KEY, handle=hnd)
         return windefs.ERROR_SUCCESS
 
     @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
@@ -448,11 +418,8 @@ class AdvApi32(api.ApiHandler):
             value_name = self.read_mem_string(lpValueName, cw)
             ctx.args["lpValueName"].display = value_name
 
-        value = key.get_value(value_name)
-        if not value:
+        if not emu.regman.delete_value(key, value_name, handle=hKey):
             return windefs.ERROR_FILE_NOT_FOUND
-
-        key.values.remove(value)
         return windefs.ERROR_SUCCESS
 
     @apihook("RegQueryInfoKey", argc=12, conv=_arch.CALL_CONV_STDCALL)
@@ -1971,13 +1938,14 @@ class AdvApi32(api.ApiHandler):
         key = self.get_reg_key(hkey)
         if not key:
             return windefs.ERROR_INVALID_HANDLE
+        hnd = hkey
         if lpSubKey:
             hnd = self.reg_open_key(key.get_path() + "\\" + lpSubKey)
             if not hnd:
                 return windefs.ERROR_FILE_NOT_FOUND
             key = self.get_reg_key(hnd)
         if key:
-            val = key.get_value(value_name)
+            val = emu.regman.read_value(key, value_name, cw, handle=hnd, buffer=pvData, size=length)
             if val:
                 self.write_value_type(val, pdwType, ctx.args["pdwType"])
                 output = val.get_bytes(cw)
@@ -1997,16 +1965,6 @@ class AdvApi32(api.ApiHandler):
                 if pvData:
                     self.mem_write(pvData, output)
                 rv = windefs.ERROR_SUCCESS
-
-            kp = key.get_path()
-            self.record_registry_access_event(
-                kp,
-                EventType.REG_READ_VALUE,
-                value_name=value_name,
-                data=output,
-                size=length,
-                buffer=pvData,
-            )
 
         return rv
 

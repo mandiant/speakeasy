@@ -106,7 +106,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         expected_apis=("KERNEL32.CreateThread", "ADVAPI32.RegSetValueExA"),
         indicators=IndicatorExpectations(
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
-            registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
+            registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
         allowed_entrypoint_errors=("max_api_count", "invalid_read", "privileged_instruction"),
     ),
@@ -237,7 +237,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         expected_apis=("KERNEL32.CreateThread", "MSVCRT._strtime"),
         indicators=IndicatorExpectations(
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 17-02.dll_",),
-            registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\Irmon",),
+            registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
         allowed_entrypoint_errors=("max_api_count", "invalid_read"),
         profile=profile_pma_1702,

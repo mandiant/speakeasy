@@ -2374,9 +2374,10 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (KeyHandle,) = argv
-        nts = ddk.STATUS_SUCCESS
 
-        return nts
+        if not emu.regman.delete_key(KeyHandle):
+            return ddk.STATUS_INVALID_HANDLE
+        return ddk.STATUS_SUCCESS
 
     @apihook("ZwQueryInformationProcess", argc=5)
     def ZwQueryInformationProcess(
@@ -2767,7 +2768,7 @@ class Ntoskrnl(api.ApiHandler):
 
         key = self.get_reg_key(KeyHandle)
         if key:
-            ValueName = key.get_value(name)
+            ValueName = emu.regman.read_value(key, name, 2, handle=KeyHandle, buffer=KeyValueInformation, size=Length)
             if ValueName:
                 data = ValueName.get_bytes(2)
                 output = b""
@@ -2847,7 +2848,6 @@ class Ntoskrnl(api.ApiHandler):
             disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
             self.write_dword(Disposition, disp)
 
-        self.record_registry_access_event(key.get_path(), EventType.REG_CREATE_KEY, handle=hnd)
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetValueKey", argc=6)
@@ -2885,22 +2885,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             value_data = raw
 
-        value = key.get_value(name)
-        if value:
-            value.type = Type
-            value.data = value.normalize_value(Type, value_data)
-        else:
-            key.create_value(name, Type, value_data)
-
-        self.record_registry_access_event(
-            key.get_path(),
-            EventType.REG_WRITE_VALUE,
-            value_name=name,
-            data=raw,
-            handle=KeyHandle,
-            size=DataSize,
-            buffer=Data,
-        )
+        emu.regman.write_value(key, name, Type, value_data, raw=raw, handle=KeyHandle, buffer=Data)
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwCreateFile", argc=11)

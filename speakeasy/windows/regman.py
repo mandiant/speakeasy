@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
+from speakeasy.profiler_events import EventType
 from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import RegistryConfig
+    from speakeasy.windows.winemu import WindowsEmulator
 
 CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 WINDOWS_CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
@@ -160,14 +162,18 @@ class RegistryManager:
     The handles of open keys go into the table that ``get_handle_table`` returns, the table of the
     current process. The predefined keys, such as ``HKEY_LOCAL_MACHINE``, are fixed values and not
     table entries.
+
+    With an ``emu``, the key and value methods record their events in the report.
     """
 
-    def __init__(self, get_handle_table: Callable[[], HandleTable], config=None, os_ver=None):
+    def __init__(self, get_handle_table: Callable[[], HandleTable], config=None, os_ver=None, emu=None):
         super().__init__()
         self.get_handle_table: Callable[[], HandleTable] = get_handle_table
         self.predefined_keys: dict[int, RegKey] = {}
         self.keys: list[RegKey] = []
+        self.deleted_paths: set[str] = set()
         self.config: RegistryConfig | None = config
+        self.emu: WindowsEmulator | None = emu
 
         for hk in HKEY:
             key = self.create_key(hk.name)
@@ -234,7 +240,7 @@ class RegistryManager:
         """Get the paths of the open keys and of the keys in the config."""
         paths = [key.get_path() for key in self.keys]
         if self.config:
-            paths += [key.path for key in self.config.keys]
+            paths += [key.path for key in self.config.keys if key.path.lower() not in self.deleted_paths]
         return paths
 
     def is_key_a_parent_key(self, path):
@@ -264,7 +270,7 @@ class RegistryManager:
 
     def get_key_from_config(self, path):
         """See if the emulator config file contains a handler for the requested registry path."""
-        if not self.config:
+        if not self.config or path.lower() in self.deleted_paths:
             return None
         for key in self.config.keys:
             if key.path.lower() == path.lower():
@@ -291,10 +297,36 @@ class RegistryManager:
 
         key = RegKey(path)
         self.keys.append(key)
+        self.deleted_paths.discard(path.lower())
         return key
 
+    def record_event(self, path, event_type, **kwargs):
+        """
+        Record a registry event for the path of a key.
+
+        A failed open and a read of a missing value record their event too, because
+        analysts look for these probes. The other key and value methods record an event
+        only when the operation succeeds.
+        """
+        if self.emu:
+            self.emu.record_registry_event(path, event_type, **kwargs)
+
     def open_key(self, path, create=False):
-        """Open or optionally create a registry key."""
+        """
+        Open or optionally create a registry key, and return a new handle or None.
+
+        The event is reg_create_key when ``create`` is set, and reg_open_key when not.
+        A failed open records the event with no handle.
+        """
+        hnd = self.get_key_handle(path, create)
+        key = self.get_key(hnd) if hnd else None
+        key_path = key.get_path() if key else self.normalize_reg_path(path)
+        event_type = EventType.REG_CREATE_KEY if create else EventType.REG_OPEN_KEY
+        self.record_event(key_path, event_type, handle=hnd)
+        return hnd
+
+    def get_key_handle(self, path, create):
+        """Open or optionally create a registry key with no event, and return a new handle or None."""
         hnd = None
         path = self.normalize_reg_path(path)
         # Does the key already exist?
@@ -313,4 +345,78 @@ class RegistryManager:
             key = RegKey(path)
             hnd = self.get_handle_table().new_handle(key)
             self.keys.append(key)
+            self.deleted_paths.discard(path.lower())
         return hnd
+
+    def delete_key(self, handle):
+        """
+        Delete the key that a handle names, and return False when the handle is not valid.
+
+        The handle stays open. After the delete, the configuration does not give the key.
+        """
+        key = self.get_key(handle)
+        if not key:
+            return False
+        if key in self.keys:
+            self.keys.remove(key)
+        self.deleted_paths.add(key.get_path().lower())
+        self.record_event(key.get_path(), EventType.REG_DELETE_KEY, handle=handle)
+        return True
+
+    def list_subkeys(self, key, handle=0):
+        """Get the names of the subkeys of a key."""
+        subkeys = self.get_subkeys(key)
+        self.record_event(key.get_path(), EventType.REG_LIST_SUBKEYS, handle=handle)
+        return subkeys
+
+    def read_value(self, key, name, width, handle=0, buffer=0, size=None):
+        """
+        Get a value of a key, or None when the key has no value with the name.
+
+        ``width`` is the character width of the data in the event. ``buffer`` and ``size``
+        are the address and the size of the buffer that the caller gives, for the event.
+        A read of a missing value records the event with no data.
+        """
+        val = key.get_value(name)
+        self.record_event(
+            key.get_path(),
+            EventType.REG_READ_VALUE,
+            value_name=name,
+            data=val.get_bytes(width) if val else None,
+            handle=handle,
+            buffer=buffer,
+            size=size,
+        )
+        return val
+
+    def write_value(self, key, name, val_type, data, raw=b"", handle=0, buffer=0):
+        """
+        Set a value of a key, and create the value when the key does not have it.
+
+        ``raw`` is the data as the caller gives it, for the event.
+        """
+        val = key.get_value(name)
+        if val:
+            val.type = val_type
+            val.data = val.normalize_value(val_type, data)
+        else:
+            val = key.create_value(name, val_type, data)
+        self.record_event(
+            key.get_path(),
+            EventType.REG_WRITE_VALUE,
+            value_name=name,
+            data=raw,
+            handle=handle,
+            buffer=buffer,
+            size=len(raw),
+        )
+        return val
+
+    def delete_value(self, key, name, handle=0):
+        """Delete a value of a key, and return False when the key has no value with the name."""
+        val = key.get_value(name)
+        if not val:
+            return False
+        key.values.remove(val)
+        self.record_event(key.get_path(), EventType.REG_DELETE_VALUE, value_name=name, handle=handle)
+        return True

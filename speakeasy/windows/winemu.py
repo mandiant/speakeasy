@@ -402,7 +402,7 @@ class WindowsEmulator(BinaryEmulator):
         self.handles: HandleTable = HandleTable(self.handle_allocator, self.dec_ref, self.get_pseudo_handle_object)
         # OS resource managers
         self.regman: RegistryManager = RegistryManager(
-            self.get_handle_table, self.config.registry, os_ver=self.config.os_ver
+            self.get_handle_table, self.config.registry, os_ver=self.config.os_ver, emu=self
         )
         self.fileman: FileManager = FileManager(config, self)
         self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network)
