@@ -9,7 +9,7 @@ import unicorn as uc
 
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
-from speakeasy.errors import NotSupportedError
+from speakeasy.errors import InputError, NotSupportedError
 from speakeasy.windows.api_image import ApiExportSpec, ApiModuleLoader
 from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import PeLoader, relocate_image
@@ -379,6 +379,40 @@ def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) ->
     se = Speakeasy(config=config)
     with pytest.raises(NotSupportedError):
         se.load_module(data=image)
+
+
+def test_load_shellcode_takes_the_architecture_name_in_any_case(config) -> None:
+    with Speakeasy(config=config) as se:
+        se.load_shellcode(data=b"\xc3", arch="X64")
+        assert se.get_arch() == _arch.ARCH_AMD64
+
+
+@pytest.mark.parametrize("arch", ["arm", None])
+def test_load_shellcode_rejects_an_unsupported_architecture(config, arch) -> None:
+    with pytest.raises(InputError, match="architecture"):
+        Speakeasy(config=config).load_shellcode(data=b"\xc3", arch=arch)
+
+
+def test_load_rejects_a_missing_file(config, tmp_path: Path) -> None:
+    missing = tmp_path / "missing.bin"
+    with pytest.raises(InputError, match="not found"):
+        Speakeasy(config=config).load_shellcode(str(missing), "x86")
+    with pytest.raises(InputError, match="not found"):
+        Speakeasy(config=config).load_module(str(missing))
+
+
+@pytest.mark.parametrize("data", [b"\x90\xc3", b"MZ\x90\x00"], ids=["not_mz", "truncated"])
+def test_load_module_rejects_data_that_is_not_a_pe(config, data) -> None:
+    with pytest.raises(InputError):
+        Speakeasy(config=config).load_module(data=data)
+
+
+@pytest.mark.parametrize("machine", [0x1234, 0x8664], ids=["unknown", "inconsistent_with_magic"])
+def test_load_module_rejects_a_pe_with_a_bad_machine(config, machine) -> None:
+    pe = pefile.PE(data=image_bytes(build([])))
+    pe.FILE_HEADER.Machine = machine
+    with Speakeasy(config=config) as se, pytest.raises(InputError):
+        se.load_module(data=pe.write())
 
 
 def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):

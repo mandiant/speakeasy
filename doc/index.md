@@ -22,7 +22,8 @@ This page maps common tasks to the right Speakeasy documentation.
 - [Configuration walkthrough](configuration.md)
 - [Report walkthrough](reporting.md)
 - [Memory management](memory.md)
-- [Exception dispatch](exceptions.md)
+- [Guest exception dispatch (CPU exceptions in the emulated program)](exceptions.md)
+- [Python exceptions that Speakeasy raises](errors.md)
 - [Limitations](limitations.md)
 
 ## Debugging

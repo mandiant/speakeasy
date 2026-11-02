@@ -15,7 +15,7 @@ import speakeasy.winenv.arch as e_arch
 from speakeasy import common, version
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.engines import unicorn_eng
-from speakeasy.errors import EmuException
+from speakeasy.errors import CpuError
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
 from speakeasy.profiler_events import StackEntry
@@ -139,7 +139,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 self.emu_eng = eng()
                 break
         else:
-            raise EmuException(f"Unsupported emulation engine: {_eng}")
+            raise CpuError(f"Unsupported emulation engine: {_eng}")
 
         self.env: dict[str, str] = dict(config.env)
 
@@ -193,12 +193,12 @@ class BinaryEmulator(MemoryManager, ABC):
         Write a value to an emulated cpu register.
 
         Raises:
-            EmuException: if ``reg`` is a name that is not a register.
+            CpuError: if ``reg`` is a name that is not a register.
         """
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
-                raise EmuException(f"Invalid register access {reg}")
+                raise CpuError(f"Invalid register access {reg}")
             reg = _reg
 
         self.emu_eng.reg_write(reg, val)
@@ -208,12 +208,12 @@ class BinaryEmulator(MemoryManager, ABC):
         Read a value from an emulated cpu register.
 
         Raises:
-            EmuException: if ``reg`` is a name that is not a register.
+            CpuError: if ``reg`` is a name that is not a register.
         """
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
             if not _reg:
-                raise EmuException(f"Invalid register access {reg}")
+                raise CpuError(f"Invalid register access {reg}")
             reg = _reg
 
         value: int = self.emu_eng.reg_read(reg)
@@ -241,7 +241,7 @@ class BinaryEmulator(MemoryManager, ABC):
             else:
                 return [i for i in self.disasm_eng.disasm(bytes(mem), addr)]
         except IndexError:
-            raise EmuException(f"Failed to disasm at address: 0x{addr:x}") from None
+            raise CpuError(f"Failed to disasm at address: 0x{addr:x}") from None
 
         op = f"{mnem} {oper}"
         return (mnem, oper, op)
@@ -251,7 +251,7 @@ class BinaryEmulator(MemoryManager, ABC):
         Disassemble bytes at a specified address.
 
         Raises:
-            EmuException: if ``fast`` is ``True`` and no instruction decodes at ``addr``.
+            CpuError: if ``fast`` is ``True`` and no instruction decodes at ``addr``.
         """
         return self._cs_disasm(mem, addr, fast=fast)
 
@@ -342,7 +342,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 self.reg_write(r, args[i])
                 nargs -= 1
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
         if nargs > 0:
             for arg in args[-nargs:][::-1]:
@@ -395,7 +395,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 argv.append(val)
                 nargs -= 1
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
         # Skip past the saved ret addr
         sp += ptr_size
@@ -417,7 +417,7 @@ class BinaryEmulator(MemoryManager, ABC):
             pc = e_arch.AMD64_REG_RIP
             rr = e_arch.AMD64_REG_RAX
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
         if conv == e_arch.CALL_CONV_FLOAT:
             rr = e_arch.X86_REG_XMM0
@@ -526,7 +526,7 @@ class BinaryEmulator(MemoryManager, ABC):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             pc = self.reg_read(e_arch.AMD64_REG_RIP)
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
         return pc
 
     def set_pc(self, addr):
@@ -536,7 +536,7 @@ class BinaryEmulator(MemoryManager, ABC):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             self.reg_write(e_arch.AMD64_REG_RIP, addr)
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
     def get_return_val(self):
         """Get the current value in the return register."""
@@ -545,7 +545,7 @@ class BinaryEmulator(MemoryManager, ABC):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             val = self.reg_read(e_arch.AMD64_REG_RAX)
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
         return val
 
     def reset_cpu_context(self):
@@ -639,7 +639,7 @@ class BinaryEmulator(MemoryManager, ABC):
         elif arch == e_arch.ARCH_AMD64:
             return
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
     def get_arch(self) -> int:
         """Get the current emulated architecture."""
@@ -786,14 +786,14 @@ class BinaryEmulator(MemoryManager, ABC):
         Set the current pointer size used in the emulator.
 
         Raises:
-            EmuException: if ``arch`` is not x86 or AMD64.
+            CpuError: if ``arch`` is not x86 or AMD64.
         """
         if arch == e_arch.ARCH_AMD64:
             self.ptr_size = 8
         elif arch == e_arch.ARCH_X86:
             self.ptr_size = 4
         else:
-            raise EmuException("Unsupported architecture")
+            raise CpuError("Unsupported architecture")
 
     def get_module_from_addr(self, addr):
         """If the supplied address belongs to a module, return it."""

@@ -23,7 +23,7 @@ from unicorn.unicorn_py3.unicorn import uclib as _uc
 
 from speakeasy import common
 from speakeasy.engines.start_timer import StartTimer
-from speakeasy.errors import EmuEngineError
+from speakeasy.errors import EngineError
 from speakeasy.winenv import arch
 
 uc_engine = ct.c_void_p
@@ -195,18 +195,23 @@ class EmuEngine:
         }
 
     def init_engine(self, eng_arch, mode):
-        """Initialize cpu engine."""
+        """
+        Initialize cpu engine.
+
+        Raises:
+            EngineError: if ``eng_arch`` is not x86 or AMD64, or ``mode`` is not 32 or 64 bits.
+        """
         if eng_arch == arch.ARCH_X86 or eng_arch == arch.ARCH_AMD64:
             _arch = uc.UC_ARCH_X86
         else:
-            raise Exception("Invalid architecture")
+            raise EngineError("Invalid architecture")
 
         if mode == arch.BITS_32:
             _mode = uc.UC_MODE_32
         elif mode == arch.BITS_64:
             _mode = uc.UC_MODE_64
         else:
-            raise Exception("Invalid bitness")
+            raise EngineError("Invalid bitness")
 
         self.emu = uc.Uc(_arch, _mode)
         self.mode = _mode
@@ -295,12 +300,12 @@ class EmuEngine:
         Modify register values.
 
         Raises:
-            EmuEngineError: if ``reg`` is not a known register.
+            EngineError: if ``reg`` is not a known register.
         """
         assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
-            raise EmuEngineError(f"Unknown register: {reg}")
+            raise EngineError(f"Unknown register: {reg}")
         return self.emu.reg_write(ereg, val)
 
     def reg_read(self, reg):
@@ -308,12 +313,12 @@ class EmuEngine:
         Read register values.
 
         Raises:
-            EmuEngineError: if ``reg`` is not a known register.
+            EngineError: if ``reg`` is not a known register.
         """
         assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
-            raise EmuEngineError(f"Unknown register: {reg}")
+            raise EngineError(f"Unknown register: {reg}")
         return self.emu.reg_read(ereg)
 
     def stop(self):
@@ -339,13 +344,13 @@ class EmuEngine:
         Add a callback function for a specific event type or address.
 
         Raises:
-            EmuEngineError: if ``htype`` is not a known hook type.
+            EngineError: if ``htype`` is not a known hook type.
             unicorn.UcError: if Unicorn rejects the hook.
         """
         assert self.emu is not None
         hook_type = self.hook_types.get(htype)
         if not hook_type:
-            raise EmuEngineError("Invalid hook type")
+            raise EngineError("Invalid hook type")
 
         handle = self.emu._uch
 
