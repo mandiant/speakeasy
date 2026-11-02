@@ -1,10 +1,14 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import struct
+from typing import TYPE_CHECKING
 
 from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 MAX_DIB_SIZE = 0x8000000
 
@@ -57,7 +61,7 @@ class GDI32(api.ApiHandler):
         return hnd
 
     @apihook("CreateBitmap", argc=5)
-    def CreateBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateBitmap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateBitmap(
             int nWidth,
@@ -70,7 +74,7 @@ class GDI32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("MoveToEx", argc=4)
-    def MoveToEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MoveToEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL MoveToEx(
             HDC hdc,
@@ -82,7 +86,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("LineTo", argc=3)
-    def LineTo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LineTo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LineTo(
             HDC hdc,
@@ -93,7 +97,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("GetStockObject", argc=1)
-    def GetStockObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetStockObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HGDIOBJ GetStockObject(
             int i
@@ -105,7 +109,7 @@ class GDI32(api.ApiHandler):
         return self.stock_objects.setdefault(i, STOCK_OBJECT_BASE + i)
 
     @apihook("GetMapMode", argc=1)
-    def GetMapMode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetMapMode(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetMapMode(
             HDC hdc
@@ -114,7 +118,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("GetDeviceCaps", argc=2)
-    def GetDeviceCaps(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDeviceCaps(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetDeviceCaps(
             HDC hdc,
@@ -125,7 +129,7 @@ class GDI32(api.ApiHandler):
         return DEVICE_CAPS.get(index, 0) & 0xFFFFFFFF
 
     @apihook("GdiSetBatchLimit", argc=1)
-    def GdiSetBatchLimit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdiSetBatchLimit(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GdiSetBatchLimit(
             DWORD dw
@@ -134,7 +138,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("MaskBlt", argc=12)
-    def MaskBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MaskBlt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL MaskBlt(
             HDC hdcDest,
@@ -154,7 +158,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("BitBlt", argc=9)
-    def BitBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BitBlt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL BitBlt(
             HDC hdc,
@@ -171,7 +175,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("DeleteDC", argc=1)
-    def DeleteDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DeleteDC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteDC(
             HDC hdc
@@ -180,7 +184,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("SelectObject", argc=2)
-    def SelectObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SelectObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HGDIOBJ SelectObject(
             HDC hdc,
@@ -195,7 +199,7 @@ class GDI32(api.ApiHandler):
         return previous
 
     @apihook("DeleteObject", argc=1)
-    def DeleteObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DeleteObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteObject(
             HGDIOBJ ho
@@ -204,7 +208,7 @@ class GDI32(api.ApiHandler):
         return 1
 
     @apihook("CreateCompatibleBitmap", argc=3)
-    def CreateCompatibleBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateCompatibleBitmap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateCompatibleBitmap(
             HDC hdc,
@@ -215,7 +219,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateCompatibleDC", argc=1)
-    def CreateCompatibleDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateCompatibleDC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC CreateCompatibleDC(
             HDC hdc
@@ -224,7 +228,7 @@ class GDI32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("GetDIBits", argc=7)
-    def GetDIBits(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDIBits(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetDIBits(
             HDC hdc,
@@ -239,7 +243,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateDIBSection", argc=6)
-    def CreateDIBSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDIBSection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateDIBSection(
             HDC hdc,
@@ -263,7 +267,7 @@ class GDI32(api.ApiHandler):
         return hbm
 
     @apihook("CreateDCA", argc=4)
-    def CreateDCA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDCA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC CreateDCA(
             LPCSTR pwszDriver,
@@ -275,7 +279,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("GetTextCharacterExtra", argc=1)
-    def GetTextCharacterExtra(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetTextCharacterExtra(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetTextCharacterExtra(
             HDC hdc
@@ -284,7 +288,7 @@ class GDI32(api.ApiHandler):
         return 0x8000000
 
     @apihook("StretchBlt", argc=11)
-    def StretchBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StretchBlt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StretchBlt(
             HDC hdcDest,
@@ -303,7 +307,7 @@ class GDI32(api.ApiHandler):
         return 0
 
     @apihook("CreateFontIndirectA", argc=1)
-    def CreateFontIndirectA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateFontIndirectA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HFONT CreateFontIndirectA(
             const LOGFONTA *lplf
@@ -315,7 +319,7 @@ class GDI32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("GetObjectA", argc=3)
-    def GetObjectA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetObjectA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetObjectA(
             HANDLE hgdiobj,
@@ -342,7 +346,7 @@ class GDI32(api.ApiHandler):
         return c
 
     @apihook("D3DKMTEnumAdapters2", argc=1)
-    def D3DKMTEnumAdapters2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3DKMTEnumAdapters2(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTEnumAdapters2(
             const D3DKMT_ENUMADAPTERS2 *unnamedParam1
@@ -355,7 +359,7 @@ class GDI32(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTEnumAdapters", argc=1)
-    def D3DKMTEnumAdapters(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3DKMTEnumAdapters(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTEnumAdapters(
             const D3DKMT_ENUMADAPTERS *unnamedParam1
@@ -367,7 +371,7 @@ class GDI32(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTCloseAdapter", argc=1)
-    def D3DKMTCloseAdapter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3DKMTCloseAdapter(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTCloseAdapter(
             const D3DKMT_CLOSEADAPTER *unnamedParam1
@@ -376,7 +380,7 @@ class GDI32(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTQueryAdapterInfo", argc=1)
-    def D3DKMTQueryAdapterInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3DKMTQueryAdapterInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTQueryAdapterInfo(
             const D3DKMT_QUERYADAPTERINFO *unnamedParam1
@@ -385,7 +389,7 @@ class GDI32(api.ApiHandler):
         return ddk.STATUS_INVALID_PARAMETER
 
     @apihook("WidenPath", argc=1)
-    def WidenPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WidenPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WidenPath(
             HDC hdc
