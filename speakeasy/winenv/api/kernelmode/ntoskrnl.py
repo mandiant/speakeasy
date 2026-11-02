@@ -3063,7 +3063,7 @@ class Ntoskrnl(api.ApiHandler):
             PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
         );
         """
-        NotifyRoutine = argv  # noqa
+        (NotifyRoutine,) = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -3077,7 +3077,7 @@ class Ntoskrnl(api.ApiHandler):
             PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine
         );
         """
-        NotifyRoutine = argv  # noqa
+        (NotifyRoutine,) = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -3091,7 +3091,7 @@ class Ntoskrnl(api.ApiHandler):
             PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
         );
         """
-        NotifyRoutine = argv  # noqa
+        (NotifyRoutine,) = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -3105,7 +3105,7 @@ class Ntoskrnl(api.ApiHandler):
             PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine
         );
         """
-        NotifyRoutine = argv  # noqa
+        (NotifyRoutine,) = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
