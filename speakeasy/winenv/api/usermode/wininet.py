@@ -98,11 +98,7 @@ class Wininet(api.ApiHandler):
             lpszPassword = self.read_mem_string(lpszPassword, cw)
             ctx.args["lpszPassword"].display = lpszPassword
 
-        wini = self.netman.get_wininet_object(hInternet)
-
-        if not wini:
-            return 0
-
+        wini = self.netman.get_wininet(hInternet, netman.WininetInstance)
         sess = wini.new_session(lpszServerName, nServerPort, lpszUserName, lpszPassword, dwService, dwFlags, dwContext)
         hdl = sess.get_handle()
         return hdl
@@ -143,10 +139,7 @@ class Wininet(api.ApiHandler):
 
         ctx.args["dwFlags"].display = decode(INTERNET_FLAGS, dwFlags)
 
-        sess = self.netman.get_wininet_object(hConnect)
-        if not isinstance(sess, netman.WininetSession):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
+        sess = self.netman.get_wininet(hConnect, netman.WininetSession)
         req = sess.new_request(
             lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, dwFlags, dwContext
         )
@@ -265,10 +258,7 @@ class Wininet(api.ApiHandler):
         if lpOptional:
             body = self.mem_read(lpOptional, dwOptionalLength)
 
-        req = self.netman.get_wininet_object(hRequest)
-        if not isinstance(req, netman.WininetRequest):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
+        req = self.netman.get_wininet(hRequest, netman.WininetRequest)
         srv = req.get_server()
         port = req.get_port()
 
@@ -330,10 +320,7 @@ class Wininet(api.ApiHandler):
 
         rv = 1
 
-        req = self.netman.get_wininet_object(hFile)
-        if not isinstance(req, netman.WininetRequest):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
+        req = self.netman.get_wininet(hFile, netman.WininetRequest)
         resp = req.get_response()
         data = resp.read(dwNumberOfBytesToRead)
 
@@ -369,10 +356,7 @@ class Wininet(api.ApiHandler):
         if header_id == HTTP_QUERY.HTTP_QUERY_STATUS_CODE:
             text = inetdefs.HTTP_STATUS_OK
         else:
-            req = self.netman.get_wininet_object(hRequest)
-            if not isinstance(req, netman.WininetRequest):
-                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-                return False
+            req = self.netman.get_wininet(hRequest, netman.WininetRequest)
             text = inetdefs.get_header_text(header_id, req.get_response_headers())
             if text is None:
                 emu.set_last_error(inetdefs.ERROR_HTTP_HEADER_NOT_FOUND)
@@ -408,10 +392,7 @@ class Wininet(api.ApiHandler):
         hFile, lpdwNumberOfBytesAvailable, dwFlags, dwContext = argv
         rv = False
 
-        req = self.netman.get_wininet_object(hFile)
-        if not isinstance(req, netman.WininetRequest):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
+        req = self.netman.get_wininet(hFile, netman.WininetRequest)
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
@@ -428,11 +409,8 @@ class Wininet(api.ApiHandler):
         );
         """
         (hInternet,) = argv
-        rv = True
-
         self.netman.close_wininet_object(hInternet)
-
-        return rv
+        return True
 
     @apihook("InternetOpenUrl", argc=6)
     def InternetOpenUrl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -459,9 +437,7 @@ class Wininet(api.ApiHandler):
 
         ctx.args["dwFlags"].display = decode(INTERNET_FLAGS, dwFlags)
 
-        wini = self.netman.get_wininet_object(hInternet)
-        if not wini:
-            return 0
+        wini = self.netman.get_wininet(hInternet, netman.WininetInstance)
         crack = urlparse(url)
         default_port = DEFAULT_PORTS.get(crack.scheme.lower())
         server = crack.netloc.rpartition("@")[2]
