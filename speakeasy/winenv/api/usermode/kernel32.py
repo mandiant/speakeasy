@@ -6724,10 +6724,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (lpRootPathName,) = argv
 
-        cw = self.get_char_width(ctx)
-        name = self.read_mem_string(lpRootPathName, cw)
-        if name:
-            ctx.args["lpRootPathName"].display = name
+        if not lpRootPathName:
+            # A NULL path means the root of the current directory.
+            name = ntpath.splitdrive(emu.get_cd())[0] + "\\"
+        else:
+            cw = self.get_char_width(ctx)
+            name = self.read_mem_string(lpRootPathName, cw)
+            if name:
+                ctx.args["lpRootPathName"].display = name
 
         if name.startswith("\\\\?\\"):
             name = name.replace("\\\\?\\", "")
