@@ -1,6 +1,7 @@
 """
-x64 exception dispatch, after ntdll's RtlDispatchException and RtlUnwindEx: handlers
-come from the unwind data of the frames on the stack.
+x64 exception dispatch, after ntdll's RtlDispatchException and RtlUnwindEx.
+
+Handlers come from the unwind data of the frames on the stack.
 
 The entry points are dispatch_fault, for CPU exceptions, and the API handlers
 raise_exception, rtl_unwind_ex and c_specific_handler. These are generator
@@ -58,8 +59,9 @@ def copy_context(ctx):
 
 def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
     """
-    RtlLookupFunctionEntry: the unwind data of the function at pc, from a loaded image,
-    else from a table registered at runtime. Callback tables are not called: their
+    Get the unwind data of the function at pc, like RtlLookupFunctionEntry.
+
+    The data comes from a loaded image, else from a table registered at runtime. Callback tables are not called: their
     functions unwind as leaf functions.
     """
     module = emu.get_module_from_addr(pc)
@@ -121,12 +123,12 @@ def dispatch_fault(emu, exception: CpuException, error: guest_callbacks.Callback
 
 
 def raise_exception(emu, code: int, flags: int = 0, params=()) -> GeneratorHandler:
-    """RaiseException"""
+    """RaiseException."""
     return seh.raise_exception(emu, code, flags, params, dispatch_exception)
 
 
 def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
-    """RtlRaiseException"""
+    """RtlRaiseException."""
     return seh.rtl_raise_exception(emu, record, dispatch_exception)
 
 
@@ -161,8 +163,9 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
 
 def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
     """
-    RtlUnwindEx: walk up from ctx calling termination handlers, then resume the
-    target frame at target_ip with return_value in rax.
+    Walk up from ctx and call termination handlers, like RtlUnwindEx.
+
+    Then resume the target frame at target_ip with return_value in rax.
     """
     if record:
         fields = seh.read_record(emu, record)
@@ -234,7 +237,7 @@ def c_specific_handler(
 
 
 def lookup_function_entry(emu, pc: int, image_base_out: int) -> int:
-    """RtlLookupFunctionEntry"""
+    """RtlLookupFunctionEntry."""
     fn = find_function(emu, pc)
     if not fn:
         return 0
@@ -257,7 +260,7 @@ def virtual_unwind(
 
 
 def add_function_table(emu, table: int, count: int, base: int) -> bool:
-    """RtlAddFunctionTable"""
+    """RtlAddFunctionTable."""
     entries = list(unwind.read_function_table(emu.mem_read, table, count))
     if not entries:
         return False
@@ -268,7 +271,7 @@ def add_function_table(emu, table: int, count: int, base: int) -> bool:
 
 
 def install_function_table_callback(emu, identifier: int, base: int, length: int, callback: int) -> bool:
-    """RtlInstallFunctionTableCallback"""
+    """RtlInstallFunctionTableCallback."""
     if identifier & 3 != 3:  # the low bits mark a callback table
         return False
     emu.function_tables.append(unwind.FunctionTable(identifier, base, base, base + length, callback=callback))
@@ -276,7 +279,7 @@ def install_function_table_callback(emu, identifier: int, base: int, length: int
 
 
 def delete_function_table(emu, identifier: int) -> bool:
-    """RtlDeleteFunctionTable"""
+    """RtlDeleteFunctionTable."""
     for table in emu.function_tables:
         if table.identifier == identifier:
             emu.function_tables.remove(table)

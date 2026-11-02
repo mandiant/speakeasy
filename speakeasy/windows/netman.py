@@ -29,9 +29,7 @@ def normalize_response_path(path):
 
 
 class Socket:
-    """
-    Represents a Windows network socket
-    """
+    """Represents a Windows network socket."""
 
     def __init__(self, fd, family, stype, protocol, flags):
         self.fd: int = fd
@@ -70,9 +68,7 @@ class Socket:
 
 
 class WininetComponent:
-    """
-    Base class used for WinInet connections
-    """
+    """Base class used for WinInet connections."""
 
     config: NetworkConfig | None = None
 
@@ -86,9 +82,7 @@ class WininetComponent:
 
 
 class WininetRequest(WininetComponent):
-    """
-    WinInet request object
-    """
+    """WinInet request object."""
 
     def __init__(self, allocator, session, verb, objname, ver, ref, accepts, flags, ctx):
         super().__init__(allocator)
@@ -155,9 +149,7 @@ class WininetRequest(WininetComponent):
         return request_string
 
     def get_response_headers(self):
-        """
-        Get the status line and the header lines of the response
-        """
+        """Get the status line and the header lines of the response."""
         return ["HTTP/1.1 200 OK", f"Content-Length: {len(self.get_response().getvalue())}"]
 
     def get_response_size(self):
@@ -168,10 +160,7 @@ class WininetRequest(WininetComponent):
         return size
 
     def get_response(self):
-        """
-        Check the configuration file so see if there is a
-        handler for the current WinInet request
-        """
+        """Check the configuration file for a handler for the current WinInet request."""
         cfg = WininetComponent.config
 
         if self.response:
@@ -257,9 +246,7 @@ class WininetInstance(WininetComponent):
 
 
 class NetworkManager:
-    """
-    Class that manages network connections during emulation
-    """
+    """Class that manages network connections during emulation."""
 
     def __init__(self, allocator, config):
         super().__init__()
@@ -303,9 +290,7 @@ class NetworkManager:
         return names.get(domain.lower())
 
     def get_dns_txt(self, domain):
-        """
-        Return a configured DNS TXT record (if any)
-        """
+        """Return a configured DNS TXT record (if any)."""
 
         def _read_txt_data(txt):
             path = txt.path

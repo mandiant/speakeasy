@@ -7,8 +7,10 @@ from speakeasy.windows.kernel_mods.kernel_mod import KernelModule
 
 class IoManager:
     """
-    Directs IO requests to a module handler. For example, if a user mode application
-    sends an ioctl to a device this can be handled here.
+    Direct IO requests to a module handler.
+
+    For example, if a user mode application sends an ioctl to a device, this class can
+    handle it.
     """
 
     def __init__(self):

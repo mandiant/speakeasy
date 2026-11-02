@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 
 
 class COM:
-    """
-    The Component Object Model (COM) manager for the emulator. This will manage COM interfaces.
-    """
+    """The Component Object Model (COM) manager for the emulator. This will manage COM interfaces."""
 
     def __init__(self, config: SpeakeasyConfig):
         super().__init__()
@@ -25,8 +23,9 @@ class COM:
 
     def get_method_callback(self, emu, iface_name, method_name):
         """
-        Get the address that a vtable slot of ``iface_name`` holds for
-        ``method_name``. A method without a handler gets an address too, so
+        Get the address that a vtable slot of ``iface_name`` holds for ``method_name``.
+
+        A method without a handler gets an address too, so
         that a call to it stops the run as an unsupported API.
         """
         method = getattr(com_api.ComApi, f"{iface_name}_{method_name}", None)
@@ -34,9 +33,7 @@ class COM:
         return emu.add_callback(com_api.ComApi.name, func_name)
 
     def get_interface(self, emu, ptr_size, name):
-        """
-        Get COM interface
-        """
+        """Get COM interface."""
         iface = comdefs.IFACE_TYPES.get(name)
         if not iface:
             raise Win32EmuError(f"Invalid COM interface: {name}")

@@ -76,8 +76,10 @@ def read_runtime_function(read: Reader, image_base: int, address: int) -> Runtim
 @dataclass(frozen=True)
 class FunctionTable:
     """
-    A table of RUNTIME_FUNCTIONs registered at runtime, for code outside loaded images:
-    from RtlAddFunctionTable, or with a callback from RtlInstallFunctionTableCallback.
+    A table of RUNTIME_FUNCTIONs registered at runtime, for code outside loaded images.
+
+    The table comes from RtlAddFunctionTable, or with a callback from
+    RtlInstallFunctionTableCallback.
     """
 
     identifier: int  # the table's address, or the callback table's identifier
@@ -90,8 +92,9 @@ class FunctionTable:
 
 def read_function_table(read: Reader, address: int, count: int) -> Iterator[tuple[int, int, int]]:
     """
-    The (begin, end, unwind info) RVAs of a table of RUNTIME_FUNCTIONs, read a page at a
-    time, so that a wrong count fails where the table runs out of memory.
+    Yield the (begin, end, unwind info) RVAs of a table of RUNTIME_FUNCTIONs.
+
+    The function reads a page at a time, so that a wrong count fails where the table runs out of memory.
     """
     per_page = 0x1000 // 12
     for first in range(0, count, per_page):

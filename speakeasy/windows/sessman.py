@@ -10,9 +10,7 @@ if TYPE_CHECKING:
 
 
 class GuiObject:
-    """
-    Base class for all GUI objects
-    """
+    """Base class for all GUI objects."""
 
     def __init__(self, allocator: HandleAllocator):
         self.allocator: HandleAllocator = allocator
@@ -26,9 +24,7 @@ class GuiObject:
 
 
 class Session(GuiObject):
-    """
-    Represents a windows Session
-    """
+    """Represents a windows Session."""
 
     def __init__(self, allocator: HandleAllocator, sess_id):
         super().__init__(allocator)
@@ -42,9 +38,7 @@ class Session(GuiObject):
 
 
 class Station(GuiObject):
-    """
-    Represents a window station
-    """
+    """Represents a window station."""
 
     def __init__(self, allocator: HandleAllocator, name=""):
         super().__init__(allocator)
@@ -58,9 +52,7 @@ class Station(GuiObject):
 
 
 class Desktop(GuiObject):
-    """
-    Represents a Desktop object
-    """
+    """Represents a Desktop object."""
 
     def __init__(self, allocator: HandleAllocator, name=""):
         super().__init__(allocator)
@@ -83,9 +75,7 @@ class ListViewColumn:
 
 
 class Window(GuiObject):
-    """
-    Represents a GUI window
-    """
+    """Represents a GUI window."""
 
     def __init__(
         self, allocator: HandleAllocator, name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0
@@ -102,9 +92,7 @@ class Window(GuiObject):
 
 
 class WindowClass(GuiObject):
-    """
-    Represents a GUI window class
-    """
+    """Represents a GUI window class."""
 
     def __init__(self, allocator: HandleAllocator, wclass, name):
         super().__init__(allocator)
@@ -114,8 +102,9 @@ class WindowClass(GuiObject):
 
 class SessionManager:
     """
-    The session manager for the emulator. This will manage things like desktops,
-    windows, and session isolation
+    The session manager for the emulator.
+
+    It manages things like desktops, windows, and session isolation.
     """
 
     def __init__(self, config, allocator: HandleAllocator):

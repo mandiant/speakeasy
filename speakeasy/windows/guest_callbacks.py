@@ -184,8 +184,9 @@ def transfer(emu, context) -> None:
 
 def drop_abandoned(emu, sp: int) -> None:
     """
-    Drop the frames at or below sp, where the guest runs: it left their guest calls
-    without returning, as a handler that continues in an __except block leaves the
+    Drop the frames at or below sp, where the guest runs.
+
+    The guest left their guest calls without returning, as a handler that continues in an __except block leaves the
     dispatch of its exception.
     """
     callbacks = emu.get_current_run().guest_callbacks
@@ -210,8 +211,9 @@ def alloca(emu, data: bytes) -> int:
 
 def caller_context(emu):
     """
-    The context of the caller of the API being handled. Valid in a generator
-    handler before its first guest call, while the registers are still the caller's.
+    Get the context of the caller of the API being handled.
+
+    The context is valid in a generator handler before its first guest call, while the registers are still the caller's.
     """
     ctx = emu.get_thread_context()
     frame = emu.active_api_frame

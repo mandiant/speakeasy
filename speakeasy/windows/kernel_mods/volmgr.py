@@ -24,7 +24,7 @@ class VOLUME_DISK_EXTENTS(EmuStruct):
 
 
 class DriverModule(km.KernelModule):
-    """Class for emulation of specific drivers (e.g. their ioctl handlers)"""
+    """Class for emulation of specific drivers (e.g. their ioctl handlers)."""
 
     def __init__(self):
         super().__init__()
