@@ -2494,7 +2494,7 @@ class WindowsEmulator(BinaryEmulator):
         for m in self.get_mem_maps():
             if m.base <= addr <= (m.base + m.size) - 1:
                 prot = get_prot_string(m.prot) if m.prot is not None else None
-                return RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, prot=prot)
+                return RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, perms=prot)
         return None
 
     def _find_nearby_regions(self, addr: int, count: int = 2) -> list[RegionInfo]:
@@ -2512,7 +2512,7 @@ class WindowsEmulator(BinaryEmulator):
             else:
                 continue
             prot = get_prot_string(m.prot) if m.prot is not None else None
-            distances.append((dist, RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, prot=prot)))
+            distances.append((dist, RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, perms=prot)))
         distances.sort(key=lambda x: x[0])
         return [r for _, r in distances[:count]]
 
