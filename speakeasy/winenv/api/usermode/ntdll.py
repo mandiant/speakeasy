@@ -65,7 +65,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         DWORD RtlGetLastWin32Error();
         """
-
         return emu.get_last_error()
 
     @apihook("RtlSetLastWin32Error", argc=1)
@@ -251,7 +250,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PVOID *BaseAddress
         );
         """
-
         SearchPath, LoadFlags, Name, BaseAddress = argv
 
         hmod = 0
@@ -307,7 +305,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PVOID *FunctionAddress
         );
         """
-
         hmod, proc_name, ordinal, func_addr = argv
         rv = ddk.STATUS_PROCEDURE_NOT_FOUND
 

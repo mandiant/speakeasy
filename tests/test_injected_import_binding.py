@@ -13,7 +13,8 @@ def api_emu(request):
 
 
 def map_injected_pe(emu, names, zero_oft=False, bad_index=None):
-    """Map a PE that imports `names` from kernel32 into memory outside the loader.
+    """
+    Map a PE that imports `names` from kernel32 into memory outside the loader.
 
     The thunk at `bad_index` points past SizeOfImage. Returns the image base
     and the IAT address.

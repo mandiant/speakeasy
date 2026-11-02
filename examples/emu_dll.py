@@ -39,7 +39,6 @@ def hook_mem_write(emu, access, address, size, value):
         size: Size of the data being written
         value: data that is being written to "address"
     """
-
     # For a quick example, lets just log writes that occur to the stack
     for mm in emu.get_mem_maps():
         if mm.tag and mm.tag.startswith("emu.stack"):

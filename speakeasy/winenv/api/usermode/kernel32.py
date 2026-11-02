@@ -391,7 +391,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LCID Locale
         );
         """
-
         (lcid,) = argv
         return lcid
 
@@ -403,7 +402,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwFlags
         );
         """
-
         lcid, flags = argv
         return True
 
@@ -472,7 +470,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HANDLE GetProcessHeap();
         """
-
         if not self.heaps:
             heap = self.create_heap(emu)
         else:
@@ -486,7 +483,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD ProcessId
         );
         """
-
         ver = self.emu.config.os_ver
         major = ver.major or 0
         minor = ver.minor or 0
@@ -502,7 +498,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HMODULE hLibModule
         );
         """
-
         (hLibModule,) = argv
 
         return True
@@ -516,7 +511,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCSTR lpName
         );
         """
-
         attrs, owner, name = argv
 
         cw = self.get_char_width(ctx)
@@ -574,7 +568,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPTSTR lpLibFileName
         );
         """
-
         (lib_name,) = argv
         hmod = windefs.NULL
 
@@ -595,7 +588,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD th32ProcessID
         );
         """
-
         (
             dwFlags,
             th32ProcessID,
@@ -676,7 +668,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPPROCESSENTRY32 lppe
         );
         """
-
         (
             hSnapshot,
             pe32,
@@ -705,7 +696,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPPROCESSENTRY32 lppe
         );
         """
-
         (
             hSnapshot,
             pe32,
@@ -734,7 +724,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPTHREADENTRY32 lpte
         );
         """
-
         (
             hSnapshot,
             te32,
@@ -769,7 +758,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPTHREADENTRY32 lpte
         );
         """
-
         (
             hSnapshot,
             te32,
@@ -818,7 +806,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPMODULEENTRY32 lpme
         );
         """
-
         (
             hSnapshot,
             mod32,
@@ -847,7 +834,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPMODULEENTRY32 lpme
         );
         """
-
         (
             hSnapshot,
             mod32,
@@ -876,7 +862,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwProcessId
         );
         """
-
         access, inherit, pid = argv
 
         proc = next((p for p in emu.get_processes() if p.pid == pid), None)
@@ -904,7 +889,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCWSTR lpName
         );
         """
-
         access, inherit, name = argv
 
         cw = self.get_char_width(ctx)
@@ -933,7 +917,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT uExitCode
         );
         """
-
         hProcess, uExitCode = argv
         rv = False
 
@@ -987,7 +970,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT uCmdShow
         );
         """
-
         lpCmdLine, uCmdShow = argv
         rv = 1
 
@@ -1014,7 +996,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwFlags
         );
         """
-
         lib_name, _, dwFlags = argv
 
         hmod = 0
@@ -1165,7 +1146,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD flProtect
         );
         """
-
         lpAddress, dwSize, flAllocationType, flProtect = argv
         buf = 0
         tag_prefix = "api.VirtualAlloc"
@@ -1820,7 +1800,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HANDLE GetCurrentProcess();
         """
-
         rv = self.get_max_int()
 
         return rv
@@ -1830,7 +1809,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();
         """
-
         ver = self.emu.config.os_ver
         build = ver.build or 0
         major = ver.major or 0
@@ -1845,7 +1823,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetLastError();
         """
-
         rv = emu.get_last_error()
 
         # TODO: reset last error code here for now
@@ -1974,7 +1951,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwFlags
         );
         """
-
         # Non-zero value for success.
         rv = 1
 
@@ -1988,7 +1964,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPDWORD lpdwFlags
         );
         """
-
         # Non-zero value for success.
         rv = 1
 
@@ -2001,7 +1976,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT uExitCode
         );
         """
-
         self.exit_process()
         return 0
 
@@ -2061,7 +2035,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSYSTEMTIME lpSystemTime
         );
         """
-
         lpFileTime, lpSystemTime = argv
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -2085,7 +2058,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPFILETIME lpSystemTimeAsFileTime
         );
         """
-
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
@@ -2105,7 +2077,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPFILETIME lpFileTime
         );
         """
-
         lpSystemTime, lpFileTime = argv
 
         st = self.k32types.SYSTEMTIME(emu.get_ptr_size())
@@ -2145,7 +2116,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPDWORD lpOldMode
         );
         """
-
         dwNewMode, lpOldMode = argv
 
         return True
@@ -2157,7 +2127,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD DirectoryFlags
         );
         """
-
         return True
 
     @apihook("SetConsoleTitle", argc=1)
@@ -2167,7 +2136,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCTSTR lpConsoleTitle
         );
         """
-
         (lpConsoleTitle,) = argv
         if lpConsoleTitle:
             cw = self.get_char_width(ctx)
@@ -2205,7 +2173,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPTIME_ZONE_INFORMATION lpTimeZoneInformation
         );
         """
-
         (lpTimeZoneInformation,) = argv
         if lpTimeZoneInformation:
             self.mem_write(lpTimeZoneInformation, b"\x00" * 168)
@@ -2217,7 +2184,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetCurrentThreadId();
         """
-
         thread = emu.get_current_thread()
         rv = thread.id
 
@@ -2228,7 +2194,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetCurrentProcessId();
         """
-
         proc = emu.get_current_process()
         rv = proc.id
 
@@ -2241,7 +2206,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD ProcessorFeature
         );
         """
-
         rv = 1
         """
         Not all the features must return 1, because those can represent a feature which can be unavailable
@@ -2540,7 +2504,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCSTR lpModuleName
         );
         """
-
         (mod_name,) = argv
 
         cw = self.get_char_width(ctx)
@@ -2580,7 +2543,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCSTR lpProcName
         );
         """
-
         hmod, proc_name = argv
         rv = 0
 
@@ -2684,7 +2646,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         BOOL AllocConsole();
         """
-
         # On success, return != 0
         return 1
 
@@ -2745,7 +2706,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T dwBytes
         );
         """
-
         uFlags, dwBytes = argv
 
         chunk = self.heap_alloc(dwBytes, heap="GlobalAlloc")
@@ -2759,7 +2719,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HGLOBAL hMem
         );
         """
-
         (hMem,) = argv
 
         size = self.heap_size(hMem)
@@ -2797,7 +2756,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T uBytes
         );
         """
-
         uFlags, dwBytes = argv
 
         chunk = self.heap_alloc(dwBytes, heap="LocalAlloc")
@@ -2813,7 +2771,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T dwBytes
         );
         """
-
         hHeap, dwFlags, dwBytes = argv
 
         chunk = self.heap_alloc(dwBytes, heap="HeapAlloc")
@@ -2831,7 +2788,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCVOID lpMem
         );
         """
-
         hHeap, dwFlags, lpMem = argv
 
         size = self.heap_size(lpMem)
@@ -2844,7 +2800,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetTickCount();
         """
-
         self.tick_counter += 20
 
         return self.tick_counter
@@ -2854,7 +2809,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         ULONGLONG GetTickCount64();
         """
-
         self.tick_counter += 20
 
         if emu.get_arch() == e_arch.ARCH_X86:
@@ -2943,7 +2897,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT_PTR ucb
         );
         """
-
         lp, ucb = argv
 
         rv = True
@@ -2967,7 +2920,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T dwBytes
         );
         """
-
         hHeap, dwFlags, lpMem, dwBytes = argv
 
         tag_prefix = "api.heap"
@@ -2993,7 +2945,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT uFlags
         );
         """
-
         hMem, uBytes, uFlags = argv
 
         tag_prefix = "api.heap"
@@ -3019,7 +2970,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T dwMaximumSize
         );
         """
-
         flOptions, dwInitialSize, dwMaximumSize = argv
 
         heap = self.create_heap(emu)
@@ -3038,7 +2988,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD TlsAlloc();
         """
-
         thread = emu.get_current_thread()
         tls = thread.tls
 
@@ -3057,7 +3006,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPVOID lpTlsValue
         );
         """
-
         dwTlsIndex, lpTlsValue = argv
         rv = 0
 
@@ -3105,7 +3053,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PFLS_CALLBACK_FUNCTION lpCallback
         );
         """
-
         idx = self.fls_count
         self.fls_count += 1
         return idx
@@ -3118,7 +3065,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PVOID lpFlsData
         );
         """
-
         dwFlsIndex, lpFlsData = argv
         rv = 0
 
@@ -3165,7 +3111,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PVOID Ptr
         );
         """
-
         (Ptr,) = argv
         # Just increment the pointer for now
         rv = Ptr + 1
@@ -3179,7 +3124,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PVOID Ptr
         );
         """
-
         (Ptr,) = argv
         # Just decrement the pointer for now
         rv = Ptr - 1
@@ -3194,7 +3138,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwSpinCount
         );
         """
-
         lpCriticalSection, dwSpinCount = argv
         rv = 1
 
@@ -3207,7 +3150,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
-
         return
 
     @apihook("LeaveCriticalSection", argc=1)
@@ -3217,7 +3159,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
-
         return
 
     @apihook("InterlockedIncrement", argc=1)
@@ -3227,7 +3168,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LONG volatile *Addend
         );
         """
-
         (Addend,) = argv
 
         val = self.mem_read(Addend, 4)
@@ -3245,7 +3185,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LONG volatile *Addend
         );
         """
-
         (Addend,) = argv
 
         val = self.mem_read(Addend, 4)
@@ -3275,7 +3214,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         LPTSTR GetCommandLine();
         """
-
         fn = ctx.func_name
         cw = self.get_char_width(ctx)
         curr_proc = emu.get_current_process()
@@ -3331,7 +3269,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         LPCH GetEnvironmentStrings();
         """
-
         out = ""
         fn = ctx.func_name
         cw = 2 if fn.endswith("W") else 1
@@ -3358,7 +3295,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCH penv
         );
         """
-
         (penv,) = argv
 
         mm = emu.get_address_map(penv)
@@ -3377,7 +3313,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSTR *lpFilePart
         );
         """
-
         lpFileName, nBufferLength, lpBuffer, lpFilePart = argv
         cw = self.get_char_width(ctx)
         rv = 0
@@ -3466,7 +3401,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSTARTUPINFO lpStartupInfo
         );
         """
-
         (lpStartupInfo,) = argv
 
         cw = self.get_char_width(ctx)
@@ -3502,7 +3436,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD nStdHandle
         );
         """
-
         (nStdHandle,) = argv
 
         proc = emu.get_current_process()
@@ -3518,7 +3451,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hHandle
         );
         """
-
         nStdHandle, hHandle = argv
 
         proc = emu.get_current_process()
@@ -3568,7 +3500,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         UINT GetACP();
         """
-
         windows_1252 = 1252
 
         return windows_1252
@@ -3580,7 +3511,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             UINT CodePage
         );
         """
-
         (CodePage,) = argv
 
         return True
@@ -3593,7 +3523,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCPINFO lpCPInfo
         );
         """
-
         CodePage, lpCPInfo = argv
 
         cp_info = (2).to_bytes(4, "little") + (b"\x00" * 8)
@@ -3616,7 +3545,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPBOOL lpUsedDefaultChar
         );
         """
-
         rv = 0
 
         (
@@ -3684,7 +3612,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             int cchWideChar
         );
         """
-
         (CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar) = argv
 
         cchWideChar = cchWideChar & 0xFFFFFFFF
@@ -3828,7 +3755,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             int cchDest
         );
         """
-
         (Locale, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest) = argv
 
         rv = 0
@@ -3866,7 +3792,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPARAM sortHandle
         );
         """
-
         (lpLocaleName, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest, ver_info, res, sort_handle) = argv
 
         rv = 0
@@ -5009,7 +4934,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         BOOL IsDebuggerPresent();
         """
-
         return False
 
     @apihook("GetVolumeInformation", argc=8)
@@ -5298,7 +5222,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
-
         return None
 
     @apihook("FlsFree", argc=1)
@@ -5308,7 +5231,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwFlsIndex
         );
         """
-
         return True
 
     @apihook("TlsFree", argc=1)
@@ -5318,7 +5240,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwTlsIndex
         );
         """
-
         return True
 
     @apihook("ProcessIdToSessionId", argc=2)
@@ -5349,7 +5270,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD Flags
         );
         """
-
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
@@ -5360,7 +5280,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
-
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return None
 
@@ -5402,7 +5321,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hHeap
         );
         """
-
         return True
 
     @apihook("InitializeSListHead", argc=1)
@@ -5425,7 +5343,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HMODULE hLibModule
         );
         """
-
         return True
 
     @apihook("WaitForSingleObject", argc=2)
@@ -5513,7 +5430,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T HeapInformationLength
         );
         """
-
         return True
 
     @apihook("SetErrorMode", argc=1)
@@ -5806,7 +5722,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPDWORD nSize
         );
         """
-
         lpBuffer, nSize = argv
         cw = self.get_char_width(ctx)
 
@@ -5858,7 +5773,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD nSize
         );
         """
-
         lpName, lpBuffer, nSize = argv
         rv = 0
 
@@ -5968,7 +5882,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPWIN32_FIND_DATAA lpFindFileData
         );
         """
-
         lpFileName, lpFindFileData = argv
 
         cw = self.get_char_width(ctx)
@@ -6016,7 +5929,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPWIN32_FIND_DATAA lpFindFileData
         );
         """
-
         hFindFile, lpFindFileData = argv
 
         cw = self.get_char_width(ctx)
@@ -6058,7 +5970,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hFindFile
         );
         """
-
         (hFindFile,) = argv
 
         try:
@@ -6077,7 +5988,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PFILETIME lpUserTime
         );
         """
-
         lpIdleTime, lpKernelTime, lpUserTime = argv
 
         ft = self.k32types.FILETIME(emu.get_ptr_size())
@@ -6101,7 +6011,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCONTEXT lpContext
         );
         """
-
         hThread, lpContext = argv
 
         obj = self.get_thread_from_handle(emu, hThread)
@@ -6124,7 +6033,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             const CONTEXT *lpContext
         );
         """
-
         hThread, lpContext = argv
 
         obj = self.get_thread_from_handle(emu, hThread)
@@ -6174,7 +6082,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             const FILETIME *lpFileTime2
         );
         """
-
         lpFileTime1, lpFileTime2 = argv
         rv = 0
 
@@ -6204,7 +6111,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCSTR lpType
         );
         """
-
         cw = self.get_char_width(ctx)
         hModule, lpName, lpType = argv
         if hModule == 0:
@@ -6237,7 +6143,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             WORD wLanguage
         );
         """
-
         # repeats code from FindResource()
         cw = self.get_char_width(ctx)
         hModule, lpType, lpName, wLanguage = argv
@@ -6267,7 +6172,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HRSRC hResInfo
         );
         """
-
         hModule, hResInfo = argv
 
         if hModule == 0:
@@ -6293,7 +6197,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HGLOBAL hResData
         );
         """
-
         (hResData,) = argv
 
         return hResData
@@ -6306,7 +6209,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HRSRC hResInfo
         );
         """
-
         hModule, hResInfo = argv
 
         # We don't strictly need pe here for SizeofResource if we trust hResInfo,
@@ -6491,7 +6393,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HGLOBAL hResData
         );
         """
-
         return 0
 
     @apihook("GetCurrentDirectory", argc=2)
@@ -6527,7 +6428,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD nndPreferred
         );
         """
-
         argv = argv[:-1]
         return self.VirtualAllocEx(emu, argv, ctx)
 
@@ -6778,7 +6678,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSTR lpBuffer
         );
         """
-
         nBufferLength, lpBuffer = argv
         rv = 0
         cw = self.get_char_width(ctx)
@@ -7771,7 +7670,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hFile
         );
         """
-
         (hFile,) = argv
         rv = 1
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -7786,7 +7684,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPDWORD lpExitCode
         );
         """
-
         hThread, lpExitCode = argv
         obj = self.get_thread_from_handle(emu, hThread)
         if not isinstance(obj, objman.Thread):
@@ -7985,7 +7882,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPFILETIME lpSystemTimeAsFileTime
         );
         """
-
         (lpSystemTimeAsFileTime,) = argv
         ft = self.k32types.FILETIME(emu.get_ptr_size())
 
@@ -8182,7 +8078,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PSRWLOCK SRWLock
         );
         """
-
         return
 
     @apihook("AcquireSRWLockShared", argc=1)
@@ -8192,7 +8087,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PSRWLOCK SRWLock
         );
         """
-
         return
 
     @apihook("ReleaseSRWLockShared", argc=1)
@@ -8202,7 +8096,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PSRWLOCK SRWLock
         );
         """
-
         return
 
     @apihook("AcquireSRWLockExclusive", argc=1)
@@ -8212,7 +8105,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PSRWLOCK SRWLock
         );
         """
-
         return
 
     @apihook("ReleaseSRWLockExclusive", argc=1)
@@ -8222,7 +8114,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PSRWLOCK SRWLock
         );
         """
-
         return
 
     @apihook("GetPhysicallyInstalledSystemMemory", argc=1)
@@ -8232,7 +8123,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PULONGLONG TotalMemoryInKilobytes
         );
         """
-
         (TotalMemoryInKilobytes,) = argv
 
         # 2GB

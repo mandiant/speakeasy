@@ -172,7 +172,6 @@ class WininetRequest(WininetComponent):
         Check the configuration file so see if there is a
         handler for the current WinInet request
         """
-
         cfg = WininetComponent.config
 
         if self.response:

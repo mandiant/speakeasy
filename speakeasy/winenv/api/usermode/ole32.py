@@ -102,7 +102,6 @@ class Ole32(api.ApiHandler):
             void *pReserved3
         );
         """
-
         rv = windefs.S_OK
 
         authn_level = com.get_define_int(argv[4])
@@ -199,7 +198,6 @@ class Ole32(api.ApiHandler):
             LPOLESTR *lplpsz
         );
         """
-
         rclsid, lplpsz = argv
         rv = windefs.S_OK
 

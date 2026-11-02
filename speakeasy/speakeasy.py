@@ -122,6 +122,7 @@ class Speakeasy:
         args:
             config: The configuration data to set up the emulator environment
                     If none is supplied, a default config is used.
+
         return:
             None
         """
@@ -249,7 +250,8 @@ class Speakeasy:
             return False
 
     def _auto_mount_target_directory(self, path: str) -> None:
-        """Mount direct-child files in the target's host directory into the emulated current directory.
+        """
+        Mount direct-child files in the target's host directory into the emulated current directory.
 
         This makes sibling files (e.g. data files the sample expects to find
         in its working directory) available to the emulated program.  Only
@@ -968,7 +970,8 @@ class Speakeasy:
         return self.emu.get_symbol_from_address(address)
 
     def get_api_symbols(self) -> dict[int, str]:
-        """Return public addresses mapped to "dll.name" labels, including auxiliary symbols.
+        """
+        Return public addresses mapped to "dll.name" labels, including auxiliary symbols.
 
         Snapshot again after new modules or functions are resolved. Private
         dispatch tokens and export-directory forwarder strings are excluded.

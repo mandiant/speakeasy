@@ -577,7 +577,6 @@ class ApiHandler:
         For APIs that call functions, we will setup the stack to make this flow
         naturally.
         """
-
         run = self.emu.get_current_run()
 
         frame = self.emu.active_api_frame

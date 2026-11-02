@@ -616,7 +616,6 @@ class Msvcrt(api.ApiHandler):
     @impdata("_acmdln")
     def _acmdln(self, ptr):
         """Command line global CRT variable"""
-
         _argv = self.emu.get_argv()
         _argv = " ".join(_argv).encode("utf-8")
 
@@ -644,7 +643,6 @@ class Msvcrt(api.ApiHandler):
     @apihook("__p__acmdln", argc=0)
     def __p__acmdln(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """Command line global CRT variable"""
-
         cmdln = emu.get_proc("msvcrt", "_acmdln")
 
         return cmdln
@@ -689,7 +687,6 @@ class Msvcrt(api.ApiHandler):
             _onexit_t function
         );
         """
-
         (func,) = argv
         return func
 
@@ -713,7 +710,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
         ptr_size = self.get_ptr_size()
 
@@ -760,7 +756,6 @@ class Msvcrt(api.ApiHandler):
             size_t count
         );
         """
-
         string1, string2, count = argv
         rv = 1
         if not count:
@@ -786,7 +781,6 @@ class Msvcrt(api.ApiHandler):
             _PIFV *pfend
         );
         """
-
         pfbegin, pfend = argv
         return self._call_initializers(pfbegin, pfend, stop_on_error=True)
 
@@ -798,7 +792,6 @@ class Msvcrt(api.ApiHandler):
             _PVFV *pfend
         );
         """
-
         pfbegin, pfend = argv
         return self._call_initializers(pfbegin, pfend, stop_on_error=False)
 
@@ -880,7 +873,6 @@ class Msvcrt(api.ApiHandler):
             _startupinfo *_StartInfo
         );
         """
-
         return self._write_main_args(emu, argv, "utf-8")
 
     @apihook("__GetMainArgs", argc=4, conv=e_arch.CALL_CONV_CDECL)
@@ -906,7 +898,6 @@ class Msvcrt(api.ApiHandler):
             _startupinfo *_StartInfo
         );
         """
-
         return self._write_main_args(emu, argv, "utf-16le")
 
     @apihook("__p___wargv", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -914,7 +905,6 @@ class Msvcrt(api.ApiHandler):
         """
         WCHAR ***__p___wargv();
         """
-
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
 
@@ -947,7 +937,6 @@ class Msvcrt(api.ApiHandler):
         """
         char ***__p___argv();
         """
-
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
 
@@ -980,7 +969,6 @@ class Msvcrt(api.ApiHandler):
         """
         int *__p___argc();
         """
-
         _argv = emu.get_argv()
 
         argc = self.mem_alloc(size=4, tag="api.argc")
@@ -1046,7 +1034,6 @@ class Msvcrt(api.ApiHandler):
         """
         char **_get_initial_narrow_environment();
         """
-
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
         total = ptr_size
@@ -1078,7 +1065,6 @@ class Msvcrt(api.ApiHandler):
         """
         WCHAR **_get_initial_wide_environment();
         """
-
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
         total = ptr_size
@@ -1112,7 +1098,6 @@ class Msvcrt(api.ApiHandler):
             int const status
         );
         """
-
         self.exit_process()
 
     @apihook("_exit", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1122,7 +1107,6 @@ class Msvcrt(api.ApiHandler):
             int const status
         );
         """
-
         self.exit_process()
 
     @apihook("_amsg_exit", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1132,7 +1116,6 @@ class Msvcrt(api.ApiHandler):
             int rterrnum
         );
         """
-
         self.exit_process()
 
     @apihook("abort", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -1140,7 +1123,6 @@ class Msvcrt(api.ApiHandler):
         """
         void abort();
         """
-
         self.exit_process()
 
     @apihook("_assert", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -1187,7 +1169,6 @@ class Msvcrt(api.ApiHandler):
             fd
         );
         """
-
         (fd,) = argv
 
         size, _ = self.get_file_layout()
@@ -1632,7 +1613,6 @@ class Msvcrt(api.ApiHandler):
             size_t num
         );
         """
-
         ptr, value, num = argv
 
         data = bytes([value & 0xFF]) * num
@@ -1647,7 +1627,6 @@ class Msvcrt(api.ApiHandler):
             time_t *destTime
         );
         """
-
         (destTime,) = argv
         return self.write_time(destTime, self.get_time_size(emu))
 
@@ -1937,7 +1916,6 @@ class Msvcrt(api.ApiHandler):
         """
         clock_t clock();
         """
-
         self.tick_counter += 200
 
         return self.tick_counter
@@ -1988,7 +1966,6 @@ class Msvcrt(api.ApiHandler):
             unsigned int seed
         );
         """
-
         (seed,) = argv
         self.rand_seed = seed
 
@@ -2054,7 +2031,6 @@ class Msvcrt(api.ApiHandler):
             const char *str
         );
         """
-
         return self.ato(ctx, argv[0], 1, 32)
 
     @apihook("_wtol", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -2093,7 +2069,6 @@ class Msvcrt(api.ApiHandler):
         """
         int rand();
         """
-
         self.rand_seed = (self.rand_seed * 214013 + 2531011) & 0xFFFFFFFF
 
         return (self.rand_seed >> 16) & 0x7FFF

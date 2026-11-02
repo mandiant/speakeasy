@@ -280,7 +280,6 @@ class User32(api.ApiHandler):
         """
         HWND GetDesktopWindow();
         """
-
         hnd = 0
 
         desk = self.sessman.get_current_desktop()
@@ -297,7 +296,6 @@ class User32(api.ApiHandler):
             int nCmdShow
         );
         """
-
         rv = 1
 
         return rv
@@ -338,7 +336,6 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-
         rv = self.sessman.get_device_context()
 
         return rv
@@ -390,7 +387,6 @@ class User32(api.ApiHandler):
             HINSTANCE hInstance
         );
         """
-
         return 1
 
     @apihook("SetCursorPos", argc=2)
@@ -674,7 +670,6 @@ class User32(api.ApiHandler):
             LPPOINT lpPoint
         );
         """
-
         (lpPoint,) = argv
         if not lpPoint:
             return False
@@ -704,7 +699,6 @@ class User32(api.ApiHandler):
             int vKey
         );
         """
-
         (vkey,) = argv
         return self.get_synthetic_async_key_state(vkey)
 
@@ -731,7 +725,6 @@ class User32(api.ApiHandler):
             int nIndex
         );
         """
-
         (nIndex,) = argv
         return SYSTEM_METRICS.get(nIndex, 0)
 
@@ -1462,7 +1455,6 @@ class User32(api.ApiHandler):
             LPARAM dwInitParam
         );
         """
-
         (
             hnd,
             template,

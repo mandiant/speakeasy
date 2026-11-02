@@ -296,7 +296,8 @@ class FuncSig:
         return self.arch is None or arch in self.arch
 
     def supports_emulation(self, ptr_size: int) -> bool:
-        """Whether the current generic integer-slot executor can use this ABI.
+        """
+        Whether the current generic integer-slot executor can use this ABI.
 
         This conservative capability check does not affect catalog membership
         or handler/hook availability. Floating-point transport, aggregate
@@ -416,7 +417,8 @@ class SignatureSource(ABC):
         """Return the signature for ``dll!func`` on ``arch`` ("x86" or "x64"), if known."""
 
     def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
-        """Enumerate exact, architecture-eligible module declarations, independently of ABI support.
+        """
+        Enumerate exact, architecture-eligible module declarations, independently of ABI support.
 
         Lookup-only custom sources contribute no catalog entries by default.
         """
@@ -530,7 +532,8 @@ class Win32MetadataSource(SignatureSource):
         return self._dll_aliases.get(dll, dll)
 
     def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
-        """Yield exact DLL declarations in name order, converting them lazily.
+        """
+        Yield exact DLL declarations in name order, converting them lazily.
 
         Unlike lookup, this never reuses another DLL's declarations or applies
         DLL aliases/name prefixes. The first architecture-eligible declaration
@@ -674,7 +677,8 @@ class SignatureDatabase:
         return None
 
     def get_functions(self, dll: str, arch: str) -> dict[str, FuncSig]:
-        """Map the exact declarations of one DLL to their signatures.
+        """
+        Map the exact declarations of one DLL to their signatures.
 
         Membership comes from each source's catalog, never from a permissive
         lookup or an ABI capability check. The first source that declares a

@@ -202,7 +202,6 @@ class Ntoskrnl(api.ApiHandler):
             ...
         );
         """
-
         fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 1)[0]
         fmt_str = self.read_string(fmt)
         fmt_cnt = self.get_va_arg_count(fmt_str)
@@ -224,7 +223,6 @@ class Ntoskrnl(api.ApiHandler):
             ...
         );
         """
-
         cid, level, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
 
         fmt_str = self.read_string(fmt)
@@ -357,7 +355,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN AllocateDestinationString
         );
         """
-
         dest, src, do_alloc = argv
         nts = ddk.STATUS_SUCCESS
 
@@ -503,7 +500,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG Tag
         );
         """
-
         PoolType, NumberOfBytes, Tag = argv
 
         if Tag:
@@ -669,7 +665,6 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT *DeviceObject
         );
         """
-
         nts = ddk.STATUS_SUCCESS
         drv, ext_size, name, devtype, chars, exclusive, out_addr = argv
 
@@ -702,7 +697,6 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT *DeviceObject
         );
         """
-
         nts = ddk.STATUS_SUCCESS
         drv, ext_size, name, devtype, chars, exclusive, sddl, guid, out_addr = argv
 
@@ -1105,7 +1099,6 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *str
         );
         """
-
         string = argv[0]
         ws = self.read_wide_string(string)
         if isinstance(ws, str):
@@ -1401,7 +1394,6 @@ class Ntoskrnl(api.ApiHandler):
             NTSTATUS Iostatus
         );
         """
-
         Irp, Iostatus = argv
         return
 
@@ -1487,7 +1479,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN State
         );
         """
-
         return
 
     @apihook("KeResetEvent", argc=1)
@@ -1606,7 +1597,6 @@ class Ntoskrnl(api.ApiHandler):
             PRKAPC_STATE ApcState
         );
         """
-
         Process, ApcState = argv
 
         proc = self.get_object_from_addr(Process)
@@ -1939,7 +1929,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Context
         );
         """
-
         DriverObject, routine, context = argv
 
         self.queue_run("driver_reinit", routine, (DriverObject, context, 1))
@@ -1951,7 +1940,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         NTSTATUS KdDisableDebugger();
         """
-
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
 
@@ -1967,7 +1955,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG OutBufferNeeded
         );
         """
-
         rv = ddk.STATUS_DEBUGGER_INACTIVE
         return rv
 
@@ -2178,7 +2165,6 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN InitialState
         );
         """
-
         EventHandle, access, objattr, evttype, state = argv
 
         name = self._read_object_name(objattr)
@@ -2210,7 +2196,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         VOID KeEnterCriticalRegion();
         """
-
         return
 
     @apihook("ExAcquireResourceExclusiveLite", argc=2)
@@ -2451,7 +2436,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG FinalUncompressedSize
         );
         """
-
         fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, final_size = argv
 
         algorithm = fmt & 0xFF
@@ -2559,7 +2543,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG OutputBufferLength
         );
         """
-
         hnd, evt, apc_func, apc_ctx, isb, ioctl, InputBuffer, in_len, out_buf, out_len = argv  # noqa
         nts = ddk.STATUS_SUCCESS
 
@@ -2737,7 +2720,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         PEPROCESS IoGetCurrentProcess();
         """
-
         p = emu.get_current_process()
         return p.address
 
@@ -2746,7 +2728,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         HANDLE PsGetCurrentProcessId();
         """
-
         p = emu.get_current_process()
         pid = getattr(p, "pid", None)
         return pid if pid is not None else 4
@@ -3060,7 +3041,6 @@ class Ntoskrnl(api.ApiHandler):
             PULONG ResultLength
         );
         """
-
         hnd, val, info_class, val_info, length, ret_len = argv
         rv = ddk.STATUS_INVALID_HANDLE
 
@@ -3369,7 +3349,6 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T Length
         );
         """
-
         s1, s2, Length = argv
 
         s1 = self.mem_read(s1, Length)
@@ -3391,7 +3370,6 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Environment
         );
         """
-
         rv = ddk.STATUS_SUCCESS
         # TODO: complete this api handler
         RelativeTo, Path, QueryTable, Context, Environment = argv
@@ -3513,7 +3491,6 @@ class Ntoskrnl(api.ApiHandler):
             _DRIVER_OBJECT *DriverObject
         );
         """
-
         (DriverObject,) = argv
         rv = False
 
@@ -3532,7 +3509,6 @@ class Ntoskrnl(api.ApiHandler):
             HANDLE FileHandle
         );
         """
-
         (
             SectionHandle,
             DesiredAccess,
@@ -3626,7 +3602,6 @@ class Ntoskrnl(api.ApiHandler):
             ULONG Win32Protect
         );
         """
-
         (
             SectionHandle,
             ProcessHandle,

@@ -68,7 +68,6 @@ class Ws2_32(api.ApiHandler):
         """
         int WSACleanup();
         """
-
         return 0
 
     @apihook("WSASocket", argc=6)
@@ -112,7 +111,6 @@ class Ws2_32(api.ApiHandler):
             LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
         );
         """
-
         # TODO: Add actual function logic. However, for now, returning 0 (success) should cover most use cases.
 
         return windefs.ERROR_SUCCESS
@@ -335,7 +333,6 @@ class Ws2_32(api.ApiHandler):
             int namelen
         );
         """
-
         s, pname, namelen = argv
 
         rv = windefs.ERROR_SUCCESS
@@ -592,7 +589,6 @@ class Ws2_32(api.ApiHandler):
             PVOID pAddrBuf
         );
         """
-
         family, pszAddrString, pAddrBuf = argv
 
         fam_str = winsock.get_addr_family(family)
@@ -658,7 +654,6 @@ class Ws2_32(api.ApiHandler):
             int flags
         );
         """
-
         s, buf, blen, flags = argv
         rv = 0
 
