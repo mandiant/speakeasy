@@ -729,9 +729,9 @@ class User32(api.ApiHandler):
         (_type,) = argv
         if _type == 0:
             return 4
-        elif _type == 1:
+        if _type == 1:
             return 0
-        elif _type == 2:
+        if _type == 2:
             return 12
         return 0
 
@@ -1834,10 +1834,9 @@ class User32(api.ApiHandler):
                 return _str
             val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=False)
             return int.from_bytes(val, byteorder="little")
-        else:
-            raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
-            self.mem_write(_str, map_char_case(raw, cw, upper=False))
-            return _str
+        raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
+        self.mem_write(_str, map_char_case(raw, cw, upper=False))
+        return _str
 
     @apihook("CharUpper", argc=1)
     def CharUpper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1854,10 +1853,9 @@ class User32(api.ApiHandler):
                 return _str
             val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=True)
             return int.from_bytes(val, byteorder="little")
-        else:
-            raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
-            self.mem_write(_str, map_char_case(raw, cw, upper=True))
-            return _str
+        raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
+        self.mem_write(_str, map_char_case(raw, cw, upper=True))
+        return _str
 
     @apihook("SetTimer", argc=4)
     def SetTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

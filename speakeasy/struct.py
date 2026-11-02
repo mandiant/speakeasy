@@ -159,19 +159,17 @@ class EmuStruct(metaclass=CMeta):
         """Get ctypes value for the required pointer size."""
         if self.__ptrsize__ == 4:
             return ct.c_uint32
-        elif self.__ptrsize__ == 8:
+        if self.__ptrsize__ == 8:
             return ct.c_uint64
-        else:
-            return ct.c_void_p
+        return ct.c_void_p
 
     def get_pack(self):
         """Get the required structure pack (defaults to pointer size)."""
         if self.__pack__:
             return self.__pack__
-        elif self.__ptrsize__:
+        if self.__ptrsize__:
             return self.__ptrsize__ * 2
-        else:
-            return 1
+        return 1
 
     def _link_cstructs(self, obj):
         """Link nested ctypes structures together so that the buffer API can convert them to bytes."""

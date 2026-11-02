@@ -120,7 +120,7 @@ class Ncrypt(api.ApiHandler):
             if hnd == hObject:
                 cm.crypt_close(hObject)
                 break
-            elif crypt_ctx.get_key(hObject):
+            if crypt_ctx.get_key(hObject):
                 crypt_ctx.delete_key(hObject)
                 break
 

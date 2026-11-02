@@ -3042,18 +3042,18 @@ class WindowsEmulator(BinaryEmulator):
             if access == common.INVALID_MEM_EXEC:
                 return self._handle_invalid_fetch(emu, address, size, value)
 
-            elif access == common.INVALID_MEM_READ:
+            if access == common.INVALID_MEM_READ:
                 return self._handle_invalid_read(emu, address, size, value)
 
-            elif access == common.INVAL_PERM_MEM_EXEC:
+            if access == common.INVAL_PERM_MEM_EXEC:
                 if address & ~(self.page_size - 1) in self.guard_pages:
                     return self._raise_protection_fault(address, "fetch")
                 return self._handle_prot_fetch(emu, address, size, value)
-            elif access == common.INVAL_PERM_MEM_READ and not self.is_kernel_mode:
+            if access == common.INVAL_PERM_MEM_READ and not self.is_kernel_mode:
                 return self._raise_protection_fault(address, "read")
-            elif access == common.INVALID_MEM_WRITE:
+            if access == common.INVALID_MEM_WRITE:
                 return self._handle_invalid_write(emu, address, size, value)
-            elif access == common.INVAL_PERM_MEM_WRITE:
+            if access == common.INVAL_PERM_MEM_WRITE:
                 return self._handle_prot_write(emu, address, size, value)
         except Exception as e:
             return self._end_run_on_hook_error("Invalid memory exception", e)

@@ -249,10 +249,9 @@ class _PeParser(pefile.PE):
         magic = self.OPTIONAL_HEADER.Magic
         if magic & ddk.PE32_BIT:
             return _arch.ARCH_X86
-        elif magic & ddk.PE32_PLUS_BIT:
+        if magic & ddk.PE32_PLUS_BIT:
             return _arch.ARCH_AMD64
-        else:
-            raise ValueError(f"Unsupported architecture: 0x{magic:x}")
+        raise ValueError(f"Unsupported architecture: 0x{magic:x}")
 
     def get_export_by_name(self, name):
         for exp in self.get_exports():

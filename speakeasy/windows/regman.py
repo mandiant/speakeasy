@@ -85,10 +85,10 @@ class RegValue:
             if not isinstance(data, str):
                 raise RegistryEmuError("Invalid registry value expected string")
             return data
-        elif val_type in (regdefs.REG_DWORD, regdefs.REG_QWORD):
+        if val_type in (regdefs.REG_DWORD, regdefs.REG_QWORD):
             if isinstance(data, str):
                 return int(data, 0)
-            elif isinstance(data, int):
+            if isinstance(data, int):
                 return data
         elif val_type == regdefs.REG_BINARY:
             if isinstance(data, bytes):

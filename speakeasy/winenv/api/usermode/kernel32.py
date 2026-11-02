@@ -4646,9 +4646,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             # FIXME : does not handle read-only attribute
             emu.file_delete(target)
             return 1
-        else:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return 0
+        emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+        return 0
 
     @apihook("ReadFile", argc=5)
     def ReadFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5225,7 +5224,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
-        return None
+        return
 
     @apihook("FlsFree", argc=1)
     def FlsFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6187,8 +6186,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         res_rva = self.mem_read(hResInfo, 4)
         if res_rva:
             return pe.base + int.from_bytes(res_rva, "little")
-        else:
-            return 0
+        return 0
 
     @apihook("LockResource", argc=1)
     def LockResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6495,7 +6493,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
         if not emu.config.exceptions.dispatch_handlers:
-            return
+            return None
 
         count = min(nNumberOfArguments, 15) if lpArguments else 0
         params = [emu.read_ptr(lpArguments + emu.get_ptr_size() * i) for i in range(count)]
