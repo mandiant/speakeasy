@@ -479,7 +479,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         times = ((lpCreationTime, creation), (lpExitTime, 0), (lpKernelTime, 156250), (lpUserTime, 312500))
         for ptr, value in times:
             if ptr:
-                self.mem_write(ptr, value.to_bytes(8, "little"))
+                self.write_qword(ptr, value)
         return True
 
     @apihook("GetProcessHeap", argc=0)
@@ -669,7 +669,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         enc = "utf-16le" if cw == 2 else "utf-8"
 
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
-        pe.dwSize = int.from_bytes(self.mem_read(pe32, 4), "little")
+        pe.dwSize = self.read_dword(pe32)
         pe.th32ProcessID = proc.pid
         pe.cntThreads = max(len(proc.threads), 1)
         pe.th32ParentProcessID = self._get_parent_pid(emu, proc)
@@ -1433,7 +1433,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return handle
 
         if lpThreadId:
-            self.mem_write(lpThreadId, obj.id.to_bytes(4, "little"))
+            self.write_dword(lpThreadId, obj.id)
 
         self.record_process_event(proc_obj, evt_type, start_addr=lpStartAddress, param=lpParameter, tid=obj.id)
 
@@ -1473,7 +1473,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return handle
 
         if lpThreadId:
-            self.mem_write(lpThreadId, obj.id.to_bytes(4, "little"))
+            self.write_dword(lpThreadId, obj.id)
 
         self.record_process_event(proc_obj, THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id)
 
@@ -1756,7 +1756,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if flNewProtect & windefs.PAGE_GUARD:
                 emu.set_guard_pages(addr, size, new)
             mm.prot = new
-            self.mem_write(lpflOldProtect, old_prot.to_bytes(4, "little"))
+            self.write_dword(lpflOldProtect, old_prot)
             return 1
 
         return rv
@@ -1873,7 +1873,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         wrap = flags & k32types.FORMAT_MESSAGE_MAX_WIDTH_MASK
         slots = arguments
         if arguments and not flags & k32types.FORMAT_MESSAGE_ARGUMENT_ARRAY:
-            slots = self.emu.read_ptr(arguments)
+            slots = self.read_ptr(arguments)
 
         out = []
         i = 0
@@ -1906,7 +1906,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     return None
                 fmt = "%" + spec
                 first = slots + (number - 1) * ptr_size
-                values = [self.emu.read_ptr(first + n * ptr_size) for n in range(self.get_va_arg_count(fmt))]
+                values = [self.read_ptr(first + n * ptr_size) for n in range(self.get_va_arg_count(fmt))]
                 out.append(self.do_str_format(fmt, values, wide=cw == 2))
             elif esc == "0":
                 break
@@ -1954,7 +1954,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if dwFlags & k32types.FORMAT_MESSAGE_ALLOCATE_BUFFER:
             buf = self.heap_alloc(max(len(data), nSize * cw), heap="LocalAlloc")
             self.mem_write(buf, data)
-            emu.write_ptr(lpBuffer, buf)
+            self.write_ptr(lpBuffer, buf)
         elif count >= nSize:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
@@ -2483,7 +2483,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = 1
 
-        self.mem_write(lpPerformanceCount, self.get_performance_counter().to_bytes(8, "little"))
+        self.write_qword(lpPerformanceCount, self.get_performance_counter())
         return rv
 
     @apihook("lstrlen", argc=1)
@@ -2615,7 +2615,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             ParentModuleBase = 0
         dll = self.read_mem_string(ParentModuleBase + name_rva, 1)
         index = (ThunkAddress - (ParentModuleBase + iat_rva)) // ptr_size
-        thunk = int.from_bytes(self.mem_read(ParentModuleBase + int_rva + index * ptr_size, ptr_size), "little")
+        thunk = self.read_ptr(ParentModuleBase + int_rva + index * ptr_size)
         if thunk >> (ptr_size * 8 - 1):
             proc = f"ordinal_{thunk & 0xFFFF}"
         else:
@@ -2630,10 +2630,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_PROC_NOT_FOUND)
             return 0
 
-        self.mem_write(ThunkAddress, address.to_bytes(ptr_size, "little"))
+        self.write_ptr(ThunkAddress, address)
         module = emu.get_mod_by_name(winemu.normalize_dll_name(module_name(dll))) or emu.get_mod_from_addr(address)
         if hmod_rva and module:
-            self.mem_write(ParentModuleBase + hmod_rva, module.base.to_bytes(ptr_size, "little"))
+            self.write_ptr(ParentModuleBase + hmod_rva, module.base)
         return address
 
     @apihook("DelayLoadFailureHook", argc=2)
@@ -3230,9 +3230,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         Addend, Value = argv
-        old = int.from_bytes(self.mem_read(Addend, 4), "little")
+        old = self.read_dword(Addend)
         new = (old + (Value & 0xFFFFFFFF)) & 0xFFFFFFFF
-        self.mem_write(Addend, new.to_bytes(4, "little"))
+        self.write_dword(Addend, new)
         return old
 
     @apihook("GetCommandLine", argc=0)
@@ -3355,7 +3355,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
                 if lpFilePart:
                     ptr = lpBuffer + offset * cw if bn else 0
-                    self.mem_write(lpFilePart, ptr.to_bytes(emu.get_ptr_size(), "little"))
+                    self.write_ptr(lpFilePart, ptr)
 
                 rv = len(fn)
 
@@ -4707,7 +4707,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         if lpNumberOfBytesRead:
-            self.mem_write(lpNumberOfBytesRead, (0).to_bytes(4, "little"))
+            self.write_dword(lpNumberOfBytesRead, 0)
 
         f = self.file_get(hFile)
         if f:
@@ -4751,7 +4751,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             data = self.mem_read(lpBuffer, nNumberOfBytesToWrite)
 
         if lpNumberOfBytesWritten:
-            self.mem_write(lpNumberOfBytesWritten, (0).to_bytes(4, "little"))
+            self.write_dword(lpNumberOfBytesWritten, 0)
 
         f = self.file_get(hFile)
         if f:
@@ -4764,7 +4764,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
 
             if lpNumberOfBytesWritten:
-                self.mem_write(lpNumberOfBytesWritten, len(data).to_bytes(4, "little"))
+                self.write_dword(lpNumberOfBytesWritten, len(data))
 
             rv = 1
             emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4776,7 +4776,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 pipe.add_data(data)
 
             if lpNumberOfBytesWritten:
-                self.mem_write(lpNumberOfBytesWritten, len(data).to_bytes(4, "little"))
+                self.write_dword(lpNumberOfBytesWritten, len(data))
 
             rv = 1
             emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4789,7 +4789,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
             if hFile in (std_output, std_error):
                 if lpNumberOfBytesWritten:
-                    self.mem_write(lpNumberOfBytesWritten, len(data).to_bytes(4, "little"))
+                    self.write_dword(lpNumberOfBytesWritten, len(data))
 
                 rv = 1
                 emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4833,7 +4833,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         f.seek(offset, windefs.FILE_BEGIN)
         rv = f.tell()
         if lpDistanceToMoveHigh:
-            self.mem_write(lpDistanceToMoveHigh, (rv >> 32).to_bytes(4, "little"))
+            self.write_dword(lpDistanceToMoveHigh, rv >> 32)
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
         return rv & 0xFFFFFFFF
@@ -4871,7 +4871,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             f.seek(lDistanceToMove, windefs.FILE_BEGIN)
             rv = f.tell()
             if lpNewFilePointer:
-                self.mem_write(lpNewFilePointer, rv.to_bytes(8, "little"))
+                self.write_qword(lpNewFilePointer, rv)
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return True
         return False
@@ -5006,11 +5006,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpVolumeNameBuffer and nVolumeNameSize:
             self.write_mem_string("", lpVolumeNameBuffer, cw)
         if lpVolumeSerialNumber:
-            self.mem_write(lpVolumeSerialNumber, VOLUME_SERIAL_NUMBER.to_bytes(4, "little"))
+            self.write_dword(lpVolumeSerialNumber, VOLUME_SERIAL_NUMBER)
         if lpMaximumComponentLength:
-            self.mem_write(lpMaximumComponentLength, (255).to_bytes(4, "little"))
+            self.write_dword(lpMaximumComponentLength, 255)
         if lpFileSystemFlags:
-            self.mem_write(lpFileSystemFlags, (0x03E706FF).to_bytes(4, "little"))
+            self.write_dword(lpFileSystemFlags, 0x03E706FF)
         if lpFileSystemNameBuffer and nFileSystemNameSize > len("NTFS"):
             self.write_mem_string("NTFS", lpFileSystemNameBuffer, cw)
 
@@ -5301,7 +5301,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if pSessionId:
             for p in emu.get_processes():
                 if p.id == dwProcessId:
-                    self.mem_write(pSessionId, p.session.to_bytes(4, "little"))
+                    self.write_dword(pSessionId, p.session)
                     return True
 
         emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
@@ -5425,7 +5425,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         proc = emu.get_current_process()
         mode = ENABLE_INPUT_MODES if hConsoleHandle == proc.stdin else ENABLE_OUTPUT_MODES
         if lpMode:
-            self.mem_write(lpMode, mode.to_bytes(4, "little"))
+            self.write_dword(lpMode, mode)
         return True
 
     @apihook("GetConsoleCP", argc=0)
@@ -5460,7 +5460,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             data = self.mem_read(lpBuffer, nNumberOfCharsToWrite * cw)
             ctx.args["lpBuffer"].display = repr(data.decode("utf-16le" if cw == 2 else "latin-1", "replace"))
         if lpNumberOfCharsWritten:
-            self.mem_write(lpNumberOfCharsWritten, nNumberOfCharsToWrite.to_bytes(4, "little"))
+            self.write_dword(lpNumberOfCharsWritten, nNumberOfCharsToWrite)
         return True
 
     @apihook("HeapSetInformation", argc=4)
@@ -5501,7 +5501,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, pdwFlags = argv
         if pdwFlags:
-            self.mem_write(pdwFlags, (0).to_bytes(4, "little"))
+            self.write_dword(pdwFlags, 0)
         return 0  # S_OK
 
     @apihook("WerSetFlags", argc=1)
@@ -5528,7 +5528,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         dest = int.from_bytes(dest_bytes, "little")
 
         if dest == Comperand:
-            self.mem_write(Destination, ExChange.to_bytes(4, "little"))
+            self.write_dword(Destination, ExChange)
 
         return dest
 
@@ -5608,8 +5608,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        self.mem_write(hReadPipe, hnd.to_bytes(self.get_ptr_size(), "little"))
-        self.mem_write(hWritePipe, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(hReadPipe, hnd)
+        self.write_ptr(hWritePipe, hnd)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
@@ -5632,11 +5632,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return 0
 
         if lpBytesRead:
-            self.mem_write(lpBytesRead, (0).to_bytes(4, "little"))
+            self.write_dword(lpBytesRead, 0)
         if lpTotalBytesAvail:
-            self.mem_write(lpTotalBytesAvail, (0).to_bytes(4, "little"))
+            self.write_dword(lpTotalBytesAvail, 0)
         if lpBytesLeftThisMessage:
-            self.mem_write(lpBytesLeftThisMessage, (0).to_bytes(4, "little"))
+            self.write_dword(lpBytesLeftThisMessage, 0)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
@@ -5720,7 +5720,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         if Wow64Process:
-            self.mem_write(Wow64Process, (0).to_bytes(4, "little"))
+            self.write_dword(Wow64Process, 0)
             rv = True
 
         return rv
@@ -5752,7 +5752,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         if pbDebuggerPresent:
-            self.mem_write(pbDebuggerPresent, (0).to_bytes(4, "little"))
+            self.write_dword(pbDebuggerPresent, 0)
             rv = True
 
         return rv
@@ -5769,14 +5769,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         host = emu.config.hostname
-        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        size = self.read_dword(nSize)
         if not lpBuffer or size <= len(host):
-            self.mem_write(nSize, (len(host) + 1).to_bytes(4, "little"))
+            self.write_dword(nSize, len(host) + 1)
             emu.set_last_error(windefs.ERROR_BUFFER_OVERFLOW)
             return False
 
         self.write_mem_string(host, lpBuffer, cw)
-        self.mem_write(nSize, len(host).to_bytes(4, "little"))
+        self.write_dword(nSize, len(host))
         ctx.args["lpBuffer"].display = host
         return True
 
@@ -5881,7 +5881,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         The emulated process is a desktop app without package identity.
         """
         if length_ptr:
-            self.mem_write(length_ptr, (0).to_bytes(4, "little"))
+            self.write_dword(length_ptr, 0)
         return APPMODEL_ERROR_NO_PACKAGE
 
     @apihook("AreFileApisANSI", argc=0)
@@ -6540,7 +6540,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return None
 
         count = min(nNumberOfArguments, 15) if lpArguments else 0
-        params = [emu.read_ptr(lpArguments + emu.get_ptr_size() * i) for i in range(count)]
+        params = [self.read_ptr(lpArguments + emu.get_ptr_size() * i) for i in range(count)]
         return emu.exception_dispatcher().raise_exception(emu, dwExceptionCode, dwExceptionFlags, params)
 
     @apihook("VerSetConditionMask", argc=4)
@@ -6779,7 +6779,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # The job has no limits and no accounting data
         self.mem_write(lpJobObjectInformation, b"\x00" * size)
         if lpReturnLength:
-            self.mem_write(lpReturnLength, size.to_bytes(4, "little"))
+            self.write_dword(lpReturnLength, size)
         return 1
 
     @apihook("SetPriorityClass", argc=2)
@@ -6971,7 +6971,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         if (hSourceHandle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE and lpTargetHandle:
             hnd = self.get_object_handle(emu.get_current_thread())
-            self.mem_write(lpTargetHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(lpTargetHandle, hnd)
         return 1
 
     @apihook("GetBinaryType", argc=2)
@@ -7204,7 +7204,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (lpFrequency,) = argv
-        self.mem_write(lpFrequency, (10000000).to_bytes(8, "little"))
+        self.write_qword(lpFrequency, 10000000)
         return 1
 
     @apihook("FindFirstVolume", argc=2)
@@ -7332,7 +7332,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 emu.set_last_error(windefs.ERROR_MORE_DATA)
                 rv = 0
             if lpcchReturnLength:
-                self.mem_write(lpcchReturnLength, len(names).to_bytes(4, "little"))
+                self.write_dword(lpcchReturnLength, len(names))
 
         return rv
 
@@ -7390,7 +7390,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         base = proc.base if proc else 0
         if not base or not emu.is_address_valid(base + 0x3C):
             return False
-        characteristics = base + int.from_bytes(emu.mem_read(base + 0x3C, 4), "little") + 0x16
+        characteristics = base + self.read_dword(base + 0x3C) + 0x16
         if not emu.is_address_valid(characteristics):
             return False
         return bool(int.from_bytes(emu.mem_read(characteristics, 2), "little") & IMAGE_FILE_LARGE_ADDRESS_AWARE)
@@ -7453,7 +7453,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             (lpTotalNumberOfFreeBytes, 40 * GB),
         ):
             if ptr:
-                self.mem_write(ptr, size.to_bytes(8, "little"))
+                self.write_qword(ptr, size)
         return True
 
     @apihook("GetSystemDefaultLangID", argc=0)
@@ -7493,7 +7493,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         objs = []
         if lpHandles:
             for i in range(nCount):
-                hnd = int.from_bytes(self.mem_read(lpHandles + i * ptr_size, ptr_size), "little")
+                hnd = self.read_ptr(lpHandles + i * ptr_size)
                 objs.append(self.get_object_from_handle(hnd))
 
         if objs and all(isinstance(obj, objman.Event) for obj in objs):
@@ -7542,14 +7542,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             ctx.args["NameType"].display = name_type
 
         hostname = emu.config.hostname
-        size = int.from_bytes(self.mem_read(nSize, 4), "little")
+        size = self.read_dword(nSize)
         if not lpBuffer or size <= len(hostname):
-            self.mem_write(nSize, (len(hostname) + 1).to_bytes(4, "little"))
+            self.write_dword(nSize, len(hostname) + 1)
             emu.set_last_error(windefs.ERROR_MORE_DATA)
             return 0
 
         self.write_mem_string(hostname, lpBuffer, cw)
-        self.mem_write(nSize, len(hostname).to_bytes(4, "little"))
+        self.write_dword(nSize, len(hostname))
         ctx.args["lpBuffer"].display = hostname
         return 1
 
@@ -7639,7 +7639,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         out_written = 0
 
         if lpBytesReturned:
-            self.mem_write(lpBytesReturned, (0).to_bytes(4, "little"))
+            self.write_dword(lpBytesReturned, 0)
 
         obj = self.get_object_from_handle(hDevice)
         if not obj:
@@ -7660,7 +7660,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 out_written = len(outbuf)
 
         if lpBytesReturned:
-            self.mem_write(lpBytesReturned, out_written.to_bytes(4, "little"))
+            self.write_dword(lpBytesReturned, out_written)
 
         if nts == ddk.STATUS_SUCCESS:
             emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -7764,7 +7764,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 exit_code = windefs.STILL_ACTIVE
             else:
                 exit_code = obj.exit_code or 0
-            self.mem_write(lpExitCode, exit_code.to_bytes(4, "little"))
+            self.write_dword(lpExitCode, exit_code)
         return True
 
     @apihook("InitializeConditionVariable", argc=1)
@@ -7886,7 +7886,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         pcbNeeded = lim * 4
         if lpcbNeeded:
-            self.mem_write(lpcbNeeded, pcbNeeded.to_bytes(4, "little"))
+            self.write_dword(lpcbNeeded, pcbNeeded)
 
         return 1
 
@@ -8206,7 +8206,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (TotalMemoryInKilobytes,) = argv
 
         # 2GB
-        self.mem_write(TotalMemoryInKilobytes, (0x200000).to_bytes(8, "little"))
+        self.write_qword(TotalMemoryInKilobytes, 0x200000)
         return 1
 
     @apihook("CreateWaitableTimerExW", argc=4)
@@ -8247,12 +8247,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hProcess, lpProcessAffinityMask, lpSystemAffinityMask = argv
-        ptr_size = emu.get_ptr_size()
         mask = (1 << PROCESSOR_COUNT) - 1
         if lpProcessAffinityMask:
-            self.mem_write(lpProcessAffinityMask, mask.to_bytes(ptr_size, "little"))
+            self.write_ptr(lpProcessAffinityMask, mask)
         if lpSystemAffinityMask:
-            self.mem_write(lpSystemAffinityMask, mask.to_bytes(ptr_size, "little"))
+            self.write_ptr(lpSystemAffinityMask, mask)
         return 1
 
     @apihook("GetActiveProcessorGroupCount", argc=0)
@@ -8419,12 +8418,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         lpInitOnce, dwFlags, fPending, lpContext = argv
-        ptr_size = emu.get_ptr_size()
-        state = int.from_bytes(self.mem_read(lpInitOnce, ptr_size), "little")
+        state = self.read_ptr(lpInitOnce)
         is_async = bool(dwFlags & k32types.INIT_ONCE_ASYNC)
         if state & 3 == 2:
             if lpContext:
-                self.mem_write(lpContext, (state & ~3).to_bytes(ptr_size, "little"))
+                self.write_ptr(lpContext, state & ~3)
             pending = 0
         elif dwFlags & k32types.INIT_ONCE_CHECK_ONLY:
             emu.set_last_error(windefs.ERROR_GEN_FAILURE)
@@ -8433,10 +8431,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
         else:
-            self.mem_write(lpInitOnce, (3 if is_async else 1).to_bytes(ptr_size, "little"))
+            self.write_ptr(lpInitOnce, 3 if is_async else 1)
             pending = 1
         if fPending:
-            self.mem_write(fPending, pending.to_bytes(4, "little"))
+            self.write_dword(fPending, pending)
         return 1
 
     @apihook("InitOnceComplete", argc=3)
@@ -8449,8 +8447,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         lpInitOnce, dwFlags, lpContext = argv
-        ptr_size = emu.get_ptr_size()
-        state = int.from_bytes(self.mem_read(lpInitOnce, ptr_size), "little")
+        state = self.read_ptr(lpInitOnce)
         if lpContext & 3:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
@@ -8461,7 +8458,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             state = 0
         else:
             state = lpContext | 2
-        self.mem_write(lpInitOnce, state.to_bytes(ptr_size, "little"))
+        self.write_ptr(lpInitOnce, state)
         return 1
 
     @apihook("InitOnceExecuteOnce", argc=4)
@@ -8477,11 +8474,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         The result of InitFn is not read back, so the initialization always succeeds.
         """
         InitOnce, InitFn, Parameter, Context = argv
-        ptr_size = emu.get_ptr_size()
-        state = int.from_bytes(self.mem_read(InitOnce, ptr_size), "little")
+        state = self.read_ptr(InitOnce)
         if state & 3 == 2:
             return 1
-        self.mem_write(InitOnce, (2).to_bytes(ptr_size, "little"))
+        self.write_ptr(InitOnce, 2)
         self.setup_callback(InitFn, (InitOnce, Parameter, Context))
         return 1
 
