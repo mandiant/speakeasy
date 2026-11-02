@@ -417,6 +417,8 @@ class WinHttp(api.ApiHandler):
             HINTERNET hInternet
         );
         """
-        rv = 1
-
-        return rv
+        (hInternet,) = argv
+        if not self.netman.close_wininet_object(hInternet):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+        return 1
