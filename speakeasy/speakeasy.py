@@ -157,7 +157,7 @@ class Speakeasy:
                 self.config = SpeakeasyConfig.model_validate(config)
             except ValidationError as err:
                 logger.exception("Invalid config: %s", str(err))
-                raise ConfigError("Invalid config") from err
+                raise ConfigError(f"Invalid config: {err}") from err
 
     def _init_pe_emulator(self, path=None, data=None) -> None:
         """

@@ -76,7 +76,6 @@ Scalars:
 - `--start-time`
 - `--os-ver-major`
 - `--os-ver-minor`
-- `--os-ver-release`
 - `--os-ver-build`
 - `--current-dir`
 - `--command-line`
@@ -121,7 +120,7 @@ If `profile.json` sets `timeout=120` and `analysis.strings=true`, effective runt
 ## Unsupported complex fields on CLI
 
 The following fields are config-file-only:
-- schema/meta: `config_version`, `description`, `emu_engine`, `system`, `os_ver.name`
+- schema/meta: `config_version`, `emu_engine`, `os_ver.name`
 - object lists and nested structures:
   - `symlinks`, `drives`
   - `filesystem.files`

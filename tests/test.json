@@ -1,9 +1,7 @@
 {
-    "config_version": 0.2,
-    "description": "Test profile to use when not overridden by user",
+    "config_version": "2.0",
     "emu_engine": "unicorn",
     "timeout": 60,
-    "system": "windows",
 
     "analysis": {
         "memory_tracing": false,

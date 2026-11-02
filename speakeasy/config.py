@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 _DEFAULT_ENV: dict[str, str] = {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
@@ -288,7 +288,6 @@ class OsVersionConfig(BaseModel):
     name: Literal["windows"] = Field(default="windows", description="Emulated operating system family.")
     major: int | None = Field(default=6, description="Emulated OS major version.")
     minor: int | None = Field(default=1, description="Emulated OS minor version.")
-    release: int | None = Field(default=None, description="Optional emulated OS release number.")
     build: int | None = Field(default=7601, description="Emulated OS build number.")
 
 
@@ -478,27 +477,6 @@ class ProcessConfig(BaseModel):
     session: int | None = Field(default=None, description="Optional session identifier.")
 
 
-class ModuleImageConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    arch: int = Field(description="Module image architecture (32 or 64).")
-    name: str = Field(description="Module image name.")
-
-    @field_validator("arch", mode="before")
-    @classmethod
-    def normalize_arch(cls, v: str | int) -> int:
-        if isinstance(v, int):
-            if v in (32, 64):
-                return v
-            raise ValueError(f"Invalid arch int: {v}")
-        arch_str = v.lower()
-        if arch_str in ("x86", "i386"):
-            return 32
-        if arch_str in ("x64", "amd64"):
-            return 64
-        raise ValueError(f"Unsupported image arch: {v}")
-
-
 class DeviceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -518,9 +496,6 @@ class UserModuleConfig(BaseModel):
     name: str = Field(description="User-mode module short name.")
     base_addr: str = Field(description="Module base address.")
     path: str = Field(description="Module path.")
-    images: list[ModuleImageConfig] = Field(
-        default_factory=list, description="Architecture-specific module image definitions."
-    )
 
 
 class SystemModuleConfig(BaseModel):
@@ -564,22 +539,7 @@ class SpeakeasyConfig(BaseModel):
         parse_start_time(v)
         return v
 
-    @model_validator(mode="before")
-    @classmethod
-    def migrate_legacy_memory_snapshot_field(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "snapshot_memory_regions" not in data and "capture_memory_dumps" in data:
-            data = dict(data)
-            data["snapshot_memory_regions"] = data.pop("capture_memory_dumps")
-        return data
-
-    config_version: Literal[0.2] = Field(  # type: ignore[valid-type]
-        default=0.2,
-        description="Configuration schema version.",
-    )
-    description: str | None = Field(
-        default="Default emulation profile to use when not overridden by user",
-        description="Human-readable profile description.",
-    )
+    config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
     emu_engine: Literal["unicorn"] = Field(default="unicorn", description="Emulation backend identifier.")
     timeout: float = Field(
         default=60,
@@ -606,7 +566,6 @@ class SpeakeasyConfig(BaseModel):
         description="System time when emulation starts, in ISO 8601 with a time zone."
         " The emulated clock counts from it. The default is fixed so that runs repeat.",
     )
-    system: Literal["windows"] = Field(default="windows", description="Emulated operating system family.")
     analysis: AnalysisConfig = Field(
         default_factory=AnalysisConfig,
         description="Analysis and telemetry collection settings.",

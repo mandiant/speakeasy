@@ -16,9 +16,7 @@ from speakeasy.volumes import apply_volumes
 
 EXCLUDED_CLI_PATHS = {
     "config_version",
-    "description",
     "emu_engine",
-    "system",
     "os_ver.name",
 }
 

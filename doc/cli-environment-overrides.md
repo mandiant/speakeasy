@@ -10,7 +10,7 @@ Primary flags:
 - `--user-name`
 - `--user-is-admin` / `--no-user-is-admin`
 - `--user-sid`
-- `--os-ver-major`, `--os-ver-minor`, `--os-ver-release`, `--os-ver-build`
+- `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`
 
 Example: enterprise-like identity profile
 
