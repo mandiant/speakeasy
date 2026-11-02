@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from typing import Any
 
-from speakeasy.windows.handles import HANDLE_MASK, HandleTable, InvalidHandle
-
-T = TypeVar("T")
+from speakeasy.windows.handles import HANDLE_MASK, HandleTable
 
 
 class CryptKey:
@@ -83,16 +81,6 @@ class CryptoManager:
             ctx.delete_key(key_hnd)
         self.handles.close(hnd)
 
-    def get_handle_object(self, hnd, otype: type[T]) -> T | None:
-        """Get the object of an open handle if it is an ``otype``, else None."""
-        try:
-            return self.handles.get(hnd, otype)
-        except InvalidHandle:
-            return None
-
-    def crypt_get(self, hnd) -> CryptContext | None:
-        return self.get_handle_object(hnd, CryptContext)
-
     def get_context(self, hnd) -> CryptContext:
         """
         Get the context of a provider handle.
@@ -111,13 +99,14 @@ class CryptoManager:
         """
         return self.handles.get(hnd, CryptKey)
 
-    def delete_key(self, hnd) -> bool:
-        """Close a key handle. Return False if the handle is not a key."""
-        key = self.get_handle_object(hnd, CryptKey)
-        if key is None:
-            return False
-        key.context.delete_key(hnd)
-        return True
+    def delete_key(self, hnd):
+        """
+        Close a key handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a key.
+        """
+        self.get_key(hnd).context.delete_key(hnd)
 
     def create_hash(self, hasher) -> int:
         return self.handles.new_handle(CryptHash(hasher))

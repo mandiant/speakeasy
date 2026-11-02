@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.advapi32 as adv32defs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.windows.cryptman import CryptContext, CryptKey
 
 from .. import api
 
@@ -51,7 +52,7 @@ class Ncrypt(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptImportKey", argc=8)
+    @apihook("NCryptImportKey", argc=8, fail=adv32defs.NTE_INVALID_HANDLE)
     def NCryptImportKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptImportKey(
@@ -75,9 +76,7 @@ class Ncrypt(api.ApiHandler):
 
         cm = emu.get_crypt_manager()
         if hProvider and phKey:
-            prov_ctx = cm.crypt_get(hProvider)
-            if not prov_ctx:
-                return adv32defs.NTE_INVALID_HANDLE
+            prov_ctx = cm.get_context(hProvider)
             hnd = prov_ctx.import_key(
                 blob_type=blob_type,
                 blob=blob,
@@ -91,7 +90,7 @@ class Ncrypt(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptDeleteKey", argc=2)
+    @apihook("NCryptDeleteKey", argc=2, fail=adv32defs.NTE_INVALID_HANDLE)
     def NCryptDeleteKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptDeleteKey(
@@ -104,7 +103,7 @@ class Ncrypt(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptFreeObject", argc=1)
+    @apihook("NCryptFreeObject", argc=1, fail=adv32defs.NTE_INVALID_HANDLE)
     def NCryptFreeObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptFreeObject(
@@ -115,7 +114,7 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
 
         # hObject can be a handle to a provider or key
-        if cm.crypt_get(hObject):
+        if isinstance(cm.handles.get(hObject, CryptContext, CryptKey), CryptContext):
             cm.crypt_close(hObject)
         else:
             cm.delete_key(hObject)
