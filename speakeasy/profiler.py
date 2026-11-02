@@ -1,8 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-# Data format versioning
-__report_version__ = "5.0.0"
-
 import hashlib
 import time
 from collections import deque
@@ -813,7 +810,6 @@ class Profiler:
 
         report_data = self.artifact_store.to_report_data()
         return Report(
-            report_version=__report_version__,
             emulation_total_runtime=round(self.runtime, 3),
             timestamp=int(self.start_time),
             arch=self.meta.get("arch"),
