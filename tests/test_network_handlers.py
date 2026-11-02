@@ -8,6 +8,7 @@ import pytest
 
 import speakeasy
 from speakeasy import Speakeasy
+from speakeasy.winenv.defs.wininet import INTERNET_FLAGS, WINHTTP_OPEN_REQUEST_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 IID_IFOO = uuid.UUID("11223344-5566-7788-99aa-bbccddeeff00")
@@ -194,26 +195,57 @@ def test_x86_ordinal_call_does_not_reach_another_handler(config: dict[str, Any],
     assert f"ws2_32.{other}" not in [e.api_name for e in events if e.event == "api"]
 
 
-def _wininet_request(se: Speakeasy, verb: bytes, objname: bytes) -> int:
+def _wininet_request(se: Speakeasy, verb: bytes, objname: bytes, flags: int = 0) -> int:
     inet, _ = call(se, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     server = alloc(se, b"example.com\x00")
     conn, _ = call(se, "wininet", "InternetConnectA", [inet, server, 80, 0, 0, 3, 0, 0])
     verb_ptr = alloc(se, verb + b"\x00")
     obj = alloc(se, objname + b"\x00")
-    req, _ = call(se, "wininet", "HttpOpenRequestA", [conn, verb_ptr, obj, 0, 0, 0, 0, 0])
+    req, _ = call(se, "wininet", "HttpOpenRequestA", [conn, verb_ptr, obj, 0, 0, 0, flags, 0])
     assert req
     return req
 
 
-def _winhttp_request(se: Speakeasy, verb: str, objname: str) -> int:
+def _winhttp_request(se: Speakeasy, verb: str, objname: str, flags: int = 0) -> int:
     session, _ = call(se, "winhttp", "WinHttpOpen", [0, 0, 0, 0, 0])
     server = alloc(se, "example.com\x00".encode("utf-16le"))
     conn, _ = call(se, "winhttp", "WinHttpConnect", [session, server, 80, 0])
     verb_ptr = alloc(se, (verb + "\x00").encode("utf-16le"))
     obj = alloc(se, (objname + "\x00").encode("utf-16le"))
-    req, _ = call(se, "winhttp", "WinHttpOpenRequest", [conn, verb_ptr, obj, 0, 0, 0, 0])
+    req, _ = call(se, "winhttp", "WinHttpOpenRequest", [conn, verb_ptr, obj, 0, 0, 0, flags])
     assert req
     return req
+
+
+def _http_events(se: Speakeasy) -> list[Any]:
+    return [e for e in se.emu.get_current_run().events if e.event == "net_http"]
+
+
+@pytest.mark.parametrize(
+    "flags, proto, connection",
+    [
+        (0, "tcp.http", "Connection: Close"),
+        (
+            INTERNET_FLAGS.INTERNET_FLAG_SECURE | INTERNET_FLAGS.INTERNET_FLAG_KEEP_CONNECTION,
+            "tcp.https",
+            "Connection: Keep-Alive",
+        ),
+    ],
+)
+def test_http_send_request_follows_the_request_flags(
+    dll_emu: Speakeasy, flags: int, proto: str, connection: str
+) -> None:
+    req = _wininet_request(dll_emu, b"GET", b"/a", flags)
+    assert call(dll_emu, "wininet", "HttpSendRequestA", [req, 0, 0, 0, 0])[0] == 1
+    (event,) = _http_events(dll_emu)
+    assert event.proto == proto
+    assert connection in event.headers
+
+
+def test_win_http_send_request_is_secure_with_the_secure_flag(dll_emu: Speakeasy) -> None:
+    req = _winhttp_request(dll_emu, "GET", "/a", WINHTTP_OPEN_REQUEST_FLAGS.WINHTTP_FLAG_SECURE)
+    assert call(dll_emu, "winhttp", "WinHttpSendRequest", [req, 0, 0, 0, 0, 0, 0])[0] == 1
+    assert [e.proto for e in _http_events(dll_emu)] == ["tcp.https"]
 
 
 def test_internet_read_file_without_a_configured_response(dll_emu: Speakeasy) -> None:

@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.wininet as windefs
 from speakeasy.windows import netman
+from speakeasy.winenv.defs.lookup import decode
+from speakeasy.winenv.defs.wininet import INTERNET_FLAGS
 
 from .. import api
 
@@ -138,11 +140,12 @@ class Wininet(api.ApiHandler):
             lpszReferrer = self.read_mem_string(lpszReferrer, cw)
             ctx.args["lpszReferrer"].display = lpszReferrer
 
-        defs = windefs.get_flag_defines(dwFlags)
-        ctx.args["dwFlags"].display = " | ".join(defs)
+        ctx.args["dwFlags"].display = decode(INTERNET_FLAGS, dwFlags)
 
         sess = self.netman.get_wininet_object(hConnect)
-        req = sess.new_request(lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, defs, dwContext)
+        req = sess.new_request(
+            lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, dwFlags, dwContext
+        )
         hdl = req.get_handle()
         return hdl
 
@@ -447,8 +450,7 @@ class Wininet(api.ApiHandler):
             headers = self.read_mem_string(lpszHeaders, cw)
             ctx.args["lpszHeaders"].display = headers
 
-        defs = windefs.get_flag_defines(dwFlags)
-        ctx.args["dwFlags"].display = " | ".join(defs)
+        ctx.args["dwFlags"].display = decode(INTERNET_FLAGS, dwFlags)
 
         wini = self.netman.get_wininet_object(hInternet)
         if not wini:
@@ -467,8 +469,8 @@ class Wininet(api.ApiHandler):
         if explicit_port:
             server = server.rpartition(":")[0]
         self.record_http_event(server, port, headers=headers)
-        sess = wini.new_session(server, port, "", "", "", defs, dwContext)
+        sess = wini.new_session(server, port, "", "", "", dwFlags, dwContext)
         if not sess:
             return 0
-        req = sess.new_request("GET", url, None, None, None, defs, dwContext)
+        req = sess.new_request("GET", url, None, None, None, dwFlags, dwContext)
         return req.get_handle()

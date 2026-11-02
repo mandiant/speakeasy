@@ -1,5 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from enum import IntEnum, IntFlag
+
 from speakeasy.struct import Enum
 
 WINDOWS_CONSOLE = 3
@@ -103,34 +105,52 @@ COMPRESSION_FORMAT_XPRESS = 0x3
 COMPRESSION_ENGINE_STANDARD = 0x0
 COMPRESSION_ENGINE_MAXIMUM = 0x100
 
-DELETE = 0x00010000
-READ_CONTROL = 0x00020000
-WRITE_DAC = 0x00040000
-WRITE_OWNER = 0x00080000
-SYNCHRONIZE = 0x00100000
-GENERIC_READ = 0x80000000
-GENERIC_WRITE = 0x40000000
-GENERIC_EXECUTE = 0x20000000
-GENERIC_ALL = 0x10000000
 
-# Create Dispositions
-FILE_SUPERSEDE = 0x00000000
-FILE_OPEN = 0x00000001
-FILE_CREATE = 0x00000002
-FILE_OPEN_IF = 0x00000003
-FILE_OVERWRITE = 0x00000004
-FILE_OVERWRITE_IF = 0x00000005
+class FILE_ACCESS_FLAGS(IntFlag):
+    FILE_READ_DATA = 0x00000001
+    FILE_LIST_DIRECTORY = 0x00000001
+    FILE_WRITE_DATA = 0x00000002
+    FILE_ADD_FILE = 0x00000002
+    FILE_APPEND_DATA = 0x00000004
+    FILE_ADD_SUBDIRECTORY = 0x00000004
+    FILE_CREATE_PIPE_INSTANCE = 0x00000004
+    FILE_READ_EA = 0x00000008
+    FILE_WRITE_EA = 0x00000010
+    FILE_EXECUTE = 0x00000020
+    FILE_TRAVERSE = 0x00000020
+    FILE_DELETE_CHILD = 0x00000040
+    FILE_READ_ATTRIBUTES = 0x00000080
+    FILE_WRITE_ATTRIBUTES = 0x00000100
+    DELETE = 0x00010000
+    READ_CONTROL = 0x00020000
+    WRITE_DAC = 0x00040000
+    WRITE_OWNER = 0x00080000
+    SYNCHRONIZE = 0x00100000
+    STANDARD_RIGHTS_REQUIRED = 0x000F0000
+    STANDARD_RIGHTS_READ = 0x00020000
+    STANDARD_RIGHTS_WRITE = 0x00020000
+    STANDARD_RIGHTS_EXECUTE = 0x00020000
+    STANDARD_RIGHTS_ALL = 0x001F0000
+    SPECIFIC_RIGHTS_ALL = 0x0000FFFF
+    FILE_ALL_ACCESS = 0x001F01FF
+    FILE_GENERIC_READ = 0x00120089
+    FILE_GENERIC_WRITE = 0x00120116
+    FILE_GENERIC_EXECUTE = 0x001200A0
+    GENERIC_READ = 0x80000000
+    GENERIC_WRITE = 0x40000000
+    GENERIC_EXECUTE = 0x20000000
+    GENERIC_ALL = 0x10000000
+    MAXIMUM_ALLOWED = 0x02000000
+    ACCESS_SYSTEM_SECURITY = 0x01000000
 
-# File specific access mask
-FILE_READ_DATA = 0x0001  # file & pipe
-FILE_WRITE_DATA = 0x0002  # file & pipe
-FILE_APPEND_DATA = 0x0004  # file
-FILE_READ_EA = 0x0008  # file & directory
-FILE_WRITE_EA = 0x0010  # file & directory
-FILE_EXECUTE = 0x0020  # file
-FILE_DELETE_CHILD = 0x0040  # directory
-FILE_READ_ATTRIBUTES = 0x0080  # all
-FILE_WRITE_ATTRIBUTES = 0x0100  # all
+
+class NT_CREATE_FILE_DISPOSITION(IntEnum):
+    FILE_SUPERSEDE = 0
+    FILE_CREATE = 2
+    FILE_OPEN = 1
+    FILE_OPEN_IF = 3
+    FILE_OVERWRITE = 4
+    FILE_OVERWRITE_IF = 5
 
 
 PROCESSINFOCLASS = Enum()
@@ -204,66 +224,3 @@ MODE.MaximumMode = 2
 IMAGE_DOS_SIGNATURE = b"MZ"
 PE32_BIT = 0x0100
 PE32_PLUS_BIT = 0x0200
-
-
-def get_flag_defines(flags, prefix=""):
-    defs = []
-    for k, v in globals().items():
-        if isinstance(v, int):
-            if v & flags:
-                if prefix:
-                    if k.startswith(prefix):
-                        defs.append(k)
-                else:
-                    defs.append(k)
-    return defs
-
-
-def get_const_defines(const, prefix=""):
-    defs = []
-    for k, v in globals().items():
-        if isinstance(v, int):
-            if v == const:
-                if prefix:
-                    if k.startswith(prefix):
-                        defs.append(k)
-                else:
-                    defs.append(k)
-    return defs
-
-
-def get_access_defines(flags):
-    defs = []
-    accesses = (
-        "DELETE",
-        "READ_CONTROL",
-        "WRITE_DAC",
-        "WRITE_OWNER",
-        "SYNCHRONIZE",
-        "GENERIC_READ",
-        "GENERIC_WRITE",
-        "GENERIC_EXECUTE",
-        "GENERIC_ALL",
-    )
-
-    for k, v in [(k, v) for k, v in globals().items() if k in accesses]:
-        if isinstance(v, int):
-            if v & flags:
-                defs.append(k)
-
-    return defs
-
-
-def get_file_access_defines(flags):
-    defs = get_flag_defines(flags, "FILE_")
-    return [d for d in defs if d.startswith(("FILE_READ", "FILE_WRITE", "FILE_DELETE", "FILE_APPEND", "FILE_EXECUTE"))]
-
-
-def get_create_disposition(disp):
-    defs = get_const_defines(disp, "FILE_")
-    defs = [d for d in defs if not d.startswith("FILE_SHARE")]
-
-    ret = 0
-    if len(defs):
-        ret = defs[0]
-    return ret

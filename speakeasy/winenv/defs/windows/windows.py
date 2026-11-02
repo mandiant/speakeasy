@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from enum import IntEnum, IntFlag
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -59,22 +60,56 @@ MEM_PRIVATE = 0x20000
 
 HEAP_REALLOC_IN_PLACE_ONLY = 0x10
 
-PAGE_EXECUTE = 0x10
-PAGE_EXECUTE_READ = 0x20
-PAGE_EXECUTE_READWRITE = 0x40
-PAGE_EXECUTE_WRITECOPY = 0x80
-PAGE_NOACCESS = 0x01
-PAGE_READONLY = 0x02
-PAGE_READWRITE = 0x04
-PAGE_WRITECOPY = 0x08
-PAGE_GUARD = 0x100
 
-# File creation dispositions
-CREATE_ALWAYS = 2
-CREATE_NEW = 1
-OPEN_ALWAYS = 4
-OPEN_EXISTING = 3
-TRUNCATE_EXISTING = 5
+class PAGE_PROTECTION_FLAGS(IntFlag):
+    PAGE_NOACCESS = 0x00000001
+    PAGE_READONLY = 0x00000002
+    PAGE_READWRITE = 0x00000004
+    PAGE_WRITECOPY = 0x00000008
+    PAGE_EXECUTE = 0x00000010
+    PAGE_EXECUTE_READ = 0x00000020
+    PAGE_EXECUTE_READWRITE = 0x00000040
+    PAGE_EXECUTE_WRITECOPY = 0x00000080
+    PAGE_GUARD = 0x00000100
+    PAGE_NOCACHE = 0x00000200
+    PAGE_WRITECOMBINE = 0x00000400
+    PAGE_GRAPHICS_NOACCESS = 0x00000800
+    PAGE_GRAPHICS_READONLY = 0x00001000
+    PAGE_GRAPHICS_READWRITE = 0x00002000
+    PAGE_GRAPHICS_EXECUTE = 0x00004000
+    PAGE_GRAPHICS_EXECUTE_READ = 0x00008000
+    PAGE_GRAPHICS_EXECUTE_READWRITE = 0x00010000
+    PAGE_GRAPHICS_COHERENT = 0x00020000
+    PAGE_GRAPHICS_NOCACHE = 0x00040000
+    PAGE_ENCLAVE_THREAD_CONTROL = 0x80000000
+    PAGE_REVERT_TO_FILE_MAP = 0x80000000
+    PAGE_TARGETS_NO_UPDATE = 0x40000000
+    PAGE_TARGETS_INVALID = 0x40000000
+    PAGE_ENCLAVE_UNVALIDATED = 0x20000000
+    PAGE_ENCLAVE_MASK = 0x10000000
+    PAGE_ENCLAVE_DECOMMIT = 0x10000000
+    PAGE_ENCLAVE_SS_FIRST = 0x10000001
+    PAGE_ENCLAVE_SS_REST = 0x10000002
+    SEC_PARTITION_OWNER_HANDLE = 0x00040000
+    SEC_64K_PAGES = 0x00080000
+    SEC_FILE = 0x00800000
+    SEC_IMAGE = 0x01000000
+    SEC_PROTECTED_IMAGE = 0x02000000
+    SEC_RESERVE = 0x04000000
+    SEC_COMMIT = 0x08000000
+    SEC_NOCACHE = 0x10000000
+    SEC_WRITECOMBINE = 0x40000000
+    SEC_LARGE_PAGES = 0x80000000
+    SEC_IMAGE_NO_EXECUTE = 0x11000000
+
+
+class FILE_CREATION_DISPOSITION(IntEnum):
+    CREATE_NEW = 1
+    CREATE_ALWAYS = 2
+    OPEN_EXISTING = 3
+    OPEN_ALWAYS = 4
+    TRUNCATE_EXISTING = 5
+
 
 FILE_BEGIN = 0
 FILE_CURRENT = 1
@@ -327,19 +362,6 @@ class CONTEXT64(EmuStruct):
         self.LastExceptionFromRip = ct.c_uint64
 
 
-def get_create_disposition(flags):
-    disp = None
-    dispostions = ("CREATE_ALWAYS", "CREATE_NEW", "OPEN_ALWAYS", "OPEN_EXISTING", "TRUNCATE_EXISTING")
-
-    for k, v in [(k, v) for k, v in globals().items() if k in dispostions]:
-        if isinstance(v, int):
-            if v == flags:
-                disp = k
-                break
-
-    return disp
-
-
 def get_define(define, prefix=""):
     for k, v in globals().items():
         if not isinstance(v, int) or v != define:
@@ -360,10 +382,6 @@ def get_flag_defines(flags, prefix=""):
             if prefix and k.startswith(prefix):
                 defs.append(k)
     return defs
-
-
-def get_page_rights(define):
-    return get_flag_defines(define, prefix="PAGE_")
 
 
 def get_creation_flags(flags):

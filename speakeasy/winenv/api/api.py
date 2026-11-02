@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
+from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS
 
 if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator
@@ -319,21 +319,21 @@ class ApiHandler:
         Get the emulator permissions for a Windows page protection.
         """
         new = 0
-        if win_perms & (windefs.PAGE_EXECUTE_READWRITE | windefs.PAGE_EXECUTE_WRITECOPY):
+        if win_perms & (PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE | PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_WRITECOPY):
             new = common.PERM_MEM_RWX
-        elif win_perms & windefs.PAGE_NOACCESS:
+        elif win_perms & PAGE_PROTECTION_FLAGS.PAGE_NOACCESS:
             new = common.PERM_MEM_NONE
         else:
-            if win_perms & windefs.PAGE_EXECUTE or win_perms & windefs.PAGE_EXECUTE_READ:
+            if win_perms & PAGE_PROTECTION_FLAGS.PAGE_EXECUTE or win_perms & PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ:
                 new |= common.PERM_MEM_EXEC
             if (
-                win_perms & windefs.PAGE_EXECUTE_READ
-                or win_perms & windefs.PAGE_READONLY
-                or win_perms & windefs.PAGE_READWRITE
-                or win_perms & windefs.PAGE_WRITECOPY
+                win_perms & PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ
+                or win_perms & PAGE_PROTECTION_FLAGS.PAGE_READONLY
+                or win_perms & PAGE_PROTECTION_FLAGS.PAGE_READWRITE
+                or win_perms & PAGE_PROTECTION_FLAGS.PAGE_WRITECOPY
             ):
                 new |= common.PERM_MEM_READ
-            if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
+            if win_perms & (PAGE_PROTECTION_FLAGS.PAGE_READWRITE | PAGE_PROTECTION_FLAGS.PAGE_WRITECOPY):
                 new |= common.PERM_MEM_WRITE
         return new
 
