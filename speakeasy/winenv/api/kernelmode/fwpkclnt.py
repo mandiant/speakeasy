@@ -33,7 +33,6 @@ class Fwpkclnt(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle: int = 4
         self.sessions: dict[int, str] = {}
         self.injections: dict[int, str] = {}
         self.sublayers: dict[str, dict[str, Any]] = {}
@@ -46,26 +45,21 @@ class Fwpkclnt(api.ApiHandler):
 
         super().__get_hook_attrs__(self)
 
-    def new_id(self):
-        tmp = self.handle
-        self.handle += 4
-        return tmp
-
     def new_session(self):
         # stub
-        ret = self.new_id()
+        ret = self.emu.handle_allocator.allocate_handle()
         self.sessions.update({ret: "sess"})
 
         return ret
 
     def new_injection(self):
-        ret = self.new_id()
+        ret = self.emu.handle_allocator.allocate_handle()
         # TODO
         self.injections.update({ret: "inj"})
         return ret
 
     def new_filter(self, name, desc, key):
-        ret = self.new_id()
+        ret = self.emu.handle_allocator.allocate_handle()
         flt = {ret: {"name": name, "desc": desc, "key": key}}
         self.filters.update(flt)
         return ret
@@ -166,7 +160,7 @@ class Fwpkclnt(api.ApiHandler):
         deviceObject, callout, calloutId = argv
 
         rv = ddk.STATUS_SUCCESS
-        cid = self.new_id()
+        cid = emu.handle_allocator.allocate_handle()
 
         _co = self.fwp.FWPS_CALLOUT1(emu.get_ptr_size())
         fwps_callout = self.mem_cast(_co, callout)
