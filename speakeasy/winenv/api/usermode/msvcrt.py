@@ -19,6 +19,7 @@ from speakeasy.windows.guest_callbacks import GuestCall
 from .. import api, exception_apis
 
 if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
     from speakeasy.windows.winemu import WindowsEmulator
 
 ENOENT = 2
@@ -534,6 +535,7 @@ class Msvcrt(api.ApiHandler):
     name = "msvcrt"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
+    emu: "Win32Emulator"
 
     def __init__(self, emu):
         super().__init__(emu)
