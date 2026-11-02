@@ -30,7 +30,6 @@ class Ndis(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.handle: int = 4
         self.wrappers: dict[int, bool] = {}
         self.drivers: dict[int, bytes] = {}
         self.protocols: dict[int, bytes] = {}
@@ -48,11 +47,6 @@ class Ndis(api.ApiHandler):
             except Exception:
                 ret = f"0x{tag:x}"
         return ret
-
-    def new_id(self):
-        tmp = self.handle
-        self.handle += 4
-        return tmp
 
     @apihook("NdisGetVersion", argc=0)
     def NdisGetVersion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -109,9 +103,7 @@ class Ndis(api.ApiHandler):
         rv = NDIS_STATUS_SUCCESS
 
         if NdisMiniportDriverHandle:
-            hnd = self.new_id()
-            hnd = hnd.to_bytes(self.get_ptr_size(), "little")
-            self.mem_write(NdisMiniportDriverHandle, hnd)
+            self.write_ptr(NdisMiniportDriverHandle, emu.handle_allocator.allocate_handle())
         return rv
 
     @apihook("NdisInitializeWrapper", argc=4)
@@ -126,7 +118,7 @@ class Ndis(api.ApiHandler):
         """
         NdisWrapperHandle, SystemSpecific1, SystemSpecific2, SystemSpecific3 = argv
 
-        hnd = self.new_id()
+        hnd = emu.handle_allocator.allocate_handle()
         self.wrappers.update({hnd: True})
         self.write_ptr(NdisWrapperHandle, hnd)
 
@@ -175,7 +167,7 @@ class Ndis(api.ApiHandler):
         """
         Status, NdisProtocolHandle, ProtocolCharacteristics, CharacteristicsLength = argv
         rv = NDIS_STATUS_SUCCESS
-        hnd = self.new_id()
+        hnd = emu.handle_allocator.allocate_handle()
         pchr = self.mem_read(ProtocolCharacteristics, CharacteristicsLength)
 
         self.protocols.update({hnd: pchr})
@@ -204,7 +196,7 @@ class Ndis(api.ApiHandler):
         if not self.wrappers.get(NdisWrapperHandle):
             rv = NDIS_STATUS_FAILURE
 
-        dhnd = self.new_id()
+        dhnd = emu.handle_allocator.allocate_handle()
         mpc = self.mem_read(MiniportCharacteristics, CharacteristicsLength)
         self.drivers.update({dhnd: mpc})
 
