@@ -129,6 +129,7 @@ class FaultReturn:
 class ExecRecovery:
     """
     The guest fetched code from a guest PE page without execute permission.
+
     The run loop sets perms on the page and runs the code again.
     """
 
@@ -284,8 +285,8 @@ class RunLimits:
 class WindowsEmulator(BinaryEmulator):
     """
     Base class providing emulation of all Windows modules and shellcode.
-    This class is meant to provide overlapping functionality for both
-    user mode and kernel mode samples.
+
+    This class is meant to provide overlapping functionality for both user mode and kernel mode samples.
 
     Subclasses must define:
         peb_addr: Address of the Process Environment Block
@@ -396,19 +397,17 @@ class WindowsEmulator(BinaryEmulator):
         self._io_manager: Any | None = None
 
     def _parse_config(self, config):
-        """
-        Parse the emulation config file
-        """
+        """Parse the emulation config file."""
         super()._parse_config(config)
         self.cd = self.config.current_dir
         self.command_line: str = self.config.command_line
 
     def init_machine(self, arch):
         """
-        Create the CPU, the disassembler and the API layer for arch. Then create the
-        Windows structures and the modules of the machine. Load images after this.
-        The container image of a DLL or shellcode input is not part of the machine:
-        Win32Emulator.load_container loads it.
+        Create the CPU, the disassembler and the API layer for arch.
+
+        Then create the Windows structures and the modules of the machine. Load images after this. The container image
+        of a DLL or shellcode input is not part of the machine: Win32Emulator.load_container loads it.
 
         Raises:
             WindowsEmuError: the machine is already initialized, or arch is not x86 or amd64.
@@ -442,9 +441,7 @@ class WindowsEmulator(BinaryEmulator):
 
     @abstractmethod
     def init_machine_structures(self) -> None:
-        """
-        Create the object manager, segments, shared data and modules of the machine
-        """
+        """Create the object manager, segments, shared data and modules of the machine."""
 
     def get_object_manager(self, reason: str) -> objman.ObjectManager:
         """
@@ -459,19 +456,20 @@ class WindowsEmulator(BinaryEmulator):
 
     def on_run_complete(self):
         """
-        Clean up after a run completes (implemented in the child class) since
-        this may mean different things depending. This function will pop the
-        next run from the run queue and emulate it.
+        Clean up after a run completes (implemented in the child class) since this may mean different things depending.
+
+        This function will pop the next run from the run queue and emulate it.
         """
         # Implemented by a subclass (e.g. kernel/user mode emulators)
         raise NotImplementedError()
 
     def end_run_on_fault(self):
         """
-        End the current run after a handled memory fault. With a debugger attached,
-        stop the engine at the fault instead, and end the run after the debugger resumes.
-        Faults at a PC in the reserved emulator range, such as the return hook, are not
-        sample faults, so they do not stop the debugger.
+        End the current run after a handled memory fault.
+
+        With a debugger attached, stop the engine at the fault instead, and end the run after the debugger resumes.
+        Faults at a PC in the reserved emulator range, such as the return hook, are not sample faults, so they do not
+        stop the debugger.
         """
         pc = self.get_pc()
         in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
@@ -528,77 +526,53 @@ class WindowsEmulator(BinaryEmulator):
         self.debug_hook = self.add_code_hook(cb=self._hook_code_debug)
 
     def cast(self, obj, bytez):
-        """
-        Create a formatted structure from bytes
-        """
+        """Create a formatted structure from bytes."""
         if not isinstance(obj, EmuStruct):
             raise WindowsEmuError("Invalid object for cast")
         return obj.cast(bytez)
 
     def file_open(self, path, create=False, truncate=False):
-        """
-        Open an emulated from using the file manager
-        """
+        """Open an emulated file using the file manager."""
         return self.fileman.file_open(path, create, truncate=truncate)
 
     def pipe_open(self, path, mode, num_instances, out_size, in_size):
-        """
-        Open an emulated named pipe
-        """
+        """Open an emulated named pipe."""
         return self.fileman.pipe_open(path, mode, num_instances, out_size, in_size)
 
     def does_file_exist(self, path):
-        """
-        Test if a file handler for a specified emulated file exists
-        """
+        """Test if a file handler for a specified emulated file exists."""
         return self.fileman.does_file_exist(path)
 
     def file_create_mapping(self, hfile, name, size, prot):
-        """
-        Create a memory mapping for an emulated file
-        """
+        """Create a memory mapping for an emulated file."""
         return self.fileman.file_create_mapping(hfile, name, size, prot)
 
     def file_get(self, handle):
-        """
-        Get a file object from a handle
-        """
+        """Get a file object from a handle."""
         return self.fileman.get_file_from_handle(handle)
 
     def file_delete(self, path):
-        """
-        Delete a file
-        """
+        """Delete a file."""
         return self.fileman.delete_file(path)
 
     def pipe_get(self, handle):
-        """
-        Get a pipe object from a handle
-        """
+        """Get a pipe object from a handle."""
         return self.fileman.get_pipe_from_handle(handle)
 
     def get_file_manager(self):
-        """
-        Get the file emulation manager
-        """
+        """Get the file emulation manager."""
         return self.fileman
 
     def get_network_manager(self):
-        """
-        Get the network emulation manager
-        """
+        """Get the network emulation manager."""
         return self.netman
 
     def get_crypt_manager(self):
-        """
-        Get the crypto manager
-        """
+        """Get the crypto manager."""
         return self.cryptman
 
     def get_drive_manager(self):
-        """
-        Get the drive manager
-        """
+        """Get the drive manager."""
         return self.driveman
 
     def dev_ioctl(self, arch, dev, ioctl, inbuf):
@@ -618,30 +592,21 @@ class WindowsEmulator(BinaryEmulator):
         return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
 
     def reg_open_key(self, path, create=False):
-        """
-        Open or create a registry key in the emulation space
-        """
+        """Open or create a registry key in the emulation space."""
         return self.regman.open_key(path, create)
 
     def reg_get_subkeys(self, hkey):
-        """
-        Get subkeys for a given registry key
-        """
+        """Get subkeys for a given registry key."""
         return self.regman.get_subkeys(hkey)
 
     def reg_get_key(self, handle=0, path=""):
-        """
-        Get registry key by path or handle
-        """
+        """Get registry key by path or handle."""
         if path:
             return self.regman.get_key_from_path(path)
         return self.regman.get_key_from_handle(handle)
 
     def _unmap_reserved_range(self):
-        """
-        Unmap reserved memory space so we can handle events (e.g. import APIs,
-        entry point returns, etc.)
-        """
+        """Unmap reserved memory space so we can handle events (e.g. import APIs, entry point returns, etc.)."""
         if not self.is_reserved_range_unmapped:
             self.mem_unmap(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
             self.is_reserved_range_unmapped = True
@@ -649,6 +614,7 @@ class WindowsEmulator(BinaryEmulator):
     def _map_reserved_range(self):
         """
         Map the reserved memory range, so that Unicorn can complete an access to it.
+
         The deferred work hook or the next run unmaps it again.
         """
         if self.is_reserved_range_unmapped:
@@ -657,8 +623,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_valid_ranges(self, size, addr=None):
         """
-        Keep allocations out of the reserved emulator range, which stays unmapped
-        so that a return to the return hook faults
+        Keep allocations out of the reserved emulator range.
+
+        The range stays unmapped so that a return to the return hook faults.
         """
         base, total = super().get_valid_ranges(size, addr=addr)
         if base < winemu.EMU_RESERVED_END and winemu.EMU_RESERVED < base + total:
@@ -666,15 +633,11 @@ class WindowsEmulator(BinaryEmulator):
         return base, total
 
     def add_run(self, run):
-        """
-        Add a run to the emulation run queue
-        """
+        """Add a run to the emulation run queue."""
         self.run_queue.append(run)
 
     def _prepare_next_run(self):
-        """
-        Execute the next run from the emulation queue
-        """
+        """Execute the next run from the emulation queue."""
         self._finish_run_initializers(self.curr_run)
         self._native_exit = None
         try:
@@ -695,6 +658,7 @@ class WindowsEmulator(BinaryEmulator):
     def _queue_startup_initializers(self):
         """
         Add a run for each initializer of the guest DLLs that the process loaded at start.
+
         These runs go before the first run in the queue.
         """
         if self.is_kernel_mode or not self.run_queue:
@@ -714,8 +678,9 @@ class WindowsEmulator(BinaryEmulator):
     def _finish_run_initializers(self, run):
         """
         Undo the loads that the run did not complete.
-        If the run is a startup initializer and it failed, set the state of its module to INIT_ERROR,
-        and remove the other startup initializers of the module from the queue.
+
+        If the run is a startup initializer and it failed, set the state of its module to INIT_ERROR, and remove the
+        other startup initializers of the module from the queue.
         """
         for frame in run.guest_callbacks:
             self.module_loader.rollback_guest_load(frame)
@@ -742,9 +707,7 @@ class WindowsEmulator(BinaryEmulator):
         ]
 
     def call(self, addr, params=[]) -> None:
-        """
-        Start emulating at the specified address
-        """
+        """Start emulating at the specified address."""
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
@@ -761,9 +724,7 @@ class WindowsEmulator(BinaryEmulator):
             self.add_run(run)
 
     def _prepare_run_context(self, run):
-        """
-        Prepare CPU and memory state for the given run without starting emulation.
-        """
+        """Prepare CPU and memory state for the given run without starting emulation."""
         logger.info("* exec: %s", run.type)
 
         self.curr_run = run
@@ -828,18 +789,13 @@ class WindowsEmulator(BinaryEmulator):
         return run
 
     def mem_cast(self, obj, addr):
-        """
-        Turn bytes from an emulated memory pointer into an object
-        """
+        """Turn bytes from an emulated memory pointer into an object."""
         size = obj.sizeof()
         struct_bytes = self.mem_read(addr, size)
         return self.cast(obj, struct_bytes)
 
     def setup_user_shared_data(self):
-        """
-        Setup the shared user data section that is often used to share data
-        between user mode and kernel mode
-        """
+        """Setup the shared user data section that is often used to share data between user mode and kernel mode."""
         aliases = []
         if self.get_arch() == _arch.ARCH_X86:
             aliases.append(0xFFDF0000)
@@ -955,8 +911,9 @@ class WindowsEmulator(BinaryEmulator):
         self, address: int, limits: RunLimits, origin_run: Run, debugger: GdbServer | None, stepping: bool
     ) -> bool:
         """
-        Run guest code in Unicorn from address until it stops, and raise the CPU exception
-        of a `hlt` that ran. Get False if a fault stops the debugger.
+        Run guest code in Unicorn from address until it stops, and raise the CPU exception of a `hlt` that ran.
+
+        Get False if a fault stops the debugger.
 
         Raises:
             uc.UcError: Unicorn failed, and no native exit explains the failure.
@@ -1010,8 +967,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _get_exit_at_pc(self) -> NativeExit | None:
         """
-        Get the exit at the address where Unicorn stopped, if no hook recorded one:
-        the call of an API, the return of a guest callback, or the return of the run.
+        Get the exit at the address where Unicorn stopped, if no hook recorded one.
+
+        The exit is the call of an API, the return of a guest callback, or the return of the run.
         """
         pc = self.get_pc()
         entry = self.api_registry.traps.get(pc)
@@ -1045,8 +1003,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _finish_current_run_execution(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
-        Add the time of the call to origin_run and to the total execution time. End the
-        run if the exit event stopped it, and cancel all runs if the total time ran out.
+        Add the time of the call to origin_run and to the total execution time.
+
+        End the run if the exit event stopped it, and cancel all runs if the total time ran out.
         """
         elapsed = time.monotonic() - limits.started
         origin_run.execution_elapsed = limits.spent + elapsed
@@ -1083,6 +1042,7 @@ class WindowsEmulator(BinaryEmulator):
     def _handle_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
         """
         Handle the native exit.
+
         Get False if the run loop must return, because the debugger stops, a limit is reached, or the run ended.
         """
         native_exit = self._native_exit
@@ -1119,10 +1079,10 @@ class WindowsEmulator(BinaryEmulator):
         self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
     ) -> bool:
         """
-        Run the handler of the API whose trap the guest reached, and end the run if the
-        handler completed it. Get False if the call of the run loop must return, because
-        the debugger stops at an API with no handler, a fault stops the debugger, or the
-        total execution time ran out.
+        Run the handler of the API whose trap the guest reached, and end the run if the handler completed it.
+
+        Get False if the call of the run loop must return, because the debugger stops at an API with no handler, a
+        fault stops the debugger, or the total execution time ran out.
         """
         # A missing ABI remains a suspended call under the debugger.
         if debugger is not None and isinstance(
@@ -1147,8 +1107,9 @@ class WindowsEmulator(BinaryEmulator):
     def _stop_without_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
         Stop origin_run after Unicorn stopped with no native exit.
-        If a limit is reached, stop at the limit.
-        Otherwise, end the run with an engine_stopped error, if the run is not complete and no debugger is attached.
+
+        If a limit is reached, stop at the limit. Otherwise, end the run with an engine_stopped error, if the run is
+        not complete and no debugger is attached.
         """
         reached = limits.get_reached_limit()
         if reached is not None:
@@ -1160,8 +1121,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
-        Stop origin_run at the limit of the given kind. Without a debugger, the limit
-        becomes the error of the run and the run ends. With a debugger, the debugger stops.
+        Stop origin_run at the limit of the given kind.
+
+        Without a debugger, the limit becomes the error of the run and the run ends. With a debugger, the debugger
+        stops.
         """
         if isinstance(self._native_exit, SuspendedApiCall):
             self.set_pc(self._native_exit.entry.address)
@@ -1191,8 +1154,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _drop_stale_exit(self, address: int) -> int:
         """
-        Drop the native exit that a debugger made stale while the target was stopped,
-        and get the address where execution continues.
+        Drop the native exit that a debugger made stale while the target was stopped.
+
+        Returns:
+            The address where execution continues.
         """
         native_exit = self._native_exit
         if isinstance(native_exit, SuspendedApiCall):
@@ -1240,9 +1205,7 @@ class WindowsEmulator(BinaryEmulator):
 
     @execution_scope
     def start(self, addr=None, size=None):
-        """
-        Begin emulation executing each run in the specified run queue
-        """
+        """Begin emulation executing each run in the specified run queue."""
         total_budget = self._execution_budget
         assert total_budget is not None
         if total_budget.exhausted:
@@ -1427,71 +1390,50 @@ class WindowsEmulator(BinaryEmulator):
         self._should_stop_on_faults = False
 
     def get_current_run(self):
-        """
-        Get the current run that is being emulated
-        """
+        """Get the current run that is being emulated."""
         return self.curr_run
 
     def get_current_module(self):
-        """
-        Get the currently running module
-        """
+        """Get the currently running module."""
         return self.curr_mod
 
     def get_dropped_files(self) -> list[File]:
-        """
-        Get all files written by the sample from the file manager
-        """
+        """Get all files written by the sample from the file manager."""
         return self.fileman.get_dropped_files()
 
     def set_hooks(self):
-        """
-        Reserves memory that will be used to handle events that occur
-        during emulation
-        """
+        """Reserves memory that will be used to handle events that occur during emulation."""
         super().set_hooks()
 
     def get_processes(self):
-        """
-        Get the current processes that exist in the emulation space
-        """
+        """Get the current processes that exist in the emulation space."""
         if not self.processes:
             self.init_processes(self.config.processes)
         return self.processes
 
     def kill_process(self, proc):
-        """
-        Terminate a process (i.e. remove it from the known process list)
-        """
+        """Terminate a process (i.e. remove it from the known process list)."""
         try:
             self.processes.remove(proc)
         except ValueError:
             pass
 
     def get_current_thread(self):
-        """
-        Get the current thread that is emulating
-        """
+        """Get the current thread that is emulating."""
         return self.curr_thread
 
     def set_last_error(self, code):
-        """
-        Set the last error code for the current thread
-        """
+        """Set the last error code for the current thread."""
         if self.curr_thread:
             self.curr_thread.last_error = code
 
     def get_last_error(self):
-        """
-        Get the last error code for the current thread
-        """
+        """Get the last error code for the current thread."""
         if self.curr_thread:
             return self.curr_thread.last_error
 
     def heap_alloc(self, size, heap="None"):
-        """
-        Allocate a memory chunk and add it to the "heap"
-        """
+        """Allocate a memory chunk and add it to the "heap"."""
         try:
             addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
         except OutOfMemoryError:
@@ -1501,7 +1443,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def pool_alloc(self, pooltype, size, tag="None") -> int:
         """
-        Allocate memory in the emulated pool
+        Allocate memory in the emulated pool.
 
         Raises:
             WindowsEmuError: the emulator runs in user mode, which has no pool.
@@ -1510,7 +1452,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def exit_process(self) -> None:
         """
-        Signal that the current process ends
+        Signal that the current process ends.
 
         Raises:
             WindowsEmuError: the emulator runs in kernel mode, which has no process to end.
@@ -1518,21 +1460,15 @@ class WindowsEmulator(BinaryEmulator):
         raise WindowsEmuError("process exit needs user mode")
 
     def get_current_process(self):
-        """
-        Get the current process that is emulating
-        """
+        """Get the current process that is emulating."""
         return self.curr_process
 
     def set_current_process(self, process):
-        """
-        Set the current process that is emulating
-        """
+        """Set the current process that is emulating."""
         self.curr_process = process
 
     def set_current_thread(self, thread):
-        """
-        Set the current thread
-        """
+        """Set the current thread."""
         self.curr_thread = thread
         self.hardware_breakpoints.update()
 
@@ -1544,8 +1480,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _setup_gdt(self, arch):
         """
-        Set up the GDT so we can access segment registers correctly
-        This will be done a little differently depending on architecture
+        Set up the GDT so we can access segment registers correctly.
+
+        The setup differs depending on architecture.
         """
         GDT_SIZE = 0x1000
         SEG_SIZE = 0x1000
@@ -1634,9 +1571,7 @@ class WindowsEmulator(BinaryEmulator):
         return fs_addr, gs_addr
 
     def init_peb(self, user_mods, proc=None):
-        """
-        Initialize the Process Environment Block
-        """
+        """Initialize the Process Environment Block."""
         p = proc
         if not p:
             p = self.curr_process
@@ -1646,9 +1581,7 @@ class WindowsEmulator(BinaryEmulator):
         return p.peb
 
     def init_teb(self, thread, peb):
-        """
-        Initialize the Thread Information Block
-        """
+        """Initialize the Thread Information Block."""
         if self.get_arch() == _arch.ARCH_X86:
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
@@ -1656,8 +1589,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def init_tls(self, thread):
         """
-        Initialize implicit thread local storage. Meant to be
-        called after init_teb.
+        Initialize implicit thread local storage.
+
+        Meant to be called after init_teb.
         """
         run = self.curr_run
         if run is None:
@@ -1710,9 +1644,7 @@ class WindowsEmulator(BinaryEmulator):
         return data + bytes(zero_fill)
 
     def load_pe(self, path=None, data=None):
-        """
-        Parse a PE file or buffer without loading it into the emulator
-        """
+        """Parse a PE file or buffer without loading it into the emulator."""
         if not data:
             if path is None:
                 raise WindowsEmuError("No PE data to parse")
@@ -1798,14 +1730,17 @@ class WindowsEmulator(BinaryEmulator):
 
     def load_image(self, image, base: int | None = None, *, is_input: bool = False) -> RuntimeModule:
         """
-        Load an image and its dependencies. Set is_input for the input image. The input
-        image is the first module in modules, and only the input image allocates the stack.
+        Load an image and its dependencies.
+
+        Set is_input for the input image. The input image is the first module in modules, and only the input image
+        allocates the stack.
         """
         return self.module_loader.load_image(image, base, is_input=is_input)
 
     def _load_image(self, image, base=None, *, is_input=False):
         """
         Map an image at base, or at its preferred base, or at the next free range after it.
+
         An image with preferred base 0 loads at any free address.
 
         Raises:
@@ -1907,18 +1842,14 @@ class WindowsEmulator(BinaryEmulator):
         return mod
 
     def get_system_root(self):
-        """
-        Get the path of the "SYSTEMROOT" environment variable
-        """
+        """Get the path of the "SYSTEMROOT" environment variable."""
         sysroot = self.env.get("systemroot", "C:\\WINDOWS\\system32")
         if not sysroot.endswith("\\"):
             sysroot += "\\"
         return sysroot
 
     def get_cd(self):
-        """
-        Get the path of the current directory
-        """
+        """Get the path of the current directory."""
         if not self.cd:
             self.cd = self.env.get("cd", "C:\\WINDOWS\\system32")
             if not self.cd.endswith("\\"):
@@ -1926,9 +1857,7 @@ class WindowsEmulator(BinaryEmulator):
         return self.cd
 
     def set_cd(self, cd):
-        """
-        Sets the current directory path
-        """
+        """Sets the current directory path."""
         self.cd = cd
 
     def get_env(self):
@@ -2047,9 +1976,7 @@ class WindowsEmulator(BinaryEmulator):
         return p
 
     def create_thread(self, addr, ctx, proc_obj, thread_type="thread", is_suspended=False):
-        """
-        Create a thread object that will exist in the emulator
-        """
+        """Create a thread object that will exist in the emulator."""
         om = self.get_object_manager("thread creation")
 
         if len(self.run_queue) >= self.max_runs:
@@ -2077,9 +2004,7 @@ class WindowsEmulator(BinaryEmulator):
         return hnd, thread
 
     def resume_thread(self, thread):
-        """
-        Resume a previously suspended thread
-        """
+        """Resume a previously suspended thread."""
         for r in self.suspended_runs:
             if r.thread == thread:
                 _run = self.suspended_runs.pop(self.suspended_runs.index(r))
@@ -2092,8 +2017,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def add_callback(self, mod_name, func_name):
         """
-        Adds a callback to the emulation callback list. A "callback" in this
-        context refers to a function that in not imported statically or dynamically.
+        Adds a callback to the emulation callback list.
+
+        A "callback" in this context refers to a function that is not imported statically or dynamically.
 
         For example, a pointer that is set in a function table
         (e.g. PsSetCreateProcessNotifyRoutine).
@@ -2203,9 +2129,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_import_host(self, dll: str, name: str | int) -> str:
         """
-        Get the module that handles an import of dll!name. When the functions of
-        an API set are in more than one module, use the first module that has a
-        handler for the name.
+        Get the module that handles an import of dll!name.
+
+        When the functions of an API set are in more than one module, use the first module that has a handler for the
+        name.
         """
         hosts = winemu.get_dll_hosts(module_name(dll))
         if len(hosts) > 1 and isinstance(name, str):
@@ -2284,8 +2211,11 @@ class WindowsEmulator(BinaryEmulator):
 
     def _raise_api_fault(self, frame, access_type, address):
         """
-        Raise an access violation in the caller of an API whose handler touched an invalid
-        guest pointer, as the API's own code would. Return False when no handler looks at it.
+        Raise an access violation in the caller of an API whose handler touched an invalid guest pointer.
+
+        The access violation is the one the API's own code would raise.
+
+        Return False when no handler looks at it.
         """
         params = (cpu_exceptions.ACCESS_CODES[access_type], address)
         try:
@@ -2335,9 +2265,9 @@ class WindowsEmulator(BinaryEmulator):
     def _stopped_at_hlt(self, deadline, last_executed, counted, debugger):
         """
         Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
-        Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran:
-        the last instruction the accounting hook saw or a debugger step ran, or with nothing
-        else that stops the engine.
+
+        Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran: the last instruction
+        the accounting hook saw or a debugger step ran, or with nothing else that stops the engine.
 
         Nothing better reports `hlt`: Unicorn hooks only `in`, `out`, `syscall`, `sysenter`
         and `cpuid` among x86 instructions, `hlt` raises no interrupt, and a code hook on
@@ -2393,9 +2323,7 @@ class WindowsEmulator(BinaryEmulator):
         return SuspendedApiCall(entry, sp, return_address, code)
 
     def _handle_invalid_fetch(self, emu, address, size, value):
-        """
-        Called when an attempt to emulate an instruction from an invalid address
-        """
+        """Called when an attempt to emulate an instruction from an invalid address."""
         if address == self.return_hook or address == self.exit_hook:
             self._map_reserved_range()
             return True
@@ -2553,9 +2481,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_api_handler(self, dll: str, name: str) -> tuple[Any, Any]:
         """
-        Get the module and attributes of the handler for dll!name. If there is no
-        handler for the name, try the names from get_handler_candidates. Return
-        (None, None) if no handler is found.
+        Get the module and attributes of the handler for dll!name.
+
+        If there is no handler for the name, try the names from get_handler_candidates. Return (None, None) if no
+        handler is found.
         """
         for cand_dll, cand_name in ((dll, name), *api_resolution.get_handler_candidates(dll, name)):
             mod, func_attrs = self.api.get_export_func_handler(cand_dll, cand_name)
@@ -2564,9 +2493,7 @@ class WindowsEmulator(BinaryEmulator):
         return None, None
 
     def read_unicode_string(self, addr):
-        """
-        Read string data from a UNICODE_STRING object located at the specified address
-        """
+        """Read string data from a UNICODE_STRING object located at the specified address."""
         us = windef.UNICODE_STRING(self.get_ptr_size())
         us = self.mem_cast(us, addr)
 
@@ -2575,18 +2502,14 @@ class WindowsEmulator(BinaryEmulator):
 
     @staticmethod
     def format_api_arg(arg: ApiArg) -> str:
-        """
-        Render a single API argument the way it appears in the API trace
-        """
+        """Render a single API argument the way it appears in the API trace."""
         text = arg.display
         if arg.type == "str" or (arg.name is None and arg.type == "text"):
             text = sigfmt.quote_string(text)
         return f"{arg.name}: {text}" if arg.name is not None else text
 
     def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg], *, run=None) -> None:
-        """
-        Log an API call and record it with the profiler
-        """
+        """Log an API call and record it with the profiler."""
         call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
         rv_str = hex(rv) if rv is not None else None
@@ -2607,9 +2530,7 @@ class WindowsEmulator(BinaryEmulator):
                 frame.event = event
 
     def get_signature_db(self) -> sigdb.SignatureDatabase:
-        """
-        Get the API signature database used to emulate imports without a handler
-        """
+        """Get the API signature database used to emulate imports without a handler."""
         if self._sigdb is None:
             self._sigdb = sigdb.get_default_database()
         return self._sigdb
@@ -2661,9 +2582,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_handler_signature(self, dll: str, name: str, argc: int) -> sigdb.FuncSig | None:
         """
-        Find the signature that names the arguments of a call served by a
-        handler. Returns None when the function is unknown, variadic, or its
-        declaration does not consume exactly the ``argc`` slots the handler reads.
+        Find the signature that names the arguments of a call served by a handler.
+
+        Returns None when the function is unknown, variadic, or its declaration does not consume exactly the ``argc``
+        slots the handler reads.
         """
         try:
             sig = self.get_signature_db().lookup(dll, name, self._get_signature_arch())
@@ -2676,8 +2598,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_signature_formatter(self) -> sigfmt.ArgFormatter:
         """
-        Get the formatter that renders arguments of signature-emulated calls
-        (strings, enums, flags and struct contents) for the API trace
+        Get the formatter that renders arguments of signature-emulated calls for the API trace.
+
+        The formatter renders strings, enums, flags and struct contents.
         """
         if self._sigfmt is None:
             xmm = (_arch.X86_REG_XMM0, _arch.X86_REG_XMM1, _arch.X86_REG_XMM2, _arch.X86_REG_XMM3)
@@ -2711,10 +2634,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list[int], ptr_size: int) -> None:
         """
-        Give Out-only pointer parameters deterministic contents. A call we
-        only know the signature of reports success without producing any
-        data, so the memory the caller reads back is zeroed (empty strings,
-        NULL handles, zero counts) rather than left as uninitialized stack.
+        Give Out-only pointer parameters deterministic contents.
+
+        A call we only know the signature of reports success without producing any data, so the memory the caller
+        reads back is zeroed (empty strings, NULL handles, zero counts) rather than left as uninitialized stack.
         """
         db = self.get_signature_db()
         for index, (param, value) in enumerate(zip(sig.params, values)):
@@ -2732,9 +2655,7 @@ class WindowsEmulator(BinaryEmulator):
                 )
 
     def _default_return_for_signature(self, sig: sigdb.FuncSig) -> int | None:
-        """
-        Pick a plausible "success" return value for a call we only know the signature of
-        """
+        """Pick a plausible "success" return value for a call we only know the signature of."""
         kind = sig.ret_kind
         if kind == "v":
             return None
@@ -2750,10 +2671,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
         """
-        Emulate an import that has no handler using only its declared signature:
-        consume the right number of argument slots, log the call with decoded
-        arguments, return a type-appropriate success value and clean up the
-        stack according to the calling convention.
+        Emulate an import that has no handler using only its declared signature.
+
+        Consume the right number of argument slots, log the call with decoded arguments, return a
+        type-appropriate success value and clean up the stack according to the calling convention.
         """
         imp_api = f"{dll}.{name}"
         ptr_size = self.get_ptr_size()
@@ -2801,8 +2722,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def resolve_api_implementation(self, dll: str, name: str) -> api_resolution.ApiImplementation:
         """
-        Find the code to run for dll!name. Look in this order: a handler, user
-        hooks, the signature database, a stub.
+        Find the code to run for dll!name.
+
+        Look in this order: a handler, user hooks, the signature database, a stub.
         """
         mod, func_attrs = self.get_api_handler(dll, name)
         if func_attrs:
@@ -2822,8 +2744,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def dispatch_api_call(self, dll: str, name: str) -> None:
         """
-        Run the code for the API that the guest called. End the run if the code
-        changed the stack pointer but did not return.
+        Run the code for the API that the guest called.
+
+        End the run if the code changed the stack pointer but did not return.
         """
         frame = GuestCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
         previous = self._active_api_frame
@@ -2888,8 +2811,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_api_with_handler(self, call: _ApiCallState, impl: api_resolution.HandlerImplementation) -> bool:
         """
-        Run the handler of the API, or the user hooks for the API. Return False if
-        the handler failed, and the run ended or a guest exception started.
+        Run the handler of the API, or the user hooks for the API.
+
+        Return False if the handler failed, and the run ended or a guest exception started.
         """
         dll, name = call.dll, impl.name
         imp_api = f"{dll}.{name}"
@@ -2975,9 +2899,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_api_hook(self, call: _ApiCallState, hooks: list[common.ApiHook]) -> None:
         """
-        Run the user hook of an API that has no handler. The hook gives the
-        argument count and the calling convention. Only the last hook that was
-        added runs, because the hooks can give different values.
+        Run the user hook of an API that has no handler.
+
+        The hook gives the argument count and the calling convention. Only the last hook that was added runs, because
+        the hooks can give different values.
         """
         if len(hooks) > 1:
             logger.warning(
@@ -3009,9 +2934,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_api_stub(self, call: _ApiCallState) -> None:
         """
-        Return 1 from an unknown API so that execution can continue. The argument
-        count and the calling convention are not known, so guess stdcall with four
-        arguments.
+        Return 1 from an unknown API so that execution can continue.
+
+        The argument count and the calling convention are not known, so guess stdcall with four arguments.
         """
         logger.warning("Stubbed unknown API %s with return 1", call.api_name)
         conv = _arch.CALL_CONV_STDCALL
@@ -3087,6 +3012,7 @@ class WindowsEmulator(BinaryEmulator):
     def _fail_library_initializer(self, frame, routine):
         """
         Make the load call of the frame fail, and undo the loads that it made.
+
         Windows does this when a DllMain returns FALSE.
         """
         frame.result = frame.failure_result
@@ -3102,10 +3028,7 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(register, value)
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
-        """
-        High level function used to catch all invalid memory accesses that occur during
-        emulation
-        """
+        """High level function used to catch all invalid memory accesses that occur during emulation."""
         try:
             access = self.emu_eng.mem_access.get(access)
             logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
@@ -3166,9 +3089,7 @@ class WindowsEmulator(BinaryEmulator):
         return True
 
     def get_symbol_from_address(self, address) -> str | None:
-        """
-        If the supplied address is related to a known symbol, look it up here
-        """
+        """If the supplied address is related to a known symbol, look it up here."""
         symbol = self.api_registry.symbol(address)
         if symbol is not None:
             return symbol
@@ -3232,6 +3153,7 @@ class WindowsEmulator(BinaryEmulator):
     def _get_cached_region_access(self, address: int, cache: deque[MemAccess]) -> MemAccess | None:
         """
         Get the access counts of the section or memory map that contains address.
+
         Look in cache first. Return None if address is not mapped.
         """
         for access in cache:
@@ -3261,8 +3183,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_mem_read(self, emu, access, address, size, value):
         """
-        Hook each memory read event that occurs. This hook is used to lookup symbols and modules
-        that are read from during emulation.
+        Hook each memory read event that occurs.
+
+        This hook is used to lookup symbols and modules that are read from during emulation.
         """
         try:
             symbol = self.get_symbol_from_address(address)
@@ -3282,8 +3205,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_mem_write(self, emu, access, address, size, value):
         """
-        Hook each memory write event that occurs. This hook is used to track memory modifications
-        to interesting memory locations.
+        Hook each memory write event that occurs.
+
+        This hook is used to track memory modifications to interesting memory locations.
         """
         try:
             symbol = self.get_symbol_from_address(address)
@@ -3302,9 +3226,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during memory write", e)
 
     def _handle_invalid_read(self, emu, address, size, value):
-        """
-        Hook each invalid memory read event that occurs.
-        """
+        """Hook each invalid memory read event that occurs."""
         mod = self.get_mod_from_addr(address)
         if mod:
             return True
@@ -3315,9 +3237,7 @@ class WindowsEmulator(BinaryEmulator):
         return self._raise_memory_fault(address, "read")
 
     def _handle_prot_fetch(self, emu, address, size, value):
-        """
-        Called when non-executable code is emulated
-        """
+        """Called when non-executable code is emulated."""
         # Ordinary analysis recovers execution in non-X guest sections.
         # Synthetic API protections and debugger stops are always
         # authoritative; a symbol never causes dispatch from this hook.
@@ -3342,9 +3262,7 @@ class WindowsEmulator(BinaryEmulator):
         return False
 
     def _handle_invalid_write(self, emu, address, size, value):
-        """
-        Called when non-writable address is written to
-        """
+        """Called when non-writable address is written to."""
         # ignore patches to APIs
         if winemu.EMU_RESERVED <= address < winemu.EMU_RESERVED_END:
             return self._complete_reserved_access(address, size, "write")
@@ -3363,8 +3281,8 @@ class WindowsEmulator(BinaryEmulator):
     def _hook_code_deferred_work(self, emu, addr, size):
         """
         Code hook that runs at the next instruction after an API call, a fault or a request to end the run.
-        It ends the run if it is complete and unmaps the reserved range.
-        It disables itself when it has no more work.
+
+        It ends the run if it is complete and unmaps the reserved range. It disables itself when it has no more work.
         """
         try:
             if addr == self.return_hook or self.is_run_complete:
@@ -3386,9 +3304,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during code hook (deferred work)", e)
 
     def _hook_code_coverage(self, emu, addr, size):
-        """
-        Persistent code hook that records every executed address for coverage.
-        """
+        """Persistent code hook that records every executed address for coverage."""
         try:
             if self.curr_run is not None:
                 self.curr_run.coverage.add(addr)
@@ -3398,8 +3314,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_code_tracing(self, emu, addr, size):
         """
-        Persistent code hook for memory tracing: instruction counting,
-        symbol execution tracking, and per-region execution tracking.
+        Persistent code hook for memory tracing.
+
+        The hook counts instructions and tracks symbol execution and per-region execution.
         """
         try:
             if logger.isEnabledFor(logging.DEBUG):
@@ -3428,8 +3345,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_code_debug(self, emu, addr, size):
         """
-        Persistent code hook that prints disassembly and register state
-        for every instruction when debug mode is enabled.
+        Print disassembly and register state for every instruction when debug mode is enabled.
+
+        This is a persistent code hook.
         """
         x = self.get_disasm(addr, size)[2]
         if self.get_arch() == _arch.ARCH_AMD64:
@@ -3441,9 +3359,7 @@ class WindowsEmulator(BinaryEmulator):
         return True
 
     def get_native_module_path(self, mod_name=""):
-        """
-        Get the path of a DLL with this name in the configured module directory
-        """
+        """Get the path of a DLL with this name in the configured module directory."""
         attr = "module_directory_x64" if self.get_arch() == _arch.ARCH_AMD64 else "module_directory_x86"
         path = common.normalize_package_path(getattr(self.config.modules, attr) or "")
         if not os.path.isdir(path):
@@ -3579,9 +3495,7 @@ class WindowsEmulator(BinaryEmulator):
         return rtmods
 
     def get_thread_context(self, thread=None):
-        """
-        Get the current thread CPU context
-        """
+        """Get the current thread CPU context."""
         if thread:
             return thread.get_context()
         if self.get_arch() == _arch.ARCH_AMD64:
@@ -3600,9 +3514,7 @@ class WindowsEmulator(BinaryEmulator):
         return ctx
 
     def load_thread_context(self, ctx, thread=None):
-        """
-        Set the current thread CPU context
-        """
+        """Set the current thread CPU context."""
         if self.get_arch() == _arch.ARCH_AMD64:
             registers = thread_context.CPU_REGISTERS_AMD64
         else:
@@ -3674,13 +3586,15 @@ class WindowsEmulator(BinaryEmulator):
         return self._active_api_frame
 
     def exception_dispatcher(self):
-        """The exception dispatch of the architecture"""
+        """The exception dispatch of the architecture."""
         return seh64 if self.get_arch() == _arch.ARCH_AMD64 else seh32
 
     def note_seh_resume(self, pc):
         """
-        A handler continues execution at pc. Resuming elsewhere than the fault is progress;
-        at the fault, the guard against repeating it holds until execution moves on.
+        A handler continues execution at pc.
+
+        Resuming elsewhere than the fault is progress; at the fault, the guard against repeating it holds until
+        execution moves on.
         """
         if self._seh_last_fault is None:
             return
@@ -3693,9 +3607,7 @@ class WindowsEmulator(BinaryEmulator):
             self._seh_resume_pc = None
 
     def create_event(self, name=""):
-        """
-        Create a kernel event object
-        """
+        """Create a kernel event object."""
         om = self.get_object_manager("event creation")
         evt = self.new_object(objman.Event)
         evt.name = name
@@ -3703,16 +3615,12 @@ class WindowsEmulator(BinaryEmulator):
         return hnd, evt
 
     def dec_ref(self, obj):
-        """
-        Dereference an object
-        """
+        """Dereference an object."""
         om = self.get_object_manager("object dereference")
         return om.dec_ref(obj)
 
     def create_mutant(self, name=""):
-        """
-        Create a kernel mutant object
-        """
+        """Create a kernel mutant object."""
         om = self.get_object_manager("mutant creation")
         if name == 0:
             name = ""
@@ -3722,9 +3630,7 @@ class WindowsEmulator(BinaryEmulator):
         return hnd, mtx
 
     def create_semaphore(self, name=""):
-        """
-        Create a kernel semaphore object
-        """
+        """Create a kernel semaphore object."""
         om = self.get_object_manager("semaphore creation")
         sem = self.new_object(objman.Semaphore)
         sem.name = name
@@ -3732,9 +3638,7 @@ class WindowsEmulator(BinaryEmulator):
         return hnd, sem
 
     def _hook_interrupt(self, emu, intnum):
-        """
-        Called when software interrupts occur
-        """
+        """Called when software interrupts occur."""
         self.emu_eng.clear_exception_state()
         if (
             not self.is_kernel_mode
