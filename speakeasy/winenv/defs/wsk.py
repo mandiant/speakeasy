@@ -1,59 +1,48 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
 
 class WSK_PROVIDER_BASIC_DISPATCH(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.WskControlSocket = Ptr
-        self.WskCloseSocket = Ptr
+    WskControlSocket: Annotated[int, Ptr]
+    WskCloseSocket: Annotated[int, Ptr]
 
 
 class WSK_PROVIDER_DATAGRAM_DISPATCH(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Basic = WSK_PROVIDER_BASIC_DISPATCH
-        self.WskBind = Ptr
-        self.WskSendTo = Ptr
-        self.WskReceiveFrom = Ptr
-        self.WskRelease = Ptr
-        self.WskGetLocalAddress = Ptr
-        self.WskSendMessages = Ptr
+    Basic: WSK_PROVIDER_BASIC_DISPATCH
+    WskBind: Annotated[int, Ptr]
+    WskSendTo: Annotated[int, Ptr]
+    WskReceiveFrom: Annotated[int, Ptr]
+    WskRelease: Annotated[int, Ptr]
+    WskGetLocalAddress: Annotated[int, Ptr]
+    WskSendMessages: Annotated[int, Ptr]
 
 
 class WSK_CLIENT_DISPATCH(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Version = ct.c_uint16
-        self.Reserved = ct.c_uint16
-        self.WskClientEvent = Ptr
+    Version: Annotated[int, ct.c_uint16]
+    Reserved: Annotated[int, ct.c_uint16]
+    WskClientEvent: Annotated[int, Ptr]
 
 
 class WSK_CLIENT_NPI(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ClientContext = Ptr
-        self.Dispatch = Ptr
+    ClientContext: Annotated[int, Ptr]
+    Dispatch: Annotated[int, Ptr]
 
 
 class WSK_PROVIDER_DISPATCH(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Version = ct.c_uint16
-        self.Reserved = ct.c_uint16
-        self.WskSocket = Ptr
-        self.WskSocketConnect = Ptr
-        self.WskControlClient = Ptr
-        self.WskGetAddressInfo = Ptr
-        self.WskFreeAddressInfo = Ptr
-        self.WskGetNameInfo = Ptr
+    Version: Annotated[int, ct.c_uint16]
+    Reserved: Annotated[int, ct.c_uint16]
+    WskSocket: Annotated[int, Ptr]
+    WskSocketConnect: Annotated[int, Ptr]
+    WskControlClient: Annotated[int, Ptr]
+    WskGetAddressInfo: Annotated[int, Ptr]
+    WskFreeAddressInfo: Annotated[int, Ptr]
+    WskGetNameInfo: Annotated[int, Ptr]
 
 
 class WSK_PROVIDER_NPI(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Client = Ptr
-        self.Dispatch = Ptr
+    Client: Annotated[int, Ptr]
+    Dispatch: Annotated[int, Ptr]
