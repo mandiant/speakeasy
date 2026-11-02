@@ -9,7 +9,7 @@ Handler rules:
 - `argv` contains the raw integer argument slots; handlers do not change it
 - to show a decoded value in the report, set the `display` of the argument in `ctx.args` (for example `ctx.args["lpFileName"].display = path`)
 - return the value expected by the sample path
-- start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
+- start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. The function name is the hook name: a hook without the `A` or `W` suffix uses the generic name and TCHAR types (`LPCTSTR`). Parameter names come from the Microsoft documentation. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
 
