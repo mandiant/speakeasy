@@ -309,6 +309,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   // Process inventory visible to process enumeration APIs.
   // Include one is_main_exe=true process for shellcode/DLL container use.
+  // Process enumeration gives the other entries in this order, then the main process.
   // The container image loads at the first free base above 0x7D000000, not at its base_addr.
   "processes": [
     {

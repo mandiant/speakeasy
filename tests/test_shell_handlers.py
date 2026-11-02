@@ -678,13 +678,14 @@ def test_shell_execute_ex_writes_h_inst_app_without_a_process_handle(dll_emu: Sp
 def test_shell_execute_ex_opens_a_folder_without_a_new_process(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu is not None
     start_process(dll_emu)
+    processes = list(dll_emu.emu.processes)
     fn = alloc(dll_emu, wstr("C:\\Windows\\system32", 2))
     sei = alloc(dll_emu, struct.pack("<IIIIIIIiI", 60, 0x40, 0, 0, fn, 0, 0, 1, 0) + b"\x00" * 24)
     rv, _ = call(dll_emu, "shell32", "ShellExecuteExW", [sei])
     assert rv
     assert struct.unpack("<I", dll_emu.mem_read(sei + 32, 4))[0] > 32
     assert struct.unpack("<I", dll_emu.mem_read(sei + 56, 4))[0] == 0
-    assert dll_emu.emu.processes == [dll_emu.emu.curr_process]
+    assert dll_emu.emu.processes == processes
 
 
 def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_test_bin) -> None:

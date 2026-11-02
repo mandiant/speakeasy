@@ -426,7 +426,9 @@ class Token(KernelObject):
 class Process(KernelObject):
     """An EPROCESS object used by the Windows kernel to represent a process."""
 
-    def __init__(self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0):
+    def __init__(
+        self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0, fixed_peb=True
+    ):
         super().__init__(emu=emu)
         # TODO: For now just allocate a blank opaque struct for an EPROCESS
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
@@ -471,7 +473,7 @@ class Process(KernelObject):
         self.stderr: int = (0xF000) + 3
 
         # Initialize the process PEB
-        self.peb: PEB = PEB(emu=emu)
+        self.peb: PEB = PEB(emu=emu, fixed=fixed_peb)
         self.peb_ldr_data: PebLdrData = PebLdrData(self.emu)
         self.is_peb_active: bool = False
         self.initializing_peb: bool = False
@@ -706,12 +708,13 @@ class PEB(KernelObject):
     Shellcode may parse this structure in order to resolve exported functions.
     """
 
-    def __init__(self, emu, address=None):
+    def __init__(self, emu, address=None, fixed=True):
         super().__init__(emu=emu)
 
         self.object = self.nt_types.PEB(emu.get_ptr_size())
         if not address:
-            base = None if emu.is_kernel_mode or emu.get_address_map(winemu.PEB_ADDRESS) else winemu.PEB_ADDRESS
+            is_fixed = fixed and not emu.is_kernel_mode and not emu.get_address_map(winemu.PEB_ADDRESS)
+            base = winemu.PEB_ADDRESS if is_fixed else None
             self.address = emu.mem_map(self.sizeof(), base=base, tag=self.get_mem_tag())
         else:
             self.address = address

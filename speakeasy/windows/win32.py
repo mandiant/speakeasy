@@ -131,15 +131,17 @@ class Win32Emulator(WindowsEmulator):
         if handler in handlers:
             handlers.remove(handler)
 
-    def get_processes(self):
-        if len(self.processes) <= 1:
-            self.init_processes(self.config.processes)
-        return self.processes
-
     def init_processes(self, processes):
-        """Initialize configured processes set in the emulator config."""
+        """
+        Add the processes of the config to the process list.
+
+        Skip the entry with is_main_exe: the main process is the container process or the process of the input EXE.
+        """
         for proc in processes:
-            p = objman.Process(self)
+            if proc.is_main_exe:
+                continue
+            # The fixed PEB address is for the main process, which the emulator creates later
+            p = objman.Process(self, fixed_peb=False)
             self.add_object(p)
 
             p.name = proc.name
@@ -304,7 +306,7 @@ class Win32Emulator(WindowsEmulator):
 
         # Create an empty process object for the module if none is
         # supplied, only do this for the main module
-        if len(self.processes) == 0:
+        if self.curr_process is None:
             if self.argv:
                 self.command_line = f'"{module.emu_path}" {subprocess.list2cmdline(self.argv)}'
             p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
@@ -584,6 +586,7 @@ class Win32Emulator(WindowsEmulator):
 
         self.init_sys_modules(self.config.modules.system_modules)
         self.init_user_modules(self.config.modules.user_modules)
+        self.init_processes(self.config.processes)
 
     def init_sys_modules(self, modules_config):
         """Get the system modules (e.g. drivers) that are loaded in the emulator."""

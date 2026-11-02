@@ -117,7 +117,7 @@ def test_load_container_loads_the_container_in_the_machine_range(machine, arch):
     container = machine.container_image
     assert container.base == first_free
     assert container.base + container.image_size <= winemu.TEB_ADDRESS
-    assert machine.processes == [process]
+    assert machine.processes[-1] is process
     assert machine.get_current_process() is process
     assert process.base == container.base
 
@@ -128,3 +128,19 @@ def test_native_container_does_not_allocate_the_stack(config, tmp_path):
         emu.load_container()
         assert emu.mem_read(emu.container_image.base, 2) == b"MZ"
         assert emu.stack_base == 0
+
+
+def test_process_list_has_each_configured_process_one_time(emulator, config):
+    emulator.load_shellcode(None, "x86", data=b"\xc3")
+    emu = emulator.emu
+    configured = [p["name"] for p in config["processes"] if not p.get("is_main_exe")]
+
+    def get_names():
+        return [p.name for p in emu.get_processes() if p is not emu.curr_process]
+
+    assert get_names() == configured
+    assert emu.get_processes().count(emu.curr_process) == 1
+
+    child = emu.create_process(path="C:\\Windows\\system32\\notepad.exe")
+    assert get_names() == [*configured, child.name]
+    assert emu.get_processes().count(emu.curr_process) == 1
