@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -96,209 +97,189 @@ CREATE_EVENT_INITIAL_SET = 0x00000002
 
 
 class GUID(EmuStruct):
+    Data1: Annotated[int, ct.c_uint32]
+    Data2: Annotated[int, ct.c_uint16]
+    Data3: Annotated[int, ct.c_uint16]
+    Data4: Annotated[bytes, ct.c_uint8 * 8]
+
     def __init__(self):
         super().__init__()
-        self.Data1 = ct.c_uint32
-        self.Data2 = ct.c_uint16
-        self.Data3 = ct.c_uint16
-        self.Data4 = ct.c_uint8 * 8
 
 
 class SID(EmuStruct):
+    Revision: Annotated[int, ct.c_uint8]
+    SubAuthorityCount: Annotated[int, ct.c_uint8]
+    IdentifierAuthority: Annotated[bytes, ct.c_uint8 * 6]
+
     def __init__(self, ptr_size, sub_authority_count):
         super().__init__(ptr_size)
-        self.Revision = ct.c_uint8
-        self.SubAuthorityCount = ct.c_uint8
-        self.IdentifierAuthority = ct.c_uint8 * 6
         self.SubAuthority = ct.c_uint32 * sub_authority_count
 
 
 class KSYSTEM_TIME(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.LowPart = ct.c_uint32
-        self.High1Time = ct.c_uint32
-        self.High2Time = ct.c_uint32
+    LowPart: Annotated[int, ct.c_uint32]
+    High1Time: Annotated[int, ct.c_uint32]
+    High2Time: Annotated[int, ct.c_uint32]
 
 
 class M128A(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Low = ct.c_uint64
-        self.High = ct.c_uint64
+    Low: Annotated[int, ct.c_uint64]
+    High: Annotated[int, ct.c_uint64]
 
 
 class EXCEPTION_REGISTRATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.Handler = Ptr
-        self.ScopeTable = Ptr
-        self.TryLevel = Ptr
+    Next: Annotated[int, Ptr]
+    Handler: Annotated[int, Ptr]
+    ScopeTable: Annotated[int, Ptr]
+    TryLevel: Annotated[int, Ptr]
 
 
 class UNICODE_STRING(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Length = ct.c_uint16
-        self.MaximumLength = ct.c_uint16
-        self.Buffer = Ptr
+    Length: Annotated[int, ct.c_uint16]
+    MaximumLength: Annotated[int, ct.c_uint16]
+    Buffer: Annotated[int, Ptr]
 
 
 class EXCEPTION_POINTERS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ExceptionRecord = Ptr
-        self.ContextRecord = Ptr
+    ExceptionRecord: Annotated[int, Ptr]
+    ContextRecord: Annotated[int, Ptr]
 
 
 # See http://www.openrce.org/articles/full_view/21
 class EH4_SCOPETABLE(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.GSCookieOffset = ct.c_uint32
-        self.GSCookieXOROffset = ct.c_uint32
-        self.EHCookieOffset = ct.c_uint32
-        self.EHCookieXOROffset = ct.c_uint32
+    GSCookieOffset: Annotated[int, ct.c_uint32]
+    GSCookieXOROffset: Annotated[int, ct.c_uint32]
+    EHCookieOffset: Annotated[int, ct.c_uint32]
+    EHCookieXOROffset: Annotated[int, ct.c_uint32]
 
 
 class EH4_SCOPETABLE_RECORD(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.EnclosingLevel = ct.c_uint32
-        self.FilterFunc = Ptr
-        self.HandlerAddress = Ptr
+    EnclosingLevel: Annotated[int, ct.c_uint32]
+    FilterFunc: Annotated[int, Ptr]
+    HandlerAddress: Annotated[int, Ptr]
 
 
 class EXCEPTION_RECORD(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ExceptionCode = ct.c_uint32
-        self.ExceptionFlags = ct.c_uint32
-        self.ExceptionRecord = Ptr
-        self.ExceptionAddress = Ptr
-        self.NumberParameters = ct.c_uint32
-        self.ExceptionInformation = Ptr * EXCEPTION_MAXIMUM_PARAMETERS
+    ExceptionCode: Annotated[int, ct.c_uint32]
+    ExceptionFlags: Annotated[int, ct.c_uint32]
+    ExceptionRecord: Annotated[int, Ptr]
+    ExceptionAddress: Annotated[int, Ptr]
+    NumberParameters: Annotated[int, ct.c_uint32]
+    ExceptionInformation: Annotated[list[int], Ptr * EXCEPTION_MAXIMUM_PARAMETERS]
 
 
 class FLOATING_SAVE_AREA(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ControlWord = ct.c_uint32
-        self.StatusWord = ct.c_uint32
-        self.TagWord = ct.c_uint32
-        self.ErrorOffset = ct.c_uint32
-        self.ErrorSelector = ct.c_uint32
-        self.DataOffset = ct.c_uint32
-        self.DataSelector = ct.c_uint32
-        self.RegisterArea = ct.c_uint8 * 80
-        self.Spare0 = ct.c_uint32
+    ControlWord: Annotated[int, ct.c_uint32]
+    StatusWord: Annotated[int, ct.c_uint32]
+    TagWord: Annotated[int, ct.c_uint32]
+    ErrorOffset: Annotated[int, ct.c_uint32]
+    ErrorSelector: Annotated[int, ct.c_uint32]
+    DataOffset: Annotated[int, ct.c_uint32]
+    DataSelector: Annotated[int, ct.c_uint32]
+    RegisterArea: Annotated[bytes, ct.c_uint8 * 80]
+    Spare0: Annotated[int, ct.c_uint32]
 
 
 class CONTEXT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ContextFlags = ct.c_uint32
-        self.Dr0 = ct.c_uint32
-        self.Dr1 = ct.c_uint32
-        self.Dr2 = ct.c_uint32
-        self.Dr3 = ct.c_uint32
-        self.Dr6 = ct.c_uint32
-        self.Dr7 = ct.c_uint32
-        self.FloatSave = FLOATING_SAVE_AREA
-        self.SegGs = ct.c_uint32
-        self.SegFs = ct.c_uint32
-        self.SegEs = ct.c_uint32
-        self.SegDs = ct.c_uint32
-        self.Edi = ct.c_uint32
-        self.Esi = ct.c_uint32
-        self.Ebx = ct.c_uint32
-        self.Edx = ct.c_uint32
-        self.Ecx = ct.c_uint32
-        self.Eax = ct.c_uint32
-        self.Ebp = ct.c_uint32
-        self.Eip = ct.c_uint32
-        self.SegCs = ct.c_uint32
-        self.EFlags = ct.c_uint32
-        self.Esp = ct.c_uint32
-        self.SegSs = ct.c_uint32
-        self.ExtendedRegisters = ct.c_uint8 * 512
+    ContextFlags: Annotated[int, ct.c_uint32]
+    Dr0: Annotated[int, ct.c_uint32]
+    Dr1: Annotated[int, ct.c_uint32]
+    Dr2: Annotated[int, ct.c_uint32]
+    Dr3: Annotated[int, ct.c_uint32]
+    Dr6: Annotated[int, ct.c_uint32]
+    Dr7: Annotated[int, ct.c_uint32]
+    FloatSave: FLOATING_SAVE_AREA
+    SegGs: Annotated[int, ct.c_uint32]
+    SegFs: Annotated[int, ct.c_uint32]
+    SegEs: Annotated[int, ct.c_uint32]
+    SegDs: Annotated[int, ct.c_uint32]
+    Edi: Annotated[int, ct.c_uint32]
+    Esi: Annotated[int, ct.c_uint32]
+    Ebx: Annotated[int, ct.c_uint32]
+    Edx: Annotated[int, ct.c_uint32]
+    Ecx: Annotated[int, ct.c_uint32]
+    Eax: Annotated[int, ct.c_uint32]
+    Ebp: Annotated[int, ct.c_uint32]
+    Eip: Annotated[int, ct.c_uint32]
+    SegCs: Annotated[int, ct.c_uint32]
+    EFlags: Annotated[int, ct.c_uint32]
+    Esp: Annotated[int, ct.c_uint32]
+    SegSs: Annotated[int, ct.c_uint32]
+    ExtendedRegisters: Annotated[bytes, ct.c_uint8 * 512]
 
 
 class CONTEXT64(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.P1Home = ct.c_uint64
-        self.P2Home = ct.c_uint64
-        self.P3Home = ct.c_uint64
-        self.P4Home = ct.c_uint64
-        self.P5Home = ct.c_uint64
-        self.P6Home = ct.c_uint64
+    P1Home: Annotated[int, ct.c_uint64]
+    P2Home: Annotated[int, ct.c_uint64]
+    P3Home: Annotated[int, ct.c_uint64]
+    P4Home: Annotated[int, ct.c_uint64]
+    P5Home: Annotated[int, ct.c_uint64]
+    P6Home: Annotated[int, ct.c_uint64]
 
-        self.ContextFlags = ct.c_uint32
-        self.MxCsr = ct.c_uint32
+    ContextFlags: Annotated[int, ct.c_uint32]
+    MxCsr: Annotated[int, ct.c_uint32]
 
-        self.SegCs = ct.c_uint16
-        self.SegDs = ct.c_uint16
-        self.SegEs = ct.c_uint16
-        self.SegFs = ct.c_uint16
-        self.SegGs = ct.c_uint16
-        self.SegSs = ct.c_uint16
-        self.EFlags = ct.c_uint32
+    SegCs: Annotated[int, ct.c_uint16]
+    SegDs: Annotated[int, ct.c_uint16]
+    SegEs: Annotated[int, ct.c_uint16]
+    SegFs: Annotated[int, ct.c_uint16]
+    SegGs: Annotated[int, ct.c_uint16]
+    SegSs: Annotated[int, ct.c_uint16]
+    EFlags: Annotated[int, ct.c_uint32]
 
-        self.Dr0 = ct.c_uint64
-        self.Dr1 = ct.c_uint64
-        self.Dr2 = ct.c_uint64
-        self.Dr3 = ct.c_uint64
-        self.Dr6 = ct.c_uint64
-        self.Dr7 = ct.c_uint64
+    Dr0: Annotated[int, ct.c_uint64]
+    Dr1: Annotated[int, ct.c_uint64]
+    Dr2: Annotated[int, ct.c_uint64]
+    Dr3: Annotated[int, ct.c_uint64]
+    Dr6: Annotated[int, ct.c_uint64]
+    Dr7: Annotated[int, ct.c_uint64]
 
-        self.Rax = ct.c_uint64
-        self.Rcx = ct.c_uint64
-        self.Rdx = ct.c_uint64
-        self.Rbx = ct.c_uint64
-        self.Rsp = ct.c_uint64
-        self.Rbp = ct.c_uint64
-        self.Rsi = ct.c_uint64
-        self.Rdi = ct.c_uint64
-        self.R8 = ct.c_uint64
-        self.R9 = ct.c_uint64
-        self.R10 = ct.c_uint64
-        self.R11 = ct.c_uint64
-        self.R12 = ct.c_uint64
-        self.R13 = ct.c_uint64
-        self.R14 = ct.c_uint64
-        self.R15 = ct.c_uint64
-        self.Rip = ct.c_uint64
+    Rax: Annotated[int, ct.c_uint64]
+    Rcx: Annotated[int, ct.c_uint64]
+    Rdx: Annotated[int, ct.c_uint64]
+    Rbx: Annotated[int, ct.c_uint64]
+    Rsp: Annotated[int, ct.c_uint64]
+    Rbp: Annotated[int, ct.c_uint64]
+    Rsi: Annotated[int, ct.c_uint64]
+    Rdi: Annotated[int, ct.c_uint64]
+    R8: Annotated[int, ct.c_uint64]
+    R9: Annotated[int, ct.c_uint64]
+    R10: Annotated[int, ct.c_uint64]
+    R11: Annotated[int, ct.c_uint64]
+    R12: Annotated[int, ct.c_uint64]
+    R13: Annotated[int, ct.c_uint64]
+    R14: Annotated[int, ct.c_uint64]
+    R15: Annotated[int, ct.c_uint64]
+    Rip: Annotated[int, ct.c_uint64]
 
-        self.Header = M128A * 2
-        self.Legacy = M128A * 8
-        self.Xmm0 = M128A
-        self.Xmm1 = M128A
-        self.Xmm2 = M128A
-        self.Xmm3 = M128A
-        self.Xmm4 = M128A
-        self.Xmm5 = M128A
-        self.Xmm6 = M128A
-        self.Xmm7 = M128A
-        self.Xmm8 = M128A
-        self.Xmm9 = M128A
-        self.Xmm10 = M128A
-        self.Xmm11 = M128A
-        self.Xmm12 = M128A
-        self.Xmm13 = M128A
-        self.Xmm14 = M128A
-        self.Xmm15 = M128A
-        # The rest of the 512-byte FltSave area that Header, Legacy and Xmm0-15 overlay
-        self.FltSaveReserved = ct.c_uint8 * 96
+    Header: Annotated[list[M128A], M128A * 2]
+    Legacy: Annotated[list[M128A], M128A * 8]
+    Xmm0: M128A
+    Xmm1: M128A
+    Xmm2: M128A
+    Xmm3: M128A
+    Xmm4: M128A
+    Xmm5: M128A
+    Xmm6: M128A
+    Xmm7: M128A
+    Xmm8: M128A
+    Xmm9: M128A
+    Xmm10: M128A
+    Xmm11: M128A
+    Xmm12: M128A
+    Xmm13: M128A
+    Xmm14: M128A
+    Xmm15: M128A
+    # The rest of the 512-byte FltSave area that Header, Legacy and Xmm0-15 overlay
+    FltSaveReserved: Annotated[bytes, ct.c_uint8 * 96]
 
-        self.VectorRegister = M128A * 26
-        self.VectorControl = ct.c_uint64
-        self.DebugControl = ct.c_uint64
-        self.LastBranchToRip = ct.c_uint64
-        self.LastBranchFromRip = ct.c_uint64
-        self.LastExceptionToRip = ct.c_uint64
-        self.LastExceptionFromRip = ct.c_uint64
+    VectorRegister: Annotated[list[M128A], M128A * 26]
+    VectorControl: Annotated[int, ct.c_uint64]
+    DebugControl: Annotated[int, ct.c_uint64]
+    LastBranchToRip: Annotated[int, ct.c_uint64]
+    LastBranchFromRip: Annotated[int, ct.c_uint64]
+    LastExceptionToRip: Annotated[int, ct.c_uint64]
+    LastExceptionFromRip: Annotated[int, ct.c_uint64]
 
 
 def convert_sid_str_to_struct(ptr_size, sid_str):
