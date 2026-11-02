@@ -20,9 +20,9 @@ class Secur32(api.ApiHandler):
     def GetUserNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN SEC_ENTRY GetUserNameExA(
-          EXTENDED_NAME_FORMAT NameFormat,
-          LPSTR                lpNameBuffer,
-          PULONG               nSize
+            EXTENDED_NAME_FORMAT NameFormat,
+            LPSTR lpNameBuffer,
+            PULONG nSize
         );
         """
         NameFormat, lpNameBuffer, nSize = argv
@@ -54,10 +54,10 @@ class Secur32(api.ApiHandler):
     def EncryptMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS SEC_ENTRY EncryptMessage(
-        PCtxtHandle    phContext,
-        unsigned long  fQOP,
-        PSecBufferDesc pMessage,
-        unsigned long  MessageSeqNo
+            PCtxtHandle phContext,
+            unsigned long fQOP,
+            PSecBufferDesc pMessage,
+            unsigned long MessageSeqNo
         );
         """
 

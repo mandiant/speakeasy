@@ -30,8 +30,8 @@ class Ncrypt(api.ApiHandler):
         """
         SECURITY_STATUS NCryptOpenStorageProvider(
             NCRYPT_PROV_HANDLE *phProvider,
-            LPCWSTR            pszProviderName,
-            DWORD              dwFlags
+            LPCWSTR pszProviderName,
+            DWORD dwFlags
         );
         """
         phProvider, pszProviderName, dwFlags = argv
@@ -52,13 +52,13 @@ class Ncrypt(api.ApiHandler):
         """
         SECURITY_STATUS NCryptImportKey(
             NCRYPT_PROV_HANDLE hProvider,
-            NCRYPT_KEY_HANDLE  hImportKey,
-            LPCWSTR            pszBlobType,
-            NCryptBufferDesc   *pParameterList,
-            NCRYPT_KEY_HANDLE  *phKey,
-            PBYTE              pbData,
-            DWORD              cbData,
-            DWORD              dwFlags
+            NCRYPT_KEY_HANDLE hImportKey,
+            LPCWSTR pszBlobType,
+            NCryptBufferDesc *pParameterList,
+            NCRYPT_KEY_HANDLE *phKey,
+            PBYTE pbData,
+            DWORD cbData,
+            DWORD dwFlags
         );
         """
         hProvider, hImportKey, pszBlobType, pParameterList, phKey, pbData, cbData, dwFlags = argv
@@ -92,7 +92,7 @@ class Ncrypt(api.ApiHandler):
         """
         SECURITY_STATUS NCryptDeleteKey(
             NCRYPT_KEY_HANDLE hKey,
-            DWORD             dwFlags
+            DWORD dwFlags
         );
         """
         hKey, dwFlags = argv

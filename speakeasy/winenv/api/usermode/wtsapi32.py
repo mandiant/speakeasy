@@ -31,11 +31,11 @@ class WtsApi32(api.ApiHandler):
     def WTSEnumerateSessions(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WTSEnumerateSessions(
-          IN HANDLE          hServer,
-          IN DWORD           Reserved,
-          IN DWORD           Version,
-          PWTS_SESSION_INFO *ppSessionInfo,
-          DWORD              *pCount
+            HANDLE hServer,
+            DWORD Reserved,
+            DWORD Version,
+            PWTS_SESSION_INFO *ppSessionInfo,
+            DWORD *pCount
         );
         """
         hServer, res, ver, ppSessionInfo, pCount = argv
@@ -79,7 +79,7 @@ class WtsApi32(api.ApiHandler):
     def WTSFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WTSFreeMemory(
-          IN PVOID pMemory
+            PVOID pMemory
         );
         """
         (pMemory,) = argv

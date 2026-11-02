@@ -18,7 +18,7 @@ class NetUtils(api.ApiHandler):
     def NetApiBufferFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NET_API_FUNCTION NetApiBufferFree(
-          _Frees_ptr_opt_ LPVOID Buffer
+            LPVOID Buffer
         );
         """
         return netapi32defs.NERR_Success

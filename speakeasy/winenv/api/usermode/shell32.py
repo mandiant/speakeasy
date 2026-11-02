@@ -150,8 +150,8 @@ class Shell32(api.ApiHandler):
     def SHCreateDirectoryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int SHCreateDirectoryExA(
-            HWND                      hwnd,
-            LPCSTR                    pszPath,
+            HWND hwnd,
+            LPCSTR pszPath,
             const SECURITY_ATTRIBUTES *psa
         );
         """
@@ -171,12 +171,12 @@ class Shell32(api.ApiHandler):
     def ShellExecute(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINSTANCE ShellExecuteA(
-            HWND   hwnd,
+            HWND hwnd,
             LPCSTR lpOperation,
             LPCSTR lpFile,
             LPCSTR lpParameters,
             LPCSTR lpDirectory,
-            INT    nShowCmd
+            INT nShowCmd
         );
         """
         hwnd, lpOperation, lpFile, lpParameters, lpDirectory, nShowCmd = argv
@@ -226,7 +226,7 @@ class Shell32(api.ApiHandler):
     def ShellExecuteEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ShellExecuteExA(
-            [in, out] SHELLEXECUTEINFOA *pExecInfo
+            SHELLEXECUTEINFOA *pExecInfo
         );
         """
         (lpShellExecuteInfo,) = argv
@@ -283,9 +283,9 @@ class Shell32(api.ApiHandler):
     @apihook("CommandLineToArgv", argc=2)
     def CommandLineToArgv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPWSTR * CommandLineToArgv(
+        LPWSTR *CommandLineToArgv(
             LPCWSTR lpCmdLine,
-            int     *pNumArgs
+            int *pNumArgs
         );
         """
         cmdline, argc = argv
@@ -327,9 +327,9 @@ class Shell32(api.ApiHandler):
     def ExtractIcon(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HICON ExtractIconA(
-          HINSTANCE hInst,
-          LPCSTR    pszExeFileName,
-          UINT      nIconIndex
+            HINSTANCE hInst,
+            LPCSTR pszExeFileName,
+            UINT nIconIndex
         );
         """
 
@@ -356,12 +356,12 @@ class Shell32(api.ApiHandler):
     def SHGetFolderPathAndSubDir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetFolderPathAndSubDirA(
-          HWND   hwnd,
-          int    csidl,
-          HANDLE hToken,
-          DWORD  dwFlags,
-          LPCSTR pszSubDir,
-          LPSTR  pszPath
+            HWND hwnd,
+            int csidl,
+            HANDLE hToken,
+            DWORD dwFlags,
+            LPCSTR pszSubDir,
+            LPSTR pszPath
         );
         """
         hwnd, csidl, hToken, dwFlags, pszSubDir, pszPath = argv
@@ -381,10 +381,10 @@ class Shell32(api.ApiHandler):
     def SHGetSpecialFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SHGetSpecialFolderPathA(
-          HWND  hwnd,
-          LPSTR pszPath,
-          int   csidl,
-          BOOL  fCreate
+            HWND hwnd,
+            LPSTR pszPath,
+            int csidl,
+            BOOL fCreate
         );
         """
         hwnd, pszPath, csidl, fCreate = argv
@@ -426,10 +426,10 @@ class Shell32(api.ApiHandler):
     def SHGetKnownFolderIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetKnownFolderIDList(
-          REFKNOWNFOLDERID rfid,
-          DWORD            dwFlags,
-          HANDLE           hToken,
-          PIDLIST_ABSOLUTE *ppidl
+            REFKNOWNFOLDERID rfid,
+            DWORD dwFlags,
+            HANDLE hToken,
+            PIDLIST_ABSOLUTE *ppidl
         );
         """
         rfid, _flags, _token, ppidl = argv
@@ -444,8 +444,8 @@ class Shell32(api.ApiHandler):
     def SHGetPathFromIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SHGetPathFromIDListA(
-          PCIDLIST_ABSOLUTE pidl,
-          LPSTR             pszPath
+            PCIDLIST_ABSOLUTE pidl,
+            LPSTR pszPath
         );
         """
         pidl, pszPath = argv
@@ -462,10 +462,10 @@ class Shell32(api.ApiHandler):
     def SHGetKnownFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT SHGetKnownFolderPath(
-          REFKNOWNFOLDERID rfid,
-          DWORD            dwFlags,
-          HANDLE           hToken,
-          PWSTR            *ppszPath
+            REFKNOWNFOLDERID rfid,
+            DWORD dwFlags,
+            HANDLE hToken,
+            PWSTR *ppszPath
         );
         """
         rfid, _flags, _token, ppszPath = argv
@@ -484,7 +484,7 @@ class Shell32(api.ApiHandler):
     def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT DllGetVersion(
-          DLLVERSIONINFO *pdvi
+            DLLVERSIONINFO *pdvi
         );
         """
         (pdvi,) = argv

@@ -150,7 +150,10 @@ class Version(api.ApiHandler):
     @apihook("GetFileVersionInfoSize", argc=2)
     def GetFileVersionInfoSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetFileVersionInfoSize(LPCSTR lptstrFilename, LPDWORD lpdwHandle);
+        DWORD GetFileVersionInfoSize(
+            LPCSTR lptstrFilename,
+            LPDWORD lpdwHandle
+        );
         """
         lptstrFilename, lpdwHandle = argv
         return self.get_size(emu, lptstrFilename, 0, lpdwHandle, ctx)
@@ -158,7 +161,11 @@ class Version(api.ApiHandler):
     @apihook("GetFileVersionInfoSizeEx", argc=3)
     def GetFileVersionInfoSizeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetFileVersionInfoSizeEx(DWORD dwFlags, LPCSTR lpwstrFilename, LPDWORD lpdwHandle);
+        DWORD GetFileVersionInfoSizeEx(
+            DWORD dwFlags,
+            LPCSTR lpwstrFilename,
+            LPDWORD lpdwHandle
+        );
         """
         dwFlags, lpwstrFilename, lpdwHandle = argv
         return self.get_size(emu, lpwstrFilename, 1, lpdwHandle, ctx)
@@ -166,7 +173,12 @@ class Version(api.ApiHandler):
     @apihook("GetFileVersionInfo", argc=4)
     def GetFileVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetFileVersionInfo(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+        BOOL GetFileVersionInfo(
+            LPCSTR lptstrFilename,
+            DWORD dwHandle,
+            DWORD dwLen,
+            LPVOID lpData
+        );
         """
         lptstrFilename, dwHandle, dwLen, lpData = argv
         return self.get_info(emu, lptstrFilename, 0, dwLen, lpData, ctx)
@@ -174,7 +186,13 @@ class Version(api.ApiHandler):
     @apihook("GetFileVersionInfoEx", argc=5)
     def GetFileVersionInfoEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetFileVersionInfoEx(DWORD dwFlags, LPCSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+        BOOL GetFileVersionInfoEx(
+            DWORD dwFlags,
+            LPCSTR lpwstrFilename,
+            DWORD dwHandle,
+            DWORD dwLen,
+            LPVOID lpData
+        );
         """
         dwFlags, lpwstrFilename, dwHandle, dwLen, lpData = argv
         return self.get_info(emu, lpwstrFilename, 1, dwLen, lpData, ctx)
@@ -182,7 +200,12 @@ class Version(api.ApiHandler):
     @apihook("VerQueryValue", argc=4)
     def VerQueryValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL VerQueryValue(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen);
+        BOOL VerQueryValue(
+            LPCVOID pBlock,
+            LPCSTR lpSubBlock,
+            LPVOID *lplpBuffer,
+            PUINT puLen
+        );
         """
         pBlock, lpSubBlock, lplpBuffer, puLen = argv
         if not pBlock or not lpSubBlock:

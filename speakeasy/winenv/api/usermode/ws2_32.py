@@ -43,8 +43,8 @@ class Ws2_32(api.ApiHandler):
     def WSAStartup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAStartup(
-          WORD      wVersionRequired,
-          LPWSADATA lpWSAData
+            WORD wVersionRequired,
+            LPWSADATA lpWSAData
         );
         """
         ver, lpWSAData = argv
@@ -74,13 +74,13 @@ class Ws2_32(api.ApiHandler):
     @apihook("WSASocket", argc=6)
     def WSASocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SOCKET WSAAPI WSASocket(
-          int                 af,
-          int                 type,
-          int                 protocol,
-          LPWSAPROTOCOL_INFO  lpProtocolInfo,
-          GROUP               g,
-          DWORD               dwFlags
+        SOCKET WSASocket(
+            int af,
+            int type,
+            int protocol,
+            LPWSAPROTOCOL_INFO lpProtocolInfo,
+            GROUP g,
+            DWORD dwFlags
         );
         """
         af, typ, protocol, lpProtocolInfo, g, dwFlags = argv
@@ -100,16 +100,16 @@ class Ws2_32(api.ApiHandler):
     @apihook("WSAIoctl", argc=9, conv=_arch.CALL_CONV_STDCALL)
     def WSAIoctl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI WSAIoctl(
-          SOCKET                             s,
-          DWORD                              dwIoControlCode,
-          LPVOID                             lpvInBuffer,
-          DWORD                              cbInBuffer,
-          LPVOID                             lpvOutBuffer,
-          DWORD                              cbOutBuffer,
-          LPDWORD                            lpcbBytesReturned,
-          LPWSAOVERLAPPED                    lpOverlapped,
-          LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+        int WSAIoctl(
+            SOCKET s,
+            DWORD dwIoControlCode,
+            LPVOID lpvInBuffer,
+            DWORD cbInBuffer,
+            LPVOID lpvOutBuffer,
+            DWORD cbOutBuffer,
+            LPDWORD lpcbBytesReturned,
+            LPWSAOVERLAPPED lpOverlapped,
+            LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
         );
         """
 
@@ -120,14 +120,14 @@ class Ws2_32(api.ApiHandler):
     @apihook("WSAConnect", argc=7, conv=_arch.CALL_CONV_STDCALL)
     def WSAConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI WSAConnect(
-            SOCKET         s,
+        int WSAConnect(
+            SOCKET s,
             const sockaddr *name,
-            int            namelen,
-            LPWSABUF       lpCallerData,
-            LPWSABUF       lpCalleeData,
-            LPQOS          lpSQOS,
-            LPQOS          lpGQOS
+            int namelen,
+            LPWSABUF lpCallerData,
+            LPWSABUF lpCalleeData,
+            LPQOS lpSQOS,
+            LPQOS lpGQOS
         );
         """
         # TODO: Add actual function logic. However, for now, just call connect()
@@ -137,10 +137,10 @@ class Ws2_32(api.ApiHandler):
     @apihook("socket", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=23)
     def socket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SOCKET WSAAPI socket(
-          int af,
-          int type,
-          int protocol
+        SOCKET socket(
+            int af,
+            int type,
+            int protocol
         );
         """
         af, typ, protocol = argv
@@ -161,7 +161,7 @@ class Ws2_32(api.ApiHandler):
     def inet_addr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         unsigned long inet_addr(
-          _In_ const char *cp
+            const char *cp
         );
         """
         (a,) = argv
@@ -181,7 +181,7 @@ class Ws2_32(api.ApiHandler):
     def htons(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         u_short htons(
-          u_short hostshort
+            u_short hostshort
         );
         """
         (hostshort,) = argv
@@ -216,11 +216,11 @@ class Ws2_32(api.ApiHandler):
     def setsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int setsockopt(
-          SOCKET     s,
-          int        level,
-          int        optname,
-          const char *optval,
-          int        optlen
+            SOCKET s,
+            int level,
+            int optname,
+            const char *optval,
+            int optlen
         );
         """
         s, level, optname, optval, optlen = argv
@@ -264,7 +264,7 @@ class Ws2_32(api.ApiHandler):
         """
         int gethostname(
             char *name,
-            int  namelen
+            int namelen
         );
         """
         (
@@ -285,7 +285,9 @@ class Ws2_32(api.ApiHandler):
     @apihook("gethostbyname", argc=1, conv=_arch.CALL_CONV_STDCALL, ordinal=52)
     def gethostbyname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct hostent * gethostbyname(const char FAR * name);
+        struct hostent *gethostbyname(
+            const char *name
+        );
         """
         (name,) = argv
 
@@ -327,10 +329,10 @@ class Ws2_32(api.ApiHandler):
     @apihook("connect", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=4)
     def connect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI connect(
-          SOCKET         s,
-          const sockaddr *name,
-          int            namelen
+        int connect(
+            SOCKET s,
+            const sockaddr *name,
+            int namelen
         );
         """
 
@@ -369,9 +371,9 @@ class Ws2_32(api.ApiHandler):
     def bind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int bind(
-            SOCKET         s,
+            SOCKET s,
             const sockaddr *addr,
-            int            namelen
+            int namelen
         );
         """
         s, pname, namelen = argv
@@ -405,9 +407,9 @@ class Ws2_32(api.ApiHandler):
     @apihook("listen", argc=2, ordinal=13)
     def listen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI listen(
+        int listen(
             SOCKET s,
-            int    backlog
+            int backlog
         );
         """
         s, backlog = argv
@@ -418,11 +420,11 @@ class Ws2_32(api.ApiHandler):
     @apihook("select", argc=5, ordinal=18)
     def select(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI select(
-            int           nfds,
-            fd_set        *readfds,
-            fd_set        *writefds,
-            fd_set        *exceptfds,
+        int select(
+            int nfds,
+            fd_set *readfds,
+            fd_set *writefds,
+            fd_set *exceptfds,
             const timeval *timeout
         );
         """
@@ -441,10 +443,10 @@ class Ws2_32(api.ApiHandler):
     @apihook("accept", argc=3, ordinal=1)
     def accept(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SOCKET WSAAPI accept(
-            SOCKET   s,
+        SOCKET accept(
+            SOCKET s,
             sockaddr *addr,
-            int      *addrlen
+            int *addrlen
         );
         """
         s, addr, addrlen = argv
@@ -502,9 +504,9 @@ class Ws2_32(api.ApiHandler):
     def getpeername(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getpeername(
-            SOCKET   s,
+            SOCKET s,
             sockaddr *name,
-            int      *namelen
+            int *namelen
         );
         """
         s, name, namelen = argv
@@ -521,9 +523,9 @@ class Ws2_32(api.ApiHandler):
     def getsockname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getsockname(
-            SOCKET   s,
+            SOCKET s,
             sockaddr *name,
-            int      *namelen
+            int *namelen
         );
         """
         s, name, namelen = argv
@@ -538,7 +540,9 @@ class Ws2_32(api.ApiHandler):
     @apihook("inet_ntoa", argc=1, ordinal=12)
     def inet_ntoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        char FAR* inet_ntoa(struct in_addr in);
+        char *inet_ntoa(
+            struct in_addr in
+        );
         """
         (in_addr,) = argv
 
@@ -553,11 +557,11 @@ class Ws2_32(api.ApiHandler):
     @apihook("inet_ntop", argc=4)
     def inet_ntop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR WSAAPI inet_ntop(
-          [in]  INT        Family,
-          [in]  const VOID *pAddr,
-          [out] PSTR       pStringBuf,
-          [in]  size_t     StringBufSize
+        PCSTR inet_ntop(
+            INT Family,
+            const VOID *pAddr,
+            PSTR pStringBuf,
+            size_t StringBufSize
         );
         """
         family, pAddr, pStringBuf, StringBufSize = argv
@@ -582,10 +586,10 @@ class Ws2_32(api.ApiHandler):
     @apihook("inet_pton", argc=3)
     def inet_pton(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        INT WSAAPI inet_pton(
-          [in]  INT   Family,
-          [in]  PCSTR pszAddrString,
-          [out] PVOID pAddrBuf
+        INT inet_pton(
+            INT Family,
+            PCSTR pszAddrString,
+            PVOID pAddrBuf
         );
         """
 
@@ -611,7 +615,9 @@ class Ws2_32(api.ApiHandler):
     @apihook("htonl", argc=1, ordinal=8)
     def htonl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        uint32_t htonl(uint32_t hostlong);
+        uint32_t htonl(
+            uint32_t hostlong
+        );
         """
         (hostlong,) = argv
         return htonl(hostlong & 0xFFFFFFFF)
@@ -620,7 +626,7 @@ class Ws2_32(api.ApiHandler):
     def __WSAFDIsSet(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __WSAFDIsSet(
-            SOCKET ,
+            SOCKET,
             fd_set *
         );
         """
@@ -637,7 +643,7 @@ class Ws2_32(api.ApiHandler):
         """
         int shutdown(
             SOCKET s,
-            int    how
+            int how
         );
         """
         return 0
@@ -646,10 +652,10 @@ class Ws2_32(api.ApiHandler):
     def recv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int recv(
-          SOCKET s,
-          char   *buf,
-          int    len,
-          int    flags
+            SOCKET s,
+            char *buf,
+            int len,
+            int flags
         );
         """
 
@@ -684,11 +690,11 @@ class Ws2_32(api.ApiHandler):
     @apihook("send", argc=4, ordinal=19)
     def send(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int WSAAPI send(
-          SOCKET     s,
-          const char *buf,
-          int        len,
-          int        flags
+        int send(
+            SOCKET s,
+            const char *buf,
+            int len,
+            int flags
         );
         """
         s, buf, blen, flags = argv
@@ -719,7 +725,7 @@ class Ws2_32(api.ApiHandler):
     def closesocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int closesocket(
-          IN SOCKET s
+            SOCKET s
         );
         """
         (s,) = argv
@@ -740,7 +746,7 @@ class Ws2_32(api.ApiHandler):
         """
         int ioctlsocket(
             SOCKET s,
-            long   cmd,
+            long cmd,
             u_long *argp
         );
         """
@@ -757,11 +763,11 @@ class Ws2_32(api.ApiHandler):
     @apihook("getaddrinfo", argc=4)
     def getaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        INT WSAAPI getaddrinfo(
-          PCSTR           pNodeName,
-          PCSTR           pServiceName,
-          const ADDRINFOA *pHints,
-          PADDRINFOA      *ppResult
+        INT getaddrinfo(
+            PCSTR pNodeName,
+            PCSTR pServiceName,
+            const ADDRINFOA *pHints,
+            PADDRINFOA *ppResult
         );
         """
         pNodeName, pServiceName, pHints, ppResult = argv
@@ -829,8 +835,8 @@ class Ws2_32(api.ApiHandler):
     @apihook("freeaddrinfo", argc=1)
     def freeaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        VOID WSAAPI freeaddrinfo(
-          PADDRINFOA pAddrInfo
+        VOID freeaddrinfo(
+            PADDRINFOA pAddrInfo
         );
         """
         self.mem_free(argv[0])
@@ -841,11 +847,11 @@ class Ws2_32(api.ApiHandler):
     def getsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getsockopt(
-          SOCKET s,
-          int    level,
-          int    optname,
-          char   *optval,
-          int    *optlen
+            SOCKET s,
+            int level,
+            int optname,
+            char *optval,
+            int *optlen
         );
         """
         s, level, optname, optval, optlen = argv

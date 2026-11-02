@@ -22,9 +22,9 @@ class Wkscli(api.ApiHandler):
     def NetGetJoinInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
-          LPCWSTR lpServer,
-          LPWSTR *lpNameBuffer,
-          PNETSETUP_JOIN_STATUS BufferType
+            LPCWSTR lpServer,
+            LPWSTR *lpNameBuffer,
+            PNETSETUP_JOIN_STATUS BufferType
         );
         """
         lpServer, lpNameBuffer, BufferType = argv

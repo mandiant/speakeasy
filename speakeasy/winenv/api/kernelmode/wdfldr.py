@@ -125,12 +125,11 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfVersionBind", argc=4)
     def WdfVersionBind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS
-        WdfVersionBind(
-        __in PDRIVER_OBJECT DriverObject,
-        __in PUNICODE_STRING RegistryPath,
-        __inout PWDF_BIND_INFO BindInfo,
-        __out PWDF_COMPONENT_GLOBALS* ComponentGlobals
+        NTSTATUS WdfVersionBind(
+            PDRIVER_OBJECT DriverObject,
+            PUNICODE_STRING RegistryPath,
+            PWDF_BIND_INFO BindInfo,
+            PWDF_COMPONENT_GLOBALS *ComponentGlobals
         );
         """
         rv = ddk.STATUS_SUCCESS
@@ -166,12 +165,12 @@ class Wdfldr(api.ApiHandler):
     def WdfDriverCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfDriverCreate(
-          PWDF_DRIVER_GLOBALS DriverGlobals,
-          PDRIVER_OBJECT         DriverObject,
-          PCUNICODE_STRING       RegistryPath,
-          PWDF_OBJECT_ATTRIBUTES DriverAttributes,
-          PWDF_DRIVER_CONFIG     DriverConfig,
-          WDFDRIVER              *Driver
+            PWDF_DRIVER_GLOBALS DriverGlobals,
+            PDRIVER_OBJECT DriverObject,
+            PCUNICODE_STRING RegistryPath,
+            PWDF_OBJECT_ATTRIBUTES DriverAttributes,
+            PWDF_DRIVER_CONFIG DriverConfig,
+            WDFDRIVER *Driver
         );
         """
         DriverGlobals, DriverObject, RegistryPath, DriverAttributes, DriverConfig, Driver = argv
@@ -203,8 +202,8 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfDeviceInitSetPnpPowerEventCallbacks(
-          PWDFDEVICE_INIT               DeviceInit,
-          PWDF_PNPPOWER_EVENT_CALLBACKS PnpPowerEventCallbacks
+            PWDFDEVICE_INIT DeviceInit,
+            PWDF_PNPPOWER_EVENT_CALLBACKS PnpPowerEventCallbacks
         );
         """
         DriverGlobals, DeviceInit, PnpPowerEventCallbacks = argv
@@ -215,8 +214,8 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfDeviceInitSetRequestAttributes(
-          PWDFDEVICE_INIT        DeviceInit,
-          PWDF_OBJECT_ATTRIBUTES RequestAttributes
+            PWDFDEVICE_INIT DeviceInit,
+            PWDF_OBJECT_ATTRIBUTES RequestAttributes
         );
         """
         DriverGlobals, DeviceInit, RequestAttributes = argv
@@ -227,9 +226,9 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfDeviceInitSetFileObjectConfig(
-          PWDFDEVICE_INIT        DeviceInit,
-          PWDF_FILEOBJECT_CONFIG FileObjectConfig,
-          PWDF_OBJECT_ATTRIBUTES FileObjectAttributes
+            PWDFDEVICE_INIT DeviceInit,
+            PWDF_FILEOBJECT_CONFIG FileObjectConfig,
+            PWDF_OBJECT_ATTRIBUTES FileObjectAttributes
         );
         """
         DriverGlobals, DeviceInit, FileObjectConfig, FileObjectAttributes = argv
@@ -240,8 +239,8 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceInitSetIoType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfDeviceInitSetIoType(
-          PWDFDEVICE_INIT    DeviceInit,
-          WDF_DEVICE_IO_TYPE IoType
+            PWDFDEVICE_INIT DeviceInit,
+            WDF_DEVICE_IO_TYPE IoType
         );
         """
         DriverGlobals, DeviceInit, IoType = argv
@@ -252,9 +251,9 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfDeviceCreate(
-          PWDFDEVICE_INIT        *DeviceInit,
-          PWDF_OBJECT_ATTRIBUTES DeviceAttributes,
-          WDFDEVICE              *Device
+            PWDFDEVICE_INIT *DeviceInit,
+            PWDF_OBJECT_ATTRIBUTES DeviceAttributes,
+            WDFDEVICE *Device
         );
         """
         DriverGlobals, DeviceInit, DeviceAttributes, Device = argv
@@ -281,8 +280,8 @@ class Wdfldr(api.ApiHandler):
     def WdfObjectGetTypedContextWorker(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID WdfObjectGetTypedContextWorker(
-          WDFOBJECT                      Handle,
-          PCWDF_OBJECT_CONTEXT_TYPE_INFO TypeInfo
+            WDFOBJECT Handle,
+            PCWDF_OBJECT_CONTEXT_TYPE_INFO TypeInfo
         );
         """
         DriverGlobals, Handle, TypeInfo = argv
@@ -301,10 +300,10 @@ class Wdfldr(api.ApiHandler):
     def WdfDriverOpenParametersRegistryKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfDriverOpenParametersRegistryKey(
-          WDFDRIVER              Driver,
-          ACCESS_MASK            DesiredAccess,
-          PWDF_OBJECT_ATTRIBUTES KeyAttributes,
-          WDFKEY                 *Key
+            WDFDRIVER Driver,
+            ACCESS_MASK DesiredAccess,
+            PWDF_OBJECT_ATTRIBUTES KeyAttributes,
+            WDFKEY *Key
         );
         """
         DriverGlobals, Driver, DesiredAccess, KeyAttributes, pKey = argv
@@ -327,9 +326,9 @@ class Wdfldr(api.ApiHandler):
     def WdfRegistryQueryULong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfRegistryQueryULong(
-          WDFKEY           Key,
-          PCUNICODE_STRING ValueName,
-          PULONG           Value
+            WDFKEY Key,
+            PCUNICODE_STRING ValueName,
+            PULONG Value
         );
         """
         DriverGlobals, Key, ValueName, Value = argv
@@ -353,7 +352,7 @@ class Wdfldr(api.ApiHandler):
     def WdfRegistryClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfRegistryClose(
-          WDFKEY Key
+            WDFKEY Key
         );
         """
         DriverGlobals, Key = argv
@@ -363,8 +362,8 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfDeviceSetPnpCapabilities(
-          WDFDEVICE                    Device,
-          PWDF_DEVICE_PNP_CAPABILITIES PnpCapabilities
+            WDFDEVICE Device,
+            PWDF_DEVICE_PNP_CAPABILITIES PnpCapabilities
         );
         """
         DriverGlobals, Device, PnpCapabilities = argv
@@ -374,9 +373,9 @@ class Wdfldr(api.ApiHandler):
     def WdfIoQueueReadyNotify(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfIoQueueReadyNotify(
-          WDFQUEUE               Queue,
-          PFN_WDF_IO_QUEUE_STATE QueueReady,
-          WDFCONTEXT             Context
+            WDFQUEUE Queue,
+            PFN_WDF_IO_QUEUE_STATE QueueReady,
+            WDFCONTEXT Context
         );
         """
         DriverGlobals, Queue, QueueReady, Context = argv
@@ -388,9 +387,9 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceCreateDeviceInterface(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfDeviceCreateDeviceInterface(
-          WDFDEVICE        Device,
-          const GUID       *InterfaceClassGUID,
-          PCUNICODE_STRING ReferenceString
+            WDFDEVICE Device,
+            const GUID *InterfaceClassGUID,
+            PCUNICODE_STRING ReferenceString
         );
         """
         DriverGlobals, Device, InterfaceClassGUID, ReferenceString = argv
@@ -411,10 +410,10 @@ class Wdfldr(api.ApiHandler):
     def WdfIoQueueCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfIoQueueCreate(
-          WDFDEVICE              Device,
-          PWDF_IO_QUEUE_CONFIG   Config,
-          PWDF_OBJECT_ATTRIBUTES QueueAttributes,
-          WDFQUEUE               *Queue
+            WDFDEVICE Device,
+            PWDF_IO_QUEUE_CONFIG Config,
+            PWDF_OBJECT_ATTRIBUTES QueueAttributes,
+            WDFQUEUE *Queue
         );
         """
         DriverGlobals, Device, Config, QueueAttributes, Queue = argv
@@ -436,7 +435,7 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceWdmGetAttachedDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetAttachedDevice(
-          WDFDEVICE Device
+            WDFDEVICE Device
         );
         """
         DriverGlobals, Device = argv
@@ -452,10 +451,10 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceCreateWithParameters(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfUsbTargetDeviceCreateWithParameters(
-          WDFDEVICE                     Device,
-          PWDF_USB_DEVICE_CREATE_CONFIG Config,
-          PWDF_OBJECT_ATTRIBUTES        Attributes,
-          WDFUSBDEVICE                  *UsbDevice
+            WDFDEVICE Device,
+            PWDF_USB_DEVICE_CREATE_CONFIG Config,
+            PWDF_OBJECT_ATTRIBUTES Attributes,
+            WDFUSBDEVICE *UsbDevice
         );
         """
         DriverGlobals, Device, Config, Attributes, UsbDevice = argv
@@ -473,7 +472,7 @@ class Wdfldr(api.ApiHandler):
     def WdfDeviceWdmGetDeviceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PDEVICE_OBJECT WdfDeviceWdmGetDeviceObject(
-          WDFDEVICE Device
+            WDFDEVICE Device
         );
         """
         DriverGlobals, Device = argv
@@ -488,8 +487,8 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfUsbTargetDeviceGetDeviceDescriptor(
-          WDFUSBDEVICE           UsbDevice,
-          PUSB_DEVICE_DESCRIPTOR UsbDeviceDescriptor
+            WDFUSBDEVICE UsbDevice,
+            PUSB_DEVICE_DESCRIPTOR UsbDeviceDescriptor
         );
         """
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = argv
@@ -504,12 +503,12 @@ class Wdfldr(api.ApiHandler):
     def WdfMemoryCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfMemoryCreate(
-          PWDF_OBJECT_ATTRIBUTES Attributes,
-          POOL_TYPE              PoolType,
-          ULONG                  PoolTag,
-          size_t                 BufferSize,
-          WDFMEMORY              *Memory,
-          PVOID                  *Buffer
+            PWDF_OBJECT_ATTRIBUTES Attributes,
+            POOL_TYPE PoolType,
+            ULONG PoolTag,
+            size_t BufferSize,
+            WDFMEMORY *Memory,
+            PVOID *Buffer
         );
         """
         DriverGlobals, Attributes, PoolType, PoolTag, BufferSize, Mem, Buf = argv
@@ -529,9 +528,9 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceSelectConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfUsbTargetDeviceSelectConfig(
-          WDFUSBDEVICE                         UsbDevice,
-          PWDF_OBJECT_ATTRIBUTES               PipeAttributes,
-          PWDF_USB_DEVICE_SELECT_CONFIG_PARAMS Params
+            WDFUSBDEVICE UsbDevice,
+            PWDF_OBJECT_ATTRIBUTES PipeAttributes,
+            PWDF_USB_DEVICE_SELECT_CONFIG_PARAMS Params
         );
         """
         DriverGlobals, UsbDevice, PipeAttributes, Params = argv
@@ -566,9 +565,9 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceRetrieveConfigDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveConfigDescriptor(
-          WDFUSBDEVICE UsbDevice,
-          PVOID        ConfigDescriptor,
-          PUSHORT      ConfigDescriptorLength
+            WDFUSBDEVICE UsbDevice,
+            PVOID ConfigDescriptor,
+            PUSHORT ConfigDescriptorLength
         );
         """
         DriverGlobals, UsbDevice, ConfigDescriptor, ConfigDescriptorLength = argv
@@ -603,9 +602,9 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbInterfaceSelectSetting(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfUsbInterfaceSelectSetting(
-          WDFUSBINTERFACE                          UsbInterface,
-          PWDF_OBJECT_ATTRIBUTES                   PipesAttributes,
-          PWDF_USB_INTERFACE_SELECT_SETTING_PARAMS Params
+            WDFUSBINTERFACE UsbInterface,
+            PWDF_OBJECT_ATTRIBUTES PipesAttributes,
+            PWDF_USB_INTERFACE_SELECT_SETTING_PARAMS Params
         );
         """
         DriverGlobals, UsbInterface, PipesAttributes, Params = argv
@@ -627,7 +626,7 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceGetNumInterfaces(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UCHAR WdfUsbTargetDeviceGetNumInterfaces(
-          WDFUSBDEVICE UsbDevice
+            WDFUSBDEVICE UsbDevice
         );
         """
         DriverGlobals, UsbDevice = argv
@@ -643,7 +642,7 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbInterfaceGetNumConfiguredPipes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BYTE WdfUsbInterfaceGetNumConfiguredPipes(
-          WDFUSBINTERFACE UsbInterface
+            WDFUSBINTERFACE UsbInterface
         );
         """
         DriverGlobals, UsbInterface = argv
@@ -664,7 +663,7 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbInterfaceGetNumSettings(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BYTE WdfUsbInterfaceGetNumSettings(
-          WDFUSBINTERFACE UsbInterface
+            WDFUSBINTERFACE UsbInterface
         );
         """
         DriverGlobals, UsbInterface = argv
@@ -686,8 +685,8 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetDeviceRetrieveInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WdfUsbTargetDeviceRetrieveInformation(
-          WDFUSBDEVICE                UsbDevice,
-          PWDF_USB_DEVICE_INFORMATION Information
+            WDFUSBDEVICE UsbDevice,
+            PWDF_USB_DEVICE_INFORMATION Information
         );
         """
         DriverGlobals, UsbDevice, Information = argv
@@ -708,9 +707,9 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbInterfaceGetConfiguredPipe(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         WDFUSBPIPE WdfUsbInterfaceGetConfiguredPipe(
-          WDFUSBINTERFACE           UsbInterface,
-          UCHAR                     PipeIndex,
-          PWDF_USB_PIPE_INFORMATION PipeInfo
+            WDFUSBINTERFACE UsbInterface,
+            UCHAR PipeIndex,
+            PWDF_USB_PIPE_INFORMATION PipeInfo
         );
         """
         DriverGlobals, UsbInterface, PipeIndex, PipeInfo = argv
@@ -750,8 +749,8 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WdfUsbTargetPipeGetInformation(
-          WDFUSBPIPE                Pipe,
-          PWDF_USB_PIPE_INFORMATION PipeInformation
+            WDFUSBPIPE Pipe,
+            PWDF_USB_PIPE_INFORMATION PipeInformation
         );
         """
         DriverGlobals, Pipe, PipeInfo = argv
@@ -783,7 +782,7 @@ class Wdfldr(api.ApiHandler):
     def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BYTE WdfUsbInterfaceGetInterfaceNumber(
-          WDFUSBINTERFACE UsbInterface
+            WDFUSBINTERFACE UsbInterface
         );
         """
         DriverGlobals, UsbInterface = argv

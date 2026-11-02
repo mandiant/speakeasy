@@ -71,11 +71,11 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmEngineOpen0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmEngineOpen0(
-        const wchar_t             *serverName,
-        UINT32                    authnService,
-        SEC_WINNT_AUTH_IDENTITY_W *authIdentity,
-        const FWPM_SESSION0       *session,
-        HANDLE                    *engineHandle
+            const wchar_t *serverName,
+            UINT32 authnService,
+            SEC_WINNT_AUTH_IDENTITY_W *authIdentity,
+            const FWPM_SESSION0 *session,
+            HANDLE *engineHandle
         );
         """
 
@@ -93,9 +93,9 @@ class Fwpkclnt(api.ApiHandler):
     def FwpsInjectionHandleCreate0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS FwpsInjectionHandleCreate0(
-        ADDRESS_FAMILY addressFamily,
-        UINT32         flags,
-        HANDLE         *injectionHandle
+            ADDRESS_FAMILY addressFamily,
+            UINT32 flags,
+            HANDLE *injectionHandle
         );
         """
         family, flags, inj_handle = argv
@@ -112,9 +112,9 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmSubLayerAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmSubLayerAdd0(
-        HANDLE               engineHandle,
-        const FWPM_SUBLAYER0 *subLayer,
-        PSECURITY_DESCRIPTOR sd
+            HANDLE engineHandle,
+            const FWPM_SUBLAYER0 *subLayer,
+            PSECURITY_DESCRIPTOR sd
         );
         """
         engineHandle, subLayer, sd = argv
@@ -154,9 +154,9 @@ class Fwpkclnt(api.ApiHandler):
     def FwpsCalloutRegister1(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS FwpsCalloutRegister1(
-          void                *deviceObject,
-          const FWPS_CALLOUT1 *callout,
-          UINT32              *calloutId
+            void *deviceObject,
+            const FWPS_CALLOUT1 *callout,
+            UINT32 *calloutId
         );
         """
         deviceObject, pCallout, calloutId = argv
@@ -197,10 +197,10 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmCalloutAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmCalloutAdd0(
-          HANDLE               engineHandle,
-          const FWPM_CALLOUT0  *callout,
-          PSECURITY_DESCRIPTOR sd,
-          UINT32               *id
+            HANDLE engineHandle,
+            const FWPM_CALLOUT0 *callout,
+            PSECURITY_DESCRIPTOR sd,
+            UINT32 *id
         );
         """
         eng, pCallout, sd, pCid = argv
@@ -238,10 +238,10 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmFilterAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmFilterAdd0(
-          HANDLE               engineHandle,
-          const FWPM_FILTER0   *filter,
-          PSECURITY_DESCRIPTOR sd,
-          UINT64               *id
+            HANDLE engineHandle,
+            const FWPM_FILTER0 *filter,
+            PSECURITY_DESCRIPTOR sd,
+            UINT64 *id
         );
         """
         eng, pFilter, sd, pId = argv
@@ -277,8 +277,8 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmFilterDeleteById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmFilterDeleteById0(
-        HANDLE engineHandle,
-        UINT64 id
+            HANDLE engineHandle,
+            UINT64 id
         );
 
         id is passed by value: two stack slots on x86, one register on x64.
@@ -296,8 +296,8 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmCalloutDeleteById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmCalloutDeleteById0(
-        HANDLE engineHandle,
-        UINT32 id
+            HANDLE engineHandle,
+            UINT32 id
         );
         """
         eng, cid = argv
@@ -312,7 +312,7 @@ class Fwpkclnt(api.ApiHandler):
     def FwpsCalloutUnregisterById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS FwpsCalloutUnregisterById0(
-        const UINT32 calloutId
+            const UINT32 calloutId
         );
         """
         (cid,) = argv
@@ -327,8 +327,8 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmSubLayerDeleteByKey0(
-        HANDLE     engineHandle,
-        const GUID *key
+            HANDLE engineHandle,
+            const GUID *key
         );
         """
         eng, key = argv
@@ -347,7 +347,7 @@ class Fwpkclnt(api.ApiHandler):
     def FwpmEngineClose0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmEngineClose0(
-        HANDLE engineHandle
+            HANDLE engineHandle
         );
         """
         (eng,) = argv
@@ -359,7 +359,7 @@ class Fwpkclnt(api.ApiHandler):
     def FwpsInjectionHandleDestroy0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS FwpsInjectionHandleDestroy0(
-        HANDLE injectionHandle
+            HANDLE injectionHandle
         );
         """
         (handle,) = argv

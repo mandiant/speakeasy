@@ -28,11 +28,11 @@ class Usbd(api.ApiHandler):
     def USBD_ValidateConfigurationDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         USBD_STATUS USBD_ValidateConfigurationDescriptor(
-          PUSB_CONFIGURATION_DESCRIPTOR ConfigDesc,
-          ULONG                         BufferLength,
-          USHORT                        Level,
-          PUCHAR                        *Offset,
-          ULONG                         Tag
+            PUSB_CONFIGURATION_DESCRIPTOR ConfigDesc,
+            ULONG BufferLength,
+            USHORT Level,
+            PUCHAR *Offset,
+            ULONG Tag
         );
         """
         rv = ddk.STATUS_SUCCESS

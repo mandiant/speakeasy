@@ -48,7 +48,7 @@ class Ole32(api.ApiHandler):
     def OleInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT OleInitialize(
-            IN LPVOID pvReserved
+            LPVOID pvReserved
         );
         """
         return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
@@ -64,7 +64,7 @@ class Ole32(api.ApiHandler):
     def CoInitialize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitialize(
-          LPVOID pvReserved
+            LPVOID pvReserved
         );
         """
         return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
@@ -73,8 +73,8 @@ class Ole32(api.ApiHandler):
     def CoInitializeEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitializeEx(
-          LPVOID pvReserved,
-          DWORD  dwCoInit
+            LPVOID pvReserved,
+            DWORD dwCoInit
         );
         """
         pvReserved, dwCoInit = argv
@@ -91,15 +91,15 @@ class Ole32(api.ApiHandler):
     def CoInitializeSecurity(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoInitializeSecurity(
-          PSECURITY_DESCRIPTOR        pSecDesc,
-          LONG                        cAuthSvc,
-          SOLE_AUTHENTICATION_SERVICE *asAuthSvc,
-          void                        *pReserved1,
-          DWORD                       dwAuthnLevel,
-          DWORD                       dwImpLevel,
-          void                        *pAuthList,
-          DWORD                       dwCapabilities,
-          void                        *pReserved3
+            PSECURITY_DESCRIPTOR pSecDesc,
+            LONG cAuthSvc,
+            SOLE_AUTHENTICATION_SERVICE *asAuthSvc,
+            void *pReserved1,
+            DWORD dwAuthnLevel,
+            DWORD dwImpLevel,
+            void *pAuthList,
+            DWORD dwCapabilities,
+            void *pReserved3
         );
         """
 
@@ -119,11 +119,11 @@ class Ole32(api.ApiHandler):
     def CoCreateInstance(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoCreateInstance(
-          REFCLSID  rclsid,
-          LPUNKNOWN pUnkOuter,
-          DWORD     dwClsContext,
-          REFIID    riid,
-          LPVOID    *ppv
+            REFCLSID rclsid,
+            LPUNKNOWN pUnkOuter,
+            DWORD dwClsContext,
+            REFIID riid,
+            LPVOID *ppv
         );
         """
         rclsid, pUnkOuter, dwClsContext, riid, ppv = argv
@@ -159,10 +159,10 @@ class Ole32(api.ApiHandler):
     def CoGetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoGetObject(
-          LPCWSTR    pszName,
-          BIND_OPTS  *pBindOptions,
-          REFIID     riid,
-          void       **ppv
+            LPCWSTR pszName,
+            BIND_OPTS *pBindOptions,
+            REFIID riid,
+            void **ppv
         );
 
         No moniker names are modeled, so every name fails to parse.
@@ -179,14 +179,14 @@ class Ole32(api.ApiHandler):
     def CoSetProxyBlanket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoSetProxyBlanket(
-            IUnknown                 *pProxy,
-            DWORD                    dwAuthnSvc,
-            DWORD                    dwAuthzSvc,
-            OLECHAR                  *pServerPrincName,
-            DWORD                    dwAuthnLevel,
-            DWORD                    dwImpLevel,
+            IUnknown *pProxy,
+            DWORD dwAuthnSvc,
+            DWORD dwAuthzSvc,
+            OLECHAR *pServerPrincName,
+            DWORD dwAuthnLevel,
+            DWORD dwImpLevel,
             RPC_AUTH_IDENTITY_HANDLE pAuthInfo,
-            DWORD                    dwCapabilities
+            DWORD dwCapabilities
         );
         """
         return windefs.S_OK
@@ -195,8 +195,8 @@ class Ole32(api.ApiHandler):
     def StringFromCLSID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT StringFromCLSID(
-        REFCLSID rclsid,
-        LPOLESTR *lplpsz
+            REFCLSID rclsid,
+            LPOLESTR *lplpsz
         );
         """
 
@@ -220,8 +220,8 @@ class Ole32(api.ApiHandler):
     def CLSIDFromProgID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CLSIDFromProgID(
-          LPCOLESTR lpszProgID,
-          LPCLSID   lpclsid
+            LPCOLESTR lpszProgID,
+            LPCLSID lpclsid
         );
         """
         lpszProgID, lpclsid = argv
@@ -240,8 +240,8 @@ class Ole32(api.ApiHandler):
     def CLSIDFromProgIDEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CLSIDFromProgIDEx(
-          LPCOLESTR lpszProgID,
-          LPCLSID   lpclsid
+            LPCOLESTR lpszProgID,
+            LPCLSID lpclsid
         );
         """
         return self.CLSIDFromProgID(emu, argv, ctx)
@@ -250,9 +250,9 @@ class Ole32(api.ApiHandler):
     def StringFromGUID2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StringFromGUID2(
-          REFGUID  rguid,
-          LPOLESTR lpsz,
-          int      cchMax
+            REFGUID rguid,
+            LPOLESTR lpsz,
+            int cchMax
         );
         """
         rguid, lpsz, cchMax = argv
@@ -270,7 +270,7 @@ class Ole32(api.ApiHandler):
     def CoTaskMemAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPVOID CoTaskMemAlloc(
-          SIZE_T cb
+            SIZE_T cb
         );
         """
         (cb,) = argv
@@ -280,8 +280,8 @@ class Ole32(api.ApiHandler):
     def CoTaskMemRealloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPVOID CoTaskMemRealloc(
-          LPVOID pv,
-          SIZE_T cb
+            LPVOID pv,
+            SIZE_T cb
         );
         """
         pv, cb = argv
@@ -302,7 +302,7 @@ class Ole32(api.ApiHandler):
     def CoTaskMemFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void CoTaskMemFree(
-          LPVOID pv
+            LPVOID pv
         );
         """
         (pv,) = argv
@@ -313,7 +313,7 @@ class Ole32(api.ApiHandler):
     def CoCreateGuid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CoCreateGuid(
-          GUID *pguid
+            GUID *pguid
         );
         """
         (pguid,) = argv

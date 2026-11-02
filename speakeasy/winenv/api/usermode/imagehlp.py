@@ -20,10 +20,10 @@ class Imagehlp(api.ApiHandler):
     def CheckSumMappedFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PIMAGE_NT_HEADERS CheckSumMappedFile(
-          PVOID  BaseAddress,
-          DWORD  FileLength,
-          PDWORD HeaderSum,
-          PDWORD CheckSum
+            PVOID BaseAddress,
+            DWORD FileLength,
+            PDWORD HeaderSum,
+            PDWORD CheckSum
         );
         """
         base, length, header_sum, check_sum = argv

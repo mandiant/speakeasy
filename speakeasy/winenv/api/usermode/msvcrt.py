@@ -662,18 +662,24 @@ class Msvcrt(api.ApiHandler):
     @apihook("_sleep", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _sleep(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _sleep(unsigned long duration);
+        void _sleep(
+            unsigned long duration
+        );
         """
         return
 
     @apihook("_get_narrow_winmain_command_line", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_narrow_winmain_command_line(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """char* _get_narrow_winmain_command_line();"""
+        """
+        char *_get_narrow_winmain_command_line();
+        """
         return self.get_winmain_command_line_ptr(emu, 1)
 
     @apihook("_get_wide_winmain_command_line", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_wide_winmain_command_line(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """wchar_t* _get_wide_winmain_command_line();"""
+        """
+        wchar_t *_get_wide_winmain_command_line();
+        """
         return self.get_winmain_command_line_ptr(emu, 2)
 
     @apihook("_onexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -681,7 +687,7 @@ class Msvcrt(api.ApiHandler):
         """
         _onexit_t _onexit(
             _onexit_t function
-        )
+        );
         """
 
         (func,) = argv
@@ -705,7 +711,7 @@ class Msvcrt(api.ApiHandler):
             size_t sizeInWords,
             const char *mbstr,
             size_t count
-        )
+        );
         """
 
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
@@ -752,7 +758,7 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *string1,
             const wchar_t *string2,
             size_t count
-        )
+        );
         """
 
         string1, string2, count = argv
@@ -775,8 +781,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("_initterm_e", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm_e(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        static int _initterm_e(_PIFV * pfbegin,
-                                 _PIFV * pfend)
+        static int _initterm_e(
+            _PIFV *pfbegin,
+            _PIFV *pfend
+        );
         """
 
         pfbegin, pfend = argv
@@ -784,7 +792,12 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_initterm", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _initterm(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """static void _initterm (_PVFV * pfbegin, _PVFV * pfend)"""
+        """
+        static void _initterm(
+            _PVFV *pfbegin,
+            _PVFV *pfend
+        );
+        """
 
         pfbegin, pfend = argv
         return self._call_initializers(pfbegin, pfend, stop_on_error=False)
@@ -860,11 +873,12 @@ class Msvcrt(api.ApiHandler):
     def __getmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __getmainargs(
-            int * _Argc,
-            char *** _Argv,
-            char *** _Env,
+            int *_Argc,
+            char ***_Argv,
+            char ***_Env,
             int _DoWildCard,
-            _startupinfo * _StartInfo);
+            _startupinfo *_StartInfo
+        );
         """
 
         return self._write_main_args(emu, argv, "utf-8")
@@ -873,29 +887,33 @@ class Msvcrt(api.ApiHandler):
     def __GetMainArgs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void __GetMainArgs(
-            int * _Argc,
-            char *** _Argv,
-            char *** _Env,
-            int _DoWildCard);
+            int *_Argc,
+            char ***_Argv,
+            char ***_Env,
+            int _DoWildCard
+        );
         """
         self.__getmainargs(emu, [*argv, 0], ctx)
 
     @apihook("__wgetmainargs", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def __wgetmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int __wgetmainargs (
-           int *_Argc,
-           wchar_t ***_Argv,
-           wchar_t ***_Env,
-           int _DoWildCard,
-           _startupinfo * _StartInfo);
+        int __wgetmainargs(
+            int *_Argc,
+            wchar_t ***_Argv,
+            wchar_t ***_Env,
+            int _DoWildCard,
+            _startupinfo *_StartInfo
+        );
         """
 
         return self._write_main_args(emu, argv, "utf-16le")
 
     @apihook("__p___wargv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___wargv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """WCHAR *** __p___wargv ()"""
+        """
+        WCHAR ***__p___wargv();
+        """
 
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
@@ -926,7 +944,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p___argv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___argv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """char *** __p___argv ()"""
+        """
+        char ***__p___argv();
+        """
 
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
@@ -957,7 +977,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p___argc", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___argc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int * __p___argc ()"""
+        """
+        int *__p___argc();
+        """
 
         _argv = emu.get_argv()
 
@@ -973,7 +995,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p___initenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___initenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """char *** __p___initenv ()"""
+        """
+        char ***__p___initenv();
+        """
         return emu.get_proc("msvcrt", "__initenv")
 
     @impdata("__winitenv")
@@ -984,7 +1008,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p___winitenv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___winitenv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """wchar_t *** __p___winitenv ()"""
+        """
+        wchar_t ***__p___winitenv();
+        """
         return emu.get_proc("msvcrt", "__winitenv")
 
     @impdata("_environ")
@@ -996,7 +1022,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p__environ", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__environ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """char *** __p__environ ()"""
+        """
+        char ***__p__environ();
+        """
         return emu.get_proc("msvcrt", "_environ")
 
     @impdata("_wenviron")
@@ -1008,12 +1036,16 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p__wenviron", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__wenviron(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """wchar_t *** __p__wenviron ()"""
+        """
+        wchar_t ***__p__wenviron();
+        """
         return emu.get_proc("msvcrt", "_wenviron")
 
     @apihook("_get_initial_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_narrow_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """char** _get_initial_narrow_environment ()"""
+        """
+        char **_get_initial_narrow_environment();
+        """
 
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
@@ -1043,7 +1075,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_get_initial_wide_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_initial_wide_environment(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """WCHAR** _get_initial_wide_environment ()"""
+        """
+        WCHAR **_get_initial_wide_environment();
+        """
 
         ptr_size = self.get_ptr_size()
         env = emu.get_env()
@@ -1075,7 +1109,7 @@ class Msvcrt(api.ApiHandler):
     def exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void exit(
-           int const status
+            int const status
         );
         """
 
@@ -1085,7 +1119,7 @@ class Msvcrt(api.ApiHandler):
     def _exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _exit(
-           int const status
+            int const status
         );
         """
 
@@ -1095,7 +1129,7 @@ class Msvcrt(api.ApiHandler):
     def _amsg_exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _amsg_exit(
-           int rterrnum
+            int rterrnum
         );
         """
 
@@ -1104,7 +1138,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("abort", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def abort(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void abort(void);
+        void abort();
         """
 
         self.exit_process()
@@ -1148,7 +1182,11 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__acrt_iob_func", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __acrt_iob_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE * __acrt_iob_func (fd)"""
+        """
+        FILE *__acrt_iob_func(
+            fd
+        );
+        """
 
         (fd,) = argv
 
@@ -1158,7 +1196,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("__iob_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __iob_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        FILE *__iob_func(void);
+        FILE *__iob_func();
 
         Return the _iob array of stdin, stdout, and stderr. A FILE is 0x20
         bytes on x86 and 0x30 bytes on x64, and _file is its fifth field.
@@ -1176,15 +1214,17 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p__iob", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__iob(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *__p__iob(void);"""
+        """
+        FILE *__p__iob();
+        """
         return self.__iob_func(emu, [], ctx)
 
     @apihook("pow", argc=2, conv=e_arch.CALL_CONV_FLOAT)
     def pow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         double pow(
-           double x,
-           double y
+            double x,
+            double y
         );
         """
         x, y = argv
@@ -1211,7 +1251,7 @@ class Msvcrt(api.ApiHandler):
     def floor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         double floor(
-           double x
+            double x
         );
         """
         (x,) = argv
@@ -1225,7 +1265,7 @@ class Msvcrt(api.ApiHandler):
     def ceil(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         double ceil(
-           double x
+            double x
         );
         """
         (x,) = argv
@@ -1244,20 +1284,28 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("ceilf", argc=1, conv=e_arch.CALL_CONV_FLOAT)
     def ceilf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """float ceilf(float x);"""
+        """
+        float ceilf(
+            float x
+        );
+        """
         return self.round_single(emu, argv[0], math.ceil)
 
     @apihook("floorf", argc=1, conv=e_arch.CALL_CONV_FLOAT)
     def floorf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """float floorf(float x);"""
+        """
+        float floorf(
+            float x
+        );
+        """
         return self.round_single(emu, argv[0], math.floor)
 
     @apihook("fmod", argc=2, conv=e_arch.CALL_CONV_FLOAT)
     def fmod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         double fmod(
-           double x,
-           double y
+            double x,
+            double y
         );
         """
         x, y = (self.hex_to_double(v) for v in argv)
@@ -1278,7 +1326,7 @@ class Msvcrt(api.ApiHandler):
     def sin(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         double sin(
-           double x
+            double x
         );
         """
         (x,) = argv
@@ -1293,7 +1341,7 @@ class Msvcrt(api.ApiHandler):
     def abs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int abs(
-           int x
+            int x
         );
         """
         (x,) = argv
@@ -1304,8 +1352,8 @@ class Msvcrt(api.ApiHandler):
     def strstr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strstr(
-           const char *str,
-           const char *strSearch
+            const char *str,
+            const char *strSearch
         );
         """
         hay, needle = argv
@@ -1322,8 +1370,8 @@ class Msvcrt(api.ApiHandler):
     def strcspn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t strcspn(
-           const char *str,
-           const char *strCharSet
+            const char *str,
+            const char *strCharSet
         );
         """
         s, charset = argv
@@ -1338,8 +1386,8 @@ class Msvcrt(api.ApiHandler):
     def wcscspn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t wcscspn(
-           const wchar_t *str,
-           const wchar_t *strCharSet
+            const wchar_t *str,
+            const wchar_t *strCharSet
         );
         """
         s, charset = argv
@@ -1354,8 +1402,8 @@ class Msvcrt(api.ApiHandler):
     def strpbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strpbrk(
-           const char *str,
-           const char *strCharSet
+            const char *str,
+            const char *strCharSet
         );
         """
         s, charset = argv
@@ -1370,8 +1418,8 @@ class Msvcrt(api.ApiHandler):
     def wcspbrk(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcspbrk(
-           const wchar_t *str,
-           const wchar_t *strCharSet
+            const wchar_t *str,
+            const wchar_t *strCharSet
         );
         """
         s, charset = argv
@@ -1412,10 +1460,10 @@ class Msvcrt(api.ApiHandler):
     def strncat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t strncat_s(
-           char *strDest,
-           size_t numberOfElements,
-           const char *strSource,
-           size_t count
+            char *strDest,
+            size_t numberOfElements,
+            const char *strSource,
+            size_t count
         );
         """
         return self.append_n_secure(ctx, argv, 1)
@@ -1424,10 +1472,10 @@ class Msvcrt(api.ApiHandler):
     def wcsncat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t wcsncat_s(
-           wchar_t *strDest,
-           size_t numberOfElements,
-           const wchar_t *strSource,
-           size_t count
+            wchar_t *strDest,
+            size_t numberOfElements,
+            const wchar_t *strSource,
+            size_t count
         );
         """
         return self.append_n_secure(ctx, argv, 2)
@@ -1502,7 +1550,7 @@ class Msvcrt(api.ApiHandler):
             FILE *stream,
             const char *format,
             ...
-            );
+        );
         """
         stream, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
@@ -1523,7 +1571,7 @@ class Msvcrt(api.ApiHandler):
             FILE *stream,
             const wchar_t *format,
             ...
-            );
+        );
         """
         stream, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_wide_string(fmt)
@@ -1544,7 +1592,7 @@ class Msvcrt(api.ApiHandler):
             FILE *stream,
             const char *format,
             va_list argptr
-            );
+        );
         """
         stream, fmt, argptr = argv
         fmt_str = self.read_string(fmt)
@@ -1563,7 +1611,7 @@ class Msvcrt(api.ApiHandler):
         int printf(
             const char *format,
             ...
-            );
+        );
         """
         (fmt,) = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 1)
         fmt_str = self.read_string(fmt)
@@ -1578,9 +1626,11 @@ class Msvcrt(api.ApiHandler):
     @apihook("memset", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def memset(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void *memset ( void * ptr,
-                       int value,
-                       size_t num );
+        void *memset(
+            void *ptr,
+            int value,
+            size_t num
+        );
         """
 
         ptr, value, num = argv
@@ -1593,7 +1643,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("time", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def time(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        time_t time( time_t *destTime );
+        time_t time(
+            time_t *destTime
+        );
         """
 
         (destTime,) = argv
@@ -1602,7 +1654,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_time32", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _time32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        __time32_t _time32( __time32_t *destTime );
+        __time32_t _time32(
+            __time32_t *destTime
+        );
         """
         (destTime,) = argv
         return self.write_time(destTime, 4)
@@ -1610,7 +1664,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_time64", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _time64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        __time64_t _time64( __time64_t *destTime );
+        __time64_t _time64(
+            __time64_t *destTime
+        );
         """
         (destTime,) = argv
         return self.return_int64(emu, self.write_time(destTime, 8))
@@ -1665,7 +1721,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("localtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def localtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *localtime(const time_t *sourceTime);
+        struct tm *localtime(
+            const time_t *sourceTime
+        );
         """
         # The emulated time zone is UTC
         (timer,) = argv
@@ -1674,7 +1732,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_localtime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _localtime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *_localtime32(const __time32_t *sourceTime);
+        struct tm *_localtime32(
+            const __time32_t *sourceTime
+        );
         """
         (timer,) = argv
         return self.write_struct_tm(timer, 4)
@@ -1682,7 +1742,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_localtime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _localtime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *_localtime64(const __time64_t *sourceTime);
+        struct tm *_localtime64(
+            const __time64_t *sourceTime
+        );
         """
         (timer,) = argv
         return self.write_struct_tm(timer, 8)
@@ -1690,7 +1752,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("_localtime64_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _localtime64_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _localtime64_s(struct tm* tmDest, const __time64_t *sourceTime);
+        errno_t _localtime64_s(
+            struct tm *tmDest,
+            const __time64_t *sourceTime
+        );
         """
         tm, timer = argv
         return self.write_struct_tm_s(tm, timer, 8)
@@ -1698,7 +1763,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("gmtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def gmtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *gmtime(const time_t *sourceTime);
+        struct tm *gmtime(
+            const time_t *sourceTime
+        );
         """
         (timer,) = argv
         return self.write_struct_tm(timer, self.get_time_size(emu))
@@ -1706,7 +1773,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_gmtime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _gmtime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *_gmtime32(const __time32_t *sourceTime);
+        struct tm *_gmtime32(
+            const __time32_t *sourceTime
+        );
         """
         (timer,) = argv
         return self.write_struct_tm(timer, 4)
@@ -1714,7 +1783,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_gmtime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _gmtime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct tm *_gmtime64(const __time64_t *sourceTime);
+        struct tm *_gmtime64(
+            const __time64_t *sourceTime
+        );
         """
         (timer,) = argv
         return self.write_struct_tm(timer, 8)
@@ -1722,7 +1793,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("_gmtime64_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _gmtime64_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _gmtime64_s(struct tm* tmDest, const __time64_t *sourceTime);
+        errno_t _gmtime64_s(
+            struct tm *tmDest,
+            const __time64_t *sourceTime
+        );
         """
         tm, timer = argv
         return self.write_struct_tm_s(tm, timer, 8)
@@ -1745,7 +1819,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("mktime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def mktime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        time_t mktime(struct tm *timeptr);
+        time_t mktime(
+            struct tm *timeptr
+        );
         """
         (tm,) = argv
         return self.make_time(tm, self.get_time_size(emu))
@@ -1753,7 +1829,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_mktime32", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _mktime32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        __time32_t _mktime32(struct tm *timeptr);
+        __time32_t _mktime32(
+            struct tm *timeptr
+        );
         """
         (tm,) = argv
         return self.make_time(tm, 4)
@@ -1761,7 +1839,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_mktime64", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _mktime64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        __time64_t _mktime64(struct tm *timeptr);
+        __time64_t _mktime64(
+            struct tm *timeptr
+        );
         """
         (tm,) = argv
         return self.return_int64(emu, self.make_time(tm, 8))
@@ -1818,7 +1898,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("_tzset", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _tzset(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _tzset(void);
+        void _tzset();
 
         The emulated time zone is UTC, so there is nothing to set.
         """
@@ -1827,7 +1907,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_strtime", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strtime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        char *_strtime(char *buffer);
+        char *_strtime(
+            char *buffer
+        );
         """
         (buffer,) = argv
         if not buffer:
@@ -1839,7 +1921,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_strdate", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _strdate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        char *_strdate(char *buffer);
+        char *_strdate(
+            char *buffer
+        );
         """
         (buffer,) = argv
         if not buffer:
@@ -1851,7 +1935,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("clock", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def clock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        clock_t clock( void );
+        clock_t clock();
         """
 
         self.tick_counter += 200
@@ -1867,12 +1951,16 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_Query_perf_frequency", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Query_perf_frequency(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """long long _Query_perf_frequency();"""
+        """
+        long long _Query_perf_frequency();
+        """
         return self.return_int64(emu, PERF_FREQUENCY)
 
     @apihook("_Query_perf_counter", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Query_perf_counter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """long long _Query_perf_counter();"""
+        """
+        long long _Query_perf_counter();
+        """
         self.perf_counter += PERF_FREQUENCY // 50
         return self.return_int64(emu, self.perf_counter)
 
@@ -1887,14 +1975,18 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_Random_device", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Random_device(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """unsigned int _Random_device();"""
+        """
+        unsigned int _Random_device();
+        """
         self.rand_int += 1
         return self.rand_int & 0xFFFFFFFF
 
     @apihook("srand", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def srand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void srand (unsigned int seed);
+        void srand(
+            unsigned int seed
+        );
         """
 
         (seed,) = argv
@@ -1907,9 +1999,9 @@ class Msvcrt(api.ApiHandler):
         """
         int sprintf(
             char *buffer,
-            const char *format [,
-            argument] ...
-            );
+            const char *format,
+            ...
+        );
         """
         buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         fmt_str = self.read_string(fmt)
@@ -1926,10 +2018,10 @@ class Msvcrt(api.ApiHandler):
     def _snprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _snprintf(
-        char *buffer,
-        size_t count,
-        const char *format [,
-        argument] ...
+            char *buffer,
+            size_t count,
+            const char *format,
+            ...
         );
         """
         buf, count, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
@@ -1967,12 +2059,20 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_wtol", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _wtol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """long _wtol(const wchar_t *str);"""
+        """
+        long _wtol(
+            const wchar_t *str
+        );
+        """
         return self.ato(ctx, argv[0], 2, 32)
 
     @apihook("_wtoi", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _wtoi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _wtoi(const wchar_t *str);"""
+        """
+        int _wtoi(
+            const wchar_t *str
+        );
+        """
         return self.ato(ctx, argv[0], 2, 32)
 
     @apihook("_wtoi64", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -1991,7 +2091,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("rand", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def rand(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int rand( void );
+        int rand();
         """
 
         self.rand_seed = (self.rand_seed * 214013 + 2531011) & 0xFFFFFFFF
@@ -2001,7 +2101,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("rand_s", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def rand_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t rand_s(unsigned int* randomValue);
+        errno_t rand_s(
+            unsigned int *randomValue
+        );
         """
         (out,) = argv
         if not out:
@@ -2013,9 +2115,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("__set_app_type", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __set_app_type(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void __set_app_type (
+        void __set_app_type(
             int at
-        )
+        );
         """
         return
 
@@ -2033,7 +2135,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p__fmode", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int* __p__fmode();"""
+        """
+        int *__p__fmode();
+        """
         return emu.get_proc("msvcrt", "_fmode")
 
     @impdata("_commode")
@@ -2046,14 +2150,18 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p__commode", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__commode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int* __p__commode();"""
+        """
+        int *__p__commode();
+        """
         return emu.get_proc("msvcrt", "_commode")
 
     @apihook("_controlfp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        unsigned int _controlfp(unsigned int new,
-                                unsinged int mask)
+        unsigned int _controlfp(
+            unsigned int new,
+            unsinged int mask
+        );
         """
         return 0
 
@@ -2061,8 +2169,8 @@ class Msvcrt(api.ApiHandler):
     def strcpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strcpy(
-           char *strDestination,
-           const char *strSource
+            char *strDestination,
+            const char *strSource
         );
         """
         dest, src = argv
@@ -2076,9 +2184,9 @@ class Msvcrt(api.ApiHandler):
     def strcpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t strcpy_s(
-           char *dest,
-           rsize_t dest_size,
-           const char *src
+            char *dest,
+            rsize_t dest_size,
+            const char *src
         );
         """
         dest, size, src = argv
@@ -2099,9 +2207,9 @@ class Msvcrt(api.ApiHandler):
     def wcscpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t wcscpy_s(
-           wchar_t *dest,
-           rsize_t dest_size,
-           const wchar_t *src
+            wchar_t *dest,
+            rsize_t dest_size,
+            const wchar_t *src
         );
         """
         dest, size, src = argv
@@ -2153,10 +2261,10 @@ class Msvcrt(api.ApiHandler):
     def strncpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t strncpy_s(
-           char *strDest,
-           size_t numberOfElements,
-           const char *strSource,
-           size_t count
+            char *strDest,
+            size_t numberOfElements,
+            const char *strSource,
+            size_t count
         );
         """
         return self.copy_n_secure(emu, argv, ctx, 1)
@@ -2165,10 +2273,10 @@ class Msvcrt(api.ApiHandler):
     def wcsncpy_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t wcsncpy_s(
-           wchar_t *strDest,
-           size_t numberOfElements,
-           const wchar_t *strSource,
-           size_t count
+            wchar_t *strDest,
+            size_t numberOfElements,
+            const wchar_t *strSource,
+            size_t count
         );
         """
         return self.copy_n_secure(emu, argv, ctx, 2)
@@ -2190,9 +2298,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("strncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        char * strncpy(
-            char * destination,
-            const char * source,
+        char *strncpy(
+            char *destination,
+            const char *source,
             size_t num
         );
         """
@@ -2207,9 +2315,9 @@ class Msvcrt(api.ApiHandler):
     def wcsncpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcsncpy(
-           wchar_t *strDest,
-           const wchar_t *strSource,
-           size_t count
+            wchar_t *strDest,
+            const wchar_t *strSource,
+            size_t count
         );
         """
         dest, src, count = argv
@@ -2226,7 +2334,7 @@ class Msvcrt(api.ApiHandler):
             void *dest,
             const void *src,
             size_t count
-            );
+        );
         """
         dest, src, count = argv
         data = self.mem_read(src, count)
@@ -2294,9 +2402,9 @@ class Msvcrt(api.ApiHandler):
     def memcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int memcmp(
-           const void *buffer1,
-           const void *buffer2,
-           size_t count
+            const void *buffer1,
+            const void *buffer2,
+            size_t count
         );
         """
         buff1, buff2, cnt = argv
@@ -2357,9 +2465,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_seh_filter_exe", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_exe(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int __cdecl _seh_filter_exe(
-           unsigned long _ExceptionNum,
-           struct _EXCEPTION_POINTERS* _ExceptionPtr
+        int _seh_filter_exe(
+            unsigned long _ExceptionNum,
+            struct _EXCEPTION_POINTERS *_ExceptionPtr
         );
         """
         except_num, exc_ptr = argv
@@ -2405,9 +2513,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_seh_filter_dll", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_dll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int __cdecl _seh_filter_dll(
-           unsigned long _ExceptionNum,
-           struct _EXCEPTION_POINTERS* _ExceptionPtr
+        int _seh_filter_dll(
+            unsigned long _ExceptionNum,
+            struct _EXCEPTION_POINTERS *_ExceptionPtr
         );
         """
         except_num, exc_ptr = argv
@@ -2418,7 +2526,7 @@ class Msvcrt(api.ApiHandler):
     def puts(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int puts(
-           const char *str
+            const char *str
         );
         """
         (s,) = argv
@@ -2443,8 +2551,8 @@ class Msvcrt(api.ApiHandler):
     def _initialize_onexit_table(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _initialize_onexit_table(
-            _onexit_table_t* table
-            );
+            _onexit_table_t *table
+        );
         """
         (table,) = argv
         if not table:
@@ -2457,9 +2565,9 @@ class Msvcrt(api.ApiHandler):
     def _register_onexit_function(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _register_onexit_function(
-            _onexit_table_t* table,
-            _onexit_t        function
-            );
+            _onexit_table_t *table,
+            _onexit_t function
+        );
         """
         table, function = argv
         if not table:
@@ -2483,8 +2591,8 @@ class Msvcrt(api.ApiHandler):
     def _execute_onexit_table(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _execute_onexit_table(
-            _onexit_table_t* table
-            );
+            _onexit_table_t *table
+        );
         """
         (table,) = argv
         if not table:
@@ -2517,7 +2625,7 @@ class Msvcrt(api.ApiHandler):
     def malloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *malloc(
-        size_t size
+            size_t size
         );
         """
         (size,) = argv
@@ -2529,7 +2637,7 @@ class Msvcrt(api.ApiHandler):
     def _malloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *_malloc_crt(
-        size_t size
+            size_t size
         );
         """
         return self.malloc(emu, argv, ctx)
@@ -2538,8 +2646,8 @@ class Msvcrt(api.ApiHandler):
     def _calloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *_calloc_crt(
-        size_t num,
-        size_t size
+            size_t num,
+            size_t size
         );
         """
         return self.calloc(emu, argv, ctx)
@@ -2548,8 +2656,8 @@ class Msvcrt(api.ApiHandler):
     def _realloc_crt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *_realloc_crt(
-        void *memblock,
-        size_t size
+            void *memblock,
+            size_t size
         );
         """
         return self.realloc(emu, argv, ctx)
@@ -2559,7 +2667,7 @@ class Msvcrt(api.ApiHandler):
     def _encode_pointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *_encode_pointer(
-        void *ptr
+            void *ptr
         );
         """
         (ptr,) = argv
@@ -2569,7 +2677,7 @@ class Msvcrt(api.ApiHandler):
     def _decode_pointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *_decode_pointer(
-        void *ptr
+            void *ptr
         );
         """
         (ptr,) = argv
@@ -2578,7 +2686,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("_encoded_null", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _encoded_null(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void *_encoded_null(void);
+        void *_encoded_null();
         """
         return self._encode_pointer(emu, [0], ctx)
 
@@ -3049,7 +3157,13 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_strtoui64", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _strtoui64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """unsigned __int64 _strtoui64(const char *strSource, char **endptr, int base);"""
+        """
+        unsigned _strtoui64(
+            const char *strSource,
+            char **endptr,
+            int base
+        );
+        """
         return self.strtoi64(emu, argv, 1, False)
 
     @apihook("_wcstoi64", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -3059,15 +3173,21 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_wcstoui64", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _wcstoui64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """unsigned __int64 _wcstoui64(const wchar_t *strSource, wchar_t **endptr, int base);"""
+        """
+        unsigned _wcstoui64(
+            const wchar_t *strSource,
+            wchar_t **endptr,
+            int base
+        );
+        """
         return self.strtoi64(emu, argv, 2, False)
 
     @apihook("calloc", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def calloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *calloc(
-        size_t num,
-        size_t size
+            size_t num,
+            size_t size
         );
         """
         (
@@ -3088,7 +3208,7 @@ class Msvcrt(api.ApiHandler):
     def free(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void free(
-        void *memblock
+            void *memblock
         );
         """
         (mem,) = argv
@@ -3139,7 +3259,7 @@ class Msvcrt(api.ApiHandler):
     def _endthreadex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _endthreadex(
-           unsigned retval
+            unsigned retval
         );
         """
         (retval,) = argv
@@ -3149,7 +3269,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("_endthread", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _endthread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _endthread(void);
+        void _endthread();
         """
         emu.get_current_thread().exit_code = 0
         self.exit_process()
@@ -3158,7 +3278,7 @@ class Msvcrt(api.ApiHandler):
     def system(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int system(
-           const char *command
+            const char *command
         );
         """
         (s,) = argv
@@ -3188,17 +3308,31 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_popen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _popen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_popen(const char *command, const char *mode);"""
+        """
+        FILE *_popen(
+            const char *command,
+            const char *mode
+        );
+        """
         return self.open_pipe(argv, 1, ctx)
 
     @apihook("_wpopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _wpopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_wpopen(const wchar_t *command, const wchar_t *mode);"""
+        """
+        FILE *_wpopen(
+            const wchar_t *command,
+            const wchar_t *mode
+        );
+        """
         return self.open_pipe(argv, 2, ctx)
 
     @apihook("_pclose", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _pclose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _pclose(FILE *stream);"""
+        """
+        int _pclose(
+            FILE *stream
+        );
+        """
         (stream,) = argv
         fd = self.get_stream_fd(stream)
         if fd is None or self.fds.get(fd) != 0:
@@ -3210,7 +3344,7 @@ class Msvcrt(api.ApiHandler):
     def toupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int toupper(
-           int c
+            int c
         );
         """
         (c,) = argv
@@ -3236,8 +3370,8 @@ class Msvcrt(api.ApiHandler):
     def strnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t strnlen(
-           const char *str,
-           size_t numberOfElements
+            const char *str,
+            size_t numberOfElements
         );
         """
         s, num_elements = argv
@@ -3269,7 +3403,7 @@ class Msvcrt(api.ApiHandler):
         """
         char *_strlwr(
             char *str
-            );
+        );
         """
         (string_ptr,) = argv
 
@@ -3302,8 +3436,8 @@ class Msvcrt(api.ApiHandler):
     def wcscat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *wcscat(
-           wchar_t *strDestination,
-           const wchar_t *strSource
+            wchar_t *strDestination,
+            const wchar_t *strSource
         );
         """
         _str1, _str2 = argv
@@ -3319,9 +3453,9 @@ class Msvcrt(api.ApiHandler):
     def strcat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t strcat_s(
-           char *strDestination,
-           size_t numberOfElements,
-           const char *strSource
+            char *strDestination,
+            size_t numberOfElements,
+            const char *strSource
         );
         """
         dest, size, src = argv
@@ -3344,9 +3478,9 @@ class Msvcrt(api.ApiHandler):
     def wcscat_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t wcscat_s(
-           wchar_t *strDestination,
-           size_t numberOfElements,
-           const wchar_t *strSource
+            wchar_t *strDestination,
+            size_t numberOfElements,
+            const wchar_t *strSource
         );
         """
         dest, size, src = argv
@@ -3369,7 +3503,7 @@ class Msvcrt(api.ApiHandler):
     def wcslen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t wcslen(
-          const wchar_t* wcs
+            const wchar_t *wcs
         );
         """
         (s,) = argv
@@ -3383,8 +3517,8 @@ class Msvcrt(api.ApiHandler):
     def wcsnlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         size_t wcsnlen(
-           const wchar_t *str,
-           size_t numberOfElements
+            const wchar_t *str,
+            size_t numberOfElements
         );
         """
         s, num_elements = argv
@@ -3417,7 +3551,7 @@ class Msvcrt(api.ApiHandler):
     def _lock_file(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _lock_file(
-            FILE* file
+            FILE *file
         );
         """
         return
@@ -3426,7 +3560,7 @@ class Msvcrt(api.ApiHandler):
     def _unlock_file(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _unlock_file(
-            FILE* file
+            FILE *file
         );
         """
         return
@@ -3454,9 +3588,9 @@ class Msvcrt(api.ApiHandler):
         """
         onexit_t __dllonexit(
             _onexit_t func,
-            _PVFV **  pbegin,
-            _PVFV **  pend
-        )
+            _PVFV **pbegin,
+            _PVFV **pend
+        );
         """
         (
             func,
@@ -3528,7 +3662,7 @@ class Msvcrt(api.ApiHandler):
         char *strrchr(
             const char *str,
             int c
-            );
+        );
         """
         cstr, c = argv
         # The terminator is part of the string, so a NUL finds it
@@ -3548,7 +3682,7 @@ class Msvcrt(api.ApiHandler):
         wchar_t *wcsrchr(
             const wchar_t *str,
             wchar_t c
-            );
+        );
         """
         wstr, c = argv
         hay = self.read_mem_string(wstr, 2) + "\x00"
@@ -3562,7 +3696,7 @@ class Msvcrt(api.ApiHandler):
         wchar_t *wcschr(
             const wchar_t *str,
             wchar_t c
-            );
+        );
         """
         wstr, c = argv
         hay = self.read_mem_string(wstr, 2) + "\x00"
@@ -3573,7 +3707,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_ftol", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _ftol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _ftol(int);
+        int _ftol(
+            int
+        );
         """
         (f,) = argv
         return int(f)
@@ -3581,14 +3717,16 @@ class Msvcrt(api.ApiHandler):
     @apihook("_adjust_fdiv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _adjust_fdiv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _adjust_fdiv(void)
+        void _adjust_fdiv();
         """
         return
 
     @apihook("tolower", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def tolower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int tolower ( int c );
+        int tolower(
+            int c
+        );
         """
         (c,) = argv
         if ord("A") <= c <= ord("Z"):
@@ -3598,7 +3736,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("towlower", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def towlower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        wint_t towlower(wint_t c);
+        wint_t towlower(
+            wint_t c
+        );
         """
         (c,) = argv
         c &= 0xFFFF
@@ -3609,7 +3749,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("towupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def towupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        wint_t towupper(wint_t c);
+        wint_t towupper(
+            wint_t c
+        );
         """
         (c,) = argv
         c &= 0xFFFF
@@ -3622,7 +3764,7 @@ class Msvcrt(api.ApiHandler):
         """
         int isdigit(
             int c
-            );
+        );
         """
         (c,) = argv
         return int(48 <= c <= 57)
@@ -3632,7 +3774,7 @@ class Msvcrt(api.ApiHandler):
         """
         int isspace(
             int c
-            );
+        );
         """
         (c,) = argv
         return int(0 <= c < 0x100 and c in SCANF_SPACE)
@@ -3642,7 +3784,7 @@ class Msvcrt(api.ApiHandler):
         """
         int iswspace(
             wint_t c
-            );
+        );
         """
         (c,) = argv
         c &= 0xFFFF
@@ -3653,7 +3795,7 @@ class Msvcrt(api.ApiHandler):
         """
         int iswalpha(
             wint_t c
-            );
+        );
         """
         (c,) = argv
         return int(chr(c & 0xFFFF).isalpha())
@@ -3664,78 +3806,139 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_isctype", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _isctype(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _isctype(int c, int desc);"""
+        """
+        int _isctype(
+            int c,
+            int desc
+        );
+        """
         c, mask = argv
         return self.get_ctype(c, mask)
 
     @apihook("isalnum", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isalnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isalnum(int c);"""
+        """
+        int isalnum(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _ALPHA | _DIGIT)
 
     @apihook("isalpha", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isalpha(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isalpha(int c);"""
+        """
+        int isalpha(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _ALPHA)
 
     @apihook("isupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isupper(int c);"""
+        """
+        int isupper(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _UPPER)
 
     @apihook("islower", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def islower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int islower(int c);"""
+        """
+        int islower(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _LOWER)
 
     @apihook("isxdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isxdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isxdigit(int c);"""
+        """
+        int isxdigit(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _HEX)
 
     @apihook("ispunct", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def ispunct(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int ispunct(int c);"""
+        """
+        int ispunct(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _PUNCT)
 
     @apihook("isprint", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isprint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isprint(int c);"""
+        """
+        int isprint(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _BLANK | _PUNCT | _ALPHA | _DIGIT)
 
     @apihook("iscntrl", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iscntrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iscntrl(int c);"""
+        """
+        int iscntrl(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _CONTROL)
 
     @apihook("isgraph", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def isgraph(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int isgraph(int c);"""
+        """
+        int isgraph(
+            int c
+        );
+        """
         return self.get_ctype(argv[0], _PUNCT | _ALPHA | _DIGIT)
 
     @apihook("iswalnum", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iswalnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iswalnum(wint_t c);"""
+        """
+        int iswalnum(
+            wint_t c
+        );
+        """
         return int(chr(argv[0] & 0xFFFF).isalnum())
 
     @apihook("iswdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iswdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iswdigit(wint_t c);"""
+        """
+        int iswdigit(
+            wint_t c
+        );
+        """
         return int(chr(argv[0] & 0xFFFF).isdigit())
 
     @apihook("iswupper", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iswupper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iswupper(wint_t c);"""
+        """
+        int iswupper(
+            wint_t c
+        );
+        """
         return int(chr(argv[0] & 0xFFFF).isupper())
 
     @apihook("iswlower", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iswlower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iswlower(wint_t c);"""
+        """
+        int iswlower(
+            wint_t c
+        );
+        """
         return int(chr(argv[0] & 0xFFFF).islower())
 
     @apihook("iswxdigit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def iswxdigit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int iswxdigit(wint_t c);"""
+        """
+        int iswxdigit(
+            wint_t c
+        );
+        """
         return self.get_ctype(argv[0] & 0xFFFF, _HEX)
 
     def get_pctype_table(self):
@@ -3754,12 +3957,16 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__pctype_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __pctype_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """const unsigned short *__pctype_func(void);"""
+        """
+        const unsigned short *__pctype_func();
+        """
         return self.get_pctype_table()
 
     @apihook("__p__pctype", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p__pctype(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """const unsigned short **__p__pctype(void);"""
+        """
+        const unsigned short **__p__pctype();
+        """
         return emu.get_proc("msvcrt", "_pctype")
 
     @impdata("__mb_cur_max")
@@ -3770,13 +3977,17 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__p___mb_cur_max", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___mb_cur_max(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int *__p___mb_cur_max(void);"""
+        """
+        int *__p___mb_cur_max();
+        """
         return emu.get_proc("msvcrt", "__mb_cur_max")
 
     @apihook("_isatty", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _isatty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _isatty(int fd);
+        int _isatty(
+            int fd
+        );
         """
         # Standard streams are files, as kernel32.GetFileType reports
         return 0
@@ -3784,7 +3995,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_fileno", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _fileno(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _fileno(FILE *stream);
+        int _fileno(
+            FILE *stream
+        );
         """
         (stream,) = argv
         fd = self.get_stream_fd(stream)
@@ -3796,7 +4009,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("_setmode", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _setmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _setmode(int fd, int mode);
+        int _setmode(
+            int fd,
+            int mode
+        );
         """
         fd, mode = argv
         if fd in (self.stdin, self.stdout, self.stderr):
@@ -3807,7 +4023,11 @@ class Msvcrt(api.ApiHandler):
     @apihook("_read", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _read(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _read(int fd, void *buffer, unsigned int count);
+        int _read(
+            int fd,
+            void *buffer,
+            unsigned int count
+        );
         """
         fd, buf, count = argv
         count &= 0xFFFFFFFF
@@ -3825,7 +4045,11 @@ class Msvcrt(api.ApiHandler):
     @apihook("_write", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _write(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _write(int fd, const void *buffer, unsigned int count);
+        int _write(
+            int fd,
+            const void *buffer,
+            unsigned int count
+        );
         """
         fd, buf, count = argv
         count &= 0xFFFFFFFF
@@ -3844,14 +4068,22 @@ class Msvcrt(api.ApiHandler):
     @apihook("_open", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _open(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _open(const char *filename, int oflag, int pmode);
+        int _open(
+            const char *filename,
+            int oflag,
+            int pmode
+        );
         """
         return self.open_fd(argv, 1, ctx)
 
     @apihook("_wopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _wopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _wopen(const wchar_t *filename, int oflag, int pmode);
+        int _wopen(
+            const wchar_t *filename,
+            int oflag,
+            int pmode
+        );
         """
         return self.open_fd(argv, 2, ctx)
 
@@ -3886,7 +4118,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_close", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _close(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int _close(int fd);
+        int _close(
+            int fd
+        );
         """
         (fd,) = argv
         if self.fds.pop(fd, None) is None and fd not in (self.stdin, self.stdout, self.stderr):
@@ -3897,7 +4131,11 @@ class Msvcrt(api.ApiHandler):
     @apihook("_lseek", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _lseek(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        long _lseek(int fd, long offset, int origin);
+        long _lseek(
+            int fd,
+            long offset,
+            int origin
+        );
         """
         fd, offset, origin = argv
         offset &= 0xFFFFFFFF
@@ -3943,7 +4181,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("_fdopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _fdopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        FILE *_fdopen(int fd, const char *mode);
+        FILE *_fdopen(
+            int fd,
+            const char *mode
+        );
         """
         fd, mode = argv
         if not mode:
@@ -4018,56 +4259,73 @@ class Msvcrt(api.ApiHandler):
     @apihook("_Mtx_init_in_situ", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_init_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _Mtx_init_in_situ(_Mtx_t mtx, int type);
+        void _Mtx_init_in_situ(
+            _Mtx_t mtx,
+            int type
+        );
         """
         return
 
     @apihook("_Mtx_destroy_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_destroy_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _Mtx_destroy_in_situ(_Mtx_t mtx);
+        void _Mtx_destroy_in_situ(
+            _Mtx_t mtx
+        );
         """
         return
 
     @apihook("_Mtx_lock", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_lock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Mtx_lock(_Mtx_t mtx);
+        _Thrd_result _Mtx_lock(
+            _Mtx_t mtx
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Mtx_trylock", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_trylock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Mtx_trylock(_Mtx_t mtx);
+        _Thrd_result _Mtx_trylock(
+            _Mtx_t mtx
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Mtx_unlock", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Mtx_unlock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Mtx_unlock(_Mtx_t mtx);
+        _Thrd_result _Mtx_unlock(
+            _Mtx_t mtx
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Cnd_init_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_init_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _Cnd_init_in_situ(_Cnd_t cond);
+        void _Cnd_init_in_situ(
+            _Cnd_t cond
+        );
         """
         return
 
     @apihook("_Cnd_destroy_in_situ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_destroy_in_situ(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _Cnd_destroy_in_situ(_Cnd_t cond);
+        void _Cnd_destroy_in_situ(
+            _Cnd_t cond
+        );
         """
         return
 
     @apihook("_Cnd_init", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Cnd_init(_Cnd_t *pcond);
+        _Thrd_result _Cnd_init(
+            _Cnd_t *pcond
+        );
         """
         (pcond,) = argv
         cond = self.heap_alloc(CND_SIZE, heap="HeapAlloc")
@@ -4078,7 +4336,9 @@ class Msvcrt(api.ApiHandler):
     @apihook("_Cnd_destroy", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_destroy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _Cnd_destroy(_Cnd_t cond);
+        void _Cnd_destroy(
+            _Cnd_t cond
+        );
         """
         (cond,) = argv
         if cond:
@@ -4087,28 +4347,39 @@ class Msvcrt(api.ApiHandler):
     @apihook("_Cnd_signal", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Cnd_signal(_Cnd_t cond);
+        _Thrd_result _Cnd_signal(
+            _Cnd_t cond
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Cnd_broadcast", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_broadcast(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Cnd_broadcast(_Cnd_t cond);
+        _Thrd_result _Cnd_broadcast(
+            _Cnd_t cond
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Cnd_wait", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_wait(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Cnd_wait(_Cnd_t cond, _Mtx_t mtx);
+        _Thrd_result _Cnd_wait(
+            _Cnd_t cond,
+            _Mtx_t mtx
+        );
         """
         return THRD_SUCCESS
 
     @apihook("_Cnd_timedwait", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _Cnd_timedwait(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_result _Cnd_timedwait(_Cnd_t cond, _Mtx_t mtx, const _timespec64 *target);
+        _Thrd_result _Cnd_timedwait(
+            _Cnd_t cond,
+            _Mtx_t mtx,
+            const _timespec64 *target
+        );
 
         Threads run one after another, so the wait times out only when no
         queued run is left that could signal the condition.
@@ -4125,21 +4396,25 @@ class Msvcrt(api.ApiHandler):
     @apihook("_Thrd_id", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Thrd_id(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        _Thrd_id_t _Thrd_id(void);
+        _Thrd_id_t _Thrd_id();
         """
         return emu.get_current_thread().id
 
     @apihook("__telemetry_main_invoke_trigger", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __telemetry_main_invoke_trigger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void __telemetry_main_invoke_trigger(HINSTANCE instance);
+        void __telemetry_main_invoke_trigger(
+            HINSTANCE instance
+        );
         """
         return
 
     @apihook("__telemetry_main_return_trigger", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __telemetry_main_return_trigger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void __telemetry_main_return_trigger(HINSTANCE instance);
+        void __telemetry_main_return_trigger(
+            HINSTANCE instance
+        );
         """
         return
 
@@ -4147,10 +4422,10 @@ class Msvcrt(api.ApiHandler):
     def setvbuf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int setvbuf(
-           FILE *stream,
-           char *buffer,
-           int mode,
-           size_t size
+            FILE *stream,
+            char *buffer,
+            int mode,
+            size_t size
         );
         """
         _IOFBF, _IONBF, _IOLBF = 0, 4, 0x40
@@ -4159,15 +4434,17 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_getpid", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _getpid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _getpid( void );"""
+        """
+        int _getpid();
+        """
         return emu.get_current_process().id
 
     @apihook("setbuf", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def setbuf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void setbuf(
-           FILE *stream,
-           char *buffer
+            FILE *stream,
+            char *buffer
         );
         """
         return
@@ -4175,7 +4452,11 @@ class Msvcrt(api.ApiHandler):
     @apihook("sscanf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sscanf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int sscanf ( const char * s, const char * format, ...);
+        int sscanf(
+            const char *s,
+            const char *format,
+            ...
+        );
         """
         buf, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 2)
         text, fmt_str = self.read_cstr(buf), self.read_cstr(fmt)
@@ -4192,7 +4473,7 @@ class Msvcrt(api.ApiHandler):
     def __stdio_common_vsscanf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __stdio_common_vsscanf(
-            unsigned __int64 Options,
+            unsigned Options,
             const char *Buffer,
             size_t BufferCount,
             const char *Format,
@@ -4234,7 +4515,7 @@ class Msvcrt(api.ApiHandler):
         char *strchr(
             const char *str,
             int c
-            );
+        );
         """
         cstr, c = argv
         # The terminator is part of the string, so a NUL finds it
@@ -4252,7 +4533,7 @@ class Msvcrt(api.ApiHandler):
     def _set_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         _invalid_parameter_handler _set_invalid_parameter_handler(
-        _invalid_parameter_handler pNew
+            _invalid_parameter_handler pNew
         );
         """
         (pNew,) = argv
@@ -4261,14 +4542,16 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_get_invalid_parameter_handler", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """_invalid_parameter_handler _get_invalid_parameter_handler(void);"""
+        """
+        _invalid_parameter_handler _get_invalid_parameter_handler();
+        """
         return self.invalid_parameter_handler
 
     @apihook("_set_thread_local_invalid_parameter_handler", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_thread_local_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         _invalid_parameter_handler _set_thread_local_invalid_parameter_handler(
-        _invalid_parameter_handler pNew
+            _invalid_parameter_handler pNew
         );
         """
         (pNew,) = argv
@@ -4279,13 +4562,15 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_get_thread_local_invalid_parameter_handler", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _get_thread_local_invalid_parameter_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """_invalid_parameter_handler _get_thread_local_invalid_parameter_handler(void);"""
+        """
+        _invalid_parameter_handler _get_thread_local_invalid_parameter_handler();
+        """
         return self.thread_invalid_parameter_handlers.get(emu.get_current_thread().id, 0)
 
     @apihook("_invalid_parameter_noinfo", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _invalid_parameter_noinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void _invalid_parameter_noinfo(void);
+        void _invalid_parameter_noinfo();
 
         Call the thread or global invalid parameter handler. Without a handler,
         return to the caller, which then fails with EINVAL.
@@ -4301,7 +4586,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_invalid_parameter_noinfo_noreturn", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _invalid_parameter_noinfo_noreturn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _invalid_parameter_noinfo_noreturn(void);"""
+        """
+        void _invalid_parameter_noinfo_noreturn();
+        """
         self.exit_process()
 
     @apihook("_invoke_watson", argc=5, conv=e_arch.CALL_CONV_CDECL)
@@ -4374,11 +4661,11 @@ class Msvcrt(api.ApiHandler):
     def __CxxFrameHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         EXCEPTION_DISPOSITION __CxxFrameHandler(
-            EHExceptionRecord  *pExcept,
+            EHExceptionRecord *pExcept,
             EHRegistrationNode *pRN,
-            void               *pContext,
-            DispatcherContext  *pDC
-        )
+            void *pContext,
+            DispatcherContext *pDC
+        );
         """
         (
             pExcept,
@@ -4600,9 +4887,9 @@ class Msvcrt(api.ApiHandler):
     def _strcmpi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _strcmpi(
-                const char *string1,
-                const char *string2
-                );
+            const char *string1,
+            const char *string2
+        );
         """
         string1, string2 = argv
         rv = 1
@@ -4623,9 +4910,9 @@ class Msvcrt(api.ApiHandler):
     def _wcsicmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _wcsicmp(
-                const wchar_t *string1,
-                const wchar_t *string2
-                );
+            const wchar_t *string1,
+            const wchar_t *string2
+        );
         """
         string1, string2 = argv
         rv = 1
@@ -4769,7 +5056,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def basic_ios_setstate_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void setstate(iostate state, bool reraise);
+        void setstate(
+            iostate state,
+            bool reraise
+        );
 
         A stream without a buffer also gets badbit. The exception that
         exceptions() can request is not raised.
@@ -4820,7 +5110,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?_Init@?$basic_streambuf@DU?$char_traits@D@std@@@std@@IEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def basic_streambuf_Init_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _Init();"""
+        """
+        void _Init();
+        """
         self.init_basic_streambuf(argv[0])
 
     def fiopen(self, argv, width, ctx):
@@ -4842,12 +5134,24 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?_Fiopen@std@@YAPEAU_iobuf@@PEBDHH@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _Fiopen_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_Fiopen(const char *filename, ios_base::openmode mode, int prot);"""
+        """
+        FILE *_Fiopen(
+            const char *filename,
+            ios_base::openmode mode,
+            int prot
+        );
+        """
         return self.fiopen(argv, 1, ctx)
 
     @apihook("?_Fiopen@std@@YAPEAU_iobuf@@PEB_WHH@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _wFiopen_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_Fiopen(const wchar_t *filename, ios_base::openmode mode, int prot);"""
+        """
+        FILE *_Fiopen(
+            const wchar_t *filename,
+            ios_base::openmode mode,
+            int prot
+        );
+        """
         return self.fiopen(argv, 2, ctx)
 
     @impdata("?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A")
@@ -4880,18 +5184,24 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?_Lock@?$basic_filebuf@DU?$char_traits@D@std@@@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def basic_filebuf_Lock_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _Lock();"""
+        """
+        void _Lock();
+        """
         return
 
     @apihook("?_Unlock@?$basic_filebuf@DU?$char_traits@D@std@@@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def basic_filebuf_Unlock_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _Unlock();"""
+        """
+        void _Unlock();
+        """
         return
 
     @apihook("?overflow@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAAHH@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def basic_filebuf_overflow_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int overflow(int c);
+        int overflow(
+            int c
+        );
 
         Only the filebuf of std::cout uses this handler, so the character goes to stdout.
         """
@@ -4905,7 +5215,10 @@ class Msvcrt(api.ApiHandler):
     @apihook("?xsputn@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAA_JPEBD_J@Z", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def basic_filebuf_xsputn_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        streamsize xsputn(const char *s, streamsize count);
+        streamsize xsputn(
+            const char *s,
+            streamsize count
+        );
 
         Only the filebuf of std::cout uses this handler, so the characters go to stdout.
         """
@@ -4917,13 +5230,17 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?sync@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAAHXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def basic_filebuf_sync_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int sync();"""
+        """
+        int sync();
+        """
         return 0
 
     @apihook("?sputc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHD@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def basic_streambuf_sputc_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int sputc(char c);
+        int sputc(
+            char c
+        );
 
         Store the character in the put area, or call the virtual overflow when the area is full.
         """
@@ -4946,7 +5263,12 @@ class Msvcrt(api.ApiHandler):
         "?sputn@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAA_JPEBD_J@Z", argc=3, conv=e_arch.CALL_CONV_CDECL
     )
     def basic_streambuf_sputn_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """streamsize sputn(const char *s, streamsize count);"""
+        """
+        streamsize sputn(
+            const char *s,
+            streamsize count
+        );
+        """
         sb, s, count = argv
         return (yield GuestCall(self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_XSPUTN), (sb, s, count)))
 
@@ -4977,7 +5299,9 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?_Osfx@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def basic_ostream_Osfx_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _Osfx();"""
+        """
+        void _Osfx();
+        """
         ios = self.get_ios_base(emu, argv[0])
         if int.from_bytes(self.mem_read(ios + IOS64_OFFSET_FMTFL, 4), "little") & IOS_UNITBUF:
             yield from self.sync_ostream(emu, argv[0])
@@ -5093,32 +5417,48 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("?_Init@locale@std@@CAPAV_Locimp@12@_N@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def locale_Init_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """static locale::_Locimp *locale::_Init(bool do_incref);"""
+        """
+        static locale::_Locimp *locale::_Init(
+            bool do_incref
+        );
+        """
         return self.locale_init(emu, argv[0])
 
     @apihook("?_Init@locale@std@@CAPEAV_Locimp@12@_N@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def locale_Init_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """static locale::_Locimp *locale::_Init(bool do_incref);"""
+        """
+        static locale::_Locimp *locale::_Init(
+            bool do_incref
+        );
+        """
         return self.locale_init(emu, argv[0])
 
     @apihook("?_Getgloballocale@locale@std@@CAPAV_Locimp@12@XZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def locale_Getgloballocale_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """static locale::_Locimp *locale::_Getgloballocale();"""
+        """
+        static locale::_Locimp *locale::_Getgloballocale();
+        """
         return self.get_global_locimp(emu)
 
     @apihook("?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def locale_Getgloballocale_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """static locale::_Locimp *locale::_Getgloballocale();"""
+        """
+        static locale::_Locimp *locale::_Getgloballocale();
+        """
         return self.get_global_locimp(emu)
 
     @apihook("?_Incref@facet@locale@std@@UAEXXZ", argc=0)
     def facet_Incref_x86(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void locale::facet::_Incref();"""
+        """
+        void locale::facet::_Incref();
+        """
         self.add_facet_refs(self.iostream_init_this(emu), 1)
 
     @apihook("?_Incref@facet@locale@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def facet_Incref_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void locale::facet::_Incref();"""
+        """
+        void locale::facet::_Incref();
+        """
         self.add_facet_refs(argv[0], 1)
 
     @apihook("?_Decref@facet@locale@std@@UAEPAV_Facet_base@3@XZ", argc=0)
@@ -5151,17 +5491,25 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__current_exception_context", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception_context(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void** __current_exception_context();"""
+        """
+        void **__current_exception_context();
+        """
         return self.get_exception_slot("__current_exception_context")
 
     @apihook("__current_exception", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __current_exception(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void** __current_exception();"""
+        """
+        void **__current_exception();
+        """
         return self.get_exception_slot("__current_exception")
 
     @apihook("_set_new_mode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_new_mode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _set_new_mode(int newhandlermode);"""
+        """
+        int _set_new_mode(
+            int newhandlermode
+        );
+        """
         (mode,) = argv
         rv = self.new_mode
         self.new_mode = mode & 0xFFFFFFFF
@@ -5180,7 +5528,11 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_configthreadlocale", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _configthreadlocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _configthreadlocale(int per_thread_locale_type);"""
+        """
+        int _configthreadlocale(
+            int per_thread_locale_type
+        );
+        """
         (mode,) = argv
         rv = self.thread_locale
         if mode in (ENABLE_PER_THREAD_LOCALE, DISABLE_PER_THREAD_LOCALE):
@@ -5210,17 +5562,31 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_crt_atexit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _crt_atexit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _crt_atexit(_PVFV function);"""
+        """
+        int _crt_atexit(
+            _PVFV function
+        );
+        """
         return 0
 
     @apihook("_crt_at_quick_exit", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _crt_at_quick_exit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _crt_at_quick_exit(_PVFV function);"""
+        """
+        int _crt_at_quick_exit(
+            _PVFV function
+        );
+        """
         return 0
 
     @apihook("_controlfp_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _controlfp_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """errno_t _controlfp_s(unsigned int *currentControl, unsigned int newControl, unsigned int mask);"""
+        """
+        errno_t _controlfp_s(
+            unsigned int *currentControl,
+            unsigned int newControl,
+            unsigned int mask
+        );
+        """
         return 0
 
     @apihook("terminate", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -5229,12 +5595,16 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("__std_terminate", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __std_terminate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void __std_terminate(void);"""
+        """
+        void __std_terminate();
+        """
         self.exit_process()
 
     @apihook("_purecall", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _purecall(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _purecall(void);"""
+        """
+        int _purecall();
+        """
         self.exit_process()
 
     @apihook("_initialize_narrow_environment", argc=0, conv=e_arch.CALL_CONV_CDECL)
@@ -5255,7 +5625,11 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_set_fmode", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _set_fmode(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """errno_t _set_fmode(int mode);"""
+        """
+        errno_t _set_fmode(
+            int mode
+        );
+        """
         (mode,) = argv
         if mode not in (O_TEXT, O_BINARY):
             return EINVAL
@@ -5328,70 +5702,120 @@ class Msvcrt(api.ApiHandler):
     @apihook("_itoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _itoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _itoa_s(int value, char *buffer, size_t size, int radix);
+        errno_t _itoa_s(
+            int value,
+            char *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, True, 1)
 
     @apihook("_itow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _itow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _itow_s(int value, wchar_t *buffer, size_t size, int radix);
+        errno_t _itow_s(
+            int value,
+            wchar_t *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, True, 2)
 
     @apihook("_ltoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _ltoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ltoa_s(long value, char *buffer, size_t size, int radix);
+        errno_t _ltoa_s(
+            long value,
+            char *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, True, 1)
 
     @apihook("_ltow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _ltow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ltow_s(long value, wchar_t *buffer, size_t size, int radix);
+        errno_t _ltow_s(
+            long value,
+            wchar_t *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, True, 2)
 
     @apihook("_ultoa_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _ultoa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ultoa_s(unsigned long value, char *buffer, size_t size, int radix);
+        errno_t _ultoa_s(
+            unsigned long value,
+            char *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, False, 1)
 
     @apihook("_ultow_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def _ultow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ultow_s(unsigned long value, wchar_t *buffer, size_t size, int radix);
+        errno_t _ultow_s(
+            unsigned long value,
+            wchar_t *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 32, False, 2)
 
     @apihook("_i64toa_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def _i64toa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _i64toa_s(__int64 value, char *buffer, size_t size, int radix);
+        errno_t _i64toa_s(
+            value,
+            char *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 64, True, 1)
 
     @apihook("_i64tow_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def _i64tow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _i64tow_s(__int64 value, wchar_t *buffer, size_t size, int radix);
+        errno_t _i64tow_s(
+            value,
+            wchar_t *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 64, True, 2)
 
     @apihook("_ui64toa_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def _ui64toa_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ui64toa_s(unsigned __int64 value, char *buffer, size_t size, int radix);
+        errno_t _ui64toa_s(
+            unsigned value,
+            char *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 64, False, 1)
 
     @apihook("_ui64tow_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
     def _ui64tow_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        errno_t _ui64tow_s(unsigned __int64 value, wchar_t *buffer, size_t size, int radix);
+        errno_t _ui64tow_s(
+            unsigned value,
+            wchar_t *buffer,
+            size_t size,
+            int radix
+        );
         """
         return self.convert_int_s(argv, 64, False, 2)
 
@@ -5468,17 +5892,32 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_setjmp", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _setjmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _setjmp(jmp_buf env);"""
+        """
+        int _setjmp(
+            jmp_buf env
+        );
+        """
         return self.save_jump_buffer(emu, argv[0])
 
     @apihook("_setjmp3", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _setjmp3(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _setjmp3(jmp_buf env, int count, ...);"""
+        """
+        int _setjmp3(
+            jmp_buf env,
+            int count,
+            ...
+        );
+        """
         return self.save_jump_buffer(emu, emu.read_ptr(emu.get_stack_ptr() + 4))
 
     @apihook("_setjmpex", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _setjmpex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _setjmpex(jmp_buf env, void *frame);"""
+        """
+        int _setjmpex(
+            jmp_buf env,
+            void *frame
+        );
+        """
         return self.save_jump_buffer(emu, argv[0])
 
     @apihook("__intrinsic_setjmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -5493,7 +5932,12 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("longjmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def longjmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void longjmp(jmp_buf env, int value);"""
+        """
+        void longjmp(
+            jmp_buf env,
+            int value
+        );
+        """
         buf, value = argv
         value = (value & 0xFFFFFFFF) or 1
         regs, sp_off, pc_off = self.jump_buffer_layout(emu)
@@ -5606,9 +6050,9 @@ class Msvcrt(api.ApiHandler):
     def _stricmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _stricmp(
-                const char *string1,
-                const char *string2
-                );
+            const char *string1,
+            const char *string2
+        );
         """
         string1, string2 = argv
         rv = 1
@@ -5658,7 +6102,7 @@ class Msvcrt(api.ApiHandler):
         int wcsicmp(
             const wchar_t *string1,
             const wchar_t *string2
-            );
+        );
         """
         string1, string2 = argv
         rv = 1
@@ -5700,9 +6144,9 @@ class Msvcrt(api.ApiHandler):
         int _snwprintf(
             wchar_t *buffer,
             size_t count,
-            const wchar_t *format [,
-            argument] ...
-            );
+            const wchar_t *format,
+            ...
+        );
         """
         buf, cnt, fmt = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
         fmt_str = self.read_wide_string(fmt)
@@ -5738,9 +6182,9 @@ class Msvcrt(api.ApiHandler):
         """
         int swprintf(
             wchar_t *buffer,
-            const wchar_t *format [,
-            argument] ...
-            );
+            const wchar_t *format,
+            ...
+        );
 
         msvcrt.dll exports the form without a count.
         """
@@ -5752,7 +6196,13 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_swprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _swprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _swprintf(wchar_t *buffer, const wchar_t *format [, argument] ...);"""
+        """
+        int _swprintf(
+            wchar_t *buffer,
+            const wchar_t *format,
+            ...
+        );
+        """
         return self.swprintf(emu, argv, ctx)
 
     @apihook("vswprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -5774,7 +6224,13 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_vswprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _vswprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _vswprintf(wchar_t *buffer, const wchar_t *format, va_list argptr);"""
+        """
+        int _vswprintf(
+            wchar_t *buffer,
+            const wchar_t *format,
+            va_list argptr
+        );
+        """
         return self.vswprintf(emu, argv, ctx)
 
     @apihook("_vsnwprintf", argc=4, conv=e_arch.CALL_CONV_CDECL)
@@ -5798,19 +6254,41 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("sprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int sprintf_s(char *buffer, size_t sizeOfBuffer, const char *format [, argument] ...);"""
+        """
+        int sprintf_s(
+            char *buffer,
+            size_t sizeOfBuffer,
+            const char *format,
+            ...
+        );
+        """
         (buf, size, _), fin = self.format_var_args(emu, 3, 1)
         return self.write_secure_format(buf, size, None, fin, "utf-8", ctx.args[0])
 
     @apihook("swprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def swprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int swprintf_s(wchar_t *buffer, size_t sizeOfBuffer, const wchar_t *format [, argument] ...);"""
+        """
+        int swprintf_s(
+            wchar_t *buffer,
+            size_t sizeOfBuffer,
+            const wchar_t *format,
+            ...
+        );
+        """
         (buf, size, _), fin = self.format_var_args(emu, 3, 2)
         return self.write_secure_format(buf, size, None, fin, "utf-16le", ctx.args[0])
 
     @apihook("_snprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _snprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _snprintf_s(char *buffer, size_t sizeOfBuffer, size_t count, const char *format [, argument] ...);"""
+        """
+        int _snprintf_s(
+            char *buffer,
+            size_t sizeOfBuffer,
+            size_t count,
+            const char *format,
+            ...
+        );
+        """
         (buf, size, count, _), fin = self.format_var_args(emu, 4, 1)
         return self.write_secure_format(buf, size, count, fin, "utf-8", ctx.args[0])
 
@@ -5821,8 +6299,8 @@ class Msvcrt(api.ApiHandler):
             wchar_t *buffer,
             size_t sizeOfBuffer,
             size_t count,
-            const wchar_t *format [,
-            argument] ...
+            const wchar_t *format,
+            ...
         );
         """
         (buf, size, count, _), fin = self.format_var_args(emu, 4, 2)
@@ -5830,39 +6308,73 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("vsprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def vsprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int vsprintf_s(char *buffer, size_t numberOfElements, const char *format, va_list argptr);"""
+        """
+        int vsprintf_s(
+            char *buffer,
+            size_t numberOfElements,
+            const char *format,
+            va_list argptr
+        );
+        """
         buffer, size, _format, argptr = argv
         fin = self.format_va_list(_format, argptr, 1)
         return self.write_secure_format(buffer, size, None, fin, "utf-8", ctx.args[0])
 
     @apihook("vswprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def vswprintf_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int vswprintf_s(wchar_t *buffer, size_t numberOfElements, const wchar_t *format, va_list argptr);"""
+        """
+        int vswprintf_s(
+            wchar_t *buffer,
+            size_t numberOfElements,
+            const wchar_t *format,
+            va_list argptr
+        );
+        """
         buffer, size, _format, argptr = argv
         fin = self.format_va_list(_format, argptr, 2)
         return self.write_secure_format(buffer, size, None, fin, "utf-16le", ctx.args[0])
 
     @apihook("_scprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _scprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _scprintf(const char *format [, argument] ...);"""
+        """
+        int _scprintf(
+            const char *format,
+            ...
+        );
+        """
         _, fin = self.format_var_args(emu, 1, 1)
         return len(fin)
 
     @apihook("_scwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _scwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _scwprintf(const wchar_t *format [, argument] ...);"""
+        """
+        int _scwprintf(
+            const wchar_t *format,
+            ...
+        );
+        """
         _, fin = self.format_var_args(emu, 1, 2)
         return len(fin)
 
     @apihook("_vscprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _vscprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _vscprintf(const char *format, va_list argptr);"""
+        """
+        int _vscprintf(
+            const char *format,
+            va_list argptr
+        );
+        """
         _format, argptr = argv
         return len(self.format_va_list(_format, argptr, 1))
 
     @apihook("_vscwprintf", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _vscwprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _vscwprintf(const wchar_t *format, va_list argptr);"""
+        """
+        int _vscwprintf(
+            const wchar_t *format,
+            va_list argptr
+        );
+        """
         _format, argptr = argv
         return len(self.format_va_list(_format, argptr, 2))
 
@@ -5887,7 +6399,7 @@ class Msvcrt(api.ApiHandler):
     def strerror(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *strerror(
-           int errnum
+            int errnum
         );
 
         Each call writes the message to the same buffer.
@@ -5905,7 +6417,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("___lc_codepage_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def ___lc_codepage_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        UINT ___lc_codepage_func(void);
+        UINT ___lc_codepage_func();
 
         The C locale has code page 0.
         """
@@ -5914,7 +6426,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("___lc_locale_name_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def ___lc_locale_name_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        wchar_t** ___lc_locale_name_func(void);
+        wchar_t **___lc_locale_name_func();
 
         The C locale has no name for any category.
         """
@@ -5925,7 +6437,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("___mb_cur_max_func", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def ___mb_cur_max_func(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int ___mb_cur_max_func(void);
+        int ___mb_cur_max_func();
 
         The C locale has single-byte characters.
         """
@@ -5945,7 +6457,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("localeconv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def localeconv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        struct lconv *localeconv(void);
+        struct lconv *localeconv();
 
         The struct has 10 char pointers, 8 chars, and 8 wchar_t pointers. The
         C locale has "." as the decimal point, empty strings for the other
@@ -5978,25 +6490,29 @@ class Msvcrt(api.ApiHandler):
     @apihook("__uninitialize_lconv_for_unsigned_char", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __uninitialize_lconv_for_unsigned_char(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int __uninitialize_lconv_for_unsigned_char(void);
+        int __uninitialize_lconv_for_unsigned_char();
         """
         return 0
 
     @apihook("__lconv_init", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __lconv_init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int __lconv_init(void);
+        int __lconv_init();
         """
         return 0
 
     @apihook("_lock_locales", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _lock_locales(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _lock_locales(void);"""
+        """
+        void _lock_locales();
+        """
         return
 
     @apihook("_unlock_locales", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _unlock_locales(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """void _unlock_locales(void);"""
+        """
+        void _unlock_locales();
+        """
         return
 
     @apihook("setlocale", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -6023,7 +6539,7 @@ class Msvcrt(api.ApiHandler):
         FILE *fopen(
             const char *filename,
             const char *mode
-            );
+        );
         """
         filename, mode = argv
 
@@ -6044,7 +6560,7 @@ class Msvcrt(api.ApiHandler):
         FILE *_wfopen(
             const wchar_t *filename,
             const wchar_t *mode
-            );
+        );
         """
         filename, mode = argv
 
@@ -6079,13 +6595,25 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_fsopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _fsopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_fsopen(const char *filename, const char *mode, int shflag);"""
+        """
+        FILE *_fsopen(
+            const char *filename,
+            const char *mode,
+            int shflag
+        );
+        """
         filename, mode, _ = argv
         return self.open_stream_args(filename, mode, 1, ctx)
 
     @apihook("_wfsopen", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _wfsopen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """FILE *_wfsopen(const wchar_t *filename, const wchar_t *mode, int shflag);"""
+        """
+        FILE *_wfsopen(
+            const wchar_t *filename,
+            const wchar_t *mode,
+            int shflag
+        );
+        """
         filename, mode, _ = argv
         return self.open_stream_args(filename, mode, 2, ctx)
 
@@ -6102,12 +6630,24 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("fopen_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def fopen_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """errno_t fopen_s(FILE **pFile, const char *filename, const char *mode);"""
+        """
+        errno_t fopen_s(
+            FILE **pFile,
+            const char *filename,
+            const char *mode
+        );
+        """
         return self.open_stream_s(argv, 1, ctx)
 
     @apihook("_wfopen_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def _wfopen_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """errno_t _wfopen_s(FILE **pFile, const wchar_t *filename, const wchar_t *mode);"""
+        """
+        errno_t _wfopen_s(
+            FILE **pFile,
+            const wchar_t *filename,
+            const wchar_t *mode
+        );
+        """
         return self.open_stream_s(argv, 2, ctx)
 
     def open_stream_file(self, path, mode_str):
@@ -6156,7 +6696,7 @@ class Msvcrt(api.ApiHandler):
             const char *filename,
             const char *mode,
             FILE *stream
-            );
+        );
         """
         filename, mode, stream = argv
         if not mode or not stream:
@@ -6171,7 +6711,7 @@ class Msvcrt(api.ApiHandler):
             const char *filename,
             const char *mode,
             FILE *stream
-            );
+        );
         """
         pFile, filename, mode, stream = argv
         if not pFile or not mode or not stream:
@@ -6185,7 +6725,7 @@ class Msvcrt(api.ApiHandler):
         """
         int fclose(
             FILE *stream
-            );
+        );
         """
         (stream,) = argv
 
@@ -6272,8 +6812,8 @@ class Msvcrt(api.ApiHandler):
     def _findfirst(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         intptr_t _findfirst(
-           const char *filespec,
-           struct _finddata_t *fileinfo
+            const char *filespec,
+            struct _finddata_t *fileinfo
         );
         """
         filespec, fileinfo = argv
@@ -6294,8 +6834,8 @@ class Msvcrt(api.ApiHandler):
     def _findnext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _findnext(
-           intptr_t handle,
-           struct _finddata_t *fileinfo
+            intptr_t handle,
+            struct _finddata_t *fileinfo
         );
         """
         handle, fileinfo = argv
@@ -6312,7 +6852,7 @@ class Msvcrt(api.ApiHandler):
     def _findclose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _findclose(
-           intptr_t handle
+            intptr_t handle
         );
         """
         if self.find_searches.pop(argv[0], None) is None:
@@ -6382,12 +6922,22 @@ class Msvcrt(api.ApiHandler):
 
     @apihook("_access", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _access(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _access(const char *path, int mode);"""
+        """
+        int _access(
+            const char *path,
+            int mode
+        );
+        """
         return self.access_path(argv, 1, ctx)
 
     @apihook("_waccess", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _waccess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """int _waccess(const wchar_t *path, int mode);"""
+        """
+        int _waccess(
+            const wchar_t *path,
+            int mode
+        );
+        """
         return self.access_path(argv, 2, ctx)
 
     def access_path(self, argv, width, ctx):
@@ -6535,7 +7085,7 @@ class Msvcrt(api.ApiHandler):
         """
         int fflush(
             FILE *stream
-            );
+        );
         """
         return 0
 
@@ -6546,7 +7096,7 @@ class Msvcrt(api.ApiHandler):
             FILE *stream,
             long offset,
             int origin
-            );
+        );
         """
         stream, offset, origin = argv
         ctx.args[0].display = hex(self.file_streams.get(stream) or 0)
@@ -6559,9 +7109,9 @@ class Msvcrt(api.ApiHandler):
         """
         int _fseeki64(
             FILE *stream,
-            __int64 offset,
+            offset,
             int origin
-            );
+        );
 
         The offset takes two stack slots on x86 and one register on x64.
         """
@@ -6604,7 +7154,7 @@ class Msvcrt(api.ApiHandler):
         int fgetpos(
             FILE *stream,
             fpos_t *pos
-            );
+        );
         """
         stream, pos = argv
         fobj = self.get_stream_file(stream)
@@ -6620,7 +7170,7 @@ class Msvcrt(api.ApiHandler):
         int fsetpos(
             FILE *stream,
             const fpos_t *pos
-            );
+        );
         """
         stream, pos = argv
         if not pos:
@@ -6634,7 +7184,7 @@ class Msvcrt(api.ApiHandler):
         """
         long ftell(
             FILE *stream
-            );
+        );
         """
         (stream,) = argv
         hfile = self.file_streams.get(stream)
@@ -6659,7 +7209,7 @@ class Msvcrt(api.ApiHandler):
             size_t size,
             size_t count,
             FILE *stream
-            );
+        );
         """
         ptr, size, count, stream = argv
         hfile = self.file_streams.get(stream)
@@ -6687,7 +7237,7 @@ class Msvcrt(api.ApiHandler):
             char *str,
             int numChars,
             FILE *stream
-            );
+        );
 
         A stream that is not from fopen, such as stdin, is at end of file.
         """
@@ -6716,7 +7266,7 @@ class Msvcrt(api.ApiHandler):
         """
         int fgetc(
             FILE *stream
-            );
+        );
 
         A stream that is not from fopen, such as stdin, is at end of file.
         """
@@ -6731,7 +7281,7 @@ class Msvcrt(api.ApiHandler):
         """
         int getc(
             FILE *stream
-            );
+        );
         """
         return self.fgetc(emu, argv, ctx)
 
@@ -6741,7 +7291,7 @@ class Msvcrt(api.ApiHandler):
         int ungetc(
             int c,
             FILE *stream
-            );
+        );
 
         Only the character that was read last can go back, because the stream
         has no pushback buffer.
@@ -6768,7 +7318,7 @@ class Msvcrt(api.ApiHandler):
             size_t size,
             size_t count,
             FILE *stream
-            );
+        );
         """
         buffer, size, count, stream = argv
         if not buffer or size == 0 or count == 0:
@@ -6857,9 +7407,9 @@ class Msvcrt(api.ApiHandler):
     def _fullpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *_fullpath(
-           char *absPath,
-           const char *relPath,
-           size_t maxLength
+            char *absPath,
+            const char *relPath,
+            size_t maxLength
         );
         """
         abs_path, rel_path, max_length = argv
@@ -6931,11 +7481,11 @@ class Msvcrt(api.ApiHandler):
     def _makepath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _makepath(
-           char *path,
-           const char *drive,
-           const char *dir,
-           const char *fname,
-           const char *ext
+            char *path,
+            const char *drive,
+            const char *dir,
+            const char *fname,
+            const char *ext
         );
         """
         self.make_path(ctx, argv[0], None, argv[1:], 1)
@@ -6944,11 +7494,11 @@ class Msvcrt(api.ApiHandler):
     def _wmakepath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _wmakepath(
-           wchar_t *path,
-           const wchar_t *drive,
-           const wchar_t *dir,
-           const wchar_t *fname,
-           const wchar_t *ext
+            wchar_t *path,
+            const wchar_t *drive,
+            const wchar_t *dir,
+            const wchar_t *fname,
+            const wchar_t *ext
         );
         """
         self.make_path(ctx, argv[0], None, argv[1:], 2)
@@ -6957,12 +7507,12 @@ class Msvcrt(api.ApiHandler):
     def _makepath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t _makepath_s(
-           char *path,
-           size_t sizeInCharacters,
-           const char *drive,
-           const char *dir,
-           const char *fname,
-           const char *ext
+            char *path,
+            size_t sizeInCharacters,
+            const char *drive,
+            const char *dir,
+            const char *fname,
+            const char *ext
         );
         """
         return self.make_path(ctx, argv[0], argv[1], argv[2:], 1)
@@ -6971,12 +7521,12 @@ class Msvcrt(api.ApiHandler):
     def _wmakepath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t _wmakepath_s(
-           wchar_t *path,
-           size_t sizeInWords,
-           const wchar_t *drive,
-           const wchar_t *dir,
-           const wchar_t *fname,
-           const wchar_t *ext
+            wchar_t *path,
+            size_t sizeInWords,
+            const wchar_t *drive,
+            const wchar_t *dir,
+            const wchar_t *fname,
+            const wchar_t *ext
         );
         """
         return self.make_path(ctx, argv[0], argv[1], argv[2:], 2)
@@ -6985,11 +7535,11 @@ class Msvcrt(api.ApiHandler):
     def _splitpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _splitpath(
-           const char *path,
-           char *drive,
-           char *dir,
-           char *fname,
-           char *ext
+            const char *path,
+            char *drive,
+            char *dir,
+            char *fname,
+            char *ext
         );
         """
         self.split_path(ctx, argv[0], argv[1:], 1)
@@ -6998,11 +7548,11 @@ class Msvcrt(api.ApiHandler):
     def _wsplitpath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _wsplitpath(
-           const wchar_t *path,
-           wchar_t *drive,
-           wchar_t *dir,
-           wchar_t *fname,
-           wchar_t *ext
+            const wchar_t *path,
+            wchar_t *drive,
+            wchar_t *dir,
+            wchar_t *fname,
+            wchar_t *ext
         );
         """
         self.split_path(ctx, argv[0], argv[1:], 2)
@@ -7011,15 +7561,15 @@ class Msvcrt(api.ApiHandler):
     def _splitpath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t _splitpath_s(
-           const char *path,
-           char *drive,
-           size_t driveNumberOfElements,
-           char *dir,
-           size_t dirNumberOfElements,
-           char *fname,
-           size_t nameNumberOfElements,
-           char *ext,
-           size_t extNumberOfElements
+            const char *path,
+            char *drive,
+            size_t driveNumberOfElements,
+            char *dir,
+            size_t dirNumberOfElements,
+            char *fname,
+            size_t nameNumberOfElements,
+            char *ext,
+            size_t extNumberOfElements
         );
         """
         return self.split_path_s(ctx, argv[0], argv[1:], 1)
@@ -7028,15 +7578,15 @@ class Msvcrt(api.ApiHandler):
     def _wsplitpath_s(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         errno_t _wsplitpath_s(
-           const wchar_t *path,
-           wchar_t *drive,
-           size_t driveNumberOfElements,
-           wchar_t *dir,
-           size_t dirNumberOfElements,
-           wchar_t *fname,
-           size_t nameNumberOfElements,
-           wchar_t *ext,
-           size_t extNumberOfElements
+            const wchar_t *path,
+            wchar_t *drive,
+            size_t driveNumberOfElements,
+            wchar_t *dir,
+            size_t dirNumberOfElements,
+            wchar_t *fname,
+            size_t nameNumberOfElements,
+            wchar_t *ext,
+            size_t extNumberOfElements
         );
         """
         return self.split_path_s(ctx, argv[0], argv[1:], 2)
@@ -7044,7 +7594,7 @@ class Msvcrt(api.ApiHandler):
     @apihook("signal", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def signal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void __cdecl *signal(
+        void *signal(
             int sig,
             int (*func)(int, int)
         );

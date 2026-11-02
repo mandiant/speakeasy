@@ -56,13 +56,13 @@ class Crypt32(api.ApiHandler):
     def CryptStringToBinary(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptStringToBinaryA(
-        LPCSTR pszString,
-        DWORD  cchString,
-        DWORD  dwFlags,
-        BYTE   *pbBinary,
-        DWORD  *pcbBinary,
-        DWORD  *pdwSkip,
-        DWORD  *pdwFlags
+            LPCSTR pszString,
+            DWORD cchString,
+            DWORD dwFlags,
+            BYTE *pbBinary,
+            DWORD *pcbBinary,
+            DWORD *pdwSkip,
+            DWORD *pdwFlags
         );
         """
         cw = self.get_char_width(ctx)
@@ -128,13 +128,13 @@ class Crypt32(api.ApiHandler):
     def CryptProtectData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptProtectData(
-          DATA_BLOB                 *pDataIn,
-          LPCWSTR                   szDataDescr,
-          DATA_BLOB                 *pOptionalEntropy,
-          PVOID                     pvReserved,
-          CRYPTPROTECT_PROMPTSTRUCT *pPromptStruct,
-          DWORD                     dwFlags,
-          DATA_BLOB                 *pDataOut
+            DATA_BLOB *pDataIn,
+            LPCWSTR szDataDescr,
+            DATA_BLOB *pOptionalEntropy,
+            PVOID pvReserved,
+            CRYPTPROTECT_PROMPTSTRUCT *pPromptStruct,
+            DWORD dwFlags,
+            DATA_BLOB *pDataOut
         );
         """
         pDataIn, szDataDescr, pOptionalEntropy, pvReserved, pPromptStruct, dwFlags, pDataOut = argv
@@ -161,13 +161,13 @@ class Crypt32(api.ApiHandler):
     def CryptUnprotectData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptUnprotectData(
-          DATA_BLOB                 *pDataIn,
-          LPWSTR                    *ppszDataDescr,
-          DATA_BLOB                 *pOptionalEntropy,
-          PVOID                     pvReserved,
-          CRYPTPROTECT_PROMPTSTRUCT *pPromptStruct,
-          DWORD                     dwFlags,
-          DATA_BLOB                 *pDataOut
+            DATA_BLOB *pDataIn,
+            LPWSTR *ppszDataDescr,
+            DATA_BLOB *pOptionalEntropy,
+            PVOID pvReserved,
+            CRYPTPROTECT_PROMPTSTRUCT *pPromptStruct,
+            DWORD dwFlags,
+            DATA_BLOB *pDataOut
         );
         """
         pDataIn, ppszDataDescr, pOptionalEntropy, pvReserved, pPromptStruct, dwFlags, pDataOut = argv

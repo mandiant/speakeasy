@@ -162,10 +162,10 @@ class Psapi(api.ApiHandler):
     def GetModuleInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetModuleInformation(
-          HANDLE       hProcess,
-          HMODULE      hModule,
-          LPMODULEINFO lpmodinfo,
-          DWORD        cb
+            HANDLE hProcess,
+            HMODULE hModule,
+            LPMODULEINFO lpmodinfo,
+            DWORD cb
         );
         """
         hProcess, hModule, lpmodinfo, cb = argv

@@ -25,7 +25,7 @@ class RPCRT4(api.ApiHandler):
     def UuidCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         RPC_STATUS UuidCreate(
-          UUID *Uuid
+            UUID *Uuid
         );
         """
         (uuidp,) = argv
@@ -41,8 +41,8 @@ class RPCRT4(api.ApiHandler):
     def UuidToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         RPC_STATUS UuidToStringA(
-          const UUID *Uuid,
-          RPC_CSTR   *StringUuid
+            const UUID *Uuid,
+            RPC_CSTR *StringUuid
         );
         """
         uuidp, stringp = argv
@@ -90,9 +90,9 @@ class RPCRT4(api.ApiHandler):
     def NdrDllRegisterProxy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllRegisterProxy(
-          HMODULE              hDll,
-          const ProxyFileInfo **pProxyFileList,
-          const CLSID          *pclsid
+            HMODULE hDll,
+            const ProxyFileInfo **pProxyFileList,
+            const CLSID *pclsid
         );
         """
         hDll, pProxyFileList, pclsid = argv
@@ -128,9 +128,9 @@ class RPCRT4(api.ApiHandler):
     def NdrDllUnregisterProxy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllUnregisterProxy(
-          HMODULE              hDll,
-          const ProxyFileInfo **pProxyFileList,
-          const CLSID          *pclsid
+            HMODULE hDll,
+            const ProxyFileInfo **pProxyFileList,
+            const CLSID *pclsid
         );
         """
         return comdefs.S_OK
@@ -139,12 +139,12 @@ class RPCRT4(api.ApiHandler):
     def NdrDllGetClassObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllGetClassObject(
-          REFCLSID             rclsid,
-          REFIID               riid,
-          void                 **ppv,
-          const ProxyFileInfo  **pProxyFileList,
-          const CLSID          *pclsid,
-          CStdPSFactoryBuffer  *pPSFactoryBuffer
+            REFCLSID rclsid,
+            REFIID riid,
+            void **ppv,
+            const ProxyFileInfo **pProxyFileList,
+            const CLSID *pclsid,
+            CStdPSFactoryBuffer *pPSFactoryBuffer
         );
         """
         _rclsid, _riid, ppv, _proxy_file_list, _pclsid, _factory = argv
@@ -157,7 +157,7 @@ class RPCRT4(api.ApiHandler):
     def NdrDllCanUnloadNow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllCanUnloadNow(
-          CStdPSFactoryBuffer *pPSFactoryBuffer
+            CStdPSFactoryBuffer *pPSFactoryBuffer
         );
         """
         (factory,) = argv

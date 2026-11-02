@@ -24,7 +24,13 @@ class Winmm(api.ApiHandler):
     @apihook("DefDriverProc", argc=5)
     def DefDriverProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LRESULT DefDriverProc(DWORD_PTR dwDriverIdentifier, HDRVR hdrvr, UINT uMsg, LPARAM lParam1, LPARAM lParam2);
+        LRESULT DefDriverProc(
+            DWORD_PTR dwDriverIdentifier,
+            HDRVR hdrvr,
+            UINT uMsg,
+            LPARAM lParam1,
+            LPARAM lParam2
+        );
         """
         _, _, msg, _, _ = argv
         if msg in (DRV_LOAD, DRV_ENABLE, DRV_DISABLE, DRV_FREE, DRV_INSTALL, DRV_REMOVE):
@@ -34,14 +40,18 @@ class Winmm(api.ApiHandler):
     @apihook("timeBeginPeriod", argc=1)
     def timeBeginPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        MMRESULT timeBeginPeriod(UINT uPeriod);
+        MMRESULT timeBeginPeriod(
+            UINT uPeriod
+        );
         """
         return 0  # TIMERR_NOERROR
 
     @apihook("timeEndPeriod", argc=1)
     def timeEndPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        MMRESULT timeEndPeriod(UINT uPeriod);
+        MMRESULT timeEndPeriod(
+            UINT uPeriod
+        );
         """
         return 0  # TIMERR_NOERROR
 

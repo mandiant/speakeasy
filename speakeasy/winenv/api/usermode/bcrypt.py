@@ -58,10 +58,10 @@ class Bcrypt(api.ApiHandler):
     def BCryptOpenAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptOpenAlgorithmProvider(
-          BCRYPT_ALG_HANDLE *phAlgorithm,
-          LPCWSTR           pszAlgId,
-          LPCWSTR           pszImplementation,
-          ULONG             dwFlags
+            BCRYPT_ALG_HANDLE *phAlgorithm,
+            LPCWSTR pszAlgId,
+            LPCWSTR pszImplementation,
+            ULONG dwFlags
         );
         """
         phAlgorithm, pszAlgId, pszImplementation, dwFlags = argv
@@ -88,13 +88,13 @@ class Bcrypt(api.ApiHandler):
     def BCryptImportKeyPair(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptImportKeyPair(
-          BCRYPT_ALG_HANDLE hAlgorithm,
-          BCRYPT_KEY_HANDLE hImportKey,
-          LPCWSTR           pszBlobType,
-          BCRYPT_KEY_HANDLE *phKey,
-          PUCHAR            pbInput,
-          ULONG             cbInput,
-          ULONG             dwFlags
+            BCRYPT_ALG_HANDLE hAlgorithm,
+            BCRYPT_KEY_HANDLE hImportKey,
+            LPCWSTR pszBlobType,
+            BCRYPT_KEY_HANDLE *phKey,
+            PUCHAR pbInput,
+            ULONG cbInput,
+            ULONG dwFlags
         );
         """
         hAlgorithm, hImportKey, pszBlobType, phKey, pbInput, cbInput, dwFlags = argv
@@ -122,8 +122,8 @@ class Bcrypt(api.ApiHandler):
     def BCryptCloseAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptCloseAlgorithmProvider(
-          BCRYPT_ALG_HANDLE hAlgorithm,
-          ULONG             dwFlags
+            BCRYPT_ALG_HANDLE hAlgorithm,
+            ULONG dwFlags
         );
         """
         hAlgorithm, dwFlags = argv
@@ -139,12 +139,12 @@ class Bcrypt(api.ApiHandler):
     def BCryptGetProperty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGetProperty(
-          BCRYPT_HANDLE hObject,
-          LPCWSTR       pszProperty,
-          PUCHAR        pbOutput,
-          ULONG         cbOutput,
-          ULONG         *pcbResult,
-          ULONG         dwFlags
+            BCRYPT_HANDLE hObject,
+            LPCWSTR pszProperty,
+            PUCHAR pbOutput,
+            ULONG cbOutput,
+            ULONG *pcbResult,
+            ULONG dwFlags
         );
         """
         hObject, pszProperty, pbOutput, cbOutput, pcbResult, dwFlags = argv
@@ -176,11 +176,11 @@ class Bcrypt(api.ApiHandler):
     def BCryptSetProperty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptSetProperty(
-          BCRYPT_HANDLE hObject,
-          LPCWSTR       pszProperty,
-          PUCHAR        pbInput,
-          ULONG         cbInput,
-          ULONG         dwFlags
+            BCRYPT_HANDLE hObject,
+            LPCWSTR pszProperty,
+            PUCHAR pbInput,
+            ULONG cbInput,
+            ULONG dwFlags
         );
         """
         hObject, pszProperty, pbInput, cbInput, dwFlags = argv
@@ -205,13 +205,13 @@ class Bcrypt(api.ApiHandler):
     def BCryptGenerateSymmetricKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenerateSymmetricKey(
-          BCRYPT_ALG_HANDLE hAlgorithm,
-          BCRYPT_KEY_HANDLE *phKey,
-          PUCHAR            pbKeyObject,
-          ULONG             cbKeyObject,
-          PUCHAR            pbSecret,
-          ULONG             cbSecret,
-          ULONG             dwFlags
+            BCRYPT_ALG_HANDLE hAlgorithm,
+            BCRYPT_KEY_HANDLE *phKey,
+            PUCHAR pbKeyObject,
+            ULONG cbKeyObject,
+            PUCHAR pbSecret,
+            ULONG cbSecret,
+            ULONG dwFlags
         );
         """
         hAlgorithm, phKey, pbKeyObject, cbKeyObject, pbSecret, cbSecret, dwFlags = argv
@@ -235,16 +235,16 @@ class Bcrypt(api.ApiHandler):
     def BCryptEncrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptEncrypt(
-          BCRYPT_KEY_HANDLE hKey,
-          PUCHAR            pbInput,
-          ULONG             cbInput,
-          VOID              *pPaddingInfo,
-          PUCHAR            pbIV,
-          ULONG             cbIV,
-          PUCHAR            pbOutput,
-          ULONG             cbOutput,
-          ULONG             *pcbResult,
-          ULONG             dwFlags
+            BCRYPT_KEY_HANDLE hKey,
+            PUCHAR pbInput,
+            ULONG cbInput,
+            VOID *pPaddingInfo,
+            PUCHAR pbIV,
+            ULONG cbIV,
+            PUCHAR pbOutput,
+            ULONG cbOutput,
+            ULONG *pcbResult,
+            ULONG dwFlags
         );
         """
         return self.aes_crypt(emu, argv, ctx, encrypt=True)
@@ -253,16 +253,16 @@ class Bcrypt(api.ApiHandler):
     def BCryptDecrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDecrypt(
-          BCRYPT_KEY_HANDLE hKey,
-          PUCHAR            pbInput,
-          ULONG             cbInput,
-          VOID              *pPaddingInfo,
-          PUCHAR            pbIV,
-          ULONG             cbIV,
-          PUCHAR            pbOutput,
-          ULONG             cbOutput,
-          ULONG             *pcbResult,
-          ULONG             dwFlags
+            BCRYPT_KEY_HANDLE hKey,
+            PUCHAR pbInput,
+            ULONG cbInput,
+            VOID *pPaddingInfo,
+            PUCHAR pbIV,
+            ULONG cbIV,
+            PUCHAR pbOutput,
+            ULONG cbOutput,
+            ULONG *pcbResult,
+            ULONG dwFlags
         );
         """
         return self.aes_crypt(emu, argv, ctx, encrypt=False)
@@ -376,7 +376,7 @@ class Bcrypt(api.ApiHandler):
     def BCryptDestroyKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDestroyKey(
-          BCRYPT_KEY_HANDLE hKey
+            BCRYPT_KEY_HANDLE hKey
         );
         """
         (hKey,) = argv
@@ -393,10 +393,10 @@ class Bcrypt(api.ApiHandler):
     def BCryptGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenRandom(
-          BCRYPT_ALG_HANDLE hAlgorithm,
-          PUCHAR            pbBuffer,
-          ULONG             cbBuffer,
-          ULONG             dwFlags
+            BCRYPT_ALG_HANDLE hAlgorithm,
+            PUCHAR pbBuffer,
+            ULONG cbBuffer,
+            ULONG dwFlags
         );
         """
         hAlgorithm, pbBuffer, cbBuffer, dwFlags = argv

@@ -110,10 +110,11 @@ class Ndis(api.ApiHandler):
     def NdisInitializeWrapper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisInitializeWrapper(
-            PNDIS_HANDLE    NdisWrapperHandle,
-            PVOID           SystemSpecific1,
-            PVOID           SystemSpecific2,
-            PVOID           SystemSpecific3)
+            PNDIS_HANDLE NdisWrapperHandle,
+            PVOID SystemSpecific1,
+            PVOID SystemSpecific2,
+            PVOID SystemSpecific3
+        );
         """
         pHandle, ss1, ss2, ss3 = argv
 
@@ -125,8 +126,8 @@ class Ndis(api.ApiHandler):
     def NdisTerminateWrapper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisTerminateWrapper(
-        _In_ NDIS_HANDLE NdisWrapperHandle,
-        _In_ PVOID       SystemSpecific
+            NDIS_HANDLE NdisWrapperHandle,
+            PVOID SystemSpecific
         );
         """
         hnd, ss = argv
@@ -144,8 +145,8 @@ class Ndis(api.ApiHandler):
     def NdisMRegisterUnloadHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisMRegisterUnloadHandler(
-        _In_ NDIS_HANDLE    NdisWrapperHandle,
-        _In_ PDRIVER_UNLOAD UnloadHandler
+            NDIS_HANDLE NdisWrapperHandle,
+            PDRIVER_UNLOAD UnloadHandler
         );
         """
         hnd, unload = argv
@@ -154,10 +155,10 @@ class Ndis(api.ApiHandler):
     def NdisRegisterProtocol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisRegisterProtocol(
-        _Out_ PNDIS_STATUS                   Status,
-        _Out_ PNDIS_HANDLE                   NdisProtocolHandle,
-        _In_  PNDIS_PROTOCOL_CHARACTERISTICS ProtocolCharacteristics,
-        _In_  UINT                           CharacteristicsLength
+            PNDIS_STATUS Status,
+            PNDIS_HANDLE NdisProtocolHandle,
+            PNDIS_PROTOCOL_CHARACTERISTICS ProtocolCharacteristics,
+            UINT CharacteristicsLength
         );
         """
         pStatus, pProtoHandle, pChars, clen = argv
@@ -177,10 +178,10 @@ class Ndis(api.ApiHandler):
     def NdisIMRegisterLayeredMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NDIS_STATUS NdisIMRegisterLayeredMiniport(
-        _In_  NDIS_HANDLE                    NdisWrapperHandle,
-        _In_  PNDIS_MINIPORT_CHARACTERISTICS MiniportCharacteristics,
-        _In_  UINT                           CharacteristicsLength,
-        _Out_ PNDIS_HANDLE                   DriverHandle
+            NDIS_HANDLE NdisWrapperHandle,
+            PNDIS_MINIPORT_CHARACTERISTICS MiniportCharacteristics,
+            UINT CharacteristicsLength,
+            PNDIS_HANDLE DriverHandle
         );
         """
         hnd, mp_chars, clen, drv_hnd = argv
@@ -202,8 +203,8 @@ class Ndis(api.ApiHandler):
     def NdisIMAssociateMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void NdisIMAssociateMiniport(
-        NDIS_HANDLE DriverHandle,
-        NDIS_HANDLE ProtocolHandle
+            NDIS_HANDLE DriverHandle,
+            NDIS_HANDLE ProtocolHandle
         );
         """
         drv_hnd, phnd = argv
@@ -213,8 +214,8 @@ class Ndis(api.ApiHandler):
         """
         PNDIS_GENERIC_OBJECT NdisAllocateGenericObject(
             PDRIVER_OBJECT DriverObject,
-            ULONG          Tag,
-            USHORT         Size
+            ULONG Tag,
+            USHORT Size
         );
         """
         drv, tag, size = argv
@@ -237,9 +238,9 @@ class Ndis(api.ApiHandler):
     def NdisAllocateMemoryWithTag(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NDIS_STATUS NdisAllocateMemoryWithTag(
-          _Out_ PVOID *VirtualAddress,
-          _In_  UINT  Length,
-          _In_  ULONG Tag
+            PVOID *VirtualAddress,
+            UINT Length,
+            ULONG Tag
         );
         """
         va, size, tag = argv
@@ -258,8 +259,8 @@ class Ndis(api.ApiHandler):
     def NdisAllocateNetBufferListPool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NDIS_HANDLE NdisAllocateNetBufferListPool(
-          NDIS_HANDLE                      NdisHandle,
-          PNET_BUFFER_LIST_POOL_PARAMETERS Parameters
+            NDIS_HANDLE NdisHandle,
+            PNET_BUFFER_LIST_POOL_PARAMETERS Parameters
         );
         """
         NdisHandle, Parameters = argv
@@ -284,7 +285,7 @@ class Ndis(api.ApiHandler):
     def NdisFreeNetBufferListPool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void NdisFreeNetBufferListPool(
-        NDIS_HANDLE PoolHandle
+            NDIS_HANDLE PoolHandle
         );
         """
         (handle,) = argv
@@ -295,9 +296,9 @@ class Ndis(api.ApiHandler):
     def NdisFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void NdisFreeMemory(
-        PVOID VirtualAddress,
-        UINT  Length,
-        UINT  MemoryFlags
+            PVOID VirtualAddress,
+            UINT Length,
+            UINT MemoryFlags
         );
         """
         va, length, flags = argv
@@ -308,7 +309,7 @@ class Ndis(api.ApiHandler):
     def NdisFreeGenericObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void NdisFreeGenericObject(
-        PNDIS_GENERIC_OBJECT NdisObject
+            PNDIS_GENERIC_OBJECT NdisObject
         );
         """
         (pObj,) = argv

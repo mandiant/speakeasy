@@ -48,7 +48,7 @@ class Comctl32(api.ApiHandler):
     def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT DllGetVersion(
-          DLLVERSIONINFO *pdvi
+            DLLVERSIONINFO *pdvi
         );
 
         Common controls version 6 reports 6.10 with the build of the OS.

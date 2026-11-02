@@ -21,17 +21,17 @@ class Msimg32(api.ApiHandler):
     def TransparentBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL TransparentBlt(
-          HDC  hdcDest,
-          int  xoriginDest,
-          int  yoriginDest,
-          int  wDest,
-          int  hDest,
-          HDC  hdcSrc,
-          int  xoriginSrc,
-          int  yoriginSrc,
-          int  wSrc,
-          int  hSrc,
-          UINT crTransparent
+            HDC hdcDest,
+            int xoriginDest,
+            int yoriginDest,
+            int wDest,
+            int hDest,
+            HDC hdcSrc,
+            int xoriginSrc,
+            int yoriginSrc,
+            int wSrc,
+            int hSrc,
+            UINT crTransparent
         );
         """
         return 1
