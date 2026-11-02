@@ -48,9 +48,19 @@ class DeviceIoControl(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.OutputBufferLength = ct.c_uint32
-        self.InputBufferLength = ct.c_uint32
-        self.IoControlCode = ct.c_uint32
+        # ULONG POINTER_ALIGNMENT, so each takes a pointer-sized slot
+        self.InputBufferLength = Ptr
+        self.IoControlCode = Ptr
         self.Type3InputBuffer = Ptr
+
+
+class IO_PARAMETERS_OTHERS(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Argument1 = Ptr
+        self.Argument2 = Ptr
+        self.Argument3 = Ptr
+        self.Argument4 = Ptr
 
 
 class STRING(EmuStruct):
@@ -398,6 +408,7 @@ class IO_PARAMETERS(EmuUnion):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.DeviceIoControl = DeviceIoControl(ptr_size).get_cstruct()
+        self.Others = IO_PARAMETERS_OTHERS(ptr_size).get_cstruct()
 
 
 class IO_STACK_LOCATION(EmuStruct):
@@ -407,8 +418,6 @@ class IO_STACK_LOCATION(EmuStruct):
         self.MinorFunction = ct.c_uint8
         self.Flags = ct.c_uint8
         self.Control = ct.c_uint8
-        if ptr_size == 8:
-            self._padding = ct.c_uint8 * 8
         self.Parameters = IO_PARAMETERS
         self.DeviceObject = Ptr
         self.FileObject = Ptr
@@ -464,23 +473,30 @@ class KDEVICE_QUEUE_ENTRY(EmuStruct):
         self.Inserted = ct.c_uint8
 
 
+class TAIL_OVERLAY_QUEUE(EmuUnion):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.DeviceQueueEntry = KDEVICE_QUEUE_ENTRY(ptr_size).get_cstruct()
+        self.DriverContext = Ptr * 4
+
+
 class TAIL_OVERLAY(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.DeviceQueueEntry = KDEVICE_QUEUE_ENTRY
-        if ptr_size == 8:
-            self.padding = ct.c_uint8 * 8
-
-        self.Reserved1 = Ptr * 2
+        self.Anonymous = TAIL_OVERLAY_QUEUE
+        self.Thread = Ptr
+        self.AuxiliaryBuffer = Ptr
         self.ListEntry = LIST_ENTRY
         self.CurrentStackLocation = Ptr
-        self.Reserved2 = Ptr
+        self.OriginalFileObject = Ptr
 
 
-class IRP_TAIL(EmuStruct):
+class IRP_TAIL(EmuUnion):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.Overlay = TAIL_OVERLAY
+        self.Apc = KAPC(ptr_size).get_cstruct()
+        self.CompletionKey = Ptr
 
 
 class LIST_ENTRY(EmuStruct):
