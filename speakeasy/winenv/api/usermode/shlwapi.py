@@ -144,24 +144,24 @@ class Shlwapi(api.ApiHandler):
             PCTSTR pszSrch
         );
         """
-        hay, needle = argv
+        pszFirst, pszSrch = argv
 
         cw = self.get_char_width(ctx)
 
-        if hay:
-            _hay = self.read_mem_string(hay, cw)
+        if pszFirst:
+            _hay = self.read_mem_string(pszFirst, cw)
             ctx.args["pszFirst"].display = _hay
 
-        if needle:
-            _needle = self.read_mem_string(needle, cw)
+        if pszSrch:
+            _needle = self.read_mem_string(pszSrch, cw)
             ctx.args["pszSrch"].display = _needle
 
-        if not hay or not needle or not _needle:
+        if not pszFirst or not pszSrch or not _needle:
             return 0
 
         ret = _hay.find(_needle)
         if ret != -1:
-            ret = hay + ret * cw
+            ret = pszFirst + ret * cw
         else:
             ret = 0
 
@@ -175,26 +175,26 @@ class Shlwapi(api.ApiHandler):
             PCTSTR pszSrch
         );
         """
-        hay, needle = argv
+        pszFirst, pszSrch = argv
 
         cw = self.get_char_width(ctx)
 
-        if hay:
-            _hay = self.read_mem_string(hay, cw)
+        if pszFirst:
+            _hay = self.read_mem_string(pszFirst, cw)
             ctx.args["pszFirst"].display = _hay
             _hay = _hay.lower()
 
-        if needle:
-            _needle = self.read_mem_string(needle, cw)
+        if pszSrch:
+            _needle = self.read_mem_string(pszSrch, cw)
             ctx.args["pszSrch"].display = _needle
             _needle = _needle.lower()
 
-        if not hay or not needle or not _needle:
+        if not pszFirst or not pszSrch or not _needle:
             return 0
 
         ret = _hay.find(_needle)
         if ret != -1:
-            ret = hay + ret * cw
+            ret = pszFirst + ret * cw
         else:
             ret = 0
 
@@ -229,8 +229,8 @@ class Shlwapi(api.ApiHandler):
             TCHAR wMatch
         );
         """
-        start, match = argv
-        return self.find_char(start, 0, match, self.get_char_width(ctx), False, False)
+        pszStart, wMatch = argv
+        return self.find_char(pszStart, 0, wMatch, self.get_char_width(ctx), False, False)
 
     @apihook("StrChrI", argc=2)
     def StrChrI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -240,8 +240,8 @@ class Shlwapi(api.ApiHandler):
             TCHAR wMatch
         );
         """
-        start, match = argv
-        return self.find_char(start, 0, match, self.get_char_width(ctx), True, False)
+        pszStart, wMatch = argv
+        return self.find_char(pszStart, 0, wMatch, self.get_char_width(ctx), True, False)
 
     @apihook("StrRChr", argc=3)
     def StrRChr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -252,8 +252,8 @@ class Shlwapi(api.ApiHandler):
             TCHAR wMatch
         );
         """
-        start, end, match = argv
-        return self.find_char(start, end, match, self.get_char_width(ctx), False, True)
+        pszStart, pszEnd, wMatch = argv
+        return self.find_char(pszStart, pszEnd, wMatch, self.get_char_width(ctx), False, True)
 
     @apihook("StrRChrI", argc=3)
     def StrRChrI(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -264,8 +264,8 @@ class Shlwapi(api.ApiHandler):
             TCHAR wMatch
         );
         """
-        start, end, match = argv
-        return self.find_char(start, end, match, self.get_char_width(ctx), True, True)
+        pszStart, pszEnd, wMatch = argv
+        return self.find_char(pszStart, pszEnd, wMatch, self.get_char_width(ctx), True, True)
 
     @apihook("PathFindExtension", argc=1)
     def PathFindExtension(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -398,21 +398,21 @@ class Shlwapi(api.ApiHandler):
             va_list arglist
         );
         """
-        buffer, count, _format, argptr = argv
+        pszDest, cchDest, pszFmt, arglist = argv
 
-        fmt_str = self.read_mem_string(_format, 1)
+        fmt_str = self.read_mem_string(pszFmt, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
-        vargs = self.va_args(argptr, fmt_cnt)
+        vargs = self.va_args(arglist, fmt_cnt)
 
         fin = self.do_str_format(fmt_str, vargs)
-        out = fin[: max(count - 1, 0)]
-        if count > 0:
-            self.write_mem_string(out, buffer, 1)
+        out = fin[: max(cchDest - 1, 0)]
+        if cchDest > 0:
+            self.write_mem_string(out, pszDest, 1)
         ctx.args["pszDest"].display = out
         ctx.args["pszFmt"].display = fmt_str
 
-        return len(fin) if len(fin) < count else -1
+        return len(fin) if len(fin) < cchDest else -1
 
     @apihook("wnsprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def wnsprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -425,22 +425,22 @@ class Shlwapi(api.ApiHandler):
         );
         """
         argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3)
-        buf, max_buf_size, fmt = argv
+        pszDest, cchDest, pszFmt = argv
 
         cw = self.get_char_width(ctx)
 
-        fmt_str = self.read_mem_string(fmt, cw)
+        fmt_str = self.read_mem_string(pszFmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
         _argv = emu.get_func_argv(e_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
         fin = self.do_str_format(fmt_str, _argv, wide=cw == 2)
 
-        out = fin[: max(max_buf_size - 1, 0)]
-        if max_buf_size > 0:
-            self.write_mem_string(out, buf, cw)
+        out = fin[: max(cchDest - 1, 0)]
+        if cchDest > 0:
+            self.write_mem_string(out, pszDest, cw)
         ctx.args.clear()
         ctx.args.append(out)
 
-        return len(fin) if len(fin) < max_buf_size else -1
+        return len(fin) if len(fin) < cchDest else -1
 
     @apihook("PathAppend", argc=2)
     def PathAppend(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

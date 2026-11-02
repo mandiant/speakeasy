@@ -34,7 +34,7 @@ class Dxgi(api.ApiHandler):
             void **ppFactory
         );
         """
-        _, ppFactory = argv
+        riid, ppFactory = argv
         self.clear_pointer(ppFactory)
         return DXGI_ERROR_UNSUPPORTED
 
@@ -46,7 +46,7 @@ class Dxgi(api.ApiHandler):
             void **ppFactory
         );
         """
-        _, ppFactory = argv
+        riid, ppFactory = argv
         self.clear_pointer(ppFactory)
         return DXGI_ERROR_UNSUPPORTED
 
@@ -59,6 +59,6 @@ class Dxgi(api.ApiHandler):
             void **ppFactory
         );
         """
-        _, _, ppFactory = argv
+        Flags, riid, ppFactory = argv
         self.clear_pointer(ppFactory)
         return DXGI_ERROR_UNSUPPORTED

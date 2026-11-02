@@ -77,8 +77,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             LONG Win32Error
         );
         """
-        (err,) = argv
-        emu.set_last_error(err)
+        (Win32Error,) = argv
+        emu.set_last_error(Win32Error)
 
     @apihook("RtlEnterCriticalSection", argc=1)
     def RtlEnterCriticalSection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -116,8 +116,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PCVOID BaseAddress
         );
         """
-        heap, flags, addr = argv
-        size = self.heap_size(addr)
+        HeapHandle, Flags, BaseAddress = argv
+        size = self.heap_size(BaseAddress)
         if size is None:
             return self.get_max_int()
         return size
@@ -132,14 +132,14 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             SIZE_T Size
         );
         """
-        heap, flags, addr, size = argv
-        old_size = self.heap_size(addr)
-        if old_size is None or flags & windefs.HEAP_REALLOC_IN_PLACE_ONLY:
+        HeapHandle, Flags, BaseAddress, Size = argv
+        old_size = self.heap_size(BaseAddress)
+        if old_size is None or Flags & windefs.HEAP_REALLOC_IN_PLACE_ONLY:
             return 0
-        new = self.heap_alloc(size, heap="RtlReAllocateHeap")
+        new = self.heap_alloc(Size, heap="RtlReAllocateHeap")
         if new:
-            self.mem_write(new, self.mem_read(addr, min(old_size, size)))
-            self.heap_free(addr)
+            self.mem_write(new, self.mem_read(BaseAddress, min(old_size, Size)))
+            self.heap_free(BaseAddress)
         return new
 
     def ipv4_address_to_string(self, addr, out, cw, ctx):
@@ -156,8 +156,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PSTR S
         );
         """
-        addr, out = argv
-        return self.ipv4_address_to_string(addr, out, 1, ctx)
+        Addr, S = argv
+        return self.ipv4_address_to_string(Addr, S, 1, ctx)
 
     @apihook("RtlIpv4AddressToStringW", argc=2)
     def RtlIpv4AddressToStringW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -167,8 +167,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PWSTR S
         );
         """
-        addr, out = argv
-        return self.ipv4_address_to_string(addr, out, 2, ctx)
+        Addr, S = argv
+        return self.ipv4_address_to_string(Addr, S, 2, ctx)
 
     @apihook("RtlNtStatusToDosError", argc=1)
     def RtlNtStatusToDosError(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -241,11 +241,11 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PVOID Handle
         );
         """
-        (Handler,) = argv
+        (Handle,) = argv
 
-        emu.remove_vectored_exception_handler(Handler)
+        emu.remove_vectored_exception_handler(Handle)
 
-        return Handler
+        return Handle
 
     @apihook("LdrLoadDll", argc=4)
     def LdrLoadDll(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -257,11 +257,11 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PVOID *DllHandle
         );
         """
-        SearchPath, LoadFlags, Name, BaseAddress = argv
+        DllPath, DllCharacteristics, DllName, DllHandle = argv
 
         hmod = 0
 
-        req_lib = self.read_unicode_string(Name)
+        req_lib = self.read_unicode_string(DllName)
         lib = winemu.normalize_dll_name(req_lib)
 
         hmod = emu.load_library(lib)
@@ -280,10 +280,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             0x8: "LOAD_WITH_ALTERED_SEARCH_PATH",
         }
 
-        pretty_flags = " | ".join([name for bit, name in flags.items() if LoadFlags & bit])
+        pretty_flags = " | ".join([name for bit, name in flags.items() if DllCharacteristics & bit])
 
-        if SearchPath:
-            ctx.args["DllPath"].display = self.read_mem_string(SearchPath, 2)
+        if DllPath:
+            ctx.args["DllPath"].display = self.read_mem_string(DllPath, 2)
 
         ctx.args["DllName"].display = req_lib
         ctx.args["DllCharacteristics"].display = pretty_flags
@@ -292,13 +292,13 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             STATUS_DLL_NOT_FOUND = 0xC0000135
             return STATUS_DLL_NOT_FOUND
 
-        if BaseAddress:
-            self.mem_write(BaseAddress, hmod.to_bytes(self.get_ptr_size(), "little"))
+        if DllHandle:
+            self.mem_write(DllHandle, hmod.to_bytes(self.get_ptr_size(), "little"))
         frame = emu.active_api_frame
         if frame is not None and frame.initializers:
             frame.failure_result = 0xC0000142  # STATUS_DLL_INIT_FAILED
-            if BaseAddress:
-                frame.failure_writes.append((BaseAddress, b"\x00" * self.get_ptr_size()))
+            if DllHandle:
+                frame.failure_writes.append((DllHandle, b"\x00" * self.get_ptr_size()))
 
         return 0
 
@@ -312,28 +312,28 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PVOID *ProcedureAddress
         );
         """
-        hmod, proc_name, ordinal, func_addr = argv
+        DllHandle, ProcedureName, ProcedureNumber, ProcedureAddress = argv
         rv = ddk.STATUS_PROCEDURE_NOT_FOUND
 
-        if proc_name:
+        if ProcedureName:
             fn = ntos.STRING(emu.get_ptr_size())
-            fn = self.mem_cast(fn, proc_name)
+            fn = self.mem_cast(fn, ProcedureName)
 
             proc = self.read_mem_string(fn.Buffer, 1, max_chars=fn.Length)
             ctx.args["ProcedureName"].display = proc
 
-        elif ordinal:
-            proc = f"ordinal_{ordinal}"
+        elif ProcedureNumber:
+            proc = f"ordinal_{ProcedureNumber}"
         else:
             return ddk.STATUS_INVALID_PARAMETER
 
         mods = emu.get_peb_modules()
         for mod in mods:
-            if mod.base == hmod:
+            if mod.base == DllHandle:
                 addr = emu.resolve_export(mod, proc)
                 if addr:
                     rv = ddk.STATUS_SUCCESS
-                    self.mem_write(func_addr, addr.to_bytes(self.get_ptr_size(), "little"))
+                    self.mem_write(ProcedureAddress, addr.to_bytes(self.get_ptr_size(), "little"))
                 break
 
         return rv
@@ -345,9 +345,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PULONG Seed
         );
         """
-        (seed,) = argv
-        value = (int.from_bytes(self.mem_read(seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) % 0x7FFFFFFF
-        self.mem_write(seed, value.to_bytes(4, "little"))
+        (Seed,) = argv
+        value = (int.from_bytes(self.mem_read(Seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) % 0x7FFFFFFF
+        self.mem_write(Seed, value.to_bytes(4, "little"))
         return value
 
     @apihook("RtlRandom", argc=1)
@@ -357,10 +357,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PULONG Seed
         );
         """
-        (seed,) = argv
-        value = ((int.from_bytes(self.mem_read(seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
+        (Seed,) = argv
+        value = ((int.from_bytes(self.mem_read(Seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
         next_seed = ((value * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
-        self.mem_write(seed, next_seed.to_bytes(4, "little"))
+        self.mem_write(Seed, next_seed.to_bytes(4, "little"))
         pos = next_seed & 0x7F
         result, self.random_values[pos] = self.random_values[pos], value
         return result
@@ -382,9 +382,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             size_t Length
         );
         """
-        dest, length = argv
-        buf = b"\x00" * length
-        self.mem_write(dest, buf)
+        Destination, Length = argv
+        buf = b"\x00" * Length
+        self.mem_write(Destination, buf)
 
     @apihook("RtlMoveMemory", argc=3)
     def RtlMoveMemory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -395,9 +395,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             size_t Length
         );
         """
-        dest, source, length = argv
-        buf = self.mem_read(source, length)
-        self.mem_write(dest, buf)
+        Destination, Source, Length = argv
+        buf = self.mem_read(Source, Length)
+        self.mem_write(Destination, buf)
 
     @apihook("NtSetInformationProcess", argc=4)
     def NtSetInformationProcess(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -446,7 +446,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PLARGE_INTEGER Timeout
         );
         """
-        hHandle, alertable, timeout = argv
+        Handle, Alertable, Timeout = argv
 
         # Other documented return status are:
         #      STATUS_TIMEOUT = 0x00000102
@@ -467,12 +467,12 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             ULONG Length
         );
         """
-        dwInitial, pData, iLen = argv
+        PartialCrc, Buffer, Length = argv
 
-        data_to_compute = self.mem_read(pData, iLen)
-        dwInitial = binascii.crc32(data_to_compute, dwInitial)
+        data_to_compute = self.mem_read(Buffer, Length)
+        PartialCrc = binascii.crc32(data_to_compute, PartialCrc)
 
-        return dwInitial
+        return PartialCrc
 
     @apihook("LdrFindResource_U", argc=4)
     def LdrFindResource_U(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -498,7 +498,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
           ULONG Reserved;
         } IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
         """
-        DllHandle, ResourceInfo, Level, ResourceDataEntry = argv
+        DllHandle, ResourcePath, Count, ResourceDataEntry = argv
 
         # Reusing some functions from kernel32 module that are used to
         # handle the very similar function FindResourceA
@@ -515,8 +515,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         if not pe:
             return ddk.STATUS_INVALID_HANDLE
 
-        type_ptr = emu.read_ptr(ResourceInfo)
-        name_ptr = emu.read_ptr(ResourceInfo + emu.get_ptr_size())
+        type_ptr = emu.read_ptr(ResourcePath)
+        name_ptr = emu.read_ptr(ResourcePath + emu.get_ptr_size())
 
         try:
             name = k32.normalize_res_identifier(emu, cw, name_ptr)
@@ -545,18 +545,18 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             ULONG *ResourceLength
         );
         """
-        BaseAddress, ResourceDataEntry, Resource, Size = argv
+        DllHandle, ResourceDataEntry, ResourceBuffer, ResourceLength = argv
 
         if ResourceDataEntry == 0:
             return ddk.STATUS_INVALID_PARAMETER
 
         offset, size = struct.unpack("<II", self.mem_read(ResourceDataEntry, 8))
 
-        if Size:
-            self.mem_write(Size, size.to_bytes(4, "little"))
+        if ResourceLength:
+            self.mem_write(ResourceLength, size.to_bytes(4, "little"))
 
-        if Resource:
-            emu.write_ptr(Resource, BaseAddress + offset)
+        if ResourceBuffer:
+            emu.write_ptr(ResourceBuffer, DllHandle + offset)
 
         return ddk.STATUS_SUCCESS
 
@@ -569,13 +569,13 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PULONG NtBuildNumber
         );
         """
-        pMajor, pMinor, pBuild = argv
-        if pMajor:
-            self.mem_write(pMajor, (10).to_bytes(4, "little"))
-        if pMinor:
-            self.mem_write(pMinor, (0).to_bytes(4, "little"))
-        if pBuild:
-            self.mem_write(pBuild, (0xF0004A61).to_bytes(4, "little"))
+        NtMajorVersion, NtMinorVersion, NtBuildNumber = argv
+        if NtMajorVersion:
+            self.mem_write(NtMajorVersion, (10).to_bytes(4, "little"))
+        if NtMinorVersion:
+            self.mem_write(NtMinorVersion, (0).to_bytes(4, "little"))
+        if NtBuildNumber:
+            self.mem_write(NtBuildNumber, (0xF0004A61).to_bytes(4, "little"))
 
     @apihook("RtlFormatCurrentUserKeyPath", argc=1)
     def RtlFormatCurrentUserKeyPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -612,15 +612,15 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlGetVersion(
-            PRTL_OSVERSIONINFOW lpVersionInformation
+            PRTL_OSVERSIONINFOW VersionInformation
         );
         """
-        (lpVersionInformation,) = argv
+        (VersionInformation,) = argv
         # RTL_OSVERSIONINFOW: dwOSVersionInfoSize(4), dwMajorVersion(4),
         # dwMinorVersion(4), dwBuildNumber(4), dwPlatformId(4), szCSDVersion(256)
         info = struct.pack("<IIIII", 276, 10, 0, 19041, 2)  # VER_PLATFORM_WIN32_NT=2
         info += b"\x00" * (276 - len(info))
-        self.mem_write(lpVersionInformation, info)
+        self.mem_write(VersionInformation, info)
         return 0  # STATUS_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsW", argc=8)
@@ -789,7 +789,19 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PPS_ATTRIBUTE_LIST AttributeList
         );
         """
-        (ThreadHandle, _, _, ProcessHandle, StartRoutine, Argument, CreateFlags, _, _, _, _) = argv
+        (
+            ThreadHandle,
+            DesiredAccess,
+            ObjectAttributes,
+            ProcessHandle,
+            StartRoutine,
+            Argument,
+            CreateFlags,
+            ZeroBits,
+            StackSize,
+            MaximumStackSize,
+            AttributeList,
+        ) = argv
 
         if ProcessHandle == self.get_max_int():
             proc_obj = emu.get_current_process()

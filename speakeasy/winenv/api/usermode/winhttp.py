@@ -50,22 +50,22 @@ class WinHttp(api.ApiHandler):
             DWORD dwFlags
         );
         """
-        ua: int | str
-        proxy: int | str
-        bypass: int | str
-        ua, access, proxy, bypass, flags = argv
+        pszAgentW: int | str
+        pszProxyW: int | str
+        pszProxyBypassW: int | str
+        pszAgentW, dwAccessType, pszProxyW, pszProxyBypassW, dwFlags = argv
 
-        if ua:
-            ua = self.read_mem_string(ua, 2)
-            ctx.args["pszAgentW"].display = ua
-        if proxy:
-            proxy = self.read_mem_string(proxy, 2)
-            ctx.args["pszProxyW"].display = proxy
-        if bypass:
-            bypass = self.read_mem_string(bypass, 2)
-            ctx.args["pszProxyBypassW"].display = bypass
+        if pszAgentW:
+            pszAgentW = self.read_mem_string(pszAgentW, 2)
+            ctx.args["pszAgentW"].display = pszAgentW
+        if pszProxyW:
+            pszProxyW = self.read_mem_string(pszProxyW, 2)
+            ctx.args["pszProxyW"].display = pszProxyW
+        if pszProxyBypassW:
+            pszProxyBypassW = self.read_mem_string(pszProxyBypassW, 2)
+            ctx.args["pszProxyBypassW"].display = pszProxyBypassW
 
-        conn = self.netman.new_wininet_inst(ua, access, proxy, bypass, flags)
+        conn = self.netman.new_wininet_inst(pszAgentW, dwAccessType, pszProxyW, pszProxyBypassW, dwFlags)
         hnd = conn.get_handle()
         return hnd
 
@@ -79,20 +79,20 @@ class WinHttp(api.ApiHandler):
             DWORD dwReserved
         );
         """
-        server: int | str
-        hnd, server, port, reserve = argv
-        port &= 0xFFFF
+        pswzServerName: int | str
+        hSession, pswzServerName, nServerPort, dwReserved = argv
+        nServerPort &= 0xFFFF
 
-        if server:
-            server = self.read_mem_string(server, 2)
-            ctx.args["pswzServerName"].display = server
+        if pswzServerName:
+            pswzServerName = self.read_mem_string(pswzServerName, 2)
+            ctx.args["pswzServerName"].display = pswzServerName
 
-        wini = self.netman.get_wininet_object(hnd)
+        wini = self.netman.get_wininet_object(hSession)
 
         if not wini:
             return 0
 
-        sess = wini.new_session(server, port, None, None, 0, 0, None)
+        sess = wini.new_session(pswzServerName, nServerPort, None, None, 0, 0, None)
         hdl = sess.get_handle()
         return hdl
 
@@ -109,34 +109,34 @@ class WinHttp(api.ApiHandler):
             DWORD dwFlags
         );
         """
-        verb: int | str
-        objname: int | str
-        ver: int | str
-        ref: int | str
-        accepts: int | str
-        hnd, verb, objname, ver, ref, accepts, flags = argv
+        pwszVerb: int | str
+        pwszObjectName: int | str
+        pwszVersion: int | str
+        pwszReferrer: int | str
+        ppwszAcceptTypes: int | str
+        hConnect, pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags = argv
 
-        if verb:
-            verb = self.read_mem_string(verb, 2)
-            ctx.args["pwszVerb"].display = verb
-        if objname:
-            objname = self.read_mem_string(objname, 2)
-            ctx.args["pwszObjectName"].display = objname
-        if ver:
-            ver = self.read_mem_string(ver, 2)
-            ctx.args["pwszVersion"].display = ver
-        if ref:
-            ref = self.read_mem_string(ref, 2)
-            ctx.args["pwszReferrer"].display = ref
-        if accepts:
-            accepts = self.read_mem_string(accepts, 2)
-            ctx.args["ppwszAcceptTypes"].display = accepts
+        if pwszVerb:
+            pwszVerb = self.read_mem_string(pwszVerb, 2)
+            ctx.args["pwszVerb"].display = pwszVerb
+        if pwszObjectName:
+            pwszObjectName = self.read_mem_string(pwszObjectName, 2)
+            ctx.args["pwszObjectName"].display = pwszObjectName
+        if pwszVersion:
+            pwszVersion = self.read_mem_string(pwszVersion, 2)
+            ctx.args["pwszVersion"].display = pwszVersion
+        if pwszReferrer:
+            pwszReferrer = self.read_mem_string(pwszReferrer, 2)
+            ctx.args["pwszReferrer"].display = pwszReferrer
+        if ppwszAcceptTypes:
+            ppwszAcceptTypes = self.read_mem_string(ppwszAcceptTypes, 2)
+            ctx.args["ppwszAcceptTypes"].display = ppwszAcceptTypes
 
-        defs = windefs.get_flag_defines(flags)
+        defs = windefs.get_flag_defines(dwFlags)
         ctx.args["dwFlags"].display = " | ".join(defs)
 
-        sess = self.netman.get_wininet_object(hnd)
-        req = sess.new_request(verb, objname, ver, ref, accepts, defs, None)
+        sess = self.netman.get_wininet_object(hConnect)
+        req = sess.new_request(pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, defs, None)
         hdl = req.get_handle()
 
         return hdl
@@ -150,11 +150,11 @@ class WinHttp(api.ApiHandler):
             WINHTTP_CURRENT_USER_IE_PROXY_CONFIG *pProxyConfig
         );
         """
-        (proxy_config,) = argv
+        (pProxyConfig,) = argv
 
-        if proxy_config:
+        if pProxyConfig:
             ps = self.get_ptr_size()
-            self.mem_write(proxy_config, (1).to_bytes(ps, "little") + b"\0" * (3 * ps))
+            self.mem_write(pProxyConfig, (1).to_bytes(ps, "little") + b"\0" * (3 * ps))
 
         return True
 
@@ -168,14 +168,14 @@ class WinHttp(api.ApiHandler):
             WINHTTP_PROXY_INFO *pProxyInfo
         );
         """
-        hnd, url, proxopts, proxinfo = argv
+        hSession, lpcwszUrl, pAutoProxyOptions, pProxyInfo = argv
 
-        if url:
-            ctx.args["lpcwszUrl"].display = self.read_mem_string(url, 2)
+        if lpcwszUrl:
+            ctx.args["lpcwszUrl"].display = self.read_mem_string(lpcwszUrl, 2)
 
-        if proxinfo:
+        if pProxyInfo:
             ps = self.get_ptr_size()
-            self.mem_write(proxinfo, windefs.WINHTTP_ACCESS_TYPE_NO_PROXY.to_bytes(ps, "little") + b"\0" * (2 * ps))
+            self.mem_write(pProxyInfo, windefs.WINHTTP_ACCESS_TYPE_NO_PROXY.to_bytes(ps, "little") + b"\0" * (2 * ps))
 
         return True
 
@@ -189,7 +189,7 @@ class WinHttp(api.ApiHandler):
             DWORD dwBufferLength
         );
         """
-        hnd, option, buff, buflen = argv
+        hInternet, dwOption, lpBuffer, dwBufferLength = argv
 
         return True
 
@@ -206,19 +206,19 @@ class WinHttp(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
-        headers: int | str
-        hnd, headers, hdrlen, lpOptional, dwOptionalLength, totlen, context = argv
+        lpszHeaders: int | str
+        hRequest, lpszHeaders, dwHeadersLength, lpOptional, dwOptionalLength, dwTotalLength, dwContext = argv
 
         body = b""
 
-        if headers:
-            headers = self.read_mem_string(headers, 2)
-            ctx.args["lpszHeaders"].display = headers
+        if lpszHeaders:
+            lpszHeaders = self.read_mem_string(lpszHeaders, 2)
+            ctx.args["lpszHeaders"].display = lpszHeaders
 
         if lpOptional and dwOptionalLength:
             body = self.mem_read(lpOptional, dwOptionalLength)
 
-        req = self.netman.get_wininet_object(hnd)
+        req = self.netman.get_wininet_object(hRequest)
         srv = req.get_server()
         port = req.get_port()
 
@@ -226,7 +226,7 @@ class WinHttp(api.ApiHandler):
             self.record_dns_event(srv)
 
         rv = 1
-        req_str = req.format_http_request(headers=headers)
+        req_str = req.format_http_request(headers=lpszHeaders)
 
         self.record_http_event(srv, port, headers=req_str, body=body, secure=req.is_secure())
         return rv
@@ -239,7 +239,7 @@ class WinHttp(api.ApiHandler):
             LPVOID lpReserved
         );
         """
-        hnd, lpReserved = argv
+        hRequest, lpReserved = argv
 
         return True
 
@@ -253,19 +253,19 @@ class WinHttp(api.ApiHandler):
             LPDWORD lpdwNumberOfBytesRead
         );
         """
-        hnd, buf, size, bytes_read = argv
+        hRequest, lpBuffer, dwNumberOfBytesToRead, lpdwNumberOfBytesRead = argv
 
         rv = 1
 
-        req = self.netman.get_wininet_object(hnd)
+        req = self.netman.get_wininet_object(hRequest)
         resp = req.get_response()
-        data = resp.read(size)
+        data = resp.read(dwNumberOfBytesToRead)
 
-        if buf:
-            self.mem_write(buf, data)
+        if lpBuffer:
+            self.mem_write(lpBuffer, data)
 
-        if bytes_read:
-            self.mem_write(bytes_read, (len(data)).to_bytes(4, "little"))
+        if lpdwNumberOfBytesRead:
+            self.mem_write(lpdwNumberOfBytesRead, (len(data)).to_bytes(4, "little"))
 
         return rv
 
@@ -277,9 +277,9 @@ class WinHttp(api.ApiHandler):
             LPDWORD lpdwNumberOfBytesAvailable
         );
         """
-        hnd, lpdwNumberOfBytesAvailable = argv
+        hRequest, lpdwNumberOfBytesAvailable = argv
 
-        req = self.netman.get_wininet_object(hnd)
+        req = self.netman.get_wininet_object(hRequest)
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
@@ -347,11 +347,11 @@ class WinHttp(api.ApiHandler):
             DWORD dwModifiers
         );
         """
-        hnd, headers, dwHeaderlen, dwModfier = argv
+        hRequest, lpszHeaders, dwHeadersLength, dwModifiers = argv
 
-        headers = self.read_wide_string(headers, dwHeaderlen)
-        ctx.args["lpszHeaders"].display = headers
-        flags = windefs.get_header_info_winhttp(dwModfier)
+        lpszHeaders = self.read_wide_string(lpszHeaders, dwHeadersLength)
+        ctx.args["lpszHeaders"].display = lpszHeaders
+        flags = windefs.get_header_info_winhttp(dwModifiers)
         ctx.args["dwModifiers"].display = " | ".join(flags)
         rv = 1
 
@@ -369,7 +369,7 @@ class WinHttp(api.ApiHandler):
             LPDWORD lpdwIndex
         );
         """
-        hnd, dwInfoLevel, name, buffer, bufferLen, index = argv
+        hRequest, dwInfoLevel, pwszName, lpBuffer, lpdwBufferLength, lpdwIndex = argv
 
         header_id = dwInfoLevel & windefs.HTTP_QUERY_HEADER_MASK
         as_number = bool(dwInfoLevel & windefs.WINHTTP_QUERY_FLAG_NUMBER)
@@ -382,7 +382,7 @@ class WinHttp(api.ApiHandler):
         if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
             text = windefs.HTTP_STATUS_OK
         else:
-            req = self.netman.get_wininet_object(hnd)
+            req = self.netman.get_wininet_object(hRequest)
             if not isinstance(req, netman.WininetRequest):
                 emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
                 return 0
@@ -400,12 +400,12 @@ class WinHttp(api.ApiHandler):
         else:
             out = (text + "\x00").encode("utf-16le")
             out_len = len(out) - 2
-        if buffer == 0 or int.from_bytes(self.mem_read(bufferLen, 4), "little") < len(out):
-            self.mem_write(bufferLen, len(out).to_bytes(4, "little"))
+        if lpBuffer == 0 or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
+            self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
-        self.mem_write(buffer, out)
-        self.mem_write(bufferLen, out_len.to_bytes(4, "little"))
+        self.mem_write(lpBuffer, out)
+        self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
         return 1
 
     @apihook("WinHttpCloseHandle", argc=1, conv=_arch.CALL_CONV_STDCALL)

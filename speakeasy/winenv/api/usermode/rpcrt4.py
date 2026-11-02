@@ -32,12 +32,12 @@ class RPCRT4(api.ApiHandler):
             UUID *Uuid
         );
         """
-        (uuidp,) = argv
+        (Uuid,) = argv
 
-        if not uuidp:
+        if not Uuid:
             return 1
 
-        self.mem_write(uuidp, uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le)
+        self.mem_write(Uuid, uuid.UUID(bytes=emu.rng.randbytes(16), version=4).bytes_le)
 
         return 0
 
@@ -49,19 +49,19 @@ class RPCRT4(api.ApiHandler):
             RPC_CSTR *StringUuid
         );
         """
-        uuidp, stringp = argv
+        Uuid, StringUuid = argv
 
-        if not uuidp or not stringp:
+        if not Uuid or not StringUuid:
             return 1
 
-        uuid_bytes = self.mem_read(uuidp, windefs.GUID().sizeof())
+        uuid_bytes = self.mem_read(Uuid, windefs.GUID().sizeof())
         uuid_obj = uuid.UUID(bytes_le=uuid_bytes)
 
         string = str(uuid_obj) + "\0"
 
         buf = self.mem_alloc(len(string), tag="api.UuidToStringA")
         self.mem_write(buf, string.encode("utf-8"))
-        self.mem_write(stringp, buf.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(StringUuid, buf.to_bytes(self.get_ptr_size(), "little"))
 
         return 0
 
@@ -151,7 +151,7 @@ class RPCRT4(api.ApiHandler):
             CStdPSFactoryBuffer *pPSFactoryBuffer
         );
         """
-        _rclsid, _riid, ppv, _proxy_file_list, _pclsid, _factory = argv
+        rclsid, riid, ppv, pProxyFileList, pclsid, pPSFactoryBuffer = argv
 
         if ppv:
             self.mem_write(ppv, b"\x00" * self.get_ptr_size())
@@ -164,7 +164,7 @@ class RPCRT4(api.ApiHandler):
             CStdPSFactoryBuffer *pPSFactoryBuffer
         );
         """
-        (factory,) = argv
+        (pPSFactoryBuffer,) = argv
 
-        ref_count = int.from_bytes(self.mem_read(factory + self.get_ptr_size(), 4), "little")
+        ref_count = int.from_bytes(self.mem_read(pPSFactoryBuffer + self.get_ptr_size(), 4), "little")
         return comdefs.S_FALSE if ref_count else comdefs.S_OK

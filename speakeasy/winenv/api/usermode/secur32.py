@@ -65,6 +65,6 @@ class Secur32(api.ApiHandler):
             unsigned long MessageSeqNo
         );
         """
-        PCtxtHandle, fQOP, pMessage, MessageSeqNo = argv
+        phContext, fQOP, pMessage, MessageSeqNo = argv
 
         return sec32defs.SEC_E_INVALID_HANDLE

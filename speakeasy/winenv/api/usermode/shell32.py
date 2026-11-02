@@ -233,10 +233,10 @@ class Shell32(api.ApiHandler):
             SHELLEXECUTEINFO *pExecInfo
         );
         """
-        (lpShellExecuteInfo,) = argv
+        (pExecInfo,) = argv
 
         sei = shell32_defs.SHELLEXECUTEINFOA(emu.get_ptr_size())
-        sei_struct = self.mem_cast(sei, lpShellExecuteInfo)
+        sei_struct = self.mem_cast(sei, pExecInfo)
 
         rv, proc = self.shell_execute(
             emu, sei_struct.lpVerb, sei_struct.lpFile, sei_struct.lpParameters, sei_struct.lpDirectory, ctx
@@ -244,7 +244,7 @@ class Shell32(api.ApiHandler):
         sei_struct.hInstApp = rv
         if proc and sei_struct.fMask & shell32_defs.SEE_MASK_NOCLOSEPROCESS:
             sei_struct.handle = self.get_object_handle(proc)
-        self.mem_write(lpShellExecuteInfo, self.get_bytes(sei_struct))
+        self.mem_write(pExecInfo, self.get_bytes(sei_struct))
 
         return rv > 32
 
@@ -292,10 +292,10 @@ class Shell32(api.ApiHandler):
             int *pNumArgs
         );
         """
-        cmdline, argc = argv
+        lpCmdLine, pNumArgs = argv
 
         cw = self.get_char_width(ctx)
-        cl = self.read_mem_string(cmdline, cw)
+        cl = self.read_mem_string(lpCmdLine, cw)
 
         ptrsize = emu.get_ptr_size()
 
@@ -322,8 +322,8 @@ class Shell32(api.ApiHandler):
 
             strs += len(s)
 
-        if argc:
-            self.mem_write(argc, nargs.to_bytes(4, "little"))
+        if pNumArgs:
+            self.mem_write(pNumArgs, nargs.to_bytes(4, "little"))
 
         return buf
 
@@ -437,7 +437,7 @@ class Shell32(api.ApiHandler):
             PIDLIST_ABSOLUTE *ppidl
         );
         """
-        rfid, _flags, _token, ppidl = argv
+        rfid, dwFlags, hToken, ppidl = argv
         guid, folder = self.get_known_folder(emu, rfid)
         ctx.args["rfid"].display = folder[0] if folder else guid
         pidl = self.new_pidl(folder[1].format(user=emu.config.user.name)) if folder else 0
@@ -473,7 +473,7 @@ class Shell32(api.ApiHandler):
             PWSTR *ppszPath
         );
         """
-        rfid, _flags, _token, ppszPath = argv
+        rfid, dwFlags, hToken, ppszPath = argv
         guid, folder = self.get_known_folder(emu, rfid)
         ctx.args["rfid"].display = folder[0] if folder else guid
         ptr = 0

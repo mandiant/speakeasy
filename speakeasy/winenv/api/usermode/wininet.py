@@ -53,23 +53,23 @@ class Wininet(api.ApiHandler):
             DWORD dwFlags
         );
         """
-        ua: int | str
-        proxy: int | str
-        bypass: int | str
-        ua, access, proxy, bypass, flags = argv
+        lpszAgent: int | str
+        lpszProxy: int | str
+        lpszProxyBypass: int | str
+        lpszAgent, dwAccessType, lpszProxy, lpszProxyBypass, dwFlags = argv
 
         cw = self.get_char_width(ctx)
-        if ua:
-            ua = self.read_mem_string(ua, cw)
-            ctx.args["lpszAgent"].display = ua
-        if proxy:
-            proxy = self.read_mem_string(proxy, cw)
-            ctx.args["lpszProxy"].display = proxy
-        if bypass:
-            bypass = self.read_mem_string(bypass, cw)
-            ctx.args["lpszProxyBypass"].display = bypass
+        if lpszAgent:
+            lpszAgent = self.read_mem_string(lpszAgent, cw)
+            ctx.args["lpszAgent"].display = lpszAgent
+        if lpszProxy:
+            lpszProxy = self.read_mem_string(lpszProxy, cw)
+            ctx.args["lpszProxy"].display = lpszProxy
+        if lpszProxyBypass:
+            lpszProxyBypass = self.read_mem_string(lpszProxyBypass, cw)
+            ctx.args["lpszProxyBypass"].display = lpszProxyBypass
 
-        conn = self.netman.new_wininet_inst(ua, access, proxy, bypass, flags)
+        conn = self.netman.new_wininet_inst(lpszAgent, dwAccessType, lpszProxy, lpszProxyBypass, dwFlags)
         hnd = conn.get_handle()
         return hnd
 
@@ -87,29 +87,29 @@ class Wininet(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
-        server: int | str
-        user: int | str
-        password: int | str
-        hnd, server, port, user, password, service, flags, dwctx = argv
-        port &= 0xFFFF
+        lpszServerName: int | str
+        lpszUserName: int | str
+        lpszPassword: int | str
+        hInternet, lpszServerName, nServerPort, lpszUserName, lpszPassword, dwService, dwFlags, dwContext = argv
+        nServerPort &= 0xFFFF
 
         cw = self.get_char_width(ctx)
-        if server:
-            server = self.read_mem_string(server, cw)
-            ctx.args["lpszServerName"].display = server
-        if user:
-            user = self.read_mem_string(user, cw)
-            ctx.args["lpszUserName"].display = user
-        if password:
-            password = self.read_mem_string(password, cw)
-            ctx.args["lpszPassword"].display = password
+        if lpszServerName:
+            lpszServerName = self.read_mem_string(lpszServerName, cw)
+            ctx.args["lpszServerName"].display = lpszServerName
+        if lpszUserName:
+            lpszUserName = self.read_mem_string(lpszUserName, cw)
+            ctx.args["lpszUserName"].display = lpszUserName
+        if lpszPassword:
+            lpszPassword = self.read_mem_string(lpszPassword, cw)
+            ctx.args["lpszPassword"].display = lpszPassword
 
-        wini = self.netman.get_wininet_object(hnd)
+        wini = self.netman.get_wininet_object(hInternet)
 
         if not wini:
             return 0
 
-        sess = wini.new_session(server, port, user, password, service, flags, dwctx)
+        sess = wini.new_session(lpszServerName, nServerPort, lpszUserName, lpszPassword, dwService, dwFlags, dwContext)
         hdl = sess.get_handle()
         return hdl
 
@@ -127,31 +127,31 @@ class Wininet(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
-        verb: int | str
-        objname: int | str
-        ver: int | str
-        ref: int | str
-        hnd, verb, objname, ver, ref, accepts, flags, dwctx = argv
+        lpszVerb: int | str
+        lpszObjectName: int | str
+        lpszVersion: int | str
+        lpszReferrer: int | str
+        hConnect, lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, dwFlags, dwContext = argv
 
         cw = self.get_char_width(ctx)
-        if verb:
-            verb = self.read_mem_string(verb, cw)
-            ctx.args["lpszVerb"].display = verb
-        if objname:
-            objname = self.read_mem_string(objname, cw)
-            ctx.args["lpszObjectName"].display = objname
-        if ver:
-            ver = self.read_mem_string(ver, cw)
-            ctx.args["lpszVersion"].display = ver
-        if ref:
-            ref = self.read_mem_string(ref, cw)
-            ctx.args["lpszReferrer"].display = ref
+        if lpszVerb:
+            lpszVerb = self.read_mem_string(lpszVerb, cw)
+            ctx.args["lpszVerb"].display = lpszVerb
+        if lpszObjectName:
+            lpszObjectName = self.read_mem_string(lpszObjectName, cw)
+            ctx.args["lpszObjectName"].display = lpszObjectName
+        if lpszVersion:
+            lpszVersion = self.read_mem_string(lpszVersion, cw)
+            ctx.args["lpszVersion"].display = lpszVersion
+        if lpszReferrer:
+            lpszReferrer = self.read_mem_string(lpszReferrer, cw)
+            ctx.args["lpszReferrer"].display = lpszReferrer
 
-        defs = windefs.get_flag_defines(flags)
+        defs = windefs.get_flag_defines(dwFlags)
         ctx.args["dwFlags"].display = " | ".join(defs)
 
-        sess = self.netman.get_wininet_object(hnd)
-        req = sess.new_request(verb, objname, ver, ref, accepts, defs, dwctx)
+        sess = self.netman.get_wininet_object(hConnect)
+        req = sess.new_request(lpszVerb, lpszObjectName, lpszVersion, lpszReferrer, lplpszAcceptTypes, defs, dwContext)
         hdl = req.get_handle()
         return hdl
 
@@ -218,7 +218,7 @@ class Wininet(api.ApiHandler):
             DWORD dwBufferLength
         );
         """
-        hnd, option, buf, length = argv
+        hInternet, dwOption, lpBuffer, dwBufferLength = argv
 
         rv = 1
 
@@ -254,20 +254,20 @@ class Wininet(api.ApiHandler):
             DWORD dwOptionalLength
         );
         """
-        headers: int | str
-        hnd, headers, hdrlen, lpOptional, dwOptionalLength = argv
+        lpszHeaders: int | str
+        hRequest, lpszHeaders, dwHeadersLength, lpOptional, dwOptionalLength = argv
 
         body = b""
 
         cw = self.get_char_width(ctx)
-        if headers:
-            headers = self.read_mem_string(headers, cw)
-            ctx.args["lpszHeaders"].display = headers
+        if lpszHeaders:
+            lpszHeaders = self.read_mem_string(lpszHeaders, cw)
+            ctx.args["lpszHeaders"].display = lpszHeaders
 
         if lpOptional:
             body = self.mem_read(lpOptional, dwOptionalLength)
 
-        req = self.netman.get_wininet_object(hnd)
+        req = self.netman.get_wininet_object(hRequest)
         srv = req.get_server()
         port = req.get_port()
 
@@ -275,7 +275,7 @@ class Wininet(api.ApiHandler):
             self.record_dns_event(srv)
 
         rv = 1
-        req_str = req.format_http_request(headers=headers)
+        req_str = req.format_http_request(headers=lpszHeaders)
 
         self.record_http_event(srv, port, headers=req_str, body=body, secure=req.is_secure())
         return rv
@@ -291,7 +291,7 @@ class Wininet(api.ApiHandler):
             LPVOID *lppvData
         );
         """
-        hWnd, req, error, flags, data = argv
+        hWnd, hRequest, dwError, dwFlags, lppvData = argv
 
     @apihook("InternetQueryOption", argc=4)
     def InternetQueryOption(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -327,7 +327,7 @@ class Wininet(api.ApiHandler):
             LPDWORD lpdwNumberOfBytesRead
         );
         """
-        hFile, buf, size, bytes_read = argv
+        hFile, lpBuffer, dwNumberOfBytesToRead, lpdwNumberOfBytesRead = argv
 
         rv = 1
 
@@ -336,13 +336,13 @@ class Wininet(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return False
         resp = req.get_response()
-        data = resp.read(size)
+        data = resp.read(dwNumberOfBytesToRead)
 
-        if buf:
-            self.mem_write(buf, data)
+        if lpBuffer:
+            self.mem_write(lpBuffer, data)
 
-        if bytes_read:
-            self.mem_write(bytes_read, (len(data)).to_bytes(4, "little"))
+        if lpdwNumberOfBytesRead:
+            self.mem_write(lpdwNumberOfBytesRead, (len(data)).to_bytes(4, "little"))
 
         return rv
 

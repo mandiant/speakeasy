@@ -125,7 +125,7 @@ class GDI32(api.ApiHandler):
             int index
         );
         """
-        _, index = argv
+        hdc, index = argv
         return DEVICE_CAPS.get(index, 0) & 0xFFFFFFFF
 
     @apihook("GdiSetBatchLimit", argc=1)
@@ -322,9 +322,9 @@ class GDI32(api.ApiHandler):
     def GetObjectA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetObjectA(
-            HANDLE hgdiobj,
-            int cbBuffer,
-            LPVOID lpvObject
+            HANDLE h,
+            int c,
+            LPVOID pv
         );
         """
         h, c, pv = argv
@@ -352,10 +352,10 @@ class GDI32(api.ApiHandler):
             const D3DKMT_ENUMADAPTERS2 *unnamedParam1
         );
         """
-        (pData,) = argv
+        (unnamedParam1,) = argv
         # No display adapters: NumAdapters is 0 and pAdapters is not touched
-        if pData:
-            self.mem_write(pData, (0).to_bytes(4, "little"))
+        if unnamedParam1:
+            self.mem_write(unnamedParam1, (0).to_bytes(4, "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTEnumAdapters", argc=1)
@@ -365,9 +365,9 @@ class GDI32(api.ApiHandler):
             const D3DKMT_ENUMADAPTERS *unnamedParam1
         );
         """
-        (pData,) = argv
-        if pData:
-            self.mem_write(pData, (0).to_bytes(4, "little"))
+        (unnamedParam1,) = argv
+        if unnamedParam1:
+            self.mem_write(unnamedParam1, (0).to_bytes(4, "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTCloseAdapter", argc=1)
