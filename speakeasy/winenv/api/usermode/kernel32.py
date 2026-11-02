@@ -15,18 +15,7 @@ import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
-from speakeasy.profiler_events import (
-    FILE_CREATE,
-    FILE_READ,
-    FILE_WRITE,
-    MEM_ALLOC,
-    MEM_PROTECT,
-    MEM_READ,
-    MEM_WRITE,
-    PROC_CREATE,
-    THREAD_CREATE,
-    THREAD_INJECT,
-)
+from speakeasy.profiler_events import EventType
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
@@ -1015,7 +1004,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 return windefs.ERROR_ACCESS_DENIED
             except FileSystemEmuError:
                 return windefs.ERROR_FILE_NOT_FOUND
-            self.record_process_event(proc, PROC_CREATE)
+            self.record_process_event(proc, EventType.PROCESS_CREATE)
             rv = 32
 
         return rv
@@ -1161,7 +1150,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = 1
 
-        self.record_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, EventType.PROCESS_CREATE)
         return rv
 
     def commit_pages(self, emu, mm, address, size, protect):
@@ -1226,7 +1215,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             proc = emu.get_current_process()
             if proc:
                 self.record_process_event(
-                    proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
+                    proc, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
                 )
 
             emu._set_dyn_code_hook(buf, size)
@@ -1296,7 +1285,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 emu.set_guard_pages(buf, size, emu_perms)
             mm = emu.get_address_map(buf)
 
-            self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect)
+            self.record_process_event(
+                obj, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
+            )
 
             emu._set_dyn_code_hook(buf, size)
 
@@ -1337,7 +1328,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.record_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, EventType.MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
 
         return rv
 
@@ -1379,7 +1370,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
-        self.record_process_event(obj, MEM_READ, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, EventType.MEM_READ, base=lpBaseAddress, size=nSize, data=data)
 
         return rv
 
@@ -1411,10 +1402,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if is_remote:
             run_type = f"injected_thread_{proc_path}_{proc_obj.id:x}"
-            evt_type = THREAD_INJECT
+            evt_type = EventType.THREAD_INJECT
         else:
             run_type = "thread"
-            evt_type = THREAD_CREATE
+            evt_type = EventType.THREAD_CREATE
 
         handle, obj = self.create_thread(lpStartAddress, lpParameter, proc_obj, thread_type=run_type)
 
@@ -1458,7 +1449,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpThreadId:
             self.write_dword(lpThreadId, obj.id)
 
-        self.record_process_event(proc_obj, THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id)
+        self.record_process_event(
+            proc_obj, EventType.THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id
+        )
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -1761,7 +1754,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         protect = decode(PAGE_PROTECTION_FLAGS, flNewProtect)
         ctx.args["flNewProtect"].display = protect
 
-        self.record_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=protect)
+        self.record_process_event(proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, protect=protect)
 
         return rv
 
@@ -4420,8 +4413,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         data = sf.get_data() or b""
         df.add_data(data)
-        self.record_file_access_event(new_name, FILE_CREATE)
-        self.record_file_access_event(new_name, FILE_WRITE)
+        self.record_file_access_event(new_name, EventType.FILE_CREATE)
+        self.record_file_access_event(new_name, EventType.FILE_WRITE)
         return True
 
     @apihook("MoveFile", argc=2)
@@ -4475,8 +4468,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         dst_file.add_data(src_file.get_data(reset_pointer=True) or b"")
         emu.file_delete(existing_name)
 
-        self.record_file_access_event(new_name, FILE_CREATE)
-        self.record_file_access_event(new_name, FILE_WRITE)
+        self.record_file_access_event(new_name, EventType.FILE_CREATE)
+        self.record_file_access_event(new_name, EventType.FILE_WRITE)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
@@ -4555,7 +4548,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if obj:
             hnd = self.get_object_handle(obj)
         else:
-            op = "open"
+            op = EventType.FILE_OPEN
             if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                 exists = emu.get_file_manager().does_file_exist_by_path(target)
             else:
@@ -4564,7 +4557,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                     hnd = self.file_open(target, create=True)
-                    op = "create"
+                    op = EventType.FILE_CREATE
                 elif dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                     # Function fails
                     emu.set_last_error(windefs.ERROR_FILE_EXISTS)
@@ -4580,23 +4573,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     hnd = self.file_open(target, create=False, truncate=True)
 
             # We don't have a handler for this file, create it
-            else:
-                op = "create"
-                if dwCreationDisposition in (
-                    FILE_CREATION_DISPOSITION.CREATE_ALWAYS,
-                    FILE_CREATION_DISPOSITION.CREATE_NEW,
-                ):
-                    emu.set_last_error(windefs.ERROR_SUCCESS)
-                    hnd = self.file_open(target, create=True)
-                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
-                    emu.set_last_error(windefs.ERROR_SUCCESS)
-                    # Open the file
-                    hnd = self.file_open(target, create=True)
-                elif dwCreationDisposition in (
-                    FILE_CREATION_DISPOSITION.OPEN_EXISTING,
-                    FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING,
-                ):
-                    emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            elif dwCreationDisposition in (
+                FILE_CREATION_DISPOSITION.CREATE_ALWAYS,
+                FILE_CREATION_DISPOSITION.CREATE_NEW,
+            ):
+                emu.set_last_error(windefs.ERROR_SUCCESS)
+                hnd = self.file_open(target, create=True)
+                op = EventType.FILE_CREATE
+            elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
+                emu.set_last_error(windefs.ERROR_SUCCESS)
+                # Open the file
+                hnd = self.file_open(target, create=True)
+                op = EventType.FILE_CREATE
+            elif dwCreationDisposition in (
+                FILE_CREATION_DISPOSITION.OPEN_EXISTING,
+                FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING,
+            ):
+                emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
             f = self.get_file(hnd) if hnd else None
             write_access = (
@@ -4678,7 +4671,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpBuffer:
             _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
 
-            self.record_file_access_event(f.path, FILE_READ, buffer=lpBuffer, size=len(data))
+            self.record_file_access_event(f.path, EventType.FILE_READ, buffer=lpBuffer, size=len(data))
 
             rv = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4722,7 +4715,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 f.add_data(data)
         elif data:
             f.write_data(data)
-            self.record_file_access_event(f.path, FILE_WRITE, data=data, buffer=lpBuffer, size=nNumberOfBytesToWrite)
+            self.record_file_access_event(
+                f.path, EventType.FILE_WRITE, data=data, buffer=lpBuffer, size=nNumberOfBytesToWrite
+            )
 
             data_hex = data.hex()
             ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
@@ -7997,7 +7992,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.write_mem_string(out, lpTempFileName, cw)
         if create:
             self.file_open(out, create=True)
-            self.record_file_access_event(out, FILE_CREATE)
+            self.record_file_access_event(out, EventType.FILE_CREATE)
 
         return unique
 

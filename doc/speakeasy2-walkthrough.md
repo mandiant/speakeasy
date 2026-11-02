@@ -28,7 +28,7 @@ speakeasy -t /tmp/se_vol_demo2/target/file_access_test_x86.exe --no-mp -v -V /tm
 INFO     Auto-mounted 1 file(s) from target directory /private/tmp/se_vol_demo2/target into C:\Windows\system32
 INFO     Emulated filesystem: 6 full_path entries
 DEBUG      emu_path=c:\myfile.txt  host_path=/private/tmp/se_vol_demo2/mount/myfile.txt
-DEBUG    file_file_open: c:\myfile.txt
+DEBUG    file_open: c:\myfile.txt
 INFO     0x40119b: 'ntdll.NtReadFile("c:\\myfile.txt", 0x0, 0x0, 0x0, 0x0, 0x12ffb98, 0x400, 0x12ffb8c, 0x0)' -> 0x0
 INFO     0x40102e: 'api-ms-win-crt-stdio-l1-1-0.__stdio_common_vfprintf(0x0, 0x1, "File contained: 0x7266206f6c6c6568\\n")' -> 0x23
 ```
@@ -41,7 +41,7 @@ When a target sample is loaded from disk, Speakeasy now auto-mounts immediate si
 
 I ran a concrete CLI check with `file_access_test_x86.exe` and a sibling `myfile.txt`, using `--no-mp -v` and a config with `current_dir` set to `c:\`. Startup logs showed `Auto-mounted 3 file(s) ... into c:\` and debug mappings for each direct child file, including `c:\myfile.txt -> /tmp/.../myfile.txt`. Right after that, file manager logged the mounted entry in the `full_path` list, which confirms the auto-mount is applied before execution starts.
 
-The sample then opened and read `c:\myfile.txt` without any `--volume` flag (`file_file_open: c:\myfile.txt`, followed by successful `NtReadFile` and `File contained: ...` output). So the behavior is: this only triggers when you load by host path (not raw bytes), it mounts only immediate child files (not recursive), it maps into `current_dir`, and these entries are prepended so they win first-match file resolution.
+The sample then opened and read `c:\myfile.txt` without any `--volume` flag (`file_open: c:\myfile.txt`, followed by successful `NtReadFile` and `File contained: ...` output). So the behavior is: this only triggers when you load by host path (not raw bytes), it mounts only immediate child files (not recursive), it maps into `current_dir`, and these entries are prepended so they win first-match file resolution.
 
 ## AMD64 thread context get/set
 

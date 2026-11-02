@@ -16,7 +16,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
-from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
+from speakeasy.profiler_events import EventType
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
@@ -1329,7 +1329,7 @@ class Ntoskrnl(api.ApiHandler):
         else:
             rv = ddk.STATUS_INVALID_PARAMETER
 
-        self.record_process_event(obj, MEM_WRITE, base=BaseAddress, size=NumberOfBytesToWrite, data=data)
+        self.record_process_event(obj, EventType.MEM_WRITE, base=BaseAddress, size=NumberOfBytesToWrite, data=data)
 
         return rv
 
@@ -2847,7 +2847,7 @@ class Ntoskrnl(api.ApiHandler):
             disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
             self.write_dword(Disposition, disp)
 
-        self.record_registry_access_event(key.get_path(), REG_CREATE, handle=hnd)
+        self.record_registry_access_event(key.get_path(), EventType.REG_CREATE_KEY, handle=hnd)
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetValueKey", argc=6)
@@ -2893,7 +2893,13 @@ class Ntoskrnl(api.ApiHandler):
             key.create_value(name, Type, value_data)
 
         self.record_registry_access_event(
-            key.get_path(), REG_WRITE, value_name=name, data=raw, handle=KeyHandle, size=DataSize, buffer=Data
+            key.get_path(),
+            EventType.REG_WRITE_VALUE,
+            value_name=name,
+            data=raw,
+            handle=KeyHandle,
+            size=DataSize,
+            buffer=Data,
         )
         return ddk.STATUS_SUCCESS
 
@@ -2952,7 +2958,7 @@ class Ntoskrnl(api.ApiHandler):
         if obj:
             hnd = self.get_object_handle(obj)
             self.write_ptr(FileHandle, hnd)
-            self.record_file_access_event(name, FILE_OPEN, disposition=cd, access=ad)
+            self.record_file_access_event(name, EventType.FILE_OPEN, disposition=cd, access=ad)
 
         else:
             hfile = 0
@@ -2987,7 +2993,7 @@ class Ntoskrnl(api.ApiHandler):
                 hfile = self.file_open(npath, create=True)
 
             self.write_ptr(FileHandle, hfile)
-            self.record_file_access_event(npath, FILE_OPEN, disposition=cd, access=ad)
+            self.record_file_access_event(npath, EventType.FILE_OPEN, disposition=cd, access=ad)
 
         return nts
 
@@ -3030,7 +3036,7 @@ class Ntoskrnl(api.ApiHandler):
             if hfile:
                 nts = ddk.STATUS_SUCCESS
 
-        self.record_file_access_event(path, FILE_OPEN, disposition=None, access=ad)
+        self.record_file_access_event(path, EventType.FILE_OPEN, disposition=None, access=ad)
 
         if hfile:
             self.write_ptr(FileHandle, hfile)
@@ -3148,7 +3154,7 @@ class Ntoskrnl(api.ApiHandler):
                 self.seek_to_byte_offset(_file, ByteOffset)
                 _file.write_data(data)
                 # Log the file event
-                self.record_file_access_event(path, FILE_WRITE, data=data, size=Length)
+                self.record_file_access_event(path, EventType.FILE_WRITE, data=data, size=Length)
 
                 # Is it ascii?
                 try:
@@ -3194,7 +3200,7 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(Buffer, data)
 
             # Log the file event
-            self.record_file_access_event(path, FILE_READ, buffer=Buffer, size=Length)
+            self.record_file_access_event(path, EventType.FILE_READ, buffer=Buffer, size=Length)
 
             nts = ddk.STATUS_SUCCESS if data or not Length else ddk.STATUS_END_OF_FILE
             self.write_io_status(IoStatusBlock, nts, len(data))

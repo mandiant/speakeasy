@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
-from speakeasy.profiler_events import PROC_CREATE
+from speakeasy.profiler_events import EventType
 from speakeasy.winenv.defs.windows import com as comdefs
 
 from .. import api
@@ -161,7 +161,7 @@ class Shell32(api.ApiHandler):
             dn = self.read_mem_string(pszPath, cw)
             ctx.args["pszPath"].display = dn
 
-            self.record_file_access_event(dn, "directory_create")
+            self.record_file_access_event(dn, EventType.DIRECTORY_CREATE)
 
         return 0
 
@@ -216,7 +216,7 @@ class Shell32(api.ApiHandler):
         except FileSystemEmuError:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return shell32_defs.SE_ERR_FNF, None
-        self.record_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, EventType.PROCESS_CREATE)
 
         return 33, proc
 

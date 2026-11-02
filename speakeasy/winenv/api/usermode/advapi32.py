@@ -12,7 +12,7 @@ import speakeasy.winenv.defs.windows.advapi32 as adv32defs
 import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
-from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
+from speakeasy.profiler_events import EventType
 from speakeasy.windows import objman
 from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import (
@@ -117,10 +117,10 @@ class AdvApi32(api.ApiHandler):
             if not hnd:
                 rv = windefs.ERROR_FILE_NOT_FOUND
 
-            self.record_registry_access_event(lpSubKey, REG_OPEN, handle=hnd)
+            self.record_registry_access_event(lpSubKey, EventType.REG_OPEN_KEY, handle=hnd)
         elif new_handle:
             hnd = self.reg_open_key(hkey_name, create=False)
-            self.record_registry_access_event(hkey_name, REG_OPEN, handle=hnd)
+            self.record_registry_access_event(hkey_name, EventType.REG_OPEN_KEY, handle=hnd)
 
         if phkResult:
             self.write_ptr(phkResult, hnd or 0)
@@ -193,7 +193,7 @@ class AdvApi32(api.ApiHandler):
         kp = key.get_path()
         self.record_registry_access_event(
             kp,
-            REG_READ,
+            EventType.REG_READ_VALUE,
             value_name=value_name,
             data=output,
             size=length,
@@ -251,7 +251,7 @@ class AdvApi32(api.ApiHandler):
 
         self.record_registry_access_event(
             key.get_path(),
-            REG_WRITE,
+            EventType.REG_WRITE_VALUE,
             value_name=value_name,
             data=raw if lpData and cbData else b"",
             handle=hKey,
@@ -339,7 +339,7 @@ class AdvApi32(api.ApiHandler):
                     else:
                         self.write_mem_string(name, lpName, cw)
                         rv = windefs.ERROR_SUCCESS
-                self.record_registry_access_event(key.get_path(), REG_LIST)
+                self.record_registry_access_event(key.get_path(), EventType.REG_LIST_SUBKEYS)
         return rv, name
 
     @apihook("RegCreateKey", argc=3)
@@ -368,7 +368,7 @@ class AdvApi32(api.ApiHandler):
                 if sub_key:
                     sub_key_path = key.get_path() + "\\" + sub_key.lstrip("\\")
                     hnd = self.reg_open_key(sub_key_path, create=True)
-                    self.record_registry_access_event(sub_key_path, REG_CREATE, handle=hnd)
+                    self.record_registry_access_event(sub_key_path, EventType.REG_CREATE_KEY, handle=hnd)
                 if phkResult:
                     self.write_ptr(phkResult, hnd)
                 rv = windefs.ERROR_SUCCESS
@@ -425,7 +425,7 @@ class AdvApi32(api.ApiHandler):
             disp = 2 if existing else 1
             self.write_dword(lpdwDisposition, disp)
 
-        self.record_registry_access_event(key_path, REG_CREATE, handle=hnd)
+        self.record_registry_access_event(key_path, EventType.REG_CREATE_KEY, handle=hnd)
         return windefs.ERROR_SUCCESS
 
     @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
@@ -1676,7 +1676,7 @@ class AdvApi32(api.ApiHandler):
 
         rv = 1
 
-        self.record_process_event(proc, PROC_CREATE)
+        self.record_process_event(proc, EventType.PROCESS_CREATE)
         return rv
 
     @apihook("CryptCreateHash", argc=5)
@@ -2001,7 +2001,7 @@ class AdvApi32(api.ApiHandler):
             kp = key.get_path()
             self.record_registry_access_event(
                 kp,
-                REG_READ,
+                EventType.REG_READ_VALUE,
                 value_name=value_name,
                 data=output,
                 size=length,
