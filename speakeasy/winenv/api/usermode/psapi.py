@@ -167,10 +167,7 @@ class Psapi(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         truncated = module_name[: max(nSize - 1, 0)]
-        if cw == 1:
-            output = truncated.encode("utf-8") + b"\x00"
-        else:
-            output = truncated.encode("utf-16le") + b"\x00\x00"
+        output = self.encode_string(truncated + "\x00", cw)
 
         self.mem_write(lpBaseName, output)
         return len(truncated)
@@ -203,10 +200,7 @@ class Psapi(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         truncated = module_path[: max(nSize - 1, 0)]
-        if cw == 1:
-            output = truncated.encode("utf-8") + b"\x00"
-        else:
-            output = truncated.encode("utf-16le") + b"\x00\x00"
+        output = self.encode_string(truncated + "\x00", cw)
 
         self.mem_write(lpFilename, output)
         return len(truncated)
