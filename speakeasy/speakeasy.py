@@ -35,15 +35,13 @@ SHELLCODE_ARCH = {
 
 
 class Speakeasy:
-    """
-    Wrapper class for invoking the speakeasy emulators
-    """
+    """Wrapper class for invoking the speakeasy emulators."""
 
     config: SpeakeasyConfig
 
     @staticmethod
     def check_init(func):
-        """Wrapper to make sure the emulator is initialized"""
+        """Wrap a method so that it raises ``SpeakeasyError`` while the emulator does not exist."""
 
         def wrap(self, *args, **kwargs):
             if self._emu is None:
@@ -62,6 +60,23 @@ class Speakeasy:
         volumes=None,
         gdb_host="127.0.0.1",
     ):
+        """
+        Create a wrapper for the emulators.
+
+        Args:
+            config: Emulator configuration as a raw dict or a validated ``SpeakeasyConfig``.
+                ``None`` selects the default configuration.
+            argv: Command line arguments for the emulated program.
+            debug: Whether to enable debug output in the emulator.
+            exit_event: Event that stops the emulation when it is set.
+            gdb_port: Port on which to listen for a GDB client. ``None`` disables the GDB server.
+            volumes: Host paths to mount into the emulated file system.
+            gdb_host: Address on which the GDB server listens.
+
+        Raises:
+            ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, or if the
+                configuration is not valid.
+        """
         if volumes:
             if isinstance(config, SpeakeasyConfig):
                 raise ConfigError(
@@ -93,9 +108,7 @@ class Speakeasy:
 
     @property
     def has_emulator(self) -> bool:
-        """
-        Whether a load created the emulator, so that emu is available.
-        """
+        """Whether a load created the emulator, so that ``emu`` is available."""
         return self._emu is not None
 
     @property
@@ -104,7 +117,7 @@ class Speakeasy:
         The emulator for the loaded input.
 
         Raises:
-            SpeakeasyError: no input is loaded yet.
+            SpeakeasyError: if no input is loaded yet.
         """
         if self._emu is None:
             raise SpeakeasyError("Emulator not initialized")
@@ -118,13 +131,14 @@ class Speakeasy:
 
     def _init_config(self, config: dict | SpeakeasyConfig | None) -> None:
         """
-        Init the emulator config
-        args:
-            config: The configuration data to set up the emulator environment
-                    If none is supplied, a default config is used.
+        Validate the configuration and store it.
 
-        return:
-            None
+        Args:
+            config: The configuration data to set up the emulator environment.
+                If ``None``, the default configuration is used.
+
+        Raises:
+            ConfigError: if the configuration is not valid.
         """
         if config is None:
             config = get_default_config_dict()
@@ -140,9 +154,14 @@ class Speakeasy:
 
     def _init_pe_emulator(self, path=None, data=None) -> None:
         """
-        Based on the PE metadata, use the appropriate emulator. That is,
-        a user mode emulator vs a kernel mode emulator. Also create
-        the machine for the architecture of the PE.
+        Create the emulator that fits the PE metadata and its machine.
+
+        Picks the user mode emulator or the kernel mode emulator and creates the
+        machine for the architecture of the PE.
+
+        Raises:
+            SpeakeasyError: if the PE architecture is not x86 or x64.
+            NotSupportedError: if the PE is a .NET assembly.
         """
         pe = _PeParser(path=path, data=data)
         # Get the machine type we only support x86/x64 atm
@@ -182,9 +201,7 @@ class Speakeasy:
         return emu
 
     def _init_hooks(self) -> None:
-        """
-        Lazily add hooks if users added them early before emulator engine was instantiated
-        """
+        """Add the hooks that the user registered before the emulator engine existed."""
         while self.api_hooks:
             cb, mod, func, argc, cconv = self.api_hooks.pop(0)
             self.add_api_hook(cb, mod, func, argc, cconv)
@@ -221,13 +238,18 @@ class Speakeasy:
 
     def disasm(self, addr: int, size: int, fast=True):
         """
-        Get the disassembly from an address
+        Disassemble the code at an address.
 
-        args:
-            addr: address to being disassebmly
-            size: number of bytes to include
-        return:
-            A tuple of: (mnemonic, operands, and the full instruction)
+        Args:
+            addr: Address at which to begin the disassembly.
+            size: Number of bytes to include.
+            fast: Whether to use the fast disassembly path.
+
+        Returns:
+            A tuple of the mnemonic, the operands, and the full instruction.
+
+        Raises:
+            SpeakeasyError: if the disassembly fails or the emulator does not exist.
         """
         try:
             return self.emu.get_disasm(addr, size, fast)
@@ -235,14 +257,7 @@ class Speakeasy:
             raise SpeakeasyError(f"Failed to disassemble at address: 0x{addr:x}")
 
     def is_pe(self, data: bytes) -> bool:
-        """
-        Test data to see if it looks like a PE
-
-        args:
-            data: Bytes to be tested for a PE
-        return:
-            True is data appears to be a PE
-        """
+        """Check whether the data starts with the PE ``MZ`` header."""
         # Check for the PE header
         if data[:2] == b"MZ":
             return True
@@ -253,9 +268,9 @@ class Speakeasy:
         """
         Mount direct-child files in the target's host directory into the emulated current directory.
 
-        This makes sibling files (e.g. data files the sample expects to find
-        in its working directory) available to the emulated program.  Only
-        immediate children are mounted (no recursion into subdirectories).
+        This makes sibling files (for example data files the sample expects to find
+        in its working directory) available to the emulated program. Only
+        immediate children are mounted, not subdirectories.
         """
         target_dir = Path(path).resolve().parent
         if not target_dir.is_dir():
@@ -287,14 +302,22 @@ class Speakeasy:
 
     def load_module(self, path=None, data=None, filename=None):
         """
-        Load a module into the speakeasy emulator.
+        Load a PE module into the emulator.
 
-        args:
-            path: file path to PE module
-            data: bytes object containing PE module
-            filename: override the module filename seen by the emulated program.
-                      Useful when emulating from bytes and the malware checks its
-                      own filename (e.g. via GetModuleFileName).
+        Args:
+            path: File path of the PE module.
+            data: Bytes of the PE module.
+            filename: Override for the module filename that the emulated program sees.
+                Useful when emulating from bytes and the malware checks its
+                own filename (for example through ``GetModuleFileName``).
+
+        Returns:
+            The loaded module object from the emulator.
+
+        Raises:
+            SpeakeasyError: if neither ``path`` nor ``data`` is given, the file does not exist,
+                the input is not a PE, or its architecture is not x86 or x64.
+            NotSupportedError: if the PE is a .NET assembly.
         """
         if not path and not data:
             raise SpeakeasyError("No emulation target supplied")
@@ -322,8 +345,9 @@ class Speakeasy:
 
     def load_image(self, image):
         """
-        Load a LoadedImage into the emulator. If there is no emulator yet, create it,
-        and the image is the input image.
+        Load a ``LoadedImage`` into the emulator.
+
+        If there is no emulator yet, this method creates it and the image is the input image.
         """
         is_input = self._emu is None
         if is_input:
@@ -339,19 +363,19 @@ class Speakeasy:
     @execution_scope
     def run_module(self, module, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
-        Run a previously loaded module through the configured emulator
+        Run a previously loaded module through the configured emulator.
 
-        args:
-            module: The module whose entry point to be run
-            all_entrypoints: If true, all exports will be emulated, otherwise
-            just the main PE entry point is emulated.
-            emulate_children: If true, any child processes created by this
-            module will be emulated, otherwise, just this module is
-            emulated.
-            entry_point: Optional RVA to use as entry point instead of the
-            PE's default entry point.
-        return:
-            None
+        Args:
+            module: The module whose entry point to run.
+            all_entrypoints: If true, emulate all exports. Otherwise, emulate
+                only the main PE entry point.
+            emulate_children: If true, emulate the child processes that this
+                module creates. Otherwise, emulate only this module.
+            entry_point: RVA to use as entry point instead of the
+                default PE entry point.
+
+        Raises:
+            SpeakeasyError: if no module is loaded yet.
         """
         output_active_config(self.config, logger)
         self._init_hooks()
@@ -368,15 +392,17 @@ class Speakeasy:
 
     def load_shellcode(self, fpath=None, arch=None, data=None, filename=None) -> int:
         """
-        Load a shellcode blob into emulation space
+        Load a shellcode blob into the emulation space.
 
-        args:
-            fpath: file path containing shellcode blob
-            arch: Architecture (x86 | amd64) to load shellcode as
-            data: bytes object containing shellcode blob
-            filename: override the module filename seen by the emulated program
-        return:
-            Address of the loaded shellcode in the emulation space
+        Args:
+            fpath: File path of the shellcode blob.
+            arch: Architecture (``x86`` or ``amd64``) to load the shellcode as.
+                Other values select x86.
+            data: Bytes of the shellcode blob.
+            filename: Override for the module filename that the emulated program sees.
+
+        Returns:
+            Address of the loaded shellcode in the emulation space.
         """
         emu = self._init_user_emulator()
         emu.init_machine(SHELLCODE_ARCH.get(arch, _arch.ARCH_X86))
@@ -389,13 +415,15 @@ class Speakeasy:
     @execution_scope
     def run_shellcode(self, sc_addr: int, stack_commit=0x4000, offset=0) -> None:
         """
-        Run a previously loaded shellcode blob by address
+        Run a previously loaded shellcode blob by address.
 
-        args:
-            sc_addr: address of the previously loaded shellcode blog to emulate
-            offset: offset within the blob to begin emulation
-        return:
-            None
+        Args:
+            sc_addr: Address of the loaded shellcode to emulate.
+            stack_commit: Number of bytes of stack to commit.
+            offset: Offset within the blob at which to begin emulation.
+
+        Raises:
+            SpeakeasyError: if no shellcode is loaded or the emulator is the kernel mode emulator.
         """
         emu = self.emu
         if not isinstance(emu, Win32Emulator):
@@ -407,34 +435,40 @@ class Speakeasy:
     @check_init
     def get_report(self) -> Report:
         """
-        Get the emulation report from the emulator
+        Get the emulation report.
 
-        return:
-            Get the emulation report as a Pydantic Report model
+        Returns:
+            The emulation report as a Pydantic ``Report`` model.
+
+        Raises:
+            SpeakeasyError: if the emulator does not exist.
         """
         return self.emu.get_report()
 
     @check_init
     def get_json_report(self) -> str:
         """
-        Get the emulation report from the emulator formatted as a JSON string
-        return:
-            Get the emulation report as a JSON object
+        Get the emulation report as a JSON string.
+
+        Raises:
+            SpeakeasyError: if the emulator does not exist.
         """
         return self.emu.get_json_report()
 
     def add_api_hook(self, cb: Callable, module="", api_name="", argc=0, call_conv=None):
         """
-        Set a callback to fire when a specified API is called during emulation
+        Set a callback to fire when the emulated program calls a specified API.
 
-        args:
-            cb: Callable python function to execute
-            module: name of the module containing the target API
-            api_name: Name of the API to hook. Wild cards (e.g. *) are supported.
-            argc: force the emulator to account for this amount of arguments (for stack cleanup)
-            call_conv: force the emulator to use the supplied calling convention for this hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            module: Name of the module that contains the target API.
+            api_name: Name of the API to hook. Wild cards (for example ``*``) are supported.
+            argc: Force the emulator to account for this number of arguments (for stack cleanup).
+            call_conv: Force the emulator to use this calling convention for the hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.api_hooks.append((cb, module, api_name, argc, call_conv))
@@ -444,34 +478,29 @@ class Speakeasy:
     @execution_scope
     def resume(self, addr, count=-1):
         """
-        Resume emulating at the specified address
+        Resume emulating at the specified address.
 
-        args:
-            addr: Address to being emulation at
-            count: number of instructions
-        return:
-            None
+        Args:
+            addr: Address at which to begin emulation.
+            count: Number of instructions to emulate. ``-1`` means no limit.
         """
         output_active_config(self.config, logger)
         self.emu.is_run_complete = False
         self.emu.resume(addr, count=count)
 
     def stop(self) -> None:
-        """
-        Stops emulation
-        """
+        """Stop emulation."""
         return self.emu.stop()
 
     def shutdown(self) -> None:
         """
-        Closes the emulation instance and releases underlying engine resources.
+        Close the emulation instance and release the underlying engine resources.
 
-        Removes all Unicorn hooks so the native engine can be safely finalized
-        by the garbage collector without accessing stale callbacks.  The Uc
-        handle itself is intentionally kept alive — Unicorn's ``uc_close`` has
-        process-global side effects that can corrupt other live engine
-        instances, so we let the normal GC + weak-ref finalizer handle it when
-        the object graph is fully unreachable.
+        Removes all Unicorn hooks so the garbage collector can finalize the native
+        engine without it accessing stale callbacks. The Uc handle stays alive on
+        purpose: Unicorn's ``uc_close`` has process-global side effects that can
+        corrupt other live engine instances. The garbage collector and the weak-ref
+        finalizer release it when the object graph is unreachable.
         """
         if self._emu is not None:
             self._emu.emu_eng.close()
@@ -479,27 +508,27 @@ class Speakeasy:
     @execution_scope
     def call(self, addr: int, params=[]) -> None:
         """
-        Start emulating at the specified address
+        Call the function at the specified address.
 
-        args:
-            addr: Address to being emulation at
-            params: list of arguments to push onto the stack for the call
-        return:
-            None
+        Args:
+            addr: Address of the function.
+            params: Arguments to push onto the stack for the call.
         """
         output_active_config(self.config, logger)
         return self.emu.call(addr, params=params)
 
     def add_code_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire for every CPU instruction that is emulated
+        Set a callback to fire for every CPU instruction that is emulated.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.code_hooks.append((cb, begin, end))
@@ -508,12 +537,14 @@ class Speakeasy:
 
     def add_dyn_code_hook(self, cb: Callable):
         """
-        Set a callback to fire when dynamically generated/copied code is executed
+        Set a callback to fire when dynamically generated or copied code runs.
 
-        args:
-            cb: Callable python function to execute
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.dyn_code_hooks.append((cb,))
@@ -522,14 +553,16 @@ class Speakeasy:
 
     def add_mem_read_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire when a memory address is read from
+        Set a callback to fire when a memory address is read from.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.mem_read_hooks.append((cb, begin, end))
@@ -538,14 +571,16 @@ class Speakeasy:
 
     def add_mem_write_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire when a memory address is written to
+        Set a callback to fire when a memory address is written to.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.mem_write_hooks.append((cb, begin, end))
@@ -554,14 +589,16 @@ class Speakeasy:
 
     def add_IN_instruction_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire when an IN instruction executes
+        Set a callback to fire when an IN instruction executes.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.in_insn_hooks.append((cb, begin, end))
@@ -570,14 +607,16 @@ class Speakeasy:
 
     def add_SYSCALL_instruction_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire when a SYSCALL / SYSENTER instruction executes
+        Set a callback to fire when a SYSCALL / SYSENTER instruction executes.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.syscall_insn_hooks.append((cb, begin, end))
@@ -586,13 +625,14 @@ class Speakeasy:
 
     def add_invalid_instruction_hook(self, cb: Callable):
         """
-        Set a callback to fire when an invalid instruction is attempted
-        to be executed
+        Set a callback to fire when the emulator hits an invalid instruction.
 
-        args:
-            cb: Callable python function to execute
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.invalid_insn_hooks.append((cb,))
@@ -601,12 +641,14 @@ class Speakeasy:
 
     def add_mem_invalid_hook(self, cb: Callable):
         """
-        Get a callback for when a memory access violation occurs
+        Set a callback to fire when a memory access violation occurs.
 
-        args:
-            cb: Callable python function to execute
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.mem_invalid_hooks.append((cb,))
@@ -615,12 +657,14 @@ class Speakeasy:
 
     def add_interrupt_hook(self, cb: Callable):
         """
-        Get a callback for software interrupts
+        Set a callback to fire for software interrupts.
 
-        args:
-            cb: Callable python function to execute
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.interrupt_hooks.append((cb,))
@@ -629,60 +673,51 @@ class Speakeasy:
 
     def get_registry_key(self, handle=0, path=""):
         """
-        Get registry key by path or handle
+        Get a registry key by path or handle.
 
-        args:
-            handle: handle corresponding for a registry key
-            path: Path to a registry key
-        return:
-            If valid, a registry key object
+        Args:
+            handle: Handle of the registry key.
+            path: Path of the registry key.
+
+        Returns:
+            The registry key object, if the handle or path is valid.
         """
         return self.emu.reg_get_key(handle=handle, path=path)
 
     def get_address_map(self, addr: int):
         """
-        Get the address mapping object associated with the specified address
+        Get the memory map that holds the specified address.
 
-        args:
-            addr: Address in the emulation space
-        return:
-            A memory map object that holds the specified address
+        Args:
+            addr: Address in the emulation space.
         """
         return self.emu.get_address_map(addr)
 
     def mem_alloc(self, size, base=None, tag="speakeasy.None") -> int:
         """
-        Allocate a block of memory in the emulation space
+        Allocate a block of memory in the emulation space.
 
-        args:
-            size: Size of requested memory block
-            base: Optionally request a base address. If in use, the next nearest
-                  address will be returned
-            tag: Tag to assign the new memory mapping
-        return:
-            Address of the newly allocated memory block
+        Args:
+            size: Size of the requested memory block.
+            base: Requested base address. If it is in use, the emulator picks
+                the next nearest address.
+            tag: Tag to assign to the new memory mapping.
+
+        Returns:
+            Address of the newly allocated memory block.
         """
         return self.emu.mem_map(size, base=base, tag=tag)
 
     def mem_free(self, base: int) -> None:
-        """
-        Free a block of memory in the emulation space
-        args:
-            base: Address to free
-        return:
-            None
-        """
+        """Free a block of memory in the emulation space."""
         return self.emu.mem_free(base)
 
     def mem_read(self, addr: int, size: int) -> bytes:
         """
-        Read bytes from a memory address
+        Read bytes from a memory address.
 
-        args:
-            addr: address to read bytes from
-            size: number of bytes to read
-        return:
-            Python bytes object contained the data read
+        Raises:
+            SpeakeasyError: if the read fails or the emulator does not exist.
         """
         try:
             return self.emu.mem_read(addr, size)
@@ -691,13 +726,10 @@ class Speakeasy:
 
     def mem_write(self, addr: int, data: bytes) -> None:
         """
-        Write bytes to a memory address
+        Write bytes to a memory address.
 
-        args:
-            addr: address to write bytes to
-            data: data to write
-        return:
-            None
+        Raises:
+            SpeakeasyError: if the write fails or the emulator does not exist.
         """
         try:
             return self.emu.mem_write(addr, data)
@@ -706,55 +738,38 @@ class Speakeasy:
 
     def mem_cast(self, obj, addr: int):
         """
-        Cast an address as an object for easy access
+        Cast an address as an object for easy access.
 
-        args:
-            obj: object to cast into
-            addr: address containing the data to cast into type "obj"
-        return:
-            Python object based on the data located at addr
+        Args:
+            obj: Object type to cast into.
+            addr: Address of the data to cast into ``obj``.
+
+        Returns:
+            Python object based on the data at ``addr``.
         """
         return self.emu.mem_cast(obj, addr)
 
     def reg_read(self, reg: str) -> int:
-        """
-        Read value from a register
-
-        args:
-            reg: name of the register to read from
-        return:
-            value contained in the requested register
-        """
+        """Read the value of a register by name."""
         return self.emu.reg_read(reg)
 
     def reg_write(self, reg: str, val: int) -> None:
-        """
-        Write value to a register
-
-        args:
-            reg: name of the register to write to
-        return:
-            None
-        """
+        """Write a value to a register by name."""
         return self.emu.reg_write(reg, val)
 
     def get_dropped_files(self) -> list:
-        """
-        Get files that were written to disk during emulation
-
-        return:
-            Returns a list of files that were written by the sample
-        """
+        """Get the files that the sample wrote during emulation."""
         return self.emu.get_dropped_files()
 
     def create_file_archive(self) -> bytes:
         """
-        Creates a file archive package.
-        The archive contains a manifest that can be used to match dropped files
-        metadata with the acquired files.
+        Create a zip archive of the dropped files.
 
-        return:
-            A Bytes object containing a zip archive of dropped files
+        The archive contains a manifest that matches the metadata of the dropped
+        files with the acquired files.
+
+        Returns:
+            The bytes of the zip archive, or empty bytes if the sample dropped no files.
         """
         manifest: list[FileManifestEntry] = []
         _zip = BytesIO()
@@ -782,20 +797,16 @@ class Speakeasy:
         return _zip.getvalue()
 
     def get_mem_maps(self) -> list:
-        """
-        Get all memory maps in the emulation space
-
-        return:
-            A list of all valid memory maps from the emulator
-        """
+        """Get all valid memory maps in the emulation space."""
         return self.emu.get_mem_maps()
 
     def get_memory_dumps(self):
         """
-        Returns all memory contents along with context information
+        Yield the contents of all readable memory maps with context information.
 
-        return:
-            A generator of tuples of all valid memory with context
+        Yields:
+            Tuples of tag, base, size, free flag, process, and data. Maps that cannot be read
+            are skipped.
         """
         for mm in self.emu.get_mem_maps():
             base = mm.base
@@ -811,195 +822,123 @@ class Speakeasy:
 
     def read_mem_string(self, address: int, width=1, max_chars=0) -> str:
         """
-        Read a string from emulated memory
+        Read a string from emulated memory.
 
-        args:
-            address: address of the string to read
-            width: character width
-            max_chars: maximum characters to read, 0 reads until null terminator
+        Args:
+            address: Address of the string.
+            width: Character width in bytes.
+            max_chars: Maximum number of characters to read. 0 reads until the null terminator.
 
-        return:
-            decoded string
+        Returns:
+            The decoded string.
         """
         return self.emu.read_mem_string(address, width, max_chars)
 
     def get_symbols(self) -> dict[int, tuple[str, str]]:
         """
-        Return a snapshot of public addresses mapped to (dll, name) tuples.
+        Get a snapshot of public addresses mapped to ``(dll, name)`` tuples.
 
-        Includes mapped API entries and auxiliary symbols. Snapshot again after
-        resolving new modules or functions; private dispatch tokens are excluded.
+        Includes mapped API entries and auxiliary symbols. Take a new snapshot after
+        the emulator resolves new modules or functions. Private dispatch tokens are excluded.
         """
         return self.emu.get_symbols()
 
     def get_ret_address(self) -> int:
-        """
-        Returns the value stored at the top of the stack
-
-        return:
-            value stored at the top of the stack
-        """
+        """Get the value stored at the top of the stack."""
         return self.emu.get_ret_address()
 
     def set_ret_address(self, addr) -> None:
-        """
-        Sets the return address on the stack
-
-        return:
-            None
-        """
+        """Set the return address on the stack."""
         return self.emu.set_ret_address(addr)
 
     def push_stack(self, val: int) -> None:
-        """
-        Put a value on the stack and adjust the stack pointer
-
-        args:
-            val: value to push to the stack
-        return:
-            None
-        """
+        """Put a value on the stack and adjust the stack pointer."""
         self.emu.push_stack(val)
 
     def pop_stack(self) -> int:
         """
-        Get value from the stack and adjust the stack pointer
+        Pop a value from the stack and adjust the stack pointer.
 
-        return:
-            value stored at the top of the stack
+        Returns:
+            The value that was at the top of the stack.
         """
         return self.emu.pop_stack()
 
     def get_stack_ptr(self) -> int:
-        """
-        Get the current address of the stack pointer
-
-        return:
-            address of stack pointer
-        """
+        """Get the current address of the stack pointer."""
         return self.emu.get_stack_ptr()
 
     def set_stack_ptr(self, addr: int) -> None:
-        """
-        Set the current address of the stack pointer
-
-        args:
-            addr: address to set the stack pointer to
-        return:
-            None
-        """
+        """Set the current address of the stack pointer."""
         self.emu.set_stack_ptr(addr)
 
     def get_pc(self) -> int:
-        """
-        Get the value of the current program counter
-
-        return:
-            value of the program counter
-        """
+        """Get the value of the current program counter."""
         return self.emu.get_pc()
 
     def set_pc(self, addr: int) -> None:
-        """
-        Set the value of the current program counter
-
-        args:
-            addr: address to set the program counter to
-        return:
-            None
-        """
+        """Set the value of the current program counter."""
         self.emu.set_pc(addr)
 
     def reset_stack(self, base: int) -> tuple[int, int]:
         """
-        Reset stack to the supplied base address
+        Reset the stack to the supplied base address.
 
-        args:
-            base: stack base address
-        return:
-            base, ptr
+        Returns:
+            A tuple of the stack base and the stack pointer.
         """
         return self.emu.reset_stack(base)
 
     def get_stack_base(self) -> int:
-        """
-        Get the base address of the stack
-
-        return:
-            base address of stack
-        """
+        """Get the base address of the stack."""
         return self.emu.stack_base
 
     def get_arch(self) -> int:
-        """
-        Get the architecture of the emulator
-
-        return:
-            emulator architecture constant value
-        """
+        """Get the architecture constant of the emulator."""
         return self.emu.get_arch()
 
     def get_ptr_size(self):
-        """
-        Get the size of a pointer
-
-        return:
-            pointer size
-        """
+        """Get the size of a pointer in bytes."""
         return self.emu.ptr_size
 
     def get_all_registers(self) -> dict[str, str]:
-        """
-        Get the state of all registers
-
-        return:
-            Dict containing emulation register states
-        """
+        """Get the state of all registers as a dict."""
         return self.emu.get_register_state()
 
     def get_symbol_from_address(self, address: int) -> str | None:
         """
-        If the supplied address is related to a known symbol, look it up here
+        Look up the known symbol for an address.
 
-        args:
-            address: address to lookup
-
-        return:
-            symbol name
+        Returns:
+            The symbol name, or ``None`` if the address has no known symbol.
         """
         return self.emu.get_symbol_from_address(address)
 
     def get_api_symbols(self) -> dict[int, str]:
         """
-        Return public addresses mapped to "dll.name" labels, including auxiliary symbols.
+        Get public addresses mapped to ``dll.name`` labels, including auxiliary symbols.
 
-        Snapshot again after new modules or functions are resolved. Private
+        Take a new snapshot after the emulator resolves new modules or functions. Private
         dispatch tokens and export-directory forwarder strings are excluded.
         """
         return self.emu.get_api_symbols()
 
     def is_address_valid(self, address: int) -> bool:
-        """
-        Was this address previously reserved or mapped?
-
-        args:
-            address: address to check
-
-        return:
-            True if address is valid, false otherwise
-        """
+        """Check whether the address is reserved or mapped."""
         return self.emu.is_address_valid(address)
 
     def add_mem_map_hook(self, cb: Callable, begin=1, end=0):
         """
-        Set a callback to fire when a memory address is mapped
+        Set a callback to fire when a memory address is mapped.
 
-        args:
-            cb: Callable python function to execute
-            begin: beginning of the address range to hook
-            end: end of the address range to hook
-        return:
-            Hook object for newly registered hooks
+        Args:
+            cb: Python function to call.
+            begin: Start of the address range to hook.
+            end: End of the address range to hook.
+
+        Returns:
+            The hook object, or ``None`` if the emulator does not exist yet. In that case,
+            the hook is added when the emulator is created.
         """
         if self._emu is None:
             self.mem_map_hooks.append((cb, begin, end))

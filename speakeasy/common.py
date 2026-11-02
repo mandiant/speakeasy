@@ -45,9 +45,7 @@ INVAL_PERM_MEM_READ = 2005
 
 
 def normalize_package_path(path):
-    """
-    Get the supplied path in relation to the package root
-    """
+    """Get the supplied path in relation to the package root."""
 
     def _get_speakeasy_root():
         return os.path.join(os.path.dirname(__file__))
@@ -60,20 +58,19 @@ def normalize_package_path(path):
 
 
 class Hook:
-    """
-    Base class for all emulator hooks
-    """
+    """Base class for all emulator hooks."""
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=False):
         """
-        Arguments:
-            se_obj: speakeasy emulator object
-            emu_eng: emulation engine object
-            cb: Python callback function
-            native_hook: When set to True, a new, raw callback will be registered with
-                         with the underlying emulation engine that is called directly by the DLL.
-                         Otherwise, this hook will be dispatched via a wrapper hook
-                         (e.g. see _wrap_code_cb below)
+        Create a hook.
+
+        Args:
+            se_obj: The ``Speakeasy`` or emulator object.
+            emu_eng: The emulation engine object.
+            cb: Python callback function.
+            native_hook: If true, register a new, raw callback with the underlying
+                emulation engine, which calls it directly. Otherwise, dispatch the hook
+                through a wrapper hook (for example ``_wrap_code_cb``).
         """
         self.cb: Callable[..., Any] = cb
         self.handle: int = 0
@@ -132,9 +129,7 @@ class Hook:
 
 
 class ApiHook(Hook):
-    """
-    This hook type is used when using a specific API (e.g. kernel32.CreateFile)
-    """
+    """This hook type is used when using a specific API (e.g. kernel32.CreateFile)."""
 
     def __init__(self, se_obj, emu_eng, cb, module="", api_name="", argc=0, call_conv=None):
         super().__init__(se_obj, emu_eng, cb)
@@ -146,8 +141,9 @@ class ApiHook(Hook):
 
 class DynCodeHook(Hook):
     """
-    This hook type is used to get a callback when dynamically created/copied code is executed
-    Currently, this will only fire once per dynamic code mapping. Could be useful for unpacking.
+    Hook that fires when dynamically created or copied code runs.
+
+    It fires once per dynamic code mapping. This is useful for unpacking.
     """
 
     def __init__(self, se_obj, emu_eng, cb):
@@ -155,9 +151,7 @@ class DynCodeHook(Hook):
 
 
 class CodeHook(Hook):
-    """
-    This hook callback will fire for every CPU instruction
-    """
+    """This hook callback will fire for every CPU instruction."""
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
@@ -172,9 +166,7 @@ class CodeHook(Hook):
 
 
 class ReadMemHook(Hook):
-    """
-    This hook will fire each time a valid chunk of memory is read from
-    """
+    """This hook will fire each time a valid chunk of memory is read from."""
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
@@ -191,9 +183,7 @@ class ReadMemHook(Hook):
 
 
 class WriteMemHook(Hook):
-    """
-    This hook will fire each time a valid chunk of memory is written to
-    """
+    """This hook will fire each time a valid chunk of memory is written to."""
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
@@ -210,9 +200,7 @@ class WriteMemHook(Hook):
 
 
 class MapMemHook(Hook):
-    """
-    This hook will fire each time a chunk of memory is mapped
-    """
+    """This hook will fire each time a chunk of memory is mapped."""
 
     def __init__(self, se_obj, emu_eng, cb, begin=1, end=0):
         super().__init__(se_obj, emu_eng, cb)
@@ -225,9 +213,7 @@ class MapMemHook(Hook):
 
 
 class InvalidMemHook(Hook):
-    """
-    This hook will fire each time a invalid chunk of memory is accessed
-    """
+    """This hook will fire each time a invalid chunk of memory is accessed."""
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=False):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
@@ -240,9 +226,7 @@ class InvalidMemHook(Hook):
 
 
 class InterruptHook(Hook):
-    """
-    This hook will fire each time a a software interrupt is triggered
-    """
+    """This hook will fire each time a a software interrupt is triggered."""
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)
@@ -256,8 +240,9 @@ class InterruptHook(Hook):
 
 class InstructionHook(Hook):
     """
-    This hook will fire each time a instruction hook is triggered,
-    Only the instructions: IN, OUT, SYSCALL, and SYSENTER are supported by unicorn.
+    Hook that fires when a selected instruction executes.
+
+    Unicorn supports only the instructions IN, OUT, SYSCALL, and SYSENTER.
     """
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=True, insn=None):
@@ -272,10 +257,7 @@ class InstructionHook(Hook):
 
 
 class InvalidInstructionHook(Hook):
-    """
-    This hook will fire every time an invalid instruction is attempted
-    to be executed
-    """
+    """Hook that fires when the emulator hits an invalid instruction."""
 
     def __init__(self, se_obj, emu_eng, cb, native_hook=True):
         super().__init__(se_obj, emu_eng, cb, native_hook=native_hook)

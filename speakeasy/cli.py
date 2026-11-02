@@ -128,6 +128,7 @@ def get_child_result(q: mp.Queue[ChildResult], p: mp.Process, wait: float) -> Ch
 def wait_for_child(q: mp.Queue[ChildResult], p: mp.Process, evt, wall_limit) -> ChildResult:
     """
     Wait for the result of the emulation process and stop it after ``wall_limit`` seconds.
+
     A child that exits or stops without a result gives an error.
     """
     result = None

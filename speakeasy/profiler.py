@@ -78,9 +78,7 @@ if TYPE_CHECKING:
 
 
 class MemAccess:
-    """
-    Represents a symbolicated chunk of memory that can be tracked
-    """
+    """Represent a symbolicated chunk of memory that can be tracked."""
 
     def __init__(self, base=None, sym=None, size=0):
         self.base: int | None = base
@@ -127,8 +125,9 @@ class DynCode(TypedDict):
 
 class Run:
     """
-    This class represents the basic execution primative for the emulation engine
-    A "run" can represent any form of execution: a thread, a callback, an exported function,
+    Basic execution primitive for the emulation engine.
+
+    A run can represent any form of execution: a thread, a callback, an exported function,
     or even a child process.
     """
 
@@ -165,17 +164,12 @@ class Run:
         self.loaded_modules: list[dict[str, Any]] = []
 
     def get_api_count(self):
-        """
-        Get the number of APIs that were called during the run
-        """
+        """Get the number of APIs that the run called."""
         return self.num_apis
 
 
 class Profiler:
-    """
-    The profiler class exists to generate an execution report
-    for all runs that occur within a binary emulation.
-    """
+    """Generate an execution report for all runs that occur within a binary emulation."""
 
     def __init__(self):
         super().__init__()
@@ -192,34 +186,23 @@ class Profiler:
         self.artifact_store: ArtifactStore = ArtifactStore()
 
     def add_input_metadata(self, meta):
-        """
-        Add top level profiler fields containing metadata for the
-        module that will be emulated
-        """
+        """Add top-level profiler fields with metadata for the module to emulate."""
         self.meta = meta
 
     def set_start_time(self):
-        """
-        Get the start time for a sample so we can time the execution length
-        """
+        """Record the start time of a sample to time the execution length."""
         self.start_time = time.time()
 
     def get_run_time(self):
-        """
-        Get the time spent emulating a specific "run"
-        """
+        """Get the time spent emulating a specific run."""
         return time.time() - self.start_time
 
     def stop_run_clock(self):
-        """
-        Stop the runtime clock to include in the report
-        """
+        """Stop the runtime clock to include in the report."""
         self.runtime = self.get_run_time()
 
     def add_run(self, run: Run) -> None:
-        """
-        Add a new run to the captured run list
-        """
+        """Add a new run to the captured run list."""
         self.runs.append(run)
 
     def put_binary_data(self, data: bytes, limit: int | None = None) -> str | None:
@@ -309,8 +292,9 @@ class Profiler:
         size=None,
     ):
         """
-        Log file access events. This will include things like handles being opened,
-        data reads, and data writes.
+        Log file access events.
+
+        This includes handles being opened, data reads, and data writes.
         """
         data_ref = self.put_binary_data(data or b"", limit=1024)
 
@@ -389,8 +373,9 @@ class Profiler:
         size=None,
     ):
         """
-        Log registry access events. This includes values and keys being accessed and
-        being read/written
+        Log registry access events.
+
+        This includes values and keys being accessed, read, and written.
         """
         data_ref = self.put_binary_data(data or b"", limit=1024)
 
@@ -454,9 +439,10 @@ class Profiler:
 
     def record_process_event(self, run, pos: TracePosition, proc, event_type, kwargs):
         """
-        Log events related to a process accessing another process. This includes:
-        creating a child process, reading/writing to a process, or creating a thread
-        within another process.
+        Log events related to a process accessing another process.
+
+        This includes creating a child process, reading or writing to a process, and creating
+        a thread within another process.
 
         ``pos`` is the actor's execution position (the process/thread that performed
         the operation); ``proc`` is the target. The target process id is carried as
@@ -574,9 +560,7 @@ class Profiler:
         self.last_event = event
 
     def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
-        """
-        Log DNS name lookups for the emulation report
-        """
+        """Log DNS name lookups for the emulation report."""
         for evt in run.events:
             if isinstance(evt, NetDnsEvent) and evt.query == domain and evt.response == ip:
                 return
@@ -591,9 +575,7 @@ class Profiler:
     def record_http_event(
         self, run, pos: TracePosition, server, port, proto="http", headers="", body=b"", secure=False
     ):
-        """
-        Log HTTP traffic that occur during emulation
-        """
+        """Log HTTP traffic that occurs during emulation."""
         proto_str = "https" if secure else "http"
         body_ref = self.put_binary_data(body or b"", limit=0x3000)
 
@@ -619,9 +601,7 @@ class Profiler:
         run.events.append(event)
 
     def record_dyn_code_event(self, run, tag, base, size):
-        """
-        Log code that is generated at runtime and then executed
-        """
+        """Log code that the emulated program generates at runtime and then executes."""
         if base not in run.dyn_code["base_addrs"]:
             entry: DynCodeMapping = {"tag": tag, "base": base, "size": size}
             run.dyn_code["mmap"].append(entry)
@@ -630,9 +610,7 @@ class Profiler:
     def record_network_event(
         self, run, pos: TracePosition, server, port, typ="unknown", proto="unknown", data=b"", method=""
     ):
-        """
-        Log network activity for an emulation run
-        """
+        """Log network activity for an emulation run."""
         data_ref = self.put_binary_data(data or b"", limit=0x3000)
 
         event = NetTrafficEvent(
@@ -672,16 +650,12 @@ class Profiler:
         run.events.append(event)
 
     def get_json_report(self) -> str:
-        """
-        Retrieve the execution profile for the emulator as a json string
-        """
+        """Get the execution profile of the emulator as a JSON string."""
         report = self.get_report()
         return report.model_dump_json(indent=4, exclude_none=True)
 
     def get_report(self) -> Report:
-        """
-        Retrieve the execution profile for the emulator
-        """
+        """Get the execution profile of the emulator."""
         entry_points = []
 
         for r in self.runs:

@@ -6,12 +6,15 @@ from pathlib import Path, PureWindowsPath
 
 
 def parse_volume_spec(spec: str) -> tuple[Path, PureWindowsPath]:
-    """
+    r"""
     Parse a ``host_path:guest_path`` volume specification.
 
-    Handles Windows drive-letter colons on both sides (e.g.
-    ``C:\\samples:C:\\guest``).  The real separator is the first ``:``
-    that is NOT the second character of a drive-letter prefix.
+    Handles Windows drive-letter colons on both sides (for example
+    ``C:\samples:C:\guest``). The separator is the first ``:``
+    that is not the second character of a drive-letter prefix.
+
+    Raises:
+        ValueError: if the specification is empty or malformed.
     """
     if not spec:
         raise ValueError("Empty volume specification")
@@ -42,9 +45,12 @@ def expand_volume_to_entries(host_path: Path, guest_path: PureWindowsPath) -> li
     """
     Expand a volume mapping into ``FileEntryFullPath``-compatible dicts.
 
-    If *host_path* is a file, one entry is returned.  If it is a
+    If ``host_path`` is a file, this returns one entry. If it is a
     directory, every file underneath it (recursively) becomes an entry
-    with the relative path appended to *guest_path*.
+    with the relative path appended to ``guest_path``.
+
+    Raises:
+        FileNotFoundError: if ``host_path`` does not exist.
     """
     host_path = host_path.resolve()
 
