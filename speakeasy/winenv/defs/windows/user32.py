@@ -86,6 +86,11 @@ class LVCOLUMN(EmuStruct):
         self.pszText = Ptr
         self.cchTextMax = ct.c_int32
         self.iSubItem = ct.c_int32
+        self.iImage = ct.c_int32
+        self.iOrder = ct.c_int32
+        self.cxMin = ct.c_int32
+        self.cxDefault = ct.c_int32
+        self.cxIdeal = ct.c_int32
 
 
 class KBDLLHOOKSTRUCT(EmuStruct):
