@@ -1,7 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Msimg32(api.ApiHandler):
@@ -18,7 +23,7 @@ class Msimg32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("TransparentBlt", argc=11)
-    def TransparentBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def TransparentBlt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL TransparentBlt(
             HDC hdcDest,
