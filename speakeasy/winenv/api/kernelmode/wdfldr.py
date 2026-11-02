@@ -345,17 +345,16 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, Key, ValueName, Value = argv
 
         rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
-        wkey = emu.reg_get_key(Key)
-        if wkey:
-            val_name = self.read_unicode_string(ValueName)
-            ctx.args[2].display = val_name
-            value = wkey.get_value(val_name)
-            if value:
-                if value.get_type() != REG_VALUE_TYPE.REG_DWORD:
-                    rv = ddk.STATUS_OBJECT_TYPE_MISMATCH
-                else:
-                    self.mem_write(Value, value.get_bytes(2))
-                    rv = ddk.STATUS_SUCCESS
+        wkey = self.get_reg_key(Key)
+        val_name = self.read_unicode_string(ValueName)
+        ctx.args[2].display = val_name
+        value = wkey.get_value(val_name)
+        if value:
+            if value.get_type() != REG_VALUE_TYPE.REG_DWORD:
+                rv = ddk.STATUS_OBJECT_TYPE_MISMATCH
+            else:
+                self.mem_write(Value, value.get_bytes(2))
+                rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -574,9 +573,7 @@ class Wdfldr(api.ApiHandler):
         cfg_params = self.types.WDF_USB_DEVICE_SELECT_CONFIG_PARAMS(emu.get_ptr_size())
         cfg_params = self.mem_cast(cfg_params, Params)
 
-        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
-        if not dev:
-            return ddk.STATUS_INVALID_HANDLE
+        dev = self.handles.get(UsbDevice, WdfUsbDevice)
 
         enum = self.types.WdfUsbTargetDeviceSelectConfigType
         if cfg_params.Type == enum.WdfUsbTargetDeviceSelectConfigTypeSingleInterface:
@@ -649,18 +646,14 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, UsbInterface, PipesAttributes, Params = argv
 
-        rv = ddk.STATUS_INVALID_HANDLE
-        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
-        if uif:
-            ifparams = self.types.WDF_USB_INTERFACE_SELECT_SETTING_PARAMS(emu.get_ptr_size())
-            ifparams = self.mem_cast(ifparams, Params)
+        uif = self.handles.get(UsbInterface, WdfUsbInterface)
+        ifparams = self.types.WDF_USB_INTERFACE_SELECT_SETTING_PARAMS(emu.get_ptr_size())
+        ifparams = self.mem_cast(ifparams, Params)
 
-            enum = self.types.WdfUsbTargetDeviceSelectSettingType
-            if ifparams.Type == enum.WdfUsbInterfaceSelectSettingTypeSetting:
-                uif.setting_index = ifparams.Types.Interface.SettingIndex
-            rv = ddk.STATUS_SUCCESS
-
-        return rv
+        enum = self.types.WdfUsbTargetDeviceSelectSettingType
+        if ifparams.Type == enum.WdfUsbInterfaceSelectSettingTypeSetting:
+            uif.setting_index = ifparams.Types.Interface.SettingIndex
+        return ddk.STATUS_SUCCESS
 
     @apihook("WdfUsbTargetDeviceGetNumInterfaces", argc=2)
     def WdfUsbTargetDeviceGetNumInterfaces(
@@ -743,17 +736,13 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, UsbDevice, Information = argv
 
-        rv = ddk.STATUS_INVALID_HANDLE
-        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
-        if dev:
-            info = self.types.WDF_USB_DEVICE_INFORMATION(emu.get_ptr_size())
-            info = self.mem_cast(info, Information)
-            info.Size = info.sizeof()
-            info.UsbdVersionInformation.USBDI_Version = 0x600
-            self.mem_write(Information, info.get_bytes())
-            rv = ddk.STATUS_SUCCESS
-
-        return rv
+        self.handles.get(UsbDevice, WdfUsbDevice)
+        info = self.types.WDF_USB_DEVICE_INFORMATION(emu.get_ptr_size())
+        info = self.mem_cast(info, Information)
+        info.Size = info.sizeof()
+        info.UsbdVersionInformation.USBDI_Version = 0x600
+        self.mem_write(Information, info.get_bytes())
+        return ddk.STATUS_SUCCESS
 
     @apihook("WdfUsbInterfaceGetConfiguredPipe", argc=4)
     def WdfUsbInterfaceGetConfiguredPipe(
