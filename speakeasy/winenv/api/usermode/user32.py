@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
@@ -9,6 +10,9 @@ from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.defs.windows import windef, windows
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 IDOK = 1
 IDCANCEL = 2
@@ -293,7 +297,7 @@ class User32(api.ApiHandler):
         return address + offset + 2, string
 
     @apihook("GetDesktopWindow", argc=0)
-    def GetDesktopWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDesktopWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetDesktopWindow();
         """
@@ -306,7 +310,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("ShowWindow", argc=2)
-    def ShowWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ShowWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ShowWindow(
             HWND hWnd,
@@ -318,7 +322,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("CreateWindowStation", argc=4)
-    def CreateWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWINSTA CreateWindowStation(
             LPCTSTR lpwinsta,
@@ -332,7 +336,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("SetProcessWindowStation", argc=1)
-    def SetProcessWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetProcessWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetProcessWindowStation(
             HWINSTA hWinSta
@@ -347,7 +351,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("GetDC", argc=1)
-    def GetDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC GetDC(
             HWND hWnd
@@ -358,7 +362,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("GetWindowDC", argc=1)
-    def GetWindowDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetWindowDC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC GetWindowDC(
             HWND hWnd
@@ -367,7 +371,7 @@ class User32(api.ApiHandler):
         return self.sessman.get_device_context()
 
     @apihook("RegisterClassEx", argc=1)
-    def RegisterClassEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterClassEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ATOM RegisterClassEx(
             const WNDCLASSEX *unnamedParam1
@@ -377,7 +381,7 @@ class User32(api.ApiHandler):
         return self.register_window_class(windefs.WNDCLASSEX(emu.get_ptr_size()), Arg1, ctx)
 
     @apihook("RegisterClass", argc=1)
-    def RegisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterClass(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ATOM RegisterClass(
             const WNDCLASS *lpWndClass
@@ -397,7 +401,7 @@ class User32(api.ApiHandler):
         return self.sessman.create_window_class(wclass, cn)
 
     @apihook("UnregisterClass", argc=2)
-    def UnregisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UnregisterClass(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL UnregisterClass(
             LPCTSTR lpClassName,
@@ -407,7 +411,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("SetCursorPos", argc=2)
-    def SetCursorPos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetCursorPos(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetCursorPos(
             int X,
@@ -417,7 +421,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("CloseDesktop", argc=1)
-    def CloseDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CloseDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CloseDesktop(
             HDESK hDesktop
@@ -426,7 +430,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("CloseWindowStation", argc=1)
-    def CloseWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CloseWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CloseWindowStation(
             HWINSTA hWinSta
@@ -435,7 +439,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetThreadDesktop", argc=1)
-    def GetThreadDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetThreadDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDESK GetThreadDesktop(
             DWORD dwThreadId
@@ -444,7 +448,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("OpenWindowStation", argc=3)
-    def OpenWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWINSTA OpenWindowStation(
             LPCTSTR lpszWinSta,
@@ -455,7 +459,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("ChangeWindowMessageFilter", argc=2)
-    def ChangeWindowMessageFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ChangeWindowMessageFilter(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ChangeWindowMessageFilter(
             UINT message,
@@ -467,7 +471,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("UpdateWindow", argc=1)
-    def UpdateWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UpdateWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL UpdateWindow(
             HWND hWnd
@@ -486,7 +490,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("PostQuitMessage", argc=1)
-    def PostQuitMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PostQuitMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID PostQuitMessage(
             int nExitCode
@@ -495,7 +499,7 @@ class User32(api.ApiHandler):
         return
 
     @apihook("DestroyWindow", argc=1)
-    def DestroyWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DestroyWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DestroyWindow(
             HWND hWnd
@@ -504,7 +508,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("DefWindowProc", argc=4)
-    def DefWindowProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DefWindowProc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT LRESULT DefWindowProc(
             HWND hWnd,
@@ -517,7 +521,7 @@ class User32(api.ApiHandler):
         return int(Msg == windefs.WM_NCCREATE)
 
     @apihook("CallWindowProc", argc=5)
-    def CallWindowProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CallWindowProc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT CallWindowProc(
             WNDPROC lpPrevWndFunc,
@@ -533,7 +537,7 @@ class User32(api.ApiHandler):
         return (yield GuestCall(lpPrevWndFunc, (hWnd, Msg, wParam, lParam)))
 
     @apihook("CreateWindowEx", argc=12)
-    def CreateWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateWindowEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND CreateWindowEx(
             DWORD dwExStyle,
@@ -585,7 +589,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("SetLayeredWindowAttributes", argc=4)
-    def SetLayeredWindowAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetLayeredWindowAttributes(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetLayeredWindowAttributes(
             HWND hwnd,
@@ -598,7 +602,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("MessageBox", argc=4)
-    def MessageBox(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MessageBox(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int MessageBox(
             HWND hWnd,
@@ -622,7 +626,7 @@ class User32(api.ApiHandler):
         return {MB_OK: IDOK, MB_ABORTRETRYIGNORE: IDABORT, MB_YESNO: IDYES}.get(uType & MB_TYPEMASK, IDCANCEL)
 
     @apihook("MessageBoxEx", argc=5)
-    def MessageBoxEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MessageBoxEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int MessageBoxEx(
             HWND hWnd,
@@ -637,7 +641,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("LoadString", argc=4)
-    def LoadString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LoadString(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int LoadString(
             HINSTANCE hInstance,
@@ -681,7 +685,7 @@ class User32(api.ApiHandler):
         return len(s)
 
     @apihook("GetCursorPos", argc=1)
-    def GetCursorPos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetCursorPos(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetCursorPos(
             LPPOINT lpPoint
@@ -698,7 +702,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("WindowFromPoint", argc=2)
-    def WindowFromPoint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WindowFromPoint(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND WindowFromPoint(
             POINT Point
@@ -710,7 +714,7 @@ class User32(api.ApiHandler):
         return self.sessman.get_current_desktop().desktop_window.get_handle()
 
     @apihook("GetAsyncKeyState", argc=1)
-    def GetAsyncKeyState(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetAsyncKeyState(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SHORT GetAsyncKeyState(
             int vKey
@@ -720,7 +724,7 @@ class User32(api.ApiHandler):
         return self.get_synthetic_async_key_state(vkey)
 
     @apihook("GetKeyboardType", argc=1)
-    def GetKeyboardType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetKeyboardType(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetKeyboardType(
             int nTypeFlag
@@ -736,7 +740,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetSystemMetrics", argc=1)
-    def GetSystemMetrics(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSystemMetrics(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetSystemMetrics(
             int nIndex
@@ -746,7 +750,7 @@ class User32(api.ApiHandler):
         return SYSTEM_METRICS.get(nIndex, 0)
 
     @apihook("LoadBitmap", argc=2)
-    def LoadBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LoadBitmap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP LoadBitmap(
             HINSTANCE hInstance,
@@ -759,7 +763,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("GetClientRect", argc=2)
-    def GetClientRect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetClientRect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetClientRect(
             HWND hWnd,
@@ -769,7 +773,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("RegisterWindowMessage", argc=1)
-    def RegisterWindowMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterWindowMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT RegisterWindowMessage(
             LPCTSTR lpString
@@ -787,7 +791,7 @@ class User32(api.ApiHandler):
         return self.window_messages.setdefault(s.lower(), 0xC000 + len(self.window_messages))
 
     @apihook("wsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def wsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def wsprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wsprintf(
             LPTSTR unnamedParam1,
@@ -812,7 +816,7 @@ class User32(api.ApiHandler):
         return len(fin)
 
     @apihook("PeekMessage", argc=5)
-    def PeekMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PeekMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PeekMessage(
             LPMSG lpMsg,
@@ -825,7 +829,7 @@ class User32(api.ApiHandler):
         return False
 
     @apihook("PostMessage", argc=4)
-    def PostMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PostMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PostMessage(
             HWND hWnd,
@@ -837,7 +841,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("SendMessage", argc=4)
-    def SendMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SendMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT SendMessage(
             HWND hWnd,
@@ -905,7 +909,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("CallNextHookEx", argc=4)
-    def CallNextHookEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CallNextHookEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT CallNextHookEx(
             HHOOK hhk,
@@ -918,7 +922,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("SetWindowsHookEx", argc=4)
-    def SetWindowsHookEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetWindowsHookEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HHOOK SetWindowsHookEx(
             int idHook,
@@ -939,7 +943,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("UnhookWindowsHookEx", argc=1)
-    def UnhookWindowsHookEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UnhookWindowsHookEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL UnhookWindowsHookEx(
             HHOOK hhk
@@ -954,7 +958,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("MsgWaitForMultipleObjects", argc=5)
-    def MsgWaitForMultipleObjects(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MsgWaitForMultipleObjects(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD MsgWaitForMultipleObjects(
             DWORD nCount,
@@ -967,7 +971,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetMessage", argc=4)
-    def GetMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetMessage(
             LPMSG lpMsg,
@@ -1012,7 +1016,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("TranslateMessage", argc=1)
-    def TranslateMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def TranslateMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL TranslateMessage(
             const MSG *lpMsg
@@ -1021,7 +1025,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("DispatchMessage", argc=1)
-    def DispatchMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DispatchMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT DispatchMessage(
             const MSG *lpMsg
@@ -1045,7 +1049,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetForegroundWindow", argc=0)
-    def GetForegroundWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetForegroundWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetForegroundWindow();
         """
@@ -1060,7 +1064,7 @@ class User32(api.ApiHandler):
         return self.foreground_window
 
     @apihook("LoadCursor", argc=2)
-    def LoadCursor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LoadCursor(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HCURSOR LoadCursor(
             HINSTANCE hInstance,
@@ -1072,7 +1076,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("FindWindow", argc=2)
-    def FindWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FindWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND FindWindow(
             LPCTSTR lpClassName,
@@ -1090,7 +1094,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("FindWindowEx", argc=4)
-    def FindWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FindWindowEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND FindWindowEx(
             HWND hWndParent,
@@ -1108,7 +1112,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetWindowText", argc=3)
-    def GetWindowText(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetWindowText(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetWindowText(
             HWND hWnd,
@@ -1128,7 +1132,7 @@ class User32(api.ApiHandler):
         return len(win_text)
 
     @apihook("PaintDesktop", argc=1)
-    def PaintDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def PaintDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PaintDesktop(
             HDC hdc
@@ -1137,7 +1141,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("wvsprintf", argc=3)
-    def wvsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def wvsprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wvsprintf(
             LPTSTR unnamedParam1,
@@ -1159,7 +1163,7 @@ class User32(api.ApiHandler):
         return len(fin)
 
     @apihook("ReleaseDC", argc=2)
-    def ReleaseDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ReleaseDC(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int ReleaseDC(
             HWND hWnd,
@@ -1170,7 +1174,7 @@ class User32(api.ApiHandler):
         return int(hDC == self.sessman.get_device_context())
 
     @apihook("CharNext", argc=1)
-    def CharNext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharNext(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR CharNext(
             LPCTSTR lpsz
@@ -1184,7 +1188,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("CharPrev", argc=2)
-    def CharPrev(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharPrev(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR CharPrev(
             LPCTSTR lpszStart,
@@ -1206,7 +1210,7 @@ class User32(api.ApiHandler):
         return s
 
     @apihook("EnumWindows", argc=2)
-    def EnumWindows(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumWindows(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumWindows(
             WNDENUMPROC lpEnumFunc,
@@ -1222,7 +1226,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetSysColor", argc=1)
-    def GetSysColor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSysColor(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetSysColor(
             int nIndex
@@ -1232,7 +1236,7 @@ class User32(api.ApiHandler):
         return SYS_COLORS.get(nIndex, 0)
 
     @apihook("GetParent", argc=1)
-    def GetParent(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetParent(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetParent(
             HWND hWnd
@@ -1262,7 +1266,7 @@ class User32(api.ApiHandler):
         return window
 
     @apihook("SetProp", argc=3)
-    def SetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetProp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetProp(
             HWND hWnd,
@@ -1279,7 +1283,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("GetProp", argc=2)
-    def GetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetProp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE GetProp(
             HWND hWnd,
@@ -1294,7 +1298,7 @@ class User32(api.ApiHandler):
         return window.props.get(key, 0)
 
     @apihook("RemoveProp", argc=2)
-    def RemoveProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RemoveProp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE RemoveProp(
             HWND hWnd,
@@ -1309,7 +1313,7 @@ class User32(api.ApiHandler):
         return window.props.pop(key, 0)
 
     @apihook("GetWindowThreadProcessId", argc=2)
-    def GetWindowThreadProcessId(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetWindowThreadProcessId(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetWindowThreadProcessId(
             HWND hWnd,
@@ -1334,7 +1338,7 @@ class User32(api.ApiHandler):
         return window.thread_id
 
     @apihook("GetSysColorBrush", argc=1)
-    def GetSysColorBrush(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSysColorBrush(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBRUSH GetSysColorBrush(
             int nIndex
@@ -1368,7 +1372,7 @@ class User32(api.ApiHandler):
         return longs.get(index, 0)
 
     @apihook("GetWindowLong", argc=2)
-    def GetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetWindowLong(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG GetWindowLong(
             HWND hWnd,
@@ -1382,7 +1386,7 @@ class User32(api.ApiHandler):
         return self.get_window_long(hWnd, ctypes.c_int32(nIndex).value, longs)
 
     @apihook("GetWindowLongPtr", argc=2)
-    def GetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetWindowLongPtr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG_PTR GetWindowLongPtr(
             HWND hWnd,
@@ -1392,7 +1396,7 @@ class User32(api.ApiHandler):
         return self.GetWindowLong(emu, argv, ctx)
 
     @apihook("SetWindowLong", argc=3)
-    def SetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetWindowLong(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG SetWindowLong(
             HWND hWnd,
@@ -1416,7 +1420,7 @@ class User32(api.ApiHandler):
         return rv
 
     @apihook("SetWindowLongPtr", argc=3)
-    def SetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetWindowLongPtr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG_PTR SetWindowLongPtr(
             HWND hWnd,
@@ -1427,7 +1431,7 @@ class User32(api.ApiHandler):
         return self.SetWindowLong(emu, argv, ctx)
 
     @apihook("DialogBoxParam", argc=5)
-    def DialogBoxParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DialogBoxParam(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT_PTR DialogBoxParam(
             HINSTANCE hInstance,
@@ -1450,7 +1454,7 @@ class User32(api.ApiHandler):
         return self.dialog_results.pop(hdlg, IDCANCEL)
 
     @apihook("EndDialog", argc=2)
-    def EndDialog(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EndDialog(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EndDialog(
             HWND hDlg,
@@ -1462,7 +1466,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("CreateDialogIndirectParam", argc=5)
-    def CreateDialogIndirectParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDialogIndirectParam(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND CreateDialogIndirectParam(
             HINSTANCE hInstance,
@@ -1486,7 +1490,7 @@ class User32(api.ApiHandler):
         return hdlg
 
     @apihook("GetMenuInfo", argc=2)
-    def GetMenuInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetMenuInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetMenuInfo(
             HMENU unnamedParam1,
@@ -1496,7 +1500,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetProcessWindowStation", argc=0)
-    def GetProcessWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetProcessWindowStation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWINSTA GetProcessWindowStation();
         """
@@ -1504,7 +1508,7 @@ class User32(api.ApiHandler):
         return sta.get_handle()
 
     @apihook("LoadAccelerators", argc=2)
-    def LoadAccelerators(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LoadAccelerators(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HACCEL LoadAccelerators(
             HINSTANCE hInstance,
@@ -1516,7 +1520,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("IsWindowVisible", argc=1)
-    def IsWindowVisible(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsWindowVisible(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsWindowVisible(
             HWND hWnd
@@ -1525,7 +1529,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("BeginPaint", argc=2)
-    def BeginPaint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BeginPaint(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC BeginPaint(
             HWND hWnd,
@@ -1535,7 +1539,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("LookupIconIdFromDirectory", argc=2)
-    def LookupIconIdFromDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LookupIconIdFromDirectory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int LookupIconIdFromDirectory(
             PBYTE presbits,
@@ -1545,14 +1549,14 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetActiveWindow", argc=0)
-    def GetActiveWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetActiveWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetActiveWindow();
         """
         return self.get_handle()
 
     @apihook("GetLastActivePopup", argc=1)
-    def GetLastActivePopup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetLastActivePopup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetLastActivePopup(
             HWND hWnd
@@ -1562,7 +1566,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("GetUserObjectInformation", argc=5)
-    def GetUserObjectInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetUserObjectInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetUserObjectInformation(
             HANDLE hObj,
@@ -1585,7 +1589,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("LoadIcon", argc=2)
-    def LoadIcon(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LoadIcon(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HICON LoadIcon(
             HINSTANCE hInstance,
@@ -1614,7 +1618,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetRawInputDeviceList", argc=3)
-    def GetRawInputDeviceList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetRawInputDeviceList(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetRawInputDeviceList(
             PRAWINPUTDEVICELIST pRawInputDeviceList,
@@ -1641,7 +1645,7 @@ class User32(api.ApiHandler):
         return num_devices
 
     @apihook("GetNextDlgTabItem", argc=3)
-    def GetNextDlgTabItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetNextDlgTabItem(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetNextDlgTabItem(
             HWND hDlg,
@@ -1652,7 +1656,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetCaretPos", argc=1)
-    def GetCaretPos(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetCaretPos(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetCaretPos(
             LPPOINT lpPoint
@@ -1666,7 +1670,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetMonitorInfo", argc=2)
-    def GetMonitorInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetMonitorInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetMonitorInfo(
             HMONITOR hMonitor,
@@ -1681,7 +1685,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("EndPaint", argc=2)
-    def EndPaint(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EndPaint(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EndPaint(
             HWND hWnd,
@@ -1691,7 +1695,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetDlgCtrlID", argc=1)
-    def GetDlgCtrlID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDlgCtrlID(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetDlgCtrlID(
             HWND hWnd
@@ -1700,7 +1704,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetUpdateRect", argc=3)
-    def GetUpdateRect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetUpdateRect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetUpdateRect(
             HWND hWnd,
@@ -1711,7 +1715,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetAltTabInfo", argc=5)
-    def GetAltTabInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetAltTabInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetAltTabInfo(
             HWND hwnd,
@@ -1724,7 +1728,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetUpdateRgn", argc=3)
-    def GetUpdateRgn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetUpdateRgn(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetUpdateRgn(
             HWND hWnd,
@@ -1735,7 +1739,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("FlashWindow", argc=2)
-    def FlashWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FlashWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL FlashWindow(
             HWND hWnd,
@@ -1745,7 +1749,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("IsClipboardFormatAvailable", argc=1)
-    def IsClipboardFormatAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsClipboardFormatAvailable(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsClipboardFormatAvailable(
             UINT format
@@ -1754,7 +1758,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetClipboardData", argc=1)
-    def GetClipboardData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetClipboardData(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE GetClipboardData(
             UINT uFormat
@@ -1763,7 +1767,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("IsWindow", argc=1)
-    def IsWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsWindow(
             HWND hWnd
@@ -1774,7 +1778,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("EnableWindow", argc=2)
-    def EnableWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnableWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnableWindow(
             HWND hWnd,
@@ -1786,7 +1790,7 @@ class User32(api.ApiHandler):
         return False
 
     @apihook("CharLowerBuff", argc=2)
-    def CharLowerBuff(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharLowerBuff(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD CharLowerBuff(
             LPTSTR lpsz,
@@ -1803,7 +1807,7 @@ class User32(api.ApiHandler):
         return cchLength
 
     @apihook("CharUpperBuff", argc=2)
-    def CharUpperBuff(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharUpperBuff(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD CharUpperBuff(
             LPTSTR lpsz,
@@ -1820,7 +1824,7 @@ class User32(api.ApiHandler):
         return cchLength
 
     @apihook("CharLower", argc=1)
-    def CharLower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharLower(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR CharLower(
             LPTSTR lpsz
@@ -1839,7 +1843,7 @@ class User32(api.ApiHandler):
         return _str
 
     @apihook("CharUpper", argc=1)
-    def CharUpper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharUpper(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPTSTR CharUpper(
             LPTSTR lpsz
@@ -1858,7 +1862,7 @@ class User32(api.ApiHandler):
         return _str
 
     @apihook("SetTimer", argc=4)
-    def SetTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetTimer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT_PTR SetTimer(
             HWND hWnd,
@@ -1877,7 +1881,7 @@ class User32(api.ApiHandler):
         return tid
 
     @apihook("KillTimer", argc=2)
-    def KillTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def KillTimer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL KillTimer(
             HWND hWnd,
@@ -1889,7 +1893,7 @@ class User32(api.ApiHandler):
         return True
 
     @apihook("OpenDesktop", argc=4)
-    def OpenDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDESK OpenDesktop(
             LPCTSTR lpszDesktop,
@@ -1905,7 +1909,7 @@ class User32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("SetThreadDesktop", argc=1)
-    def SetThreadDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetThreadDesktop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetThreadDesktop(
             HDESK hDesktop
@@ -1914,7 +1918,7 @@ class User32(api.ApiHandler):
         return 0
 
     @apihook("GetKeyboardLayoutList", argc=2)
-    def GetKeyboardLayoutList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetKeyboardLayoutList(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetKeyboardLayoutList(
             int nBuff,
@@ -1931,7 +1935,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetKBCodePage", argc=0)
-    def GetKBCodePage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetKBCodePage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetKBCodePage();
         """
@@ -1941,7 +1945,7 @@ class User32(api.ApiHandler):
         return 437  # OEM United States
 
     @apihook("GetClipboardViewer", argc=0)
-    def GetClipboardViewer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetClipboardViewer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetClipboardViewer();
         """
@@ -1954,7 +1958,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("GetClipboardOwner", argc=0)
-    def GetClipboardOwner(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetClipboardOwner(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetClipboardOwner();
         """
@@ -1967,7 +1971,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("GetMenuCheckMarkDimensions", argc=0)
-    def GetMenuCheckMarkDimensions(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetMenuCheckMarkDimensions(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG GetMenuCheckMarkDimensions();
         """
@@ -1976,7 +1980,7 @@ class User32(api.ApiHandler):
         return 983055
 
     @apihook("GetOpenClipboardWindow", argc=0)
-    def GetOpenClipboardWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetOpenClipboardWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetOpenClipboardWindow();
         """
@@ -1989,7 +1993,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("GetFocus", argc=0)
-    def GetFocus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetFocus(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND GetFocus();
         """
@@ -2002,7 +2006,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("GetCursor", argc=0)
-    def GetCursor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetCursor(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HCURSOR GetCursor();
         """
@@ -2015,7 +2019,7 @@ class User32(api.ApiHandler):
         return hnd
 
     @apihook("GetClipboardSequenceNumber", argc=0)
-    def GetClipboardSequenceNumber(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetClipboardSequenceNumber(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetClipboardSequenceNumber();
         """
@@ -2024,7 +2028,7 @@ class User32(api.ApiHandler):
         return 295
 
     @apihook("GetCaretBlinkTime", argc=0)
-    def GetCaretBlinkTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetCaretBlinkTime(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetCaretBlinkTime();
         """
@@ -2033,7 +2037,7 @@ class User32(api.ApiHandler):
         return 530
 
     @apihook("GetDoubleClickTime", argc=0)
-    def GetDoubleClickTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetDoubleClickTime(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetDoubleClickTime();
         """
@@ -2042,7 +2046,7 @@ class User32(api.ApiHandler):
         return 500
 
     @apihook("RegisterClipboardFormatA", argc=1)
-    def RegisterClipboardFormatA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterClipboardFormatA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT RegisterClipboardFormatA(
             LPCSTR lpszFormat
@@ -2053,7 +2057,7 @@ class User32(api.ApiHandler):
         return 0xC000
 
     @apihook("SystemParametersInfoA", argc=4)
-    def SystemParametersInfoA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SystemParametersInfoA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SystemParametersInfoA(
             UINT uiAction,
@@ -2069,7 +2073,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("GetKeyboardLayout", argc=1)
-    def GetKeyboardLayout(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetKeyboardLayout(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HKL GetKeyboardLayout(
             DWORD idThread
@@ -2080,7 +2084,7 @@ class User32(api.ApiHandler):
         return 0x04090409
 
     @apihook("EnumDisplayMonitors", argc=4)
-    def EnumDisplayMonitors(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumDisplayMonitors(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumDisplayMonitors(
             HDC hdc,
@@ -2096,7 +2100,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("EnumDisplayDevices", argc=4)
-    def EnumDisplayDevices(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumDisplayDevices(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumDisplayDevices(
             LPCTSTR lpDevice,
@@ -2132,7 +2136,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("OemToCharA", argc=2)
-    def OemToCharA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OemToCharA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OemToCharA(
             LPCSTR pSrc,
@@ -2158,7 +2162,7 @@ class User32(api.ApiHandler):
         return 1
 
     @apihook("CharPrevW", argc=2)
-    def CharPrevW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CharPrevW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPWSTR CharPrevW(
             LPCWSTR lpszStart,
