@@ -1,7 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.arch as _arch
 from speakeasy.winenv.api import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
 
 PERF_FREQUENCY = 10_000_000
 
@@ -27,7 +32,7 @@ class Hal(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("KeGetCurrentIrql", argc=0)
-    def KeGetCurrentIrql(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeGetCurrentIrql(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         KIRQL KeGetCurrentIrql();
         """
@@ -35,7 +40,9 @@ class Hal(api.ApiHandler):
         return irql
 
     @apihook("KeQueryPerformanceCounter", argc=1)
-    def KeQueryPerformanceCounter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeQueryPerformanceCounter(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         LARGE_INTEGER KeQueryPerformanceCounter(
             PLARGE_INTEGER PerformanceFrequency
@@ -53,7 +60,7 @@ class Hal(api.ApiHandler):
         return self.perf_counter
 
     @apihook("ExAcquireFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExAcquireFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExAcquireFastMutex(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExAcquireFastMutex(
             PFAST_MUTEX FastMutex
@@ -62,7 +69,7 @@ class Hal(api.ApiHandler):
         return
 
     @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExReleaseFastMutex(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseFastMutex(
             PFAST_MUTEX FastMutex
