@@ -7,7 +7,7 @@ import re
 import struct
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 FORMAT_SPEC = re.compile(
     r"%(?P<flags>[-+ #0]*)(?P<width>\*|\d+)?(?:\.(?P<precision>\*|\d*))?"
@@ -172,23 +174,25 @@ class ApiHandler:
     name = ""
 
     @staticmethod
-    def apihook(impname=None, argc=0, conv=_arch.CALL_CONV_STDCALL, ordinal=None):
-        def apitemp(f):
+    def apihook(
+        impname: str | None = None, argc: int = 0, conv: int = _arch.CALL_CONV_STDCALL, ordinal: int | None = None
+    ) -> Callable[[F], F]:
+        def apitemp(f: F) -> F:
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             if hasattr(f, "__apihook__"):
                 raise ApiEmuError(f"{f.__name__} has more than one apihook decorator")
-            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)
+            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)  # type: ignore[attr-defined]
             return f
 
         return apitemp
 
     @staticmethod
-    def impdata(impname):
-        def datatmp(f):
+    def impdata(impname: str) -> Callable[[F], F]:
+        def datatmp(f: F) -> F:
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
-            f.__datahook__ = (impname, f)
+            f.__datahook__ = (impname, f)  # type: ignore[attr-defined]
             return f
 
         return datatmp
