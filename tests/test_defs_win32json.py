@@ -22,12 +22,16 @@ WIN32JSON = REPO_ROOT / "deps" / "win32json"
 NOT_IN_WIN32JSON = {
     "DRIVE_TYPE",
     "HKEY",
+    "HTTP_QUERY",
     "INTERNET_FLAGS",
+    "INTERNET_OPTION",
     "LCID",
     "LCTYPE",
     "SOCKET_OPTION",
     "SOCKET_OPTION_LEVEL",
     "SOCKET_TYPE",
+    "WINHTTP_ADDREQ_FLAG",
+    "WINHTTP_QUERY",
 }
 
 
