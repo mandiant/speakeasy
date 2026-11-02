@@ -134,8 +134,8 @@ class SYSTEM_THREAD_INFORMATION(EmuStruct):
 class CLIENT_ID(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.UniqueProcess = ct.c_uint32
-        self.UniqueThread = ct.c_uint32
+        self.UniqueProcess = Ptr
+        self.UniqueThread = Ptr
 
 
 class MDL(EmuStruct):
@@ -508,8 +508,6 @@ class TEB(EmuStruct):
         self.NtTib = NT_TIB
         self.EnvironmentPointer = Ptr
         self.ClientId = CLIENT_ID
-        if ptr_size == 8:
-            self.pad0 = Ptr
         self.ActiveRpcHandle = Ptr
         self.ThreadLocalStoragePointer = Ptr
         self.ProcessEnvironmentBlock = Ptr
@@ -642,8 +640,7 @@ class LDR_DATA_TABLE_ENTRY(EmuStruct):
 class LARGE_INTEGER(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.LowPart = ct.c_uint32
-        self.HighPart = ct.c_uint32
+        self.QuadPart = ct.c_int64
 
 
 class CURDIR(EmuStruct):
