@@ -267,8 +267,8 @@ class Ntoskrnl(api.ApiHandler):
             va_list arglist
         );
         """
-        cid, level, fmt, arglist = argv
-        fmt_str = self.read_string(fmt)
+        ComponentId, Level, Format, arglist = argv
+        fmt_str = self.read_string(Format)
         vargs = self.va_args(arglist, self.get_va_arg_count(fmt_str))
         ctx.args[2].display = self.do_str_format(fmt_str, vargs)
         return ddk.STATUS_SUCCESS
@@ -284,10 +284,10 @@ class Ntoskrnl(api.ApiHandler):
             va_list arglist
         );
         """
-        prefix, cid, level, fmt, arglist = argv
-        fmt_str = self.read_string(fmt)
+        Prefix, ComponentId, Level, Format, arglist = argv
+        fmt_str = self.read_string(Format)
         vargs = self.va_args(arglist, self.get_va_arg_count(fmt_str))
-        ctx.args[3].display = self.read_string(prefix) + self.do_str_format(fmt_str, vargs)
+        ctx.args[3].display = self.read_string(Prefix) + self.do_str_format(fmt_str, vargs)
         return ddk.STATUS_SUCCESS
 
     @apihook("_vsnprintf", argc=4, conv=_arch.CALL_CONV_CDECL)
@@ -300,9 +300,9 @@ class Ntoskrnl(api.ApiHandler):
             va_list argptr
         );
         """
-        buffer, count, _format, argptr = argv
+        buffer, count, format, argptr = argv
 
-        fmt_str = self.read_mem_string(_format, 1)
+        fmt_str = self.read_mem_string(format, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         vargs = self.va_args(argptr, fmt_cnt)
@@ -327,8 +327,8 @@ class Ntoskrnl(api.ApiHandler):
             va_list argptr
         );
         """
-        buffer, count, _format, argptr = argv
-        fmt_str = self.read_wide_string(_format)
+        buffer, count, format, argptr = argv
+        fmt_str = self.read_wide_string(format)
         vargs = self.va_args(argptr, self.get_va_arg_count(fmt_str))
         fin = self.do_str_format(fmt_str, vargs, wide=True)
         ctx.args[0].display = fin[:count]
@@ -345,9 +345,9 @@ class Ntoskrnl(api.ApiHandler):
             va_list argptr
         );
         """
-        buffer, count, _format, argptr = argv
+        buffer, numberOfElements, format, argptr = argv
 
-        fmt_str = self.read_mem_string(_format, 1)
+        fmt_str = self.read_mem_string(format, 1)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
         vargs = self.va_args(argptr, fmt_cnt)
@@ -355,8 +355,8 @@ class Ntoskrnl(api.ApiHandler):
         fin = self.do_str_format(fmt_str, vargs)
         ctx.args[2].display = fmt_str
         # Unlike _vsnprintf, output that does not fit leaves an empty string
-        if len(fin) >= count:
-            if count > 0:
+        if len(fin) >= numberOfElements:
+            if numberOfElements > 0:
                 self.mem_write(buffer, b"\x00")
             return -1
         self.write_mem_string(fin, buffer, 1)
@@ -375,20 +375,20 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN AllocateDestinationString
         );
         """
-        dest, src, do_alloc = argv
+        DestinationString, SourceString, AllocateDestinationString = argv
         nts = ddk.STATUS_SUCCESS
 
-        ansi_str = self.read_ansi_string(src)
+        ansi_str = self.read_ansi_string(SourceString)
 
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
-        us = self.mem_cast(us, dest)
+        us = self.mem_cast(us, DestinationString)
 
         ansi = self.win.STRING(emu.get_ptr_size())
-        ansi = self.mem_cast(ansi, src)
+        ansi = self.mem_cast(ansi, SourceString)
 
         size = len(ansi_str) * 2
 
-        if do_alloc:
+        if AllocateDestinationString:
             us.MaximumLength = size
             ptr = self.mem_alloc(size, tag=f"api.struct.STRING.{ansi_str}")
             us.Buffer = ptr
@@ -400,7 +400,7 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(us.Buffer, ansi_str.encode("utf-16le"))
 
             data = self.get_bytes(us)
-            self.mem_write(dest, data)
+            self.mem_write(DestinationString, data)
 
         ctx.args["SourceString"].display = ansi_str
 
@@ -416,13 +416,13 @@ class Ntoskrnl(api.ApiHandler):
         """
         ansi = self.win.STRING(emu.get_ptr_size())
 
-        dest, src = argv
-        if src:
-            ansi_str = self.read_string(src)
+        DestinationString, SourceString = argv
+        if SourceString:
+            ansi_str = self.read_string(SourceString)
             size = len(ansi_str)
             ansi.Length = size
             ansi.MaximumLength = size
-            ansi.Buffer = src
+            ansi.Buffer = SourceString
         else:
             ansi_str = ""
             ansi.Length = 0
@@ -430,7 +430,7 @@ class Ntoskrnl(api.ApiHandler):
             ansi.Buffer = 0
 
         data = self.get_bytes(ansi)
-        self.mem_write(dest, data)
+        self.mem_write(DestinationString, data)
 
         ctx.args["SourceString"].display = ansi_str
 
@@ -443,14 +443,14 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
-        dest, src = argv
+        DestinationString, SourceString = argv
 
-        if src:
-            uni_str = self.read_wide_string(src)
+        if SourceString:
+            uni_str = self.read_wide_string(SourceString)
             size = len(uni_str) * 2
             us.Length = size
             us.MaximumLength = size
-            us.Buffer = src
+            us.Buffer = SourceString
         else:
             uni_str = ""
             us.Length = 0
@@ -458,7 +458,7 @@ class Ntoskrnl(api.ApiHandler):
             us.Buffer = 0
 
         data = self.get_bytes(us)
-        self.mem_write(dest, data)
+        self.mem_write(DestinationString, data)
 
         ctx.args["SourceString"].display = uni_str
 
@@ -472,11 +472,11 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         NULL_TERMINATE, ALLOCATE_NULL_STRING = 1, 2
-        flags, src_str, dest_str = argv
-        if not src_str or not dest_str or flags == ALLOCATE_NULL_STRING or flags > 3:
+        Flags, StringIn, StringOut = argv
+        if not StringIn or not StringOut or Flags == ALLOCATE_NULL_STRING or Flags > 3:
             return ddk.STATUS_INVALID_PARAMETER
 
-        src = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), src_str)
+        src = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), StringIn)
         if src.Length > src.MaximumLength or (src.Length and not src.Buffer):
             return ddk.STATUS_INVALID_PARAMETER
 
@@ -484,14 +484,14 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args["StringIn"].display = data.decode("utf-16le", "replace")
 
         dest = self.win.UNICODE_STRING(emu.get_ptr_size())
-        if data or flags == NULL_TERMINATE | ALLOCATE_NULL_STRING:
-            if flags & NULL_TERMINATE:
+        if data or Flags == NULL_TERMINATE | ALLOCATE_NULL_STRING:
+            if Flags & NULL_TERMINATE:
                 data += b"\x00\x00"
             dest.Buffer = self.mem_alloc(len(data), tag="api.struct.UNICODE_STRING")
             self.mem_write(dest.Buffer, data)
             dest.Length = src.Length
             dest.MaximumLength = len(data)
-        self.mem_write(dest_str, self.get_bytes(dest))
+        self.mem_write(StringOut, self.get_bytes(dest))
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlFreeUnicodeString", argc=1)
@@ -642,8 +642,8 @@ class Ntoskrnl(api.ApiHandler):
             PVOID P
         );
         """
-        (addr,) = argv
-        self.mem_free(addr)
+        (P,) = argv
+        self.mem_free(P)
 
     @apihook("memmove", argc=3, conv=_arch.CALL_CONV_CDECL)
     def memmove(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -667,7 +667,7 @@ class Ntoskrnl(api.ApiHandler):
             PDRIVER_OBJECT DriverObject
         );
         """
-        (drv,) = argv
+        (DriverObject,) = argv
 
     @apihook("IoCreateDevice", argc=7)
     def IoCreateDevice(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -683,19 +683,21 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         nts = ddk.STATUS_SUCCESS
-        drv, ext_size, name, devtype, chars, exclusive, out_addr = argv
+        DriverObject, DeviceExtensionSize, DeviceName, DeviceType, DeviceCharacteristics, Exclusive, DeviceObject = argv
 
-        if name:
-            name = self.read_unicode_string(name).replace("\x00", "")
-            ctx.args[2].display = name
+        if DeviceName:
+            DeviceName = self.read_unicode_string(DeviceName).replace("\x00", "")
+            ctx.args[2].display = DeviceName
 
-        driver_obj = self.get_object_from_addr(drv)
+        driver_obj = self.get_object_from_addr(DriverObject)
         if not driver_obj:
             return ddk.STATUS_INVALID_PARAMETER
 
-        dev = emu.create_device_object(name, driver_obj, ext_size, devtype, chars, tag="api.object")
+        dev = emu.create_device_object(
+            DeviceName, driver_obj, DeviceExtensionSize, DeviceType, DeviceCharacteristics, tag="api.object"
+        )
 
-        self.mem_write(out_addr, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
+        self.mem_write(DeviceObject, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
 
         return nts
 
@@ -715,17 +717,29 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         nts = ddk.STATUS_SUCCESS
-        drv, ext_size, name, devtype, chars, exclusive, sddl, guid, out_addr = argv
+        (
+            DriverObject,
+            DeviceExtensionSize,
+            DeviceName,
+            DeviceType,
+            DeviceCharacteristics,
+            Exclusive,
+            DefaultSDDLString,
+            DeviceClassGuid,
+            DeviceObject,
+        ) = argv
 
-        if name:
-            name = self.read_unicode_string(name).replace("\x00", "")
-            ctx.args[2].display = name
+        if DeviceName:
+            DeviceName = self.read_unicode_string(DeviceName).replace("\x00", "")
+            ctx.args[2].display = DeviceName
 
-        driver_obj = self.get_object_from_addr(drv)
+        driver_obj = self.get_object_from_addr(DriverObject)
 
-        dev = emu.create_device_object(name, driver_obj, ext_size, devtype, chars, tag="api.object")
+        dev = emu.create_device_object(
+            DeviceName, driver_obj, DeviceExtensionSize, DeviceType, DeviceCharacteristics, tag="api.object"
+        )
 
-        self.mem_write(out_addr, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
+        self.mem_write(DeviceObject, dev.address.to_bytes(self.get_ptr_size(), byteorder="little"))
 
         return nts
 
@@ -756,9 +770,9 @@ class Ntoskrnl(api.ApiHandler):
             CCHAR PriorityBoost
         );
         """
-        pIrp, boost = argv
+        Irp, PriorityBoost = argv
 
-        ctx.args[1].display = hex(0xFF & boost)
+        ctx.args[1].display = hex(0xFF & PriorityBoost)
 
     @apihook("IoDeleteSymbolicLink", argc=1)
     def IoDeleteSymbolicLink(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -805,9 +819,9 @@ class Ntoskrnl(api.ApiHandler):
         """
         rv = 0
 
-        (addr,) = argv
+        (VirtualAddress,) = argv
 
-        rv = emu.is_address_valid(addr)
+        rv = emu.is_address_valid(VirtualAddress)
         return rv
 
     @apihook("ZwQuerySystemInformation", argc=4)
@@ -820,20 +834,20 @@ class Ntoskrnl(api.ApiHandler):
             PULONG ReturnLength
         );
         """
-        sysclass, sysinfo, syslen, retlen = argv
+        SystemInformationClass, SystemInformation, SystemInformationLength, ReturnLength = argv
 
         size = 0
         nts = ddk.STATUS_INFO_LENGTH_MISMATCH
         buf_ptr = 0
 
-        if sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemModuleInformation:
+        if SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemModuleInformation:
             mods = emu.get_peb_modules()
             mod_count = len(mods)
             size = mod_count * self.sizeof(self.win.SYSTEM_MODULE(emu.get_ptr_size()))
             size += self.ptr_size
 
-            if size <= syslen and syslen != 0:
-                buf_ptr = sysinfo
+            if size <= SystemInformationLength and SystemInformationLength != 0:
+                buf_ptr = SystemInformation
                 # Write the number of mods
                 self.mem_write(buf_ptr, mod_count.to_bytes(self.ptr_size, "little"))
                 buf_ptr += self.ptr_size
@@ -851,7 +865,7 @@ class Ntoskrnl(api.ApiHandler):
                     buf_ptr += self.sizeof(sm)
                 nts = ddk.STATUS_SUCCESS
 
-        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemTimeOfDayInformation:
+        elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemTimeOfDayInformation:
             k32 = emu.api.load_api_handler("kernel32")
             tod = self.win.SYSTEM_TIMEOFDAY_INFORMATION(emu.get_ptr_size())
             tod.BootTime = k32.boot_time
@@ -862,27 +876,27 @@ class Ntoskrnl(api.ApiHandler):
             tod.BootTimeBias = 0
             tod.SleepTimeBias = 0
 
-            if syslen > self.sizeof(tod):
+            if SystemInformationLength > self.sizeof(tod):
                 return ddk.STATUS_INFO_LENGTH_MISMATCH
-            size = syslen
-            self.mem_write(sysinfo, self.get_bytes(tod)[:size])
+            size = SystemInformationLength
+            self.mem_write(SystemInformation, self.get_bytes(tod)[:size])
             nts = ddk.STATUS_SUCCESS
 
-        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemKernelDebuggerInformation:
-            if sysinfo and syslen >= 2:
+        elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemKernelDebuggerInformation:
+            if SystemInformation and SystemInformationLength >= 2:
                 out = b"\x00\x01"
                 size = len(out)
-                self.mem_write(sysinfo, out)
+                self.mem_write(SystemInformation, out)
                 nts = ddk.STATUS_SUCCESS
 
-        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemCodeIntegrityInformation:
-            if sysinfo and syslen >= 8:
+        elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemCodeIntegrityInformation:
+            if SystemInformation and SystemInformationLength >= 8:
                 class_len = (8).to_bytes(4, "little")
                 flags = (1).to_bytes(4, "little")
-                self.mem_write(sysinfo, class_len + flags)
+                self.mem_write(SystemInformation, class_len + flags)
                 nts = ddk.STATUS_SUCCESS
 
-        elif sysclass == ddk.SYSTEM_INFORMATION_CLASS.SystemProcessInformation:
+        elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemProcessInformation:
             procs = emu.get_processes()
             for proc in procs:
                 threads = proc.threads
@@ -892,8 +906,8 @@ class Ntoskrnl(api.ApiHandler):
                 size += len((proc.image + "\x00").encode("utf-16le"))
                 size += len(threads) * self.sizeof(sti)
 
-            if size <= syslen:
-                buf_ptr = sysinfo
+            if size <= SystemInformationLength:
+                buf_ptr = SystemInformation
 
                 for i, proc in enumerate(procs):
                     tis = []
@@ -938,8 +952,8 @@ class Ntoskrnl(api.ApiHandler):
         else:
             return ddk.STATUS_INVALID_INFO_CLASS
 
-        if retlen:
-            self.mem_write(retlen, size.to_bytes(4, "little"))
+        if ReturnLength:
+            self.mem_write(ReturnLength, size.to_bytes(4, "little"))
 
         return nts
 
@@ -969,13 +983,13 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *strSource
         );
         """
-        dest, src = argv
-        ws = self.read_wide_string(src)
+        strDestination, strSource = argv
+        ws = self.read_wide_string(strSource)
 
-        self.write_wide_string(ws, dest)
+        self.write_wide_string(ws, strDestination)
         ctx.args[1].display = ws
 
-        return dest
+        return strDestination
 
     @apihook("wcsncpy", argc=3, conv=_arch.CALL_CONV_CDECL)
     def wcsncpy(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -986,13 +1000,13 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
         );
         """
-        dest, src, count = argv
-        ws = self.read_wide_string(src, max_chars=count)
+        strDest, strSource, count = argv
+        ws = self.read_wide_string(strSource, max_chars=count)
 
-        data = self.mem_read(src, min(self.mem_string_len(src, 2), count) * 2)
-        self.mem_write(dest, data + b"\x00" * (count * 2 - len(data)))
+        data = self.mem_read(strSource, min(self.mem_string_len(strSource, 2), count) * 2)
+        self.mem_write(strDest, data + b"\x00" * (count * 2 - len(data)))
         ctx.args[1].display = ws
-        return dest
+        return strDest
 
     @apihook("RtlMoveMemory", argc=3)
     def RtlMoveMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1107,12 +1121,12 @@ class Ntoskrnl(api.ApiHandler):
             va_list argptr
         );
         """
-        buf, size, cnt, fmt, argptr = argv
-        fmt_str = self.read_mem_string(fmt, 1)
+        buffer, sizeOfBuffer, count, format, argptr = argv
+        fmt_str = self.read_mem_string(format, 1)
         vargs = self.va_args(argptr, self.get_va_arg_count(fmt_str))
         fin = self.do_str_format(fmt_str, vargs)
         ctx.args[3].display = fmt_str
-        return self._write_secure_counted_string(fin, buf, size, cnt)
+        return self._write_secure_counted_string(fin, buffer, sizeOfBuffer, count)
 
     @apihook("wcslen", argc=1, conv=_arch.CALL_CONV_CDECL)
     def wcslen(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1139,16 +1153,16 @@ class Ntoskrnl(api.ApiHandler):
             wchar_t c
         );
         """
-        wstr, c = argv
-        ws = self.read_wide_string(wstr)
+        str, c = argv
+        ws = self.read_wide_string(str)
         # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(wstr, (self.mem_string_len(wstr, 2) + 1) * 2)
+        hay = self.mem_read(str, (self.mem_string_len(str, 2) + 1) * 2)
         needle = (c & 0xFFFF).to_bytes(2, "little")
 
         rv = 0
         for offset in range(0, len(hay), 2):
             if hay[offset : offset + 2] == needle:
-                rv = wstr + offset
+                rv = str + offset
                 break
 
         ctx.args[0].display = ws
@@ -1164,9 +1178,9 @@ class Ntoskrnl(api.ApiHandler):
             const wchar_t *strSource
         );
         """
-        dest, src = argv
-        sws = self.read_wide_string(src)
-        dws = self.read_wide_string(dest)
+        strDestination, strSource = argv
+        sws = self.read_wide_string(strSource)
+        dws = self.read_wide_string(strDestination)
 
         if dws.endswith("\x00"):
             dws = dws[:-1]
@@ -1174,10 +1188,10 @@ class Ntoskrnl(api.ApiHandler):
             sws = sws[:-1]
 
         new = (dws + sws).encode("utf-16le")
-        self.mem_write(dest, new)
+        self.mem_write(strDestination, new)
         ctx.args[0].display = dws
         ctx.args[1].display = sws
-        return dest
+        return strDestination
 
     @apihook("strrchr", argc=2, conv=_arch.CALL_CONV_CDECL)
     def strrchr(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1187,9 +1201,9 @@ class Ntoskrnl(api.ApiHandler):
             int c
         );
         """
-        cstr, c = argv
+        str, c = argv
         # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(cstr, self.mem_string_len(cstr, 1) + 1)
+        hay = self.mem_read(str, self.mem_string_len(str, 1) + 1)
         needle = bytes([c & 0xFF])
 
         offset = hay.rfind(needle)
@@ -1197,7 +1211,7 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
         ctx.args[1].display = needle.decode("latin-1")
 
-        return cstr + offset if offset >= 0 else 0
+        return str + offset if offset >= 0 else 0
 
     @apihook("strchr", argc=2, conv=_arch.CALL_CONV_CDECL)
     def strchr(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1207,9 +1221,9 @@ class Ntoskrnl(api.ApiHandler):
             int c
         );
         """
-        cstr, c = argv
+        str, c = argv
         # The terminator is part of the string, so a NUL finds it
-        hay = self.mem_read(cstr, self.mem_string_len(cstr, 1) + 1)
+        hay = self.mem_read(str, self.mem_string_len(str, 1) + 1)
         needle = bytes([c & 0xFF])
 
         offset = hay.find(needle)
@@ -1217,7 +1231,7 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
         ctx.args[1].display = needle.decode("latin-1")
 
-        return cstr + offset if offset >= 0 else 0
+        return str + offset if offset >= 0 else 0
 
     @apihook("_wcsnicmp", argc=3, conv=_arch.CALL_CONV_CDECL)
     def _wcsnicmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1302,21 +1316,21 @@ class Ntoskrnl(api.ApiHandler):
             PVOID StartContext
         );
         """
-        hThrd, access, objattr, hProc, client_id, start, startctx = argv
+        ThreadHandle, DesiredAccess, ObjectAttributes, ProcessHandle, ClientId, StartRoutine, StartContext = argv
 
         rv = ddk.STATUS_SUCCESS
 
         ptr_size = emu.get_ptr_size()
-        proc_obj = self.get_object_from_handle(hProc)
+        proc_obj = self.get_object_from_handle(ProcessHandle)
 
-        handle, obj = self.create_thread(start, startctx, proc_obj, thread_type="system_thread")
+        handle, obj = self.create_thread(StartRoutine, StartContext, proc_obj, thread_type="system_thread")
 
-        self.mem_write(hThrd, handle.to_bytes(ptr_size, "little"))
+        self.mem_write(ThreadHandle, handle.to_bytes(ptr_size, "little"))
 
-        if client_id:
+        if ClientId:
             # CLIENT_ID holds two HANDLEs, wider than the 32-bit fields of the shared struct on x64
-            pid = 4 if not hProc else 0
-            self.mem_write(client_id, pid.to_bytes(ptr_size, "little") + obj.tid.to_bytes(ptr_size, "little"))
+            pid = 4 if not ProcessHandle else 0
+            self.mem_write(ClientId, pid.to_bytes(ptr_size, "little") + obj.tid.to_bytes(ptr_size, "little"))
 
         return rv
 
@@ -1328,15 +1342,15 @@ class Ntoskrnl(api.ApiHandler):
             PCUNICODE_STRING SourceString
         );
         """
-        dest_str, src_str = argv
+        DestinationString, SourceString = argv
 
         dest = self.win.UNICODE_STRING(emu.get_ptr_size())
-        dest = self.mem_cast(dest, dest_str)
+        dest = self.mem_cast(dest, DestinationString)
 
         src = None
-        if src_str:
+        if SourceString:
             src = self.win.UNICODE_STRING(emu.get_ptr_size())
-            src = self.mem_cast(src, src_str)
+            src = self.mem_cast(src, SourceString)
 
         if src is None or src.Buffer == 0 or dest.Buffer == 0:
             dest.Length = 0
@@ -1348,7 +1362,7 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(dest.Buffer, data)
             dest.Length = to_copy
 
-        self.mem_write(dest_str, self.get_bytes(dest))
+        self.mem_write(DestinationString, self.get_bytes(dest))
 
     @apihook("RtlEqualUnicodeString", argc=3)
     def RtlEqualUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1359,15 +1373,15 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN CaseInSensitive
         );
         """
-        str1, str2, ci = argv
+        String1, String2, CaseInSensitive = argv
 
         us = self.win.UNICODE_STRING(emu.get_ptr_size())
-        us = self.mem_cast(us, str1)
+        us = self.mem_cast(us, String1)
 
-        s1 = self.read_unicode_string(str1).replace("\x00", "")
-        s2 = self.read_unicode_string(str2).replace("\x00", "")
+        s1 = self.read_unicode_string(String1).replace("\x00", "")
+        s2 = self.read_unicode_string(String2).replace("\x00", "")
 
-        if ci:
+        if CaseInSensitive:
             rv = s1.lower() == s2.lower()
         else:
             rv = s1 == s2
@@ -1425,8 +1439,8 @@ class Ntoskrnl(api.ApiHandler):
             PIRP Irp
         );
         """
-        va, length, sec_buf, quota, irp = argv
-        return self._new_mdl(va, length)
+        VirtualAddress, Length, SecondaryBuffer, ChargeQuota, Irp = argv
+        return self._new_mdl(VirtualAddress, Length)
 
     @apihook("MmProbeAndLockPages", argc=3)
     def MmProbeAndLockPages(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1448,7 +1462,7 @@ class Ntoskrnl(api.ApiHandler):
             PLARGE_INTEGER Interval
         );
         """
-        mode, alert, interval = argv
+        WaitMode, Alertable, Interval = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -1582,7 +1596,7 @@ class Ntoskrnl(api.ApiHandler):
             PHANDLE Handle
         );
         """
-        Object, HandleAttributes, pAccess, dAccess, ObjectType, AccessMode, Handle = argv
+        Object, HandleAttributes, PassedAccessState, DesiredAccess, ObjectType, AccessMode, Handle = argv
         rv = ddk.STATUS_SUCCESS
 
         obj = self.get_object_from_addr(Object)
@@ -1616,9 +1630,9 @@ class Ntoskrnl(api.ApiHandler):
             PRKAPC_STATE ApcState
         );
         """
-        Process, ApcState = argv
+        PROCESS, ApcState = argv
 
-        proc = self.get_object_from_addr(Process)
+        proc = self.get_object_from_addr(PROCESS)
         emu.set_current_process(proc)
 
     @apihook("KeUnstackDetachProcess", argc=1)
@@ -1642,14 +1656,14 @@ class Ntoskrnl(api.ApiHandler):
             PULONG OldProtection
         );
         """
-        hnd, base, byte_len, new_prot, old_prot = argv
+        ProcessHandle, BaseAddress, RegionSize, NewProtection, OldProtection = argv
 
-        if base:
-            addr = self.mem_read(base, emu.get_ptr_size())
+        if BaseAddress:
+            addr = self.mem_read(BaseAddress, emu.get_ptr_size())
             addr = int.from_bytes(addr, "little")
             ctx.args["BaseAddress"].display = hex(addr)
-        if byte_len:
-            size = self.mem_read(byte_len, emu.get_ptr_size())
+        if RegionSize:
+            size = self.mem_read(RegionSize, emu.get_ptr_size())
             size = int.from_bytes(size, "little")
             ctx.args["RegionSize"].display = hex(size)
         rv = ddk.STATUS_SUCCESS
@@ -1667,30 +1681,30 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         rv = ddk.STATUS_SUCCESS
-        hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
+        ProcessHandle, BaseAddress, Buffer, NumberOfBytesToWrite, NumberOfBytesWritten = argv
         rv = False
 
-        if hProcess == self.get_max_int():
+        if ProcessHandle == self.get_max_int():
             obj = emu.get_current_process()
         else:
-            obj = self.get_object_from_handle(hProcess)
+            obj = self.get_object_from_handle(ProcessHandle)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
         ctx.args["ProcessHandle"].display = obj.path
 
         data = b""
-        if lpBuffer and lpBaseAddress:
-            data = self.mem_read(lpBuffer, nSize)
-            self.mem_write(lpBaseAddress, data)
-            if lpNumberOfBytesWritten:
+        if Buffer and BaseAddress:
+            data = self.mem_read(Buffer, NumberOfBytesToWrite)
+            self.mem_write(BaseAddress, data)
+            if NumberOfBytesWritten:
                 bw = (len(data)).to_bytes(self.get_ptr_size(), "little")
-                self.mem_write(lpNumberOfBytesWritten, bw)
+                self.mem_write(NumberOfBytesWritten, bw)
             obj.is_modified = True
         else:
             rv = ddk.STATUS_INVALID_PARAMETER
 
-        self.record_process_event(obj, MEM_WRITE, base=lpBaseAddress, size=nSize, data=data)
+        self.record_process_event(obj, MEM_WRITE, base=BaseAddress, size=NumberOfBytesToWrite, data=data)
 
         return rv
 
@@ -1703,10 +1717,10 @@ class Ntoskrnl(api.ApiHandler):
             ULONG_PTR ZeroBits,
             PSIZE_T RegionSize,
             ULONG AllocationType,
-            ULONG Protect
+            ULONG PageProtection
         );
         """
-        ProcessHandle, BaseAddress, ZeroBits, RegionSize, Type, Protect = argv
+        ProcessHandle, BaseAddress, ZeroBits, RegionSize, AllocationType, PageProtection = argv
         rv = ddk.STATUS_SUCCESS
 
         if ProcessHandle == self.get_max_int():
@@ -1736,7 +1750,7 @@ class Ntoskrnl(api.ApiHandler):
             PETHREAD *Thread
         );
         """
-        ThreadId, pThread = argv
+        ThreadId, Thread = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
         ethread_addr = 0
@@ -1746,7 +1760,7 @@ class Ntoskrnl(api.ApiHandler):
             obj.ref_cnt += 1
             rv = ddk.STATUS_SUCCESS
             ethread_addr = obj.address
-        self.mem_write(pThread, ethread_addr.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(Thread, ethread_addr.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -1754,27 +1768,27 @@ class Ntoskrnl(api.ApiHandler):
     def RtlGetVersion(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlGetVersion(
-            PRTL_OSVERSIONINFOW lpVersionInformation
+            PRTL_OSVERSIONINFOW VersionInformation
         );
         """
-        lpVersionInformation = argv[0]
+        VersionInformation = argv[0]
 
         rv = ddk.STATUS_SUCCESS
 
         osver = emu.config.os_ver
-        size = int.from_bytes(self.mem_read(lpVersionInformation, 4), "little")
+        size = int.from_bytes(self.mem_read(VersionInformation, 4), "little")
 
         if size == self.sizeof(self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())):
             verinfo = self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())
         else:
             verinfo = self.win.RTL_OSVERSIONINFOEXW(emu.get_ptr_size())
 
-        vi = self.mem_cast(verinfo, lpVersionInformation)
+        vi = self.mem_cast(verinfo, VersionInformation)
         vi.dwMajorVersion = osver.major
         vi.dwMinorVersion = osver.minor
         vi.dwBuildNumber = osver.build
 
-        self.mem_write(lpVersionInformation, self.get_bytes(vi))
+        self.mem_write(VersionInformation, self.get_bytes(vi))
 
         return rv
 
@@ -1808,19 +1822,19 @@ class Ntoskrnl(api.ApiHandler):
             PVOID NormalContext
         );
         """
-        pApc, Thread, env, KernelRoutine, rundown, NormalRoutine, procmode, normal_ctx = argv
+        Apc, Thread, Environment, KernelRoutine, RundownRoutine, NormalRoutine, ProcessorMode, NormalContext = argv
 
         apc = self.win.KAPC(emu.get_ptr_size())
         apc.Type = 0x12
         apc.Thread = Thread
-        apc.ApcStateIndex = env
+        apc.ApcStateIndex = Environment
         apc.KernelRoutine = KernelRoutine
-        apc.RundownRoutine = rundown
+        apc.RundownRoutine = RundownRoutine
         apc.NormalRoutine = NormalRoutine
 
         if NormalRoutine:
-            apc.ApcMode = procmode
-            apc.NormalContext = normal_ctx
+            apc.ApcMode = ProcessorMode
+            apc.NormalContext = NormalContext
 
     @apihook("MmMapLockedPagesSpecifyCache", argc=6)
     def MmMapLockedPagesSpecifyCache(
@@ -1836,10 +1850,10 @@ class Ntoskrnl(api.ApiHandler):
             ULONG Priority
         );
         """
-        p_mdl, am, ctype, addr, bugcheck, priority = argv
+        MemoryDescriptorList, AccessMode, CacheType, RequestedAddress, BugCheckOnFailure, Priority = argv
 
         mdl = self.win.MDL(emu.get_ptr_size())
-        mdl = self.mem_cast(mdl, p_mdl)
+        mdl = self.mem_cast(mdl, MemoryDescriptorList)
 
         return mdl.StartVa + mdl.ByteOffset
 
@@ -1883,7 +1897,7 @@ class Ntoskrnl(api.ApiHandler):
             PVOID *Object
         );
         """
-        ObjectName, Attributes, Passed, DesiredAccess, objtype, Access, ParseContext, objptr = argv
+        ObjectName, Attributes, PassedAccessState, DesiredAccess, ObjectType, AccessMode, ParseContext, Object = argv
         rv = ddk.STATUS_INVALID_PARAMETER
         obj = None
 
@@ -1899,7 +1913,7 @@ class Ntoskrnl(api.ApiHandler):
                 rv = ddk.STATUS_OBJECT_NAME_NOT_FOUND
         if obj:
             rv = ddk.STATUS_SUCCESS
-            self.mem_write(objptr, obj.address.to_bytes(self.get_ptr_size(), "little"))
+            self.mem_write(Object, obj.address.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -1913,7 +1927,7 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT *DeviceObject
         );
         """
-        ObjectName, DesiredAccess, pFileObject, pDeviceObject = argv
+        ObjectName, DesiredAccess, FileObject, DeviceObject = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
         s1 = self.read_unicode_string(ObjectName).replace("\x00", "")
@@ -1922,8 +1936,8 @@ class Ntoskrnl(api.ApiHandler):
         obj = self.get_object_from_name(s1)
         if obj:
             if obj.file_object:
-                self.mem_write(pFileObject, obj.file_object.address.to_bytes(self.get_ptr_size(), "little"))
-            self.mem_write(pDeviceObject, obj.address.to_bytes(self.get_ptr_size(), "little"))
+                self.mem_write(FileObject, obj.file_object.address.to_bytes(self.get_ptr_size(), "little"))
+            self.mem_write(DeviceObject, obj.address.to_bytes(self.get_ptr_size(), "little"))
             rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -1951,9 +1965,9 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Context
         );
         """
-        DriverObject, routine, context = argv
+        DriverObject, DriverReinitializationRoutine, Context = argv
 
-        self.queue_run("driver_reinit", routine, (DriverObject, context, 1))
+        self.queue_run("driver_reinit", DriverReinitializationRoutine, (DriverObject, Context, 1))
 
     @apihook("KdDisableDebugger", argc=0)
     def KdDisableDebugger(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2139,17 +2153,19 @@ class Ntoskrnl(api.ApiHandler):
             PULONG Size
         );
         """
-        Base, MappedAsImage, DirectoryEntry, Size = argv
+        BaseOfImage, MappedAsImage, DirectoryEntry, Size = argv
 
         MappedAsImage &= 0xFF
         DirectoryEntry &= 0xFFFF
         ctx.args["MappedAsImage"].display = hex(MappedAsImage)
 
-        mm = emu.get_address_map(Base)
+        mm = emu.get_address_map(BaseOfImage)
         if not mm:
             return 0
         try:
-            pe = pefile.PE(data=self.mem_read(Base, min(0x1000, mm.base + mm.size - Base)), fast_load=True)
+            pe = pefile.PE(
+                data=self.mem_read(BaseOfImage, min(0x1000, mm.base + mm.size - BaseOfImage)), fast_load=True
+            )
         except pefile.PEFormatError:
             return 0
         directories = pe.OPTIONAL_HEADER.DATA_DIRECTORY
@@ -2158,9 +2174,9 @@ class Ntoskrnl(api.ApiHandler):
         rva = directories[DirectoryEntry].VirtualAddress
         self.mem_write(Size, directories[DirectoryEntry].Size.to_bytes(4, "little"))
         if MappedAsImage or rva < pe.OPTIONAL_HEADER.SizeOfHeaders:
-            return Base + rva
+            return BaseOfImage + rva
         try:
-            return Base + pe.get_offset_from_rva(rva)
+            return BaseOfImage + pe.get_offset_from_rva(rva)
         except pefile.PEFormatError:
             return 0
 
@@ -2201,9 +2217,9 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN InitialState
         );
         """
-        EventHandle, access, objattr, evttype, state = argv
+        EventHandle, DesiredAccess, ObjectAttributes, EventType, InitialState = argv
 
-        name = self._read_object_name(objattr)
+        name = self._read_object_name(ObjectAttributes)
 
         hnd, evt = emu.create_event(name)
         if EventHandle:
@@ -2212,7 +2228,7 @@ class Ntoskrnl(api.ApiHandler):
 
         if name:
             ctx.args["ObjectAttributes"].display = name
-        ctx.args["InitialState"].display = hex(0xFF & state)
+        ctx.args["InitialState"].display = hex(0xFF & InitialState)
 
         return rv
 
@@ -2303,8 +2319,8 @@ class Ntoskrnl(api.ApiHandler):
             ULONG SubAuthorityCount
         );
         """
-        (count,) = argv
-        rv = count * 16
+        (SubAuthorityCount,) = argv
+        rv = SubAuthorityCount * 16
 
         return rv
 
@@ -2331,9 +2347,9 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         # TODO, unimplemented
-        sid, sub_auth = argv
+        Sid, SubAuthority = argv
 
-        return sid
+        return Sid
 
     @apihook("RtlCreateAcl", argc=3)
     def RtlCreateAcl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2345,7 +2361,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         # TODO, unimplemented
-        acl, acl_len, acl_rev = argv
+        Acl, AclLength, AclRevision = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2363,7 +2379,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         # TODO, unimplemented
-        sec_desc, dacl_present, dacl, dacl_default = argv
+        SecurityDescriptor, DaclPresent, Dacl, DaclDefaulted = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2396,7 +2412,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         # TODO, unimplemented
-        sec_desc, rev = argv
+        SecurityDescriptor, Revision = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2412,7 +2428,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         # TODO, unimplemented
-        acl, acl_rev, access, sid = argv
+        Acl, AceRevision, AccessMask, Sid = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2436,8 +2452,8 @@ class Ntoskrnl(api.ApiHandler):
         """
         rv = ddk.STATUS_INVALID_PARAMETER
 
-        dev, action = argv
-        if dev:
+        DeviceObject, Action = argv
+        if DeviceObject:
             rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2462,11 +2478,11 @@ class Ntoskrnl(api.ApiHandler):
             PULONG CompressFragmentWorkSpaceSize
         );
         """
-        engine, buffer_workspace, frag_workspace = argv
-        if buffer_workspace:
-            self.mem_write(buffer_workspace, 0x1000.to_bytes(4, "little"))
-        if frag_workspace:
-            self.mem_write(frag_workspace, 0x1000.to_bytes(4, "little"))
+        CompressionFormatAndEngine, CompressBufferWorkSpaceSize, CompressFragmentWorkSpaceSize = argv
+        if CompressBufferWorkSpaceSize:
+            self.mem_write(CompressBufferWorkSpaceSize, 0x1000.to_bytes(4, "little"))
+        if CompressFragmentWorkSpaceSize:
+            self.mem_write(CompressFragmentWorkSpaceSize, 0x1000.to_bytes(4, "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlCompressBuffer", argc=8)
@@ -2485,23 +2501,32 @@ class Ntoskrnl(api.ApiHandler):
 
         The output is valid LZNT1, but its bytes can differ from the output of Windows.
         """
-        fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, chunk_size, final_size, workspace = argv
+        (
+            CompressionFormatAndEngine,
+            UncompressedBuffer,
+            UncompressedBufferSize,
+            CompressedBuffer,
+            CompressedBufferSize,
+            UncompressedChunkSize,
+            FinalCompressedSize,
+            WorkSpace,
+        ) = argv
 
-        algorithm = fmt & 0xFF
+        algorithm = CompressionFormatAndEngine & 0xFF
         if algorithm in (ddk.COMPRESSION_FORMAT_NONE, ddk.COMPRESSION_FORMAT_DEFAULT):
             return ddk.STATUS_INVALID_PARAMETER
         if algorithm != ddk.COMPRESSION_FORMAT_LZNT1:
             return ddk.STATUS_UNSUPPORTED_COMPRESSION
-        if fmt & 0xFF00 not in (ddk.COMPRESSION_ENGINE_STANDARD, ddk.COMPRESSION_ENGINE_MAXIMUM):
+        if CompressionFormatAndEngine & 0xFF00 not in (ddk.COMPRESSION_ENGINE_STANDARD, ddk.COMPRESSION_ENGINE_MAXIMUM):
             return ddk.STATUS_NOT_SUPPORTED
 
-        data = self.mem_read(uncomp_buf, uncomp_buf_size & 0xFFFFFFFF)
+        data = self.mem_read(UncompressedBuffer, UncompressedBufferSize & 0xFFFFFFFF)
         comp = lznt1.compress(data)
-        if len(comp) > comp_buf_size & 0xFFFFFFFF:
+        if len(comp) > CompressedBufferSize & 0xFFFFFFFF:
             return ddk.STATUS_BUFFER_TOO_SMALL
 
-        self.mem_write(comp_buf, comp)
-        self.mem_write(final_size, len(comp).to_bytes(4, "little"))
+        self.mem_write(CompressedBuffer, comp)
+        self.mem_write(FinalCompressedSize, len(comp).to_bytes(4, "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDecompressBuffer", argc=6)
@@ -2516,29 +2541,36 @@ class Ntoskrnl(api.ApiHandler):
             PULONG FinalUncompressedSize
         );
         """
-        fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, final_size = argv
+        (
+            CompressionFormat,
+            UncompressedBuffer,
+            UncompressedBufferSize,
+            CompressedBuffer,
+            CompressedBufferSize,
+            FinalUncompressedSize,
+        ) = argv
 
-        algorithm = fmt & 0xFF
+        algorithm = CompressionFormat & 0xFF
         if algorithm != ddk.COMPRESSION_FORMAT_LZNT1:
             nts = ddk.STATUS_UNSUPPORTED_COMPRESSION
             return nts
 
-        comp_buf_size &= 0xFFFFFFFF
-        uncomp_buf_size &= 0xFFFFFFFF
+        CompressedBufferSize &= 0xFFFFFFFF
+        UncompressedBufferSize &= 0xFFFFFFFF
 
-        data = self.mem_read(comp_buf, comp_buf_size)
+        data = self.mem_read(CompressedBuffer, CompressedBufferSize)
 
         try:
             dec = lznt1.decompress(data)
         except (ValueError, ZeroDivisionError, struct.error):
             return ddk.STATUS_BAD_COMPRESSION_BUFFER
 
-        if uncomp_buf_size < len(dec):
+        if UncompressedBufferSize < len(dec):
             nts = ddk.STATUS_BAD_COMPRESSION_BUFFER
             return nts
 
-        self.mem_write(final_size, len(dec).to_bytes(4, "little"))
-        self.mem_write(uncomp_buf, dec)
+        self.mem_write(FinalUncompressedSize, len(dec).to_bytes(4, "little"))
+        self.mem_write(UncompressedBuffer, dec)
         nts = ddk.STATUS_SUCCESS
 
         return nts
@@ -2564,14 +2596,14 @@ class Ntoskrnl(api.ApiHandler):
             PIRP Irp
         );
         """
-        DeviceObject, pIrp = argv
+        DeviceObject, Irp = argv
         rv = ddk.STATUS_SUCCESS
 
         _irp = self.win.IRP(emu.get_ptr_size())
-        _irp = self.mem_cast(_irp, pIrp)
+        _irp = self.mem_cast(_irp, Irp)
 
         _irp.IoStatus.Status = 0
-        self.mem_write(pIrp, _irp.get_bytes())
+        self.mem_write(Irp, _irp.get_bytes())
         if _irp.UserIosb:
             self.mem_write(_irp.UserIosb, self.get_bytes(_irp.IoStatus))
 
@@ -2590,7 +2622,7 @@ class Ntoskrnl(api.ApiHandler):
             BOOLEAN InvokeOnCancel
         );
         """
-        DeviceObject, Irp, CompletionRoutine, Context, on_success, on_error, on_cancel = argv
+        DeviceObject, Irp, CompletionRoutine, Context, InvokeOnSuccess, InvokeOnError, InvokeOnCancel = argv
         rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -2621,22 +2653,33 @@ class Ntoskrnl(api.ApiHandler):
             ULONG OutputBufferLength
         );
         """
-        hnd, evt, apc_func, apc_ctx, isb, ioctl, InputBuffer, in_len, out_buf, out_len = argv
+        (
+            FileHandle,
+            Event,
+            ApcRoutine,
+            ApcContext,
+            IoStatusBlock,
+            IoControlCode,
+            InputBuffer,
+            InputBufferLength,
+            OutputBuffer,
+            OutputBufferLength,
+        ) = argv
         nts = ddk.STATUS_SUCCESS
 
-        obj = self.get_object_from_handle(hnd)
+        obj = self.get_object_from_handle(FileHandle)
 
         in_buf = b""
         if InputBuffer:
-            in_buf = self.mem_read(InputBuffer, in_len)
+            in_buf = self.mem_read(InputBuffer, InputBufferLength)
 
-        nts, outbuf = emu.dev_ioctl(emu.get_ptr_size(), obj, ioctl, in_buf)
+        nts, outbuf = emu.dev_ioctl(emu.get_ptr_size(), obj, IoControlCode, in_buf)
 
-        if out_buf:
-            if out_len < len(outbuf):
+        if OutputBuffer:
+            if OutputBufferLength < len(outbuf):
                 nts = ddk.STATUS_BUFFER_TOO_SMALL
             else:
-                self.mem_write(out_buf, outbuf)
+                self.mem_write(OutputBuffer, outbuf)
 
         return nts
 
@@ -2671,17 +2714,17 @@ class Ntoskrnl(api.ApiHandler):
             POBJECT_HANDLE_INFORMATION HandleInformation
         );
         """
-        hnd, access, obtype, mode, Object, ohi = argv
+        Handle, DesiredAccess, ObjectType, AccessMode, Object, HandleInformation = argv
 
         nts = ddk.STATUS_SUCCESS
 
         # NtCurrentProcess() and NtCurrentThread()
-        if hnd == self.get_max_int():
+        if Handle == self.get_max_int():
             obj = emu.get_current_process()
-        elif hnd == self.get_max_int() - 1:
+        elif Handle == self.get_max_int() - 1:
             obj = emu.get_current_thread()
         else:
-            obj = self.get_object_from_handle(hnd)
+            obj = self.get_object_from_handle(Handle)
         if obj:
             if Object:
                 self.mem_write(Object, obj.address.to_bytes(self.get_ptr_size(), "little"))
@@ -2733,49 +2776,49 @@ class Ntoskrnl(api.ApiHandler):
             PULONG ReturnLength
         );
         """
-        hnd, info_class, proc_info, proc_info_len, retlen = argv
+        ProcessHandle, ProcessInformationClass, ProcessInformation, ProcessInformationLength, ReturnLength = argv
 
         nts = ddk.STATUS_OBJECT_TYPE_MISMATCH
 
         # Caller wants the current process
-        if hnd == self.get_max_int():
+        if ProcessHandle == self.get_max_int():
             obj = emu.get_current_process()
         else:
-            obj = self.get_object_from_handle(hnd)
+            obj = self.get_object_from_handle(ProcessHandle)
 
         ptr_size = self.get_ptr_size()
 
         if obj:
-            if info_class == ddk.PROCESSINFOCLASS.ProcessWow64Information:
-                if proc_info_len < self.get_ptr_size():
+            if ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessWow64Information:
+                if ProcessInformationLength < self.get_ptr_size():
                     nts = ddk.STATUS_INFO_LENGTH_MISMATCH
-                    if retlen:
-                        self.mem_write(retlen, ptr_size.to_bytes(4, "little"))
+                    if ReturnLength:
+                        self.mem_write(ReturnLength, ptr_size.to_bytes(4, "little"))
                 else:
-                    if retlen:
-                        self.mem_write(retlen, ptr_size.to_bytes(4, "little"))
+                    if ReturnLength:
+                        self.mem_write(ReturnLength, ptr_size.to_bytes(4, "little"))
                     # Send back that we are not in WOW64
-                    self.mem_write(proc_info, (0).to_bytes(ptr_size, "little"))
+                    self.mem_write(ProcessInformation, (0).to_bytes(ptr_size, "little"))
                     nts = ddk.STATUS_SUCCESS
-            elif info_class == ddk.PROCESSINFOCLASS.ProcessBasicInformation:
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessBasicInformation:
                 size = 6 * ptr_size
-                if proc_info_len < size:
+                if ProcessInformationLength < size:
                     nts = ddk.STATUS_INFO_LENGTH_MISMATCH
                 else:
                     peb = getattr(getattr(obj, "peb", None), "address", 0)
                     parent = next((p.pid for p in emu.get_processes() if p.name.lower() == "explorer"), 0)
                     fields = (ddk.STATUS_PENDING, peb, 1, 8, obj.pid, parent)
-                    self.mem_write(proc_info, b"".join(f.to_bytes(ptr_size, "little") for f in fields))
-                    if retlen:
-                        self.mem_write(retlen, size.to_bytes(4, "little"))
+                    self.mem_write(ProcessInformation, b"".join(f.to_bytes(ptr_size, "little") for f in fields))
+                    if ReturnLength:
+                        self.mem_write(ReturnLength, size.to_bytes(4, "little"))
                     nts = ddk.STATUS_SUCCESS
-            elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugPort:
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugPort:
                 # No debugger is attached
-                nts = self.write_process_info(proc_info, proc_info_len, retlen, 0, ptr_size)
-            elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugFlags:
-                nts = self.write_process_info(proc_info, proc_info_len, retlen, 1, 4)
-            elif info_class == ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle:
-                nts = self.write_process_info(proc_info, proc_info_len, retlen, 0, ptr_size)
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugFlags:
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 1, 4)
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle:
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
                 if nts == ddk.STATUS_SUCCESS:
                     nts = ddk.STATUS_PORT_NOT_SET
 
@@ -2831,15 +2874,15 @@ class Ntoskrnl(api.ApiHandler):
             ULONG ThreadInformationLength
         );
         """
-        hnd, info_class, info, info_len = argv
+        ThreadHandle, ThreadInformationClass, ThreadInformation, ThreadInformationLength = argv
 
-        if info_class == ddk.THREADINFOCLASS.ThreadHideFromDebugger:
-            if info_len:
+        if ThreadInformationClass == ddk.THREADINFOCLASS.ThreadHideFromDebugger:
+            if ThreadInformationLength:
                 return ddk.STATUS_INFO_LENGTH_MISMATCH
-            if hnd == self.get_max_int() - 1:
+            if ThreadHandle == self.get_max_int() - 1:
                 obj = emu.get_current_thread()
             else:
-                obj = self.get_object_from_handle(hnd)
+                obj = self.get_object_from_handle(ThreadHandle)
             if not isinstance(obj, objman.Thread):
                 return ddk.STATUS_INVALID_HANDLE
 
@@ -2898,7 +2941,7 @@ class Ntoskrnl(api.ApiHandler):
             PKSPIN_LOCK SpinLock
         );
         """
-        (spinlock,) = argv
+        (SpinLock,) = argv
         irql = self.get_current_irql()
         self.set_current_irql(ddk.DISPATCH_LEVEL)
         return irql
@@ -2910,9 +2953,9 @@ class Ntoskrnl(api.ApiHandler):
             PKSPIN_LOCK SpinLock
         );
         """
-        (spinlock,) = argv
-        if spinlock:
-            self.mem_write(spinlock, b"\x00" * emu.get_ptr_size())
+        (SpinLock,) = argv
+        if SpinLock:
+            self.mem_write(SpinLock, b"\x00" * emu.get_ptr_size())
 
     @apihook("KeAcquireSpinLock", argc=2)
     def KeAcquireSpinLock(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2922,10 +2965,10 @@ class Ntoskrnl(api.ApiHandler):
             PKIRQL OldIrql
         );
         """
-        spinlock, old_irql = argv
+        SpinLock, OldIrql = argv
         irql = self.get_current_irql()
-        if old_irql:
-            self.mem_write(old_irql, bytes([irql]))
+        if OldIrql:
+            self.mem_write(OldIrql, bytes([irql]))
         self.set_current_irql(ddk.DISPATCH_LEVEL)
 
     @apihook("KeReleaseSpinLock", argc=2)
@@ -2936,9 +2979,9 @@ class Ntoskrnl(api.ApiHandler):
             KIRQL NewIrql
         );
         """
-        spinlock, new_irql = argv
-        if new_irql:
-            self.set_current_irql(new_irql & 0xFF)
+        SpinLock, NewIrql = argv
+        if NewIrql:
+            self.set_current_irql(NewIrql & 0xFF)
         else:
             self.set_current_irql(ddk.PASSIVE_LEVEL)
 
@@ -2949,7 +2992,7 @@ class Ntoskrnl(api.ApiHandler):
             PMDL MemoryDescriptorList
         );
         """
-        (mdl,) = argv
+        (MemoryDescriptorList,) = argv
 
     @apihook("IoFreeMdl", argc=1)
     def IoFreeMdl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2958,7 +3001,7 @@ class Ntoskrnl(api.ApiHandler):
             PMDL Mdl
         );
         """
-        (mdl,) = argv
+        (Mdl,) = argv
 
     @apihook("KeCancelTimer", argc=1)
     def KeCancelTimer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2980,19 +3023,19 @@ class Ntoskrnl(api.ApiHandler):
             PUNICODE_STRING CSDVersion
         );
         """
-        pmaj, pmin, bn, csdv = argv
+        MajorVersion, MinorVersion, BuildNumber, CSDVersion = argv
 
         ver = self.emu.config.os_ver
         major, minor, build = ver.major, ver.minor, ver.build
 
-        if pmaj:
-            self.mem_write(pmaj, major.to_bytes(4, "little"))
+        if MajorVersion:
+            self.mem_write(MajorVersion, major.to_bytes(4, "little"))
 
-        if pmin:
-            self.mem_write(pmin, minor.to_bytes(4, "little"))
+        if MinorVersion:
+            self.mem_write(MinorVersion, minor.to_bytes(4, "little"))
 
-        if bn:
-            self.mem_write(bn, build.to_bytes(4, "little"))
+        if BuildNumber:
+            self.mem_write(BuildNumber, build.to_bytes(4, "little"))
 
         return 0
 
@@ -3102,11 +3145,11 @@ class Ntoskrnl(api.ApiHandler):
             POBJECT_ATTRIBUTES ObjectAttributes
         );
         """
-        phnd, access, objattr = argv
+        KeyHandle, DesiredAccess, ObjectAttributes = argv
         rv = ddk.STATUS_SUCCESS
 
         oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
-        oa = self.mem_cast(oa, objattr)
+        oa = self.mem_cast(oa, ObjectAttributes)
         name = self.read_unicode_string(oa.ObjectName)
 
         ctx.args["ObjectAttributes"].display = name
@@ -3115,8 +3158,8 @@ class Ntoskrnl(api.ApiHandler):
         if not hnd:
             return ddk.STATUS_OBJECT_NAME_NOT_FOUND
 
-        if phnd:
-            self.mem_write(phnd, hnd.to_bytes(self.get_ptr_size(), "little"))
+        if KeyHandle:
+            self.mem_write(KeyHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -3132,32 +3175,32 @@ class Ntoskrnl(api.ApiHandler):
             PULONG ResultLength
         );
         """
-        hnd, val, info_class, val_info, length, ret_len = argv
+        KeyHandle, ValueName, KeyValueInformationClass, KeyValueInformation, Length, ResultLength = argv
         rv = ddk.STATUS_INVALID_HANDLE
 
         name = ""
-        if val:
-            name = self.read_unicode_string(val)
+        if ValueName:
+            name = self.read_unicode_string(ValueName)
             ctx.args["ValueName"].display = name
 
-        key = self.reg_get_key(hnd)
+        key = self.reg_get_key(KeyHandle)
         if key:
-            val = key.get_value(name)
-            if val:
-                data = val.get_bytes(2)
+            ValueName = key.get_value(name)
+            if ValueName:
+                data = ValueName.get_bytes(2)
                 output = b""
-                if info_class == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
+                if KeyValueInformationClass == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
                     vi = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())
-                    vi.Type = val.get_type()
+                    vi.Type = ValueName.get_type()
                     vi.DataLength = len(data)
                     output = self.get_bytes(vi) + data
-                elif info_class in (
+                elif KeyValueInformationClass in (
                     regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation,
                     regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64,
                 ):
                     vi = regdefs.KEY_VALUE_FULL_INFORMATION(emu.get_ptr_size())
-                    vi.Type = val.get_type()
-                    val_name = val.get_name().encode("utf-16le")
+                    vi.Type = ValueName.get_type()
+                    val_name = ValueName.get_name().encode("utf-16le")
                     vi.NameLength = len(val_name)
                     vi.DataLength = len(data)
                     padding = b""
@@ -3165,7 +3208,8 @@ class Ntoskrnl(api.ApiHandler):
                         align = 4
                         if (
                             emu.get_ptr_size() == 8
-                            or info_class == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64
+                            or KeyValueInformationClass
+                            == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64
                         ):
                             align = 8
                         name_end = self.sizeof(vi) + len(val_name)
@@ -3175,12 +3219,12 @@ class Ntoskrnl(api.ApiHandler):
                         vi.DataOffset = 0xFFFFFFFF
                     output = self.get_bytes(vi) + val_name + padding + data
                 else:
-                    raise ApiEmuError(f"Unsupported information class: 0x{info_class:x}")
-                self.mem_write(ret_len, len(output).to_bytes(4, "little"))
-                if len(output) > length:
+                    raise ApiEmuError(f"Unsupported information class: 0x{KeyValueInformationClass:x}")
+                self.mem_write(ResultLength, len(output).to_bytes(4, "little"))
+                if len(output) > Length:
                     rv = ddk.STATUS_BUFFER_TOO_SMALL
                 else:
-                    self.mem_write(val_info, output)
+                    self.mem_write(KeyValueInformation, output)
                     rv = ddk.STATUS_SUCCESS
 
         return rv
@@ -3198,9 +3242,9 @@ class Ntoskrnl(api.ApiHandler):
             PULONG Disposition
         );
         """
-        phnd, access, objattr, title_index, key_class, options, disposition = argv
+        KeyHandle, DesiredAccess, ObjectAttributes, TitleIndex, Class, CreateOptions, Disposition = argv
 
-        oa = self.mem_cast(self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size()), objattr)
+        oa = self.mem_cast(self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size()), ObjectAttributes)
         path = self.read_unicode_string(oa.ObjectName) if oa.ObjectName else ""
         if oa.RootDirectory:
             root = self.reg_get_key(oa.RootDirectory)
@@ -3214,11 +3258,11 @@ class Ntoskrnl(api.ApiHandler):
         if not hnd:
             return ddk.STATUS_OBJECT_NAME_NOT_FOUND
 
-        if phnd:
-            self.mem_write(phnd, hnd.to_bytes(self.get_ptr_size(), "little"))
-        if disposition:
+        if KeyHandle:
+            self.mem_write(KeyHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
+        if Disposition:
             disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
-            self.mem_write(disposition, disp.to_bytes(4, "little"))
+            self.mem_write(Disposition, disp.to_bytes(4, "little"))
 
         self.record_registry_access_event(self.reg_get_key(hnd).get_path(), REG_CREATE, handle=hnd)
         return ddk.STATUS_SUCCESS
@@ -3235,38 +3279,38 @@ class Ntoskrnl(api.ApiHandler):
             ULONG DataSize
         );
         """
-        hnd, val_name, title_index, val_type, data, size = argv
-        val_type &= 0xFFFFFFFF
-        size &= 0xFFFFFFFF
+        KeyHandle, ValueName, TitleIndex, Type, Data, DataSize = argv
+        Type &= 0xFFFFFFFF
+        DataSize &= 0xFFFFFFFF
 
-        key = self.reg_get_key(hnd)
+        key = self.reg_get_key(KeyHandle)
         if not key:
             return ddk.STATUS_INVALID_HANDLE
 
-        name = self.read_unicode_string(val_name) if val_name else ""
+        name = self.read_unicode_string(ValueName) if ValueName else ""
         ctx.args["ValueName"].display = name
 
-        raw = self.mem_read(data, size) if data and size else b""
+        raw = self.mem_read(Data, DataSize) if Data and DataSize else b""
         value_data: str | int | bytes
-        if val_type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ):
+        if Type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ):
             value_data = raw.decode("utf-16le", errors="ignore").rstrip("\x00")
             ctx.args["Data"].display = value_data
-        elif val_type == regdefs.REG_DWORD:
+        elif Type == regdefs.REG_DWORD:
             value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
-        elif val_type == regdefs.REG_QWORD:
+        elif Type == regdefs.REG_QWORD:
             value_data = int.from_bytes(raw[:8].ljust(8, b"\x00"), "little")
         else:
             value_data = raw
 
         value = key.get_value(name)
         if value:
-            value.type = val_type
-            value.data = value.normalize_value(val_type, value_data)
+            value.type = Type
+            value.data = value.normalize_value(Type, value_data)
         else:
-            key.create_value(name, val_type, value_data)
+            key.create_value(name, Type, value_data)
 
         self.record_registry_access_event(
-            key.get_path(), REG_WRITE, value_name=name, data=raw, handle=hnd, size=size, buffer=data
+            key.get_path(), REG_WRITE, value_name=name, data=raw, handle=KeyHandle, size=DataSize, buffer=Data
         )
         return ddk.STATUS_SUCCESS
 
@@ -3287,24 +3331,34 @@ class Ntoskrnl(api.ApiHandler):
             ULONG EaLength
         );
         """
-        pHndl, access, objattr, statblock, alloc_size, file_attrs, share, create_disp, create_opts, ea_buf, ea_len = (
-            argv
-        )
+        (
+            FileHandle,
+            DesiredAccess,
+            ObjectAttributes,
+            IoStatusBlock,
+            AllocationSize,
+            FileAttributes,
+            ShareAccess,
+            CreateDisposition,
+            CreateOptions,
+            EaBuffer,
+            EaLength,
+        ) = argv
 
         nts = ddk.STATUS_SUCCESS
 
         oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
-        oa = self.mem_cast(oa, objattr)
+        oa = self.mem_cast(oa, ObjectAttributes)
         name = self.read_unicode_string(oa.ObjectName)
 
-        create_disp = 0xFFFFFFFF & create_disp
+        CreateDisposition = 0xFFFFFFFF & CreateDisposition
 
         ctx.args["ObjectAttributes"].display = name
-        cd = ddk.get_create_disposition(create_disp)
+        cd = ddk.get_create_disposition(CreateDisposition)
         if cd:
             ctx.args["CreateDisposition"].display = cd
 
-        ad = ddk.get_file_access_defines(access)
+        ad = ddk.get_file_access_defines(DesiredAccess)
         if ad:
             ctx.args["DesiredAccess"].display = " | ".join(ad)
 
@@ -3316,33 +3370,33 @@ class Ntoskrnl(api.ApiHandler):
         obj = self.get_object_from_name(name)
         if obj:
             hnd = self.get_object_handle(obj)
-            self.mem_write(pHndl, hnd.to_bytes(self.ptr_size, "little"))
+            self.mem_write(FileHandle, hnd.to_bytes(self.ptr_size, "little"))
             self.record_file_access_event(name, FILE_OPEN, disposition=cd, access=ad)
 
         else:
             hfile = 0
             # Does the file being opened exist in our emulation space?
             if self.does_file_exist(npath):
-                if create_disp == ddk.FILE_SUPERSEDE:
+                if CreateDisposition == ddk.FILE_SUPERSEDE:
                     hfile = self.file_open(npath, create=True)
-                elif create_disp == ddk.FILE_CREATE:
+                elif CreateDisposition == ddk.FILE_CREATE:
                     nts = ddk.STATUS_UNSUCCESSFUL
-                elif create_disp in (ddk.FILE_OPEN, ddk.FILE_OPEN_IF):
+                elif CreateDisposition in (ddk.FILE_OPEN, ddk.FILE_OPEN_IF):
                     hfile = self.file_open(npath, create=False)
-                elif create_disp in (ddk.FILE_OVERWRITE, ddk.FILE_OVERWRITE_IF):
+                elif CreateDisposition in (ddk.FILE_OVERWRITE, ddk.FILE_OVERWRITE_IF):
                     hfile = self.file_open(npath, create=True)
-            elif create_disp in (ddk.FILE_SUPERSEDE, ddk.FILE_CREATE):
+            elif CreateDisposition in (ddk.FILE_SUPERSEDE, ddk.FILE_CREATE):
                 hfile = self.file_open(npath, create=True)
-            elif create_disp == ddk.FILE_OPEN:
+            elif CreateDisposition == ddk.FILE_OPEN:
                 nts = ddk.STATUS_UNSUCCESSFUL
-            elif create_disp == ddk.FILE_OPEN_IF:
+            elif CreateDisposition == ddk.FILE_OPEN_IF:
                 hfile = self.file_open(npath, create=True)
-            elif create_disp == ddk.FILE_OVERWRITE:
+            elif CreateDisposition == ddk.FILE_OVERWRITE:
                 nts = ddk.STATUS_UNSUCCESSFUL
-            elif create_disp == ddk.FILE_OVERWRITE_IF:
+            elif CreateDisposition == ddk.FILE_OVERWRITE_IF:
                 hfile = self.file_open(npath, create=True)
 
-            self.mem_write(pHndl, hfile.to_bytes(self.ptr_size, "little"))
+            self.mem_write(FileHandle, hfile.to_bytes(self.ptr_size, "little"))
             self.record_file_access_event(npath, FILE_OPEN, disposition=cd, access=ad)
 
         return nts
@@ -3359,17 +3413,17 @@ class Ntoskrnl(api.ApiHandler):
             ULONG OpenOptions
         );
         """
-        pHndl, access, objattr, statblock, share, open_opts = argv
+        FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, ShareAccess, OpenOptions = argv
 
         nts = ddk.STATUS_OBJECT_NAME_NOT_FOUND
         hfile = None
 
         oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
-        oa = self.mem_cast(oa, objattr)
+        oa = self.mem_cast(oa, ObjectAttributes)
         path = self.read_unicode_string(oa.ObjectName)
 
         ctx.args["ObjectAttributes"].display = path
-        ad = ddk.get_file_access_defines(access)
+        ad = ddk.get_file_access_defines(DesiredAccess)
         if ad:
             ctx.args["DesiredAccess"].display = " | ".join(ad)
 
@@ -3390,7 +3444,7 @@ class Ntoskrnl(api.ApiHandler):
         self.record_file_access_event(path, FILE_OPEN, disposition=None, access=ad)
 
         if hfile:
-            self.mem_write(pHndl, hfile.to_bytes(self.ptr_size, "little"))
+            self.mem_write(FileHandle, hfile.to_bytes(self.ptr_size, "little"))
 
         return nts
 
@@ -3433,12 +3487,12 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T Length
         );
         """
-        s1, s2, Length = argv
+        Source1, Source2, Length = argv
 
-        s1 = self.mem_read(s1, Length)
-        s2 = self.mem_read(s2, Length)
+        Source1 = self.mem_read(Source1, Length)
+        Source2 = self.mem_read(Source2, Length)
         for i in range(Length):
-            if s1[i] != s2[i]:
+            if Source1[i] != Source2[i]:
                 return i
 
         return Length
@@ -3486,22 +3540,22 @@ class Ntoskrnl(api.ApiHandler):
             PULONG Key
         );
         """
-        FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
-        length = length & 0xFFFFFFFF
+        FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key = argv
+        Length = Length & 0xFFFFFFFF
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.file_get(FileHandle)
 
-        if _file and buf and length:
+        if _file and Buffer and Length:
             path = _file.path
             ctx.args["FileHandle"].display = path
 
-            data = self.mem_read(buf, length)
+            data = self.mem_read(Buffer, Length)
             if data:
-                self.seek_to_byte_offset(_file, offset)
+                self.seek_to_byte_offset(_file, ByteOffset)
                 _file.write_data(data)
                 # Log the file event
-                self.record_file_access_event(path, FILE_WRITE, data=data, size=length)
+                self.record_file_access_event(path, FILE_WRITE, data=data, size=Length)
 
                 # Is it ascii?
                 try:
@@ -3510,7 +3564,7 @@ class Ntoskrnl(api.ApiHandler):
                     data = data.hex()
                 ctx.args["Buffer"].display = data[:0x10]
                 nts = ddk.STATUS_SUCCESS
-                self.write_io_status(ios, nts, length)
+                self.write_io_status(IoStatusBlock, nts, Length)
 
         return nts
 
@@ -3529,26 +3583,26 @@ class Ntoskrnl(api.ApiHandler):
             PULONG Key
         );
         """
-        FileHandle, evt, apc, apc_ctx, ios, buf, length, offset, key = argv
+        FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key = argv
 
-        length = length & 0xFFFFFFFF
+        Length = Length & 0xFFFFFFFF
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.file_get(FileHandle)
 
-        if _file and buf:
+        if _file and Buffer:
             path = _file.path
             ctx.args["FileHandle"].display = path
 
-            self.seek_to_byte_offset(_file, offset)
-            data = _file.get_data(length)
-            self.mem_write(buf, data)
+            self.seek_to_byte_offset(_file, ByteOffset)
+            data = _file.get_data(Length)
+            self.mem_write(Buffer, data)
 
             # Log the file event
-            self.record_file_access_event(path, FILE_READ, buffer=buf, size=length)
+            self.record_file_access_event(path, FILE_READ, buffer=Buffer, size=Length)
 
-            nts = ddk.STATUS_SUCCESS if data or not length else ddk.STATUS_END_OF_FILE
-            self.write_io_status(ios, nts, len(data))
+            nts = ddk.STATUS_SUCCESS if data or not Length else ddk.STATUS_END_OF_FILE
+            self.write_io_status(IoStatusBlock, nts, len(data))
 
         return nts
 
@@ -3683,7 +3737,7 @@ class Ntoskrnl(api.ApiHandler):
             PSIZE_T ViewSize,
             SECTION_INHERIT InheritDisposition,
             ULONG AllocationType,
-            ULONG Win32Protect
+            ULONG PageProtection
         );
         """
         (
@@ -3696,7 +3750,7 @@ class Ntoskrnl(api.ApiHandler):
             ViewSize,
             InheritDisposition,
             AllocationType,
-            Win32Protect,
+            PageProtection,
         ) = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
@@ -3719,7 +3773,7 @@ class Ntoskrnl(api.ApiHandler):
         pref_address = int.from_bytes(self.mem_read(BaseAddress, emu.get_ptr_size()), "little")
 
         tag_prefix = "api.ZwMapViewOfSection"
-        access = self.win_perms_to_emu_perms(Win32Protect)
+        access = self.win_perms_to_emu_perms(PageProtection)
         if sect:
             buf = None
             size = 0
@@ -3782,9 +3836,9 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T Size
         );
         """
-        heap, flags, size = argv
+        HeapHandle, Flags, Size = argv
 
-        block = self.heap_alloc(size, heap="RtlAllocateHeap")
+        block = self.heap_alloc(Size, heap="RtlAllocateHeap")
 
         return block
 
@@ -3796,18 +3850,18 @@ class Ntoskrnl(api.ApiHandler):
             PCONTEXT ThreadContext
         );
         """
-        hThread, lpContext = argv
+        ThreadHandle, ThreadContext = argv
 
-        if hThread == self.get_max_int() - 1:
+        if ThreadHandle == self.get_max_int() - 1:
             obj = emu.get_current_thread()
         else:
-            obj = self.get_object_from_handle(hThread)
+            obj = self.get_object_from_handle(ThreadHandle)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
         context = obj.get_context()
 
-        self.mem_write(lpContext, context.get_bytes())
+        self.mem_write(ThreadContext, context.get_bytes())
 
         return ddk.STATUS_SUCCESS
 
@@ -3819,12 +3873,12 @@ class Ntoskrnl(api.ApiHandler):
             PCONTEXT ThreadContext
         );
         """
-        hThread, lpContext = argv
+        ThreadHandle, ThreadContext = argv
 
-        if hThread == self.get_max_int() - 1:
+        if ThreadHandle == self.get_max_int() - 1:
             obj = emu.get_current_thread()
         else:
-            obj = self.get_object_from_handle(hThread)
+            obj = self.get_object_from_handle(ThreadHandle)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
@@ -3832,8 +3886,8 @@ class Ntoskrnl(api.ApiHandler):
             context = windefs.CONTEXT64(emu.get_ptr_size())
         else:
             context = windefs.CONTEXT(emu.get_ptr_size())
-        if lpContext:
-            _context = self.mem_cast(context, lpContext)
+        if ThreadContext:
+            _context = self.mem_cast(context, ThreadContext)
             obj.set_context(_context)
             if obj.process:
                 obj.process.is_modified = True
@@ -3849,9 +3903,9 @@ class Ntoskrnl(api.ApiHandler):
             PVOID BaseAddress
         );
         """
-        hHeap, dwFlags, lpMem = argv
+        HeapHandle, Flags, BaseAddress = argv
 
-        if lpMem and not self.heap_free(lpMem):
+        if BaseAddress and not self.heap_free(BaseAddress):
             return 0
         return 1
 
@@ -3866,8 +3920,8 @@ class Ntoskrnl(api.ApiHandler):
             ULONG_PTR BugCheckParameter4
         );
         """
-        code, *params = argv
-        reason = f"bug check 0x{code & 0xFFFFFFFF:x} ({', '.join(hex(p) for p in params)})"
+        BugCheckCode, *params = argv
+        reason = f"bug check 0x{BugCheckCode & 0xFFFFFFFF:x} ({', '.join(hex(p) for p in params)})"
         logger.error("%s: %s", ctx.func_name, reason)
 
         error = emu.get_error_info("bug_check", emu.get_ret_address(), api_name=ctx.func_name)
@@ -3893,42 +3947,54 @@ class Ntoskrnl(api.ApiHandler):
             PIO_STATUS_BLOCK IoStatusBlock
         );
         """
-        code, dev, in_buf, in_len, out_buf, out_len, internal, event, iosb = argv
-        code &= 0xFFFFFFFF
-        in_len &= 0xFFFFFFFF
-        out_len &= 0xFFFFFFFF
+        (
+            IoControlCode,
+            DeviceObject,
+            InputBuffer,
+            InputBufferLength,
+            OutputBuffer,
+            OutputBufferLength,
+            InternalDeviceIoControl,
+            Event,
+            IoStatusBlock,
+        ) = argv
+        IoControlCode &= 0xFFFFFFFF
+        InputBufferLength &= 0xFFFFFFFF
+        OutputBufferLength &= 0xFFFFFFFF
 
         irp = emu.new_irp()
         ios = irp.get_curr_stack_loc()
-        ios.object.MajorFunction = ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL if internal & 0xFF else ddk.IRP_MJ_DEVICE_CONTROL
+        ios.object.MajorFunction = (
+            ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL if InternalDeviceIoControl & 0xFF else ddk.IRP_MJ_DEVICE_CONTROL
+        )
         params = ios.object.Parameters.DeviceIoControl
-        params.IoControlCode = code
-        params.InputBufferLength = in_len
-        params.OutputBufferLength = out_len
+        params.IoControlCode = IoControlCode
+        params.InputBufferLength = InputBufferLength
+        params.OutputBufferLength = OutputBufferLength
 
-        method = code & 3
+        method = IoControlCode & 3
         if method == ddk.METHOD_NEITHER:
-            params.Type3InputBuffer = in_buf
+            params.Type3InputBuffer = InputBuffer
         else:
-            sys_len = max(in_len, out_len) if method == ddk.METHOD_BUFFERED else in_len
+            sys_len = max(InputBufferLength, OutputBufferLength) if method == ddk.METHOD_BUFFERED else InputBufferLength
             if sys_len:
                 sys_buf = self.pool_alloc(ddk.POOL_TYPE.NonPagedPool, sys_len, "IoBuildDeviceIoControlRequest")
-                data = self.mem_read(in_buf, in_len) if in_buf and in_len else b""
+                data = self.mem_read(InputBuffer, InputBufferLength) if InputBuffer and InputBufferLength else b""
                 self.mem_write(sys_buf, data.ljust(sys_len, b"\x00"))
                 irp.object.AssociatedIrp = sys_buf
                 irp.object.Flags = ddk.IRP_BUFFERED_IO | ddk.IRP_DEALLOCATE_BUFFER
-                if method == ddk.METHOD_BUFFERED and out_len:
+                if method == ddk.METHOD_BUFFERED and OutputBufferLength:
                     irp.object.Flags |= ddk.IRP_INPUT_OPERATION
-            if method != ddk.METHOD_BUFFERED and out_buf and out_len:
-                irp.object.MdlAddress = self._new_mdl(out_buf, out_len)
+            if method != ddk.METHOD_BUFFERED and OutputBuffer and OutputBufferLength:
+                irp.object.MdlAddress = self._new_mdl(OutputBuffer, OutputBufferLength)
 
-        irp.object.UserBuffer = out_buf
-        irp.object.UserIosb = iosb
-        irp.object.UserEvent = event
+        irp.object.UserBuffer = OutputBuffer
+        irp.object.UserIosb = IoStatusBlock
+        irp.object.UserEvent = Event
         ios.write_back()
         irp.write_back()
 
-        ctx.args[0].display = hex(code)
+        ctx.args[0].display = hex(IoControlCode)
         return irp.address
 
     @apihook("ProbeForRead", argc=3)
@@ -3986,9 +4052,9 @@ class Ntoskrnl(api.ApiHandler):
             SIZE_T NumberOfBytes
         );
         """
-        base, _size = argv
-        if base:
-            self.mem_free(base)
+        BaseAddress, NumberOfBytes = argv
+        if BaseAddress:
+            self.mem_free(BaseAddress)
 
     @apihook("_wcsnset", argc=3, conv=_arch.CALL_CONV_CDECL)
     def _wcsnset(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3999,10 +4065,10 @@ class Ntoskrnl(api.ApiHandler):
             size_t count
         );
         """
-        string, c, count = argv
-        n = min(self.mem_string_len(string, 2), count)
-        self.mem_write(string, (c & 0xFFFF).to_bytes(2, "little") * n)
-        return string
+        str, c, count = argv
+        n = min(self.mem_string_len(str, 2), count)
+        self.mem_write(str, (c & 0xFFFF).to_bytes(2, "little") * n)
+        return str
 
     @apihook("RtlAppendUnicodeToString", argc=2)
     def RtlAppendUnicodeToString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4012,11 +4078,11 @@ class Ntoskrnl(api.ApiHandler):
             PCWSTR Source
         );
         """
-        dest, src = argv
-        if not src:
+        Destination, Source = argv
+        if not Source:
             return ddk.STATUS_SUCCESS
-        ctx.args["Source"].display = self.read_wide_string(src)
-        return self._append_to_unicode_string(dest, self.mem_read(src, self.mem_string_len(src, 2) * 2))
+        ctx.args["Source"].display = self.read_wide_string(Source)
+        return self._append_to_unicode_string(Destination, self.mem_read(Source, self.mem_string_len(Source, 2) * 2))
 
     @apihook("RtlAppendUnicodeStringToString", argc=2)
     def RtlAppendUnicodeStringToString(
@@ -4028,11 +4094,11 @@ class Ntoskrnl(api.ApiHandler):
             PCUNICODE_STRING Source
         );
         """
-        dest, src = argv
-        us = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), src)
+        Destination, Source = argv
+        us = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), Source)
         data = self.mem_read(us.Buffer, us.Length) if us.Buffer and us.Length else b""
         ctx.args["Source"].display = data.decode("utf-16le", "replace")
-        return self._append_to_unicode_string(dest, data)
+        return self._append_to_unicode_string(Destination, data)
 
     @apihook("RtlQueryFeatureConfiguration", argc=4)
     def RtlQueryFeatureConfiguration(
@@ -4073,9 +4139,9 @@ class Ntoskrnl(api.ApiHandler):
             PRTL_FEATURE_CONFIGURATION_CHANGE_REGISTRATION RegistrationHandle
         );
         """
-        callback, context, stamp, phnd = argv
-        if phnd:
-            self.mem_write(phnd, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
+        Callback, Context, ObservedChangeStamp, RegistrationHandle = argv
+        if RegistrationHandle:
+            self.mem_write(RegistrationHandle, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlUnregisterFeatureConfigurationChangeNotification", argc=1)
@@ -4100,9 +4166,9 @@ class Ntoskrnl(api.ApiHandler):
             PHANDLE ProviderHandle
         );
         """
-        callback, descriptor, phnd = argv
-        if phnd:
-            self.mem_write(phnd, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
+        Callback, Descriptor, ProviderHandle = argv
+        if ProviderHandle:
+            self.mem_write(ProviderHandle, emu.om.new_handle().to_bytes(self.get_ptr_size(), "little"))
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlUnregisterFeatureUsageProvider", argc=1)
