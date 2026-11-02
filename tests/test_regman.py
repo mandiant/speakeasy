@@ -3,13 +3,15 @@ from typing import Any
 import pytest
 
 from speakeasy.config import SpeakeasyConfig
+from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager, RegValue
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 
 
 def test_config_values_have_type_codes(config: dict[str, Any]) -> None:
-    regman = RegistryManager(HandleAllocator(), SpeakeasyConfig.model_validate(config).registry)
+    table = HandleTable(HandleAllocator(), release=lambda obj: None)
+    regman = RegistryManager(lambda: table, SpeakeasyConfig.model_validate(config).registry)
     key = regman.get_key_from_config("HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Services\\usbsamp")
     assert key is not None
     name = key.get_value("DisplayName")

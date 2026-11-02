@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
+from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
 from speakeasy.winenv.defs.enums import ENUM_SERVICE_STATE, ENUM_SERVICE_TYPE
@@ -69,7 +70,8 @@ def test_reg_enum_key_uses_the_buffer_size(dll_emu: Speakeasy) -> None:
 
 
 def test_get_subkeys_lists_each_child_once() -> None:
-    regman = RegistryManager(HandleAllocator())
+    table = HandleTable(HandleAllocator(), release=lambda obj: None)
+    regman = RegistryManager(lambda: table)
     for path in ("HKEY_LOCAL_MACHINE\\T\\A\\x", "HKEY_LOCAL_MACHINE\\T\\A\\y", "HKEY_LOCAL_MACHINE\\TT"):
         regman.create_key(path)
     parent = regman.create_key("HKEY_LOCAL_MACHINE\\T")
