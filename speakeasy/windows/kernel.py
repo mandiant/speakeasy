@@ -11,7 +11,6 @@ from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows import objman
 from speakeasy.windows.handles import HandleTable
-from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
@@ -21,7 +20,7 @@ EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
 
 
-class WinKernelEmulator(WindowsEmulator, IoManager):
+class WinKernelEmulator(WindowsEmulator):
     """Class used to emulate Windows drivers."""
 
     ssdt_ptr: int
