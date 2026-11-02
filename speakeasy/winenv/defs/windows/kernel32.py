@@ -79,10 +79,11 @@ class PROCESSENTRY32(EmuStruct):
     th32ParentProcessID: Annotated[int, ct.c_uint32]
     pcPriClassBase: Annotated[int, ct.c_uint32]
     dwFlags: Annotated[int, ct.c_uint32]
+    szExeFile: bytes
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.szExeFile = ct.c_uint8 * (MAX_PATH * width)
+        self.add_fields(szExeFile=ct.c_uint8 * (MAX_PATH * width))
 
 
 class THREADENTRY32(EmuStruct):
@@ -104,11 +105,15 @@ class MODULEENTRY32(EmuStruct):
     modBaseAddr: Annotated[int, Ptr]
     modBaseSize: Annotated[int, ct.c_uint32]
     hModule: Annotated[int, Ptr]
+    szModule: bytes
+    szExePath: bytes
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.szModule = ct.c_uint8 * ((MAX_MODULE_NAME32 + 1) * width)
-        self.szExePath = ct.c_uint8 * (MAX_PATH * width)
+        self.add_fields(
+            szModule=ct.c_uint8 * ((MAX_MODULE_NAME32 + 1) * width),
+            szExePath=ct.c_uint8 * (MAX_PATH * width),
+        )
 
 
 class PROCESS_INFORMATION(EmuStruct):
@@ -142,11 +147,12 @@ class WIN32_FIND_DATA(EmuStruct):
     nFileSizeLow: Annotated[int, ct.c_uint32]
     dwReserved0: Annotated[int, ct.c_uint32]
     dwReserved1: Annotated[int, ct.c_uint32]
+    cFileName: bytes
+    cAlternateFileName: bytes
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.cFileName = ct.c_uint8 * (260 * width)
-        self.cAlternateFileName = ct.c_uint8 * (14 * width)
+        self.add_fields(cFileName=ct.c_uint8 * (260 * width), cAlternateFileName=ct.c_uint8 * (14 * width))
 
 
 class BY_HANDLE_FILE_INFORMATION(EmuStruct):
@@ -222,10 +228,11 @@ class OSVERSIONINFO(EmuStruct):
     dwMinorVersion: Annotated[int, ct.c_uint32]
     dwBuildNumber: Annotated[int, ct.c_uint32]
     dwPlatformId: Annotated[int, ct.c_uint32]
+    szCSDVersion: bytes
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.szCSDVersion = ct.c_uint8 * (128 * width)
+        self.add_fields(szCSDVersion=ct.c_uint8 * (128 * width))
 
 
 class OSVERSIONINFOEX(EmuStruct):
@@ -234,12 +241,20 @@ class OSVERSIONINFOEX(EmuStruct):
     dwMinorVersion: Annotated[int, ct.c_uint32]
     dwBuildNumber: Annotated[int, ct.c_uint32]
     dwPlatformId: Annotated[int, ct.c_uint32]
+    szCSDVersion: bytes
+    wServicePackMajor: int
+    wServicePackMinor: int
+    wSuiteMask: int
+    wProductType: int
+    wReserved: int
 
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.szCSDVersion = ct.c_uint8 * (128 * width)
-        self.wServicePackMajor = ct.c_uint16
-        self.wServicePackMinor = ct.c_uint16
-        self.wSuiteMask = ct.c_uint16
-        self.wProductType = ct.c_uint8
-        self.wReserved = ct.c_uint8
+        self.add_fields(
+            szCSDVersion=ct.c_uint8 * (128 * width),
+            wServicePackMajor=ct.c_uint16,
+            wServicePackMinor=ct.c_uint16,
+            wSuiteMask=ct.c_uint16,
+            wProductType=ct.c_uint8,
+            wReserved=ct.c_uint8,
+        )
