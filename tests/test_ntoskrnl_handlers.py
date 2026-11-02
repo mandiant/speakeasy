@@ -669,3 +669,17 @@ def test_ps_get_version_writes_zero_for_a_null_build(config: dict[str, Any], loa
 
 def test_rtl_length_required_sid_counts_the_header_and_sub_authorities(driver_emu: Speakeasy) -> None:
     assert call(driver_emu, "ntoskrnl", "RtlLengthRequiredSid", [2])[0] == 16
+
+
+@pytest.mark.parametrize(
+    "count, status, header",
+    [
+        (2, ddk.STATUS_SUCCESS, bytes.fromhex("0102000000000005")),
+        (16, ddk.STATUS_INVALID_PARAMETER, b"\xcc" * 8),
+    ],
+)
+def test_rtl_initialize_sid_writes_the_header(driver_emu: Speakeasy, count: int, status: int, header: bytes) -> None:
+    sid = alloc(driver_emu, b"\xcc" * 8)
+    nt_authority = alloc(driver_emu, bytes([0, 0, 0, 0, 0, 5]))
+    assert call(driver_emu, "ntoskrnl", "RtlInitializeSid", [sid, nt_authority, count])[0] == status
+    assert driver_emu.mem_read(sid, 8) == header
