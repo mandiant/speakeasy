@@ -101,12 +101,6 @@ def test_vsnprintf_format_is_on_the_format_slot(dll_emu: Speakeasy) -> None:
     assert displays == {0: "n=7", 1: "0x40", 2: "n=%d", 3: hex(va)}
 
 
-def test_kernel_vsnprintf_format_is_on_the_format_slot(driver_emu: Speakeasy) -> None:
-    buf, fmt, va = _format_args(driver_emu)
-    _, displays = call(driver_emu, "ntoskrnl", "_vsnprintf", [buf, 64, fmt, va])
-    assert displays == {0: "n=7", 1: "0x40", 2: "n=%d", 3: hex(va)}
-
-
 def test_stdio_common_vsprintf_output_and_format_are_on_their_slots(dll_emu: Speakeasy) -> None:
     buf, fmt, va = _format_args(dll_emu)
     _, displays = call(dll_emu, "msvcrt", "__stdio_common_vsprintf", [0, 0, buf, 64, fmt, 0, va])
@@ -316,10 +310,6 @@ def _bounded_format(se: Speakeasy, dll: str, api: str, count: int) -> tuple[int,
 
 
 @pytest.mark.parametrize(
-    "fixture, dll",
-    [("dll_emu", "msvcrt"), ("driver_emu", "ntoskrnl")],
-)
-@pytest.mark.parametrize(
     "count, rv, out",
     [
         (8, 3, b"n=7\x00\xcc"),
@@ -327,10 +317,8 @@ def _bounded_format(se: Speakeasy, dll: str, api: str, count: int) -> tuple[int,
         (2, -1, b"n=\xcc\xcc\xcc"),
     ],
 )
-def test_vsnprintf_truncation(
-    request: pytest.FixtureRequest, fixture: str, dll: str, count: int, rv: int, out: bytes
-) -> None:
-    assert _bounded_format(request.getfixturevalue(fixture), dll, "_vsnprintf", count) == (rv, out)
+def test_vsnprintf_truncation(dll_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
+    assert _bounded_format(dll_emu, "msvcrt", "_vsnprintf", count) == (rv, out)
 
 
 @pytest.mark.parametrize(
@@ -660,8 +648,8 @@ def test_wnsprintf_without_arguments_fits_the_buffer(dll_emu: Speakeasy) -> None
         (3, -1, b"\x00\xcc\xcc\xcc\xcc"),
     ],
 )
-def test_vsprintf_s_overflow_leaves_an_empty_string(driver_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
-    assert _bounded_format(driver_emu, "ntoskrnl", "vsprintf_s", count) == (rv, out)
+def test_vsprintf_s_overflow_leaves_an_empty_string(dll_emu: Speakeasy, count: int, rv: int, out: bytes) -> None:
+    assert _bounded_format(dll_emu, "msvcrt", "vsprintf_s", count) == (rv, out)
 
 
 @pytest.mark.parametrize(

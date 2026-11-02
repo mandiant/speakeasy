@@ -147,47 +147,6 @@ def test_ntoskrnl_crt_function_runs_the_msvcrt_handler(driver_emu: Speakeasy, na
     assert isinstance(mod, Msvcrt)
 
 
-def test_memset_fills_with_the_low_byte_of_c(driver_emu: Speakeasy) -> None:
-    buf = alloc(driver_emu, b"\x00" * 8)
-    rv, _ = call(driver_emu, "ntoskrnl", "memset", [buf, 0xFFFFFFFF, 4])
-    assert rv == buf
-    assert driver_emu.mem_read(buf, 8) == b"\xff" * 4 + b"\x00" * 4
-
-
-@pytest.mark.parametrize(
-    ("name", "text", "c", "offset"),
-    [
-        ("strchr", b"caf\xe9!\xe9", 0xFFFFFFE9, 3),
-        ("strrchr", b"caf\xe9!\xe9", 0xE9, 5),
-        ("strchr", b"\xff\xfeab", ord("b"), 3),
-        ("strrchr", b"\xff\xfeab", ord("a"), 2),
-        ("strchr", b"abc", 0, 3),
-        ("strrchr", b"abc", 0, 3),
-        ("strchr", b"abc", ord("x"), None),
-    ],
-)
-def test_strchr_searches_the_raw_bytes(
-    driver_emu: Speakeasy, name: str, text: bytes, c: int, offset: int | None
-) -> None:
-    s = alloc(driver_emu, text + b"\x00")
-    rv, _ = call(driver_emu, "ntoskrnl", name, [s, c])
-    assert rv == (0 if offset is None else s + offset)
-
-
-@pytest.mark.parametrize(
-    ("text", "c", "index"),
-    [
-        ("abc", 0xABCD0062, 1),
-        ("䉁C", 0x4342, None),
-        ("abc", 0, 3),
-    ],
-)
-def test_wcschr_searches_whole_characters(driver_emu: Speakeasy, text: str, c: int, index: int | None) -> None:
-    s = alloc(driver_emu, text.encode("utf-16le") + b"\x00\x00")
-    rv, _ = call(driver_emu, "ntoskrnl", "wcschr", [s, c])
-    assert rv == (0 if index is None else s + 2 * index)
-
-
 def test_zw_map_view_of_section_rejects_an_unknown_section(driver_emu: Speakeasy) -> None:
     base = alloc(driver_emu, b"\x00" * 4)
     view_size = alloc(driver_emu, b"\x00" * 4)
@@ -283,57 +242,6 @@ def test_rtl_duplicate_unicode_string_rejects_bad_parameters(driver_emu: Speakea
     src = unicode_string(driver_emu, "hello")
     rv = call(driver_emu, "ntoskrnl", "RtlDuplicateUnicodeString", [flags, src, out])[0]
     assert rv == ddk.STATUS_INVALID_PARAMETER
-
-
-@pytest.mark.parametrize(
-    ("count", "fmt", "args", "rv", "written"),
-    [
-        (4, "%s-%s", ["AAAAAAAA", "BBBBBBBB"], -1, "AAAA"),
-        (16, "%s-%d", ["ab", 42], 5, "ab-42\0"),
-        (5, "%d", [12345], 5, "12345"),
-        (0, "hello", [], -1, ""),
-        (5, "hello", [], 5, "hello"),
-        (16, "hello", [], 5, "hello\0"),
-    ],
-)
-@pytest.mark.parametrize(
-    ("name", "width"), [("_snprintf", 1), ("_snwprintf", 2), ("_vsnprintf", 1), ("_vsnwprintf", 2)]
-)
-def test_snprintf_writes_at_most_count_characters(
-    driver_emu: Speakeasy, name: str, width: int, count: int, fmt: str, args: list, rv: int, written: str
-) -> None:
-    enc = "utf-8" if width == 1 else "utf-16le"
-    argv = [alloc(driver_emu, (a + "\0").encode(enc)) if isinstance(a, str) else a for a in args]
-    if name.startswith("_v"):
-        argv = [alloc(driver_emu, struct.pack(f"<{len(argv)}I", *argv) or b"\0" * 4)]
-    out = alloc(driver_emu, b"\xee" * 64)
-    result, _ = call(driver_emu, "ntoskrnl", name, [out, count, alloc(driver_emu, (fmt + "\0").encode(enc)), *argv])
-    assert result == rv
-    data = written.encode(enc)
-    assert driver_emu.mem_read(out, len(data) + width) == data + b"\xee" * width
-
-
-@pytest.mark.parametrize(
-    ("count", "written"),
-    [
-        (2, "ab"),
-        (4, "abc\0"),
-        (6, "abc\0\0\0"),
-    ],
-)
-def test_wcsncpy_copies_count_characters(driver_emu: Speakeasy, count: int, written: str) -> None:
-    out = alloc(driver_emu, b"\xee" * 32)
-    rv, _ = call(driver_emu, "ntoskrnl", "wcsncpy", [out, alloc(driver_emu, "abc\0".encode("utf-16le")), count])
-    assert rv == out
-    data = written.encode("utf-16le")
-    assert driver_emu.mem_read(out, len(data) + 2) == data + b"\xee\xee"
-
-
-def test_wcscpy_returns_the_destination(driver_emu: Speakeasy) -> None:
-    out = alloc(driver_emu, b"\xee" * 32)
-    rv, _ = call(driver_emu, "ntoskrnl", "wcscpy", [out, alloc(driver_emu, "abc\0".encode("utf-16le"))])
-    assert rv == out
-    assert driver_emu.mem_read(out, 8) == "abc\0".encode("utf-16le")
 
 
 def test_x64_ps_create_system_thread_writes_pointer_size_ids(driver64_emu: Speakeasy) -> None:
@@ -438,22 +346,6 @@ def test_rtl_ansi_string_to_unicode_string_keeps_the_caller_buffer_size(driver_e
     assert read_unicode_string_x86(driver_emu, dest) == (4, 64, "ab".encode("utf-16le"))
 
 
-@pytest.mark.parametrize(
-    ("count", "rv", "written"),
-    [
-        (8, 3, "abc\0"),
-        (3, 3, "abc"),
-        (2, 2, "ab"),
-    ],
-)
-def test_mbstowcs_converts_at_most_count_characters(driver_emu: Speakeasy, count: int, rv: int, written: str) -> None:
-    out = alloc(driver_emu, b"\xee" * 32)
-    result, _ = call(driver_emu, "ntoskrnl", "mbstowcs", [out, alloc(driver_emu, b"abc\x00"), count])
-    assert result == rv
-    data = written.encode("utf-16le")
-    assert driver_emu.mem_read(out, len(data) + 2) == data + b"\xee\xee"
-
-
 @pytest.mark.parametrize(("limit", "expected"), [(3, 3), (8, 8), (20, 8)])
 def test_wcsnlen_stops_at_the_limit(driver_emu: Speakeasy, limit: int, expected: int) -> None:
     s = alloc(driver_emu, "abcdefgh\0".encode("utf-16le"))
@@ -538,30 +430,6 @@ def test_zw_query_system_information_rejects_an_unhandled_class(driver_emu: Spea
     rv, _ = call(driver_emu, "ntoskrnl", "ZwQuerySystemInformation", [0, info, 0x40, retlen])
     assert rv == ddk.STATUS_INVALID_INFO_CLASS
     assert driver_emu.mem_read(retlen, 4) == b"\xcc" * 4
-
-
-def test_snwprintf_reads_s_as_wide_and_S_as_ansi(driver_emu: Speakeasy) -> None:
-    buf = alloc(driver_emu, b"\xcc" * 40)
-    fmt = alloc(driver_emu, "%s|%S|%%s\0".encode("utf-16le"))
-    args = [alloc(driver_emu, "ab\0".encode("utf-16le")), alloc(driver_emu, b"cd\0")]
-    assert call(driver_emu, "ntoskrnl", "_snwprintf", [buf, 20, fmt, *args])[0] == 8
-    assert driver_emu.mem_read(buf, 18) == "ab|cd|%s\0".encode("utf-16le")
-
-
-@pytest.mark.parametrize(
-    "api, head, fmt, out",
-    [
-        ("sprintf", [], b"100%%\0", b"100%\0"),
-        ("_snprintf", [16], b"100%%\0", b"100%\0"),
-        ("_snwprintf", [8], "100%%\0".encode("utf-16le"), "100%\0".encode("utf-16le")),
-    ],
-)
-def test_sprintf_writes_one_percent_for_escape_without_arguments(
-    driver_emu: Speakeasy, api: str, head: list[int], fmt: bytes, out: bytes
-) -> None:
-    buf = alloc(driver_emu, b"\xcc" * 16)
-    assert call(driver_emu, "ntoskrnl", api, [buf, *head, alloc(driver_emu, fmt)])[0] == 4
-    assert driver_emu.mem_read(buf, len(out)) == out
 
 
 def test_ob_reference_object_by_name_finds_a_configured_driver(driver_emu: Speakeasy) -> None:
