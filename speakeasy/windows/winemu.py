@@ -30,7 +30,7 @@ from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
-from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, TracePosition
+from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
@@ -687,9 +687,17 @@ class WindowsEmulator(BinaryEmulator):
         if self.profiler:
             self.profiler.record_dns_event(self.get_current_run(), self.get_trace_position(), domain, ip)
 
-    def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
+    def record_network_event(
+        self,
+        server,
+        port,
+        typ: NetTrafficType | None = None,
+        proto: NetTrafficProtocol = NetTrafficProtocol.UNKNOWN,
+        data=b"",
+        method="",
+    ):
         """Record socket activity in the report."""
-        logger.debug("net: %s:%d %s", server, port, proto)
+        logger.debug("net: %s:%d %s", server, port, proto.value)
         if self.profiler:
             self.profiler.record_network_event(
                 self.get_current_run(),

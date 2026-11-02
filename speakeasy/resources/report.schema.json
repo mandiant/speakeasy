@@ -1895,9 +1895,8 @@
           "type": "integer"
         },
         "proto": {
-          "description": "Transport/protocol label, e.g. tcp.http or tcp.https.",
-          "title": "Proto",
-          "type": "string"
+          "$ref": "#/$defs/NetHttpProtocol",
+          "description": "``http``, or ``https`` for a secure request."
         },
         "headers": {
           "anyOf": [
@@ -1912,7 +1911,7 @@
           "description": "Serialized HTTP request headers, when available.",
           "title": "Headers"
         },
-        "body_ref": {
+        "data_ref": {
           "anyOf": [
             {
               "type": "string"
@@ -1923,7 +1922,7 @@
           ],
           "default": null,
           "description": "Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
-          "title": "Body Ref"
+          "title": "Data Ref"
         }
       },
       "required": [
@@ -1934,6 +1933,15 @@
       ],
       "title": "NetHttpEvent",
       "type": "object"
+    },
+    "NetHttpProtocol": {
+      "description": "Protocol of a ``net_http`` event.",
+      "enum": [
+        "http",
+        "https"
+      ],
+      "title": "NetHttpProtocol",
+      "type": "string"
     },
     "NetTrafficEvent": {
       "additionalProperties": false,
@@ -1961,22 +1969,20 @@
           "type": "integer"
         },
         "proto": {
-          "description": "Protocol label such as tcp/udp variants.",
-          "title": "Proto",
-          "type": "string"
+          "$ref": "#/$defs/NetTrafficProtocol",
+          "description": "Protocol of the socket type: ``tcp``, ``udp``, ``raw``, or ``unknown`` for another socket type."
         },
         "type": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/NetTrafficType"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Traffic subtype (connect, bind, data_in, data_out, etc.).",
-          "title": "Type"
+          "description": "Socket operation that produced the event."
         },
         "data_ref": {
           "anyOf": [
@@ -2013,6 +2019,29 @@
       ],
       "title": "NetTrafficEvent",
       "type": "object"
+    },
+    "NetTrafficProtocol": {
+      "description": "Protocol of the socket type of a ``net_traffic`` event.",
+      "enum": [
+        "tcp",
+        "udp",
+        "raw",
+        "unknown"
+      ],
+      "title": "NetTrafficProtocol",
+      "type": "string"
+    },
+    "NetTrafficType": {
+      "description": "Socket operation of a ``net_traffic`` event.",
+      "enum": [
+        "connect",
+        "bind",
+        "accept",
+        "data_in",
+        "data_out"
+      ],
+      "title": "NetTrafficType",
+      "type": "string"
     },
     "ProcessCreateEvent": {
       "additionalProperties": false,

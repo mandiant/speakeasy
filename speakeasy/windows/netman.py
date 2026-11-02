@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
+from speakeasy.profiler_events import NetTrafficProtocol, NetTrafficType
 from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.enums import INTERNET_FLAGS, SOCKET_TYPE
 
@@ -17,10 +18,10 @@ if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
     from speakeasy.windows.winemu import WindowsEmulator
 
-SOCKET_PROTOCOLS: dict[int, str] = {
-    SOCKET_TYPE.SOCK_STREAM: "tcp",
-    SOCKET_TYPE.SOCK_DGRAM: "udp",
-    SOCKET_TYPE.SOCK_RAW: "raw",
+SOCKET_PROTOCOLS: dict[int, NetTrafficProtocol] = {
+    SOCKET_TYPE.SOCK_STREAM: NetTrafficProtocol.TCP,
+    SOCKET_TYPE.SOCK_DGRAM: NetTrafficProtocol.UDP,
+    SOCKET_TYPE.SOCK_RAW: NetTrafficProtocol.RAW,
 }
 
 T = TypeVar("T", bound="WininetComponent")
@@ -67,9 +68,9 @@ class Socket:
     def get_connection_info(self):
         return (self.connected_host, self.connected_port)
 
-    def get_protocol(self):
-        """Get the name of the protocol of the socket type, for example ``tcp``."""
-        return SOCKET_PROTOCOLS.get(self.type, "unknown")
+    def get_protocol(self) -> NetTrafficProtocol:
+        """Get the protocol of the socket type, for example ``tcp``."""
+        return SOCKET_PROTOCOLS.get(self.type, NetTrafficProtocol.UNKNOWN)
 
     def fill_recv_queue(self, responses):
         for resp in responses:
@@ -361,7 +362,7 @@ class NetworkManager:
         """Get the socket of an open socket handle, else None."""
         return self.sockets.get(fd, Socket)
 
-    def record_traffic(self, sock, typ, method, data=b""):
+    def record_traffic(self, sock, typ: NetTrafficType, method, data=b""):
         if self.emu:
             host, port = sock.get_connection_info()
             self.emu.record_network_event(host, port, typ=typ, proto=sock.get_protocol(), data=data, method=method)
@@ -369,12 +370,12 @@ class NetworkManager:
     def connect(self, sock, host, port):
         """Connect a socket to a remote address."""
         sock.set_connection_info(host, port)
-        self.record_traffic(sock, "connect", "winsock.connect")
+        self.record_traffic(sock, NetTrafficType.CONNECT, "winsock.connect")
 
     def bind(self, sock, host, port):
         """Bind a socket to a local address."""
         sock.set_connection_info(host, port)
-        self.record_traffic(sock, "bind", "winsock.bind")
+        self.record_traffic(sock, NetTrafficType.BIND, "winsock.bind")
 
     def accept(self, sock):
         """
@@ -384,18 +385,18 @@ class NetworkManager:
         """
         new_sock = self.new_socket(sock.family, sock.type, sock.protocol, 0)
         new_sock.set_connection_info(self.get_address("default") or "127.0.0.1", sock.connected_port)
-        self.record_traffic(new_sock, "accept", "winsock.accept")
+        self.record_traffic(new_sock, NetTrafficType.ACCEPT, "winsock.accept")
         return new_sock
 
     def recv(self, sock, size, peek=False):
         """Get the next data that a socket receives."""
         data = sock.get_recv_data(size, peek)
-        self.record_traffic(sock, "data_in", "winsock.recv", data=data)
+        self.record_traffic(sock, NetTrafficType.DATA_IN, "winsock.recv", data=data)
         return data
 
     def send(self, sock, data):
         """Send data on a socket."""
-        self.record_traffic(sock, "data_out", "winsock.send", data=data)
+        self.record_traffic(sock, NetTrafficType.DATA_OUT, "winsock.send", data=data)
 
     def record_http_request(self, server, port, headers="", body=b"", secure=False):
         if self.emu:
