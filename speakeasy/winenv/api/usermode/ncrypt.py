@@ -116,7 +116,7 @@ class Ncrypt(api.ApiHandler):
             NCRYPT_HANDLE hObject
         );
         """
-        hObject = argv[0]
+        (hObject,) = argv
         cm = emu.get_crypt_manager()
 
         # hObject can be a handle to a provider or key

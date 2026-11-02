@@ -194,7 +194,7 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
         );
         """
-        Object = argv[0]
+        (Object,) = argv
 
         obj = self.get_object_from_addr(Object)
         if obj:
@@ -783,7 +783,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         nts = ddk.STATUS_SUCCESS
 
-        SymbolicLinkName = argv[0]
+        (SymbolicLinkName,) = argv
         link_name = self.read_unicode_string(SymbolicLinkName).replace("\x00", "")
         ctx.args[0].display = link_name
         return nts
@@ -1616,9 +1616,9 @@ class Ntoskrnl(api.ApiHandler):
             PEPROCESS Process
         );
         """
-        Object = argv[0]
+        (Process,) = argv
 
-        proc = self.get_object_from_addr(Object)
+        proc = self.get_object_from_addr(Process)
         peb = emu.get_process_peb(proc)
         return peb.address
 
@@ -1771,7 +1771,7 @@ class Ntoskrnl(api.ApiHandler):
             PRTL_OSVERSIONINFOW VersionInformation
         );
         """
-        VersionInformation = argv[0]
+        (VersionInformation,) = argv
 
         rv = ddk.STATUS_SUCCESS
 

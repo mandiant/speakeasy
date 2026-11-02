@@ -1666,7 +1666,7 @@ class User32(api.ApiHandler):
             LPPOINT lpPoint
         );
         """
-        lpPoint = argv[0]
+        (lpPoint,) = argv
         point = windef.POINT(emu.get_ptr_size())
         point.x = 0
         point.y = 0
