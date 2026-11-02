@@ -39,6 +39,10 @@ Exceptions reach the sample's own handlers, with the limits listed in [Exception
 
 Threads do not run at the same time. Each thread is a run in the run queue, and a run executes until it ends, so a thread cannot block and wait for another thread. A wait on an event that is not set times out when its timeout is finite and no run is queued. Otherwise the wait returns as if the event is set. `WaitOnAddress` returns at once when the value at the address differs from the compare value. If the values are equal, a finite wait times out at once, and an INFINITE wait ends the run of the thread. `WakeByAddressSingle` and `WakeByAddressAll` do nothing, because no thread can be in a wait. A sample that polls a value that only a queued thread changes can loop until it reaches `max_api_calls`.
 
+## Code pages
+
+The ANSI code page is 1252 and the OEM code page is 437. Speakeasy reads and writes `A` strings in code page 1252, so each byte is one character. A character that is not in code page 1252 becomes `?`. For some of these characters Windows uses a best-fit mapping (`ā` to `a`), but Speakeasy does not. `GetCPInfo`, `MultiByteToWideChar` and `WideCharToMultiByte` also support `CP_UTF8` and code page 437, and fail with `ERROR_INVALID_PARAMETER` for other code pages. `IsValidCodePage` returns `TRUE` only for 437, 1252 and 65001. The C runtime uses the C locale, so `mbstowcs` and `wcstombs` map each byte to the wide character with the same value.
+
 ## Environmental requirements
 
 A sample may expect files, registry keys, network responses, loaded modules, or runtime structures that are not present in the active profile. These misses can look like anti-analysis behavior even when the issue is configuration drift.
