@@ -607,21 +607,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return proc.peb.address
         return 0
 
-    @apihook("RtlGetVersion", argc=1)
-    def RtlGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        NTSTATUS RtlGetVersion(
-            PRTL_OSVERSIONINFOW VersionInformation
-        );
-        """
-        (VersionInformation,) = argv
-        # RTL_OSVERSIONINFOW: dwOSVersionInfoSize(4), dwMajorVersion(4),
-        # dwMinorVersion(4), dwBuildNumber(4), dwPlatformId(4), szCSDVersion(256)
-        info = struct.pack("<IIIII", 276, 10, 0, 19041, 2)  # VER_PLATFORM_WIN32_NT=2
-        info += b"\x00" * (276 - len(info))
-        self.mem_write(VersionInformation, info)
-        return ddk.STATUS_SUCCESS
-
     @apihook("EtwRegisterTraceGuidsW", argc=8)
     def EtwRegisterTraceGuidsW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
