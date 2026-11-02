@@ -9,6 +9,7 @@ Handler rules:
 - `argv` contains the raw integer argument slots; handlers do not change it
 - to show a decoded value in the report, set the `display` of the argument in `ctx.args` (for example `ctx.args["lpFileName"].display = path`)
 - return the value expected by the sample path
+- start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
 
@@ -21,6 +22,13 @@ An API set uses the handlers of the module that implements it. `DLL_HOSTS` in `s
 ```python
 @apihook("HeapAlloc", argc=3)
 def HeapAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    """
+    LPVOID HeapAlloc(
+        HANDLE hHeap,
+        DWORD dwFlags,
+        SIZE_T dwBytes
+    );
+    """
     hHeap, dwFlags, dwBytes = argv
 
     chunk = self.heap_alloc(dwBytes, heap="HeapAlloc")
