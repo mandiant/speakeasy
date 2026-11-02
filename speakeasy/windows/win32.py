@@ -13,6 +13,7 @@ from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
@@ -508,6 +509,7 @@ class Win32Emulator(WindowsEmulator):
         peb.object.OSMajorVersion = self.config.os_ver.major or 0
         peb.object.OSMinorVersion = self.config.os_ver.minor or 0
         peb.object.OSBuildNumber = self.config.os_ver.build or 0
+        peb.object.OSPlatformId = windefs.VER_PLATFORM_WIN32_NT
         peb.object.NumberOfProcessors = PROCESSOR_COUNT
         peb.write_back()
 
