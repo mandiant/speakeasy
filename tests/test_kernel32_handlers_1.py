@@ -1145,7 +1145,7 @@ def test_get_system_firmware_table_returns_a_raw_smbios_table(dll_emu: Speakeasy
     data = dll_emu.mem_read(buf, size)
     length = struct.unpack("<I", data[4:8])[0]
     assert length == size - 8
-    assert get_smbios_structure_types(data[8:]) == [0, 1, 127]
+    assert get_smbios_structure_types(data[8:]) == [0, 1, 7, 7, 7, 127]
 
 
 def test_get_system_firmware_table_with_a_small_buffer_returns_the_size(dll_emu: Speakeasy) -> None:
