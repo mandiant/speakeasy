@@ -62,7 +62,7 @@ target-version = "py310"
 exclude = ["deps/", "tests/capa-testfiles/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "D", "D213", "PLR0402", "PLR1711", "PLR5501", "RET501", "RET502", "RET505", "RET508"]
+select = ["E", "F", "I", "UP", "D", "D213", "PLR0402", "PLR1711", "PLR5501", "RET501", "RET502", "RET505", "RET508", "PIE790"]
 ignore = ["D1", "D212"]
 
 [tool.ruff.lint.pydocstyle]
