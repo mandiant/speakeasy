@@ -660,7 +660,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     def _get_parent_pid(self, emu, proc):
         parents = {
-            "smss": "System",
+            "smss": "system",
             "csrss": "smss",
             "wininit": "smss",
             "winlogon": "smss",
