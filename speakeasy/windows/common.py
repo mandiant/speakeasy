@@ -260,8 +260,7 @@ class _PeParser(pefile.PE):
 
     def get_base_name(self):
         fn = os.path.basename(self.path)
-        bn = os.path.splitext(fn)[0]
-        return bn
+        return os.path.splitext(fn)[0]
 
     def is_driver(self):
         rv = super().is_driver()

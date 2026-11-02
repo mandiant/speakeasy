@@ -2499,8 +2499,7 @@ class WindowsEmulator(BinaryEmulator):
         us = windef.UNICODE_STRING(self.get_ptr_size())
         us = self.mem_cast(us, addr)
 
-        string = self.read_mem_string(us.Buffer, width=2)
-        return string
+        return self.read_mem_string(us.Buffer, width=2)
 
     @staticmethod
     def format_api_arg(arg: ApiArg) -> str:

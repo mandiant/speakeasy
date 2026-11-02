@@ -339,8 +339,7 @@ class UnsupportedType(Exception):
 def strip_comments(text: str) -> str:
     text = text.replace("\r\n", "\n")
     text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
-    text = re.sub(r"//[^\n]*", "", text)
-    return text
+    return re.sub(r"//[^\n]*", "", text)
 
 
 def split_top_level(text: str, sep: str = ",") -> list[str]:

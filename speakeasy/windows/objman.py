@@ -516,9 +516,7 @@ class Process(KernelObject):
         desk = sm.get_current_desktop()
         desk_name = desk.name
 
-        name = f"{stat_name}\\{desk_name}"
-
-        return name
+        return f"{stat_name}\\{desk_name}"
 
     def get_std_handle(self, dev):
         attr = STD_HANDLE_ATTRS.get(dev & 0xFFFFFFFF)
