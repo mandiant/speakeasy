@@ -23,14 +23,14 @@ def set_main_command_line(cfg: dict[str, Any], command_line: str) -> None:
 
 
 def profile_pma_0102(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 2
-    cfg["max_api_count"] = 250
+    cfg["max_run_time"] = 2
+    cfg["max_api_calls"] = 250
     return CaseRuntime()
 
 
 def profile_pma_0104(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 2
-    cfg["max_api_count"] = 250
+    cfg["max_run_time"] = 2
+    cfg["max_api_calls"] = 250
     ensure_user_module(cfg, "psapi", "0x71000000", "C:\\Windows\\system32\\psapi.dll")
     return CaseRuntime()
 
@@ -98,8 +98,8 @@ def profile_pma_1102_deep(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
 
 
 def profile_pma_1103_dll(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 20
-    cfg["max_api_count"] = 500
+    cfg["max_run_time"] = 20
+    cfg["max_api_calls"] = 500
     return CaseRuntime()
 
 
@@ -123,13 +123,13 @@ def profile_pma_1201_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_1202_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 2
+    cfg["max_run_time"] = 2
     set_main_command_line(cfg, "svchost.exe")
     return CaseRuntime()
 
 
 def profile_pma_1203_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 2
+    cfg["max_run_time"] = 2
     set_main_command_line(cfg, "svchost.exe")
     return CaseRuntime()
 
@@ -141,8 +141,8 @@ def profile_pma_1204_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_1402(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 6
-    cfg["max_api_count"] = 800
+    cfg["max_run_time"] = 6
+    cfg["max_api_calls"] = 800
     cfg.setdefault("api_hammering", {})
     cfg["api_hammering"]["enabled"] = True
     cfg["api_hammering"]["threshold"] = 50
@@ -156,8 +156,8 @@ def profile_pma_1603(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_1702(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["timeout"] = 4
-    cfg["max_api_count"] = 600
+    cfg["max_run_time"] = 4
+    cfg["max_api_calls"] = 600
     cfg.setdefault("api_hammering", {})
     cfg["api_hammering"]["enabled"] = True
     cfg["api_hammering"]["threshold"] = 100
@@ -165,8 +165,8 @@ def profile_pma_1702(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_0101_staged(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
-    cfg["timeout"] = 20
-    cfg["max_api_count"] = 200
+    cfg["max_run_time"] = 20
+    cfg["max_api_calls"] = 200
     cfg.setdefault("exceptions", {})
     cfg["exceptions"]["dispatch_handlers"] = True
 
@@ -187,7 +187,7 @@ def profile_pma_1803_ocl(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
     # The unpacked payload checks its own basename before starting the reverse shell.
     sample_path = tmp_path / "ocl.exe"
     shutil.copy2(TESTS_DIR / "capa-testfiles" / "Practical Malware Analysis Lab 18-03.exe_", sample_path)
-    cfg["timeout"] = 2
-    cfg["max_api_count"] = 200
+    cfg["max_run_time"] = 2
+    cfg["max_api_calls"] = 200
     set_main_command_line(cfg, "ocl.exe")
     return CaseRuntime(sample_path=sample_path)

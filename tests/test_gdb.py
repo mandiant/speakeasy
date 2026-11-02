@@ -1219,7 +1219,7 @@ def test_gdb_breakpoint_keeps_code_outside_it_fast():
 
 
 def test_gdb_resumes_after_a_timeout_log_it_once(config, caplog):
-    config["timeout"] = 0.2
+    config["max_run_time"] = 0.2
     port = _find_free_port()
     se = Speakeasy(config=config, gdb_port=port)
     try:
@@ -1333,7 +1333,7 @@ def test_gdb_stops_at_fault_in_api_handler_that_runs_guest_code(config):
 
 @pytest.mark.parametrize(("resume", "reply"), [("c", "W00"), ("D", "OK"), ("k", None)])
 def test_gdb_resume_after_total_time_ends_emulation(config, resume, reply):
-    config.update(timeout=0, max_total_time=0.2)
+    config.update(max_run_time=0, max_total_time=0.2)
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         address = se.load_shellcode(data=b"\xeb\xfe", arch="x86")  # jmp $
@@ -1405,7 +1405,7 @@ def test_gdb_stops_at_read_of_the_api_trap_reservation(config):
 
 
 def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
-    config.update(timeout=0, max_total_time=0.05)
+    config.update(max_run_time=0, max_total_time=0.05)
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         # mov eax, GetTickCount; call eax; ret

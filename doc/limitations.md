@@ -37,7 +37,7 @@ Exceptions reach the sample's own handlers, with the limits listed in [Exception
 
 ## Threads
 
-Threads do not run at the same time. Each thread is a run in the run queue, and a run executes until it ends, so a thread cannot block and wait for another thread. A wait on an event that is not set times out when its timeout is finite and no run is queued. Otherwise the wait returns as if the event is set. `WaitOnAddress` returns at once when the value at the address differs from the compare value. If the values are equal, a finite wait times out at once, and an INFINITE wait ends the run of the thread. `WakeByAddressSingle` and `WakeByAddressAll` do nothing, because no thread can be in a wait. A sample that polls a value that only a queued thread changes can loop until it reaches `max_api_count`.
+Threads do not run at the same time. Each thread is a run in the run queue, and a run executes until it ends, so a thread cannot block and wait for another thread. A wait on an event that is not set times out when its timeout is finite and no run is queued. Otherwise the wait returns as if the event is set. `WaitOnAddress` returns at once when the value at the address differs from the compare value. If the values are equal, a finite wait times out at once, and an INFINITE wait ends the run of the thread. `WakeByAddressSingle` and `WakeByAddressAll` do nothing, because no thread can be in a wait. A sample that polls a value that only a queued thread changes can loop until it reaches `max_api_calls`.
 
 ## Environmental requirements
 
@@ -51,7 +51,7 @@ Two runs of the same sample with the same config give the same random bytes, GUI
 
 The `rdtsc` and `rdtscp` instructions are an exception. They read the time stamp counter of Unicorn, which counts host time at 1 GHz. Unicorn 2.1.4 has no hook for `rdtsc`, so Speakeasy cannot give a fixed value. `Sleep` and the wait APIs add the waited time to the counter, so the difference across a `Sleep` call is correct. A sample that uses `rdtsc` as a seed, or that measures how long its code takes, can take a different path in each run.
 
-A wall-clock limit (`--timeout`, `--max-total-time`) stops a run at a point that depends on the speed of the host. See [CLI execution controls](cli-execution-controls.md#stopping-conditions).
+A wall-clock limit (`--max-run-time`, `--max-total-time`) stops a run at a point that depends on the speed of the host. See [CLI execution controls](cli-execution-controls.md#stopping-conditions).
 
 The report fields `emulation_total_runtime` and `timestamp` are host times, so they are different in each report.
 

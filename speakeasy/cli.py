@@ -186,7 +186,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         parser.error(f"Invalid active configuration: {err}")
 
     active_cfg = validated.model_dump(mode="python")
-    wall_limit = max(validated.timeout, validated.max_total_time) if validated.timeout else 0
+    wall_limit = max(validated.max_run_time, validated.max_total_time) if validated.max_run_time else 0
 
     if target and not os.path.isfile(target):
         parser.error(f"Target file not found: {target}")

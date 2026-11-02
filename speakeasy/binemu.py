@@ -177,7 +177,7 @@ class BinaryEmulator(MemoryManager, ABC):
         if self.profiler:
             self.profiler.set_start_time()
         try:
-            self.emu_eng.start(addr, timeout=self.config.timeout, count=self.config.max_instructions)
+            self.emu_eng.start(addr, timeout=self.config.max_run_time, count=self.config.max_instructions)
         except Exception as e:
             if self.profiler:
                 error = ErrorInfo(

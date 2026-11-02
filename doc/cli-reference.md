@@ -69,8 +69,8 @@ Boolean toggles:
 - `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
 
 Scalars:
-- `--timeout`
-- `--max-api-count`
+- `--max-run-time`
+- `--max-api-calls`
 - `--max-instructions`
 - `--random-seed`
 - `--start-time`
@@ -110,12 +110,12 @@ Conflict example:
 ```bash
 speakeasy --target sample.exe \
   --config profile.json \
-  --timeout 20 \
+  --max-run-time 20 \
   --no-analysis-strings \
   --output report.json
 ```
 
-If `profile.json` sets `timeout=120` and `analysis.strings=true`, effective runtime values are `timeout=20` and `analysis.strings=false`.
+If `profile.json` sets `max_run_time=120` and `analysis.strings=true`, effective runtime values are `max_run_time=20` and `analysis.strings=false`.
 
 ## Unsupported complex fields on CLI
 

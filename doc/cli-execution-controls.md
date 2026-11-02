@@ -5,19 +5,19 @@ This page covers runtime limits, execution mode, and debugging controls.
 ## Stopping conditions
 
 Primary flags:
-- `--timeout`: active execution timeout in seconds per run
+- `--max-run-time`: active execution cap in seconds per run (0 disables it)
 - `--max-total-time`: active execution cap in seconds across all runs (0, the default, disables it)
-- `--max-api-count`: cap API calls per run
+- `--max-api-calls`: cap API calls per run
 - `--max-instructions`: cap executed instructions per run
 
 Use these together to bound long-running or looping samples.
 
-The CLI emulates in a child process. It stops that process after the larger of `--timeout` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop.
+The CLI emulates in a child process. It stops that process after the larger of `--max-run-time` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop.
 
-`--timeout` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same timeout can stop at different instructions and give different reports. For a repeatable report, set `--timeout 0` and stop the run with `--max-instructions` or `--max-api-count`:
+`--max-run-time` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same limits can stop at different instructions and give different reports. For a repeatable report, set `--max-run-time 0` and stop the run with `--max-instructions` or `--max-api-calls`:
 
 ```bash
-speakeasy -t sample.exe --timeout 0 --max-instructions 3000000 --max-api-count 10000 -o report.json
+speakeasy -t sample.exe --max-run-time 0 --max-instructions 3000000 --max-api-calls 10000 -o report.json
 ```
 
 [Repeatable runs](limitations.md#repeatable-runs) lists the values that can still change between runs.
@@ -38,7 +38,7 @@ Example: raw shellcode run with bounded execution
 ```bash
 speakeasy -t shellcode.bin \
   --raw --arch x86 --raw-offset 0x40 \
-  --timeout 15 --max-api-count 3000 --max-instructions 500000 \
+  --max-run-time 15 --max-api-calls 3000 --max-instructions 500000 \
   -o report.json
 ```
 
@@ -66,8 +66,8 @@ speakeasy -t sample.dll --gdb --gdb-port 1234 --verbose
 
 ```bash
 speakeasy -t sample.exe \
-  --timeout 20 \
-  --max-api-count 4000 \
+  --max-run-time 20 \
+  --max-api-calls 4000 \
   --max-instructions 800000 \
   --no-analysis-memory-tracing \
   -o report.json
@@ -100,8 +100,8 @@ Practical tuning:
   - `--no-analysis-coverage`
   - `--no-snapshot-memory-regions`
 - set hard stop limits for unstable or looping samples:
-  - `--timeout`
-  - `--max-api-count`
+  - `--max-run-time`
+  - `--max-api-calls`
   - `--max-instructions`
 - run fast triage and deep telemetry as separate profiles
 

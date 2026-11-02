@@ -119,7 +119,7 @@ Command:
 
 ```bash
 speakeasy -t sample.exe \
-  --timeout 30 \
+  --max-run-time 30 \
   --analysis-coverage \
   --analysis-memory-tracing \
   --snapshot-memory-regions \

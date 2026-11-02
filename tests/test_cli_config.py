@@ -17,10 +17,10 @@ def get_cli_config(data: dict, argv: list[str]) -> SpeakeasyConfig:
 
 def test_config_precedence_prefers_cli_over_config_file():
     config = get_cli_config(
-        {"timeout": 15, "analysis": {"coverage": True}}, ["--timeout", "90", "--no-analysis-coverage"]
+        {"max_run_time": 15, "analysis": {"coverage": True}}, ["--max-run-time", "90", "--no-analysis-coverage"]
     )
 
-    assert config.timeout == 90
+    assert config.max_run_time == 90
     assert config.analysis.coverage is False
 
 

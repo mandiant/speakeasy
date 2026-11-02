@@ -25,7 +25,7 @@ def test_max_total_time_config_rejects_invalid_values(config):
 
 
 def test_spinning_call_stops_without_per_run_timeout(config):
-    config.update(timeout=0, max_total_time=0.05)
+    config.update(max_run_time=0, max_total_time=0.05)
     # A child process turns a missed native stop into a failure instead of a hung suite.
     script = """
 import json
@@ -51,7 +51,7 @@ se.shutdown()
 
 
 def test_self_respawning_threads_stop_at_cap(config):
-    config.update(timeout=5, max_total_time=0.06)
+    config.update(max_run_time=5, max_total_time=0.06)
     se = Speakeasy(config=config)
     try:
         # CreateThread(NULL, 0, this_function, NULL, 0, NULL); RET
@@ -75,7 +75,7 @@ def test_self_respawning_threads_stop_at_cap(config):
 
 
 def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
-    config.update(timeout=5, max_total_time=0.05)
+    config.update(max_run_time=5, max_total_time=0.05)
     config["modules"]["module_directory_x86"] = str(tmp_path)
     se = Speakeasy(config=config)
     try:
@@ -99,7 +99,7 @@ def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
 
 
 def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
-    config.update(timeout=5, max_total_time=0.05)
+    config.update(max_run_time=5, max_total_time=0.05)
     with Speakeasy(config=config) as se:
         # PUSH 0; MOV EAX,ExitProcess; CALL EAX; RET
         base = se.load_shellcode(data=b"\x6a\x00\xb8\0\0\0\0\xff\xd0\xc3", arch="x86")
@@ -118,7 +118,7 @@ def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
 
 
 def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog):
-    config.update(timeout=5, max_total_time=0.05, max_api_count=1)
+    config.update(max_run_time=5, max_total_time=0.05, max_api_calls=1)
     with Speakeasy(config=config) as se:
         # CreateThread(NULL, 0, thread, NULL, 0, NULL); MOV EAX,GetTickCount; CALL EAX; RET; thread: RET
         code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0"
@@ -134,7 +134,7 @@ def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog)
             time.sleep(0.1)
             return 1
 
-        # The second API call reaches max_api_count, so the run ends and the thread's run
+        # The second API call reaches max_api_calls, so the run ends and the thread's run
         # is prepared. The time of the slow call then uses up max_total_time.
         se.add_api_hook(slow_tick_count, "kernel32", "GetTickCount", argc=0)
         se.run_shellcode(base)

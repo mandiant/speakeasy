@@ -15,7 +15,7 @@ from speakeasy.winenv import arch
 
 
 def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
-    config.update({"timeout": 3, "max_instructions": 1000})
+    config.update({"max_run_time": 3, "max_instructions": 1000})
     se = Speakeasy(config=config)
     try:
         # CreateThread(NULL, 0, thread, NULL, 0, NULL); JMP $; thread: MOV EAX,0x2a; RET
@@ -39,7 +39,7 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
 
 
 def test_exit_event_stops_an_api_loop_as_a_timeout(config, load_test_bin):
-    config.update({"timeout": 60, "max_api_count": 10_000_000})
+    config.update({"max_run_time": 60, "max_api_calls": 10_000_000})
     exit_event = threading.Event()
     se = Speakeasy(config=config, exit_event=exit_event)
     try:

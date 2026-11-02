@@ -8,7 +8,7 @@ from speakeasy.windows.common import EMU_RESERVED, EMU_RESERVED_END
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
 def test_no_memory_is_mapped_in_the_first_64_kb(config, arch):
-    config["timeout"] = 2
+    config["max_run_time"] = 2
     se = Speakeasy(config=config)
     try:
         base = se.load_shellcode(data=b"\xc3", arch=arch)

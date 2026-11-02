@@ -561,9 +561,9 @@ class SpeakeasyConfig(BaseModel):
 
     config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
     emu_engine: Literal["unicorn"] = Field(default="unicorn", description="Emulation backend identifier.")
-    timeout: float = Field(
+    max_run_time: float = Field(
         default=60,
-        description="Active execution timeout in seconds per Run. 0 disables it.",
+        description="Maximum active execution seconds per run. 0 disables this cap.",
     )
     max_total_time: float = Field(
         default=0,
@@ -571,7 +571,7 @@ class SpeakeasyConfig(BaseModel):
         allow_inf_nan=False,
         description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
     )
-    max_api_count: int = Field(default=10000, description="Maximum API calls allowed per run.")
+    max_api_calls: int = Field(default=10000, description="Maximum API calls per run.")
     max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
     stack_size: _Size = Field(
         default=0,

@@ -15,7 +15,7 @@ MANIFEST_PATHS = sorted(MANIFEST_ROOT.glob("*/*.json"))
 
 @pytest.fixture(params=["x86", "amd64"])
 def started(request, config):
-    config["timeout"] = 3
+    config["max_run_time"] = 3
     config["modules"]["functions_always_exist"] = False
     with Speakeasy(config=config) as se:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch=request.param))

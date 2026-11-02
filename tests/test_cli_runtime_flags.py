@@ -46,7 +46,7 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
 
     subprocess.run(
         [sys.executable, "-m", "speakeasy.cli", "-t", str(target), "-o", str(output)]
-        + ["--timeout", "1", "--max-total-time", "20"],
+        + ["--max-run-time", "1", "--max-total-time", "20"],
         check=False,
         capture_output=True,
         timeout=60,
