@@ -19,7 +19,8 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
-from speakeasy.winenv.codepage import encode_ansi
+from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
+from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 from speakeasy.winenv.defs.enums import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION, REG_VALUE_TYPE
 from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
@@ -976,6 +977,46 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args["String1"].display = s1
         ctx.args["String2"].display = s2
         return int(rv)
+
+    @apihook("RtlCompareString", argc=3)
+    def RtlCompareString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG RtlCompareString(
+            const STRING *String1,
+            const STRING *String2,
+            BOOLEAN CaseInSensitive
+        );
+        """
+        str1, str2, ci = argv
+        texts = []
+        for i, addr in enumerate((str1, str2)):
+            ans = self.mem_cast(self.win.STRING(emu.get_ptr_size()), addr)
+            data = self.mem_read(ans.Buffer, ans.Length)
+            ctx.args[i].display = decode_ansi(data)
+            if ci & 0xFF:
+                data = data.translate(ANSI_UPPER_TABLE)
+            # Latin-1 keeps the byte order of the compare.
+            texts.append(data.decode("latin-1"))
+        return get_string_order(texts[0], texts[1], Fold.NONE)
+
+    @apihook("RtlCompareUnicodeString", argc=3)
+    def RtlCompareUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        LONG RtlCompareUnicodeString(
+            PCUNICODE_STRING String1,
+            PCUNICODE_STRING String2,
+            BOOLEAN CaseInSensitive
+        );
+        """
+        str1, str2, ci = argv
+        texts = []
+        for i, addr in enumerate((str1, str2)):
+            us = self.mem_cast(self.win.UNICODE_STRING(emu.get_ptr_size()), addr)
+            # Length is in bytes, and the compare uses whole characters.
+            data = self.mem_read(us.Buffer, us.Length // 2 * 2)
+            ctx.args[i].display = data.decode("utf-16le", "replace")
+            texts.append(data.decode("utf-16le", "surrogatepass"))
+        return get_string_order(texts[0], texts[1], Fold.UPPER if ci & 0xFF else Fold.NONE)
 
     @apihook("IoAllocateIrp", argc=2)
     def IoAllocateIrp(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

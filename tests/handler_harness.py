@@ -59,6 +59,11 @@ def unicode_string(se: Speakeasy, text: str) -> int:
     return alloc(se, struct.pack("<HHI", len(buf), len(buf) + 2, buf_addr))
 
 
+def ansi_string(se: Speakeasy, text: bytes) -> int:
+    """Build an x86 STRING for ``text`` and return its address."""
+    return alloc(se, struct.pack("<HHI", len(text), len(text) + 1, alloc(se, text + b"\x00")))
+
+
 def object_attributes(se: Speakeasy, name: str) -> int:
     """Build an x86 OBJECT_ATTRIBUTES for ``name`` and return its address."""
     return alloc(se, struct.pack("<IIIIII", 24, 0, unicode_string(se, name), 0, 0, 0))
