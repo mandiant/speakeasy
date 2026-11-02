@@ -522,6 +522,24 @@ class ApiHandler:
 
         return self.emu.mem_write(addr, data)
 
+    def read_dword(self, addr: int) -> int:
+        return int.from_bytes(self.mem_read(addr, 4), "little")
+
+    def read_ptr(self, addr: int) -> int:
+        return int.from_bytes(self.mem_read(addr, self.ptr_size), "little")
+
+    def write_dword(self, addr: int, value: int) -> None:
+        """
+        Write the low 32 bits of value. A negative value becomes its two's complement.
+        """
+        self.mem_write(addr, (value & 0xFFFFFFFF).to_bytes(4, "little"))
+
+    def write_qword(self, addr: int, value: int) -> None:
+        self.mem_write(addr, value.to_bytes(8, "little"))
+
+    def write_ptr(self, addr: int, value: int) -> None:
+        self.mem_write(addr, value.to_bytes(self.ptr_size, "little"))
+
     def create_thread(self, addr, ctx, hproc, thread_type="thread", is_suspended=False):
         return self.emu.create_thread(addr, ctx, hproc, thread_type=thread_type, is_suspended=is_suspended)
 
