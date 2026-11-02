@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Shcore(api.ApiHandler):
@@ -14,7 +19,7 @@ class Shcore(api.ApiHandler):
         self.task_pool_context = 0
 
     @apihook("SHTaskPoolGetUniqueContext", argc=0)
-    def SHTaskPoolGetUniqueContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SHTaskPoolGetUniqueContext(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD SHTaskPoolGetUniqueContext();
         """
