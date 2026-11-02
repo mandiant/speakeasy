@@ -683,3 +683,7 @@ def test_rtl_initialize_sid_writes_the_header(driver_emu: Speakeasy, count: int,
     nt_authority = alloc(driver_emu, bytes([0, 0, 0, 0, 0, 5]))
     assert call(driver_emu, "ntoskrnl", "RtlInitializeSid", [sid, nt_authority, count])[0] == status
     assert driver_emu.mem_read(sid, 8) == header
+
+
+def test_rtl_sub_authority_sid_points_after_the_header(driver_emu: Speakeasy) -> None:
+    assert call(driver_emu, "ntoskrnl", "RtlSubAuthoritySid", [0x20000000, 1])[0] == 0x2000000C

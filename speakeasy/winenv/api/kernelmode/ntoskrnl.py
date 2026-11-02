@@ -1981,10 +1981,9 @@ class Ntoskrnl(api.ApiHandler):
             ULONG SubAuthority
         );
         """
-        # TODO, unimplemented
         Sid, SubAuthority = argv
-
-        return Sid
+        header = windefs.SID(emu.get_ptr_size(), 0)
+        return Sid + self.sizeof(header) + 4 * SubAuthority
 
     @apihook("RtlCreateAcl", argc=3)
     def RtlCreateAcl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
