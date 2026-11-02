@@ -4,10 +4,11 @@ import ctypes
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.windows.user32 as windefs
+import speakeasy.winenv.defs.windows.user32 as u32defs
 from speakeasy.windows import guest_callbacks, sessman
 from speakeasy.windows.guest_callbacks import GuestCall
-from speakeasy.winenv.defs.windows import windef, windows
+from speakeasy.winenv.defs.windows import windef
+from speakeasy.winenv.defs.windows import windows as windefs
 
 from .. import api
 
@@ -38,13 +39,13 @@ IDI_WINLOGO = 32517
 UOI_FLAGS = 1
 
 LIST_VIEW_COLUMN_MESSAGES = (
-    windefs.LVM_INSERTCOLUMNA,
-    windefs.LVM_INSERTCOLUMNW,
-    windefs.LVM_GETCOLUMNA,
-    windefs.LVM_GETCOLUMNW,
-    windefs.LVM_GETCOLUMNWIDTH,
-    windefs.LVM_SETCOLUMNWIDTH,
-    windefs.LVM_DELETECOLUMN,
+    u32defs.LVM_INSERTCOLUMNA,
+    u32defs.LVM_INSERTCOLUMNW,
+    u32defs.LVM_GETCOLUMNA,
+    u32defs.LVM_GETCOLUMNW,
+    u32defs.LVM_GETCOLUMNWIDTH,
+    u32defs.LVM_SETCOLUMNWIDTH,
+    u32defs.LVM_DELETECOLUMN,
 )
 
 GWL_WNDPROC = -4
@@ -61,14 +62,14 @@ DISPLAY_DEVICES = {
     None: (
         "\\\\.\\DISPLAY1",
         "Intel(R) UHD Graphics 750",
-        windefs.DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | windefs.DISPLAY_DEVICE_PRIMARY_DEVICE,
+        u32defs.DISPLAY_DEVICE_ATTACHED_TO_DESKTOP | u32defs.DISPLAY_DEVICE_PRIMARY_DEVICE,
         "PCI\\VEN_8086&DEV_4C8A&SUBSYS_0A6F1028&REV_04",
         "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Video\\{6E5A3F42-9C1B-4D7E-8F20-3B1A5C7D9E04}\\0000",
     ),
     "\\\\.\\DISPLAY1": (
         "\\\\.\\DISPLAY1\\Monitor0",
         "Generic PnP Monitor",
-        windefs.DISPLAY_DEVICE_ACTIVE | windefs.DISPLAY_DEVICE_ATTACHED,
+        u32defs.DISPLAY_DEVICE_ACTIVE | u32defs.DISPLAY_DEVICE_ATTACHED,
         "MONITOR\\DELA1A8\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
         "\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
     ),
@@ -239,7 +240,7 @@ class User32(api.ApiHandler):
 
     def get_synthetic_keyboard_hook(self):
         for _, hook in self.window_hooks.items():
-            if len(hook) == 3 and hook[0] == windefs.WH_KEYBOARD_LL:
+            if len(hook) == 3 and hook[0] == u32defs.WH_KEYBOARD_LL:
                 return hook
         return None
 
@@ -255,9 +256,9 @@ class User32(api.ApiHandler):
         vkey = self.synthetic_hook_keys[hook_index]
         self.synthetic_hook_key_index += 1
 
-        wparam = windefs.WM_KEYDOWN if (hook_index % 2 == 0) else windefs.WM_SYSKEYDOWN
+        wparam = u32defs.WM_KEYDOWN if (hook_index % 2 == 0) else u32defs.WM_SYSKEYDOWN
 
-        kbd = windefs.KBDLLHOOKSTRUCT(emu.get_ptr_size())
+        kbd = u32defs.KBDLLHOOKSTRUCT(emu.get_ptr_size())
         kbd.vkCode = vkey
         kbd.scanCode = 0
         kbd.flags = 0
@@ -378,7 +379,7 @@ class User32(api.ApiHandler):
         );
         """
         (lpwcx,) = argv
-        return self.register_window_class(windefs.WNDCLASSEX(emu.get_ptr_size()), lpwcx, ctx)
+        return self.register_window_class(u32defs.WNDCLASSEX(emu.get_ptr_size()), lpwcx, ctx)
 
     @apihook("RegisterClass", argc=1)
     def RegisterClass(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -388,7 +389,7 @@ class User32(api.ApiHandler):
         );
         """
         (lpWndClass,) = argv
-        return self.register_window_class(windefs.WNDCLASS(emu.get_ptr_size()), lpWndClass, ctx)
+        return self.register_window_class(u32defs.WNDCLASS(emu.get_ptr_size()), lpWndClass, ctx)
 
     def register_window_class(self, wclass, address, ctx):
         wclass = self.mem_cast(wclass, address)
@@ -484,7 +485,7 @@ class User32(api.ApiHandler):
 
         wc = self.sessman.get_window_class(window.class_name)
         if wc and wc.wclass.lpfnWndProc:
-            cb_args = (hWnd, windefs.WM_PAINT, 0, 0)
+            cb_args = (hWnd, u32defs.WM_PAINT, 0, 0)
             self.setup_callback(wc.wclass.lpfnWndProc, cb_args)
 
         return True
@@ -518,7 +519,7 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, Msg, wParam, lParam = argv
-        return int(Msg == windefs.WM_NCCREATE)
+        return int(Msg == u32defs.WM_NCCREATE)
 
     @apihook("CallWindowProc", argc=5)
     def CallWindowProc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -577,7 +578,7 @@ class User32(api.ApiHandler):
         wc = self.sessman.get_window_class(cn) if cn else None
         if not wc or not wc.wclass.lpfnWndProc:
             return hnd
-        cs = windefs.CREATESTRUCT(emu.get_ptr_size())
+        cs = u32defs.CREATESTRUCT(emu.get_ptr_size())
         cs.lpCreateParams, cs.hInstance, cs.hMenu, cs.hwndParent = lpParam, hInstance, hMenu, hWndParent
         cs.cy, cs.cx, cs.y, cs.x = nHeight, nWidth, Y, X
         cs.style, cs.lpszName, cs.lpszClass, cs.dwExStyle = dwStyle, lpWindowName, lpClassName, dwExStyle
@@ -586,9 +587,9 @@ class User32(api.ApiHandler):
     def send_create_messages(self, emu, hnd, wndproc, cs):
         """Send WM_NCCREATE and WM_CREATE as CreateWindowEx does; either can refuse the window."""
         lparam = guest_callbacks.alloca(emu, cs.get_bytes())
-        if not (yield GuestCall(wndproc, (hnd, windefs.WM_NCCREATE, 0, lparam))):
+        if not (yield GuestCall(wndproc, (hnd, u32defs.WM_NCCREATE, 0, lparam))):
             return 0
-        if (yield GuestCall(wndproc, (hnd, windefs.WM_CREATE, 0, lparam))) == (1 << emu.get_ptr_size() * 8) - 1:
+        if (yield GuestCall(wndproc, (hnd, u32defs.WM_CREATE, 0, lparam))) == (1 << emu.get_ptr_size() * 8) - 1:
             return 0
         return hnd
 
@@ -868,45 +869,45 @@ class User32(api.ApiHandler):
         """Keep the columns of a list-view control as comctl32 does for the LVM_*COLUMN* messages."""
         columns = window.lv_columns
         index = ctypes.c_int32(wparam).value
-        if msg in (windefs.LVM_INSERTCOLUMNA, windefs.LVM_INSERTCOLUMNW):
+        if msg in (u32defs.LVM_INSERTCOLUMNA, u32defs.LVM_INSERTCOLUMNW):
             if not lparam or index < 0:
                 return -1
-            col = self.mem_cast(windefs.LVCOLUMN(emu.get_ptr_size()), lparam)
+            col = self.mem_cast(u32defs.LVCOLUMN(emu.get_ptr_size()), lparam)
             index = min(index, len(columns))
             text = ""
-            if col.mask & windefs.LVCF_TEXT and col.pszText:
-                text = self.read_mem_string(col.pszText, 1 if msg == windefs.LVM_INSERTCOLUMNA else 2)
+            if col.mask & u32defs.LVCF_TEXT and col.pszText:
+                text = self.read_mem_string(col.pszText, 1 if msg == u32defs.LVM_INSERTCOLUMNA else 2)
             columns.insert(
                 index,
                 sessman.ListViewColumn(
-                    fmt=col.fmt if col.mask & windefs.LVCF_FMT else 0,
-                    cx=col.cx if col.mask & windefs.LVCF_WIDTH else 0,
+                    fmt=col.fmt if col.mask & u32defs.LVCF_FMT else 0,
+                    cx=col.cx if col.mask & u32defs.LVCF_WIDTH else 0,
                     text=text,
-                    sub_item=col.iSubItem if col.mask & windefs.LVCF_SUBITEM else index,
+                    sub_item=col.iSubItem if col.mask & u32defs.LVCF_SUBITEM else index,
                 ),
             )
             return index
         if not 0 <= index < len(columns):
             return 0
         column = columns[index]
-        if msg in (windefs.LVM_GETCOLUMNA, windefs.LVM_GETCOLUMNW):
+        if msg in (u32defs.LVM_GETCOLUMNA, u32defs.LVM_GETCOLUMNW):
             if not lparam:
                 return False
-            col = self.mem_cast(windefs.LVCOLUMN(emu.get_ptr_size()), lparam)
-            if col.mask & windefs.LVCF_FMT:
+            col = self.mem_cast(u32defs.LVCOLUMN(emu.get_ptr_size()), lparam)
+            if col.mask & u32defs.LVCF_FMT:
                 col.fmt = column.fmt
-            if col.mask & windefs.LVCF_WIDTH:
+            if col.mask & u32defs.LVCF_WIDTH:
                 col.cx = column.cx
-            if col.mask & windefs.LVCF_SUBITEM:
+            if col.mask & u32defs.LVCF_SUBITEM:
                 col.iSubItem = column.sub_item
             self.mem_write(lparam, col.get_bytes())
-            if col.mask & windefs.LVCF_TEXT and col.pszText and col.cchTextMax > 0:
-                cw = 1 if msg == windefs.LVM_GETCOLUMNA else 2
+            if col.mask & u32defs.LVCF_TEXT and col.pszText and col.cchTextMax > 0:
+                cw = 1 if msg == u32defs.LVM_GETCOLUMNA else 2
                 self.write_mem_string(column.text[: col.cchTextMax - 1], col.pszText, cw)
             return True
-        if msg == windefs.LVM_GETCOLUMNWIDTH:
+        if msg == u32defs.LVM_GETCOLUMNWIDTH:
             return column.cx
-        if msg == windefs.LVM_SETCOLUMNWIDTH:
+        if msg == u32defs.LVM_SETCOLUMNWIDTH:
             column.cx = ctypes.c_int16(lparam).value
             return True
         del columns[index]
@@ -937,7 +938,7 @@ class User32(api.ApiHandler):
         """
         idHook, lpfn, hmod, dwThreadId = argv
 
-        hname = windefs.get_windowhook_flags(idHook)
+        hname = u32defs.get_windowhook_flags(idHook)
         if hname:
             hname = hname[0]
             ctx.args["idHook"].display = hname
@@ -995,9 +996,9 @@ class User32(api.ApiHandler):
             if self.timers:
                 hwnd, tid, proc = self.timers[self.next_timer % len(self.timers)]
                 self.next_timer += 1
-                msg = windefs.MSG(emu.get_ptr_size())
+                msg = u32defs.MSG(emu.get_ptr_size())
                 msg.hwnd = hwnd
-                msg.message = windefs.WM_TIMER
+                msg.message = u32defs.WM_TIMER
                 msg.wParam = tid
                 msg.lParam = proc
             else:
@@ -1006,7 +1007,7 @@ class User32(api.ApiHandler):
                     return False
                 if lpMsg:
                     wparam, vkey = synthetic
-                    msg = windefs.MSG(emu.get_ptr_size())
+                    msg = u32defs.MSG(emu.get_ptr_size())
                     msg.hwnd = hWnd
                     msg.message = wparam
                     msg.wParam = vkey
@@ -1037,10 +1038,10 @@ class User32(api.ApiHandler):
         """
         (lpMsg,) = argv
 
-        msg = windefs.MSG(emu.get_ptr_size())
+        msg = u32defs.MSG(emu.get_ptr_size())
         msg = self.mem_cast(msg, lpMsg)
 
-        if msg.message == windefs.WM_TIMER and msg.lParam:
+        if msg.message == u32defs.WM_TIMER and msg.lParam:
             self.setup_callback(msg.lParam, (msg.hwnd, msg.message, msg.wParam, msg.time))
             return 0
         wndproc = self.wndprocs.get(msg.hwnd)
@@ -1223,8 +1224,8 @@ class User32(api.ApiHandler):
         """
         lpEnumFunc, lParam = argv
         desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
-        windows = [hnd for hnd, w in self.sessman.windows.items() if isinstance(hnd, int) and w.parent in (0, desktop)]
-        for hnd in windows:
+        hwnds = [hnd for hnd, w in self.sessman.windows.items() if isinstance(hnd, int) and w.parent in (0, desktop)]
+        for hnd in hwnds:
             if not (yield GuestCall(lpEnumFunc, (hnd, lParam))) & 0xFFFFFFFF:
                 return 0
         return 1
@@ -1250,7 +1251,7 @@ class User32(api.ApiHandler):
         window = self.sessman.get_window(hWnd)
         if not window:
             if hWnd != self.sessman.get_current_desktop().desktop_window.get_handle():
-                emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+                emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
             return 0
         if window.style & (WS_POPUP | WS_CHILD):
             return window.parent
@@ -1266,7 +1267,7 @@ class User32(api.ApiHandler):
     def get_prop_window(self, emu, hnd):
         window = self.sessman.get_window(hnd)
         if not window:
-            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
         return window
 
     @apihook("SetProp", argc=3)
@@ -1335,7 +1336,7 @@ class User32(api.ApiHandler):
         else:
             window = self.sessman.get_window(hWnd)
         if not window:
-            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
             return 0
         if lpdwProcessId:
             self.write_dword(lpdwProcessId, window.process_id)
@@ -1360,7 +1361,7 @@ class User32(api.ApiHandler):
         """
         desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
         if not self.sessman.get_window(hWnd) and hWnd not in self.handles and hWnd != desktop:
-            emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
+            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
             return None
         return self.window_longs.setdefault(hWnd, {})
 
@@ -1454,7 +1455,7 @@ class User32(api.ApiHandler):
     def run_dialog(self, hdlg, func, param):
         # No user input arrives, so the dialog ends when the procedure calls EndDialog
         # during WM_INITDIALOG, or else as if the user closed it
-        yield GuestCall(func, (hdlg, windefs.WM_INITDIALOG, 0, param))
+        yield GuestCall(func, (hdlg, u32defs.WM_INITDIALOG, 0, param))
         return self.dialog_results.pop(hdlg, IDCANCEL)
 
     @apihook("EndDialog", argc=2)
@@ -1489,7 +1490,7 @@ class User32(api.ApiHandler):
         ) = argv
 
         hdlg = self.get_handle()
-        cb_args = (hdlg, windefs.WM_INITDIALOG, 0, dwInitParam)
+        cb_args = (hdlg, u32defs.WM_INITDIALOG, 0, dwInitParam)
         self.setup_callback(lpDialogFunc, cb_args)
         return hdlg
 
@@ -1583,7 +1584,7 @@ class User32(api.ApiHandler):
         hObj, nIndex, pvInfo, nLength, lpnLengthNeeded = argv
 
         if nIndex == UOI_FLAGS:
-            uoi = windefs.USEROBJECTFLAGS(emu.get_ptr_size())
+            uoi = u32defs.USEROBJECTFLAGS(emu.get_ptr_size())
             uoi.fInherit = 1
             uoi.dwFlags = 1
 
@@ -1631,7 +1632,7 @@ class User32(api.ApiHandler):
         );
         """
         pRawInputDeviceList, puiNumDevices, cbSize = argv
-        types = (windefs.RIM_TYPEKEYBOARD, windefs.RIM_TYPEMOUSE, windefs.RIM_TYPEHID, windefs.RIM_TYPEHID)
+        types = (u32defs.RIM_TYPEKEYBOARD, u32defs.RIM_TYPEMOUSE, u32defs.RIM_TYPEHID, u32defs.RIM_TYPEHID)
         num_devices = len(types)
         if not pRawInputDeviceList:
             self.write_dword(puiNumDevices, num_devices)
@@ -1639,7 +1640,7 @@ class User32(api.ApiHandler):
 
         if self.read_dword(puiNumDevices) < num_devices:
             self.write_dword(puiNumDevices, num_devices)
-            emu.set_last_error(windows.ERROR_INSUFFICIENT_BUFFER)
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0xFFFFFFFF
 
         ptr_size = self.get_ptr_size()
@@ -2123,7 +2124,7 @@ class User32(api.ApiHandler):
         if iDevNum or not lpDisplayDevice or parent not in DISPLAY_DEVICES:
             return 0
 
-        dd = windefs.DISPLAY_DEVICE(emu.get_ptr_size(), cw)
+        dd = u32defs.DISPLAY_DEVICE(emu.get_ptr_size(), cw)
         cb = self.read_dword(lpDisplayDevice)
         if cb < dd.get_cstruct().DeviceID.offset:
             return 0

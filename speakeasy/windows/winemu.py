@@ -23,7 +23,7 @@ import unicorn as uc
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.windows.windows as windef
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.config import parse_start_time
@@ -391,7 +391,7 @@ class WindowsEmulator(BinaryEmulator):
         self.exit_hook: int = winemu.EXIT_RETURN_ADDR
         self._parse_config(config)
 
-        self.wintypes = windef
+        self.wintypes = windefs
         self.handle_allocator: HandleAllocator = HandleAllocator()
         # OS resource managers
         self.regman: RegistryManager = RegistryManager(
@@ -835,8 +835,8 @@ class WindowsEmulator(BinaryEmulator):
     def get_native_machine(self) -> int:
         """Get the IMAGE_FILE_MACHINE value of the emulated host, which matches the guest architecture."""
         if self.get_arch() == _arch.ARCH_AMD64:
-            return windef.IMAGE_FILE_MACHINE_AMD64
-        return windef.IMAGE_FILE_MACHINE_I386
+            return windefs.IMAGE_FILE_MACHINE_AMD64
+        return windefs.IMAGE_FILE_MACHINE_I386
 
     def _build_user_shared_data(self):
         now_100ns = self.start_time
@@ -2509,7 +2509,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def read_unicode_string(self, addr):
         """Read string data from a UNICODE_STRING object located at the specified address."""
-        us = windef.UNICODE_STRING(self.get_ptr_size())
+        us = windefs.UNICODE_STRING(self.get_ptr_size())
         us = self.mem_cast(us, addr)
 
         return self.read_mem_string(us.Buffer, width=2)

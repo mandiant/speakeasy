@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.windows.windows as windef
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
 from speakeasy.windows import seh32
 from speakeasy.windows.common import FILETIME_UNIX_EPOCH
@@ -548,7 +548,7 @@ class Msvcrt(api.ApiHandler):
 
         self.funcs = {}
         self.data = {}
-        self.wintypes = windef
+        self.wintypes = windefs
 
         self.tick_counter: int = TICK_BASE
         self.perf_counter: int = PERF_COUNTER_BASE
@@ -2527,17 +2527,17 @@ class Msvcrt(api.ApiHandler):
         """
         exceptionNum, exceptionPtr = argv
         if exceptionNum not in EXCEPTION_SIGNALS:
-            return windef.EXCEPTION_CONTINUE_SEARCH
+            return windefs.EXCEPTION_CONTINUE_SEARCH
         sig, fpe_code = EXCEPTION_SIGNALS[exceptionNum]
         action = self.signal_handlers.get(sig, SIG_DFL)
         if action == SIG_DFL:
-            return windef.EXCEPTION_CONTINUE_SEARCH
+            return windefs.EXCEPTION_CONTINUE_SEARCH
         if action == SIG_IGN:
-            return windef.EXCEPTION_CONTINUE_EXECUTION
+            return windefs.EXCEPTION_CONTINUE_EXECUTION
         self.signal_handlers[sig] = SIG_DFL
         return self.call_signal_handler(action, (sig, fpe_code) if sig == SIGFPE else (sig,))
 
-    def call_signal_handler(self, handler, args, rv=windef.EXCEPTION_CONTINUE_EXECUTION):
+    def call_signal_handler(self, handler, args, rv=windefs.EXCEPTION_CONTINUE_EXECUTION):
         yield GuestCall(handler, args)
         return rv
 
@@ -2575,7 +2575,7 @@ class Msvcrt(api.ApiHandler):
         """
         exceptionNum, exceptionPtr = argv
         # Only C++ exceptions go on to _seh_filter_exe, and no signal maps to them
-        return windef.EXCEPTION_CONTINUE_SEARCH
+        return windefs.EXCEPTION_CONTINUE_SEARCH
 
     @apihook("puts", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def puts(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4771,7 +4771,7 @@ class Msvcrt(api.ApiHandler):
             pContext,
             pDC,
         ) = argv
-        return windef.ExceptionContinueSearch
+        return windefs.ExceptionContinueSearch
 
     @apihook("__CxxFrameHandler2", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __CxxFrameHandler2(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

@@ -5,7 +5,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.winenv.defs.windows import com
+from speakeasy.winenv.defs.windows import com as comdefs
 
 from .. import api
 
@@ -33,9 +33,9 @@ class Ole32(api.ApiHandler):
         tid = emu.get_current_thread().id
         count, current = self.com_init.get(tid, (0, None))
         if count and current != model:
-            return com.RPC_E_CHANGED_MODE
+            return comdefs.RPC_E_CHANGED_MODE
         self.com_init[tid] = (count + 1, model)
-        return com.S_FALSE if count else com.S_OK
+        return comdefs.S_FALSE if count else comdefs.S_OK
 
     def co_uninitialize(self, emu):
         tid = emu.get_current_thread().id
@@ -52,7 +52,7 @@ class Ole32(api.ApiHandler):
             LPVOID pvReserved
         );
         """
-        return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
+        return self.co_initialize(emu, comdefs.COINIT_APARTMENTTHREADED)
 
     @apihook("OleUninitialize", argc=0)
     def OleUninitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -68,7 +68,7 @@ class Ole32(api.ApiHandler):
             LPVOID pvReserved
         );
         """
-        return self.co_initialize(emu, com.COINIT_APARTMENTTHREADED)
+        return self.co_initialize(emu, comdefs.COINIT_APARTMENTTHREADED)
 
     @apihook("CoInitializeEx", argc=2)
     def CoInitializeEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -79,7 +79,7 @@ class Ole32(api.ApiHandler):
         );
         """
         pvReserved, dwCoInit = argv
-        return self.co_initialize(emu, dwCoInit & com.COINIT_APARTMENTTHREADED)
+        return self.co_initialize(emu, dwCoInit & comdefs.COINIT_APARTMENTTHREADED)
 
     @apihook("CoUninitialize", argc=0)
     def CoUninitialize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -105,11 +105,11 @@ class Ole32(api.ApiHandler):
         """
         rv = windefs.S_OK
 
-        authn_level = com.get_define_int(argv[4])
+        authn_level = comdefs.get_define_int(argv[4])
         if authn_level:
             ctx.args["dwAuthnLevel"].display = authn_level
 
-        imp_level = com.get_define_int(argv[5])
+        imp_level = comdefs.get_define_int(argv[5])
         if imp_level:
             ctx.args["dwImpLevel"].display = imp_level
 
@@ -130,13 +130,13 @@ class Ole32(api.ApiHandler):
         rv = windefs.S_OK
 
         clsid_bytes = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
-        clsid_str = com.convert_guid_bytes_to_str(clsid_bytes)
-        clsid_name = com.get_clsid(clsid_str)
+        clsid_str = comdefs.convert_guid_bytes_to_str(clsid_bytes)
+        clsid_name = comdefs.get_clsid(clsid_str)
         if clsid_name:
             ctx.args["rclsid"].display = clsid_name
             riid_bytes = self.mem_read(riid, self.sizeof(windefs.GUID()))
-            riid_str = com.convert_guid_bytes_to_str(riid_bytes)
-            iid_name = com.get_iid(riid_str)
+            riid_str = comdefs.convert_guid_bytes_to_str(riid_bytes)
+            iid_name = comdefs.get_iid(riid_str)
             if iid_name:
                 ctx.args["riid"].display = iid_name
                 if ppv:
@@ -146,10 +146,10 @@ class Ole32(api.ApiHandler):
                     self.write_ptr(ppv, pv)
                 return rv
             logger.info("Unsupported COM IID %s", riid_str)
-            rv = com.E_NOINTERFACE
+            rv = comdefs.E_NOINTERFACE
         else:
             logger.info("Unsupported COM CLSID %s", clsid_str)
-            rv = com.REGDB_E_CLASSNOTREG
+            rv = comdefs.REGDB_E_CLASSNOTREG
 
         if ppv:
             self.mem_write(ppv, b"\x00" * emu.get_ptr_size())
@@ -173,7 +173,7 @@ class Ole32(api.ApiHandler):
             ctx.args["pszName"].display = self.read_mem_string(pszName, 2)
         if ppv:
             self.mem_write(ppv, b"\x00" * emu.get_ptr_size())
-        return com.MK_E_SYNTAX
+        return comdefs.MK_E_SYNTAX
 
     @apihook("CoSetProxyBlanket", argc=8)
     def CoSetProxyBlanket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -203,7 +203,7 @@ class Ole32(api.ApiHandler):
         rv = windefs.S_OK
 
         guid = self.mem_read(rclsid, self.sizeof(windefs.GUID()))
-        u = com.convert_guid_bytes_to_str(guid)
+        u = comdefs.convert_guid_bytes_to_str(guid)
         ctx.args["lplpsz"].display = u
         u = (u + "\x00").encode("utf-16le")
 
@@ -226,10 +226,10 @@ class Ole32(api.ApiHandler):
         lpszProgID, lpclsid = argv
 
         progid = self.read_mem_string(lpszProgID, 2) if lpszProgID else ""
-        clsid = com.PROGID_CLSIDS.get(progid.lower())
+        clsid = comdefs.PROGID_CLSIDS.get(progid.lower())
         if clsid is None:
             self.mem_write(lpclsid, b"\x00" * 16)
-            return com.CO_E_CLASSSTRING
+            return comdefs.CO_E_CLASSSTRING
 
         self.mem_write(lpclsid, uuid.UUID(clsid).bytes_le)
         ctx.args["lpclsid"].display = clsid
@@ -257,7 +257,7 @@ class Ole32(api.ApiHandler):
         rguid, lpsz, cchMax = argv
 
         guid = self.mem_read(rguid, self.sizeof(windefs.GUID()))
-        u = com.convert_guid_bytes_to_str(guid) + "\x00"
+        u = comdefs.convert_guid_bytes_to_str(guid) + "\x00"
         if cchMax < len(u):
             return 0
 

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.wininet as windefs
+import speakeasy.winenv.defs.wininet as inetdefs
 from speakeasy.windows import netman
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.wininet import WINHTTP_OPEN_REQUEST_FLAGS
@@ -167,7 +167,7 @@ class WinHttp(api.ApiHandler):
 
         if pProxyInfo:
             ps = self.get_ptr_size()
-            self.mem_write(pProxyInfo, windefs.WINHTTP_ACCESS_TYPE_NO_PROXY.to_bytes(ps, "little") + b"\0" * (2 * ps))
+            self.mem_write(pProxyInfo, inetdefs.WINHTTP_ACCESS_TYPE_NO_PROXY.to_bytes(ps, "little") + b"\0" * (2 * ps))
 
         return True
 
@@ -299,15 +299,15 @@ class WinHttp(api.ApiHandler):
             ctx.args["pwszUrl"].display = url
             rv = True
 
-            uc = windefs.URL_COMPONENTS(emu.get_ptr_size())
+            uc = inetdefs.URL_COMPONENTS(emu.get_ptr_size())
             url_comp = self.mem_cast(uc, lpUrlComponents)
 
             crack = urlparse(url)
             if crack.scheme == "https":
-                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
+                url_comp.nScheme = inetdefs.INTERNET_SCHEME_HTTPS
             elif crack.scheme == "http":
-                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
-            port, parts = windefs.crack_url(url)
+                url_comp.nScheme = inetdefs.INTERNET_SCHEME_HTTP
+            port, parts = inetdefs.crack_url(url)
             url_comp.nPort = port
             for part, (text, offset) in parts.items():
                 length = getattr(url_comp, f"dw{part}Length")
@@ -318,7 +318,7 @@ class WinHttp(api.ApiHandler):
                     if length <= len(text):
                         setattr(url_comp, f"dw{part}Length", len(text) + 1)
                         self.mem_write(lpUrlComponents, url_comp.get_bytes())
-                        emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                        emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
                         return False
                     self.write_mem_string(text, buf, cw)
                 else:
@@ -343,7 +343,7 @@ class WinHttp(api.ApiHandler):
 
         lpszHeaders = self.read_wide_string(lpszHeaders, dwHeadersLength)
         ctx.args["lpszHeaders"].display = lpszHeaders
-        flags = windefs.get_header_info_winhttp(dwModifiers)
+        flags = inetdefs.get_header_info_winhttp(dwModifiers)
         ctx.args["dwModifiers"].display = " | ".join(flags)
         rv = 1
 
@@ -363,29 +363,29 @@ class WinHttp(api.ApiHandler):
         """
         hRequest, dwInfoLevel, pwszName, lpBuffer, lpdwBufferLength, lpdwIndex = argv
 
-        header_id = dwInfoLevel & windefs.HTTP_QUERY_HEADER_MASK
-        as_number = bool(dwInfoLevel & windefs.WINHTTP_QUERY_FLAG_NUMBER)
-        header_query = windefs.get_header_query(header_id)
+        header_id = dwInfoLevel & inetdefs.HTTP_QUERY_HEADER_MASK
+        as_number = bool(dwInfoLevel & inetdefs.WINHTTP_QUERY_FLAG_NUMBER)
+        header_query = inetdefs.get_header_query(header_id)
         if header_query:
             if as_number:
                 header_query += " | WINHTTP_QUERY_FLAG_NUMBER"
             ctx.args["dwInfoLevel"].display = header_query
 
-        if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
-            text = windefs.HTTP_STATUS_OK
+        if header_id == inetdefs.WINHTTP_QUERY_STATUS_CODE:
+            text = inetdefs.HTTP_STATUS_OK
         else:
             req = self.netman.get_wininet_object(hRequest)
             if not isinstance(req, netman.WininetRequest):
-                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+                emu.set_last_error(inetdefs.ERROR_INVALID_HANDLE)
                 return 0
-            text = windefs.get_header_text(header_id, req.get_response_headers())
+            text = inetdefs.get_header_text(header_id, req.get_response_headers())
             if text is None:
-                emu.set_last_error(windefs.ERROR_HTTP_HEADER_NOT_FOUND)
+                emu.set_last_error(inetdefs.ERROR_HTTP_HEADER_NOT_FOUND)
                 return 0
 
         if as_number:
             if not text.isdigit():
-                emu.set_last_error(windefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
+                emu.set_last_error(inetdefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
                 return 0
             out = int(text).to_bytes(4, "little")
             out_len = len(out)
@@ -394,7 +394,7 @@ class WinHttp(api.ApiHandler):
             out_len = len(out) - 2
         if lpBuffer == 0 or self.read_dword(lpdwBufferLength) < len(out):
             self.write_dword(lpdwBufferLength, len(out))
-            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
         self.mem_write(lpBuffer, out)
         self.write_dword(lpdwBufferLength, out_len)

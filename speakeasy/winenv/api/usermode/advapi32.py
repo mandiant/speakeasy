@@ -8,8 +8,8 @@ from Crypto.Cipher import ARC4
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.registry.reg as regdefs
-import speakeasy.winenv.defs.windows.advapi32 as adv32
-import speakeasy.winenv.defs.windows.kernel32 as k32
+import speakeasy.winenv.defs.windows.advapi32 as adv32defs
+import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
@@ -44,8 +44,8 @@ class AdvApi32(api.ApiHandler):
         self.data = {}
         self.hash_objects: dict[int, hashlib._Hash] = {}
         self.md5_contexts: dict[int, hashlib._Hash] = {}
-        self.k32types = k32
-        self.win = adv32
+        self.k32types = k32defs
+        self.win = adv32defs
         self.curr_handle: int = 0x2800
         self.service_status_handle: int = SERVICE_STATUS_HANDLE_BASE
 
@@ -1710,7 +1710,7 @@ class AdvApi32(api.ApiHandler):
             return 0
 
         if Algid not in hash_algs:
-            emu.set_last_error(adv32.NTE_BAD_ALGID)
+            emu.set_last_error(adv32defs.NTE_BAD_ALGID)
             return 0
 
         hnd = self.get_handle()
@@ -1764,9 +1764,9 @@ class AdvApi32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        if dwParam == adv32.HP_HASHVAL:
+        if dwParam == adv32defs.HP_HASHVAL:
             value = hnd.digest()
-        elif dwParam == adv32.HP_HASHSIZE:
+        elif dwParam == adv32defs.HP_HASHSIZE:
             value = hnd.digest_size.to_bytes(4, "little")
         else:
             return 1
@@ -1874,7 +1874,7 @@ class AdvApi32(api.ApiHandler):
         key_bits = dwFlags >> 16
         if 40 < key_bits <= len(digest) * 8:
             fixed_digest = digest[: key_bits // 8]
-        elif dwFlags & adv32.CRYPT_NO_SALT:
+        elif dwFlags & adv32defs.CRYPT_NO_SALT:
             fixed_digest = digest[:5]
         else:
             fixed_digest = digest[:5] + b"\x00" * 11
@@ -2041,11 +2041,11 @@ class AdvApi32(api.ApiHandler):
             lpResumeHandle,
         ) = argv
 
-        service_type_str = adv32.get_define_int(dwServiceType, "SERVICE_")
+        service_type_str = adv32defs.get_define_int(dwServiceType, "SERVICE_")
         if service_type_str:
             ctx.args["dwServiceType"].display = service_type_str
 
-        service_state_str = adv32.get_define_int(dwServiceState, "SERVICE_")
+        service_state_str = adv32defs.get_define_int(dwServiceState, "SERVICE_")
         if service_state_str:
             ctx.args["dwServiceState"].display = service_state_str
 
@@ -2054,10 +2054,10 @@ class AdvApi32(api.ApiHandler):
         entry_size = (2 * ptr_size + 28 + ptr_size - 1) & ~(ptr_size - 1)
         services = [
             service
-            for service in adv32.EMULATED_SERVICES
+            for service in adv32defs.EMULATED_SERVICES
             if service[2] & dwServiceType
             and dwServiceState
-            & (adv32.SERVICE_ACTIVE if service[3] == adv32.SERVICE_RUNNING else adv32.SERVICE_INACTIVE)
+            & (adv32defs.SERVICE_ACTIVE if service[3] == adv32defs.SERVICE_RUNNING else adv32defs.SERVICE_INACTIVE)
         ]
         start = self.read_dword(lpResumeHandle) if lpResumeHandle else 0
         services = services[start:]
@@ -2078,7 +2078,7 @@ class AdvApi32(api.ApiHandler):
                 self.mem_write(strings, data)
                 entry[offset : offset + ptr_size] = strings.to_bytes(ptr_size, "little")
                 strings += len(data)
-            accepted = adv32.SERVICE_ACCEPT_STOP if state == adv32.SERVICE_RUNNING else 0
+            accepted = adv32defs.SERVICE_ACCEPT_STOP if state == adv32defs.SERVICE_RUNNING else 0
             struct.pack_into("<7I", entry, 2 * ptr_size, service_type, state, accepted, 0, 0, 0, 0)
             self.mem_write(lpServices + index * entry_size, bytes(entry))
 

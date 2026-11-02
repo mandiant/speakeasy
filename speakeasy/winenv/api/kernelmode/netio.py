@@ -3,8 +3,8 @@
 from socket import inet_ntoa, ntohs
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.nt.ntoskrnl as nt
-import speakeasy.winenv.defs.winsock.ws2_32 as winsock
+import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
 from speakeasy.errors import ApiEmuError
 from speakeasy.windows import netman, objman
 from speakeasy.winenv.defs import wsk
@@ -89,7 +89,7 @@ class Netio(api.ApiHandler):
         self.provider_npi: wsk.WSK_PROVIDER_NPI | None = None
 
         self.win = wsk
-        self.nt = nt
+        self.nt = ntos
 
         self.netman: netman.NetworkManager = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
 
@@ -371,7 +371,7 @@ class Netio(api.ApiHandler):
         Socket, LocalAddress, Flags, Irp = argv
         rv = 0
 
-        sock_addr = self.mem_cast(winsock.sockaddr_in(emu.get_ptr_size()), LocalAddress)
+        sock_addr = self.mem_cast(wstypes.sockaddr_in(emu.get_ptr_size()), LocalAddress)
 
         raddr = inet_ntoa(sock_addr.sin_addr.to_bytes(4, "little"))
         rport = ntohs(sock_addr.sin_port)
