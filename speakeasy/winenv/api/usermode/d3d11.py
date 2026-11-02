@@ -1,5 +1,10 @@
+from typing import TYPE_CHECKING
+
 from .. import api
 from .dxgi import DXGI_ERROR_UNSUPPORTED
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class D3d11(api.ApiHandler):
@@ -24,7 +29,7 @@ class D3d11(api.ApiHandler):
             self.mem_write(feature_level, b"\x00" * 4)
 
     @apihook("D3D11CreateDevice", argc=10)
-    def D3D11CreateDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3D11CreateDevice(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT D3D11CreateDevice(
             IDXGIAdapter *pAdapter,
@@ -44,7 +49,9 @@ class D3d11(api.ApiHandler):
         return DXGI_ERROR_UNSUPPORTED
 
     @apihook("D3D11CreateDeviceAndSwapChain", argc=12)
-    def D3D11CreateDeviceAndSwapChain(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def D3D11CreateDeviceAndSwapChain(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         HRESULT D3D11CreateDeviceAndSwapChain(
             IDXGIAdapter *pAdapter,
