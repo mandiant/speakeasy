@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Enum
 from speakeasy.winenv.defs.enums import HKEY
@@ -28,31 +29,25 @@ KEY_VALUE_INFORMATION_CLASS.MaxKeyValueInfoClass = 0x06
 
 
 class KEY_VALUE_PARTIAL_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.TitleIndex = ct.c_uint32
-        self.Type = ct.c_uint32
-        self.DataLength = ct.c_uint32
-        # Data[1]
+    TitleIndex: Annotated[int, ct.c_uint32]
+    Type: Annotated[int, ct.c_uint32]
+    DataLength: Annotated[int, ct.c_uint32]
+    # Data[1]
 
 
 class KEY_VALUE_BASIC_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.TitleIndex = ct.c_uint32
-        self.Type = ct.c_uint32
-        self.NameLength = ct.c_uint32
-        # Name[1]
+    TitleIndex: Annotated[int, ct.c_uint32]
+    Type: Annotated[int, ct.c_uint32]
+    NameLength: Annotated[int, ct.c_uint32]
+    # Name[1]
 
 
 class KEY_VALUE_FULL_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.TitleIndex = ct.c_uint32
-        self.Type = ct.c_uint32
-        self.DataOffset = ct.c_uint32
-        self.DataLength = ct.c_uint32
-        self.NameLength = ct.c_uint32
+    TitleIndex: Annotated[int, ct.c_uint32]
+    Type: Annotated[int, ct.c_uint32]
+    DataOffset: Annotated[int, ct.c_uint32]
+    DataLength: Annotated[int, ct.c_uint32]
+    NameLength: Annotated[int, ct.c_uint32]
 
 
 def normalize_hkey(hkey):
