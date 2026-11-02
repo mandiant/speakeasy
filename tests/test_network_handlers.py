@@ -255,8 +255,9 @@ def test_win_http_query_data_available_reports_the_unread_body(dll_emu: Speakeas
 
 def _query_headers(se: Speakeasy, req: int, level: int, size: int | None) -> tuple[int, bytes, int]:
     """
-    Call WinHttpQueryHeaders with a buffer of ``size`` bytes, or with a NULL
-    buffer for None. Return the result, the buffer and the length.
+    Call WinHttpQueryHeaders with a buffer of ``size`` bytes, or with a NULL buffer for None.
+
+    Return the result, the buffer and the length.
     """
     buf = 0 if size is None else alloc(se, b"\xcc" * size)
     buf_len = alloc(se, struct.pack("<I", size or 0))

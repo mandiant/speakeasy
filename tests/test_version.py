@@ -26,9 +26,10 @@ class VersionRun:
 @pytest.fixture(scope="module")
 def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> VersionRun:
     """
-    Run 01274078, with a copy of it at the path where it looks for the installed
-    MpSigStub.exe. Record the version calls that name a file, and the size and the
-    first 16 bytes of each value that VerQueryValueW returns.
+    Run 01274078, with a copy of it at the path where it looks for the installed MpSigStub.exe.
+
+    Record the version calls that name a file, and the size and the first 16 bytes of each value
+    that VerQueryValueW returns.
     """
     data = load_test_bin(MPSIGSTUB)
     with Speakeasy(config=copy.deepcopy(base_config)) as se:
@@ -95,10 +96,11 @@ def file_version(fixed_file_info: bytes) -> tuple[int, int, int, int]:
 
 
 def test_query_root_returns_the_fixed_file_info(mpsigstub_run: VersionRun) -> None:
-    """
-    01274078 is MpSigStub, the Microsoft Defender update stub. It reads the version of its
-    own image: GetFileVersionInfoSizeExW and GetFileVersionInfoExW on the path from
-    GetModuleFileNameW, then VerQueryValueW(block, "\\") for the VS_FIXEDFILEINFO.
+    r"""
+    01274078 is MpSigStub, the Microsoft Defender update stub.
+
+    It reads the version of its own image: GetFileVersionInfoSizeExW and GetFileVersionInfoExW on
+    the path from GetModuleFileNameW, then VerQueryValueW(block, "\\") for the VS_FIXEDFILEINFO.
     """
     own = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == mpsigstub_run.module_path]
     assert own[:2] == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]
@@ -109,9 +111,7 @@ def test_query_root_returns_the_fixed_file_info(mpsigstub_run: VersionRun) -> No
 
 @pytest.mark.parametrize("wide", [False, True])
 def test_query_translation_returns_the_language_and_code_page(mpsigstub: Speakeasy, wide: bool) -> None:
-    """
-    The VarFileInfo of 01274078 gives US English (0x409) and Unicode (code page 1200).
-    """
+    """The VarFileInfo of 01274078 gives US English (0x409) and Unicode (code page 1200)."""
     block = get_version_info(mpsigstub, module_path(mpsigstub), wide)
     length, value = query_value(mpsigstub, block, "\\VarFileInfo\\Translation", wide)
     assert length == 4
@@ -121,8 +121,9 @@ def test_query_translation_returns_the_language_and_code_page(mpsigstub: Speakea
 @pytest.mark.parametrize("wide", [False, True])
 def test_query_string_returns_the_text_in_the_call_width(mpsigstub: Speakeasy, wide: bool) -> None:
     """
-    The string table 040904b0 of 01274078 has CompanyName "Microsoft Corporation". The
-    query uses upper case hex digits, which match without regard to case.
+    The string table 040904b0 of 01274078 has CompanyName "Microsoft Corporation".
+
+    The query uses upper case hex digits, which match without regard to case.
     """
     block = get_version_info(mpsigstub, module_path(mpsigstub), wide)
     length, value = query_value(mpsigstub, block, "\\StringFileInfo\\040904B0\\CompanyName", wide)
@@ -140,10 +141,11 @@ def test_the_module_matches_by_file_name(mpsigstub: Speakeasy) -> None:
 
 
 def test_an_emulated_file_has_its_version_resource(mpsigstub_run: VersionRun) -> None:
-    """
-    After its own version, 01274078 reads the version of the installed
-    C:\\Windows\\system32\\MpSigStub.exe. That path holds a copy of the sample in the
-    emulated file system, so the query gives the same VS_FIXEDFILEINFO.
+    r"""
+    After its own version, 01274078 reads the version of the installed C:\Windows\system32\MpSigStub.exe.
+
+    That path holds a copy of the sample in the emulated file system, so the query gives the same
+    VS_FIXEDFILEINFO.
     """
     installed = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == INSTALLED_STUB]
     assert installed == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]

@@ -17,9 +17,10 @@ def taef_common_exports(base_config, load_test_bin) -> set[str]:
 
 def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     """
-    0e718f95 is an x86 C++ DLL whose first ten exports are TestDataArray<T> constructors,
-    such as ??0?$TestDataArray@H@TestExecution@WEX@@QAE@XZ. Each one writes the two fields
-    of the object at ECX and returns ECX.
+    0e718f95 is an x86 C++ DLL whose first ten exports are TestDataArray<T> constructors.
+
+    An example is ``??0?$TestDataArray@H@TestExecution@WEX@@QAE@XZ``. Each one writes the two fields of
+    the object at ECX and returns ECX.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(TAEF_COMMON))
@@ -46,8 +47,10 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
 )
 def test_x86_export_names_that_take_this_in_ecx(taef_common_exports, name, thiscall):
     """
-    Exports of 0e718f95: public and private non-static members, also const ones (QBE),
-    take this in ECX; static members (SG), free functions (YG) and C names do not.
+    Exports of 0e718f95 take ``this`` in ECX only if they are non-static members.
+
+    Public and private members, also const ones (QBE), take it. Static members (SG), free functions (YG)
+    and C names do not.
     """
     assert name in taef_common_exports
     assert bool(THISCALL_MEMBER.match(name)) == thiscall

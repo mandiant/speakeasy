@@ -1,6 +1,4 @@
-"""
-User32 handlers return what Windows returns and write only what the caller owns.
-"""
+"""User32 handlers return what Windows returns and write only what the caller owns."""
 
 import struct
 from typing import Any
@@ -564,9 +562,10 @@ def test_load_string_reads_the_string_table_in_memory(config: dict) -> None:
 
 def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config: dict, load_test_bin) -> None:
     """
-    0bfbb7da creates a hidden window of its class "Jungo". Its window procedure handles
-    WM_CREATE: it creates a child button "Star" and posts BM_CLICK to it. The program
-    does no more work unless CreateWindowExW sends WM_NCCREATE and WM_CREATE with a
+    0bfbb7da creates a hidden window of its class "Jungo".
+
+    Its window procedure handles WM_CREATE: it creates a child button "Star" and posts BM_CLICK to
+    it. The program does no more work unless CreateWindowExW sends WM_NCCREATE and WM_CREATE with a
     CREATESTRUCTW for the new window.
     """
     with Speakeasy(config=config) as se:
@@ -606,10 +605,12 @@ def api_events(se: Speakeasy) -> list[Any]:
 
 def test_call_window_proc_runs_the_previous_procedure(config: dict, load_test_bin) -> None:
     """
-    0faaab54 is a UPX-packed Delphi program. CreateWindowExA of its form TForm1 sends
-    WM_NCCREATE to the VCL InitWndProc, which subclasses the window and passes the message
-    on with CallWindowProcA to 0x404ab8, a thunk that jumps to DefWindowProcA. The form
-    is only made if CallWindowProcA calls that procedure and returns its TRUE.
+    0faaab54 is a UPX-packed Delphi program.
+
+    CreateWindowExA of its form TForm1 sends WM_NCCREATE to the VCL InitWndProc, which subclasses
+    the window and passes the message on with CallWindowProcA to 0x404ab8, a thunk that jumps to
+    DefWindowProcA. The form is only made if CallWindowProcA calls that procedure and returns its
+    TRUE.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(DELPHI_RUNTIME_DEMO))

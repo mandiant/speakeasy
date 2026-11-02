@@ -1,7 +1,4 @@
-"""
-Shell, COM, and ntdll handlers return what Windows returns and write what
-Windows writes.
-"""
+"""Shell, COM, and ntdll handlers return what Windows returns and write what Windows writes."""
 
 import ntpath
 import struct
@@ -692,10 +689,11 @@ def test_shell_execute_ex_opens_a_folder_without_a_new_process(dll_emu: Speakeas
 
 def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_test_bin) -> None:
     """
-    0fdd25ef is an Unreal Engine game launcher (x64). When the VC++ runtime is missing, it
-    runs UEPrereqSetup_x64.exe with ShellExecuteExW and SEE_MASK_NOCLOSEPROCESS, from a
-    SHELLEXECUTEINFOW at rsp+0x40. It then waits on the hProcess member and reads the exit
-    code of the setup program.
+    0fdd25ef is an Unreal Engine game launcher (x64).
+
+    When the VC++ runtime is missing, it runs UEPrereqSetup_x64.exe with ShellExecuteExW and
+    SEE_MASK_NOCLOSEPROCESS, from a SHELLEXECUTEINFOW at rsp+0x40. It then waits on the hProcess
+    member and reads the exit code of the setup program.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(UNREAL_LAUNCHER))

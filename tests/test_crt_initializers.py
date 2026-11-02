@@ -23,10 +23,11 @@ def test_initterm_e_runs_the_crt_initializers_in_order(config, load_test_bin, ru
 
 def test_iostream_static_constructors_are_thiscall_on_x86(config, load_test_bin):
     """
-    025bd4d0 is a VC6 program that includes <iostream>. Its second _initterm table has two
-    static initializers that load ECX with a static object and jump to the MSVCP60
-    std::ios_base::Init and std::_Winit constructors. These are thiscall with no stack
-    arguments, so when _initterm returns (RVA 0x273E) the start-up code still has the 0x24
+    025bd4d0 is a VC6 program that includes <iostream>.
+
+    Its second _initterm table has two static initializers that load ECX with a static object and
+    jump to the MSVCP60 std::ios_base::Init and std::_Winit constructors. These are thiscall with no
+    stack arguments, so when _initterm returns (RVA 0x273E) the start-up code still has the 0x24
     bytes of call arguments above the stack pointer it saved at [ebp - 0x18].
     """
     with Speakeasy(config=config) as se:

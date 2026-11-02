@@ -1,6 +1,8 @@
 """
-Tests for WaitOnAddress, the delay-load APIs, ApiSetQueryApiSetPresence, the WOW64
-state, SHTaskPoolGetUniqueContext and LoadStringW with cchBufferMax 0.
+Tests for WaitOnAddress, the delay-load APIs and other Win32 handler gaps.
+
+The other handlers are ApiSetQueryApiSetPresence, the WOW64 state, SHTaskPoolGetUniqueContext and
+LoadStringW with cchBufferMax 0.
 """
 
 import struct
@@ -75,8 +77,9 @@ def test_wait_on_address_rejects_a_bad_size(any_emu: Speakeasy) -> None:
 
 def wait_and_wake_program(base: int, iat: dict[tuple[str, str], int]) -> bytes:
     """
-    The main thread creates a thread, then calls WaitOnAddress with an INFINITE
-    timeout on the flag at .data. The thread sets the flag and wakes it.
+    The main thread creates a thread, then calls WaitOnAddress with an INFINITE timeout on the flag at .data.
+
+    The thread sets the flag and wakes it.
     """
     flag = base + 0x2000
     zero = base + 0x2004
@@ -116,9 +119,10 @@ def test_wait_on_address_with_infinite_timeout_ends_the_run() -> None:
 
 def delay_descriptor(se: Speakeasy, dll: str, thunks: list[int | str]) -> tuple[int, list[int]]:
     """
-    Build an RVA-based IMAGE_DELAYLOAD_DESCRIPTOR in one block, with its DLL name,
-    name table, IAT and module handle slot, at the start of the block. Return
-    the block base and the IAT slot addresses.
+    Build an RVA-based IMAGE_DELAYLOAD_DESCRIPTOR in one block, at the start of the block.
+
+    The block also holds its DLL name, name table, IAT and module handle slot. Return the block base and
+    the IAT slot addresses.
     """
     width = ptr_size(se)
     block = bytearray(0x1000)

@@ -1,6 +1,4 @@
-"""
-Gdi32 handlers return values that drawing code can use.
-"""
+"""Gdi32 handlers return values that drawing code can use."""
 
 from speakeasy import Speakeasy
 from tests.handler_harness import alloc, call, start_process

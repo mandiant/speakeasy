@@ -1,10 +1,10 @@
 """
-Check the ``ctx.args[...]`` accesses in ``@apihook`` handlers against the
-signature database. A name only finds its argument when the call has a usable
-signature, so a handler may use names only when every signature of the
-function it serves declares that parameter and matches its ``argc`` on x86 and
-x64. An index means the parameter index with a signature and the slot index
-without one, so a handler may use an index only where both agree.
+Check the ``ctx.args[...]`` accesses in ``@apihook`` handlers against the signature database.
+
+A name only finds its argument when the call has a usable signature, so a handler may use names only
+when every signature of the function it serves declares that parameter and matches its ``argc`` on
+x86 and x64. An index means the parameter index with a signature and the slot index without one, so
+a handler may use an index only where both agree.
 """
 
 import ast

@@ -118,10 +118,11 @@ def test_runtime_load_runs_tls_callback_and_dllmain_once(config, tmp_path, arch)
 
 def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
     """
-    0ef34c5d is an NSIS installer. Before it shows its first page, it writes its nsDialogs
-    plugin to a new folder under %TEMP% with CreateFileW and WriteFile, then loads it from
-    that path with LoadLibraryExW. The third letter of the temp folder name comes from
-    GetTickCount.
+    0ef34c5d is an NSIS installer.
+
+    Before it shows its first page, it writes its nsDialogs plugin to a new folder under %TEMP% with
+    CreateFileW and WriteFile, then loads it from that path with LoadLibraryExW. The third letter of
+    the temp folder name comes from GetTickCount.
     """
     config["max_api_count"] = 300000  # NSIS calls CharNextW for each path character
     with Speakeasy(config=config) as se:

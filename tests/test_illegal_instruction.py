@@ -23,6 +23,7 @@ def session(config):
 def load_guest(se, *, register=True):
     """
     Load code that runs the Virtual PC probe under one SEH registration.
+
     The handler copies the exception code to the returned data address and
     continues after the probe.
     """

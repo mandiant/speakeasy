@@ -169,9 +169,10 @@ class TypeResolver:
 
     def struct_size(self, api: str, name: str, ptr_size: int) -> int:
         """
-        Compute sizeof() for a struct or union using C layout rules and the
-        metadata's PackingSize. Only needed for the rare by-value struct
-        parameters; raises UnsupportedType for anything it cannot lay out.
+        Compute sizeof() for a struct or union using C layout rules and the metadata's PackingSize.
+
+        Only needed for the rare by-value struct parameters; raises UnsupportedType for anything it
+        cannot lay out.
         """
         td = self.lookup(api, name)
         if td is None or td["Kind"] not in ("Struct", "Union"):
@@ -323,10 +324,10 @@ class TypeResolver:
 
     def resolve_field(self, t: dict, api: str, nested: dict, scope: str, wanted: list) -> str:
         """
-        Resolve a struct field type to a type code. Anonymous nested types are
-        keyed as ``OUTER.INNER`` in the struct table; ``wanted`` collects
-        (key, api, definition) of every struct the field refers to so callers
-        can emit those too.
+        Resolve a struct field type to a type code.
+
+        Anonymous nested types are keyed as ``OUTER.INNER`` in the struct table; ``wanted`` collects
+        (key, api, definition) of every struct the field refers to so callers can emit those too.
         """
         kind = t["Kind"]
         if kind == "Array":
@@ -365,9 +366,11 @@ class TypeResolver:
 
     def struct_entry(self, key: str, api: str, td: dict, wanted: list) -> dict:
         """
-        Build the struct table entry for ``td``: sizes for both pointer sizes
-        and, when every field resolves, ``[name, code, offset32, offset64]``
-        per field. Raises UnsupportedType when the struct cannot be laid out.
+        Build the struct table entry for ``td``.
+
+        The entry holds the sizes for both pointer sizes and, when every field resolves,
+        ``[name, code, offset32, offset64]`` per field. Raises UnsupportedType when the struct cannot be laid
+        out.
         """
         size32, _ = self._layout_struct(td, api, 4, ())
         size64, _ = self._layout_struct(td, api, 8, ())
@@ -533,11 +536,11 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
 
 def build_enum_table(resolver: TypeResolver, constants: dict[str, int], overrides: dict) -> dict[str, dict]:
     """
-    Flatten every enum some resolved type referenced. Values are masked to the
-    enum's integer size so negative members compare equal to the unsigned
-    argument slots the emulator reads. ``overrides["enum_extra"]`` appends
-    named constants that win32metadata keeps outside the enum (e.g.
-    ``GENERIC_READ`` for ``FILE_ACCESS_FLAGS``).
+    Flatten every enum some resolved type referenced.
+
+    Values are masked to the enum's integer size so negative members compare equal to the unsigned
+    argument slots the emulator reads. ``overrides["enum_extra"]`` appends named constants that
+    win32metadata keeps outside the enum (e.g. ``GENERIC_READ`` for ``FILE_ACCESS_FLAGS``).
     """
     enums: dict[str, dict] = {}
     for name, td in sorted(resolver.used_enums.items()):
@@ -559,8 +562,9 @@ def build_enum_table(resolver: TypeResolver, constants: dict[str, int], override
 
 def build_struct_table(resolver: TypeResolver, stats: collections.Counter) -> dict[str, dict]:
     """
-    Layout of every struct some parameter points at, plus (transitively) every
-    struct their fields embed or point at, for both pointer sizes.
+    Lay out every struct some parameter points at, for both pointer sizes.
+
+    The table also holds (transitively) every struct their fields embed or point at.
     """
     structs: dict[str, dict] = {}
     worklist = [(name, api, td) for name, (api, td) in sorted(resolver.used_structs.items())]

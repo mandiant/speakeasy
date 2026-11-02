@@ -274,9 +274,10 @@ def test_api_event_pc_is_the_call_site(architecture, memory_tracing):
 
 def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
     """
-    0d0988a3 (x64) maps an RWX section view, decodes its shellcode into it and starts it
-    with NtCreateThreadEx(&handle, THREAD_ALL_ACCESS, NULL, NtCurrentProcess(), view, ...),
-    then waits on the handle. The thread loads wininet to fetch the next stage.
+    0d0988a3 (x64) maps an RWX section view, decodes its shellcode into it and starts it.
+
+    It starts the shellcode with ``NtCreateThreadEx(&handle, THREAD_ALL_ACCESS, NULL, NtCurrentProcess(),
+    view, ...)``, then waits on the handle. The thread loads wininet to fetch the next stage.
     """
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(STAGER)))
@@ -291,9 +292,7 @@ def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
 
 
 def test_nt_terminate_process_ends_the_run(config, load_test_bin):
-    """
-    0d0988a3 ends at RVA 0x1000 with NtTerminateProcess(NtCurrentProcess(), 0), followed by ud2.
-    """
+    """0d0988a3 ends at RVA 0x1000 with NtTerminateProcess(NtCurrentProcess(), 0), followed by ud2."""
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(STAGER)), entry_point=0x1000)
         entry = se.get_report().entry_points[0]
@@ -304,10 +303,11 @@ def test_nt_terminate_process_ends_the_run(config, load_test_bin):
 
 def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_bin):
     """
-    08ddd391 is a Wine build of hhctrl.ocx. Its DllRegisterServer (RVA 0xC200) calls
-    EnumResourceNamesW(module, "WINE_REGISTRY", callback, &params), and the callback
-    (RVA 0xCB30) loads each named registry script with FindResourceW. The module has
-    one WINE_REGISTRY resource, with a string name.
+    08ddd391 is a Wine build of hhctrl.ocx.
+
+    Its DllRegisterServer (RVA 0xC200) calls EnumResourceNamesW(module, "WINE_REGISTRY", callback,
+    &params), and the callback (RVA 0xCB30) loads each named registry script with FindResourceW. The
+    module has one WINE_REGISTRY resource, with a string name.
     """
     callbacks = []
     with Speakeasy(config=config) as se:

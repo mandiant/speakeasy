@@ -19,9 +19,10 @@ def session(config):
 
 def load_guest(se, *, register=True, flags=0):
     """
-    Load code that raises 0x0EEDFADE with two parameters under one SEH
-    registration. The handler copies the code, flags, parameter count and
-    parameters to the returned data address and continues execution.
+    Load code that raises 0x0EEDFADE with two parameters under one SEH registration.
+
+    The handler copies the code, flags, parameter count and parameters to the returned data address
+    and continues execution.
     """
     code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
     data = se.mem_alloc(0x1000)
@@ -107,9 +108,10 @@ def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):
 
 def test_exceptions_caught_by_unwinding_can_repeat_from_one_call_site(session):
     """
-    Raise the same exception from the same call site in a loop. The handler
-    counts the exception and resumes at the loop head with the saved stack,
-    as a C++ catch block does after it unwinds.
+    Raise the same exception from the same call site in a loop.
+
+    The handler counts the exception and resumes at the loop head with the saved stack, as a C++
+    catch block does after it unwinds.
     """
     code = session.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
     data = session.mem_alloc(0x1000)

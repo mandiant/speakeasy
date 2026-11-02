@@ -1,6 +1,5 @@
 """
-End-to-end tests for emulating imports that have no speakeasy handler using
-the bundled Win32 API signature database.
+End-to-end tests for emulating imports that have no speakeasy handler using the bundled Win32 API signature database.
 
 Most tests load a small hand-assembled shellcode blob that calls one such API
 followed by ``kernel32!ExitProcess`` (handled). The argument to ExitProcess is
@@ -32,16 +31,20 @@ def _wstr(s: str) -> bytes:
 
 def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
-    Call $+5 / pop rbx            ; rbx = blob + 5
-    lea rcx, [rbx + link]
-    lea rdx, [rbx + target]
-    mov r8d, SYMBOLIC_LINK_FLAG_DIRECTORY
-    sub rsp, 0x28
-    mov rax, <CreateSymbolicLinkW> / call rax
-    add rsp, 0x28
-    mov ecx, EXIT_CODE
-    sub rsp, 0x28
-    mov rax, <ExitProcess> / call rax
+    Assemble the x64 shellcode blob that calls CreateSymbolicLinkW, then ExitProcess.
+
+    The instructions are:
+
+        call $+5 / pop rbx            ; rbx = blob + 5
+        lea rcx, [rbx + link]
+        lea rdx, [rbx + target]
+        mov r8d, SYMBOLIC_LINK_FLAG_DIRECTORY
+        sub rsp, 0x28
+        mov rax, <CreateSymbolicLinkW> / call rax
+        add rsp, 0x28
+        mov ecx, EXIT_CODE
+        sub rsp, 0x28
+        mov rax, <ExitProcess> / call rax
     """
     code = bytearray()
     code += b"\xe8\x00\x00\x00\x00"  # call $+5
@@ -72,11 +75,11 @@ def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
 
 def _build_x86_call(api: str, args: list[int | bytes]) -> tuple[bytes, dict[str, tuple[int, int]], dict[int, int]]:
     """
-    Generic x86 shellcode: ``api(*args)`` followed by ExitProcess(EXIT_CODE),
-    whose argument is pushed *before* the call so it survives only if the
-    callee cleaned up exactly the right number of slots. Each argument is an
-    int (pushed as is) or bytes (placed in the blob and pushed by address).
-    Returns (code, patches, {arg index: blob offset}).
+    Build generic x86 shellcode: ``api(*args)`` followed by ExitProcess(EXIT_CODE).
+
+    The shellcode pushes the argument of ExitProcess *before* the call, so it survives only if the callee
+    cleaned up exactly the right number of slots. Each argument is an int (pushed as is) or bytes (placed
+    in the blob and pushed by address). Returns (code, patches, {arg index: blob offset}).
     """
     code = bytearray()
     code += b"\xe8\x00\x00\x00\x00"  # call $+5
@@ -159,11 +162,12 @@ def _api_events(report: Report) -> list[ApiEvent]:
 
 def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load_test_bin) -> None:
     """
-    At the end of its run 023f8382 (x86) writes a resource into the copy of itself that
-    it dropped, with BeginUpdateResourceA, UpdateResourceA and EndUpdateResourceA, which
-    have no handler, then calls CloseHandle and ExitProcess. These calls are in start
-    between RVA 0x1413 and 0x1449, where the stack pointer must be the same if each
-    stdcall callee removed exactly its own arguments.
+    At the end of its run 023f8382 (x86) updates a resource with APIs that have no handler.
+
+    It writes a resource into the copy of itself that it dropped, with BeginUpdateResourceA,
+    UpdateResourceA and EndUpdateResourceA, then calls CloseHandle and ExitProcess. These calls are in
+    start between RVA 0x1413 and 0x1449, where the stack pointer must be the same if each stdcall callee
+    removed exactly its own arguments.
     """
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated (run scripts/gen_win32_signatures.py)")

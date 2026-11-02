@@ -373,9 +373,11 @@ def test_load_module_rejects_a_dotnet_image_without_an_mscoree_import(config) ->
 
 def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):
     """
-    04ca62db gives .text (RVA 0x1000, raw offset 0x1000, virtual size 0x2a5c4) a SizeOfRawData
-    of 0xc3b000, far past the end of the 479917-byte file. Windows maps the bytes that the file
-    has, so the entry point code at RVA 0x13d4 is there.
+    04ca62db gives ``.text`` a SizeOfRawData that is far past the end of the file.
+
+    The section has RVA 0x1000, raw offset 0x1000 and virtual size 0x2a5c4, and SizeOfRawData is 0xc3b000.
+    The file has 479917 bytes. Windows maps the bytes that the file has, so the entry point code at RVA
+    0x13d4 is there.
     """
     raw = load_test_bin(SECTION_PAST_EOF_EXE)
 

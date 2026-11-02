@@ -12,8 +12,9 @@ def dword(value):
 
 def test_handler_that_unwinds_and_jumps_to_its_frame(config):
     """
-    A handler compiled into the image, like _except_handler4 of a static CRT, calls
-    RtlUnwind and jumps into its frame instead of returning. Five faults at one address.
+    A handler in the image calls RtlUnwind and jumps into its frame instead of returning.
+
+    _except_handler4 of a static CRT is such a handler. Five faults happen at one address.
     """
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")

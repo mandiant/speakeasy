@@ -1,6 +1,7 @@
 """
-Kernel APIs that corpus drivers import: registry keys, IRPs, I/O space,
-feature staging, string helpers, and bug checks.
+Kernel APIs that corpus drivers import.
+
+They cover registry keys, IRPs, I/O space, feature staging, string helpers, and bug checks.
 """
 
 import struct

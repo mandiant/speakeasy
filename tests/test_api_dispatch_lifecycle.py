@@ -15,10 +15,10 @@ CHROME_ELF = "0666577c844cc494f02d9c19545d952ad5022cf6a3637bf9835e2a6b3be5432e.d
 
 def x86_program(base, data, api):
     """
-    Return code that calls ``api`` (CreateDialogIndirectParamA) with an outer
-    dialog procedure, which calls ``api`` again with a leaf procedure. Each
-    procedure stores its HWND and lParam in ``data``; the caller stores its
-    stack delta and the API result.
+    Return code that calls ``api`` (CreateDialogIndirectParamA) with an outer dialog procedure.
+
+    The outer procedure calls ``api`` again with a leaf procedure. Each procedure stores its HWND and
+    lParam in ``data``; the caller stores its stack delta and the API result.
     """
 
     def d(value):
@@ -131,10 +131,11 @@ def run_until(se, module, stop, entry_point=None):
 
 def test_x64_run_entry_stack_is_aligned(config, load_test_bin):
     """
-    0666577c is a chrome_elf.dll. Its export DumpProcessWithoutCrash keeps a CONTEXT in
-    its frame and gives it to CaptureContext, which runs fxsave on it. fxsave raises #GP
-    unless the CONTEXT is 16-byte aligned, and it is only when the run starts with
-    RSP + 8 aligned to 16 bytes, as after a call.
+    0666577c is a chrome_elf.dll.
+
+    Its export DumpProcessWithoutCrash keeps a CONTEXT in its frame and gives it to CaptureContext,
+    which runs fxsave on it. fxsave raises #GP unless the CONTEXT is 16-byte aligned, and it is only
+    when the run starts with RSP + 8 aligned to 16 bytes, as after a call.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(CHROME_ELF))
@@ -154,10 +155,11 @@ def test_x64_run_entry_stack_is_aligned(config, load_test_bin):
 
 def test_guest_callbacks_keep_the_nonvolatile_registers_of_the_api_caller(config, load_test_bin):
     """
-    0bfbb7da sets edi to 0 and calls CreateWindowExW for its "Jungo" window class. The
-    WM_CREATE handler of the window procedure creates a button and sets ebx, esi and edi
-    without restoring them. On Windows the caller of CreateWindowExW keeps its registers,
-    so the GetMessageW call after it passes the 0 in edi as hWnd and both message filters.
+    0bfbb7da sets edi to 0 and calls CreateWindowExW for its "Jungo" window class.
+
+    The WM_CREATE handler of the window procedure creates a button and sets ebx, esi and edi without
+    restoring them. On Windows the caller of CreateWindowExW keeps its registers, so the GetMessageW
+    call after it passes the 0 in edi as hWnd and both message filters.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(JUNGO_WINDOW))

@@ -1,6 +1,4 @@
-"""
-Heap handlers work only on blocks that a heap allocator returned.
-"""
+"""Heap handlers work only on blocks that a heap allocator returned."""
 
 import pytest
 

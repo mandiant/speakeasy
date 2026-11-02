@@ -36,12 +36,9 @@ def get_export_directory_size(se: Speakeasy, base: int) -> int:
 
 def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tuple[str, int, int]], int, int]:
     """
-    Run a sample that writes "dll.function" into its exported variable szFile and then
-    calls GetProcAddress(itself, "szFile").
+    Run a sample that writes ``dll.function`` into its exported variable ``szFile``.
 
-    Returns:
-        (forwarder string, GetProcAddress result, address of the forwarded API) for each
-        lookup, and the export directory Size of the image before and after the run.
+    The sample then calls ``GetProcAddress(itself, "szFile")``.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=data)
@@ -86,9 +83,10 @@ def test_get_proc_address_on_the_host_image_of_a_dll_returns_zero(dll_emu):
 
 def test_get_proc_address_reads_a_forwarder_that_the_image_wrote_at_runtime(config, load_test_bin):
     """
-    023f8382 declares an export directory of 0x80000000 bytes, larger than the image, so
-    its exported variable szFile is a forwarder. Before each process hollowing API it
-    needs, it writes "dll.function" into szFile and calls GetProcAddress on itself.
+    023f8382 declares an export directory that is larger than the image, so ``szFile`` is a forwarder.
+
+    The directory has 0x80000000 bytes and ``szFile`` is the exported variable. Before each process hollowing
+    API it needs, the sample writes "dll.function" into ``szFile`` and calls GetProcAddress on itself.
     """
     resolutions, size_before, size_after = get_self_resolutions(config, load_test_bin(FORWARDER_IN_FILE))
 
@@ -101,10 +99,11 @@ def test_get_proc_address_reads_a_forwarder_that_the_image_wrote_at_runtime(conf
 
 def test_get_proc_address_follows_an_export_that_a_larger_export_directory_makes_a_forwarder(config, load_test_bin):
     """
-    02c2d9f9 is a variant of 023f8382 whose file declares an export directory of 0x45
-    bytes, so szFile is a plain data export. At run time it makes its header writable with
-    VirtualProtect and sets the directory Size to 0x80000000, which makes szFile a
-    forwarder, then resolves its APIs as 023f8382 does.
+    02c2d9f9 is a variant of 023f8382 where ``szFile`` starts as a plain data export.
+
+    The file declares an export directory of 0x45 bytes. At run time the sample makes its header writable
+    with VirtualProtect and sets the directory Size to 0x80000000, which makes ``szFile`` a forwarder. It
+    then resolves its APIs as 023f8382 does.
     """
     resolutions, size_before, size_after = get_self_resolutions(config, load_test_bin(FORWARDER_AT_RUNTIME))
 

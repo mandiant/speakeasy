@@ -74,8 +74,10 @@ def test_main_module_tls_slot_is_a_writable_copy_of_the_template(arch):
 
 def test_unreadable_tls_callback_array_does_not_stop_the_load(load_test_bin):
     """
-    028d0275 is a 64-bit DLL dumped from memory. Its TLS directory holds runtime pointers, so
-    AddressOfCallBacks is 0x25a9af75daa, far outside the image at 0x180000000.
+    028d0275 is a 64-bit DLL dumped from memory.
+
+    Its TLS directory holds runtime pointers, so AddressOfCallBacks is 0x25a9af75daa, far outside
+    the image at 0x180000000.
     """
     image = PeLoader(data=load_test_bin(DUMPED_DLL)).make_image()
 
@@ -85,8 +87,10 @@ def test_unreadable_tls_callback_array_does_not_stop_the_load(load_test_bin):
 
 def test_tls_directory_past_the_raw_end_of_its_section_is_read_from_the_mapped_image(load_test_bin):
     """
-    03018edf is packed with UPX. Its 24-byte TLS directory starts at RVA 0x1dff4, 12 bytes before
-    the raw end of UPX1 at 0x1e000, so the rest of it is in the zero-filled tail of the section.
+    03018edf is packed with UPX.
+
+    Its 24-byte TLS directory starts at RVA 0x1dff4, 12 bytes before the raw end of UPX1 at 0x1e000,
+    so the rest of it is in the zero-filled tail of the section.
     """
     image = PeLoader(data=load_test_bin(UPX_EXE)).make_image()
 
