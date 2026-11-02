@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from speakeasy.struct import EmuStruct, Ptr
@@ -47,23 +48,21 @@ HEADER_NAMES = {WINHTTP_QUERY.WINHTTP_QUERY_CONTENT_LENGTH: "Content-Length"}
 
 
 class URL_COMPONENTS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.dwStructSize = ct.c_uint32
-        self.lpszScheme = Ptr
-        self.dwSchemeLength = ct.c_uint32
-        self.nScheme = ct.c_uint32
-        self.lpszHostName = Ptr
-        self.dwHostNameLength = ct.c_uint32
-        self.nPort = ct.c_uint16
-        self.lpszUserName = Ptr
-        self.dwUserNameLength = ct.c_uint32
-        self.lpszPassword = Ptr
-        self.dwPasswordLength = ct.c_uint32
-        self.lpszUrlPath = Ptr
-        self.dwUrlPathLength = ct.c_uint32
-        self.lpszExtraInfo = Ptr
-        self.dwExtraInfoLength = ct.c_uint32
+    dwStructSize: Annotated[int, ct.c_uint32]
+    lpszScheme: Annotated[int, Ptr]
+    dwSchemeLength: Annotated[int, ct.c_uint32]
+    nScheme: Annotated[int, ct.c_uint32]
+    lpszHostName: Annotated[int, Ptr]
+    dwHostNameLength: Annotated[int, ct.c_uint32]
+    nPort: Annotated[int, ct.c_uint16]
+    lpszUserName: Annotated[int, Ptr]
+    dwUserNameLength: Annotated[int, ct.c_uint32]
+    lpszPassword: Annotated[int, Ptr]
+    dwPasswordLength: Annotated[int, ct.c_uint32]
+    lpszUrlPath: Annotated[int, Ptr]
+    dwUrlPathLength: Annotated[int, ct.c_uint32]
+    lpszExtraInfo: Annotated[int, Ptr]
+    dwExtraInfoLength: Annotated[int, ct.c_uint32]
 
 
 def get_header_text(header_id, lines):
