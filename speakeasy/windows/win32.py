@@ -107,7 +107,7 @@ class Win32Emulator(WindowsEmulator):
             return 2
         return 2
 
-    def get_session_manager(self):
+    def get_session_manager(self) -> SessionManager:
         """
         Get the session manager for the emulator.
 
