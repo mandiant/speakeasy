@@ -812,7 +812,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         if ThreadHandle:
             self.write_ptr(ThreadHandle, handle)
 
-        self.record_process_event(proc_obj, evt_type, start_addr=StartRoutine, param=Argument, tid=obj.id)
+        self.record_process_event(proc_obj, evt_type, start_address=StartRoutine, param=Argument, tid=obj.id)
 
         return ddk.STATUS_SUCCESS
 

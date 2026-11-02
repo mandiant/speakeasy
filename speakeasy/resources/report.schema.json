@@ -2034,9 +2034,9 @@
           "title": "Path",
           "type": "string"
         },
-        "cmdline": {
+        "command_line": {
           "description": "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments.",
-          "title": "Cmdline",
+          "title": "Command Line",
           "type": "string"
         },
         "pid": {
@@ -2056,7 +2056,7 @@
       "required": [
         "pos",
         "path",
-        "cmdline"
+        "command_line"
       ],
       "title": "ProcessCreateEvent",
       "type": "object"
@@ -2664,13 +2664,13 @@
           "title": "Path",
           "type": "string"
         },
-        "start_addr": {
-          "description": "Thread start address in hexadecimal string form.",
-          "title": "Start Addr",
+        "start_address": {
+          "description": "Thread start address.",
+          "title": "Start Address",
           "type": "string"
         },
         "param": {
-          "description": "Thread parameter pointer/value in hexadecimal string form.",
+          "description": "Thread parameter pointer or value.",
           "title": "Param",
           "type": "string"
         },
@@ -2704,7 +2704,7 @@
       "required": [
         "pos",
         "path",
-        "start_addr",
+        "start_address",
         "param"
       ],
       "title": "ThreadCreateEvent",
@@ -2730,13 +2730,13 @@
           "title": "Path",
           "type": "string"
         },
-        "start_addr": {
-          "description": "Injected thread start address in hexadecimal string form.",
-          "title": "Start Addr",
+        "start_address": {
+          "description": "Injected thread start address.",
+          "title": "Start Address",
           "type": "string"
         },
         "param": {
-          "description": "Injected thread parameter in hexadecimal string form.",
+          "description": "Injected thread parameter pointer or value.",
           "title": "Param",
           "type": "string"
         },
@@ -2770,7 +2770,7 @@
       "required": [
         "pos",
         "path",
-        "start_addr",
+        "start_address",
         "param"
       ],
       "title": "ThreadInjectEvent",
