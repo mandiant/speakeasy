@@ -277,8 +277,18 @@ thread, even for a local create.
           "buffer": "0x130000"
         },
         {
+          "pos": {"tick": 142, "tid": 2000, "pid": 1337, "pc": 4198532},
+          "event": "file_delete",
+          "path": "C:\\ProgramData\\drop.bin"
+        },
+        {
           "pos": {"tick": 145, "tid": 2000, "pid": 1337, "pc": 4198535},
           "event": "directory_create",
+          "path": "C:\\ProgramData\\stage"
+        },
+        {
+          "pos": {"tick": 147, "tid": 2000, "pid": 1337, "pc": 4198537},
+          "event": "directory_delete",
           "path": "C:\\ProgramData\\stage"
         },
         {
@@ -322,6 +332,19 @@ thread, even for a local create.
           "event": "reg_list_subkeys",
           "path": "HKEY_CURRENT_USER\\Software",
           "handle": "0x8c"
+        },
+        {
+          "pos": {"tick": 182, "tid": 2000, "pid": 1337, "pc": 4198572},
+          "event": "reg_delete_value",
+          "path": "HKEY_CURRENT_USER\\Software\\Lab",
+          "handle": "0x184",
+          "value_name": "Config"
+        },
+        {
+          "pos": {"tick": 185, "tid": 2000, "pid": 1337, "pc": 4198575},
+          "event": "reg_delete_key",
+          "path": "HKEY_CURRENT_USER\\Software\\Lab",
+          "handle": "0x184"
         },
         {
           "pos": {"tick": 190, "tid": 2000, "pid": 1337, "pc": 4198580},

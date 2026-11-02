@@ -25,12 +25,16 @@ class EventType(str, Enum):
     FILE_OPEN = "file_open"
     FILE_READ = "file_read"
     FILE_WRITE = "file_write"
+    FILE_DELETE = "file_delete"
     DIRECTORY_CREATE = "directory_create"
+    DIRECTORY_DELETE = "directory_delete"
     REG_OPEN_KEY = "reg_open_key"
     REG_CREATE_KEY = "reg_create_key"
     REG_READ_VALUE = "reg_read_value"
     REG_WRITE_VALUE = "reg_write_value"
     REG_LIST_SUBKEYS = "reg_list_subkeys"
+    REG_DELETE_KEY = "reg_delete_key"
+    REG_DELETE_VALUE = "reg_delete_value"
     NET_DNS = "net_dns"
     NET_TRAFFIC = "net_traffic"
     NET_HTTP = "net_http"
@@ -501,6 +505,21 @@ class FileWriteEvent(Event):
     )
 
 
+class FileDeleteEvent(Event):
+    """
+    Records file deletion.
+
+    Emitted when file APIs delete a file.
+
+    Use with file create events to track files that a sample removes after use.
+    """
+
+    event: Literal[EventType.FILE_DELETE] = Field(
+        default=EventType.FILE_DELETE, description="Discriminator for file delete events."
+    )
+    path: str = Field(description="File path targeted by the delete request.")
+
+
 class DirectoryCreateEvent(Event):
     """
     Records directory creation.
@@ -514,6 +533,21 @@ class DirectoryCreateEvent(Event):
         default=EventType.DIRECTORY_CREATE, description="Discriminator for directory create events."
     )
     path: str = Field(description="Directory path targeted by the create request.")
+
+
+class DirectoryDeleteEvent(Event):
+    """
+    Records directory removal.
+
+    Emitted when file APIs remove a directory.
+
+    Use with directory create events to track staging directories.
+    """
+
+    event: Literal[EventType.DIRECTORY_DELETE] = Field(
+        default=EventType.DIRECTORY_DELETE, description="Discriminator for directory delete events."
+    )
+    path: str = Field(description="Directory path targeted by the remove request.")
 
 
 class RegOpenKeyEvent(Event):
@@ -631,6 +665,41 @@ class RegListSubkeysEvent(Event):
     handle: str | None = Field(default=None, description="Registry handle used for enumeration, when available.")
 
 
+class RegDeleteKeyEvent(Event):
+    """
+    Records registry key deletion.
+
+    Emitted when registry APIs delete a key.
+
+    Use this to track persistence cleanup and anti-forensics behavior.
+    """
+
+    event: Literal[EventType.REG_DELETE_KEY] = Field(
+        default=EventType.REG_DELETE_KEY,
+        description="Discriminator for registry key delete events.",
+    )
+    path: str = Field(description="Registry key path targeted by the delete operation.")
+    handle: str | None = Field(default=None, description="Registry handle used for the delete, when available.")
+
+
+class RegDeleteValueEvent(Event):
+    """
+    Records registry value deletion.
+
+    Emitted when registry APIs delete a value from a key.
+
+    Use this to track persistence cleanup and anti-forensics behavior.
+    """
+
+    event: Literal[EventType.REG_DELETE_VALUE] = Field(
+        default=EventType.REG_DELETE_VALUE,
+        description="Discriminator for registry value delete events.",
+    )
+    path: str = Field(description="Registry key path containing the deleted value.")
+    handle: str | None = Field(default=None, description="Registry key handle used for the delete, when available.")
+    value_name: str | None = Field(default=None, description="Registry value name deleted by the API call.")
+
+
 class NetDnsEvent(Event):
     """
     Records DNS name resolution activity.
@@ -727,12 +796,16 @@ AnyEvent = Annotated[
     | FileOpenEvent
     | FileReadEvent
     | FileWriteEvent
+    | FileDeleteEvent
     | DirectoryCreateEvent
+    | DirectoryDeleteEvent
     | RegOpenKeyEvent
     | RegCreateKeyEvent
     | RegReadValueEvent
     | RegWriteValueEvent
     | RegListSubkeysEvent
+    | RegDeleteKeyEvent
+    | RegDeleteValueEvent
     | NetDnsEvent
     | NetTrafficEvent
     | NetHttpEvent
