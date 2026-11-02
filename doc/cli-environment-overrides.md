@@ -83,19 +83,19 @@ jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}'
 Some samples (especially shellcode) parse PE export tables directly to resolve API pointers. When expected modules or exports are missing, these controls let you choose strict or permissive behavior.
 
 Primary flags:
-- `--modules-modules-always-exist` / `--no-modules-modules-always-exist`
+- `--modules-always-exist` / `--no-modules-always-exist`
 - `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
-- `--modules-module-directory-x86`
-- `--modules-module-directory-x64`
+- `--module-directory-x86`
+- `--module-directory-x64`
 
 Example: relaxed unresolved-import policy with native DLL directories
 
 ```bash
 speakeasy -t sample.exe \
-  --modules-modules-always-exist \
+  --modules-always-exist \
   --modules-functions-always-exist \
-  --modules-module-directory-x86 /opt/dlls/x86 \
-  --modules-module-directory-x64 /opt/dlls/x64 \
+  --module-directory-x86 /opt/dlls/x86 \
+  --module-directory-x64 /opt/dlls/x64 \
   -o report.json
 ```
 

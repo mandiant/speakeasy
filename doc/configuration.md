@@ -389,6 +389,7 @@ CLI config overrides are generated from `SpeakeasyConfig` field definitions.
 
 Mapping rules:
 - config path `a.b_c` maps to `--a-b-c`
+- a path part is left out when the next part starts with the same word, so `modules.modules_always_exist` maps to `--modules-always-exist` and `modules.module_directory_x86` maps to `--module-directory-x86`
 - booleans map to dual flags (`--flag` / `--no-flag`)
 - int flags take a decimal value or a hex value that starts with `0x`
 - `dict[str, str]` maps to repeatable `--flag KEY=VALUE`

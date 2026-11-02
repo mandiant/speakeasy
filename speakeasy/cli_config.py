@@ -207,7 +207,23 @@ def output_active_config(model: SpeakeasyConfig, logger) -> None:
 
 
 def get_option_name_for_path(path: str) -> str:
-    return "--" + path.replace(".", "-").replace("_", "-")
+    """
+    Get the flag of a config path, such as --analysis-coverage for analysis.coverage.
+
+    A path part is left out when the next part starts with the same word, so that
+    modules.modules_always_exist gives --modules-always-exist.
+    """
+    parts = path.split(".")
+    kept = [
+        part
+        for part, following in zip(parts, parts[1:] + [""])
+        if get_singular_word(following.split("_")[0]) != get_singular_word(part)
+    ]
+    return "--" + "-".join(kept).replace("_", "-")
+
+
+def get_singular_word(word: str) -> str:
+    return word.removesuffix("s")
 
 
 def get_dest_name_for_path(path: str) -> str:
