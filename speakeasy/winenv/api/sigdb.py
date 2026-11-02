@@ -33,6 +33,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
+from speakeasy.winenv.defs.lookup import get_value_names
+
 logger = logging.getLogger(__name__)
 
 SUPPORTED_FORMAT = 2
@@ -102,35 +104,8 @@ class EnumDef:
     flags: bool = False
 
     def decode(self, value: int) -> str:
-        """
-        Render ``value`` symbolically: the member name for an exact match, a
-        ``|``-joined list of members for a flags enum, or hex when unknown.
-        Any bits no member accounts for are appended as hex.
-        """
-        for name, member in self.values:
-            if member == value:
-                return name
-        if not self.flags or value == 0:
-            return hex(value)
-        # Greedy decomposition, widest members first, so composite names
-        # (FILE_GENERIC_READ) take precedence over their constituent bits.
-        remaining = value
-        parts = []
-        for name, member in self._flags_by_width():
-            if member and remaining & member == member:
-                parts.append(name)
-                remaining &= ~member
-                if not remaining:
-                    break
-        if remaining or not parts:
-            parts.append(hex(remaining))
-        return "|".join(parts)
-
-    def _flags_by_width(self) -> list[tuple[str, int]]:
-        # High bits first among equally wide members; the stable sort keeps
-        # declaration order for aliases of the same value, so the primary
-        # name wins.
-        return sorted(self.values, key=lambda nv: (-bin(nv[1]).count("1"), -nv[1]))
+        """Render ``value`` with the rules of :func:`speakeasy.winenv.defs.lookup.get_value_names`."""
+        return "|".join(get_value_names(self.values, value, self.flags))
 
 
 @dataclass(frozen=True)
