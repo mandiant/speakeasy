@@ -325,7 +325,7 @@ def test_get_user_name_ex_reports_the_size(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(buf, len(user) + 1) == user.encode() + b"\x00"
 
 
-@pytest.mark.parametrize("api, encoding", [("GetUserNameA", "utf-8"), ("GetUserNameW", "utf-16le")])
+@pytest.mark.parametrize("api, encoding", [("GetUserNameA", "cp1252"), ("GetUserNameW", "utf-16le")])
 def test_get_user_name_reports_the_size(dll_emu: Speakeasy, api: str, encoding: str) -> None:
     start_process(dll_emu)
     expected = (dll_emu.emu.config.user.name + "\x00").encode(encoding)
@@ -338,6 +338,19 @@ def test_get_user_name_reports_the_size(dll_emu: Speakeasy, api: str, encoding: 
     rv, _ = call(dll_emu, "advapi32", api, [buf, size])
     assert (rv, _dword(dll_emu, size)) == (1, need)
     assert dll_emu.mem_read(buf, len(expected)) == expected
+
+
+def test_get_user_name_a_writes_the_name_in_code_page_1252(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["user"]["name"] = "José"
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        size = alloc(se, struct.pack("<I", 5))
+        buf = alloc(se, b"\xcc" * 7)
+        rv, _ = call(se, "advapi32", "GetUserNameA", [buf, size])
+        assert (rv, _dword(se, size)) == (1, 5)
+        assert se.mem_read(buf, 7) == b"Jos\xe9\x00\xcc\xcc"
 
 
 def test_crypt_release_context_rejects_an_unknown_handle(dll_emu: Speakeasy) -> None:

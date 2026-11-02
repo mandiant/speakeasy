@@ -384,7 +384,7 @@ class Wininet(api.ApiHandler):
             out = int(text).to_bytes(4, "little")
             out_len = len(out)
         else:
-            out = (text + "\x00").encode(self.get_encoding(cw))
+            out = self.encode_string(text + "\x00", cw)
             out_len = len(out) - cw
         if not lpBuffer or self.read_dword(lpdwBufferLength) < len(out):
             self.write_dword(lpdwBufferLength, len(out))

@@ -383,8 +383,7 @@ class Shlwapi(api.ApiHandler):
         ctx.args["pszPath"].display = s
         mod_name = ntpath.basename(s) + "\x00"
 
-        enc = self.get_encoding(cw)
-        self.mem_write(pszPath, mod_name.encode(enc))
+        self.mem_write(pszPath, self.encode_string(mod_name, cw))
 
     @apihook("wvnsprintfA", argc=4)
     def wvnsprintfA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
