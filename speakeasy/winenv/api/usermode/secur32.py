@@ -1,10 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.secur32 as sec32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Secur32(api.ApiHandler):
@@ -17,7 +22,7 @@ class Secur32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("GetUserNameEx", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def GetUserNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetUserNameEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN GetUserNameEx(
             EXTENDED_NAME_FORMAT NameFormat,
@@ -51,7 +56,7 @@ class Secur32(api.ApiHandler):
         return 1
 
     @apihook("EncryptMessage", argc=4)
-    def EncryptMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EncryptMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS EncryptMessage(
             PCtxtHandle phContext,
