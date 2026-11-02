@@ -62,8 +62,32 @@ target-version = "py310"
 exclude = ["deps/", "tests/capa-testfiles/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "D", "D213", "PLR0402", "PLR1711", "PLR5501", "RET501", "RET502", "RET505", "RET508", "PIE790", "SIM300", "SIM114", "SIM117", "RUF100"]
-ignore = ["D1", "D212"]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "D",
+    "D213",
+    "B",
+    "PLR0402",
+    "PLR1711",
+    "PLR5501",
+    "RET501",
+    "RET502",
+    "RET505",
+    "RET508",
+    "PIE790",
+    "SIM300",
+    "SIM114",
+    "SIM117",
+    "RUF100",
+]
+# B905 asks for zip(strict=), which adds nothing for most calls here
+ignore = ["D1", "D212", "B905"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["speakeasy.gdb.ResumeAction"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

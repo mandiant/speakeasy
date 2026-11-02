@@ -27,7 +27,7 @@ class UsbEmu(speakeasy.Speakeasy):
         self.pEvtIoWrite = 0
 
     def init_usb_descriptors(self):
-        for i, ep in enumerate(self.endpoints):
+        for ep in self.endpoints:
             ep.bLength = 7
             ep.bDescriptorType = 5
 

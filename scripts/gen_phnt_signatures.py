@@ -799,7 +799,7 @@ def generate(phnt_root: str) -> tuple[dict, collections.Counter]:
     table: dict[str, list[dict]] = collections.defaultdict(list)
     stats: collections.Counter = collections.Counter()
     reasons: collections.Counter = collections.Counter()
-    for header, text in headers.items():
+    for text in headers.values():
         for prefix, name, params in iter_prototypes(text):
             entry = parse_prototype(prefix, name, params, types)
             if entry is None:

@@ -286,8 +286,8 @@ class Profiler:
         event_type,
         data=None,
         handle=0,
-        disposition=[],
-        access=[],
+        disposition=None,
+        access=None,
         buffer=0,
         size=None,
     ):
@@ -367,8 +367,8 @@ class Profiler:
         value_name=None,
         data=None,
         handle=0,
-        disposition=[],
-        access=[],
+        disposition=None,
+        access=None,
         buffer=0,
         size=None,
     ):
@@ -675,7 +675,7 @@ class Profiler:
             sym_accesses: list[SymAccessReport] | None = None
             if r.sym_access:
                 sym_accesses = []
-                for address, maccess in r.sym_access.items():
+                for maccess in r.sym_access.values():
                     if maccess.sym is None:
                         continue
                     sym_accesses.append(

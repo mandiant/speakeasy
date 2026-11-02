@@ -708,7 +708,7 @@ class WindowsEmulator(BinaryEmulator):
             )
         ]
 
-    def call(self, addr, params=[]) -> None:
+    def call(self, addr, params=None) -> None:
         """Start emulating at the specified address."""
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
@@ -717,7 +717,7 @@ class WindowsEmulator(BinaryEmulator):
         run = Run()
         run.type = f"call_0x{addr:x}"
         run.start_addr = addr
-        run.args = params
+        run.args = params or []
 
         if not self.run_queue:
             self.add_run(run)

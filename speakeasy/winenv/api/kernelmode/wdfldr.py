@@ -99,12 +99,12 @@ class Wdfldr(api.ApiHandler):
         ifaces = cd.bNumInterfaces
         data = data[cd.bLength :]
 
-        for i in range(ifaces):
+        for _ in range(ifaces):
             endpoints = []
             _id = usbdefs.USB_INTERFACE_DESCRIPTOR().cast(data)
 
             data = data[_id.bLength :]
-            for j in range(_id.bNumEndpoints):
+            for _ in range(_id.bNumEndpoints):
                 ep = usbdefs.USB_ENDPOINT_DESCRIPTOR().cast(data)
                 data = data[ep.bLength :]
                 endpoints.append(ep)

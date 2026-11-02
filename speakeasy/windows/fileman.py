@@ -346,10 +346,9 @@ class FileManager:
         return self.file_maps.get(handle)
 
     def get_mapping_from_addr(self, addr):
-        for h, fmap in self.file_maps.items():
-            for base, view in fmap.views.items():
-                if base == addr:
-                    return fmap
+        for fmap in self.file_maps.values():
+            if addr in fmap.views:
+                return fmap
 
     def get_file_from_handle(self, handle):
         return self.file_handles.get(handle)

@@ -85,7 +85,7 @@ class EmuStruct(metaclass=CMeta):
         tests = (ct._SimpleCData, ct.Structure, ct.Union, ct.Array)
         return any([issubclass(obj, t) for t in tests])
 
-    def create_struct(self, types={}):
+    def create_struct(self):
         """
         Walk each attribute and build the ctypes structure.
 
@@ -111,7 +111,7 @@ class EmuStruct(metaclass=CMeta):
                                 tmp = _type(self.__ptrsize__)
                                 array = [_type(self.__ptrsize__) for i in range(count)]
                             except TypeError as e:
-                                raise EmuStructException(str(e))
+                                raise EmuStructException(str(e)) from e
 
                         ctarray = tmp.__struct__.__class__ * count
 
@@ -144,7 +144,7 @@ class EmuStruct(metaclass=CMeta):
                             try:
                                 filt = obj(self.__ptrsize__)
                             except TypeError as e:
-                                raise EmuStructException(str(e))
+                                raise EmuStructException(str(e)) from e
                         cts = filt.__struct__
                         self.__filtermap__.update({d: filt})
                         self.__fields__.append((d, cts.__class__))
@@ -175,7 +175,7 @@ class EmuStruct(metaclass=CMeta):
             if isinstance(subobj, list):
                 x = getattr(obj.__struct__, fname)
 
-                for i, e in enumerate(x):
+                for i in range(len(x)):
                     self._link_cstructs(subobj[i])
                     x[i] = subobj[i].__struct__
 
@@ -241,7 +241,7 @@ class EmuStruct(metaclass=CMeta):
         struct = self.__struct__
         if struct:
             fields = struct._fields_
-            for fn, val in fields:
+            for fn, _ in fields:
                 if fn == name:
                     if isinstance(value, bytes):
                         barray = getattr(struct, fn)
@@ -257,7 +257,7 @@ class EmuStruct(metaclass=CMeta):
             struct = super().__getattribute__("__struct__")
             if struct:
                 fields = struct._fields_
-                for fn, val in fields:
+                for fn, _ in fields:
                     if fn == name:
                         val = struct.__getattribute__(name)
                         tests = (EmuStruct.FilteredStruct, EmuUnion.FilteredStruct, ct.Array)
