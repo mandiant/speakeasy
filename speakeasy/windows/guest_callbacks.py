@@ -33,8 +33,8 @@ from typing import Any
 
 import unicorn as uc
 
-import speakeasy.windows.thread_context as thread_context
 from speakeasy.profiler import GuestCallbackFrame
+from speakeasy.windows import thread_context
 from speakeasy.winenv.arch import CALL_CONV_STDCALL
 
 

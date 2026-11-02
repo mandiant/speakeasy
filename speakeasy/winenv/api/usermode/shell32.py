@@ -1,11 +1,11 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 import struct
 
-import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE
+from speakeasy.winenv.defs.windows import com
 
 from .. import api
 

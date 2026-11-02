@@ -5,9 +5,9 @@ from __future__ import annotations
 import ctypes
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.api.usermode.com_api as com_api
 import speakeasy.winenv.defs.windows.com as comdefs
 from speakeasy.errors import Win32EmuError
+from speakeasy.winenv.api.usermode import com_api
 
 if TYPE_CHECKING:
     from speakeasy.config import SpeakeasyConfig

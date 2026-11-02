@@ -2,13 +2,12 @@
 
 from socket import inet_ntoa, ntohs
 
-import speakeasy.windows.netman as netman
-import speakeasy.windows.objman as objman
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as nt
 import speakeasy.winenv.defs.winsock.ws2_32 as winsock
-import speakeasy.winenv.defs.wsk as wsk
 from speakeasy.errors import ApiEmuError
+from speakeasy.windows import netman, objman
+from speakeasy.winenv.defs import wsk
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 

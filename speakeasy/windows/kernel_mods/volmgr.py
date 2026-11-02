@@ -2,8 +2,8 @@
 
 import ctypes as ct
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy.struct import EmuStruct
+from speakeasy.winenv.defs.nt import ddk
 
 from . import kernel_mod as km
 

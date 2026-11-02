@@ -8,10 +8,10 @@ import struct
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 
-import speakeasy.windows.seh32 as seh32
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windef
 from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
+from speakeasy.windows import seh32
 from speakeasy.windows.guest_callbacks import GuestCall
 
 from .. import api, exception_apis

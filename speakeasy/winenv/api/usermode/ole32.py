@@ -4,8 +4,8 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.windows.com as com
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.windows import com
 
 from .. import api
 

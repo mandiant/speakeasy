@@ -5,13 +5,13 @@ import ntpath
 import struct
 
 import speakeasy.windows.common as winemu
-import speakeasy.windows.seh as seh
 import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
+from speakeasy.windows import seh
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 from ..exception_apis import ExceptionApis

@@ -6,8 +6,8 @@ from typing import Any
 import pefile
 import pytest
 
-import speakeasy.winenv.defs.nt.ddk as ddk
 from speakeasy import Speakeasy
+from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, get_kernel_emu, load_emu
 
 

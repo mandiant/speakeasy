@@ -4,11 +4,11 @@ import uuid
 from typing import Any
 
 import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.usb as usbdefs
-import speakeasy.winenv.defs.wdf as wdf
+from speakeasy.winenv.defs import wdf
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 

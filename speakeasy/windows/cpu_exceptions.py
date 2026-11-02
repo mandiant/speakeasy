@@ -12,7 +12,7 @@ depends on (dlls/ntdll/unix/signal_x86_64.c).
 from dataclasses import dataclass
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.winenv.defs.nt import ddk
 
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
 STATUS_ILLEGAL_INSTRUCTION = 0xC000001D

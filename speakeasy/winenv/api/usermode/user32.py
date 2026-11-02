@@ -2,13 +2,11 @@
 
 import ctypes
 
-import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.sessman as sessman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as windefs
-import speakeasy.winenv.defs.windows.windef as windef
-import speakeasy.winenv.defs.windows.windows as windows
+from speakeasy.windows import guest_callbacks, sessman
 from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.winenv.defs.windows import windef, windows
 
 from .. import api
 

@@ -11,12 +11,12 @@ from typing import Any
 
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
-import speakeasy.common as common
 import speakeasy.windows.common as winemu
-import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
+from speakeasy import common
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
+from speakeasy.windows import objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.common import _PeParser
 from speakeasy.windows.loaders import (

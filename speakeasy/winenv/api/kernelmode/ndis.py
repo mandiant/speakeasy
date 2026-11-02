@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import speakeasy.winenv.defs.ndis.ndis as ndis
-import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.winenv.defs.ndis import ndis
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 

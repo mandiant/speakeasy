@@ -7,7 +7,7 @@ from bisect import bisect_right, insort
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import speakeasy.common as common
+from speakeasy import common
 from speakeasy.errors import WindowsEmuError
 from speakeasy.windows.api_image import API_ENTRY_OFFSET, API_SLOT_SIZE, encode_api_stub
 from speakeasy.windows.loaders import ExportEntry, RuntimeModule

@@ -11,9 +11,8 @@ from typing import Any
 
 import capstone as cs
 
-import speakeasy.common as common
-import speakeasy.version as version
 import speakeasy.winenv.arch as e_arch
+from speakeasy import common, version
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.engines import unicorn_eng
 from speakeasy.errors import EmuException

@@ -2,7 +2,7 @@
 
 import struct
 
-import speakeasy.winenv.defs.nt.ddk as ddk
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 

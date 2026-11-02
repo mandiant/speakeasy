@@ -4,17 +4,17 @@ import hashlib
 import ntpath
 import os
 
-import speakeasy.common as common
-import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.nt.ddk as ddk
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
+from speakeasy import common
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
+from speakeasy.windows import objman
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.winenv.defs.nt import ddk
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1

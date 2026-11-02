@@ -21,10 +21,10 @@ from unicorn.unicorn_py3.unicorn import (
 )
 from unicorn.unicorn_py3.unicorn import uclib as _uc
 
-import speakeasy.common as common
-import speakeasy.winenv.arch as arch
+from speakeasy import common
 from speakeasy.engines.start_timer import StartTimer
 from speakeasy.errors import EmuEngineError
+from speakeasy.winenv import arch
 
 uc_engine = ct.c_void_p
 # Unicorn ends emulation without an error when pc reaches the "until" address. No x86 code

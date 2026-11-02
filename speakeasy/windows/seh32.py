@@ -24,10 +24,9 @@ from typing import TYPE_CHECKING
 
 import unicorn as uc
 
-import speakeasy.windows.guest_callbacks as guest_callbacks
-import speakeasy.windows.seh as seh
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.windows import guest_callbacks, seh
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import STATUS_UNWIND, UNWINDING, as_long, read_context, resume_at

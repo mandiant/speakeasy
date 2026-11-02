@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from Crypto.Cipher import ARC4
 
-import speakeasy.windows.objman as objman
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.advapi32 as adv32
@@ -15,6 +14,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
+from speakeasy.windows import objman
 
 from .. import api
 
