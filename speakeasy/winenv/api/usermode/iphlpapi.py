@@ -1,11 +1,15 @@
 # Copyright (C) 2022 Mandiant, Inc. All Rights Reserved.
 
 import binascii
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.iphlpapi as iphlpapi_types
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Iphlpapi(api.ApiHandler):
@@ -23,7 +27,7 @@ class Iphlpapi(api.ApiHandler):
         self.iphlpapi_types = iphlpapi_types
 
     @apihook("GetAdaptersInfo", argc=2)
-    def GetAdaptersInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetAdaptersInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG GetAdaptersInfo(
             PIP_ADAPTER_INFO AdapterInfo,
