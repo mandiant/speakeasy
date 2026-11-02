@@ -1,10 +1,14 @@
 # Copyright (C) 2026 Mandiant, Inc. All Rights Reserved.
 
 import ntpath
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Psapi(api.ApiHandler):
@@ -59,7 +63,7 @@ class Psapi(api.ApiHandler):
         return proc.path or ""
 
     @apihook("EnumProcesses", argc=3)
-    def EnumProcesses(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumProcesses(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumProcesses(
             DWORD *lpidProcess,
@@ -88,7 +92,7 @@ class Psapi(api.ApiHandler):
         return 1
 
     @apihook("EnumProcessModules", argc=4)
-    def EnumProcessModules(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumProcessModules(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumProcessModules(
             HANDLE hProcess,
@@ -120,7 +124,7 @@ class Psapi(api.ApiHandler):
         return 1
 
     @apihook("EnumProcessModulesEx", argc=5)
-    def EnumProcessModulesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumProcessModulesEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumProcessModulesEx(
             HANDLE hProcess,
@@ -135,7 +139,7 @@ class Psapi(api.ApiHandler):
         return self.EnumProcessModules(emu, argv[:4], ctx)
 
     @apihook("GetModuleBaseName", argc=4)
-    def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetModuleBaseName(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetModuleBaseName(
             HANDLE hProcess,
@@ -170,7 +174,7 @@ class Psapi(api.ApiHandler):
         return len(truncated)
 
     @apihook("GetModuleFileNameEx", argc=4)
-    def GetModuleFileNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetModuleFileNameEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetModuleFileNameEx(
             HANDLE hProcess,
@@ -205,7 +209,7 @@ class Psapi(api.ApiHandler):
         return len(truncated)
 
     @apihook("GetModuleInformation", argc=4)
-    def GetModuleInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetModuleInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetModuleInformation(
             HANDLE hProcess,
