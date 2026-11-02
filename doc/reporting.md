@@ -57,6 +57,11 @@ decoded itself (such as the key path behind a registry handle) replaces the `dis
 parameter, and `value` still holds what the caller passed. An entry that a variadic handler
 adds, such as the formatted output of `printf`, has no `value`.
 
+A handle value refers to one object for the whole run. Speakeasy gives out the handles of all
+object types from one counter that starts at `0x80` and adds 4, and it does not use the value
+of a closed handle again. Thus a `handle` in an event identifies the file, key or other object
+that the call used.
+
 Every event carries `pos`, the position of the actor that performed the operation, so an
 event always sits in the timeline of the thread that caused it. Process-scoped events
 (`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`,
@@ -275,7 +280,7 @@ thread, even for a local create.
           "pos": {"tick": 150, "tid": 2000, "pid": 1337, "pc": 4198540},
           "event": "reg_open_key",
           "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft",
-          "handle": "0x180",
+          "handle": "0x88",
           "open_flags": ["REG_OPTION_NON_VOLATILE"],
           "access_flags": ["KEY_READ"]
         },
@@ -283,7 +288,7 @@ thread, even for a local create.
           "pos": {"tick": 160, "tid": 2000, "pid": 1337, "pc": 4198550},
           "event": "reg_create_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
-          "handle": "0x184",
+          "handle": "0x8c",
           "open_flags": ["REG_OPTION_NON_VOLATILE"],
           "access_flags": ["KEY_WRITE"]
         },
@@ -291,7 +296,7 @@ thread, even for a local create.
           "pos": {"tick": 170, "tid": 2000, "pid": 1337, "pc": 4198560},
           "event": "reg_read_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
-          "handle": "0x184",
+          "handle": "0x8c",
           "value_name": "Config",
           "size": 4,
           "data_ref": "data-reg-read",
@@ -301,7 +306,7 @@ thread, even for a local create.
           "pos": {"tick": 175, "tid": 2000, "pid": 1337, "pc": 4198565},
           "event": "reg_write_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
-          "handle": "0x184",
+          "handle": "0x8c",
           "value_name": "Config",
           "size": 4,
           "data_ref": "data-reg-write",
@@ -311,7 +316,7 @@ thread, even for a local create.
           "pos": {"tick": 180, "tid": 2000, "pid": 1337, "pc": 4198570},
           "event": "reg_list_subkeys",
           "path": "HKEY_CURRENT_USER\\Software",
-          "handle": "0x184"
+          "handle": "0x8c"
         },
         {
           "pos": {"tick": 190, "tid": 2000, "pid": 1337, "pc": 4198580},
