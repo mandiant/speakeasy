@@ -9,7 +9,6 @@ import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.config import DEFAULT_CONFIG_DATA
 from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
 from speakeasy.windows import seh
 from speakeasy.winenv.defs.nt import ddk
@@ -586,7 +585,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         (CurrentUserKeyPath,) = argv
-        sid = emu.config.user.sid or DEFAULT_CONFIG_DATA["user"]["sid"]
+        sid = emu.config.user.sid
         path = "\\REGISTRY\\USER\\" + sid
         data = (path + "\x00").encode("utf-16le")
 

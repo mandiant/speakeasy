@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from speakeasy import Win32Emulator, WinKernelEmulator
 from speakeasy.cli_config import output_active_config
-from speakeasy.config import SpeakeasyConfig, get_default_config_dict
+from speakeasy.config import SpeakeasyConfig
 from speakeasy.errors import ConfigError, NotSupportedError, SpeakeasyError
 from speakeasy.report import FileManifestEntry, Report
 from speakeasy.volumes import apply_volumes
@@ -83,16 +83,17 @@ class Speakeasy:
             ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, or if the
                 configuration is not valid.
         """
-        if volumes:
-            if isinstance(config, SpeakeasyConfig):
-                raise ConfigError(
-                    "Cannot apply --volume to an already-validated SpeakeasyConfig; pass a raw dict or None instead"
-                )
-            if config is None:
-                config = get_default_config_dict()
-            apply_volumes(config, volumes)
+        if volumes and isinstance(config, SpeakeasyConfig):
+            raise ConfigError(
+                "Cannot apply --volume to an already-validated SpeakeasyConfig; pass a raw dict or None instead"
+            )
 
         self._init_config(config)
+        if volumes:
+            # Mount the volumes on the validated config, so that a partial dict keeps the default files.
+            data = self.config.model_dump()
+            apply_volumes(data, volumes)
+            self._init_config(data)
         self._emu: Win32Emulator | WinKernelEmulator | None = None
         self.api_hooks: list[tuple[Callable, str, str, int, object | None]] = []
         self.code_hooks: list[tuple[Callable, int, int]] = []
@@ -147,7 +148,7 @@ class Speakeasy:
             ConfigError: if the configuration is not valid.
         """
         if config is None:
-            config = get_default_config_dict()
+            config = {}
 
         if isinstance(config, SpeakeasyConfig):
             self.config = config

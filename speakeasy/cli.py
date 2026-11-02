@@ -16,15 +16,8 @@ from rich.logging import RichHandler
 
 import speakeasy.winenv.arch as e_arch
 from speakeasy import Speakeasy
-from speakeasy.cli_config import (
-    add_config_cli_arguments,
-    apply_config_cli_overrides,
-    get_config_cli_field_specs,
-    get_default_config_dict,
-    merge_config_dicts,
-)
-from speakeasy.config import SpeakeasyConfig
-from speakeasy.volumes import apply_volumes
+from speakeasy.cli_config import add_config_cli_arguments, get_active_config, get_config_cli_field_specs
+from speakeasy.config import get_default_config_dict
 
 logger = logging.getLogger(__name__)
 
@@ -180,22 +173,15 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     if args.gdb and not args.no_mp:
         args.no_mp = True
         logger.info("--gdb requires --no-mp mode; enabling automatically")
-    cfg = get_default_config_dict()
-
+    user_cfg = {}
     if config_path:
         if not os.path.isfile(config_path):
             parser.error(f"Config file not found: {config_path}")
         with open(config_path) as f:
             user_cfg = json.load(f)
-        cfg = merge_config_dicts(cfg, user_cfg)
-
-    if args.volumes:
-        apply_volumes(cfg, args.volumes)
-
-    cfg = apply_config_cli_overrides(cfg, args, config_specs)
 
     try:
-        validated = SpeakeasyConfig.model_validate(cfg)
+        validated = get_active_config(user_cfg, args.volumes, args, config_specs)
     except Exception as err:
         parser.error(f"Invalid active configuration: {err}")
 

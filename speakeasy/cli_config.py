@@ -11,8 +11,8 @@ from typing import Annotated, Any, Literal, Union, get_args, get_origin
 from pydantic import BaseModel
 from pydantic.fields import PydanticUndefined
 
-from speakeasy.config import SpeakeasyConfig
-from speakeasy.config import get_default_config_dict as get_model_default_config_dict
+from speakeasy.config import SpeakeasyConfig, get_default_config_dict
+from speakeasy.volumes import apply_volumes
 
 EXCLUDED_CLI_PATHS = {
     "config_version",
@@ -55,19 +55,27 @@ class _LeafField:
     model_default: Any
 
 
-def get_default_config_dict() -> dict[str, Any]:
-    return get_model_default_config_dict()
+def get_active_config(
+    data: dict[str, Any],
+    volumes: list[str],
+    args: argparse.Namespace,
+    specs: list[ConfigCliFieldSpec],
+) -> SpeakeasyConfig:
+    """
+    Build the config of a CLI run from the config file data, the volumes and the config flags.
 
+    The file data gets the same validation as ``Speakeasy(config=data)``: a key that the file
+    leaves out gets its default. The volumes and the flags then change this config.
 
-def merge_config_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    merged = copy.deepcopy(base)
-    for key, value in overlay.items():
-        current = merged.get(key)
-        if isinstance(current, dict) and isinstance(value, dict):
-            merged[key] = merge_config_dicts(current, value)
-            continue
-        merged[key] = copy.deepcopy(value)
-    return merged
+    Raises:
+        pydantic.ValidationError: if the data or a flag value is not valid.
+        ValueError: if a volume specification is not valid.
+        FileNotFoundError: if the host path of a volume does not exist.
+    """
+    config = SpeakeasyConfig.model_validate(data).model_dump()
+    apply_volumes(config, volumes)
+    config = apply_config_cli_overrides(config, args, specs)
+    return SpeakeasyConfig.model_validate(config)
 
 
 def add_config_cli_arguments(parser: argparse.ArgumentParser, specs: list[ConfigCliFieldSpec]) -> None:

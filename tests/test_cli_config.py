@@ -3,30 +3,35 @@ import json
 import subprocess
 import sys
 
-from speakeasy.cli_config import (
-    add_config_cli_arguments,
-    apply_config_cli_overrides,
-    get_config_cli_field_specs,
-    get_default_config_dict,
-    merge_config_dicts,
-)
+from speakeasy import Speakeasy
+from speakeasy.cli_config import add_config_cli_arguments, get_active_config, get_config_cli_field_specs
 from speakeasy.config import SpeakeasyConfig
 
 
-def test_config_precedence_prefers_cli_over_config_overlay():
+def get_cli_config(data: dict, argv: list[str]) -> SpeakeasyConfig:
     parser = argparse.ArgumentParser()
     specs = get_config_cli_field_specs()
     add_config_cli_arguments(parser, specs)
+    return get_active_config(data, [], parser.parse_args(argv), specs)
 
-    base = get_default_config_dict()
-    config_overlay = {"timeout": 15, "analysis": {"coverage": True}}
-    layered = merge_config_dicts(base, config_overlay)
 
-    args = parser.parse_args(["--timeout", "90", "--no-analysis-coverage"])
-    final = apply_config_cli_overrides(layered, args, specs)
+def test_config_precedence_prefers_cli_over_config_file():
+    config = get_cli_config(
+        {"timeout": 15, "analysis": {"coverage": True}}, ["--timeout", "90", "--no-analysis-coverage"]
+    )
 
-    assert final["timeout"] == 90
-    assert final["analysis"]["coverage"] is False
+    assert config.timeout == 90
+    assert config.analysis.coverage is False
+
+
+def test_cli_and_library_give_the_same_config_for_a_partial_dict():
+    part = {"user": {"name": "bob"}, "os_ver": {"major": 10, "minor": 0}}
+
+    library = Speakeasy(config=part).config
+
+    assert get_cli_config(part, []) == library
+    assert library.user.is_admin is True
+    assert library.os_ver.build == 7601
 
 
 def test_dump_default_config_flag_outputs_valid_json():
@@ -37,24 +42,3 @@ def test_dump_default_config_flag_outputs_valid_json():
         text=True,
     )
     SpeakeasyConfig.model_validate(json.loads(result.stdout))
-
-
-def test_partial_config_overlay_inherits_model_defaults():
-    model = SpeakeasyConfig.model_validate({"analysis": {"memory_tracing": True}})
-
-    assert model.analysis.memory_tracing is True
-    assert model.analysis.strings is True
-
-
-def test_merge_config_dicts_merges_mappings_and_replaces_lists():
-    base = get_default_config_dict()
-    overlay = {
-        "analysis": {"memory_tracing": True},
-        "processes": [{"name": "only", "base_addr": "0x00400000", "path": "C:\\only.exe"}],
-    }
-
-    merged = merge_config_dicts(base, overlay)
-
-    assert merged["analysis"]["memory_tracing"] is True
-    assert merged["analysis"]["strings"] is True
-    assert merged["processes"] == overlay["processes"]
