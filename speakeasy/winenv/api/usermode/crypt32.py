@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.codepage import decode_ansi
 
 from .. import api
 
@@ -75,7 +76,7 @@ class Crypt32(api.ApiHandler):
         if not cchString:
             cchString = self.mem_string_len(pszString, cw)
         raw = self.mem_read(pszString, cchString * cw)
-        s = raw.decode("utf-16le", "surrogatepass") if cw == 2 else raw.decode("latin-1")
+        s = raw.decode("utf-16le", "surrogatepass") if cw == 2 else decode_ansi(raw)
         s = s.partition("\x00")[0]
 
         if dwFlags != CRYPT_STRING_BASE64:
