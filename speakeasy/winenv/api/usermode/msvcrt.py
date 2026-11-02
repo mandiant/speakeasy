@@ -15,6 +15,7 @@ from speakeasy.profiler_events import FILE_CREATE, FILE_WRITE
 from speakeasy.windows import seh32
 from speakeasy.windows.common import FILETIME_UNIX_EPOCH
 from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 from .. import api, exception_apis
 
@@ -487,7 +488,7 @@ def render_finddata(name: str, is_dir: bool, time64: bool) -> bytes:
     """
     data = struct.pack("<I", A_SUBDIR if is_dir else 0)
     data += struct.pack("<4x3q" if time64 else "<3i", TIME_BASE, TIME_BASE, TIME_BASE)
-    data += struct.pack("<I", 0) + name.encode("utf-8")[:259].ljust(260, b"\x00")
+    data += struct.pack("<I", 0) + encode_ansi(name)[:259].ljust(260, b"\x00")
     if time64:
         data += b"\x00" * (-len(data) % 8)
     return data
@@ -625,7 +626,7 @@ class Msvcrt(api.ApiHandler):
         Command line global CRT variable.
         """
         _argv = self.emu.get_argv()
-        _argv = " ".join(_argv).encode("utf-8")
+        _argv = encode_ansi(" ".join(_argv))
 
         p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
         self.write_ptr(ptr, p_cmdln)
@@ -669,7 +670,7 @@ class Msvcrt(api.ApiHandler):
         ptr = self.winmain_command_lines.get(width)
         if ptr is None:
             tail = get_winmain_command_line(emu.get_current_process().cmdline)
-            data = (tail + "\x00").encode("utf-16le" if width == 2 else "utf-8")
+            data = self.encode_string(tail + "\x00", width)
             ptr = self.mem_alloc(len(data), tag="api.msvcrt.winmain_command_line")
             self.mem_write(ptr, data)
             self.winmain_command_lines[width] = ptr
@@ -747,6 +748,7 @@ class Msvcrt(api.ApiHandler):
                 mbs = self.read_cstr(mbstr, max_chars=count) if count else b""
             else:
                 mbs = self.read_cstr(mbstr)
+            # The C locale maps each byte to the wide character with the same value.
             text = mbs.decode("latin-1")
             ctx.args[3].display = text
 
@@ -823,7 +825,7 @@ class Msvcrt(api.ApiHandler):
                 return result
         return 0
 
-    def _write_main_args(self, emu, argv, encoding):
+    def _write_main_args(self, emu, argv, width):
         _Argc, _Argv, _Env, _DoWildCard, _StartInfo = argv
         rv = 0
 
@@ -836,7 +838,7 @@ class Msvcrt(api.ApiHandler):
             self.write_dword(_Argc, argc)
 
         if _Argv:
-            argv_list = [(a + "\x00").encode(encoding) for a in _argv]
+            argv_list = [self.encode_string(a + "\x00", width) for a in _argv]
             array_size = ptr_size * (len(argv_list) + 1)
             total = sum([len(a) for a in argv_list]) + array_size
 
@@ -858,7 +860,7 @@ class Msvcrt(api.ApiHandler):
             fmt_env = []
             total = ptr_size
             for k, v in env.items():
-                envstr = f"{k}={v}\x00".encode(encoding)
+                envstr = self.encode_string(f"{k}={v}\x00", width)
                 total += len(envstr)
                 fmt_env.append(envstr)
                 total += ptr_size
@@ -889,7 +891,7 @@ class Msvcrt(api.ApiHandler):
             _startupinfo *startInfo
         );
         """
-        return self._write_main_args(emu, argv, "utf-8")
+        return self._write_main_args(emu, argv, 1)
 
     @apihook("__GetMainArgs", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def __GetMainArgs(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -914,7 +916,7 @@ class Msvcrt(api.ApiHandler):
             _startupinfo *startInfo
         );
         """
-        return self._write_main_args(emu, argv, "utf-16le")
+        return self._write_main_args(emu, argv, 2)
 
     @apihook("__p___wargv", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def __p___wargv(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -956,7 +958,7 @@ class Msvcrt(api.ApiHandler):
         ptr_size = self.get_ptr_size()
         _argv = emu.get_argv()
 
-        args = [(a + "\x00\x00\x00\x00").encode("utf-8") for a in _argv]
+        args = [encode_ansi(a + "\x00\x00\x00\x00") for a in _argv]
 
         array_size = ptr_size * (len(args) + 2)
         total = sum([len(a) for a in args])
@@ -1075,7 +1077,7 @@ class Msvcrt(api.ApiHandler):
         pptr = 0
         fmt_env = []
         for k, v in env.items():
-            envstr = f"{k}={v}\x00".encode()
+            envstr = encode_ansi(f"{k}={v}\x00")
             total += len(envstr)
             fmt_env.append(envstr)
             total += ptr_size
@@ -1171,7 +1173,7 @@ class Msvcrt(api.ApiHandler):
         message, filename, line = argv
         for i, string in ((0, message), (1, filename)):
             if string:
-                ctx.args[i].display = self.read_cstr(string).decode("latin-1")
+                ctx.args[i].display = decode_ansi(self.read_cstr(string))
         self.exit_process()
 
     @apihook("_XcptFilter", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -1381,8 +1383,8 @@ class Msvcrt(api.ApiHandler):
 
         _hay = self.read_cstr(str)
         _needle = self.read_cstr(strSearch)
-        ctx.args[0].display = _hay.decode("utf-8", "ignore")
-        ctx.args[1].display = _needle.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(_hay)
+        ctx.args[1].display = decode_ansi(_needle)
 
         ret = _hay.find(_needle)
         return str + ret if ret != -1 else 0
@@ -1399,8 +1401,8 @@ class Msvcrt(api.ApiHandler):
 
         _s = self.read_cstr(str)
         _charset = set(self.read_cstr(strCharSet))
-        ctx.args[0].display = _s.decode("utf-8", "ignore")
-        ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(_s)
+        ctx.args[1].display = decode_ansi(bytes(sorted(_charset)))
         return next((i for i, c in enumerate(_s) if c in _charset), len(_s))
 
     @apihook("wcscspn", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -1431,8 +1433,8 @@ class Msvcrt(api.ApiHandler):
 
         _s = self.read_cstr(str)
         _charset = set(self.read_cstr(strCharSet))
-        ctx.args[0].display = _s.decode("utf-8", "ignore")
-        ctx.args[1].display = bytes(sorted(_charset)).decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(_s)
+        ctx.args[1].display = decode_ansi(bytes(sorted(_charset)))
         return next((str + i for i, c in enumerate(_s) if c in _charset), 0)
 
     @apihook("wcspbrk", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -1505,13 +1507,12 @@ class Msvcrt(api.ApiHandler):
         """Append as strncat_s and wcsncat_s do. ``width`` is the size of a character in bytes."""
         dest, num, src, count = argv
         is_truncated = count == self.get_max_int()
-        encoding = "utf-8" if width == 1 else "utf-16le"
         nul = b"\x00" * width
 
         s1 = self.read_cstr(dest, width=width)
         s2 = self.read_cstr(src, max_chars=0 if is_truncated else count, width=width) if count else b""
-        ctx.args[0].display = s1.decode(encoding, "ignore")
-        ctx.args[2].display = s2.decode(encoding, "ignore")
+        ctx.args[0].display = self.decode_string(s1, width)
+        ctx.args[2].display = self.decode_string(s2, width)
 
         rem = num - len(s1) // width
         if rem <= 0:
@@ -1581,7 +1582,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.append(hex(opts))
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
-        self.write_stream(stream, fin.encode("latin-1", "replace"))
+        self.write_stream(stream, encode_ansi(fin))
 
         rv = len(fin)
         return rv
@@ -1604,7 +1605,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
-        self.write_stream(stream, fin.encode("latin-1", "replace"))
+        self.write_stream(stream, encode_ansi(fin))
         return len(fin)
 
     @apihook("fwprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -1625,7 +1626,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
-        self.write_stream(stream, fin.encode("latin-1", "replace"))
+        self.write_stream(stream, encode_ansi(fin))
         return len(fin)
 
     @apihook("vfprintf", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -1645,7 +1646,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(hex(stream))
         ctx.args.append(fin)
-        self.write_stream(stream, fin.encode("latin-1", "replace"))
+        self.write_stream(stream, encode_ansi(fin))
         return len(fin)
 
     @apihook("printf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
@@ -1926,13 +1927,12 @@ class Msvcrt(api.ApiHandler):
             self.set_errno(EINVAL)
             return 0
         text = render_strftime(fmt_str, t)
-        encoding = "utf-16le" if width == 2 else "latin-1"
         if len(text) + 1 > maxsize:
             if maxsize:
                 self.mem_write(dest, b"\x00" * width)
             self.set_errno(ERANGE)
             return 0
-        self.mem_write(dest, (text + "\x00").encode(encoding, "replace"))
+        self.mem_write(dest, self.encode_string(text + "\x00", width))
         ctx.args[0].display = text
         return len(text)
 
@@ -2069,7 +2069,7 @@ class Msvcrt(api.ApiHandler):
         ctx.args.clear()
         ctx.args.append(fin)
 
-        out = fin[:count].encode("utf-8")
+        out = encode_ansi(fin[:count])
         if len(fin) < count:
             out += b"\x00"
         self.mem_write(buf, out)
@@ -2123,7 +2123,7 @@ class Msvcrt(api.ApiHandler):
     def ato(self, ctx, addr, width, bits):
         """Parse a decimal number like atoi and saturate it to a signed integer of ``bits`` bits."""
         text = self.read_number_text(addr, width)
-        ctx.args[0].display = text.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(text)
         val, _ = parse_c_integer(text, 10)
         limit = 1 << (bits - 1)
         return max(-limit, min(val, limit - 1))
@@ -2229,7 +2229,7 @@ class Msvcrt(api.ApiHandler):
         s = self.read_cstr(strSource)
 
         self.mem_write(strDestination, s + b"\x00")
-        ctx.args[1].display = s.decode("utf-8", "ignore")
+        ctx.args[1].display = decode_ansi(s)
         return strDestination
 
     @apihook("strcpy_s", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -2248,7 +2248,7 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(dest, b"\x00")
             return EINVAL
         s = self.read_cstr(src)
-        ctx.args[2].display = s.decode("utf-8", "ignore")
+        ctx.args[2].display = decode_ansi(s)
         if len(s) >= dest_size:
             self.mem_write(dest, b"\x00")
             return ERANGE
@@ -2293,7 +2293,7 @@ class Msvcrt(api.ApiHandler):
             return EINVAL
         if width == 1:
             data = self.read_cstr(src)
-            ctx.args[2].display = data.decode("utf-8", "ignore")
+            ctx.args[2].display = decode_ansi(data)
         else:
             text = self.read_wide_string(src)
             ctx.args[2].display = text
@@ -2360,7 +2360,7 @@ class Msvcrt(api.ApiHandler):
         if count:
             s = self.read_cstr(strSource, max_chars=count)
             self.mem_write(strDest, s.ljust(count, b"\x00"))
-            ctx.args[1].display = s.decode("utf-8", "ignore")
+            ctx.args[1].display = decode_ansi(s)
         return strDest
 
     @apihook("wcsncpy", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -2976,7 +2976,7 @@ class Msvcrt(api.ApiHandler):
         if not str:
             return 0
         string = self.read_cstr(str)
-        ctx.args[0].display = string.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(string)
         self.mem_write(str, string.upper())
         return str
 
@@ -2989,7 +2989,7 @@ class Msvcrt(api.ApiHandler):
         """
         (str,) = argv
         string = self.read_cstr(str)
-        ctx.args[0].display = string.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(string)
         self.mem_write(str, string[::-1])
         return str
 
@@ -3068,12 +3068,12 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (varname,) = argv
-        key = self.read_cstr(varname).decode("latin-1")
+        key = decode_ansi(self.read_cstr(varname))
         ctx.args[0].display = key
         val = next((v for k, v in emu.get_env().items() if k.lower() == key.lower()), None)
         if val is None:
             return 0
-        data = val.encode("latin-1") + b"\x00"
+        data = encode_ansi(val + "\x00")
         dst = self.heap_alloc(len(data), heap="HeapAlloc")
         self.mem_write(dst, data)
         return dst
@@ -3088,7 +3088,7 @@ class Msvcrt(api.ApiHandler):
         val = next((v for k, v in emu.get_env().items() if k.lower() == key.lower()), None)
         dst = 0
         if val is not None:
-            data = (val + "\x00").encode("utf-16le" if width == 2 else "latin-1")
+            data = self.encode_string(val + "\x00", width)
             dst = self.heap_alloc(len(data), heap="HeapAlloc")
             self.mem_write(dst, data)
         self.write_ptr(buffer, dst)
@@ -3425,7 +3425,7 @@ class Msvcrt(api.ApiHandler):
         (str,) = argv
 
         string = self.read_cstr(str)
-        ctx.args[0].display = string.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(string)
 
         return len(string)
 
@@ -3456,8 +3456,8 @@ class Msvcrt(api.ApiHandler):
         strDestination, strSource = argv
         s1 = self.read_cstr(strDestination)
         s2 = self.read_cstr(strSource)
-        ctx.args[0].display = s1.decode("utf-8", "ignore")
-        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(s1)
+        ctx.args[1].display = decode_ansi(s2)
         self.mem_write(strDestination + len(s1), s2 + b"\x00")
         return strDestination
 
@@ -3474,7 +3474,7 @@ class Msvcrt(api.ApiHandler):
             return 0
 
         string = self.read_cstr(str)
-        ctx.args[0].display = string.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(string)
         self.mem_write(str, string.lower())
         return str
 
@@ -3490,8 +3490,8 @@ class Msvcrt(api.ApiHandler):
         strDest, strSource, count = argv
         s1 = self.read_cstr(strDest)
         s2 = self.read_cstr(strSource, max_chars=count) if count else b""
-        ctx.args[0].display = s1.decode("utf-8", "ignore")
-        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(s1)
+        ctx.args[1].display = decode_ansi(s2)
         self.mem_write(strDest + len(s1), s2 + b"\x00")
         return strDest
 
@@ -3529,8 +3529,8 @@ class Msvcrt(api.ApiHandler):
             return EINVAL
         s1 = self.read_cstr(strDestination)
         s2 = self.read_cstr(strSource)
-        ctx.args[0].display = s1.decode("latin-1")
-        ctx.args[2].display = s2.decode("latin-1")
+        ctx.args[0].display = decode_ansi(s1)
+        ctx.args[2].display = decode_ansi(s2)
         if len(s1) + len(s2) >= numberOfElements:
             self.mem_write(strDestination, b"\x00")
             return ERANGE
@@ -3677,8 +3677,8 @@ class Msvcrt(api.ApiHandler):
 
         s1 = self.read_cstr(string1, count)
         s2 = self.read_cstr(string2, count)
-        ctx.args[0].display = s1.decode("utf-8", "ignore")
-        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(s1)
+        ctx.args[1].display = decode_ansi(s2)
 
         return (s1 > s2) - (s1 < s2)
 
@@ -3714,8 +3714,8 @@ class Msvcrt(api.ApiHandler):
 
         s1 = self.read_cstr(string1)
         s2 = self.read_cstr(string2)
-        ctx.args[0].display = s1.decode("utf-8", "ignore")
-        ctx.args[1].display = s2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(s1)
+        ctx.args[1].display = decode_ansi(s2)
 
         return (s1 > s2) - (s1 < s2)
 
@@ -3734,8 +3734,8 @@ class Msvcrt(api.ApiHandler):
 
         offset = hay.rfind(needle)
 
-        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
-        ctx.args[1].display = needle.decode("latin-1")
+        ctx.args[0].display = decode_ansi(hay[:-1])
+        ctx.args[1].display = decode_ansi(needle)
 
         return str + offset if offset >= 0 else 0
 
@@ -4128,7 +4128,7 @@ class Msvcrt(api.ApiHandler):
         fobj = self.get_fd_file(fd)
         if fobj is None:
             if fd in (self.stdout, self.stderr):
-                ctx.args[1].display = data.decode("utf-8", errors="replace")
+                ctx.args[1].display = decode_ansi(data)
                 return count
             self.set_errno(EBADF)
             return -1
@@ -4544,8 +4544,8 @@ class Msvcrt(api.ApiHandler):
         for ptr, data in zip(ptrs, values):
             self.mem_write(ptr, data)
         ctx.args.clear()
-        ctx.args.append(text.decode("latin-1"))
-        ctx.args.append(fmt_str.decode("latin-1"))
+        ctx.args.append(decode_ansi(text))
+        ctx.args.append(decode_ansi(fmt_str))
         return rv
 
     @apihook("__stdio_common_vsscanf", argc=7, conv=e_arch.CALL_CONV_CDECL)
@@ -4570,8 +4570,8 @@ class Msvcrt(api.ApiHandler):
         buf, count, fmt, _, arglist = argv[first : first + 5]
         text = self.read_cstr(buf, count) if count else b""
         fmt_str = self.read_cstr(fmt)
-        ctx.args[first].display = text.decode("latin-1")
-        ctx.args[first + 2].display = fmt_str.decode("latin-1")
+        ctx.args[first].display = decode_ansi(text)
+        ctx.args[first + 2].display = decode_ansi(fmt_str)
         values, rv = scan_c_format(text, fmt_str, emu.get_ptr_size())
         convs = [m.group(4) for m in SCANF_SPEC.finditer(fmt_str) if not m.group(1) and m.group(4) != b"%"]
         slot = arglist
@@ -4603,8 +4603,8 @@ class Msvcrt(api.ApiHandler):
 
         offset = hay.find(needle)
 
-        ctx.args[0].display = hay[:-1].decode("utf-8", "ignore")
-        ctx.args[1].display = needle.decode("latin-1")
+        ctx.args[0].display = decode_ansi(hay[:-1])
+        ctx.args[1].display = decode_ansi(needle)
 
         return str + offset if offset >= 0 else 0
 
@@ -4814,7 +4814,7 @@ class Msvcrt(api.ApiHandler):
         buffer, format, argptr = argv
         fmt_str = self.read_mem_string(format, 1)
         fin = self.do_str_format(fmt_str, self.va_args(argptr, self.get_va_arg_count(fmt_str)))
-        self.mem_write(buffer, fin.encode("utf-8") + b"\x00")
+        self.mem_write(buffer, encode_ansi(fin) + b"\x00")
         ctx.args[0].display = fin
         ctx.args[1].display = fmt_str
         return len(fin)
@@ -4837,7 +4837,7 @@ class Msvcrt(api.ApiHandler):
         vargs = self.va_args(argptr, fmt_cnt)
 
         fin = self.do_str_format(fmt_str, vargs)
-        out = fin[:count].encode("utf-8")
+        out = encode_ansi(fin[:count])
         if len(fin) < count:
             out += b"\x00"
         self.mem_write(buffer, out)
@@ -4868,10 +4868,9 @@ class Msvcrt(api.ApiHandler):
 
         fin = self.do_str_format(fmt_str, vargs, wide=width == 2)
         ctx.args[first + len(fields) - 3].display = fmt_str
-        encoding = "utf-16le" if width == 2 else "utf-8"
 
         if secure:
-            return self.write_secure_format(buffer, size, count, fin, encoding, ctx.args[first])
+            return self.write_secure_format(buffer, size, count, fin, width, ctx.args[first])
 
         if not buffer and not size:
             return len(fin)
@@ -4887,12 +4886,12 @@ class Msvcrt(api.ApiHandler):
             rv = len(fin) if len(fin) < size else -1
 
         if size:
-            self.mem_write(buffer, out.encode(encoding))
+            self.mem_write(buffer, self.encode_string(out, width))
             ctx.args[first].display = out.rstrip("\x00")
 
         return rv
 
-    def write_secure_format(self, buffer, size, count, fin, encoding, arg):
+    def write_secure_format(self, buffer, size, count, fin, width, arg):
         """
         Write formatted text like the _s printf functions: empty the buffer
         when the text does not fit, limit the text to count characters when
@@ -4908,7 +4907,7 @@ class Msvcrt(api.ApiHandler):
             out, rv = text[: size - 1], -1
         else:
             out, rv = "", -1
-        self.mem_write(buffer, (out + "\x00").encode(encoding))
+        self.mem_write(buffer, self.encode_string(out + "\x00", width))
         arg.display = out
         return rv
 
@@ -5027,8 +5026,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_cstr(string1)
         cs2 = self.read_cstr(string2)
 
-        ctx.args[0].display = cs1.decode("utf-8", "ignore")
-        ctx.args[1].display = cs2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(cs1)
+        ctx.args[1].display = decode_ansi(cs2)
 
         cs1, cs2 = cs1.lower(), cs2.lower()
         return (cs1 > cs2) - (cs1 < cs2)
@@ -5442,7 +5441,7 @@ class Msvcrt(api.ApiHandler):
         _, s, count = argv
         if count <= 0 or count >= 1 << 63:
             return 0
-        ctx.args[1].display = self.mem_read(s, count).decode("utf-8", errors="replace")
+        ctx.args[1].display = decode_ansi(self.mem_read(s, count))
         return count
 
     @apihook("?sync@?$basic_filebuf@DU?$char_traits@D@std@@@std@@MEAAHXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -6279,6 +6278,7 @@ class Msvcrt(api.ApiHandler):
 
         ws = self.read_cstr(wcstr, max_chars=count if mbstr else 0, width=2).decode("utf-16le", "surrogatepass")
         ctx.args[1].display = ws
+        # The C locale has no multibyte character for a wide character above 0xFF.
         try:
             s = ws.encode("latin-1")
         except UnicodeEncodeError:
@@ -6306,6 +6306,7 @@ class Msvcrt(api.ApiHandler):
         if wcstr and not count:
             return 0
         s = self.read_cstr(mbstr, max_chars=count if wcstr else 0)
+        # The C locale maps each byte to the wide character with the same value.
         ctx.args[1].display = s.decode("latin-1")
         if not wcstr:
             return len(s)
@@ -6348,6 +6349,7 @@ class Msvcrt(api.ApiHandler):
         wcstr, mbstr, count, mbstate = argv
         src = self.read_ptr(mbstr)
         s = self.read_cstr(src, max_chars=count if wcstr else 0)
+        # The C locale maps each byte to the wide character with the same value.
         ctx.args[1].display = s.decode("latin-1")
         if not wcstr:
             return len(s)
@@ -6377,8 +6379,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_cstr(string1)
         cs2 = self.read_cstr(string2)
 
-        ctx.args[0].display = cs1.decode("utf-8", "ignore")
-        ctx.args[1].display = cs2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(cs1)
+        ctx.args[1].display = decode_ansi(cs2)
 
         cs1, cs2 = cs1.lower(), cs2.lower()
         return (cs1 > cs2) - (cs1 < cs2)
@@ -6404,8 +6406,8 @@ class Msvcrt(api.ApiHandler):
         cs1 = self.read_cstr(string1, count)
         cs2 = self.read_cstr(string2, count)
 
-        ctx.args[0].display = cs1.decode("utf-8", "ignore")
-        ctx.args[1].display = cs2.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(cs1)
+        ctx.args[1].display = decode_ansi(cs2)
 
         cs1, cs2 = cs1.lower(), cs2.lower()
         return (cs1 > cs2) - (cs1 < cs2)
@@ -6577,7 +6579,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (buf, size, _), fin = self.format_var_args(emu, 3, 1)
-        return self.write_secure_format(buf, size, None, fin, "utf-8", ctx.args[0])
+        return self.write_secure_format(buf, size, None, fin, 1, ctx.args[0])
 
     @apihook("swprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def swprintf_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6590,7 +6592,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (buf, size, _), fin = self.format_var_args(emu, 3, 2)
-        return self.write_secure_format(buf, size, None, fin, "utf-16le", ctx.args[0])
+        return self.write_secure_format(buf, size, None, fin, 2, ctx.args[0])
 
     @apihook("_snprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _snprintf_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6604,7 +6606,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (buf, size, count, _), fin = self.format_var_args(emu, 4, 1)
-        return self.write_secure_format(buf, size, count, fin, "utf-8", ctx.args[0])
+        return self.write_secure_format(buf, size, count, fin, 1, ctx.args[0])
 
     @apihook("_snwprintf_s", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _snwprintf_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6618,7 +6620,7 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (buf, size, count, _), fin = self.format_var_args(emu, 4, 2)
-        return self.write_secure_format(buf, size, count, fin, "utf-16le", ctx.args[0])
+        return self.write_secure_format(buf, size, count, fin, 2, ctx.args[0])
 
     @apihook("vsprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def vsprintf_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6632,7 +6634,7 @@ class Msvcrt(api.ApiHandler):
         """
         buffer, numberOfElements, format, argptr = argv
         fin = self.format_va_list(format, argptr, 1)
-        return self.write_secure_format(buffer, numberOfElements, None, fin, "utf-8", ctx.args[0])
+        return self.write_secure_format(buffer, numberOfElements, None, fin, 1, ctx.args[0])
 
     @apihook("vswprintf_s", argc=4, conv=e_arch.CALL_CONV_CDECL)
     def vswprintf_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6646,7 +6648,7 @@ class Msvcrt(api.ApiHandler):
         """
         buffer, numberOfElements, format, argptr = argv
         fin = self.format_va_list(format, argptr, 2)
-        return self.write_secure_format(buffer, numberOfElements, None, fin, "utf-16le", ctx.args[0])
+        return self.write_secure_format(buffer, numberOfElements, None, fin, 2, ctx.args[0])
 
     @apihook("_scprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def _scprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6853,7 +6855,7 @@ class Msvcrt(api.ApiHandler):
         """
         category, locale = argv
         if locale:
-            ctx.args[1].display = self.read_cstr(locale).decode("latin-1")
+            ctx.args[1].display = decode_ansi(self.read_cstr(locale))
         if not self.locale_name:
             self.locale_name = self.mem_alloc(2, tag="api.msvcrt.setlocale")
             self.mem_write(self.locale_name, b"C\x00")
@@ -7583,7 +7585,7 @@ class Msvcrt(api.ApiHandler):
             data = data[: newline + 1]
         fobj.seek(pos + len(data), io.SEEK_SET)
         self.mem_write(str, data + b"\x00")
-        ctx.args[0].display = data.decode("utf-8", errors="replace")
+        ctx.args[0].display = decode_ansi(data)
         return str
 
     @apihook("fgetc", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -7652,7 +7654,7 @@ class Msvcrt(api.ApiHandler):
         data = self.mem_read(buffer, size * count)
         hfile = self.write_stream(stream, data, buffer)
         if hfile is None:
-            ctx.args[0].display = data.decode("utf-8", errors="replace")
+            ctx.args[0].display = decode_ansi(data)
             return count
 
         ctx.args[0].display = f"{hex(buffer)} ({data.hex()[:0x20]})"
@@ -7696,7 +7698,7 @@ class Msvcrt(api.ApiHandler):
         """
         str, stream = argv
         data = self.read_cstr(str)
-        ctx.args[0].display = data.decode("utf-8", "ignore")
+        ctx.args[0].display = decode_ansi(data)
         self.write_stream(stream, data, str)
         return 0
 
@@ -7711,7 +7713,7 @@ class Msvcrt(api.ApiHandler):
         c, stream = argv
         c &= 0xFFFF
         ctx.args[0].display = chr(c)
-        self.write_stream(stream, chr(c).encode("latin-1", "replace"))
+        self.write_stream(stream, encode_ansi(chr(c)))
         return c
 
     @apihook("fputws", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -7725,7 +7727,7 @@ class Msvcrt(api.ApiHandler):
         str, stream = argv
         text = self.read_wide_string(str)
         ctx.args[0].display = text
-        self.write_stream(stream, text.encode("latin-1", "replace"), str)
+        self.write_stream(stream, encode_ansi(text), str)
         return 0
 
     @apihook("_fullpath", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -7738,9 +7740,9 @@ class Msvcrt(api.ApiHandler):
         );
         """
         absPath, relPath, maxLength = argv
-        rel = self.read_cstr(relPath).decode("utf-8", "ignore") if relPath else ""
+        rel = decode_ansi(self.read_cstr(relPath)) if relPath else ""
         ctx.args[1].display = rel
-        full = get_full_path(emu.get_cd(), rel or ".").encode("utf-8") + b"\x00"
+        full = encode_ansi(get_full_path(emu.get_cd(), rel or ".") + "\x00")
         if not absPath:
             absPath = self.heap_alloc(len(full), heap="HeapAlloc")
         elif len(full) > maxLength:
@@ -7751,10 +7753,12 @@ class Msvcrt(api.ApiHandler):
     def read_path_part(self, addr, width):
         if not addr:
             return None
-        return self.read_cstr(addr, width=width).decode("latin-1" if width == 1 else "utf-16le", "surrogatepass")
+        data = self.read_cstr(addr, width=width)
+        return decode_ansi(data) if width == 1 else data.decode("utf-16le", "surrogatepass")
 
     def write_path_part(self, addr, text, width):
-        self.mem_write(addr, (text + "\x00").encode("latin-1" if width == 1 else "utf-16le", "surrogatepass"))
+        text += "\x00"
+        self.mem_write(addr, encode_ansi(text) if width == 1 else text.encode("utf-16le", "surrogatepass"))
 
     def make_path(self, ctx, path, size, parts, width):
         """
