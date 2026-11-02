@@ -5,7 +5,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import com as comdefs
+from speakeasy.winenv.defs.windows.com import RPC_C_AUTHN_LEVEL, RPC_C_IMP_LEVEL
 
 from .. import api
 
@@ -105,13 +107,8 @@ class Ole32(api.ApiHandler):
         """
         rv = windefs.S_OK
 
-        authn_level = comdefs.get_define_int(argv[4])
-        if authn_level:
-            ctx.args["dwAuthnLevel"].display = authn_level
-
-        imp_level = comdefs.get_define_int(argv[5])
-        if imp_level:
-            ctx.args["dwImpLevel"].display = imp_level
+        ctx.args["dwAuthnLevel"].display = decode(RPC_C_AUTHN_LEVEL, argv[4])
+        ctx.args["dwImpLevel"].display = decode(RPC_C_IMP_LEVEL, argv[5])
 
         return rv
 

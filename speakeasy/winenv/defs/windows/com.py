@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+from enum import IntEnum
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -17,19 +18,24 @@ WBEM_E_NOT_FOUND = 0x80041002
 
 COINIT_APARTMENTTHREADED = 0x2
 
-RPC_C_AUTHN_LEVEL_DEFAULT = 0
-RPC_C_AUTHN_LEVEL_NONE = 1
-RPC_C_AUTHN_LEVEL_CONNECT = 2
-RPC_C_AUTHN_LEVEL_CALL = 3
-RPC_C_AUTHN_LEVEL_PKT = 4
-RPC_C_AUTHN_LEVEL_PKT_INTEGRITY = 5
-RPC_C_AUTHN_LEVEL_PKT_PRIVACY = 6
 
-RPC_C_IMP_LEVEL_DEFAULT = 0
-RPC_C_IMP_LEVEL_ANONYMOUS = 1
-RPC_C_IMP_LEVEL_IDENTIFY = 2
-RPC_C_IMP_LEVEL_IMPERSONATE = 3
-RPC_C_IMP_LEVEL_DELEGATE = 4
+class RPC_C_AUTHN_LEVEL(IntEnum):
+    RPC_C_AUTHN_LEVEL_DEFAULT = 0
+    RPC_C_AUTHN_LEVEL_NONE = 1
+    RPC_C_AUTHN_LEVEL_CONNECT = 2
+    RPC_C_AUTHN_LEVEL_CALL = 3
+    RPC_C_AUTHN_LEVEL_PKT = 4
+    RPC_C_AUTHN_LEVEL_PKT_INTEGRITY = 5
+    RPC_C_AUTHN_LEVEL_PKT_PRIVACY = 6
+
+
+class RPC_C_IMP_LEVEL(IntEnum):
+    RPC_C_IMP_LEVEL_DEFAULT = 0
+    RPC_C_IMP_LEVEL_ANONYMOUS = 1
+    RPC_C_IMP_LEVEL_IDENTIFY = 2
+    RPC_C_IMP_LEVEL_IMPERSONATE = 3
+    RPC_C_IMP_LEVEL_DELEGATE = 4
+
 
 CLSID_WbemLocator = "{4590F811-1D3A-11D0-891F-00AA004B2E24}"
 CLSID_IWbemContext = "{674B6698-EE92-11D0-AD71-00C04FD8FDFF}"
@@ -138,17 +144,6 @@ IFACE_TYPES = {
     "IWbemServices": IWbemServices,
     "IWbemContext": IWbemContext,
 }
-
-
-def get_define_int(define, prefix=""):
-    for k, v in globals().items():
-        if not isinstance(v, int) or v != define:
-            continue
-        if prefix:
-            if k.startswith(prefix):
-                return k
-        else:
-            return k
 
 
 def get_define_str(define, prefix=""):
