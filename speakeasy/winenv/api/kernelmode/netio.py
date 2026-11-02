@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_ntoa, ntohs
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.nt.ntoskrnl as nt
 import speakeasy.winenv.defs.winsock.ws2_32 as winsock
@@ -10,6 +11,9 @@ from speakeasy.winenv.defs import wsk
 from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
 
 WSK_FLAG_BASIC_SOCKET = 0x00000000
 WSK_FLAG_LISTEN_SOCKET = 0x00000001
@@ -108,7 +112,7 @@ class Netio(api.ApiHandler):
         self.prov_disp.WskGetNameInfo = addr
 
     @apihook("WskRegister", argc=2)
-    def WskRegister(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskRegister(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskRegister(
             PWSK_CLIENT_NPI WskClientNpi,
@@ -123,7 +127,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("WskCaptureProviderNPI", argc=3)
-    def WskCaptureProviderNPI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskCaptureProviderNPI(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskCaptureProviderNPI(
             PWSK_REGISTRATION WskRegistration,
@@ -156,7 +160,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSocket", argc=11)
-    def WskSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskSocket(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskSocket(
             PWSK_CLIENT Client,
@@ -188,7 +192,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSocketConnect", argc=12)
-    def WskSocketConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskSocketConnect(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskSocketConnect(
             PWSK_CLIENT Client,
@@ -212,7 +216,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskControlClient", argc=8)
-    def WskControlClient(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskControlClient(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskControlClient(
             PWSK_CLIENT Client,
@@ -231,7 +235,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskGetAddressInfo", argc=10)
-    def WskGetAddressInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskGetAddressInfo(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskGetAddressInfo(
             PWSK_CLIENT Client,
@@ -252,7 +256,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskFreeAddressInfo", argc=2)
-    def WskFreeAddressInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskFreeAddressInfo(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID WskFreeAddressInfo(
             PWSK_CLIENT Client,
@@ -265,7 +269,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskGetNameInfo", argc=9)
-    def WskGetNameInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskGetNameInfo(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskGetNameInfo(
             PWSK_CLIENT Client,
@@ -285,7 +289,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskControlSocket", argc=10)
-    def WskControlSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskControlSocket(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskControlSocket(
             PWSK_SOCKET Socket,
@@ -306,7 +310,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskCloseSocket", argc=2)
-    def WskCloseSocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskCloseSocket(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskCloseSocket(
             PWSK_SOCKET Socket,
@@ -319,7 +323,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskBind", argc=4)
-    def WskBind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskBind(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskBind(
             PWSK_SOCKET Socket,
@@ -341,7 +345,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskSendTo", argc=7)
-    def WskSendTo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskSendTo(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskSendTo(
             PWSK_SOCKET Socket,
@@ -359,7 +363,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskReceiveFrom", argc=8)
-    def WskReceiveFrom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskReceiveFrom(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskReceiveFrom(
             PWSK_SOCKET Socket,
@@ -378,7 +382,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskRelease", argc=2)
-    def WskRelease(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskRelease(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskRelease(
             PWSK_SOCKET Socket,
@@ -391,7 +395,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("callback_WskGetLocalAddress", argc=3)
-    def WskGetLocalAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskGetLocalAddress(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS WskGetLocalAddress(
             PWSK_SOCKET Socket,
@@ -405,7 +409,7 @@ class Netio(api.ApiHandler):
         return rv
 
     @apihook("WskReleaseProviderNPI", argc=1)
-    def WskReleaseProviderNPI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskReleaseProviderNPI(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID WskReleaseProviderNPI(
             PWSK_REGISTRATION WskRegistration
@@ -414,7 +418,9 @@ class Netio(api.ApiHandler):
         (reg,) = argv
 
     @apihook("NsiEnumerateObjectsAllParametersEx", argc=0)
-    def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NsiEnumerateObjectsAllParametersEx(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NTSTATUS NsiEnumerateObjectsAllParametersEx();
 
@@ -424,7 +430,7 @@ class Netio(api.ApiHandler):
         return
 
     @apihook("WskDeregister", argc=1)
-    def WskDeregister(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WskDeregister(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID WskDeregister(
             PWSK_REGISTRATION WskRegistration
