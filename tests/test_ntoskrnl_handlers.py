@@ -665,3 +665,7 @@ def test_ps_get_version_writes_zero_for_a_null_build(config: dict[str, Any], loa
         rv, _ = call(se, "ntoskrnl", "PsGetVersion", [out, out + 4, out + 8, 0])
         assert rv == 0
         assert struct.unpack("<III", se.mem_read(out, 12)) == (6, 1, 0)
+
+
+def test_rtl_length_required_sid_counts_the_header_and_sub_authorities(driver_emu: Speakeasy) -> None:
+    assert call(driver_emu, "ntoskrnl", "RtlLengthRequiredSid", [2])[0] == 16
