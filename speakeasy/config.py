@@ -559,6 +559,13 @@ class SpeakeasyConfig(BaseModel):
         parse_start_time(v)
         return v
 
+    @field_validator("env")
+    @classmethod
+    def lowercase_env_names(cls, v: dict[str, str]) -> dict[str, str]:
+        # Windows environment variable names are not case-sensitive.
+        # A later name wins over an earlier name that differs only in case.
+        return {name.lower(): value for name, value in v.items()}
+
     config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
     emu_engine: Literal["unicorn"] = Field(default="unicorn", description="Emulation backend identifier.")
     max_run_time: float = Field(

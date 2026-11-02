@@ -276,6 +276,10 @@ se.run_module(module, all_entrypoints=True, emulate_children=False)
 
 `Speakeasy(debug=True)` logs each instruction and the registers to the `speakeasy.windows.winemu` logger at the DEBUG level. In 1.x it wrote them to stdout. To see them, set the level of the `speakeasy` logger to `DEBUG` and add a handler.
 
+## Environment variables
+
+`env` names in a config are not case-sensitive. `SpeakeasyConfig` stores each name in lower case, so read `config.env["temp"]`, not `config.env["TEMP"]`. In 1.x, the API handlers looked up the lower-case name, so the emulated process did not see a config `env` name with upper-case letters.
+
 ## Command line
 
 `--raw-offset` now takes a decimal number, like `--entry-point`. Write `0x` before a hex offset. In 1.x, `--raw-offset` was always hex, so `--raw-offset 10` started at offset 0x10.

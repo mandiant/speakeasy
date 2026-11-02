@@ -40,6 +40,8 @@ Primary flags:
 - `--command-line`
 - `--env KEY=VALUE` (repeatable)
 
+Names are not case-sensitive, and the config stores them in lower case, so `--env TEMP=...` replaces the default `temp`.
+
 Example:
 
 ```bash

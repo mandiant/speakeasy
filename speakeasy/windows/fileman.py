@@ -561,10 +561,9 @@ class FileManager:
         parents of the known files, the directories that the program created, and their
         ancestors. A directory that the program removed does not exist.
         """
-        env = {k.lower(): v for k, v in self.config.env.items()}
         dirs = [self.config.current_dir, *self.created_dirs]
         for name in DIRECTORY_ENV_VARS:
-            dirs.extend(env.get(name, "").split(";"))
+            dirs.extend(self.config.env.get(name, "").split(";"))
         modules = self.config.modules
         files = [*self.walk_files(), *(f.path for f in self.files)]
         files += [m.path for m in modules.user_modules if m.path]
