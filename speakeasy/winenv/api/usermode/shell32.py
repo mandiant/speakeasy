@@ -161,7 +161,7 @@ class Shell32(api.ApiHandler):
             dn = self.read_mem_string(pszPath, cw)
             ctx.args["pszPath"].display = dn
 
-            self.record_file_access_event(dn, EventType.DIRECTORY_CREATE)
+            emu.get_file_manager().create_directory(dn)
 
         return 0
 

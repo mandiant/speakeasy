@@ -548,9 +548,9 @@ class WindowsEmulator(BinaryEmulator):
             raise WindowsEmuError("Invalid object for cast")
         return obj.cast(bytez)
 
-    def file_open(self, path, create=False, truncate=False):
+    def file_open(self, path, create=False, truncate=False, disposition=None, access=None):
         """Open an emulated file using the file manager."""
-        return self.fileman.file_open(path, create, truncate=truncate)
+        return self.fileman.file_open(path, create, truncate=truncate, disposition=disposition, access=access)
 
     def pipe_open(self, path, mode, num_instances, out_size, in_size):
         """Open an emulated named pipe."""

@@ -4273,16 +4273,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return True
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.nFileSizeHigh + .nFileSizeLow
-        fHandle = self.file_open(filename)
-        if not fHandle:
+        full_size = emu.get_file_manager().get_file_size(filename)
+        if full_size is None:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
 
-        f = self.get_file(fHandle)
-        if not f:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return False
-        full_size = f.get_size()
         file_data.nFileSizeHigh = 0xFFFFFFFF & (full_size >> 32)
         file_data.nFileSizeLow = 0xFFFFFFFF & full_size
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -4345,6 +4340,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpPathName:
             target = self.read_mem_string(lpPathName, cw)
             ctx.args["lpPathName"].display = target
+            emu.get_file_manager().create_directory(target)
         return True
 
     @apihook("RemoveDirectory", argc=1)
@@ -4360,6 +4356,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpPathName:
             target = self.read_mem_string(lpPathName, cw)
             ctx.args["lpPathName"].display = target
+            emu.get_file_manager().remove_directory(target)
 
         return True
 
@@ -4387,34 +4384,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return False
 
-        if bFailIfExists and emu.get_file_manager().does_file_exist_by_path(new_name):
+        fm = emu.get_file_manager()
+        if bFailIfExists and fm.does_file_exist_by_path(new_name):
             emu.set_last_error(windefs.ERROR_FILE_EXISTS)
             return False
 
-        s_handle = self.file_open(existing_name)
-        if s_handle is None:
+        if fm.copy_file(existing_name, new_name) is None:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
-
-        sf = self.get_file(s_handle)
-        if sf is None:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return False
-
-        d_handle = self.file_open(new_name, create=True)
-        if d_handle is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return False
-
-        df = self.get_file(d_handle)
-        if df is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return False
-
-        data = sf.get_data() or b""
-        df.add_data(data)
-        self.record_file_access_event(new_name, EventType.FILE_CREATE)
-        self.record_file_access_event(new_name, EventType.FILE_WRITE)
         return True
 
     @apihook("MoveFile", argc=2)
@@ -4440,36 +4417,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        if not self.does_file_exist(existing_name):
+        if emu.get_file_manager().move_file(existing_name, new_name) is None:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
-
-        src_handle = self.file_open(existing_name)
-        if src_handle is None:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return 0
-
-        src_file = self.get_file(src_handle)
-        if src_file is None:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return 0
-
-        dst_handle = self.file_open(new_name, create=True)
-        if dst_handle is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return 0
-
-        dst_file = self.get_file(dst_handle)
-        if dst_file is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return 0
-
-        dst_file.remove_data()
-        dst_file.add_data(src_file.get_data(reset_pointer=True) or b"")
-        emu.file_delete(existing_name)
-
-        self.record_file_access_event(new_name, EventType.FILE_CREATE)
-        self.record_file_access_event(new_name, EventType.FILE_WRITE)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
@@ -4548,7 +4498,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if obj:
             hnd = self.get_object_handle(obj)
         else:
-            op = EventType.FILE_OPEN
+            open_flags = {"disposition": [cd] if cd else None, "access": ad}
             if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                 exists = emu.get_file_manager().does_file_exist_by_path(target)
             else:
@@ -4556,21 +4506,21 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if exists:
                 if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
-                    hnd = self.file_open(target, create=True)
-                    op = EventType.FILE_CREATE
+                    hnd = self.file_open(target, create=True, **open_flags)
                 elif dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                     # Function fails
                     emu.set_last_error(windefs.ERROR_FILE_EXISTS)
+                    emu.get_file_manager().record_open(target, **open_flags)
                 elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                     # Open the file
-                    hnd = self.file_open(target, create=False)
+                    hnd = self.file_open(target, **open_flags)
                 elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_EXISTING:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
-                    hnd = self.file_open(target, create=False)
+                    hnd = self.file_open(target, **open_flags)
                 elif dwCreationDisposition == FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
-                    hnd = self.file_open(target, create=False, truncate=True)
+                    hnd = self.file_open(target, truncate=True, **open_flags)
 
             # We don't have a handler for this file, create it
             elif dwCreationDisposition in (
@@ -4578,18 +4528,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 FILE_CREATION_DISPOSITION.CREATE_NEW,
             ):
                 emu.set_last_error(windefs.ERROR_SUCCESS)
-                hnd = self.file_open(target, create=True)
-                op = EventType.FILE_CREATE
+                hnd = self.file_open(target, create=True, **open_flags)
             elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
                 emu.set_last_error(windefs.ERROR_SUCCESS)
                 # Open the file
-                hnd = self.file_open(target, create=True)
-                op = EventType.FILE_CREATE
+                hnd = self.file_open(target, create=True, **open_flags)
             elif dwCreationDisposition in (
                 FILE_CREATION_DISPOSITION.OPEN_EXISTING,
                 FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING,
             ):
                 emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+                emu.get_file_manager().record_open(target, **open_flags)
 
             f = self.get_file(hnd) if hnd else None
             write_access = (
@@ -4597,8 +4546,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             )
             if f and dwDesiredAccess & FILE_ACCESS_FLAGS.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
                 f.append = True
-
-            self.record_file_access_event(target, op, disposition=[cd], access=ad)
         return hnd
 
     @apihook("DeleteFile", argc=1)
@@ -4667,14 +4614,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return bool(data)
 
-        data = f.get_data(nNumberOfBytesToRead)
         if lpBuffer:
+            data = emu.get_file_manager().read_file(f, nNumberOfBytesToRead, buffer=lpBuffer)
             _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
-
-            self.record_file_access_event(f.path, EventType.FILE_READ, buffer=lpBuffer, size=len(data))
 
             rv = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
+        else:
+            f.get_data(nNumberOfBytesToRead)
         return rv
 
     @apihook("WriteFile", argc=5)
@@ -4714,10 +4661,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if data:
                 f.add_data(data)
         elif data:
-            f.write_data(data)
-            self.record_file_access_event(
-                f.path, EventType.FILE_WRITE, data=data, buffer=lpBuffer, size=nNumberOfBytesToWrite
-            )
+            emu.get_file_manager().write_file(f, data, buffer=lpBuffer)
 
             data_hex = data.hex()
             ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
@@ -7992,7 +7936,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.write_mem_string(out, lpTempFileName, cw)
         if create:
             self.file_open(out, create=True)
-            self.record_file_access_event(out, EventType.FILE_CREATE)
 
         return unique
 
