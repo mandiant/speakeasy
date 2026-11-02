@@ -2029,8 +2029,6 @@ class Msvcrt(api.ApiHandler):
         (seed,) = argv
         self.rand_seed = seed
 
-        return
-
     @apihook("sprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def sprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -5053,7 +5051,6 @@ class Msvcrt(api.ApiHandler):
         (ptr,) = argv
         if ptr:
             self.heap_free(ptr)
-        return
 
     @apihook("??2@YAPAXI@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __2_YAPAXI_Z(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6157,7 +6154,6 @@ class Msvcrt(api.ApiHandler):
         # ret     0
         emu.push_stack(eax)
         emu.do_call_return(0, eax, conv=e_arch.CALL_CONV_CDECL)
-        return
 
     def jump_buffer_layout(self, emu):
         if emu.get_arch() == e_arch.ARCH_X86:

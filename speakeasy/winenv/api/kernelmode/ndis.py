@@ -289,8 +289,6 @@ class Ndis(api.ApiHandler):
         """
         (handle,) = argv
 
-        return
-
     @apihook("NdisFreeMemory", argc=3)
     def NdisFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -302,8 +300,6 @@ class Ndis(api.ApiHandler):
         """
         va, length, flags = argv
 
-        return
-
     @apihook("NdisFreeGenericObject", argc=1)
     def NdisFreeGenericObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -312,5 +308,3 @@ class Ndis(api.ApiHandler):
         );
         """
         (pObj,) = argv
-
-        return

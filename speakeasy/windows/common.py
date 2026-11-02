@@ -323,5 +323,3 @@ class _PeParser(pefile.PE):
 
         self.imports = self._get_pe_imports()
         self.exports = self._get_pe_exports()
-
-        return

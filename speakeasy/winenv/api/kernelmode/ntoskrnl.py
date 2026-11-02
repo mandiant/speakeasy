@@ -664,8 +664,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         (drv,) = argv
 
-        return
-
     @apihook("IoCreateDevice", argc=7)
     def IoCreateDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -756,7 +754,6 @@ class Ntoskrnl(api.ApiHandler):
         pIrp, boost = argv
 
         ctx.args[1].display = hex(0xFF & boost)
-        return
 
     @apihook("IoDeleteSymbolicLink", argc=1)
     def IoDeleteSymbolicLink(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1348,8 +1345,6 @@ class Ntoskrnl(api.ApiHandler):
 
         self.mem_write(dest_str, self.get_bytes(dest))
 
-        return
-
     @apihook("RtlEqualUnicodeString", argc=3)
     def RtlEqualUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1404,8 +1399,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         (Irp,) = argv
 
-        return
-
     @apihook("IoReuseIrp", argc=2)
     def IoReuseIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1415,7 +1408,6 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         Irp, Iostatus = argv
-        return
 
     @apihook("IoAllocateMdl", argc=5)
     def IoAllocateMdl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1868,8 +1860,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         Dpc, DeferredRoutine, DeferredContext = argv
 
-        return
-
     @apihook("ObReferenceObjectByName", argc=8)
     def ObReferenceObjectByName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1953,8 +1943,6 @@ class Ntoskrnl(api.ApiHandler):
         DriverObject, routine, context = argv
 
         self.queue_run("driver_reinit", routine, (DriverObject, context, 1))
-
-        return
 
     @apihook("KdDisableDebugger", argc=0)
     def KdDisableDebugger(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2273,8 +2261,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         (FastMutex,) = argv
 
-        return
-
     @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ExReleaseFastMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2283,8 +2269,6 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (FastMutex,) = argv
-
-        return
 
     @apihook("ObfReferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
     def ObfReferenceObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2596,8 +2580,6 @@ class Ntoskrnl(api.ApiHandler):
         """
         WorkItem, QueueType = argv
 
-        return
-
     @apihook("ZwDeviceIoControlFile", argc=10)
     def ZwDeviceIoControlFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2898,7 +2880,6 @@ class Ntoskrnl(api.ApiHandler):
         (spinlock,) = argv
         if spinlock:
             self.mem_write(spinlock, b"\x00" * emu.get_ptr_size())
-        return
 
     @apihook("KeAcquireSpinLock", argc=2)
     def KeAcquireSpinLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2913,7 +2894,6 @@ class Ntoskrnl(api.ApiHandler):
         if old_irql:
             self.mem_write(old_irql, bytes([irql]))
         self.set_current_irql(ddk.DISPATCH_LEVEL)
-        return
 
     @apihook("KeReleaseSpinLock", argc=2)
     def KeReleaseSpinLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2928,7 +2908,6 @@ class Ntoskrnl(api.ApiHandler):
             self.set_current_irql(new_irql & 0xFF)
         else:
             self.set_current_irql(ddk.PASSIVE_LEVEL)
-        return
 
     @apihook("MmUnlockPages", argc=1)
     def MmUnlockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2938,7 +2917,6 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (mdl,) = argv
-        return
 
     @apihook("IoFreeMdl", argc=1)
     def IoFreeMdl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2948,7 +2926,6 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (mdl,) = argv
-        return
 
     @apihook("KeCancelTimer", argc=1)
     def KeCancelTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
