@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_aton
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.arch as _arch
@@ -8,6 +9,9 @@ import speakeasy.winenv.defs.wininet as windefs
 from speakeasy.windows import netman
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 ERROR_INTERNET_UNRECOGNIZED_SCHEME = 12006
 DEFAULT_PORTS = {"http": 80, "https": 443, "ftp": 21}
@@ -39,7 +43,7 @@ class Wininet(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("InternetOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def InternetOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetOpen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET InternetOpen(
             LPCTSTR lpszAgent,
@@ -49,6 +53,9 @@ class Wininet(api.ApiHandler):
             DWORD dwFlags
         );
         """
+        ua: int | str
+        proxy: int | str
+        bypass: int | str
         ua, access, proxy, bypass, flags = argv
 
         cw = self.get_char_width(ctx)
@@ -67,7 +74,7 @@ class Wininet(api.ApiHandler):
         return hnd
 
     @apihook("InternetConnect", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def InternetConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetConnect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET InternetConnect(
             HINTERNET hInternet,
@@ -80,6 +87,9 @@ class Wininet(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
+        server: int | str
+        user: int | str
+        password: int | str
         hnd, server, port, user, password, service, flags, dwctx = argv
         port &= 0xFFFF
 
@@ -104,7 +114,7 @@ class Wininet(api.ApiHandler):
         return hdl
 
     @apihook("HttpOpenRequest", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def HttpOpenRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def HttpOpenRequest(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET HttpOpenRequest(
             HINTERNET hConnect,
@@ -117,6 +127,10 @@ class Wininet(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
+        verb: int | str
+        objname: int | str
+        ver: int | str
+        ref: int | str
         hnd, verb, objname, ver, ref, accepts, flags, dwctx = argv
 
         cw = self.get_char_width(ctx)
@@ -142,7 +156,7 @@ class Wininet(api.ApiHandler):
         return hdl
 
     @apihook("InternetCrackUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def InternetCrackUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetCrackUrl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetCrackUrl(
             LPCTSTR lpszUrl,
@@ -195,7 +209,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def InternetSetOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetSetOption(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetSetOption(
             HINTERNET hInternet,
@@ -211,7 +225,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetGetConnectedState", argc=2, conv=_arch.CALL_CONV_STDCALL)
-    def InternetGetConnectedState(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetGetConnectedState(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetGetConnectedState(
             LPDWORD lpdwFlags,
@@ -230,7 +244,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("HttpSendRequest", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def HttpSendRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def HttpSendRequest(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL HttpSendRequest(
             HINTERNET hRequest,
@@ -240,6 +254,7 @@ class Wininet(api.ApiHandler):
             DWORD dwOptionalLength
         );
         """
+        headers: int | str
         hnd, headers, hdrlen, lpOptional, dwOptionalLength = argv
 
         body = b""
@@ -266,7 +281,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetErrorDlg", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def InternetErrorDlg(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetErrorDlg(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD InternetErrorDlg(
             HWND hWnd,
@@ -279,7 +294,7 @@ class Wininet(api.ApiHandler):
         hWnd, req, error, flags, data = argv
 
     @apihook("InternetQueryOption", argc=4)
-    def InternetQueryOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetQueryOption(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetQueryOption(
             HINTERNET hInternet,
@@ -303,7 +318,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetReadFile", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def InternetReadFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetReadFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetReadFile(
             HINTERNET hFile,
@@ -332,7 +347,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("HttpQueryInfo", argc=5)
-    def HttpQueryInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def HttpQueryInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL HttpQueryInfo(
             HINTERNET hRequest,
@@ -383,7 +398,7 @@ class Wininet(api.ApiHandler):
         return True
 
     @apihook("InternetQueryDataAvailable", argc=4)
-    def InternetQueryDataAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetQueryDataAvailable(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetQueryDataAvailable(
             HINTERNET hFile,
@@ -405,7 +420,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetCloseHandle", argc=1)
-    def InternetCloseHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetCloseHandle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetCloseHandle(
             HINTERNET hInternet
@@ -419,7 +434,7 @@ class Wininet(api.ApiHandler):
         return rv
 
     @apihook("InternetOpenUrl", argc=6)
-    def InternetOpenUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InternetOpenUrl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET InternetOpenUrl(
             HINTERNET hInternet,
