@@ -537,6 +537,15 @@ class ApiHandler:
     def reg_get_key(self, handle):
         return self.emu.reg_get_key(handle)
 
+    def get_reg_key(self, handle):
+        """
+        Get the key of a predefined key or an open key handle.
+
+        Raises:
+            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
+        """
+        return self.emu.regman.get_key(handle)
+
     def reg_get_subkeys(self, hkey):
         return self.emu.reg_get_subkeys(hkey)
 

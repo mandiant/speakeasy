@@ -346,9 +346,6 @@ class FileManager:
                 return self.new_handle(fm)
         return None
 
-    def get_mapping_from_handle(self, handle):
-        return self.get_handle_object(handle, FileMap)
-
     def get_mapping_from_addr(self, addr):
         for fmap in self.mappings:
             if addr in fmap.views:

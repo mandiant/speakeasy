@@ -485,11 +485,9 @@ def test_nt_open_section_opens_a_named_section(dll_emu: Speakeasy) -> None:
 
     rv, handle = open_section(dll_emu, "\\Sessions\\1\\BaseNamedObjects\\shared")
     assert rv == ddk.STATUS_SUCCESS
-    mapping = dll_emu.emu.get_file_manager().get_mapping_from_handle(int.from_bytes(handle, "little"))
-    created = dll_emu.emu.get_file_manager().get_mapping_from_handle(
-        int.from_bytes(dll_emu.mem_read(phnd, 4), "little")
-    )
-    assert mapping is created is not None
+    fman = dll_emu.emu.get_file_manager()
+    mapping = fman.get_mapping(int.from_bytes(handle, "little"))
+    assert mapping is fman.get_mapping(int.from_bytes(dll_emu.mem_read(phnd, 4), "little"))
 
 
 def test_x86_ke_query_performance_counter_returns_in_edx_eax(driver_emu: Speakeasy) -> None:

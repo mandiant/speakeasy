@@ -195,14 +195,23 @@ class RegistryManager:
             path = path.rstrip("\\")
         return path
 
-    def get_key_from_handle(self, handle):
-        """Get the key of a predefined key or an open key handle, else None."""
+    def get_key(self, handle) -> RegKey:
+        """
+        Get the key of a predefined key or an open key handle.
+
+        Raises:
+            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
+        """
         handle = regdefs.normalize_hkey(handle)
         key = self.predefined_keys.get(handle)
         if key:
             return key
+        return self.get_handle_table().get(handle, RegKey)
+
+    def get_key_from_handle(self, handle):
+        """Get the key of a predefined key or an open key handle, else None."""
         try:
-            return self.get_handle_table().get(handle, RegKey)
+            return self.get_key(handle)
         except InvalidHandle:
             return None
 
