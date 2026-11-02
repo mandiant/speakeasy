@@ -4,7 +4,7 @@ import ctypes as ct
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from ctypes import *  # noqa
-from typing import Any
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 
 class EmuStructException(Exception):
@@ -59,7 +59,19 @@ class CMeta(type):
 
 
 class EmuStruct(metaclass=CMeta):
-    """Advanced Python class for interacting with C structures."""
+    """
+    A C struct built from ctypes fields.
+
+    A subclass declares its fields at class level, in the order of the C struct:
+
+        class UNICODE_STRING(EmuStruct):
+            Length: Annotated[int, ct.c_uint16]
+            MaximumLength: Annotated[int, ct.c_uint16]
+            Buffer: Annotated[int, Ptr]
+
+    A field that depends on ``ptr_size`` or on a constructor parameter is assigned in ``__init__`` after the
+    super call, for example ``self.Name = ct.c_uint8 * (4 * width)``. These fields come after the declared ones.
+    """
 
     # Save the unique types we create here
     # This is necessary since the ctypes metaclass won't allow us
@@ -67,6 +79,9 @@ class EmuStruct(metaclass=CMeta):
     # ctypes will test the id (address) of the type to make sure they match
     # upon assignment. Otherwise we will hit spurious TypeErrors.
     __types__: dict[tuple, type] = {}
+
+    # The fields that each class declares at class level, resolved at its first instance
+    __declared__: dict[type, list[tuple[str, Any]]] = {}
 
     class FilteredStruct(ct.Structure):
         def __hash__(self):
@@ -79,6 +94,27 @@ class EmuStruct(metaclass=CMeta):
         self.__dict__["__fields__"] = []
         self.__dict__["__ptrsize__"] = ptr_size
         self.__dict__["__filtermap__"] = {}
+        self.__dict__.update(self.get_declared_fields())
+
+    @classmethod
+    def get_declared_fields(cls) -> list[tuple[str, Any]]:
+        """
+        Get the fields of the class-level declarations, with the fields of the base classes first.
+
+        A field is ``Annotated`` with its type (``x: Annotated[int, ct.c_uint32]``), or is a nested struct
+        (``x: UNICODE_STRING``). The annotations are resolved at the first instance, so a field can name a
+        struct that the module defines later.
+        """
+        fields = EmuStruct.__declared__.get(cls)
+        if fields is None:
+            fields = []
+            for name, hint in get_type_hints(cls, include_extras=True).items():
+                if get_origin(hint) is Annotated:
+                    fields.append((name, get_args(hint)[1]))
+                elif isinstance(hint, type) and issubclass(hint, EmuStruct):
+                    fields.append((name, hint))
+            EmuStruct.__declared__[cls] = fields
+        return fields
 
     def _is_ctype(self, obj):
         """Test whether the object has a ctype base."""
