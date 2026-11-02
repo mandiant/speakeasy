@@ -27,17 +27,15 @@ STD_HANDLE_ATTRS = {0xFFFFFFF6: "stdin", 0xFFFFFFF5: "stdout", 0xFFFFFFF4: "stde
 
 
 class HandleAllocator:
+    """
+    Give out the handle values and object IDs of one emulator.
+
+    All handle types share one counter, so two open handles never have the same value.
+    """
+
     def __init__(self):
-        self._kernel_object_handle: int = 0x220
+        self._handle: int = 0x80
         self._kernel_object_id: int = 0x400
-        self._console_handle: int = 0x340
-        self._gui_object_handle: int = 0x120
-        self._wininet_handle: int = 0x20
-        self._file_handle: int = 0x80
-        self._file_map_handle: int = 0x280
-        self._pipe_handle: int = 0x400
-        self._reg_key_handle: int = 0x180
-        self._crypt_context_handle: int = 0x680
 
     def _next(self, attr: str) -> int:
         val: int = getattr(self, attr)
@@ -45,34 +43,34 @@ class HandleAllocator:
         return val
 
     def allocate_kernel_object_handle(self) -> int:
-        return self._next("_kernel_object_handle")
+        return self._next("_handle")
 
     def allocate_kernel_object_id(self) -> int:
         return self._next("_kernel_object_id")
 
     def allocate_console_handle(self) -> int:
-        return self._next("_console_handle")
+        return self._next("_handle")
 
     def allocate_gui_object_handle(self) -> int:
-        return self._next("_gui_object_handle")
+        return self._next("_handle")
 
     def allocate_wininet_handle(self) -> int:
-        return self._next("_wininet_handle")
+        return self._next("_handle")
 
     def allocate_file_handle(self) -> int:
-        return self._next("_file_handle")
+        return self._next("_handle")
 
     def allocate_file_map_handle(self) -> int:
-        return self._next("_file_map_handle")
+        return self._next("_handle")
 
     def allocate_pipe_handle(self) -> int:
-        return self._next("_pipe_handle")
+        return self._next("_handle")
 
     def allocate_reg_key_handle(self) -> int:
-        return self._next("_reg_key_handle")
+        return self._next("_handle")
 
     def allocate_crypt_context_handle(self) -> int:
-        return self._next("_crypt_context_handle")
+        return self._next("_handle")
 
 
 class Console:
