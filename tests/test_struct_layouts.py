@@ -420,7 +420,6 @@ XFAIL = {
     "fwpmtypes.FWPM_FILTER0-x86",
     "fwpmtypes.FWPM_SUBLAYER0-x64",
     "fwpmtypes.FWPM_SUBLAYER0-x86",
-    "iphlpapi.IP_ADAPTER_INFO-x86",
     "kernel32.OSVERSIONINFOA-x64",
     "kernel32.OSVERSIONINFOA-x86",
     "kernel32.OSVERSIONINFOEXA-x64",
