@@ -4668,7 +4668,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPCTSTR lpFileName
         );
         """
-        lpFileName = argv[0]
+        (lpFileName,) = argv
         cw = self.get_char_width(ctx)
         if not lpFileName:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
@@ -7203,7 +7203,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LARGE_INTEGER *lpFrequency
         );
         """
-        lpFrequency = argv[0]
+        (lpFrequency,) = argv
         self.mem_write(lpFrequency, (10000000).to_bytes(8, "little"))
         return 1
 
