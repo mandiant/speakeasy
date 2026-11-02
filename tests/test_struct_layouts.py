@@ -410,12 +410,6 @@ KERNEL_LAYOUTS = {
     "FILE_OBJECT": (FILE_OBJECT_X86, FILE_OBJECT_X64),
 }
 
-# Layouts that are not correct yet
-XFAIL = {
-    "user32.LVCOLUMNA-x64",
-    "user32.LVCOLUMNA-x86",
-}
-
 
 def get_defs_structs() -> list[type[EmuStruct]]:
     classes = []
@@ -507,9 +501,7 @@ def get_kernel_cases() -> list[Case]:
 
 
 def get_param(case: Case):
-    case_id = f"{case.cls.split('.')[-2]}.{case.name}-{case.arch}"
-    marks = [pytest.mark.xfail(strict=True)] if case_id in XFAIL else []
-    return pytest.param(case, id=case_id, marks=marks)
+    return pytest.param(case, id=f"{case.cls.split('.')[-2]}.{case.name}-{case.arch}")
 
 
 def get_cstruct(case: Case) -> type[ct.Structure]:
