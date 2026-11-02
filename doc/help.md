@@ -40,7 +40,6 @@ Check:
 
 Check:
 - [gdb.md](gdb.md)
-- [gdb-examples.md](gdb-examples.md)
 
 ### Need mounted files in emulated filesystem
 
