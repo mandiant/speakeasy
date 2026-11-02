@@ -77,7 +77,7 @@ class RegionInfo(BaseModel):
     tag: str = Field(description="Memory-map tag identifying the region.")
     base: HexInt = Field(description="Base address of the region.")
     size: HexInt = Field(description="Region size in bytes.")
-    prot: str | None = Field(default=None, description="Protection string (e.g. ``r-x``).")
+    perms: str | None = Field(default=None, description="Permission string (e.g. ``r-x``).")
 
 
 class ErrorInfo(BaseModel):
@@ -348,18 +348,18 @@ class MemoryRegion(BaseModel):
             "internal structures."
         )
     )
-    address: HexInt = Field(
+    base: HexInt = Field(
         description=(
             "Base address of the memory region.\n\n"
             "Treat this as the start of the region for disassembly and dump slicing."
         )
     )
     size: HexInt = Field(
-        description=("Region size in bytes.\n\nCombine with ``address`` to derive half-open address ranges.")
+        description=("Region size in bytes.\n\nCombine with ``base`` to derive half-open address ranges.")
     )
-    prot: str = Field(
+    perms: str = Field(
         description=(
-            "Protection string (for example ``r-x`` or ``rw-``).\n\n"
+            "Permission string (for example ``r-x`` or ``rw-``).\n\n"
             "Interpret this as the final effective page protection at capture time."
         )
     )
@@ -404,7 +404,7 @@ class ModuleSegment(BaseModel):
             "Useful for mapping behavior to familiar PE sections such as ``.text``."
         )
     )
-    address: HexInt = Field(
+    base: HexInt = Field(
         description=(
             "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges."
         )
@@ -412,9 +412,9 @@ class ModuleSegment(BaseModel):
     size: HexInt = Field(
         description=("Segment size in bytes.\n\nLarge executable segments usually contain primary code paths.")
     )
-    prot: str = Field(
+    perms: str = Field(
         description=(
-            "Effective memory protection for the segment.\n\n"
+            "Effective memory permissions for the segment, such as ``r-x``.\n\n"
             "Use this to identify writable-executable anomalies or data-only regions."
         )
     )

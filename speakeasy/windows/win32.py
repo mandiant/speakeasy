@@ -769,9 +769,9 @@ class Win32Emulator(WindowsEmulator):
                     hdr_access = {"reads": hdr_ma.reads, "writes": hdr_ma.writes, "execs": hdr_ma.execs}
                 hdr_dict: dict = {
                     "tag": hdr_tag,
-                    "address": mm_base,
+                    "base": mm_base,
                     "size": hdr_size,
-                    "prot": "r--",
+                    "perms": "r--",
                     "is_free": mm.free,
                     "accesses": hdr_access,
                 }
@@ -795,9 +795,9 @@ class Win32Emulator(WindowsEmulator):
                     sec_tag = f"emu.module.{mod_name}.{sect.name}.0x{sec_addr:x}"
                     sec_dict: dict = {
                         "tag": sec_tag,
-                        "address": sec_addr,
+                        "base": sec_addr,
                         "size": sect.virtual_size,
-                        "prot": sec_prot,
+                        "perms": sec_prot,
                         "is_free": mm.free,
                         "accesses": sec_access,
                     }
@@ -812,9 +812,9 @@ class Win32Emulator(WindowsEmulator):
             else:
                 region_dict: dict = {
                     "tag": tag,
-                    "address": mm_base,
+                    "base": mm_base,
                     "size": mm_size,
-                    "prot": prot,
+                    "perms": prot,
                     "is_free": mm.free,
                     "accesses": access_stats,
                 }
@@ -837,9 +837,9 @@ class Win32Emulator(WindowsEmulator):
                 segments.append(
                     {
                         "name": sect.name,
-                        "address": sect.virtual_address + m.base,
+                        "base": sect.virtual_address + m.base,
                         "size": sect.virtual_size,
-                        "prot": get_prot_string(sect.perms),
+                        "perms": get_prot_string(sect.perms),
                     }
                 )
             run.loaded_modules.append(

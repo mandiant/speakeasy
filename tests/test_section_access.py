@@ -33,10 +33,10 @@ def get_primary_sections(report):
         if not primary:
             continue
 
-        region_by_addr = {r.address: r for r in ep.memory.layout}
+        region_by_addr = {r.base: r for r in ep.memory.layout}
         sections = {}
         for seg in primary.segments:
-            region = region_by_addr.get(seg.address)
+            region = region_by_addr.get(seg.base)
             if region:
                 sections[seg.name.lstrip(".")] = region
         if sections:

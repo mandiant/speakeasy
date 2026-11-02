@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field
 
-from speakeasy.report_types import HexIntOptional
+from speakeasy.report_types import HexInt, HexIntOptional
 
 
 class EventType(str, Enum):
@@ -230,11 +230,11 @@ class MemAllocEvent(Event):
         default=EventType.MEM_ALLOC, description="Discriminator for memory allocation events."
     )
     path: str = Field(description="Target process path associated with the allocation event.")
-    base: str = Field(description="Allocated base address in hexadecimal string form.")
-    size: str = Field(description="Allocation size in hexadecimal string form.")
-    protect: str | None = Field(
+    base: HexInt = Field(description="Allocated base address.")
+    size: HexInt = Field(description="Allocation size in bytes.")
+    protect: list[str] | None = Field(
         default=None,
-        description="Requested memory protection flags, when provided by the API path.",
+        description="Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
     )
     pid: int | None = Field(
         default=None,
@@ -259,7 +259,7 @@ class MemWriteEvent(Event):
         default=EventType.MEM_WRITE, description="Discriminator for memory write events."
     )
     path: str = Field(description="Target process path associated with the write event.")
-    base: str = Field(description="Write start address in hexadecimal string form.")
+    base: HexInt = Field(description="Write start address.")
     size: int = Field(description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
@@ -288,7 +288,7 @@ class MemReadEvent(Event):
         default=EventType.MEM_READ, description="Discriminator for memory read events."
     )
     path: str = Field(description="Target process path associated with the read event.")
-    base: str = Field(description="Read start address in hexadecimal string form.")
+    base: HexInt = Field(description="Read start address.")
     size: int = Field(description="Number of bytes read.")
     data_ref: str | None = Field(
         default=None,
@@ -317,11 +317,11 @@ class MemProtectEvent(Event):
         description="Discriminator for memory protection change events.",
     )
     path: str = Field(description="Target process path associated with the protection change.")
-    base: str = Field(description="Protection-change base address in hexadecimal string form.")
-    size: str = Field(description="Protection-change size in hexadecimal string form.")
-    protect: str | None = Field(
+    base: HexInt = Field(description="Protection-change base address.")
+    size: HexInt = Field(description="Protection-change size in bytes.")
+    protect: list[str] | None = Field(
         default=None,
-        description="New protection value requested by the API call.",
+        description="Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
     )
     pid: int | None = Field(
         default=None,
@@ -345,8 +345,8 @@ class MemFreeEvent(Event):
         default=EventType.MEM_FREE, description="Discriminator for memory free events."
     )
     path: str = Field(description="Target process path associated with the free event.")
-    base: str = Field(description="Freed region base address in hexadecimal string form.")
-    size: str = Field(description="Freed region size in hexadecimal string form.")
+    base: HexInt = Field(description="Freed region base address.")
+    size: HexInt = Field(description="Freed region size in bytes.")
     pid: int | None = Field(
         default=None,
         description=(
@@ -370,8 +370,8 @@ class ModuleLoadEvent(Event):
     )
     name: str = Field(description="Loaded module name.")
     path: str = Field(description="Loaded module path in emulated filesystem space.")
-    base: str = Field(description="Module base address in hexadecimal string form.")
-    size: str = Field(description="Mapped module size in hexadecimal string form.")
+    base: HexInt = Field(description="Module base address.")
+    size: HexInt = Field(description="Mapped module size in bytes.")
 
 
 class ThreadCreateEvent(Event):

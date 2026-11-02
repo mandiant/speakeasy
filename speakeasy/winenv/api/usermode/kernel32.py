@@ -1178,8 +1178,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         buf = 0
         tag_prefix = "api.VirtualAlloc"
 
-        protect = decode(PAGE_PROTECTION_FLAGS, flProtect)
-        ctx.args["flProtect"].display = protect
+        prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
+        ctx.args["flProtect"].display = "|".join(prot_def)
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1215,7 +1215,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             proc = emu.get_current_process()
             if proc:
                 self.record_process_event(
-                    proc, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
+                    proc,
+                    EventType.MEM_ALLOC,
+                    base=buf,
+                    size=dwSize,
+                    type=flAllocationType,
+                    protect=prot_def or None,
                 )
 
             emu._set_dyn_code_hook(buf, size)
@@ -1259,8 +1264,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
 
-        protect = decode(PAGE_PROTECTION_FLAGS, flProtect)
-        ctx.args["flProtect"].display = protect
+        prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
+        ctx.args["flProtect"].display = "|".join(prot_def)
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1286,7 +1291,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             mm = emu.get_address_map(buf)
 
             self.record_process_event(
-                obj, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
+                obj, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=prot_def or None
             )
 
             emu._set_dyn_code_hook(buf, size)
@@ -1751,10 +1756,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = self.VirtualProtect(emu, argv[1:], ctx)
 
-        protect = decode(PAGE_PROTECTION_FLAGS, flNewProtect)
-        ctx.args["flNewProtect"].display = protect
+        prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flNewProtect)
+        ctx.args["flNewProtect"].display = "|".join(prot_def)
 
-        self.record_process_event(proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, protect=protect)
+        self.record_process_event(
+            proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def or None
+        )
 
         return rv
 

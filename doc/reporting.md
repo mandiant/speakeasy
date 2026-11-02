@@ -180,7 +180,7 @@ thread, even for a local create.
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
           "size": "0x1000",
-          "protect": "PAGE_EXECUTE_READWRITE",
+          "protect": ["PAGE_EXECUTE_READWRITE"],
           "pid": 4242
         },
         {
@@ -208,7 +208,7 @@ thread, even for a local create.
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x401000",
           "size": "0x1000",
-          "protect": "PAGE_EXECUTE_READ"
+          "protect": ["PAGE_EXECUTE_READ"]
         },
         {
           "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
@@ -419,9 +419,9 @@ thread, even for a local create.
         "layout": [
           {
             "tag": "emu.module.main..text.0x401000",
-            "address": "0x401000",
+            "base": "0x401000",
             "size": "0x2000",
-            "prot": "r-x",
+            "perms": "r-x",
             "is_free": false,
             "accesses": {
               "reads": 10,
@@ -442,9 +442,9 @@ thread, even for a local create.
             "segments": [
               {
                 "name": ".text",
-                "address": "0x401000",
+                "base": "0x401000",
                 "size": "0x2000",
-                "prot": "r-x"
+                "perms": "r-x"
               }
             ]
           }

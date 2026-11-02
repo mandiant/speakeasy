@@ -85,41 +85,41 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
         "layout": [
           {
             "tag": "emu.module.<hash>.exe.headers.0x10000000",
-            "address": "0x10000000",
+            "base": "0x10000000",
             "size": "0x1000",
-            "prot": "r--",
+            "perms": "r--",
             "accesses": null,
             "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..text.0x10001000",
-            "address": "0x10001000",
+            "base": "0x10001000",
             "size": "0xce4",
-            "prot": "r-x",
+            "perms": "r-x",
             "accesses": {"reads": 0, "writes": 0, "execs": 677},
             "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..rdata.0x10002000",
-            "address": "0x10002000",
+            "base": "0x10002000",
             "size": "0x876",
-            "prot": "r--",
+            "perms": "r--",
             "accesses": {"reads": 15, "writes": 0, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
             "tag": "emu.module.<hash>.exe..data.0x10003000",
-            "address": "0x10003000",
+            "base": "0x10003000",
             "size": "0x388",
-            "prot": "rw-",
+            "perms": "rw-",
             "accesses": {"reads": 30, "writes": 26, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
             "tag": "emu.stack.0x1200000",
-            "address": "0x1200000",
+            "base": "0x1200000",
             "size": "0x100000",
-            "prot": "rwx",
+            "perms": "rwx",
             "accesses": {"reads": 170, "writes": 210, "execs": 0},
             "data_ref": null
           }
@@ -151,16 +151,16 @@ Here is an actual report excerpt from `tests/bins/dll_test_x86.dll.xz` showing s
     "base": "0x10000000",
     "size": "0x7000",
     "segments": [
-      {"name": ".text", "address": "0x10001000", "size": "0xce4", "prot": "r-x"},
-      {"name": ".rdata", "address": "0x10002000", "size": "0x876", "prot": "r--"},
-      {"name": ".data", "address": "0x10003000", "size": "0x388", "prot": "rw-"}
+      {"name": ".text", "base": "0x10001000", "size": "0xce4", "perms": "r-x"},
+      {"name": ".rdata", "base": "0x10002000", "size": "0x876", "perms": "r--"},
+      {"name": ".data", "base": "0x10003000", "size": "0x388", "perms": "rw-"}
     ]
   },
   "layout": [
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe.headers.0x10000000", "address": "0x10000000", "size": "0x1000", "prot": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..text.0x10001000", "address": "0x10001000", "size": "0xce4", "prot": "r-x"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..rdata.0x10002000", "address": "0x10002000", "size": "0x876", "prot": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..data.0x10003000", "address": "0x10003000", "size": "0x388", "prot": "rw-"}
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe.headers.0x10000000", "base": "0x10000000", "size": "0x1000", "perms": "r--"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..text.0x10001000", "base": "0x10001000", "size": "0xce4", "perms": "r-x"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..rdata.0x10002000", "base": "0x10002000", "size": "0x876", "perms": "r--"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..data.0x10003000", "base": "0x10003000", "size": "0x388", "perms": "rw-"}
   ]
 }
 ```
@@ -186,17 +186,17 @@ A concrete run against `tests/bins/dll_test_x86.dll.xz` produced section-level c
 [
   {
     "tag": "emu.module.<sample>.exe..text.0x10001000",
-    "prot": "r-x",
+    "perms": "r-x",
     "accesses": {"reads": 0, "writes": 0, "execs": 677}
   },
   {
     "tag": "emu.module.<sample>.exe..rdata.0x10002000",
-    "prot": "r--",
+    "perms": "r--",
     "accesses": {"reads": 15, "writes": 0, "execs": 0}
   },
   {
     "tag": "emu.module.<sample>.exe..data.0x10003000",
-    "prot": "rw-",
+    "perms": "rw-",
     "accesses": {"reads": 30, "writes": 26, "execs": 0}
   }
 ]

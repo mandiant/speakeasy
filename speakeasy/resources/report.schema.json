@@ -1329,26 +1329,29 @@
           "type": "string"
         },
         "base": {
-          "description": "Allocated base address in hexadecimal string form.",
+          "description": "Allocated base address.",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Allocation size in hexadecimal string form.",
+          "description": "Allocation size in bytes.",
           "title": "Size",
           "type": "string"
         },
         "protect": {
           "anyOf": [
             {
-              "type": "string"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Requested memory protection flags, when provided by the API path.",
+          "description": "Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
           "title": "Protect"
         },
         "pid": {
@@ -1395,12 +1398,12 @@
           "type": "string"
         },
         "base": {
-          "description": "Freed region base address in hexadecimal string form.",
+          "description": "Freed region base address.",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Freed region size in hexadecimal string form.",
+          "description": "Freed region size in bytes.",
           "title": "Size",
           "type": "string"
         },
@@ -1448,26 +1451,29 @@
           "type": "string"
         },
         "base": {
-          "description": "Protection-change base address in hexadecimal string form.",
+          "description": "Protection-change base address.",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Protection-change size in hexadecimal string form.",
+          "description": "Protection-change size in bytes.",
           "title": "Size",
           "type": "string"
         },
         "protect": {
           "anyOf": [
             {
-              "type": "string"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "New protection value requested by the API call.",
+          "description": "Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
           "title": "Protect"
         },
         "pid": {
@@ -1514,7 +1520,7 @@
           "type": "string"
         },
         "base": {
-          "description": "Read start address in hexadecimal string form.",
+          "description": "Read start address.",
           "title": "Base",
           "type": "string"
         },
@@ -1580,7 +1586,7 @@
           "type": "string"
         },
         "base": {
-          "description": "Write start address in hexadecimal string form.",
+          "description": "Write start address.",
           "title": "Base",
           "type": "string"
         },
@@ -1686,19 +1692,19 @@
           "title": "Tag",
           "type": "string"
         },
-        "address": {
+        "base": {
           "description": "Base address of the memory region.\n\nTreat this as the start of the region for disassembly and dump slicing.",
-          "title": "Address",
+          "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Region size in bytes.\n\nCombine with ``address`` to derive half-open address ranges.",
+          "description": "Region size in bytes.\n\nCombine with ``base`` to derive half-open address ranges.",
           "title": "Size",
           "type": "string"
         },
-        "prot": {
-          "description": "Protection string (for example ``r-x`` or ``rw-``).\n\nInterpret this as the final effective page protection at capture time.",
-          "title": "Prot",
+        "perms": {
+          "description": "Permission string (for example ``r-x`` or ``rw-``).\n\nInterpret this as the final effective page protection at capture time.",
+          "title": "Perms",
           "type": "string"
         },
         "is_free": {
@@ -1735,9 +1741,9 @@
       },
       "required": [
         "tag",
-        "address",
+        "base",
         "size",
-        "prot"
+        "perms"
       ],
       "title": "MemoryRegion",
       "type": "object"
@@ -1768,12 +1774,12 @@
           "type": "string"
         },
         "base": {
-          "description": "Module base address in hexadecimal string form.",
+          "description": "Module base address.",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Mapped module size in hexadecimal string form.",
+          "description": "Mapped module size in bytes.",
           "title": "Size",
           "type": "string"
         }
@@ -1797,9 +1803,9 @@
           "title": "Name",
           "type": "string"
         },
-        "address": {
+        "base": {
           "description": "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges.",
-          "title": "Address",
+          "title": "Base",
           "type": "string"
         },
         "size": {
@@ -1807,17 +1813,17 @@
           "title": "Size",
           "type": "string"
         },
-        "prot": {
-          "description": "Effective memory protection for the segment.\n\nUse this to identify writable-executable anomalies or data-only regions.",
-          "title": "Prot",
+        "perms": {
+          "description": "Effective memory permissions for the segment, such as ``r-x``.\n\nUse this to identify writable-executable anomalies or data-only regions.",
+          "title": "Perms",
           "type": "string"
         }
       },
       "required": [
         "name",
-        "address",
+        "base",
         "size",
-        "prot"
+        "perms"
       ],
       "title": "ModuleSegment",
       "type": "object"
@@ -2542,7 +2548,7 @@
           "title": "Size",
           "type": "string"
         },
-        "prot": {
+        "perms": {
           "anyOf": [
             {
               "type": "string"
@@ -2552,8 +2558,8 @@
             }
           ],
           "default": null,
-          "description": "Protection string (e.g. ``r-x``).",
-          "title": "Prot"
+          "description": "Permission string (e.g. ``r-x``).",
+          "title": "Perms"
         }
       },
       "required": [

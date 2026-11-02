@@ -479,8 +479,8 @@ class Profiler:
             event = MemAllocEvent(
                 pos=pos,
                 path=path,
-                base=hex(kwargs.get("base", 0)),
-                size=hex(kwargs.get("size", 0)),
+                base=kwargs.get("base", 0),
+                size=kwargs.get("size", 0),
                 protect=kwargs.get("protect"),
                 pid=pid,
             )
@@ -489,8 +489,8 @@ class Profiler:
             event = MemProtectEvent(
                 pos=pos,
                 path=path,
-                base=hex(kwargs.get("base", 0)),
-                size=hex(kwargs.get("size", 0)),
+                base=kwargs.get("base", 0),
+                size=kwargs.get("size", 0),
                 protect=kwargs.get("protect"),
                 pid=pid,
             )
@@ -499,8 +499,8 @@ class Profiler:
             event = MemFreeEvent(
                 pos=pos,
                 path=path,
-                base=hex(kwargs.get("base", 0)),
-                size=hex(kwargs.get("size", 0)),
+                base=kwargs.get("base", 0),
+                size=kwargs.get("size", 0),
                 pid=pid,
             )
 
@@ -518,7 +518,7 @@ class Profiler:
             event = MemWriteEvent(
                 pos=pos,
                 path=path,
-                base=hex(base),
+                base=base,
                 size=size,
                 data_ref=self.put_binary_data(data, limit=1024),
                 pid=pid,
@@ -539,7 +539,7 @@ class Profiler:
             event = MemReadEvent(
                 pos=pos,
                 path=path,
-                base=hex(base),
+                base=base,
                 size=size,
                 data_ref=self.put_binary_data(data, limit=1024),
                 pid=pid,
@@ -729,9 +729,9 @@ class Profiler:
                     regions.append(
                         MemoryRegion(
                             tag=reg["tag"],
-                            address=reg["address"],
+                            base=reg["base"],
                             size=reg["size"],
-                            prot=reg["prot"],
+                            perms=reg["perms"],
                             is_free=reg.get("is_free", False),
                             accesses=accesses,
                             data_ref=reg.get("data_ref"),
@@ -742,9 +742,9 @@ class Profiler:
                     segs = [
                         ModuleSegment(
                             name=seg["name"],
-                            address=seg["address"],
+                            base=seg["base"],
                             size=seg["size"],
-                            prot=seg["prot"],
+                            perms=seg["perms"],
                         )
                         for seg in mod.get("segments", [])
                     ]
