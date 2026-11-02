@@ -7,7 +7,6 @@ import os
 import string
 import struct
 import zlib
-from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.windows.common as winemu
@@ -31,7 +30,7 @@ from speakeasy.profiler_events import (
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
-from speakeasy.windows.handles import CURRENT_THREAD_HANDLE
+from speakeasy.windows.handles import CURRENT_THREAD_HANDLE, HandleTable, InvalidHandle
 from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
     CREATE_TOOLHELP_SNAPSHOT_FLAGS,
@@ -161,6 +160,17 @@ def get_raw_smbios_data() -> bytes:
     return struct.pack("<BBBBI", 0, 3, 3, 0, len(tables)) + tables
 
 
+class Snapshot:
+    """Represents a toolhelp snapshot: the process, thread and module lists and the read index of each."""
+
+    def __init__(self, lists):
+        self.lists: dict[int, list[Any]] = lists
+
+
+class IoCompletionPort:
+    """Represents an I/O completion port. No I/O completes on it."""
+
+
 class Kernel32(ExceptionApis, api.ApiHandler):
     """
     Implements exported functions from kernel32.dll
@@ -179,10 +189,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.heaps: list[int] = []
         self.curr_local_atom: int = 0xC000
         self.local_atom_table: dict[int, tuple[str, int]] = {}
-        self.curr_handle: int = 0x1800
-        self.find_files: dict[int, dict[str, Iterator[tuple[str, bool]]]] = {}
-        self.find_volumes: dict[int, dict[str, Iterator[str]]] = {}
-        self.snapshots: dict[int, dict[int, list[Any]]] = {}
+        # Find handles are not kernel objects, so CloseHandle does not close them
+        self.find_files: HandleTable = HandleTable(emu.handle_allocator, release=lambda obj: None)
+        self.find_volumes: HandleTable = HandleTable(emu.handle_allocator, release=lambda obj: None)
         self.tls_count: int = 0
         self.fls_count: int = 0
         self.tick_counter: int = winemu.START_TICK_COUNT
@@ -291,9 +300,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def get_local_atom_name(self, atom):
         return self.local_atom_table.get(atom, (None, None))[0]
 
-    def get_handle(self):
-        self.curr_handle += 4
-        return self.curr_handle
+    def get_search(self, table, handle):
+        """Get the search of an open find handle in ``table``, else None."""
+        try:
+            return table.get(handle)
+        except InvalidHandle:
+            return None
+
+    def get_snapshot(self, emu, handle):
+        """Get the lists of an open snapshot handle, else None."""
+        try:
+            return emu.get_handle_table().get(handle, Snapshot).lists
+        except InvalidHandle:
+            return None
 
     def create_heap(self, emu):
         heap = self.mem_alloc(20, tag="emu.process_heap")
@@ -632,15 +651,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             processes = emu.get_processes()
 
         # TH32CS_SNAPHEAPLIST is not emulated, so a snapshot never has a heap list
-        hnd = self.get_handle()
-        self.snapshots.update(
-            {
-                hnd: {
+        hnd = emu.get_handle_table().new_handle(
+            Snapshot(
+                {
                     CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS: [0, processes],
                     CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD: [0, threads, pid],
                     CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE: [0, modules, pid],
                 }
-            }
+            )
         )
 
         ctx.args["dwFlags"].display = decode(CREATE_TOOLHELP_SNAPSHOT_FLAGS, dwFlags)
@@ -690,7 +708,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
             return rv
 
@@ -718,7 +736,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
             return rv
 
@@ -746,7 +764,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
             return rv
 
@@ -780,7 +798,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
             return rv
 
@@ -828,7 +846,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
             return rv
 
@@ -856,7 +874,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ) = argv
         rv = False
 
-        snap = self.snapshots.get(hSnapshot)
+        snap = self.get_snapshot(emu, hSnapshot)
         if not snap or not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
             return rv
 
@@ -4922,10 +4940,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hObject,) = argv
 
-        if self.snapshots.pop(hObject, None) is not None:
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return 1
-
         reg_key = emu.reg_get_key(handle=hObject)
         if reg_key:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
@@ -5921,13 +5935,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         fm = emu.get_file_manager()
         walker = fm.find_matching_entries(srch)
-        hnd = self.get_handle()
-        self.find_files.update({hnd: {"walker": walker}})
+        hnd = self.find_files.new_handle({"walker": walker})
 
         try:
             name, is_dir = next(walker)
         except StopIteration:
-            self.find_files.pop(hnd)
+            self.find_files.close(hnd)
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return self.get_max_int()
 
@@ -5958,7 +5971,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        fsearch = self.find_files.get(hFindFile)
+        fsearch = self.get_search(self.find_files, hFindFile)
 
         if not hFindFile or not lpFindFileData or not fsearch:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
@@ -5998,8 +6011,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (hFindFile,) = argv
 
         try:
-            self.find_files.pop(hFindFile)
-        except KeyError:
+            self.find_files.close(hFindFile)
+        except InvalidHandle:
             return False
 
         return True
@@ -7217,8 +7230,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return self.get_max_int()
 
-        hnd = self.get_handle()
-        self.find_volumes.update({hnd: {"walker": dw}})
+        hnd = self.find_volumes.new_handle({"walker": dw})
         ctx.args["lpszVolumeName"].display = volume_guid_path
         self.write_mem_string(volume_guid_path + "\x00", lpszVolumeName, cw)
 
@@ -7237,7 +7249,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        dsearch = self.find_volumes.get(hFindVolume)
+        dsearch = self.get_search(self.find_volumes, hFindVolume)
         if not hFindVolume or not dsearch:
             return 0
 
@@ -7264,8 +7276,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (hFindVolume,) = argv
 
         try:
-            self.find_volumes.pop(hFindVolume)
-        except KeyError:
+            self.find_volumes.close(hFindVolume)
+        except InvalidHandle:
             return 0
 
         return 1
@@ -7283,7 +7295,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         FileHandle, ExistingCompletionPort, CompletionKey, NumberOfConcurrentThreads = argv
 
         # TODO: Implement completion port creation
-        hnd = self.get_handle()
+        hnd = emu.get_handle_table().new_handle(IoCompletionPort())
 
         return hnd
 
