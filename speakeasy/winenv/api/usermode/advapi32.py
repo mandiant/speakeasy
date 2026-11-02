@@ -123,7 +123,7 @@ class AdvApi32(api.ApiHandler):
             self.record_registry_access_event(hkey_name, REG_OPEN, handle=hnd)
 
         if phkResult:
-            self.mem_write(phkResult, (hnd or 0).to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(phkResult, hnd or 0)
 
         return rv
 
@@ -131,7 +131,7 @@ class AdvApi32(api.ApiHandler):
         code = val.get_type()
         if not lpType or not isinstance(code, int):
             return
-        self.mem_write(lpType, code.to_bytes(4, "little"))
+        self.write_dword(lpType, code)
         arg.display = regdefs.get_value_type(code)
 
     @apihook("RegQueryValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
@@ -169,7 +169,7 @@ class AdvApi32(api.ApiHandler):
             self.write_value_type(val, lpType, ctx.args["lpType"])
             output = val.get_bytes(cw)
             if lpcbData:
-                self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+                self.write_dword(lpcbData, len(output))
             if lpData:
                 if not lpcbData:
                     rv = windefs.ERROR_INVALID_PARAMETER
@@ -187,7 +187,7 @@ class AdvApi32(api.ApiHandler):
                 except Exception:
                     return windefs.ERROR_INVALID_PARAMETER
             if lpcbData:
-                self.mem_write(lpcbData, len(output).to_bytes(4, "little"))
+                self.write_dword(lpcbData, len(output))
             rv = windefs.ERROR_SUCCESS
 
         kp = key.get_path()
@@ -307,10 +307,10 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, dwIndex, lpName, lpcchName, lpReserved, lpClass, lpcchClass, lpftLastWriteTime = argv
 
-        cch = int.from_bytes(self.mem_read(lpcchName, 4), "little") if lpcchName else 0
+        cch = self.read_dword(lpcchName) if lpcchName else 0
         rv, name = self.enum_key(hKey, dwIndex & 0xFFFFFFFF, lpName, cch, ctx)
         if rv == windefs.ERROR_SUCCESS:
-            self.mem_write(lpcchName, len(name).to_bytes(4, "little"))
+            self.write_dword(lpcchName, len(name))
         return rv
 
     def enum_key(self, hKey, dwIndex, lpName, cch, ctx):
@@ -370,7 +370,7 @@ class AdvApi32(api.ApiHandler):
                     hnd = self.reg_open_key(sub_key_path, create=True)
                     self.record_registry_access_event(sub_key_path, REG_CREATE, handle=hnd)
                 if phkResult:
-                    self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
+                    self.write_ptr(phkResult, hnd)
                 rv = windefs.ERROR_SUCCESS
         return rv
 
@@ -419,11 +419,11 @@ class AdvApi32(api.ApiHandler):
             return windefs.ERROR_PATH_NOT_FOUND
 
         if phkResult:
-            self.mem_write(phkResult, hnd.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(phkResult, hnd)
 
         if lpdwDisposition:
             disp = 2 if existing else 1
-            self.mem_write(lpdwDisposition, disp.to_bytes(4, "little"))
+            self.write_dword(lpdwDisposition, disp)
 
         self.record_registry_access_event(key_path, REG_CREATE, handle=hnd)
         return windefs.ERROR_SUCCESS
@@ -515,7 +515,7 @@ class AdvApi32(api.ApiHandler):
             (lpcbSecurityDescriptor, 0),
         ):
             if ptr:
-                self.mem_write(ptr, val.to_bytes(4, "little"))
+                self.write_dword(ptr, val)
         if lpftLastWriteTime:
             self.mem_write(lpftLastWriteTime, b"\x00" * 8)
 
@@ -904,7 +904,7 @@ class AdvApi32(api.ApiHandler):
         required = (4 * 4) + (5 * ptr_size)
 
         if pcbBytesNeeded:
-            self.mem_write(pcbBytesNeeded, required.to_bytes(4, "little"))
+            self.write_dword(pcbBytesNeeded, required)
 
         if not lpServiceConfig or cbBufSize < required:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -1054,7 +1054,7 @@ class AdvApi32(api.ApiHandler):
         hnd = cm.crypt_open(cname=cont_str, pname=prov_str, ptype=dwProvType, flags=dwFlags)
 
         if hnd and phProv:
-            self.mem_write(phProv, hnd.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(phProv, hnd)
             rv = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -1105,7 +1105,7 @@ class AdvApi32(api.ApiHandler):
         data = bytes([1, nSubAuthorityCount]) + self.mem_read(pIdentifierAuthority, 6)
         data += b"".join((sa & 0xFFFFFFFF).to_bytes(4, "little") for sa in subauthorities[:nSubAuthorityCount])
         self.mem_write(sid, data)
-        self.mem_write(pSid, sid.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(pSid, sid)
         return True
 
     @apihook("InitializeSid", argc=3)
@@ -1196,7 +1196,7 @@ class AdvApi32(api.ApiHandler):
         rv = False
 
         if IsMember:
-            self.mem_write(IsMember, (1).to_bytes(4, "little"))
+            self.write_dword(IsMember, 1)
             rv = True
         return rv
 
@@ -1324,9 +1324,9 @@ class AdvApi32(api.ApiHandler):
         ctx.args["lpBuffer"].display = user_name
 
         need = len(user_name) + 1
-        size = int.from_bytes(self.mem_read(pcbBuffer, 4), "little") if pcbBuffer else 0
+        size = self.read_dword(pcbBuffer) if pcbBuffer else 0
         if pcbBuffer:
-            self.mem_write(pcbBuffer, need.to_bytes(4, "little"))
+            self.write_dword(pcbBuffer, need)
         if not lpBuffer or size < need:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return rv
@@ -1398,7 +1398,7 @@ class AdvApi32(api.ApiHandler):
             sid = self.get_bytes(windefs.convert_sid_str_to_struct(ptr_size, str_sid))
             size = 2 * ptr_size + len(sid)
             if ReturnLength:
-                self.mem_write(ReturnLength, size.to_bytes(4, "little"))
+                self.write_dword(ReturnLength, size)
             if not TokenInformation or TokenInformationLength < size:
                 emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                 return False
@@ -1413,9 +1413,9 @@ class AdvApi32(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
 
         if TokenInformationClass == 20 and TokenInformation and TokenInformationLength >= 4:
-            self.mem_write(TokenInformation, int(emu.config.user.is_admin).to_bytes(4, "little"))
+            self.write_dword(TokenInformation, int(emu.config.user.is_admin))
         if ReturnLength:
-            self.mem_write(ReturnLength, (4).to_bytes(4, "little"))
+            self.write_dword(ReturnLength, 4)
 
         return rv
 
@@ -1439,7 +1439,7 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
         buf = self.heap_alloc((len(text) + 1) * cw, heap="LocalAlloc")
         self.write_mem_string(text, buf, cw)
-        self.mem_write(StringSid, buf.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(StringSid, buf)
         ctx.args["Sid"].display = text
         return True
 
@@ -1548,8 +1548,8 @@ class AdvApi32(api.ApiHandler):
         ctx.args["cchReferencedDomainName"].display = hex(cbcchdomname)
 
         if not Sid or cbsid < side_struct_size or not ReferencedDomainName or cbcchdomname < len(domain) + 1:
-            self.mem_write(cbSid, side_struct_size.to_bytes(4, "little"))
-            self.mem_write(cchReferencedDomainName, (len(domain) + 1).to_bytes(4, "little"))
+            self.write_dword(cbSid, side_struct_size)
+            self.write_dword(cchReferencedDomainName, len(domain) + 1)
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return rv
 
@@ -1558,11 +1558,11 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(Sid, self.get_bytes(sid_struct))
 
         self.write_mem_string(domain, ReferencedDomainName, cw)
-        self.mem_write(cchReferencedDomainName, len(domain).to_bytes(4, "little"))
+        self.write_dword(cchReferencedDomainName, len(domain))
         ctx.args["ReferencedDomainName"].display = domain
 
         # Currently only supporting user SIDs (SidTypeUser = 1)
-        self.mem_write(peUse, (1).to_bytes(4, "little"))
+        self.write_dword(peUse, 1)
         ctx.args["peUse"].display = hex(1)
 
         return rv
@@ -1600,17 +1600,17 @@ class AdvApi32(api.ApiHandler):
 
         user, domain = "myuser", "mydomain"
         if not Name or not ReferencedDomainName or name_size < len(user) + 1 or dom_size < len(domain) + 1:
-            self.mem_write(cchName, (len(user) + 1).to_bytes(4, "little"))
-            self.mem_write(cchReferencedDomainName, (len(domain) + 1).to_bytes(4, "little"))
+            self.write_dword(cchName, len(user) + 1)
+            self.write_dword(cchReferencedDomainName, len(domain) + 1)
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return rv
 
         self.write_mem_string(user, Name, cw)
         self.write_mem_string(domain, ReferencedDomainName, cw)
-        self.mem_write(cchName, len(user).to_bytes(4, "little"))
-        self.mem_write(cchReferencedDomainName, len(domain).to_bytes(4, "little"))
+        self.write_dword(cchName, len(user))
+        self.write_dword(cchReferencedDomainName, len(domain))
         if peUse:
-            self.mem_write(peUse, (1).to_bytes(4, "little"))
+            self.write_dword(peUse, 1)
         rv = True
 
         return rv
@@ -1715,7 +1715,7 @@ class AdvApi32(api.ApiHandler):
 
         hnd = self.get_handle()
         self.hash_objects.update({hnd: hash_algs[Algid][1]()})
-        self.mem_write(phHash, hnd.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(phHash, hnd)
         return 1
 
     @apihook("CryptHashData", argc=4)
@@ -1771,8 +1771,8 @@ class AdvApi32(api.ApiHandler):
         else:
             return 1
 
-        size = int.from_bytes(self.mem_read(pdwDataLen, 4), "little")
-        self.mem_write(pdwDataLen, len(value).to_bytes(4, "little"))
+        size = self.read_dword(pdwDataLen)
+        self.write_dword(pdwDataLen, len(value))
         if not pbData:
             return 1
         if size < len(value):
@@ -1817,7 +1817,7 @@ class AdvApi32(api.ApiHandler):
         buffered = bits // 8 % 64
         pending = (self.mem_read(context + 24, buffered) if buffered else b"") + block
         partial = pending[len(pending) - (bits // 8 + inlen) % 64 :]
-        self.mem_write(context, ((bits + inlen * 8) & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little"))
+        self.write_qword(context, (bits + inlen * 8) & 0xFFFFFFFFFFFFFFFF)
         self.mem_write(context + 24, partial)
 
     @apihook("MD5Final", argc=1)
@@ -1891,7 +1891,7 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(hKey.keyp, fixed_digest)
 
         self.mem_write(hKeyp, hKey.get_bytes())
-        self.mem_write(phKey, hKeyp.to_bytes(ptrsz, "little"))
+        self.write_ptr(phKey, hKeyp)
 
         return 1
 
@@ -1935,7 +1935,7 @@ class AdvApi32(api.ApiHandler):
         declen = len(dec)
 
         self.mem_write(pbData, dec)
-        self.mem_write(pdwDataLen, int.to_bytes(declen, 4, "little"))
+        self.write_dword(pdwDataLen, declen)
 
         if Final:
             self.rc4 = None
@@ -1988,7 +1988,7 @@ class AdvApi32(api.ApiHandler):
                 self.write_value_type(val, pdwType, ctx.args["pdwType"])
                 output = val.get_bytes(cw)
                 if pcbData:
-                    self.mem_write(pcbData, len(output).to_bytes(4, "little"))
+                    self.write_dword(pcbData, len(output))
                 if pvData:
                     if not pcbData:
                         rv = windefs.ERROR_INVALID_PARAMETER
@@ -2059,7 +2059,7 @@ class AdvApi32(api.ApiHandler):
             and dwServiceState
             & (adv32.SERVICE_ACTIVE if service[3] == adv32.SERVICE_RUNNING else adv32.SERVICE_INACTIVE)
         ]
-        start = int.from_bytes(self.mem_read(lpResumeHandle, 4), "little") if lpResumeHandle else 0
+        start = self.read_dword(lpResumeHandle) if lpResumeHandle else 0
         services = services[start:]
 
         def encode(text):
@@ -2089,7 +2089,7 @@ class AdvApi32(api.ApiHandler):
             (lpResumeHandle, start + count if needed else 0),
         ):
             if ptr:
-                self.mem_write(ptr, value.to_bytes(4, "little"))
+                self.write_dword(ptr, value)
         if needed:
             emu.set_last_error(windefs.ERROR_MORE_DATA)
             return 0
