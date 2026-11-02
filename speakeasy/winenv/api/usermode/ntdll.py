@@ -10,7 +10,7 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler_events import THREAD_CREATE, THREAD_INJECT
-from speakeasy.windows import seh
+from speakeasy.windows import objman, seh
 from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
@@ -770,7 +770,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         return False
 
-    @apihook("NtCreateThreadEx", argc=11)
+    @apihook("NtCreateThreadEx", argc=11, fail=ddk.STATUS_INVALID_HANDLE)
     def NtCreateThreadEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtCreateThreadEx(
@@ -801,13 +801,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             AttributeList,
         ) = argv
 
-        if ProcessHandle == self.get_max_int():
-            proc_obj = emu.get_current_process()
-        else:
-            proc_obj = self.get_object_from_handle(ProcessHandle)
-        if not proc_obj:
-            return ddk.STATUS_INVALID_HANDLE
-
+        proc_obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
         proc_path = proc_obj.path
         ctx.args["ProcessHandle"].display = proc_path
 
@@ -833,7 +827,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("NtTerminateProcess", argc=2)
+    @apihook("NtTerminateProcess", argc=2, fail=ddk.STATUS_INVALID_HANDLE)
     def NtTerminateProcess(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtTerminateProcess(
@@ -849,14 +843,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         if not ProcessHandle:
             return ddk.STATUS_SUCCESS
 
-        if ProcessHandle == self.get_max_int():
-            self.exit_process()
-            return ddk.STATUS_SUCCESS
-
-        proc = emu.get_object_from_handle(ProcessHandle)
-        if not proc:
-            return ddk.STATUS_INVALID_HANDLE
-
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
         if proc is emu.get_current_process():
             self.exit_process()
         else:
