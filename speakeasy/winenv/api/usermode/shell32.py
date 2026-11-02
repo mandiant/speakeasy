@@ -105,15 +105,9 @@ class Shell32(api.ApiHandler):
         self.funcs = {}
         self.data = {}
         self.window_hooks: dict[int, tuple] = {}
-        self.handle: int = 0
-        self.curr_handle: int = 0x2800
         self.pidls: dict[int, str] = {}
 
         super().__get_hook_attrs__(self)
-
-    def get_handle(self):
-        self.curr_handle += 4
-        return self.curr_handle
 
     def get_folder_path(self, emu, csidl):
         path = shell32_defs.CSIDL_PATHS.get(csidl, "C:\\Windows\\Temp")
@@ -336,7 +330,7 @@ class Shell32(api.ApiHandler):
             UINT nIconIndex
         );
         """
-        return self.get_handle()
+        return emu.handle_allocator.allocate_handle()
 
     @apihook("SHGetFolderPath", argc=5)
     def SHGetFolderPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
