@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 DXGI_ERROR_UNSUPPORTED = 0x887A0004
 
@@ -22,7 +27,7 @@ class Dxgi(api.ApiHandler):
             self.mem_write(address, b"\x00" * self.get_ptr_size())
 
     @apihook("CreateDXGIFactory", argc=2)
-    def CreateDXGIFactory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDXGIFactory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory(
             REFIID riid,
@@ -34,7 +39,7 @@ class Dxgi(api.ApiHandler):
         return DXGI_ERROR_UNSUPPORTED
 
     @apihook("CreateDXGIFactory1", argc=2)
-    def CreateDXGIFactory1(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDXGIFactory1(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory1(
             REFIID riid,
@@ -46,7 +51,7 @@ class Dxgi(api.ApiHandler):
         return DXGI_ERROR_UNSUPPORTED
 
     @apihook("CreateDXGIFactory2", argc=3)
-    def CreateDXGIFactory2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateDXGIFactory2(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory2(
             UINT Flags,
