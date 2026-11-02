@@ -5386,7 +5386,7 @@ class Msvcrt(api.ApiHandler):
         self.init_basic_streambuf(filebuf)
         self.write_ptr(filebuf, vtable)
         for slot, handler in virtuals.items():
-            self.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))
+            self.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))  # type: ignore[attr-defined]
         ios = ptr + 8
         vbtable = ios + IOS64_SIZE
         self.mem_write(vbtable, struct.pack("<ii", 0, ios - ptr))
