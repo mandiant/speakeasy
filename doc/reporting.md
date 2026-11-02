@@ -170,7 +170,7 @@ thread, even for a local create.
           "pos": {"tick": 20, "tid": 2000, "pid": 1337, "pc": "0x40100a"},
           "event": "process_create",
           "path": "C:\\Windows\\System32\\cmd.exe",
-          "cmdline": "cmd.exe /c whoami",
+          "command_line": "cmd.exe /c whoami",
           "pid": 4200
         },
         {
@@ -231,7 +231,7 @@ thread, even for a local create.
           "pos": {"tick": 90, "tid": 2000, "pid": 1337, "pc": "0x401050"},
           "event": "thread_create",
           "path": "C:\\Windows\\System32\\sample.exe",
-          "start_addr": "0x401500",
+          "start_address": "0x401500",
           "param": "0x0",
           "tid": 2100
         },
@@ -239,7 +239,7 @@ thread, even for a local create.
           "pos": {"tick": 100, "tid": 2000, "pid": 1337, "pc": "0x40105a"},
           "event": "thread_inject",
           "path": "C:\\Windows\\System32\\notepad.exe",
-          "start_addr": "0x10000000",
+          "start_address": "0x10000000",
           "param": "0x0",
           "pid": 4242,
           "tid": 4300

@@ -1420,7 +1420,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpThreadId:
             self.write_dword(lpThreadId, obj.id)
 
-        self.record_process_event(proc_obj, evt_type, start_addr=lpStartAddress, param=lpParameter, tid=obj.id)
+        self.record_process_event(proc_obj, evt_type, start_address=lpStartAddress, param=lpParameter, tid=obj.id)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
 
@@ -1455,7 +1455,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             self.write_dword(lpThreadId, obj.id)
 
         self.record_process_event(
-            proc_obj, EventType.THREAD_CREATE, start_addr=lpStartAddress, param=lpParameter, tid=obj.id
+            proc_obj, EventType.THREAD_CREATE, start_address=lpStartAddress, param=lpParameter, tid=obj.id
         )
 
         emu.set_last_error(windefs.ERROR_SUCCESS)

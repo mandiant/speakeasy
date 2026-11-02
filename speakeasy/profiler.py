@@ -471,7 +471,7 @@ class Profiler:
             event = ProcessCreateEvent(
                 pos=pos,
                 path=path,
-                cmdline=proc.cmdline,
+                command_line=proc.cmdline,
                 pid=pid,
             )
 
@@ -550,8 +550,8 @@ class Profiler:
             event = ThreadInjectEvent(
                 pos=pos,
                 path=path,
-                start_addr=hex(kwargs["start_addr"]),
-                param=hex(kwargs["param"]),
+                start_address=kwargs["start_address"],
+                param=kwargs["param"],
                 pid=pid,
                 tid=kwargs.get("tid"),
             )
@@ -560,8 +560,8 @@ class Profiler:
             event = ThreadCreateEvent(
                 pos=pos,
                 path=path,
-                start_addr=hex(kwargs["start_addr"]),
-                param=hex(kwargs["param"]),
+                start_address=kwargs["start_address"],
+                param=kwargs["param"],
                 pid=pid,
                 tid=kwargs.get("tid"),
             )

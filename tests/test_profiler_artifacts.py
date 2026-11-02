@@ -150,7 +150,7 @@ def test_local_thread_create_keeps_target_tid():
     actor = TargetProcess(id=3, path="C:\\sample.exe")
 
     profiler.record_process_event(
-        run, pos, actor, EventType.THREAD_CREATE, {"start_addr": 0x401500, "param": 0, "tid": 44}
+        run, pos, actor, EventType.THREAD_CREATE, {"start_address": 0x401500, "param": 0, "tid": 44}
     )
     report = build_report(profiler, run)
 
@@ -166,7 +166,7 @@ def test_remote_thread_inject_carries_target_pid_and_tid():
     target = TargetProcess(id=9, path="C:\\victim.exe")
 
     profiler.record_process_event(
-        run, pos, target, EventType.THREAD_INJECT, {"start_addr": 0x401500, "param": 0, "tid": 44}
+        run, pos, target, EventType.THREAD_INJECT, {"start_address": 0x401500, "param": 0, "tid": 44}
     )
     report = build_report(profiler, run)
 

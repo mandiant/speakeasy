@@ -204,7 +204,7 @@ class ProcessCreateEvent(Event):
             "Target process image path.\n\nRepresents the emulated executable location requested by the sample."
         )
     )
-    cmdline: str = Field(
+    command_line: str = Field(
         description=(
             "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments."
         )
@@ -389,8 +389,8 @@ class ThreadCreateEvent(Event):
         description="Discriminator for thread creation events.",
     )
     path: str = Field(description="Target process path where the thread is created.")
-    start_addr: str = Field(description="Thread start address in hexadecimal string form.")
-    param: str = Field(description="Thread parameter pointer/value in hexadecimal string form.")
+    start_address: HexInt = Field(description="Thread start address.")
+    param: HexInt = Field(description="Thread parameter pointer or value.")
     pid: int | None = Field(
         default=None,
         description=(
@@ -418,8 +418,8 @@ class ThreadInjectEvent(Event):
         description="Discriminator for thread injection events.",
     )
     path: str = Field(description="Target process path receiving the injected thread.")
-    start_addr: str = Field(description="Injected thread start address in hexadecimal string form.")
-    param: str = Field(description="Injected thread parameter in hexadecimal string form.")
+    start_address: HexInt = Field(description="Injected thread start address.")
+    param: HexInt = Field(description="Injected thread parameter pointer or value.")
     pid: int | None = Field(
         default=None,
         description=(
