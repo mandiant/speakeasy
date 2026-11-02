@@ -308,10 +308,7 @@ class Shell32(api.ApiHandler):
             self.write_ptr(ptrs + (i * ptrsize), strs)
 
             p += "\x00"
-            if cw == 2:
-                s = p.encode("utf-16le")
-            else:
-                s = p.encode("utf-8")
+            s = self.encode_string(p, cw)
             self.mem_write(strs, s)
 
             strs += len(s)
