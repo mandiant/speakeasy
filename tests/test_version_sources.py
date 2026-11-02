@@ -54,3 +54,14 @@ def test_peb_reads_the_config(win10_config: dict[str, Any], load_test_bin: Calla
         # USHORT OSCSDVersion at 0xAE, ULONG OSPlatformId at 0xB0
         major, minor, build, _, platform = struct.unpack("<IIHHI", se.mem_read(peb.address + 0xA4, 16))
         assert (major, minor, build, platform) == (10, 0, 19045, windefs.VER_PLATFORM_WIN32_NT)
+
+
+@pytest.mark.parametrize("bin_name, base", [("dll_test_x86.dll.xz", 0x7FFE0000), ("wdm_test_x86.sys.xz", 0xFFDF0000)])
+def test_user_shared_data_reads_the_config(
+    win10_config: dict[str, Any], load_test_bin: Callable[[str], bytes], bin_name: str, base: int
+) -> None:
+    for se in load_emu(win10_config, load_test_bin(bin_name)):
+        # KUSER_SHARED_DATA: ULONG NtBuildNumber at 0x260, NT_PRODUCT_TYPE NtProductType at 0x264,
+        # BOOLEAN ProductTypeIsValid at 0x268, ULONG NtMajorVersion at 0x26C, ULONG NtMinorVersion at 0x270
+        build, product_type, is_valid, major, minor = struct.unpack("<IIBxxxII", se.mem_read(base + 0x260, 20))
+        assert (build, product_type, is_valid, major, minor) == (19045, 1, 1, 10, 0)
