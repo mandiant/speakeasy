@@ -13,6 +13,7 @@ from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
+    from speakeasy.windows.win32 import Win32Emulator
 
 INADDR_NONE = 0xFFFFFFFF
 HOST_NOT_FOUND = 11001
@@ -40,7 +41,7 @@ class Ws2_32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WSAStartup", argc=2, conv=_arch.CALL_CONV_STDCALL, ordinal=115)
-    def WSAStartup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSAStartup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAStartup(
             WORD wVersionRequired,
@@ -64,14 +65,14 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("WSACleanup", argc=0, ordinal=116)
-    def WSACleanup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSACleanup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSACleanup();
         """
         return 0
 
     @apihook("WSASocket", argc=6)
-    def WSASocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSASocket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SOCKET WSASocket(
             int af,
@@ -97,7 +98,7 @@ class Ws2_32(api.ApiHandler):
         return fd
 
     @apihook("WSAIoctl", argc=9, conv=_arch.CALL_CONV_STDCALL)
-    def WSAIoctl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSAIoctl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAIoctl(
             SOCKET s,
@@ -116,7 +117,7 @@ class Ws2_32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("WSAConnect", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def WSAConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSAConnect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAConnect(
             SOCKET s,
@@ -133,7 +134,7 @@ class Ws2_32(api.ApiHandler):
         return self.connect(emu, argv[:3], ctx)
 
     @apihook("socket", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=23)
-    def socket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def socket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SOCKET socket(
             int af,
@@ -156,7 +157,7 @@ class Ws2_32(api.ApiHandler):
         return fd
 
     @apihook("inet_addr", argc=1, ordinal=11)
-    def inet_addr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def inet_addr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         unsigned long inet_addr(
             const char *cp
@@ -166,17 +167,17 @@ class Ws2_32(api.ApiHandler):
         rv = INADDR_NONE
 
         if a:
-            a = self.read_mem_string(a, 1)
-            ctx.args["cp"].display = a
+            cp = self.read_mem_string(a, 1)
+            ctx.args["cp"].display = cp
             try:
-                rv = int.from_bytes(inet_aton(a), "little")
+                rv = int.from_bytes(inet_aton(cp), "little")
             except OSError:
                 rv = INADDR_NONE
 
         return rv
 
     @apihook("htons", argc=1, conv=_arch.CALL_CONV_STDCALL, ordinal=9)
-    def htons(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def htons(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         u_short htons(
             u_short hostshort
@@ -189,7 +190,7 @@ class Ws2_32(api.ApiHandler):
         return netshort
 
     @apihook("ntohs", argc=1, ordinal=15)
-    def ntohs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ntohs(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         u_short ntohs(
             u_short netshort
@@ -200,7 +201,7 @@ class Ws2_32(api.ApiHandler):
         return ntohs(netshort & 0xFFFF)
 
     @apihook("ntohl", argc=1, ordinal=14)
-    def ntohl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ntohl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         u_long ntohl(
             u_long netlong
@@ -211,7 +212,7 @@ class Ws2_32(api.ApiHandler):
         return ntohl(netlong & 0xFFFFFFFF)
 
     @apihook("setsockopt", argc=5, ordinal=21)
-    def setsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def setsockopt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int setsockopt(
             SOCKET s,
@@ -239,7 +240,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("WSASetLastError", argc=1, ordinal=112)
-    def WSASetLastError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSASetLastError(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void WSASetLastError(
             int iError
@@ -250,14 +251,14 @@ class Ws2_32(api.ApiHandler):
         emu.set_last_error(iError)
 
     @apihook("WSAGetLastError", argc=0, ordinal=111)
-    def WSAGetLastError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WSAGetLastError(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int WSAGetLastError();
         """
         return emu.get_last_error() or 0
 
     @apihook("gethostname", argc=2, ordinal=57)
-    def gethostname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def gethostname(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int gethostname(
             char *name,
@@ -280,7 +281,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("gethostbyname", argc=1, conv=_arch.CALL_CONV_STDCALL, ordinal=52)
-    def gethostbyname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def gethostbyname(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         struct hostent *gethostbyname(
             const char *name
@@ -324,7 +325,7 @@ class Ws2_32(api.ApiHandler):
         return ptr_hostent
 
     @apihook("connect", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=4)
-    def connect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def connect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int connect(
             SOCKET s,
@@ -364,7 +365,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("bind", argc=3, ordinal=2)
-    def bind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def bind(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int bind(
             SOCKET s,
@@ -401,7 +402,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("listen", argc=2, ordinal=13)
-    def listen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def listen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int listen(
             SOCKET s,
@@ -414,7 +415,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("select", argc=5, ordinal=18)
-    def select(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def select(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int select(
             int nfds,
@@ -437,7 +438,7 @@ class Ws2_32(api.ApiHandler):
         return fd_count
 
     @apihook("accept", argc=3, ordinal=1)
-    def accept(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def accept(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SOCKET accept(
             SOCKET s,
@@ -497,7 +498,7 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("getpeername", argc=3, ordinal=5)
-    def getpeername(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def getpeername(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getpeername(
             SOCKET s,
@@ -516,7 +517,7 @@ class Ws2_32(api.ApiHandler):
         return self.write_sockaddr(emu, name, namelen, socket.connected_host, socket.connected_port)
 
     @apihook("getsockname", argc=3, ordinal=6)
-    def getsockname(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def getsockname(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getsockname(
             SOCKET s,
@@ -534,7 +535,7 @@ class Ws2_32(api.ApiHandler):
         return self.write_sockaddr(emu, name, namelen, host, 49152 + socket.fd % 16384)
 
     @apihook("inet_ntoa", argc=1, ordinal=12)
-    def inet_ntoa(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def inet_ntoa(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         char *inet_ntoa(
             struct in_addr in
@@ -551,7 +552,7 @@ class Ws2_32(api.ApiHandler):
         return buf
 
     @apihook("inet_ntop", argc=4)
-    def inet_ntop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def inet_ntop(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PCSTR inet_ntop(
             INT Family,
@@ -580,7 +581,7 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("inet_pton", argc=3)
-    def inet_pton(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def inet_pton(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT inet_pton(
             INT Family,
@@ -608,7 +609,7 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("htonl", argc=1, ordinal=8)
-    def htonl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def htonl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         u_long htonl(
             u_long hostlong
@@ -618,7 +619,7 @@ class Ws2_32(api.ApiHandler):
         return htonl(hostlong & 0xFFFFFFFF)
 
     @apihook("__WSAFDIsSet", argc=2, ordinal=151)
-    def __WSAFDIsSet(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def __WSAFDIsSet(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __WSAFDIsSet(
             SOCKET fd,
@@ -634,7 +635,7 @@ class Ws2_32(api.ApiHandler):
         return int(any(int.from_bytes(fds[i : i + ptr_size], "little") == sock for i in range(0, len(fds), ptr_size)))
 
     @apihook("shutdown", argc=2, ordinal=22)
-    def shutdown(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def shutdown(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int shutdown(
             SOCKET s,
@@ -644,7 +645,7 @@ class Ws2_32(api.ApiHandler):
         return 0
 
     @apihook("recv", argc=4, ordinal=16)
-    def recv(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def recv(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int recv(
             SOCKET s,
@@ -682,7 +683,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("send", argc=4, ordinal=19)
-    def send(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def send(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int send(
             SOCKET s,
@@ -716,7 +717,7 @@ class Ws2_32(api.ApiHandler):
         return len(data)
 
     @apihook("closesocket", argc=1, ordinal=3)
-    def closesocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def closesocket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int closesocket(
             SOCKET s
@@ -736,7 +737,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("ioctlsocket", argc=3, ordinal=10)
-    def ioctlsocket(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ioctlsocket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int ioctlsocket(
             SOCKET s,
@@ -755,7 +756,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("getaddrinfo", argc=4)
-    def getaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def getaddrinfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT getaddrinfo(
             PCSTR pNodeName,
@@ -827,7 +828,7 @@ class Ws2_32(api.ApiHandler):
         return rv
 
     @apihook("freeaddrinfo", argc=1)
-    def freeaddrinfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def freeaddrinfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID freeaddrinfo(
             PADDRINFOA pAddrInfo
@@ -836,7 +837,7 @@ class Ws2_32(api.ApiHandler):
         self.mem_free(argv[0])
 
     @apihook("getsockopt", argc=5, ordinal=7)
-    def getsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def getsockopt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getsockopt(
             SOCKET s,
