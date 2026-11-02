@@ -17,7 +17,7 @@ Use this page when you are blocked and need the fastest path to the right docume
 ### Unsupported API errors
 
 Symptom:
-- `Unsupported API: <module>.<name>` in logs/report
+- `Unsupported API: <module>.<name>` in the log, and an `unsupported_api` error in the report
 
 Read:
 - [limitations.md](limitations.md)
