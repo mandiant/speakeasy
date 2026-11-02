@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
@@ -312,6 +313,29 @@ class ApiHandler:
 
     def mem_free(self, addr):
         return self.emu.mem_free(addr)
+
+    def win_perms_to_emu_perms(self, win_perms):
+        """
+        Get the emulator permissions for a Windows page protection.
+        """
+        new = 0
+        if win_perms & (windefs.PAGE_EXECUTE_READWRITE | windefs.PAGE_EXECUTE_WRITECOPY):
+            new = common.PERM_MEM_RWX
+        elif win_perms & windefs.PAGE_NOACCESS:
+            new = common.PERM_MEM_NONE
+        else:
+            if win_perms & windefs.PAGE_EXECUTE or win_perms & windefs.PAGE_EXECUTE_READ:
+                new |= common.PERM_MEM_EXEC
+            if (
+                win_perms & windefs.PAGE_EXECUTE_READ
+                or win_perms & windefs.PAGE_READONLY
+                or win_perms & windefs.PAGE_READWRITE
+                or win_perms & windefs.PAGE_WRITECOPY
+            ):
+                new |= common.PERM_MEM_READ
+            if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
+                new |= common.PERM_MEM_WRITE
+        return new
 
     def mem_reserve(self, size, base=None, tag=None):
         return self.emu.mem_reserve(size, base=base, tag=tag)
