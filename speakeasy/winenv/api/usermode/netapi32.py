@@ -1,9 +1,14 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.defs.windows.netapi32 as netapi32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class NetApi32(api.ApiHandler):
@@ -20,7 +25,7 @@ class NetApi32(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NetGetJoinInformation", argc=3)
-    def NetGetJoinInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NetGetJoinInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NetGetJoinInformation(
             LPCWSTR lpServer,
@@ -35,7 +40,7 @@ class NetApi32(api.ApiHandler):
             ctx.args["lpServer"].display = server
 
         # Assumes the server being queried is the local computer
-        domain = emu.config.domain
+        domain = emu.config.domain or ""
         ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)
@@ -47,7 +52,7 @@ class NetApi32(api.ApiHandler):
         return netapi32defs.NERR_Success
 
     @apihook("NetWkstaGetInfo", argc=3)
-    def NetWkstaGetInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NetWkstaGetInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NetWkstaGetInfo(
             LMSTR servername,
@@ -91,7 +96,7 @@ class NetApi32(api.ApiHandler):
         self.write_mem_string(hostname, computername_ptr, width=2)
         wki.wki_computername = computername_ptr
 
-        domain = emu.config.domain
+        domain = emu.config.domain or ""
         langroup_ptr = self.mem_alloc(2 + (len(domain) * 2))
         self.write_mem_string(domain, langroup_ptr, width=2)
         wki.wki_langroup = langroup_ptr
@@ -106,7 +111,7 @@ class NetApi32(api.ApiHandler):
         return netapi32defs.NERR_Success
 
     @apihook("NetUserAdd", argc=4)
-    def NetUserAdd(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NetUserAdd(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NetUserAdd(
             LPCWSTR servername,
@@ -124,7 +129,7 @@ class NetApi32(api.ApiHandler):
         return netapi32defs.NERR_Success
 
     @apihook("NetApiBufferFree", argc=1)
-    def NetApiBufferFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NetApiBufferFree(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NET_API_STATUS NetApiBufferFree(
             LPVOID Buffer
