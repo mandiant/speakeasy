@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class sfc(api.ApiHandler):
@@ -15,7 +20,7 @@ class sfc(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SfcIsFileProtected", argc=2)
-    def SfcIsFileProtected(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SfcIsFileProtected(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SfcIsFileProtected(
             HANDLE RpcHandle,
@@ -25,7 +30,7 @@ class sfc(api.ApiHandler):
         return False
 
     @apihook("SfcTerminateWatcherThread", argc=0, ordinal=2)
-    def SfcTerminateWatcherThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SfcTerminateWatcherThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void SfcTerminateWatcherThread();
         """
