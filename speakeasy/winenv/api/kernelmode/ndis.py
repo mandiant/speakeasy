@@ -54,7 +54,6 @@ class Ndis(api.ApiHandler):
         """
         UINT NdisGetVersion();
         """
-
         ndis_major = 5
         ndis_minor = 0
         osver = self.emu.config.os_ver

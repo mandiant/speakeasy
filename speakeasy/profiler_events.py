@@ -34,7 +34,8 @@ API = "api"
 
 
 class TracePosition(BaseModel):
-    """Locates where an event occurred in execution time and context.
+    """
+    Locates where an event occurred in execution time and context.
 
     Every emitted event carries this structure so consumers can reconstruct
     chronology and thread/process ownership.
@@ -71,7 +72,8 @@ class TracePosition(BaseModel):
 
 
 class Event(BaseModel):
-    """Base class shared by all report event records.
+    """
+    Base class shared by all report event records.
 
     Concrete event types extend this with event-specific payload fields.
 
@@ -118,7 +120,8 @@ class ApiArg(BaseModel):
 
 
 class ApiEvent(Event):
-    """Records one intercepted API invocation.
+    """
+    Records one intercepted API invocation.
 
     API events are emitted by import-call handlers and represent core behavioral
     telemetry for most runs.
@@ -149,7 +152,8 @@ class ApiEvent(Event):
 
 
 class ProcessCreateEvent(Event):
-    """Records creation of a child process context.
+    """
+    Records creation of a child process context.
 
     Emitted when process-creation APIs are invoked and accepted by emulation.
 
@@ -179,7 +183,8 @@ class ProcessCreateEvent(Event):
 
 
 class MemAllocEvent(Event):
-    """Records remote or explicit process memory allocation activity.
+    """
+    Records remote or explicit process memory allocation activity.
 
     Emitted by memory allocation APIs that target process virtual memory.
 
@@ -204,7 +209,8 @@ class MemAllocEvent(Event):
 
 
 class MemWriteEvent(Event):
-    """Records writes into process memory.
+    """
+    Records writes into process memory.
 
     Emitted for API-mediated memory writes and may merge adjacent writes in the
     profiler for compactness.
@@ -230,7 +236,8 @@ class MemWriteEvent(Event):
 
 
 class MemReadEvent(Event):
-    """Records reads from process memory.
+    """
+    Records reads from process memory.
 
     Emitted for API-mediated memory reads and may merge adjacent reads in the
     profiler for compactness.
@@ -256,7 +263,8 @@ class MemReadEvent(Event):
 
 
 class MemProtectEvent(Event):
-    """Records memory protection changes.
+    """
+    Records memory protection changes.
 
     Emitted for API paths that alter page permissions in process memory.
 
@@ -284,7 +292,8 @@ class MemProtectEvent(Event):
 
 
 class MemFreeEvent(Event):
-    """Records memory free/decommit operations.
+    """
+    Records memory free/decommit operations.
 
     Emitted when memory free APIs are invoked against process regions.
 
@@ -305,7 +314,8 @@ class MemFreeEvent(Event):
 
 
 class ModuleLoadEvent(Event):
-    """Records dynamic module loading activity.
+    """
+    Records dynamic module loading activity.
 
     Emitted when module load operations map additional images during runtime.
 
@@ -320,7 +330,8 @@ class ModuleLoadEvent(Event):
 
 
 class ThreadCreateEvent(Event):
-    """Records thread creation in a process context.
+    """
+    Records thread creation in a process context.
 
     Emitted for thread creation APIs and often accompanies process injection
     workflows.
@@ -349,7 +360,8 @@ class ThreadCreateEvent(Event):
 
 
 class ThreadInjectEvent(Event):
-    """Records thread injection activity into another process.
+    """
+    Records thread injection activity into another process.
 
     Emitted for injection-oriented thread APIs.
 
@@ -376,7 +388,8 @@ class ThreadInjectEvent(Event):
 
 
 class FileCreateEvent(Event):
-    """Records file creation/open-with-create semantics.
+    """
+    Records file creation/open-with-create semantics.
 
     Emitted when file APIs request creation semantics for a path.
 
@@ -397,7 +410,8 @@ class FileCreateEvent(Event):
 
 
 class FileOpenEvent(Event):
-    """Records file open operations without explicit create intent.
+    """
+    Records file open operations without explicit create intent.
 
     Emitted for open-style file API calls.
 
@@ -418,7 +432,8 @@ class FileOpenEvent(Event):
 
 
 class FileReadEvent(Event):
-    """Records reads from a file handle.
+    """
+    Records reads from a file handle.
 
     Emitted when file-read APIs pull bytes from emulated files.
 
@@ -440,7 +455,8 @@ class FileReadEvent(Event):
 
 
 class FileWriteEvent(Event):
-    """Records writes to a file handle.
+    """
+    Records writes to a file handle.
 
     Emitted when file-write APIs append or overwrite emulated file data.
 
@@ -462,7 +478,8 @@ class FileWriteEvent(Event):
 
 
 class RegOpenKeyEvent(Event):
-    """Records registry key open operations.
+    """
+    Records registry key open operations.
 
     Emitted when registry APIs open existing keys.
 
@@ -486,7 +503,8 @@ class RegOpenKeyEvent(Event):
 
 
 class RegCreateKeyEvent(Event):
-    """Records registry key creation operations.
+    """
+    Records registry key creation operations.
 
     Emitted when registry APIs create new keys.
 
@@ -510,7 +528,8 @@ class RegCreateKeyEvent(Event):
 
 
 class RegReadValueEvent(Event):
-    """Records registry value read operations.
+    """
+    Records registry value read operations.
 
     Emitted when value-query APIs request data from a key.
 
@@ -533,7 +552,8 @@ class RegReadValueEvent(Event):
 
 
 class RegWriteValueEvent(Event):
-    """Records registry value write operations.
+    """
+    Records registry value write operations.
 
     Emitted when APIs set or overwrite a registry value.
 
@@ -556,7 +576,8 @@ class RegWriteValueEvent(Event):
 
 
 class RegListSubkeysEvent(Event):
-    """Records enumeration of registry subkeys.
+    """
+    Records enumeration of registry subkeys.
 
     Emitted when APIs list child keys beneath a registry path.
 
@@ -572,7 +593,8 @@ class RegListSubkeysEvent(Event):
 
 
 class NetDnsEvent(Event):
-    """Records DNS name resolution activity.
+    """
+    Records DNS name resolution activity.
 
     Emitted when DNS APIs request host resolution or related lookups.
 
@@ -588,7 +610,8 @@ class NetDnsEvent(Event):
 
 
 class NetTrafficEvent(Event):
-    """Records non-HTTP network traffic and socket-level activity.
+    """
+    Records non-HTTP network traffic and socket-level activity.
 
     Emitted for connect/bind/send/recv style network events.
 
@@ -608,7 +631,8 @@ class NetTrafficEvent(Event):
 
 
 class NetHttpEvent(Event):
-    """Records HTTP request telemetry.
+    """
+    Records HTTP request telemetry.
 
     Emitted by WinInet/WinHTTP handlers when requests are issued.
 
@@ -627,7 +651,8 @@ class NetHttpEvent(Event):
 
 
 class ExceptionEvent(Event):
-    """Records handled exception dispatch activity.
+    """
+    Records handled exception dispatch activity.
 
     Emitted when exception handling telemetry is captured during execution.
 

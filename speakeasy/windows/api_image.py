@@ -1,4 +1,5 @@
-"""Deterministic, mapped PE images for synthetic API modules.
+"""
+Deterministic, mapped PE images for synthetic API modules.
 
 Raw section offsets equal RVAs, so the regions also form a parseable PE file.
 The registry patches the faulting public entries after allocating private traps.
@@ -59,7 +60,8 @@ def build_api_image(
     emu_path: str,
     exports: list[ApiExportSpec],
 ) -> LoadedImage:
-    """Build a valid PE with sparse EAT ordinals and independently sorted names.
+    """
+    Build a valid PE with sparse EAT ordinals and independently sorted names.
 
     base is the preferred base. The image has no absolute addresses, so it can load at any base.
     Explicit ordinal aliases share a target. Unknown ordinals use the lowest

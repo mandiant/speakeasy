@@ -46,7 +46,6 @@ class WinHttp(api.ApiHandler):
             DWORD dwFlags
         );
         """
-
         ua, access, proxy, bypass, flags = argv
 
         if ua:
@@ -135,7 +134,6 @@ class WinHttp(api.ApiHandler):
             WINHTTP_CURRENT_USER_IE_PROXY_CONFIG *pProxyConfig
         );
         """
-
         (proxy_config,) = argv
 
         if proxy_config:
@@ -154,7 +152,6 @@ class WinHttp(api.ApiHandler):
             WINHTTP_PROXY_INFO *pProxyInfo
         );
         """
-
         hnd, url, proxopts, proxinfo = argv
 
         if url:

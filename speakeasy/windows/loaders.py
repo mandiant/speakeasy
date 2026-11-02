@@ -303,7 +303,8 @@ class InitRoutine:
 
 
 def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
-    """Check raw delay descriptors before trusting pefile's permissive parser.
+    """
+    Check raw delay descriptors before trusting pefile's permissive parser.
 
     Legacy x86 descriptors contain VAs. pefile normalizes their struct fields
     in place; retain the raw bytes so mapping does not rewrite the guest table.
@@ -354,7 +355,8 @@ def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
 
 
 class PeLoader:
-    """Load guest PEs, tolerating malformed optional inventories.
+    """
+    Load guest PEs, tolerating malformed optional inventories.
 
     Malformed import and export metadata is skipped with a warning. Image
     mapping and architecture validation are mandatory.

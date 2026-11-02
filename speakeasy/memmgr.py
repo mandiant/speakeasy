@@ -296,7 +296,6 @@ class MemoryManager:
         Retrieve a valid address range that can satisfy the requested size.
         Optionally, a base address can be specified to test if it can be used
         """
-
         page_size = self.page_size
 
         # mem_map needs to be page aligned

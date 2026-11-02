@@ -491,7 +491,6 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Get the return address from the stack
         """
-
         sp = self.get_stack_ptr()
         return int.from_bytes(self.mem_read(sp, self.ptr_size), "little")
 
@@ -499,7 +498,6 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Set the return address on the stack
         """
-
         sp = self.get_stack_ptr()
         self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), "little"))
 
@@ -804,7 +802,6 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Write string data to an emulated memory address. Appends terminating zero byte if not present.
         """
-
         if width == 1:
             encode = "utf-8"
         elif width == 2:
@@ -879,7 +876,6 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         If an API hook has been set, return it here
         """
-
         mod_name = mod_name.lower()
         func_name = func_name.lower()
         try:

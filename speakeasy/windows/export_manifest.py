@@ -1,4 +1,5 @@
-"""Physical export tables of Windows modules.
+"""
+Physical export tables of Windows modules.
 
 Each ``resources/win32/exports/<arch>/<module>.json`` file records the export
 directory of one real Windows binary: ordinals, names, forwarder strings and
@@ -75,7 +76,8 @@ class ExportManifest(BaseModel):
 
     @classmethod
     def from_path(cls, path: Path) -> ExportManifest:
-        """Load and validate one manifest file.
+        """
+        Load and validate one manifest file.
 
         Raises:
             pydantic.ValidationError: the file does not follow the manifest format.

@@ -106,7 +106,6 @@ class EmuStruct(metaclass=CMeta):
         is a metaclass, we have to build the "_fields_" dynamically via a
         factory
         """
-
         if self.__struct__:
             return
 
@@ -210,7 +209,6 @@ class EmuStruct(metaclass=CMeta):
         """
         Convert the structure to bytes and respecting endianness
         """
-
         self._link_cstructs(self)
 
         struct = self.__struct__

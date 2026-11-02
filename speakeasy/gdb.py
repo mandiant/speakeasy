@@ -1,4 +1,5 @@
-"""Speakeasy-native GDB Remote Serial Protocol server.
+"""
+Speakeasy-native GDB Remote Serial Protocol server.
 
 The server deliberately implements the all-stop subset used by GDB and IDA.
 Target operations are performed by the emulation thread; a small reader thread

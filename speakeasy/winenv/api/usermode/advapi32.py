@@ -269,7 +269,6 @@ class AdvApi32(api.ApiHandler):
             HKEY hKey
         );
         """
-
         (hKey,) = argv
 
         if not emu.regman.close_key(hKey):
@@ -474,7 +473,6 @@ class AdvApi32(api.ApiHandler):
             PFILETIME lpftLastWriteTime
         );
         """
-
         (
             hKey,
             lpClass,
@@ -531,7 +529,6 @@ class AdvApi32(api.ApiHandler):
             PHANDLE pTokenHandle
         );
         """
-
         hProcess, DesiredAccess, pTokenHandle = argv
         rv = 0
 
@@ -564,7 +561,6 @@ class AdvApi32(api.ApiHandler):
             PHANDLE TokenHandle
         );
         """
-
         ThreadHandle, DesiredAccess, OpenAsSelf, pTokenHandle = argv
         rv = 0
 
@@ -599,7 +595,6 @@ class AdvApi32(api.ApiHandler):
             PHANDLE phNewToken
         );
         """
-
         (hExistingToken, access, token_attrs, imp_level, toktype, phNewToken) = argv
         rv = 0
 
@@ -629,7 +624,6 @@ class AdvApi32(api.ApiHandler):
             DWORD TokenInformationLength
         );
         """
-
         handle, info_class, info, info_len = argv
 
         rv = 1
@@ -685,7 +679,6 @@ class AdvApi32(api.ApiHandler):
             LPHANDLER_FUNCTION lpHandlerProc
         );
         """
-
         lpServiceName, lpHandlerProc = argv
 
         # dummy SERVICE_STATUS_HANDLE
@@ -716,7 +709,6 @@ class AdvApi32(api.ApiHandler):
             LPSERVICE_STATUS lpServiceStatus
         );
         """
-
         hServiceStatus, lpServiceStatus = argv
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
@@ -1680,7 +1672,6 @@ class AdvApi32(api.ApiHandler):
             HCRYPTHASH *phHash
         );
         """
-
         hash_algs = {
             0x00008004: ("CALG_SHA1", hashlib.sha1),
             0x0000800C: ("CALG_SHA_256", hashlib.sha256),
@@ -1715,7 +1706,6 @@ class AdvApi32(api.ApiHandler):
             DWORD dwFlags
         );
         """
-
         hHash, pbData, dwDataLen, dwFlags = argv
         hnd = self.hash_objects.get(hHash, None)
         if hnd is None:
@@ -1843,7 +1833,6 @@ class AdvApi32(api.ApiHandler):
             HCRYPTKEY *phKey
         );
         """
-
         hProv, Algid, hBaseData, dwFlags, phKey = argv
 
         # Only RC4 supported right now
@@ -1896,7 +1885,6 @@ class AdvApi32(api.ApiHandler):
             DWORD *pdwDataLen
         );
         """
-
         hKey, hHash, Final, dwFlags, pbData, pdwDataLen = argv
 
         # Hashing not supported

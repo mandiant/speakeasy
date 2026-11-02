@@ -459,7 +459,6 @@ class Win32Emulator(WindowsEmulator):
         """
         Begin emulating position independent code (i.e. shellcode) to prepare for emulation
         """
-
         target = None
         for mod in self.modules:
             if isinstance(mod, RuntimeModule) and mod.base == sc_addr:
@@ -677,7 +676,6 @@ class Win32Emulator(WindowsEmulator):
 
     def set_hooks(self):
         """Set the emulator callbacks"""
-
         super().set_hooks()
 
         if not self.has_builtin_hooks:

@@ -281,7 +281,6 @@ class RegistryManager:
         """
         Create a registry key
         """
-
         path = self.normalize_reg_path(path)
         # Does this key already exist?
         key = self.get_key_from_path(path)

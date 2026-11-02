@@ -78,7 +78,6 @@ class Fwpkclnt(api.ApiHandler):
             HANDLE *engineHandle
         );
         """
-
         sname, asvc, authid, sess, eng = argv
 
         rv = ddk.STATUS_SUCCESS

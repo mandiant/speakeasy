@@ -73,7 +73,8 @@ class GdbRspClient:
 
     @staticmethod
     def _decode_rle(data: str) -> str:
-        """Decode GDB RSP run-length encoding.
+        """
+        Decode GDB RSP run-length encoding.
 
         x*N means: one explicit x, then (ord(N)-29) additional copies.
         """

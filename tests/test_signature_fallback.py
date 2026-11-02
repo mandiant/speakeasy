@@ -32,7 +32,7 @@ def _wstr(s: str) -> bytes:
 
 def _build_x64() -> tuple[bytes, dict[str, tuple[int, int]]]:
     """
-    call $+5 / pop rbx            ; rbx = blob + 5
+    Call $+5 / pop rbx            ; rbx = blob + 5
     lea rcx, [rbx + link]
     lea rdx, [rbx + target]
     mov r8d, SYMBOLIC_LINK_FLAG_DIRECTORY

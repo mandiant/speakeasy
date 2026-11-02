@@ -7,7 +7,8 @@ from speakeasy.profiler_events import AnyEvent
 
 
 def hex_serializer(v: int | None) -> str | None:
-    """Serialize integer values as ``0x``-prefixed hexadecimal strings.
+    """
+    Serialize integer values as ``0x``-prefixed hexadecimal strings.
 
     Args:
         v: Integer value to serialize.
@@ -15,14 +16,14 @@ def hex_serializer(v: int | None) -> str | None:
     Returns:
         Hexadecimal string, or ``None`` when the input is ``None``.
     """
-
     if v is None:
         return None
     return hex(v)
 
 
 def bytes_serializer(v: bytes | None) -> str | None:
-    """Serialize byte sequences as base64 ASCII strings.
+    """
+    Serialize byte sequences as base64 ASCII strings.
 
     Args:
         v: Byte payload to serialize.
@@ -30,14 +31,14 @@ def bytes_serializer(v: bytes | None) -> str | None:
     Returns:
         Base64-encoded ASCII string, or ``None`` when the input is ``None``.
     """
-
     if v is None:
         return None
     return b64encode(v).decode("ascii")
 
 
 def _parse_hex_int(v: Any) -> Any:
-    """Parse integer-like strings accepted by report models.
+    """
+    Parse integer-like strings accepted by report models.
 
     Args:
         v: Raw input value.
@@ -45,7 +46,6 @@ def _parse_hex_int(v: Any) -> Any:
     Returns:
         Parsed integer when ``v`` is a numeric string, otherwise ``v`` unchanged.
     """
-
     if isinstance(v, str):
         return int(v, 0)
     return v
@@ -61,7 +61,8 @@ Base64Bytes = Annotated[bytes | None, PlainSerializer(bytes_serializer, return_t
 
 
 class StringCollection(BaseModel):
-    """Represents one categorized bucket of extracted strings.
+    """
+    Represents one categorized bucket of extracted strings.
 
     String extraction runs both on static image bytes and post-emulation memory
     snapshots. This model keeps ANSI and UTF-16 findings separated.
@@ -91,7 +92,8 @@ class StringCollection(BaseModel):
 
 
 class StringsReport(BaseModel):
-    """Groups static and in-memory string extraction results.
+    """
+    Groups static and in-memory string extraction results.
 
     Static strings come from the original loaded image, while in-memory strings
     are collected after execution and often include decoded/decrypted content.
@@ -131,7 +133,8 @@ class RegionInfo(BaseModel):
 
 
 class ErrorInfo(BaseModel):
-    """Captures failure context for top-level or per-entry-point errors.
+    """
+    Captures failure context for top-level or per-entry-point errors.
 
     Error records can represent unsupported API termination, instruction faults,
     explicit runtime limits, or unhandled exceptions.
@@ -225,7 +228,8 @@ class ErrorInfo(BaseModel):
 
 
 class SymAccessReport(BaseModel):
-    """Summarizes memory accesses to symbol-resolved addresses.
+    """
+    Summarizes memory accesses to symbol-resolved addresses.
 
     Symbol access accounting is mainly populated when memory tracing is active
     and the emulator can resolve touched addresses back to known symbols.
@@ -264,7 +268,8 @@ class SymAccessReport(BaseModel):
 
 
 class DynamicCodeSegment(BaseModel):
-    """Describes one dynamically generated code region that executed.
+    """
+    Describes one dynamically generated code region that executed.
 
     Dynamic code segments are added when execution reaches memory previously
     registered as dynamic code (for example after VirtualAlloc/WriteProcessMemory
@@ -296,7 +301,8 @@ class DynamicCodeSegment(BaseModel):
 
 
 class DataArtifact(BaseModel):
-    """Stores one deduplicated binary payload referenced elsewhere in a report.
+    """
+    Stores one deduplicated binary payload referenced elsewhere in a report.
 
     Payloads are keyed by SHA-256 in the top-level ``Report.data`` mapping.
     Other models store the SHA-256 key as a reference instead of embedding bytes
@@ -312,7 +318,8 @@ class DataArtifact(BaseModel):
 
 
 class DroppedFile(BaseModel):
-    """Represents one file artifact written by emulated execution.
+    """
+    Represents one file artifact written by emulated execution.
 
     Dropped-file entries are created from filesystem manager state when a run
     completes and fully written files are detected.
@@ -344,7 +351,8 @@ class DroppedFile(BaseModel):
 
 
 class MemoryAccesses(BaseModel):
-    """Aggregates read/write/execute counters for one memory region.
+    """
+    Aggregates read/write/execute counters for one memory region.
 
     These counters are produced by runtime memory tracing hooks when enabled.
 
@@ -374,7 +382,8 @@ class MemoryAccesses(BaseModel):
 
 
 class MemoryRegion(BaseModel):
-    """Represents one memory layout entry captured for an entry point.
+    """
+    Represents one memory layout entry captured for an entry point.
 
     Memory layout capture runs at run completion and may include section-split
     module regions plus generic heap/stack mappings.
@@ -431,7 +440,8 @@ class MemoryRegion(BaseModel):
 
 
 class ModuleSegment(BaseModel):
-    """Describes one section-like segment within a loaded module.
+    """
+    Describes one section-like segment within a loaded module.
 
     Segment data is collected from module metadata during memory layout capture.
 
@@ -463,7 +473,8 @@ class ModuleSegment(BaseModel):
 
 
 class LoadedModule(BaseModel):
-    """Captures one module visible in the run's loaded-module inventory.
+    """
+    Captures one module visible in the run's loaded-module inventory.
 
     Module entries are assembled from runtime module objects at run completion.
 
@@ -500,7 +511,8 @@ class LoadedModule(BaseModel):
 
 
 class MemoryLayout(BaseModel):
-    """Bundles memory-region and loaded-module snapshots for one run.
+    """
+    Bundles memory-region and loaded-module snapshots for one run.
 
     This object is populated when the emulator captures run-end memory state.
 
@@ -526,7 +538,8 @@ class MemoryLayout(BaseModel):
 
 
 class EntryPoint(BaseModel):
-    """Represents one emulation execution primitive captured as a run.
+    """
+    Represents one emulation execution primitive captured as a run.
 
     A run may be a module entry point, callback, exported function, injected
     thread, or other execution start context.
@@ -643,7 +656,8 @@ class EntryPoint(BaseModel):
 
 
 class Report(BaseModel):
-    """Top-level Speakeasy output report model.
+    """
+    Top-level Speakeasy output report model.
 
     This object combines run telemetry, metadata for the emulated input, and
     optional analysis artifacts.
@@ -747,7 +761,8 @@ class Report(BaseModel):
 
 
 class FileManifestEntry(BaseModel):
-    """Manifest entry used by dropped-file archive exports.
+    """
+    Manifest entry used by dropped-file archive exports.
 
     These records are stored in ``speakeasy_manifest.json`` inside file archive
     bundles created by the high-level API.

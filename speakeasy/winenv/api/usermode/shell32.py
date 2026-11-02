@@ -332,7 +332,6 @@ class Shell32(api.ApiHandler):
             UINT nIconIndex
         );
         """
-
         return self.get_handle()
 
     @apihook("SHGetFolderPath", argc=5)

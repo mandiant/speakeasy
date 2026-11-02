@@ -112,7 +112,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Allocate memory in the emulated "pool"
         """
-
         if pooltype == ddk.POOL_TYPE.NonPagedPool:
             pt = "NonPagedPool"
         elif pooltype == ddk.POOL_TYPE.PagedPool:
@@ -228,7 +227,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Begin emulation fo a previously loaded kernel module
         """
-
         self.all_entrypoints = all_entrypoints
 
         # Create the service key for the driver
@@ -405,7 +403,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         """
         Call the unload routine for a driver
         """
-
         if not drv.on_unload or drv.unload_called:
             self.on_emu_complete()
             return
@@ -506,7 +503,6 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
     def set_hooks(self):
         """Set the emulator callbacks"""
-
         super().set_hooks()
 
         if not self.has_builtin_hooks:

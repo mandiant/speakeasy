@@ -6,7 +6,8 @@ from pathlib import Path, PureWindowsPath
 
 
 def parse_volume_spec(spec: str) -> tuple[Path, PureWindowsPath]:
-    """Parse a ``host_path:guest_path`` volume specification.
+    """
+    Parse a ``host_path:guest_path`` volume specification.
 
     Handles Windows drive-letter colons on both sides (e.g.
     ``C:\\samples:C:\\guest``).  The real separator is the first ``:``
@@ -38,7 +39,8 @@ def parse_volume_spec(spec: str) -> tuple[Path, PureWindowsPath]:
 
 
 def expand_volume_to_entries(host_path: Path, guest_path: PureWindowsPath) -> list[dict]:
-    """Expand a volume mapping into ``FileEntryFullPath``-compatible dicts.
+    """
+    Expand a volume mapping into ``FileEntryFullPath``-compatible dicts.
 
     If *host_path* is a file, one entry is returned.  If it is a
     directory, every file underneath it (recursively) becomes an entry
@@ -77,7 +79,8 @@ def expand_volume_to_entries(host_path: Path, guest_path: PureWindowsPath) -> li
 
 
 def apply_volumes(config: dict, volume_specs: list[str]) -> dict:
-    """Parse *volume_specs* and prepend the resulting file entries to *config*.
+    """
+    Parse *volume_specs* and prepend the resulting file entries to *config*.
 
     Entries are prepended so they win first-match resolution in
     ``get_emu_file()``.

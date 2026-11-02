@@ -271,7 +271,8 @@ class RunLimits:
         return max(self.deadline - time.monotonic(), 0.000001) if self.deadline is not None else 0
 
     def get_native_count(self) -> int:
-        """Get the instruction count for the next native start, or 0 for no limit.
+        """
+        Get the instruction count for the next native start, or 0 for no limit.
 
         The count stops native execution at the instruction limit, so that
         tracing hooks do not see an instruction beyond it. The accounting hook
@@ -1225,7 +1226,8 @@ class WindowsEmulator(BinaryEmulator):
         self.suspended_runs.clear()
 
     def resume(self, addr, count=-1) -> None:
-        """Resume emulation directly at an address.
+        """
+        Resume emulation directly at an address.
 
         This low-level API bypasses the GDB command loop; callers that enable
         GDB should drive execution through :meth:`start` instead.
@@ -1406,7 +1408,8 @@ class WindowsEmulator(BinaryEmulator):
         return True
 
     def _end_at_total_budget(self, debugger: GdbServer | None = None) -> None:
-        """Cancel the runs that are left and end the emulation, because the total budget is spent.
+        """
+        Cancel the runs that are left and end the emulation, because the total budget is spent.
 
         Args:
             debugger: the GDB session to send the exit reply to, if the client still waits for one.
@@ -1544,7 +1547,6 @@ class WindowsEmulator(BinaryEmulator):
         Set up the GDT so we can access segment registers correctly
         This will be done a little differently depending on architecture
         """
-
         GDT_SIZE = 0x1000
         SEG_SIZE = 0x1000
         ENTRY_SIZE = 0x8
@@ -1711,7 +1713,6 @@ class WindowsEmulator(BinaryEmulator):
         """
         Parse a PE file or buffer without loading it into the emulator
         """
-
         if not data:
             if path is None:
                 raise WindowsEmuError("No PE data to parse")
@@ -1732,7 +1733,8 @@ class WindowsEmulator(BinaryEmulator):
         return None
 
     def ensure_pe_import_hooks(self, base_addr):
-        """Bind imports of an injected mapped PE using the public API registry.
+        """
+        Bind imports of an injected mapped PE using the public API registry.
 
         Bind each valid IAT slot independently and skip invalid slots.
         A zero OriginalFirstThunk may reuse an already bound IAT; recorded
@@ -2450,7 +2452,8 @@ class WindowsEmulator(BinaryEmulator):
         address_region: RegionInfo | None,
         nearby_regions: list[RegionInfo] | None,
     ) -> str:
-        """Build a human-readable one-line triage summary.
+        """
+        Build a human-readable one-line triage summary.
 
         Examples::
 
@@ -2485,7 +2488,8 @@ class WindowsEmulator(BinaryEmulator):
         api_name: str | None = None,
         message: str | None = None,
     ) -> ErrorInfo:
-        """Collect emulator state information in the event of an error.
+        """
+        Collect emulator state information in the event of an error.
 
         For an error at an API trap, give the API name and its return address
         as the address, because the trap holds no instruction to show.
@@ -3174,7 +3178,8 @@ class WindowsEmulator(BinaryEmulator):
         return "{}.{}".format(*auxiliary) if auxiliary else None
 
     def get_symbols(self) -> dict[int, tuple[str, str]]:
-        """Snapshot public addresses as legacy (dll, name) tuples.
+        """
+        Snapshot public addresses as legacy (dll, name) tuples.
 
         Registry entries take precedence over auxiliary labels at the same address.
         Forwarder strings and private dispatch tokens are not public symbols.

@@ -74,7 +74,8 @@ def test_invalid_read_has_stack_trace(_read_error):
 
 
 def test_invalid_read_context_summary(_read_error):
-    """Verify the one-line triage summary is present and structured.
+    """
+    Verify the one-line triage summary is present and structured.
 
     Expected format:
         read of 0xdeadbeef; from <module>+0x5; in unknown [0xdeadb000-0xdeadbfff]
@@ -93,7 +94,8 @@ def test_invalid_write_error_fields(_write_error):
 
 
 def test_invalid_write_context_summary(_write_error):
-    """Verify the write summary reports the correct access type.
+    """
+    Verify the write summary reports the correct access type.
 
     Expected format:
         write of 0xdeadbeef; from <module>+0x5; in unknown [0xdeadb000-0xdeadbfff]
